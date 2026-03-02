@@ -68,7 +68,7 @@ class BillingCheckoutController extends Controller
         }
     }
 
-    public function status(string $hostedpage_id)
+    public function status(Request $request, string $hostedpage_id)
     {
         try {
             $payment = Payment::query()
@@ -77,102 +77,127 @@ class BillingCheckoutController extends Controller
                 ->latest('created_at')
                 ->first();
 
-            if (! $payment) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Payment record not found for hosted page.',
-                    'data' => [
-                        'hostedpage_id' => $hostedpage_id,
-                    ],
-                ], 404);
+            $user = null;
+
+            if ($payment) {
+                $user = User::query()->where('id', $payment->user_id)->first();
             }
 
-            $user = User::query()->where('id', $payment->user_id)->first();
+            if (! $user) {
+                /** @var User|null $authUser */
+                $authUser = $request->user();
+                $user = $authUser;
+            }
 
             if (! $user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'User not found for payment.',
+                    'message' => 'User not found for hosted page status.',
                     'data' => [
                         'hostedpage_id' => $hostedpage_id,
-                        'payment_id' => $payment->id,
                     ],
                 ], 404);
             }
 
             $hostedPageResponse = $this->zohoBillingService->getHostedPage($hostedpage_id);
-            $hostedpage = $hostedPageResponse['hostedpage'] ?? [];
-            $subscription = $hostedpage['subscription'] ?? [];
-            $invoice = $hostedpage['invoice'] ?? [];
 
-            if ($hostedpage === [] || $subscription === []) {
-                Log::warning('Zoho hosted page response missing hostedpage/subscription', [
-                    'hostedpage_id' => $hostedpage_id,
-                    'user_id' => $user->id,
-                    'response_keys' => array_keys($hostedPageResponse),
-                ]);
+            $hostedPage = data_get($hostedPageResponse, 'hostedpage')
+                ?? data_get($hostedPageResponse, 'hosted_page')
+                ?? data_get($hostedPageResponse, 'data.hostedpage')
+                ?? [];
 
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Hosted page response is missing subscription details.',
-                    'data' => [
-                        'hostedpage_id' => $hostedpage_id,
-                        'hostedpage_status' => $hostedpage['status'] ?? null,
-                    ],
-                ], 422);
-            }
+            $hostedPageStatus = data_get($hostedPage, 'status')
+                ?? data_get($hostedPage, 'hostedpage_status')
+                ?? data_get($hostedPageResponse, 'status')
+                ?? null;
 
-            $parsed = $this->zohoBillingService->parseHostedPageForMembership($hostedPageResponse);
-            $status = strtolower((string) ($parsed['status'] ?? $hostedpage['status'] ?? ''));
-            $isSuccess = in_array($status, ['paid', 'success', 'completed', 'active', 'payment_success'], true)
-                && ! empty($subscription['subscription_id']);
+            $subscriptionBlock = data_get($hostedPage, 'subscription')
+                ?? data_get($hostedPage, 'subscriptions.0')
+                ?? [];
 
-            if (! $isSuccess) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Payment is not completed yet.',
-                    'data' => [
-                        'hostedpage_status' => $status,
-                        'hostedpage_id' => $hostedpage_id,
-                    ],
-                ]);
-            }
+            $subscriptionId = data_get($subscriptionBlock, 'subscription_id')
+                ?? data_get($hostedPage, 'subscription_id')
+                ?? null;
 
-            $subscriptionId = $subscription['subscription_id'] ?? $parsed['subscription_id'] ?? null;
-            $planCode = $subscription['plan_code'] ?? data_get($subscription, 'plan.plan_code') ?? $payment->zoho_plan_code;
-            $startDate = $subscription['current_term_starts_at'] ?? $subscription['created_time'] ?? $parsed['starts_at'] ?? now();
-            $endDate = $subscription['current_term_ends_at']
-                ?? $subscription['expires_at']
-                ?? $parsed['ends_at']
-                ?? now()->copy()->addYear()->toDateTimeString();
-            $lastInvoiceId = $invoice['invoice_id'] ?? $parsed['invoice_id'] ?? null;
+            $planCode = data_get($subscriptionBlock, 'plan.plan_code')
+                ?? data_get($subscriptionBlock, 'plan_code')
+                ?? data_get($hostedPage, 'plan_code')
+                ?? $payment?->zoho_plan_code;
 
-            Log::info('Zoho membership sync parsed values', [
+            $invoiceId = data_get($hostedPage, 'invoice.invoice_id')
+                ?? data_get($hostedPage, 'invoice_id')
+                ?? null;
+
+            $termStart = data_get($subscriptionBlock, 'current_term_starts_at')
+                ?? data_get($subscriptionBlock, 'created_time')
+                ?? now()->toDateTimeString();
+
+            $termEnd = data_get($subscriptionBlock, 'current_term_ends_at')
+                ?? data_get($subscriptionBlock, 'expires_at')
+                ?? null;
+
+            Log::info('Zoho checkout status parsed', [
                 'hostedpage_id' => $hostedpage_id,
                 'user_id' => $user->id,
+                'hostedpage_status' => $hostedPageStatus,
                 'subscription_id' => $subscriptionId,
                 'plan_code' => $planCode,
-                'start_date' => $startDate,
-                'end_date' => $endDate,
+                'term_start' => $termStart,
+                'term_end' => $termEnd,
             ]);
 
-            DB::transaction(function () use ($user, $payment, $subscriptionId, $planCode, $startDate, $endDate, $lastInvoiceId): void {
+            if (! $subscriptionId) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment not finalized yet',
+                    'data' => [
+                        'hostedpage_id' => $hostedpage_id,
+                        'hostedpage_status' => $hostedPageStatus,
+                        'has_subscription' => false,
+                    ],
+                ]);
+            }
+
+            $normalizedStatus = strtolower((string) $hostedPageStatus);
+            $isCompleted = in_array($normalizedStatus, ['paid', 'success', 'completed', 'active', 'payment_success'], true);
+
+            if (! $isCompleted) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment not finalized yet',
+                    'data' => [
+                        'hostedpage_id' => $hostedpage_id,
+                        'hostedpage_status' => $hostedPageStatus,
+                        'has_subscription' => true,
+                    ],
+                ]);
+            }
+
+            if (! $termEnd) {
+                $termEnd = (string) (strtolower((string) $planCode) === '01'
+                    ? now()->copy()->addYear()->toDateTimeString()
+                    : now()->copy()->addYear()->toDateTimeString());
+            }
+
+            DB::transaction(function () use ($user, $payment, $subscriptionId, $planCode, $termStart, $termEnd, $invoiceId): void {
                 $this->membershipUpdater->applyPaidMembership($user, [
                     'zoho_subscription_id' => $subscriptionId,
                     'zoho_plan_code' => $planCode,
-                    'zoho_last_invoice_id' => $lastInvoiceId,
-                    'membership_starts_at' => $startDate,
-                    'membership_ends_at' => $endDate,
+                    'zoho_last_invoice_id' => $invoiceId,
+                    'membership_starts_at' => $termStart,
+                    'membership_ends_at' => $termEnd,
                     'last_payment_at' => now(),
                 ]);
 
-                $payment->forceFill([
-                    'status' => 'paid',
-                    'paid_at' => now(),
-                    'zoho_plan_code' => $planCode,
-                ])->save();
+                if ($payment) {
+                    $payment->forceFill([
+                        'status' => 'paid',
+                        'paid_at' => now(),
+                        'zoho_plan_code' => $planCode,
+                    ])->save();
 
-                $this->syncUserMembershipRow($user, $payment, $startDate, $endDate);
+                    $this->syncUserMembershipRow($user, $payment, $termStart, $termEnd);
+                }
             });
 
             $freshUser = $user->fresh();
@@ -187,6 +212,7 @@ class BillingCheckoutController extends Controller
                     'zoho_subscription_id' => $freshUser?->zoho_subscription_id,
                     'zoho_last_invoice_id' => $freshUser?->zoho_last_invoice_id,
                     'zoho_plan_code' => $freshUser?->zoho_plan_code,
+                    'hostedpage_status' => $hostedPageStatus,
                 ],
             ]);
         } catch (Throwable $throwable) {

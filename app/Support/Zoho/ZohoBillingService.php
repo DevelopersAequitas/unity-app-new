@@ -141,7 +141,15 @@ class ZohoBillingService
 
     public function getHostedPage(string $hostedpageId): array
     {
-        return $this->client->request('GET', '/hostedpages/' . $hostedpageId);
+        $response = $this->client->request('GET', '/hostedpages/' . $hostedpageId);
+
+        Log::info('Zoho hosted page response shape', [
+            'hostedpage_id' => $hostedpageId,
+            'response_keys' => array_keys($response),
+            'hostedpage_keys' => array_keys(data_get($response, 'hostedpage', [])),
+        ]);
+
+        return $response;
     }
 
     public function parseHostedPageForMembership(array $hostedPageResponse): array
