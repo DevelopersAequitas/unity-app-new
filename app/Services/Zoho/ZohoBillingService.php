@@ -88,15 +88,30 @@ class ZohoBillingService
 
     public function createCustomerWithContactPerson(User $user): array
     {
-        $name = (string) ($user->name ?? '');
+        $customerName = $this->buildZohoCustomerName($user);
 
         $payload = [
-            'customer_name' => $name,
-            'company_name' => $user->company_name ?? $name,
+            'customer_name' => $customerName,
+            'company_name' => trim((string) ($user->company_name ?? '')) ?: $customerName,
             'phone' => $user->phone ?? null,
         ];
 
-        $body = $this->zohoRequest('POST', '/customers', [], $payload)->json();
+        $response = Http::withToken($this->getAccessToken(), 'Zoho-oauthtoken')
+            ->post($this->billingBaseUrl().'/customers', array_merge($payload, [
+                'organization_id' => (string) config('services.zoho.org_id'),
+            ]));
+
+        if (! $response->successful()) {
+            Log::error('Zoho customer create failed', [
+                'payload' => $payload,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            throw new RuntimeException('Zoho API request failed: '.$response->body());
+        }
+
+        $body = $response->json();
 
         if (! is_array($body)) {
             throw new RuntimeException('Invalid Zoho customer create response.');
@@ -391,6 +406,43 @@ class ZohoBillingService
             'month', 'months' => $now->copy()->addMonths(max($interval, 1)),
             default => $now->copy()->addYears(max($interval, 1)),
         };
+    }
+
+
+    private function buildZohoCustomerName(User $user): string
+    {
+        $raw = (string) ($user->name ?? '');
+
+        if ($raw === '') {
+            $raw = (string) ($user->full_name ?? '');
+        }
+        if ($raw === '') {
+            $raw = (string) ($user->company_name ?? '');
+        }
+        if ($raw === '') {
+            $raw = (string) ($user->email ?? '');
+        }
+        if ($raw === '') {
+            $raw = (string) ($user->phone ?? '');
+        }
+
+        $raw = trim((string) preg_replace('/\s+/', ' ', $raw));
+        $raw = (string) preg_replace('/[[:cntrl:]]/', '', $raw);
+        $raw = trim($raw);
+
+        if ($raw === '') {
+            $id = (string) ($user->id ?? '');
+            $suffix = $id !== ''
+                ? substr(str_replace('-', '', $id), 0, 8)
+                : (string) now()->timestamp;
+            $raw = 'Unity Customer '.$suffix;
+        }
+
+        if (mb_strlen($raw) > 80) {
+            $raw = rtrim(mb_substr($raw, 0, 80));
+        }
+
+        return $raw;
     }
 
     private function findContactPersonByEmailFromList(array $contacts, string $normalizedEmail): ?array
