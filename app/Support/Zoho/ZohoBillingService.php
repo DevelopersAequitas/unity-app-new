@@ -142,16 +142,16 @@ class ZohoBillingService
     public function getHostedPage(string $hostedpageId): array
     {
         $response = $this->client->request('GET', '/hostedpages/' . $hostedpageId);
+        $normalized = $this->normalizeHostedPageResponse($response);
 
         Log::info('Zoho hosted page response shape', [
             'hostedpage_id' => $hostedpageId,
             'response_keys' => array_keys($response),
-            'hostedpage_keys' => array_keys(data_get($response, 'hostedpage', [])),
+            'hostedpage_keys' => array_keys($normalized['hostedpage'] ?? []),
         ]);
 
-        return $response;
+        return $normalized;
     }
-
 
     public function getSubscription(string $subscriptionId): array
     {
@@ -169,6 +169,15 @@ class ZohoBillingService
             'subscription_id' => $subscriptionId,
             'page' => 1,
             'per_page' => 10,
+        ], true);
+    }
+
+    public function listSubscriptionsByCustomer(string $customerId): array
+    {
+        return $this->client->request('GET', '/subscriptions', [
+            'customer_id' => $customerId,
+            'sort_column' => 'created_time',
+            'sort_order' => 'D',
         ], true);
     }
 
@@ -320,6 +329,20 @@ class ZohoBillingService
             'phone' => $phone,
             'mobile' => $phone,
             'is_primary_contact' => true,
+        ];
+    }
+
+    private function normalizeHostedPageResponse(array $resp): array
+    {
+        $data = $resp['data'] ?? [];
+        $hostedPage = $resp['hostedpage']
+            ?? ($data['hostedpage'] ?? null)
+            ?? $data
+            ?? [];
+
+        return [
+            'raw' => $resp,
+            'hostedpage' => is_array($hostedPage) ? $hostedPage : [],
         ];
     }
 

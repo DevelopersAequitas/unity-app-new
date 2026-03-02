@@ -99,42 +99,71 @@ class BillingCheckoutController extends Controller
                 ], 404);
             }
 
-            $hostedPageResponse = $this->zohoBillingService->getHostedPage($hostedpage_id);
+            $zohoResponse = $this->zohoBillingService->getHostedPage($hostedpage_id);
 
-            $hostedPage = data_get($hostedPageResponse, 'hostedpage')
-                ?? data_get($hostedPageResponse, 'hosted_page')
-                ?? data_get($hostedPageResponse, 'data.hostedpage')
-                ?? [];
+            $hostedPage = $zohoResponse['hostedpage'] ?? [];
 
-            $hostedPageStatus = data_get($hostedPage, 'status')
+            $hostedPageStatus =
+                data_get($hostedPage, 'status')
                 ?? data_get($hostedPage, 'hostedpage_status')
-                ?? data_get($hostedPageResponse, 'status')
+                ?? data_get($zohoResponse, 'status')
                 ?? null;
 
-            $subscriptionBlock = data_get($hostedPage, 'subscription')
+            $subscriptionBlock =
+                data_get($hostedPage, 'subscription')
                 ?? data_get($hostedPage, 'subscriptions.0')
                 ?? [];
 
-            $subscriptionId = data_get($subscriptionBlock, 'subscription_id')
+            $subscriptionId =
+                data_get($subscriptionBlock, 'subscription_id')
                 ?? data_get($hostedPage, 'subscription_id')
+                ?? data_get($hostedPage, 'data.subscription.subscription_id')
                 ?? null;
 
-            $planCode = data_get($subscriptionBlock, 'plan.plan_code')
-                ?? data_get($subscriptionBlock, 'plan_code')
-                ?? data_get($hostedPage, 'plan_code')
-                ?? $payment?->zoho_plan_code;
-
-            $invoiceId = data_get($hostedPage, 'invoice.invoice_id')
+            $invoiceId =
+                data_get($hostedPage, 'invoice.invoice_id')
                 ?? data_get($hostedPage, 'invoice_id')
                 ?? null;
 
-            $termStart = data_get($subscriptionBlock, 'current_term_starts_at')
+            $planCode =
+                data_get($hostedPage, 'subscription.plan.plan_code')
+                ?? data_get($hostedPage, 'plan.plan_code')
+                ?? data_get($hostedPage, 'plan_code')
+                ?? data_get($hostedPage, 'subscription.plan_code')
+                ?? $payment?->zoho_plan_code;
+
+            $termStart =
+                data_get($subscriptionBlock, 'current_term_starts_at')
                 ?? data_get($subscriptionBlock, 'created_time')
                 ?? now()->toDateTimeString();
 
-            $termEnd = data_get($subscriptionBlock, 'current_term_ends_at')
+            $termEnd =
+                data_get($subscriptionBlock, 'current_term_ends_at')
                 ?? data_get($subscriptionBlock, 'expires_at')
                 ?? null;
+
+            if (strtolower((string) $hostedPageStatus) === 'success' && $subscriptionId === null) {
+                $customerId = $user->zoho_customer_id ?: data_get($hostedPage, 'customer_id');
+
+                if ($customerId) {
+                    $subscriptionList = $this->zohoBillingService->listSubscriptionsByCustomer((string) $customerId);
+                    $latestSubscription = data_get($subscriptionList, 'subscriptions.0', []);
+
+                    if (is_array($latestSubscription) && $latestSubscription !== []) {
+                        $subscriptionId = data_get($latestSubscription, 'subscription_id');
+                        $planCode = $planCode
+                            ?? data_get($latestSubscription, 'plan.plan_code')
+                            ?? data_get($latestSubscription, 'plan_code');
+                        $termStart = data_get($latestSubscription, 'current_term_starts_at')
+                            ?? data_get($latestSubscription, 'created_time')
+                            ?? $termStart;
+                        $termEnd = data_get($latestSubscription, 'current_term_ends_at')
+                            ?? data_get($latestSubscription, 'expires_at')
+                            ?? $termEnd;
+                        $subscriptionBlock = $latestSubscription;
+                    }
+                }
+            }
 
             Log::info('Zoho checkout status parsed', [
                 'hostedpage_id' => $hostedpage_id,
