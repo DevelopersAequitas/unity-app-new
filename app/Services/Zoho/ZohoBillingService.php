@@ -88,41 +88,12 @@ class ZohoBillingService
 
     public function createCustomerWithContactPerson(User $user): array
     {
-        $customerEmail = trim((string) $user->email);
-
-        if ($customerEmail === '') {
-            throw new RuntimeException('User email is required to create Zoho customer.');
-        }
-
-        $firstName = trim((string) ($user->first_name ?? ''));
-        $lastName = trim((string) ($user->last_name ?? ''));
-        $displayName = trim((string) ($user->display_name ?? ''));
-
-        if ($displayName === '') {
-            $displayName = trim($firstName.' '.$lastName);
-        }
-        if ($displayName === '') {
-            $displayName = $customerEmail;
-        }
-
-        $contactEmail = $this->contactPersonEmailForUser($user);
+        $name = (string) ($user->name ?? '');
 
         $payload = [
-            'customer_name' => $displayName,
-            'display_name' => $displayName,
-            'email' => $customerEmail,
-            'phone' => $user->phone ?: null,
-            'billing_address' => array_filter([
-                'city' => $user->city ?: null,
-                'state' => $user->state ?? null,
-                'country' => 'IN',
-            ], static fn ($value): bool => $value !== null && $value !== ''),
-            'contact_persons' => [[
-                'first_name' => $firstName !== '' ? $firstName : $displayName,
-                'last_name' => $lastName,
-                'email' => $contactEmail,
-                'is_primary_contact' => true,
-            ]],
+            'customer_name' => $name,
+            'company_name' => $user->company_name ?? $name,
+            'phone' => $user->phone ?? null,
         ];
 
         $body = $this->zohoRequest('POST', '/customers', [], $payload)->json();
