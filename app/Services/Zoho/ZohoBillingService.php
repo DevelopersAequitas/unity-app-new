@@ -12,6 +12,8 @@ use RuntimeException;
 
 class ZohoBillingService
 {
+    private const TEST_CONTACT_EMAIL = 'demo@gmail.com';
+
     public function getAccessToken(): string
     {
         $cacheKey = $this->tokenCacheKey();
@@ -117,7 +119,7 @@ class ZohoBillingService
             'contact_persons' => [[
                 'first_name' => $firstName !== '' ? $firstName : $displayName,
                 'last_name' => $lastName,
-                'email' => $email,
+                'email' => self::TEST_CONTACT_EMAIL,
                 'is_primary_contact' => true,
             ]],
         ];
@@ -160,11 +162,7 @@ class ZohoBillingService
 
     public function createContactPerson(string $customerId, User $user): array
     {
-        $email = trim((string) $user->email);
-
-        if ($email === '') {
-            throw new RuntimeException('User email is required to create contact person.');
-        }
+        $email = self::TEST_CONTACT_EMAIL;
 
         $response = $this->zohoRequest('POST', '/customers/'.$customerId.'/contactpersons', [], [
             'first_name' => trim((string) ($user->first_name ?? '')),
@@ -207,28 +205,24 @@ class ZohoBillingService
 
     public function ensurePrimaryPortalContactPerson(string $customerId, User $user): array
     {
-        $email = $this->normalizeEmail((string) $user->email);
-
-        if ($email === '') {
-            throw new RuntimeException('User email is required to ensure contact person.');
-        }
+        $email = $this->normalizeEmail(self::TEST_CONTACT_EMAIL);
 
         $customer = $this->getCustomer($customerId);
         $existing = $this->findContactPersonByEmail($customer, $email);
 
         if (is_array($existing)) {
-            Log::info('Zoho contact person reused', [
+            Log::info('Zoho contact person reused/created', [
                 'customer_id' => $customerId,
-                'email' => $email,
+                'email_used' => self::TEST_CONTACT_EMAIL,
                 'action' => 'reused',
             ]);
         } else {
             try {
                 $existing = $this->createContactPerson($customerId, $user);
 
-                Log::info('Zoho contact person created', [
+                Log::info('Zoho contact person reused/created', [
                     'customer_id' => $customerId,
-                    'email' => $email,
+                    'email_used' => self::TEST_CONTACT_EMAIL,
                     'action' => 'created',
                 ]);
             } catch (RuntimeException $e) {
@@ -237,7 +231,7 @@ class ZohoBillingService
 
                 Log::warning('Zoho contact person create failed', [
                     'customer_id' => $customerId,
-                    'email' => $email,
+                    'email_used' => self::TEST_CONTACT_EMAIL,
                     'zoho_error_code' => $errorCode,
                 ]);
 
@@ -252,9 +246,9 @@ class ZohoBillingService
                     throw $e;
                 }
 
-                Log::info('Zoho contact person duplicate resolved by reuse', [
+                Log::info('Zoho contact person reused/created', [
                     'customer_id' => $customerId,
-                    'email' => $email,
+                    'email_used' => self::TEST_CONTACT_EMAIL,
                     'action' => 'reused_after_31027',
                     'zoho_error_code' => $errorCode,
                 ]);
