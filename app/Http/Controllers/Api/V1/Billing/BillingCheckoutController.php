@@ -81,7 +81,8 @@ class BillingCheckoutController extends Controller
 
 /*
 | Test steps
-| 1) Call POST /api/v1/billing/checkout with plan_code=01.
-| 2) Open checkout_url: mobile must not be requested.
-| 3) Complete payment and confirm redirect to Razorpay works.
+| 1) POST /api/v1/billing/checkout {"plan_code":"01"}
+| 2) Check laravel.log has: Zoho Billing request {"method":"POST","path":"/hostedpages/newsubscription",...}
+| 3) Response must include checkout_url.
+| 4) Open checkout_url and complete payment flow.
 */

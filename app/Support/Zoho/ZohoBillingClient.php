@@ -16,7 +16,11 @@ class ZohoBillingClient
     public function request(string $method, string $path, array $data = [], array $query = []): array
     {
         $baseUrl = rtrim((string) config('zoho_billing.base_url'), '/');
-        $url = $baseUrl . '/' . ltrim($path, '/');
+        $normalizedPath = ltrim($path, '/');
+        if (str_starts_with($normalizedPath, 'billing/v1/')) {
+            $normalizedPath = substr($normalizedPath, strlen('billing/v1/'));
+        }
+        $url = $baseUrl . '/' . $normalizedPath;
 
         $request = Http::timeout((int) config('zoho_billing.timeout_seconds', 20))
             ->retry(
@@ -35,6 +39,7 @@ class ZohoBillingClient
         Log::info('Zoho Billing request', [
             'method' => strtoupper($method),
             'path' => $path,
+            'final_url' => $url,
             'query' => $query,
             'has_body' => $data !== [],
         ]);
@@ -71,7 +76,15 @@ class ZohoBillingClient
             'response' => $json,
         ]);
 
-        throw new ZohoBillingException($zohoMessage, $zohoCode, $response->status(), $json);
+        $exceptionMessage = sprintf(
+            'Zoho API request failed. status=%d code=%s message=%s body=%s',
+            $response->status(),
+            $zohoCode,
+            $zohoMessage,
+            json_encode($json, JSON_UNESCAPED_SLASHES)
+        );
+
+        throw new ZohoBillingException($exceptionMessage, $zohoCode, $response->status(), $json);
     }
 }
 
