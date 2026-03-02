@@ -15,6 +15,7 @@ use App\Models\Testimonial;
 use App\Models\User;
 use App\Models\VisitorRegistration;
 use App\Support\AdminCircleScope;
+use App\Services\Admin\Activities\ActivitiesTopPeersService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -24,6 +25,10 @@ use Illuminate\View\View;
 // NOTE: After deploy run `php artisan optimize:clear` (optional) `composer dump-autoload`.
 class ActivitiesController extends Controller
 {
+    public function __construct(private ActivitiesTopPeersService $topPeersService)
+    {
+    }
+
     public function index(Request $request): View
     {
         $filters = $this->buildFilters($request);
@@ -41,11 +46,24 @@ class ActivitiesController extends Controller
             ->withQueryString();
 
         $circles = $this->buildCircleFilterOptions($admin);
+        $topPeerFilters = [
+            'search' => data_get($filters, 'q', ''),
+            'circle_id' => data_get($filters, 'circle_id', ''),
+            'from_at' => data_get($filters, 'from'),
+            'to_at' => data_get($filters, 'to'),
+        ];
 
         return view('admin.activities.index', [
             'members' => $members,
             'filters' => $filters,
             'circles' => $circles,
+            'topTestimonials' => $this->topPeersService->topTestimonials($topPeerFilters),
+            'topReferrals' => $this->topPeersService->topReferrals($topPeerFilters),
+            'topBusinessDeals' => $this->topPeersService->topBusinessDeals($topPeerFilters),
+            'topP2PMeetings' => $this->topPeersService->topP2PMeetings($topPeerFilters),
+            'topRequirements' => $this->topPeersService->topRequirements($topPeerFilters),
+            'topBecomeLeader' => $this->topPeersService->topBecomeLeader($topPeerFilters),
+            'topRecommendPeer' => $this->topPeersService->topRecommendPeer($topPeerFilters),
         ]);
     }
 
