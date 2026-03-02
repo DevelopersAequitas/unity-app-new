@@ -3,17 +3,28 @@
 @section('title', 'Find & Build Collaborations')
 
 @section('content')
+    <style>
+        .peer-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; display: block; }
+    </style>
 @php use App\Support\CollaborationFormatter; @endphp
+    <form id="collaborationsFiltersForm" method="GET" action="{{ route('admin.collaborations.index') }}">
+    @include('admin.components.activity-filter-bar-v2', [
+        'actionUrl' => route('admin.collaborations.index'),
+        'resetUrl' => route('admin.collaborations.index'),
+        'filters' => $filters,
+        'circles' => $circles ?? collect(),
+        'showExport' => true,
+        'exportUrl' => route('admin.collaborations.export', request()->query()),
+        'renderFormTag' => false,
+        'formId' => 'collaborationsFiltersForm',
+    ])
+
 <div class="card p-3">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div class="d-flex align-items-center gap-2">
             <h2 class="h5 mb-0">Find &amp; Build Collaborations</h2>
         </div>
         <div class="d-flex align-items-center gap-2 ms-auto flex-wrap justify-content-end">
-            <input type="date" name="created_from" form="collaborationFiltersForm" class="form-control form-control-sm" style="width: 150px;" value="{{ $filters['created_from'] }}" title="Created from">
-            <input type="date" name="created_to" form="collaborationFiltersForm" class="form-control form-control-sm" style="width: 150px;" value="{{ $filters['created_to'] }}" title="Created to">
-            <span class="small text-muted" id="selectedCount">(Selected: 0)</span>
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn">Export CSV</button>
             <div class="d-flex align-items-center gap-2 ms-2">
                 <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
                 <select id="perPage" name="per_page" class="form-select form-select-sm" style="width: 90px;">
@@ -32,12 +43,12 @@
         </div>
     </div>
 
+
     <div class="table-responsive">
         <table class="table align-middle">
             <thead class="table-light">
                 <tr>
-                    <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
-                    <th>Peer Name</th>
+                                        <th>Peer Name</th>
                     <th>Collaboration Type</th>
                     <th>Title</th>
                     <th>Scope</th>
@@ -47,69 +58,44 @@
                     <th>Status</th>
                     <th class="text-end">Actions</th>
                 </tr>
-                <tr class="bg-light align-middle">
-                    <th></th>
+                <tr>
+                    <th><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="form-control form-control-sm"></th>
+                    <th><input type="text" name="collaboration_type" value="{{ $filters['collaboration_type'] ?? '' }}" placeholder="Collaboration Type" class="form-control form-control-sm"></th>
+                    <th><input type="text" name="title" value="{{ $filters['title'] ?? '' }}" placeholder="Title" class="form-control form-control-sm"></th>
+                    <th><input type="text" name="scope" value="{{ $filters['scope'] ?? '' }}" placeholder="Scope" class="form-control form-control-sm"></th>
+                    <th><input type="text" name="preferred_mode" value="{{ $filters['preferred_mode'] ?? '' }}" placeholder="Preferred Mode" class="form-control form-control-sm"></th>
+                    <th><input type="text" name="business_stage" value="{{ $filters['business_stage'] ?? '' }}" placeholder="Business Stage" class="form-control form-control-sm"></th>
+                    <th><input type="text" name="year_in_operation" value="{{ $filters['year_in_operation'] ?? '' }}" placeholder="Year in Operation" class="form-control form-control-sm"></th>
                     <th>
-                        <input type="text" name="q" form="collaborationFiltersForm" class="form-control form-control-sm" placeholder="Search peer, title, scope…" value="{{ $filters['q'] }}">
-                    </th>
-                    <th>
-                        <select name="collaboration_type" form="collaborationFiltersForm" class="form-select form-select-sm">
-                            <option value="all">All</option>
-                            @foreach ($types as $type)
-                                <option value="{{ $type->slug }}" @selected($filters['collaboration_type'] === (string) $type->slug)>{{ $type->name }}</option>
-                            @endforeach
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="">Any</option>
+                            <option value="active" @selected(($filters['status'] ?? '') === 'active')>Active</option>
+                            <option value="inactive" @selected(($filters['status'] ?? '') === 'inactive')>Inactive</option>
                         </select>
                     </th>
                     <th>
-                        <input type="text" name="title" form="collaborationFiltersForm" class="form-control form-control-sm" placeholder="Title" value="{{ $filters['title'] }}">
-                    </th>
-                    <th>
-                        <input type="text" name="scope" form="collaborationFiltersForm" class="form-control form-control-sm" placeholder="Scope" value="{{ $filters['scope'] }}">
-                    </th>
-                    <th>
-                        <input type="text" name="preferred_mode" form="collaborationFiltersForm" class="form-control form-control-sm" placeholder="Preferred Mode" value="{{ $filters['preferred_mode'] }}">
-                    </th>
-                    <th>
-                        <input type="text" name="business_stage" form="collaborationFiltersForm" class="form-control form-control-sm" placeholder="Business Stage" value="{{ $filters['business_stage'] }}">
-                    </th>
-                    <th>
-                        <input type="text" name="year_in_operation" form="collaborationFiltersForm" class="form-control form-control-sm" placeholder="Year in Operation" value="{{ $filters['year_in_operation'] }}">
-                    </th>
-                    <th>
-                        <select name="status" form="collaborationFiltersForm" class="form-select form-select-sm">
-                            <option value="all">All</option>
-                            @foreach ($statuses as $status)
-                                <option value="{{ $status }}" @selected($filters['status'] === $status)>{{ ucfirst($status) }}</option>
-                            @endforeach
-                        </select>
-                    </th>
-                    <th class="text-end">
-                        <form id="collaborationFiltersForm" method="GET" class="d-flex gap-2 justify-content-end">
-                            <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.collaborations.index') }}">Reset</a>
-                        </form>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                            <a href="{{ route('admin.collaborations.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                        </div>
                     </th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($posts as $post)
                     @php
-                        $u = $post->user;
-
-                        $peerName = $u?->name
-                            ?? $u?->display_name
-                            ?? $post->peer_name
+                        $peerName = $post->peer_name
                             ?? $post->person_name
                             ?? $post->name
                             ?? '—';
 
-                        $company = ($u?->company_name ?? $u?->company ?? $u?->business_name ?? null)
+                        $company = ($post->peer_company ?? null)
                             ?? $post->company
                             ?? $post->company_name
                             ?? $post->business_name
                             ?? '—';
 
-                        $city = ($u?->city ?? $u?->current_city ?? $u?->location_city ?? null)
+                        $city = ($post->peer_city ?? null)
                             ?? $post->city
                             ?? $post->user_city
                             ?? '—';
@@ -124,7 +110,6 @@
                         $status = $post->status ?? '—';
                     @endphp
                     <tr>
-                        <td><input type="checkbox" class="form-check-input row-checkbox" value="{{ $post->id }}"></td>
                         <td>
                             <div class="d-flex align-items-center gap-3">
                                 <div class="avatar avatar-sm rounded-circle border d-flex align-items-center justify-content-center" style="width:40px;height:40px;">
@@ -132,9 +117,11 @@
                                 </div>
 
                                 <div class="min-w-0">
-                                    <div class="fw-semibold text-truncate">{{ $peerName }}</div>
-                                    <div class="text-muted small text-truncate">{{ $company }}</div>
-                                    <div class="text-muted small text-truncate">{{ $city }}</div>
+                                    @include('admin.components.peer-card', [
+                                        'name' => $peerName,
+                                        'company' => $company,
+                                        'city' => $city,
+                                    ])
                                 </div>
                             </div>
                         </td>
@@ -153,7 +140,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="text-center text-muted py-4">No collaboration posts found.</td>
+                        <td colspan="9" class="text-center text-muted py-4">No collaboration posts found.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -174,39 +161,12 @@
     </div>
 </div>
 
+</form>
+
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const perPage = document.getElementById('perPage');
-        const exportBtn = document.getElementById('exportCsvBtn');
-        const selectAll = document.getElementById('selectAll');
-        const rowCheckboxes = () => Array.from(document.querySelectorAll('.row-checkbox'));
-        const selectedCount = document.getElementById('selectedCount');
-        const exportRoute = @json(route('admin.collaborations.export'));
-
-        const updateSelectedCount = () => {
-            const selected = rowCheckboxes().filter(cb => cb.checked).length;
-            if (selectedCount) {
-                selectedCount.textContent = `(Selected: ${selected})`;
-            }
-        };
-
-        selectAll?.addEventListener('change', () => {
-            rowCheckboxes().forEach(cb => {
-                cb.checked = selectAll.checked;
-            });
-            updateSelectedCount();
-        });
-
-        rowCheckboxes().forEach(cb => {
-            cb.addEventListener('change', () => {
-                const all = rowCheckboxes();
-                if (selectAll) {
-                    selectAll.checked = all.length > 0 && all.every(item => item.checked);
-                }
-                updateSelectedCount();
-            });
-        });
 
         if (perPage) {
             perPage.addEventListener('change', () => {
@@ -216,16 +176,6 @@
                 window.location = `${window.location.pathname}?${params.toString()}`;
             });
         }
-
-        exportBtn?.addEventListener('click', () => {
-            const params = new URLSearchParams(window.location.search);
-            rowCheckboxes().filter(cb => cb.checked).forEach(cb => {
-                params.append('selected_ids[]', cb.value);
-            });
-            window.location.href = `${exportRoute}?${params.toString()}`;
-        });
-
-        updateSelectedCount();
     });
 </script>
 @endpush

@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -27,8 +28,15 @@ class CollaborationPostController extends Controller
         $filters = $this->collectFilters($request, $rowsPerPage);
 
         $query = CollaborationPost::query()
-            ->with(['user', 'collaborationType'])
-            ->latest('created_at');
+            ->leftJoin('users as peer', 'peer.id', '=', 'collaboration_posts.user_id')
+            ->with(['collaborationType'])
+            ->select([
+                'collaboration_posts.*',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', peer.first_name, peer.last_name)), ''), peer.display_name, '—') as peer_name"),
+                DB::raw("coalesce(peer.company_name, '') as peer_company"),
+                DB::raw("coalesce(peer.city, '') as peer_city"),
+            ])
+            ->latest('collaboration_posts.created_at');
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'collaboration_posts.user_id', null);
 
@@ -54,6 +62,7 @@ class CollaborationPostController extends Controller
             'filters' => $filters,
             'statuses' => $statuses,
             'types' => $types,
+            'circles' => DB::table('circles')->select(['id','name'])->orderBy('name')->get(),
             'rowsPerPage' => $rowsPerPage,
             'total' => $posts->total(),
             'from' => $posts->firstItem(),
@@ -64,8 +73,15 @@ class CollaborationPostController extends Controller
     public function export(Request $request)
     {
         $query = CollaborationPost::query()
-            ->with(['user', 'collaborationType'])
-            ->latest('created_at');
+            ->leftJoin('users as peer', 'peer.id', '=', 'collaboration_posts.user_id')
+            ->with(['collaborationType'])
+            ->select([
+                'collaboration_posts.*',
+                DB::raw("coalesce(nullif(trim(concat_ws(' ', peer.first_name, peer.last_name)), ''), peer.display_name, '—') as peer_name"),
+                DB::raw("coalesce(peer.company_name, '') as peer_company"),
+                DB::raw("coalesce(peer.city, '') as peer_city"),
+            ])
+            ->latest('collaboration_posts.created_at');
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'collaboration_posts.user_id', null);
 
@@ -101,19 +117,16 @@ class CollaborationPostController extends Controller
 
             $query->chunk(500, function ($rows) use ($out) {
                 foreach ($rows as $post) {
-                    $user = $post->user;
-                    $peerName = $user?->name
-                        ?? $user?->display_name
-                        ?? $post->peer_name
+                    $peerName = $post->peer_name
                         ?? $post->person_name
                         ?? $post->name
                         ?? '—';
-                    $company = ($user?->company_name ?? $user?->company ?? $user?->business_name ?? null)
+                    $company = ($post->peer_company ?? null)
                         ?? $post->company
                         ?? $post->company_name
                         ?? $post->business_name
                         ?? '—';
-                    $city = ($user?->city ?? $user?->current_city ?? $user?->location_city ?? null)
+                    $city = ($post->peer_city ?? null)
                         ?? $post->city
                         ?? $post->user_city
                         ?? '—';
@@ -167,17 +180,24 @@ class CollaborationPostController extends Controller
 
     private function collectFilters(Request $request, int $rowsPerPage): array
     {
+        $from = (string) $request->query('from', $request->query('created_from', ''));
+        $to = (string) $request->query('to', $request->query('created_to', ''));
+
         return [
             'q' => trim((string) $request->query('q', '')),
-            'collaboration_type' => (string) $request->query('collaboration_type', 'all'),
+            'peer_name' => trim((string) $request->query('peer_name', '')),
+            'collaboration_type' => trim((string) $request->query('collaboration_type', '')),
             'title' => trim((string) $request->query('title', '')),
             'scope' => trim((string) $request->query('scope', '')),
             'preferred_mode' => trim((string) $request->query('preferred_mode', '')),
             'business_stage' => trim((string) $request->query('business_stage', '')),
             'year_in_operation' => trim((string) $request->query('year_in_operation', '')),
-            'status' => (string) $request->query('status', 'all'),
-            'created_from' => (string) $request->query('created_from', ''),
-            'created_to' => (string) $request->query('created_to', ''),
+            'status' => trim((string) $request->query('status', '')),
+            'circle_id' => $request->query('circle_id'),
+            'from' => $from,
+            'to' => $to,
+            'created_from' => $from,
+            'created_to' => $to,
             'per_page' => $rowsPerPage,
         ];
     }
@@ -185,16 +205,6 @@ class CollaborationPostController extends Controller
     private function applyFilters(Request $request, Builder $query): void
     {
         $filters = $this->collectFilters($request, (int) $request->query('per_page', 20));
-
-        $userColumns = $this->existingUserColumns([
-            'name',
-            'company_name',
-            'company',
-            'business_name',
-            'city',
-            'current_city',
-            'location_city',
-        ]);
 
         $titleColumns = $this->existingPostColumns(['title', 'collaboration_title', 'subject']);
         $scopeColumns = $this->existingPostColumns(['scope', 'collaboration_scope', 'scope_text']);
@@ -204,16 +214,25 @@ class CollaborationPostController extends Controller
 
         if ($filters['q'] !== '') {
             $value = $filters['q'];
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $value) . '%';
 
-            $query->where(function (Builder $inner) use ($value, $userColumns, $titleColumns, $scopeColumns) {
-                if ($userColumns !== []) {
-                    $inner->whereHas('user', function (Builder $userQuery) use ($value, $userColumns) {
-                        $this->applyLikeAny($userQuery, $userColumns, $value);
-                    });
-                }
+            $query->where(function (Builder $inner) use ($like) {
+                $inner->where('peer.display_name', 'ILIKE', $like)
+                    ->orWhere('peer.first_name', 'ILIKE', $like)
+                    ->orWhere('peer.last_name', 'ILIKE', $like)
+                    ->orWhere('peer.company_name', 'ILIKE', $like)
+                    ->orWhere('peer.city', 'ILIKE', $like);
+            });
+        }
 
-                $this->applyLikeAny($inner, $titleColumns, $value, $userColumns !== []);
-                $this->applyLikeAny($inner, $scopeColumns, $value, ($userColumns !== [] || $titleColumns !== []));
+        if ($filters['peer_name'] !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['peer_name']) . '%';
+            $query->where(function (Builder $inner) use ($like) {
+                $inner->where('peer.display_name', 'ILIKE', $like)
+                    ->orWhere('peer.first_name', 'ILIKE', $like)
+                    ->orWhere('peer.last_name', 'ILIKE', $like)
+                    ->orWhere('peer.company_name', 'ILIKE', $like)
+                    ->orWhere('peer.city', 'ILIKE', $like);
             });
         }
 
@@ -237,42 +256,57 @@ class CollaborationPostController extends Controller
             $this->applyLikeFilter($query, $yearOperationColumns, $filters['year_in_operation'], true);
         }
 
-        if ($filters['collaboration_type'] !== 'all' && $filters['collaboration_type'] !== '') {
+        if ($filters['collaboration_type'] !== '') {
             $typeInput = $filters['collaboration_type'];
-            $slug = $typeInput;
-
-            if (Str::isUuid($typeInput) && class_exists(CollaborationType::class)) {
-                $type = CollaborationType::query()->find($typeInput);
-                if ($type) {
-                    $slug = (string) ($type->slug ?? '');
-                } else {
-                    $query->whereRaw('1 = 0');
-                    return;
-                }
-            }
-
-            if ($slug === '') {
-                $query->whereRaw('1 = 0');
-                return;
-            }
 
             if (Schema::hasColumn('collaboration_posts', 'collaboration_type')) {
-                $query->where('collaboration_type', $slug);
+                $query->where('collaboration_posts.collaboration_type', 'ILIKE', '%' . $this->escapeLike($typeInput) . '%');
             } elseif (Schema::hasColumn('collaboration_posts', 'collaboration_type_id')) {
-                $query->where('collaboration_type_id', $slug);
+                if (Str::isUuid($typeInput)) {
+                    $query->where('collaboration_posts.collaboration_type_id', $typeInput);
+                } elseif (class_exists(CollaborationType::class)) {
+                    $typeIds = CollaborationType::query()
+                        ->where('name', 'ILIKE', '%' . $this->escapeLike($typeInput) . '%')
+                        ->orWhere('slug', 'ILIKE', '%' . $this->escapeLike($typeInput) . '%')
+                        ->pluck('id')
+                        ->all();
+
+                    if ($typeIds === []) {
+                        $query->whereRaw('1 = 0');
+                    } else {
+                        $query->whereIn('collaboration_posts.collaboration_type_id', $typeIds);
+                    }
+                }
             }
         }
 
-        if ($filters['status'] !== 'all' && $filters['status'] !== '') {
+        if (! empty($filters['circle_id'])) {
+            $query->whereExists(function ($sub) use ($filters) {
+                $sub->selectRaw('1')
+                    ->from('circle_members as cm_filter')
+                    ->whereColumn('cm_filter.user_id', 'collaboration_posts.user_id')
+                    ->where('cm_filter.circle_id', $filters['circle_id']);
+            });
+        }
+
+        if ($filters['status'] !== '') {
             $query->where('status', $filters['status']);
         }
 
-        if ($filters['created_from'] !== '') {
-            $query->where('created_at', '>=', Carbon::parse($filters['created_from'])->startOfDay());
+        try {
+            if ($filters['from'] !== '') {
+                $query->where('created_at', '>=', Carbon::parse($filters['from'])->startOfDay());
+            }
+        } catch (\Throwable $exception) {
+            // ignore invalid date
         }
 
-        if ($filters['created_to'] !== '') {
-            $query->where('created_at', '<=', Carbon::parse($filters['created_to'])->endOfDay());
+        try {
+            if ($filters['to'] !== '') {
+                $query->where('created_at', '<=', Carbon::parse($filters['to'])->endOfDay());
+            }
+        } catch (\Throwable $exception) {
+            // ignore invalid date
         }
     }
 
@@ -296,12 +330,17 @@ class CollaborationPostController extends Controller
         foreach (array_values($columns) as $index => $column) {
             $method = $this->pickMethod($useOr, $index);
             if ($castAsText) {
-                $query->{$method . 'Raw'}("CAST({$column} AS TEXT) LIKE ?", ["%{$value}%"]);
+                $query->{$method . 'Raw'}("CAST({$column} AS TEXT) ILIKE ?", ['%' . $this->escapeLike($value) . '%']);
                 continue;
             }
 
-            $query->{$method}($column, 'like', "%{$value}%");
+            $query->{$method}($column, 'ILIKE', '%' . $this->escapeLike($value) . '%');
         }
+    }
+
+    private function escapeLike(string $value): string
+    {
+        return str_replace(['%', '_'], ['\\%', '\\_'], $value);
     }
 
     private function pickMethod(bool $useOr, int $index): string
