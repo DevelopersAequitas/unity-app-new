@@ -6,7 +6,7 @@ use App\Models\User;
 use App\Support\Membership\MembershipUpdater;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class ZohoBillingService
@@ -51,30 +51,42 @@ class ZohoBillingService
 
     public function ensureCustomerForUser(User $user): string
     {
-        if (! empty($user->zoho_customer_id)) {
-            $this->ensurePortalEnabled($user->zoho_customer_id);
-            $this->ensureContactPerson($user, $user->zoho_customer_id);
+        $email = trim((string) ($user->email ?? ''));
+        $phone = $this->resolveUserPhone($user);
 
-            return $user->zoho_customer_id;
+        if ($email === '') {
+            throw ValidationException::withMessages([
+                'email' => 'User email missing',
+            ]);
         }
 
-        $customerEmail = $this->portalEmailForUser($user);
-        $existing = $this->findCustomerByEmail($customerEmail);
+        if ($phone === '') {
+            throw ValidationException::withMessages([
+                'phone' => 'User phone missing',
+            ]);
+        }
 
-        if ($existing !== null) {
-            $user->forceFill(['zoho_customer_id' => $existing])->save();
-            $this->ensurePortalEnabled($existing);
-            $this->ensureContactPerson($user, $existing);
+        $existingCustomerId = $this->findCustomerByEmail($email);
 
-            return $existing;
+        if ($existingCustomerId !== null) {
+            if ((string) $user->zoho_customer_id !== (string) $existingCustomerId) {
+                $user->forceFill(['zoho_customer_id' => $existingCustomerId])->save();
+            }
+
+            $this->ensurePortalEnabled($existingCustomerId, $email, $phone);
+            $this->ensureContactPerson($user, $existingCustomerId, $email, $phone);
+
+            return $existingCustomerId;
         }
 
         $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))));
 
         $payload = [
-            'display_name' => $name !== '' ? $name : ('User ' . Str::substr((string) $user->id, 0, 8)),
+            'display_name' => $name !== '' ? $name : ($user->company_name ?: $email),
             'company_name' => $user->company_name,
-            'email' => $customerEmail,
+            'email' => $email,
+            'mobile' => $phone,
+            'phone' => $phone,
             'is_portal_enabled' => true,
             'billing_address' => [
                 'city' => $user->city ?? '',
@@ -91,8 +103,8 @@ class ZohoBillingService
 
         $user->forceFill(['zoho_customer_id' => $customerId])->save();
 
-        $this->ensurePortalEnabled($customerId);
-        $this->ensureContactPerson($user, $customerId);
+        $this->ensurePortalEnabled($customerId, $email, $phone);
+        $this->ensureContactPerson($user, $customerId, $email, $phone);
 
         return $customerId;
     }
@@ -206,24 +218,37 @@ class ZohoBillingService
         return null;
     }
 
-    private function ensurePortalEnabled(string $customerId): void
+    private function ensurePortalEnabled(string $customerId, string $email, string $phone): void
     {
         $this->client->request('PUT', '/customers/' . $customerId, [
             'is_portal_enabled' => true,
+            'email' => $email,
+            'mobile' => $phone,
+            'phone' => $phone,
         ]);
     }
 
-    private function ensureContactPerson(User $user, string $customerId): void
+    private function ensureContactPerson(User $user, string $customerId, string $email, string $phone): void
     {
-        $email = $this->portalEmailForUser($user);
-
         $existing = $this->client->request('GET', '/contactpersons', ['customer_id' => $customerId], true);
         $contactPersons = $existing['contact_persons'] ?? [];
 
         foreach ($contactPersons as $contactPerson) {
-            if (strtolower((string) ($contactPerson['email'] ?? '')) === strtolower($email)) {
-                return;
+            if (strtolower((string) ($contactPerson['email'] ?? '')) !== strtolower($email)) {
+                continue;
             }
+
+            $contactPersonId = (string) ($contactPerson['contact_person_id'] ?? '');
+
+            if ($contactPersonId !== '' && ! (bool) ($contactPerson['is_primary_contact'] ?? false)) {
+                $this->client->request('PUT', '/contactpersons/' . $contactPersonId, [
+                    'is_primary_contact' => true,
+                    'mobile' => $phone,
+                    'phone' => $phone,
+                ]);
+            }
+
+            return;
         }
 
         $payload = [
@@ -231,28 +256,24 @@ class ZohoBillingService
             'email' => $email,
             'first_name' => $user->first_name ?: 'Unity',
             'last_name' => $user->last_name ?: 'Peer',
+            'mobile' => $phone,
+            'phone' => $phone,
             'is_portal_enabled' => true,
+            'is_primary_contact' => true,
         ];
 
-        try {
-            $this->client->request('POST', '/contactpersons', $payload);
-        } catch (RuntimeException $exception) {
-            if (! str_contains($exception->getMessage(), '31027')) {
-                throw $exception;
-            }
-
-            $payload['email'] = $this->portalEmailForUser($user, true);
-            $this->client->request('POST', '/contactpersons', $payload);
-        }
+        $this->client->request('POST', '/contactpersons', $payload);
     }
 
-    private function portalEmailForUser(User $user, bool $withTimestamp = false): string
+    private function resolveUserPhone(User $user): string
     {
-        $prefix = (string) config('zoho_billing.portal_demo_email_prefix', 'demo');
-        $userPrefix = Str::lower(Str::substr(preg_replace('/[^a-zA-Z0-9]/', '', (string) $user->id), 0, 8));
-        $timestampPart = $withTimestamp ? ('+' . now()->timestamp) : '';
+        $phone = trim((string) ($user->phone ?? $user->getAttribute('mobile') ?? ''));
 
-        return sprintf('%s+%s%s@gmail.com', $prefix, $userPrefix ?: 'user', $timestampPart);
+        if ($phone !== '') {
+            return $phone;
+        }
+
+        return trim((string) (data_get($user->toArray(), 'mobile') ?? ''));
     }
 
     private function resolveUserByZoho(?string $customerId, ?string $subscriptionId): ?User

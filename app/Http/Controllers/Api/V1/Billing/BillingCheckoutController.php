@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class BillingCheckoutController extends Controller
@@ -38,6 +39,14 @@ class BillingCheckoutController extends Controller
                     'note' => 'Open checkout_url in WebView',
                 ],
             ]);
+        } catch (ValidationException $validationException) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($validationException->errors())->flatten()->first() ?? 'Validation failed',
+                'data' => [
+                    'errors' => $validationException->errors(),
+                ],
+            ], 422);
         } catch (Throwable $throwable) {
             Log::error('Zoho checkout creation failed', [
                 'user_id' => $user->id,
