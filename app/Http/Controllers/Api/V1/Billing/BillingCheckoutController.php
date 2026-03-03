@@ -36,14 +36,25 @@ class BillingCheckoutController extends Controller
         try {
             $result = $this->zohoBillingService->createHostedPageForSubscription($user, $validated['plan_code']);
 
-            $this->recordPendingZohoPayment($user, $validated['plan_code'], (string) $result['hostedpage_id']);
+            $hostedPageId = (string) data_get($result, 'hostedpage_id', '');
+            $checkoutUrl = (string) data_get($result, 'checkout_url', '');
+
+            try {
+                $this->recordPendingZohoPayment($user, $validated['plan_code'], $hostedPageId);
+            } catch (Throwable $throwable) {
+                Log::warning('ZOHO_CHECKOUT_PENDING_RECORD_FAILED', [
+                    'user_id' => $user->id,
+                    'hostedpage_id' => $hostedPageId,
+                    'message' => $throwable->getMessage(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
                 'message' => 'Hosted checkout URL created successfully.',
                 'data' => [
-                    'hostedpage_id' => $result['hostedpage_id'],
-                    'checkout_url' => $result['checkout_url'],
+                    'hostedpage_id' => $hostedPageId,
+                    'checkout_url' => $checkoutUrl,
                 ],
             ]);
         } catch (ValidationException $validationException) {

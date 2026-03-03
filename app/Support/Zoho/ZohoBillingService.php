@@ -119,22 +119,36 @@ class ZohoBillingService
             ],
         ]);
 
+        $bodyKeys = array_keys(is_array($response) ? $response : []);
         $hostedPage = data_get($response, 'hostedpage', []);
         $hostedPage = is_array($hostedPage) ? $hostedPage : [];
 
-        $hostedPageId = data_get($hostedPage, 'hostedpage_id');
-        $checkoutUrl = data_get($hostedPage, 'url');
+        Log::info('ZOHO_NEW_SUBSCRIPTION_RESPONSE_IN_SERVICE', [
+            'response_keys' => $bodyKeys,
+            'hostedpage_keys' => array_keys($hostedPage),
+            'hostedpage_url' => data_get($response, 'hostedpage.url'),
+            'hostedpage_id' => data_get($response, 'hostedpage.hostedpage_id'),
+        ]);
 
-        if (! is_string($checkoutUrl) || $checkoutUrl === '' || ! is_string($hostedPageId) || $hostedPageId === '') {
+        $checkoutUrl = (string) data_get($response, 'hostedpage.url', '');
+        $hostedPageId = (string) data_get($response, 'hostedpage.hostedpage_id', '');
+
+        if ($checkoutUrl === '' || $hostedPageId === '') {
+            $zohoCode = (string) data_get($response, 'code', '');
+            $zohoMessage = (string) data_get($response, 'message', data_get($response, 'error.message', 'Failed to generate checkout URL.'));
+
             Log::error('ZOHO_NEW_SUBSCRIPTION_NO_URL', [
                 'response' => $response,
                 'customer_id' => $customerId,
                 'plan_code' => $planCode,
-                'body_keys' => array_keys(is_array($response) ? $response : []),
+                'body_keys' => $bodyKeys,
                 'hostedpage_keys' => array_keys($hostedPage),
+                'zoho_code' => $zohoCode,
+                'zoho_message' => $zohoMessage,
             ]);
 
-            throw new RuntimeException('Failed to generate checkout URL.');
+            $formattedCode = $zohoCode !== '' ? ' code ' . $zohoCode : '';
+            throw new RuntimeException('Failed to generate checkout URL' . $formattedCode . ': ' . $zohoMessage);
         }
 
         return [
