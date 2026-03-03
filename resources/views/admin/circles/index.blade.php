@@ -134,22 +134,46 @@
                 <tbody>
                     @forelse ($circles as $circle)
                         <tr>
-                            <td class="fw-semibold">{{ $circle->name }}</td>
+                            <td class="fw-semibold">{{ $circle->name ?? '—' }}</td>
                             <td>{{ $circle->founder?->display_name ?? '—' }}</td>
-                            <td>{{ $circle->city?->name ?? '—' }}</td>
-                            <td>{{ $circle->city?->country ?? '—' }}</td>
-                            <td><span class="badge bg-light text-dark text-uppercase">{{ $circle->type ?? '—' }}</span></td>
-                            <td>{{ $circle->industry_tags ? implode(', ', $circle->industry_tags) : '—' }}</td>
-                            <td>{{ $circle->meeting_mode ?? '—' }}</td>
-                            <td>{{ $circle->meeting_frequency ?? '—' }}</td>
-                            <td>{{ optional($circle->launch_date)->format('Y-m-d') ?? '—' }}</td>
-                            <td>@if($circle->cover_file_id)<img src="{{ url('/api/v1/files/' . $circle->cover_file_id) }}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;">@else — @endif</td>
+                            <td>{{ $circle->city ?? ($circle->cityRelation?->name ?? $circle->city?->name ?? '—') }}</td>
+                            <td>{{ $circle->country ?? ($circle->city?->country ?? '—') }}</td>
+                            <td>
+                                <span class="badge bg-light text-dark text-uppercase">
+                                    {{ !empty($circle->type) ? ucfirst(strtolower($circle->type)) : '—' }}
+                                </span>
+                            </td>
+                            <td>
+                                @php
+                                    $industryTags = $circle->industry_tags;
+                                    if (is_array($industryTags)) {
+                                        $industryTagsText = implode(', ', array_filter($industryTags));
+                                    } else {
+                                        $industryTagsText = trim((string) $industryTags);
+                                    }
+                                @endphp
+                                {{ $industryTagsText !== '' ? $industryTagsText : '—' }}
+                            </td>
+                            <td>{{ !empty($circle->meeting_mode) ? ucfirst(strtolower($circle->meeting_mode)) : '—' }}</td>
+                            <td>{{ !empty($circle->meeting_frequency) ? ucfirst(strtolower($circle->meeting_frequency)) : '—' }}</td>
+                            <td>
+                                @if (!empty($circle->launch_date))
+                                    {{ \Carbon\Carbon::parse($circle->launch_date)->format('d-m-Y') }}
+                                @else
+                                    —
+                                @endif
+                            </td>
+                            <td>{{ !empty($circle->cover_file_id) ? 'Yes' : '—' }}</td>
                             <td>{{ $circle->director?->display_name ?? '—' }}</td>
                             <td>{{ $circle->industryDirector?->display_name ?? '—' }}</td>
                             <td>{{ $circle->ded?->display_name ?? '—' }}</td>
                             <td>{{ $circle->members_count ?? 0 }}</td>
-                            <td><span class="badge badge-soft-secondary text-uppercase">{{ $circle->status ?? 'pending' }}</span></td>
-                            <td>{{ optional($circle->created_at)->format('Y-m-d') }}</td>
+                            <td>
+                                <span class="badge badge-soft-secondary text-uppercase">
+                                    {{ !empty($circle->status) ? ucfirst(strtolower($circle->status)) : '—' }}
+                                </span>
+                            </td>
+                            <td>{{ optional($circle->created_at)->format('d-m-Y') ?? '—' }}</td>
                             <td class="text-end">
                                 <div class="d-inline-flex gap-1">
                                     <a class="btn btn-sm btn-light" href="{{ route('admin.circles.show', $circle) }}">View</a>
@@ -162,7 +186,9 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="18" class="text-center text-muted py-4">No circles found.</td></tr>
+                        <tr>
+                            <td colspan="18" class="text-center text-muted py-4">No circles found.</td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>

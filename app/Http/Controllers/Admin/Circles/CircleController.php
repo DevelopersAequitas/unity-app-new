@@ -39,7 +39,36 @@ class CircleController extends Controller
 
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
 
+        $selectCandidates = [
+            'id',
+            'name',
+            'slug',
+            'city',
+            'country',
+            'type',
+            'status',
+            'industry_tags',
+            'meeting_mode',
+            'meeting_frequency',
+            'launch_date',
+            'cover_file_id',
+            'created_at',
+            'city_id',
+        ];
+
+        $select = [];
+        foreach ($selectCandidates as $column) {
+            if (Schema::hasColumn('circles', $column)) {
+                $select[] = $column;
+            }
+        }
+
+        if (! in_array('id', $select, true)) {
+            $select[] = 'id';
+        }
+
         $query = Circle::query()
+            ->select($select)
             ->with(['founder', 'director', 'industryDirector', 'ded', 'city'])
             ->withCount('members');
 
@@ -63,18 +92,24 @@ class CircleController extends Controller
             }
         }
 
-        if ($filters['country'] !== '') {
-            if (Schema::hasColumn('circles', 'country')) {
-                $query->where('country', $filters['country']);
-            } elseif (Schema::hasColumn('circles', 'city_id')) {
-                $query->whereHas('city', fn ($cityQuery) => $cityQuery->where('country', $filters['country']));
-            }
+        if ($filters['country'] !== '' && Schema::hasColumn('circles', 'country')) {
+            $query->where('country', $filters['country']);
         }
 
-        foreach (['type', 'meeting_mode', 'meeting_frequency', 'status'] as $column) {
-            if ($filters[$column] !== '' && Schema::hasColumn('circles', $column)) {
-                $query->where($column, $filters[$column]);
-            }
+        if ($filters['type'] !== '' && Schema::hasColumn('circles', 'type')) {
+            $query->where('type', $filters['type']);
+        }
+
+        if ($filters['meeting_mode'] !== '' && Schema::hasColumn('circles', 'meeting_mode')) {
+            $query->where('meeting_mode', $filters['meeting_mode']);
+        }
+
+        if ($filters['meeting_frequency'] !== '' && Schema::hasColumn('circles', 'meeting_frequency')) {
+            $query->where('meeting_frequency', $filters['meeting_frequency']);
+        }
+
+        if ($filters['status'] !== '' && in_array($filters['status'], Circle::STATUS_OPTIONS, true) && Schema::hasColumn('circles', 'status')) {
+            $query->where('status', $filters['status']);
         }
 
         if ($filters['industry_tags'] !== '' && Schema::hasColumn('circles', 'industry_tags')) {
@@ -115,36 +150,33 @@ class CircleController extends Controller
             ->appends($request->query());
 
         $circleNames = Circle::query()
-            ->select('name')
             ->whereNotNull('name')
-            ->where('name', '!=', '')
+            ->select('name')
             ->distinct()
             ->orderBy('name')
             ->pluck('name');
 
         $cityOptions = Schema::hasColumn('circles', 'city')
-            ? Circle::query()->select('city')->whereNotNull('city')->where('city', '!=', '')->distinct()->orderBy('city')->pluck('city')
-            : City::query()->select('name')->whereNotNull('name')->distinct()->orderBy('name')->pluck('name');
+            ? Circle::query()->whereNotNull('city')->select('city')->distinct()->orderBy('city')->pluck('city')
+            : City::query()->whereNotNull('name')->select('name')->distinct()->orderBy('name')->pluck('name');
 
         $countryOptions = Schema::hasColumn('circles', 'country')
-            ? Circle::query()->select('country')->whereNotNull('country')->where('country', '!=', '')->distinct()->orderBy('country')->pluck('country')
-            : City::query()->select('country')->whereNotNull('country')->where('country', '!=', '')->distinct()->orderBy('country')->pluck('country');
+            ? Circle::query()->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country')
+            : City::query()->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country');
 
         $typeOptions = Schema::hasColumn('circles', 'type')
-            ? Circle::query()->select('type')->whereNotNull('type')->where('type', '!=', '')->distinct()->orderBy('type')->pluck('type')
+            ? Circle::query()->whereNotNull('type')->select('type')->distinct()->orderBy('type')->pluck('type')
             : collect();
 
         $meetingModeOptions = Schema::hasColumn('circles', 'meeting_mode')
-            ? Circle::query()->select('meeting_mode')->whereNotNull('meeting_mode')->where('meeting_mode', '!=', '')->distinct()->orderBy('meeting_mode')->pluck('meeting_mode')
+            ? Circle::query()->whereNotNull('meeting_mode')->select('meeting_mode')->distinct()->orderBy('meeting_mode')->pluck('meeting_mode')
             : collect();
 
         $meetingFrequencyOptions = Schema::hasColumn('circles', 'meeting_frequency')
-            ? Circle::query()->select('meeting_frequency')->whereNotNull('meeting_frequency')->where('meeting_frequency', '!=', '')->distinct()->orderBy('meeting_frequency')->pluck('meeting_frequency')
+            ? Circle::query()->whereNotNull('meeting_frequency')->select('meeting_frequency')->distinct()->orderBy('meeting_frequency')->pluck('meeting_frequency')
             : collect();
 
-        $statusOptions = Schema::hasColumn('circles', 'status')
-            ? Circle::query()->select('status')->whereNotNull('status')->distinct()->orderBy('status')->pluck('status')
-            : collect();
+        $statusOptions = collect(Circle::STATUS_OPTIONS);
 
         return view('admin.circles.index', [
             'circles' => $circles,
@@ -278,47 +310,60 @@ class CircleController extends Controller
     {
         $validated = $request->validated();
 
-        $payload = [
-            'name' => $validated['name'] ?? null,
-            'type' => $validated['type'] ?? null,
-            'status' => $validated['status'] ?? null,
-            'city_id' => $validated['city_id'] ?? null,
-            'country' => $validated['country'] ?? null,
-            'description' => $validated['description'] ?? null,
-            'purpose' => $validated['purpose'] ?? null,
-            'announcement' => $validated['announcement'] ?? null,
-            'industry_tags' => $this->normalizeIndustryTags($validated['industry_tags'] ?? null),
-            'meeting_mode' => $validated['meeting_mode'] ?? null,
-            'meeting_frequency' => $validated['meeting_frequency'] ?? null,
-            'launch_date' => $validated['launch_date'] ?? null,
-            'cover_file_id' => $validated['cover_file_id'] ?? null,
-            'founder_user_id' => $validated['founder_user_id'] ?? null,
-            'calendar' => $this->normalizeCalendarMeetings($request->input('calendar_meetings', [])),
-        ];
-
-        if (Schema::hasColumn('circles', 'director_user_id')) {
-            $payload['director_user_id'] = $validated['director_user_id'] ?? null;
+        $allowed = [];
+        foreach ([
+            'name',
+            'city',
+            'country',
+            'type',
+            'status',
+            'industry_tags',
+            'meeting_mode',
+            'meeting_frequency',
+            'launch_date',
+            'cover_file_id',
+            'founder_user_id',
+            'city_id',
+            'description',
+            'purpose',
+            'announcement',
+        ] as $column) {
+            if (Schema::hasColumn('circles', $column) && array_key_exists($column, $validated)) {
+                $allowed[$column] = $validated[$column];
+            }
         }
 
-        if (Schema::hasColumn('circles', 'industry_director_user_id')) {
-            $payload['industry_director_user_id'] = $validated['industry_director_user_id'] ?? null;
+        if (Schema::hasColumn('circles', 'director_user_id') && array_key_exists('director_user_id', $validated)) {
+            $allowed['director_user_id'] = $validated['director_user_id'];
         }
 
-        if (Schema::hasColumn('circles', 'ded_user_id')) {
-            $payload['ded_user_id'] = $validated['ded_user_id'] ?? null;
+        if (Schema::hasColumn('circles', 'industry_director_user_id') && array_key_exists('industry_director_user_id', $validated)) {
+            $allowed['industry_director_user_id'] = $validated['industry_director_user_id'];
         }
 
-        $payload = $this->pruneEmptyPayload($payload);
+        if (Schema::hasColumn('circles', 'ded_user_id') && array_key_exists('ded_user_id', $validated)) {
+            $allowed['ded_user_id'] = $validated['ded_user_id'];
+        }
 
-        if (Schema::hasColumn('circles', 'country') && ! array_key_exists('country', $payload)) {
-            $payload['country'] = $circle->country;
+        if (Schema::hasColumn('circles', 'industry_tags')) {
+            $allowed['industry_tags'] = $this->normalizeIndustryTags($validated['industry_tags'] ?? null);
+        }
+
+        if (Schema::hasColumn('circles', 'calendar')) {
+            $allowed['calendar'] = $this->normalizeCalendarMeetings($request->input('calendar_meetings', []));
+        }
+
+        $allowed = $this->pruneEmptyPayload($allowed);
+
+        if (Schema::hasColumn('circles', 'country') && ! array_key_exists('country', $allowed)) {
+            $allowed['country'] = $circle->country;
         }
 
         $originalName = $circle->name;
 
-        $circle->forceFill($this->filterCircleDataByExistingColumns($payload));
+        $circle->fill($allowed);
 
-        if ($circle->name !== $originalName) {
+        if (array_key_exists('name', $allowed) && $circle->name !== $originalName) {
             $circle->slug = Circle::generateUniqueSlug($circle->name, $circle->id);
         }
 
