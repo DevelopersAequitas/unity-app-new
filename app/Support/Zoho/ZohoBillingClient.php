@@ -40,7 +40,41 @@ class ZohoBillingClient
                 : $request->send(strtoupper($method), $url, ['json' => $payload]);
 
             if (! $response->successful()) {
+                if ($path === '/hostedpages/newsubscription') {
+                    $decodedBody = $response->json();
+
+                    if (! is_array($decodedBody)) {
+                        $decodedBody = json_decode($response->body(), true);
+                    }
+
+                    if (! is_array($decodedBody)) {
+                        $decodedBody = $response->body();
+                    }
+
+                    Log::error('ZOHO_NEW_SUBSCRIPTION_FAILED', [
+                        'status' => $response->status(),
+                        'content_type' => $response->header('Content-Type'),
+                        'body' => $decodedBody,
+                        'payload_keys' => array_keys($payload),
+                    ]);
+                }
+
                 $this->throwZohoException($response->status(), $response->json(), $response->body());
+            }
+
+            if ($path === '/hostedpages/newsubscription') {
+                $rawBody = $response->body();
+                $parsedJson = $response->json();
+                $json = is_array($parsedJson) ? $parsedJson : json_decode($rawBody, true);
+
+                Log::info('ZOHO_NEW_SUBSCRIPTION_SUCCESS', [
+                    'status' => $response->status(),
+                    'content_type' => $response->header('Content-Type'),
+                    'raw_preview' => mb_substr($rawBody, 0, 1000),
+                    'json_keys' => is_array($json) ? array_keys($json) : [],
+                ]);
+
+                return is_array($json) ? $json : [];
             }
 
             return $response->json() ?? [];
