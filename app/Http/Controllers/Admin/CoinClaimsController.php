@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CoinClaims\RejectCoinClaimRequest;
+use App\Models\Circle;
 use App\Models\CoinClaimRequest;
 use App\Services\CoinClaims\CoinClaimEmailService;
 use App\Services\Coins\CoinsService;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -28,34 +30,136 @@ class CoinClaimsController extends Controller
 
     public function index(Request $request): View
     {
-        $search = trim((string) $request->query('search', ''));
-        $status = (string) $request->query('status', 'pending');
+        $q = trim((string) $request->query('q', $request->query('search', '')));
+        $status = (string) $request->query('status', 'all');
+        $circleId = (string) $request->query('circle_id', 'all');
+
+        $peerQ = trim((string) $request->query('peer_q', ''));
+        $peerPhone = trim((string) $request->query('peer_phone', ''));
+        $activity = trim((string) $request->query('activity', ''));
+        $keyFields = trim((string) $request->query('key_fields', ''));
+
+        $hasUsersName = Schema::hasColumn('users', 'name');
+        $hasUsersCompany = Schema::hasColumn('users', 'company');
+        $hasUsersBusinessName = Schema::hasColumn('users', 'business_name');
 
         $query = CoinClaimRequest::query()
-            ->with(['user:id,display_name,first_name,last_name,phone']);
+            ->with([
+                'user',
+                'user.circleMembers' => function ($circleMembersQuery) {
+                    $circleMembersQuery
+                        ->where('status', 'approved')
+                        ->whereNull('deleted_at')
+                        ->orderByDesc('joined_at')
+                        ->with(['circle:id,name']);
+                },
+            ]);
 
         if ($status !== '' && $status !== 'all') {
             $query->where('status', $status);
         }
 
-        if ($search !== '') {
-            $like = "%{$search}%";
-            $query->whereHas('user', function ($userQuery) use ($like) {
-                $userQuery->where('display_name', 'ILIKE', $like)
-                    ->orWhere('first_name', 'ILIKE', $like)
-                    ->orWhere('last_name', 'ILIKE', $like)
-                    ->orWhere('phone', 'ILIKE', $like);
+        if ($circleId !== '' && $circleId !== 'all') {
+            $query->whereHas('user.circleMembers', function ($circleMembersQuery) use ($circleId) {
+                $circleMembersQuery
+                    ->where('circle_id', $circleId)
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at');
+            });
+        }
+
+        if ($q !== '') {
+            $like = "%{$q}%";
+            $query->where(function ($qQuery) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                $qQuery->where('activity_code', 'ILIKE', $like)
+                    ->orWhere('status', 'ILIKE', $like)
+                    ->orWhere('admin_note', 'ILIKE', $like)
+                    ->orWhereRaw("COALESCE(payload::text,'') ILIKE ?", [$like])
+                    ->orWhereHas('user', function ($userQuery) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                        $userQuery->where(function ($uq) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                            $uq->where('display_name', 'ILIKE', $like)
+                                ->orWhere('first_name', 'ILIKE', $like)
+                                ->orWhere('last_name', 'ILIKE', $like)
+                                ->orWhere('email', 'ILIKE', $like)
+                                ->orWhere('phone', 'ILIKE', $like)
+                                ->orWhere('company_name', 'ILIKE', $like)
+                                ->orWhere('city', 'ILIKE', $like);
+
+                            if ($hasUsersName) {
+                                $uq->orWhere('name', 'ILIKE', $like);
+                            }
+                            if ($hasUsersCompany) {
+                                $uq->orWhere('company', 'ILIKE', $like);
+                            }
+                            if ($hasUsersBusinessName) {
+                                $uq->orWhere('business_name', 'ILIKE', $like);
+                            }
+                        })->orWhereHas('circleMembers.circle', function ($circleQuery) use ($like) {
+                            $circleQuery->where('name', 'ILIKE', $like);
+                        });
+                    });
+            });
+        }
+
+        if ($peerQ !== '') {
+            $like = "%{$peerQ}%";
+            $query->whereHas('user', function ($userQuery) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                $userQuery->where(function ($uq) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                    $uq->where('display_name', 'ILIKE', $like)
+                        ->orWhere('first_name', 'ILIKE', $like)
+                        ->orWhere('last_name', 'ILIKE', $like)
+                        ->orWhere('email', 'ILIKE', $like)
+                        ->orWhere('company_name', 'ILIKE', $like)
+                        ->orWhere('city', 'ILIKE', $like);
+
+                    if ($hasUsersName) {
+                        $uq->orWhere('name', 'ILIKE', $like);
+                    }
+                    if ($hasUsersCompany) {
+                        $uq->orWhere('company', 'ILIKE', $like);
+                    }
+                    if ($hasUsersBusinessName) {
+                        $uq->orWhere('business_name', 'ILIKE', $like);
+                    }
+                });
+            });
+        }
+
+        if ($peerPhone !== '') {
+            $query->whereHas('user', fn ($userQuery) => $userQuery->where('phone', 'ILIKE', "%{$peerPhone}%"));
+        }
+
+        if ($activity !== '') {
+            $query->where('activity_code', 'ILIKE', "%{$activity}%");
+        }
+
+        if ($keyFields !== '') {
+            $like = "%{$keyFields}%";
+            $query->where(function ($keyFieldsQuery) use ($like) {
+                $keyFieldsQuery->where('activity_code', 'ILIKE', $like)
+                    ->orWhere('admin_note', 'ILIKE', $like)
+                    ->orWhereRaw("COALESCE(payload::text,'') ILIKE ?", [$like]);
             });
         }
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'coin_claim_requests.user_id', null);
 
-        $claims = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
+        $claims = $query->orderByDesc('created_at')->paginate(25)->appends($request->query());
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
 
         return view('admin.coin_claims.index', [
             'claims' => $claims,
             'registry' => $this->registry,
-            'filters' => ['search' => $search, 'status' => $status],
+            'circles' => $circles,
+            'filters' => [
+                'q' => $q,
+                'status' => in_array($status, ['all', 'pending', 'approved', 'rejected'], true) ? $status : 'all',
+                'circle_id' => $circleId,
+                'peer_q' => $peerQ,
+                'peer_phone' => $peerPhone,
+                'activity' => $activity,
+                'key_fields' => $keyFields,
+            ],
             'statuses' => ['pending', 'approved', 'rejected'],
         ]);
     }
