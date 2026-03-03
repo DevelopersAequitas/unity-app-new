@@ -173,6 +173,57 @@ class User extends Authenticatable
         return $this->hasMany(CircleMember::class);
     }
 
+    public function adminDisplayParts(): array
+    {
+        $name = $this->name
+            ?? $this->display_name
+            ?? trim((($this->first_name ?? '') . ' ' . ($this->last_name ?? '')));
+        $name = trim((string) $name) !== '' ? trim((string) $name) : '—';
+
+        $company = $this->company_name
+            ?? $this->company
+            ?? $this->business_name
+            ?? 'No Company';
+        $company = trim((string) $company) !== '' ? trim((string) $company) : 'No Company';
+
+        $city = $this->city
+            ?? $this->cityRelation?->name
+            ?? 'No City';
+        $city = trim((string) $city) !== '' ? trim((string) $city) : 'No City';
+
+        $circleName = 'No Circle';
+
+        if ($this->relationLoaded('circleMembers')) {
+            $circleName = (string) (optional($this->circleMembers->first()?->circle)->name ?? 'No Circle');
+        } else {
+            $member = $this->circleMembers()
+                ->where('status', 'approved')
+                ->whereNull('deleted_at')
+                ->with(['circle:id,name'])
+                ->orderByDesc('joined_at')
+                ->first();
+
+            $circleName = (string) (optional($member?->circle)->name ?? 'No Circle');
+        }
+
+        if (trim($circleName) === '') {
+            $circleName = 'No Circle';
+        }
+
+        return [$name, $company, $city, $circleName];
+    }
+
+    public function adminDisplayLabel(): string
+    {
+        return implode("
+", $this->adminDisplayParts());
+    }
+
+    public function adminDisplayInlineLabel(): string
+    {
+        return implode(' — ', $this->adminDisplayParts());
+    }
+
     public function requestedConnections(): HasMany
     {
         return $this->hasMany(Connection::class, 'requester_id');

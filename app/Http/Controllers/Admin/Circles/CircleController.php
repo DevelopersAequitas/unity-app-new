@@ -299,33 +299,34 @@ class CircleController extends Controller
             return null;
         }
 
-        return User::query()->where('email', $admin->email)->first();
+        return User::query()
+            ->where('email', $admin->email)
+            ->with(['circleMembers' => function ($query) {
+                $query->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }])
+            ->first();
     }
 
     private function allUsers()
     {
         return User::query()
             ->whereNull('deleted_at')
+            ->with(['circleMembers' => function ($query) {
+                $query->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }])
             ->orderBy('display_name')
             ->limit(2000)
-            ->get(['id', 'display_name', 'first_name', 'last_name', 'email']);
+            ->get(['id', 'name', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'company', 'business_name', 'city']);
     }
 
     private function founderLabel(?User $user): string
     {
-        if (! $user) {
-            return '';
-        }
-
-        $name = $user->display_name
-            ?? trim($user->first_name . ' ' . ($user->last_name ?? ''));
-
-        $label = trim($name);
-
-        if ($user->email) {
-            $label = $label !== '' ? $label . " ({$user->email})" : $user->email;
-        }
-
-        return $label;
+        return $user?->adminDisplayLabel() ?? '';
     }
 }

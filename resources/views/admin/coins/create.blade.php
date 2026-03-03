@@ -22,10 +22,17 @@
                         <option value="">Select a member</option>
                         @foreach ($users as $user)
                             @php
-                                $name = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-                                $label = $name ? $name . ' (' . $user->email . ')' : $user->email;
+                                [$name, $company, $city, $circle] = $user->adminDisplayParts();
+                                $label = $user->adminDisplayInlineLabel();
                             @endphp
-                            <option value="{{ $user->id }}" @selected(old('user_id') === $user->id)>{{ $label }}</option>
+                            <option
+                                value="{{ $user->id }}"
+                                data-name="{{ $name }}"
+                                data-company="{{ $company }}"
+                                data-city="{{ $city }}"
+                                data-circle="{{ $circle }}"
+                                @selected(old('user_id') === $user->id)
+                            >{{ $label }}</option>
                         @endforeach
                     </select>
                     @error('user_id')
@@ -89,10 +96,46 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         if (window.$ && $.fn.select2) {
+            const escapeHtml = (value) => $('<div>').text(value ?? '').html();
+            const renderUser = (item) => {
+                if (!item.id || !item.element) {
+                    return item.text;
+                }
+
+                const option = item.element;
+                const name = option.dataset.name || item.text || '—';
+                const company = option.dataset.company || 'No Company';
+                const city = option.dataset.city || 'No City';
+                const circle = option.dataset.circle || 'No Circle';
+
+                return $(
+                    '<div class="d-flex flex-column">'
+                    + '<div class="fw-semibold">' + escapeHtml(name) + '</div>'
+                    + '<div class="text-muted small">' + escapeHtml(company) + '</div>'
+                    + '<div class="text-muted small">' + escapeHtml(city) + '</div>'
+                    + '<div class="text-muted small">' + escapeHtml(circle) + '</div>'
+                    + '</div>'
+                );
+            };
+
             $('.js-user-select').select2({
                 placeholder: 'Select a member',
                 allowClear: true,
-                width: '100%'
+                width: '100%',
+                templateResult: renderUser,
+                templateSelection: (item) => {
+                    if (!item.id || !item.element) {
+                        return item.text;
+                    }
+
+                    const option = item.element;
+                    const name = option.dataset.name || item.text || '—';
+                    const company = option.dataset.company || 'No Company';
+                    const city = option.dataset.city || 'No City';
+                    const circle = option.dataset.circle || 'No Circle';
+
+                    return `${name} — ${company} — ${city} — ${circle}`;
+                }
             });
         }
     });

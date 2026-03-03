@@ -55,15 +55,15 @@
                     <div class="col-md-6">
                         <label class="form-label">Circle Founder</label>
                         <div class="position-relative">
-                            <input type="text"
-                                   name="founder_search"
-                                   id="founderSearch"
-                                   class="form-control"
-                                   value="{{ $founderLabel }}"
-                                   data-default-id="{{ $founderId }}"
-                                   data-default-label="{{ $founderLabel }}"
-                                   autocomplete="off"
-                                   placeholder="Search by name or email">
+                            <textarea name="founder_search"
+                                      id="founderSearch"
+                                      class="form-control"
+                                      rows="4"
+                                      data-default-id="{{ $founderId }}"
+                                      data-default-label="{{ $founderLabel }}"
+                                      autocomplete="off"
+                                      placeholder="Search by name, company, city, or email"
+                                      style="white-space: pre-line;">{{ $founderLabel }}</textarea>
                             <input type="hidden" name="founder_user_id" id="founderUserId" value="{{ $founderId }}">
                             <div id="founderResults" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 1000;"></div>
                         </div>
@@ -447,7 +447,8 @@
                 items.forEach((item) => {
                     const button = document.createElement('button');
                     button.type = 'button';
-                    button.className = 'list-group-item list-group-item-action';
+                    button.className = 'list-group-item list-group-item-action text-start';
+                button.style.whiteSpace = 'pre-line';
                     button.textContent = item.label;
                     button.addEventListener('click', () => {
                         setSelection(item.id, item.label);
