@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CoinClaims\RejectCoinClaimRequest;
+use App\Models\Circle;
 use App\Models\CoinClaimRequest;
 use App\Services\CoinClaims\CoinClaimEmailService;
-use App\Services\CoinClaims\CoinClaimUserNotificationService;
 use App\Services\Coins\CoinsService;
 use App\Support\AdminCircleScope;
 use App\Support\CoinClaims\CoinClaimActivityRegistry;
@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -24,40 +25,141 @@ class CoinClaimsController extends Controller
         private readonly CoinClaimActivityRegistry $registry,
         private readonly CoinsService $coinsService,
         private readonly CoinClaimEmailService $emailService,
-        private readonly CoinClaimUserNotificationService $userNotificationService,
     ) {
     }
 
     public function index(Request $request): View
     {
-        $search = trim((string) $request->query('search', ''));
-        $status = (string) $request->query('status', 'pending');
+        $q = trim((string) $request->query('q', $request->query('search', '')));
+        $status = (string) $request->query('status', 'all');
+        $circleId = (string) $request->query('circle_id', 'all');
+
+        $peerQ = trim((string) $request->query('peer_q', ''));
+        $peerPhone = trim((string) $request->query('peer_phone', ''));
+        $activity = trim((string) $request->query('activity', ''));
+        $keyFields = trim((string) $request->query('key_fields', ''));
+
+        $hasUsersName = Schema::hasColumn('users', 'name');
+        $hasUsersCompany = Schema::hasColumn('users', 'company');
+        $hasUsersBusinessName = Schema::hasColumn('users', 'business_name');
 
         $query = CoinClaimRequest::query()
-            ->with(['user:id,display_name,first_name,last_name,phone']);
+            ->with([
+                'user',
+                'user.circleMembers' => function ($circleMembersQuery) {
+                    $circleMembersQuery
+                        ->where('status', 'approved')
+                        ->whereNull('deleted_at')
+                        ->orderByDesc('joined_at')
+                        ->with(['circle:id,name']);
+                },
+            ]);
 
         if ($status !== '' && $status !== 'all') {
             $query->where('status', $status);
         }
 
-        if ($search !== '') {
-            $like = "%{$search}%";
-            $query->whereHas('user', function ($userQuery) use ($like) {
-                $userQuery->where('display_name', 'ILIKE', $like)
-                    ->orWhere('first_name', 'ILIKE', $like)
-                    ->orWhere('last_name', 'ILIKE', $like)
-                    ->orWhere('phone', 'ILIKE', $like);
+        if ($circleId !== '' && $circleId !== 'all') {
+            $query->whereHas('user.circleMembers', function ($circleMembersQuery) use ($circleId) {
+                $circleMembersQuery
+                    ->where('circle_id', $circleId)
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at');
+            });
+        }
+
+        if ($q !== '') {
+            $like = "%{$q}%";
+            $query->where(function ($qQuery) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                $qQuery->where('activity_code', 'ILIKE', $like)
+                    ->orWhere('status', 'ILIKE', $like)
+                    ->orWhere('admin_note', 'ILIKE', $like)
+                    ->orWhereRaw("COALESCE(payload::text,'') ILIKE ?", [$like])
+                    ->orWhereHas('user', function ($userQuery) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                        $userQuery->where(function ($uq) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                            $uq->where('display_name', 'ILIKE', $like)
+                                ->orWhere('first_name', 'ILIKE', $like)
+                                ->orWhere('last_name', 'ILIKE', $like)
+                                ->orWhere('email', 'ILIKE', $like)
+                                ->orWhere('phone', 'ILIKE', $like)
+                                ->orWhere('company_name', 'ILIKE', $like)
+                                ->orWhere('city', 'ILIKE', $like);
+
+                            if ($hasUsersName) {
+                                $uq->orWhere('name', 'ILIKE', $like);
+                            }
+                            if ($hasUsersCompany) {
+                                $uq->orWhere('company', 'ILIKE', $like);
+                            }
+                            if ($hasUsersBusinessName) {
+                                $uq->orWhere('business_name', 'ILIKE', $like);
+                            }
+                        })->orWhereHas('circleMembers.circle', function ($circleQuery) use ($like) {
+                            $circleQuery->where('name', 'ILIKE', $like);
+                        });
+                    });
+            });
+        }
+
+        if ($peerQ !== '') {
+            $like = "%{$peerQ}%";
+            $query->whereHas('user', function ($userQuery) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                $userQuery->where(function ($uq) use ($like, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                    $uq->where('display_name', 'ILIKE', $like)
+                        ->orWhere('first_name', 'ILIKE', $like)
+                        ->orWhere('last_name', 'ILIKE', $like)
+                        ->orWhere('email', 'ILIKE', $like)
+                        ->orWhere('company_name', 'ILIKE', $like)
+                        ->orWhere('city', 'ILIKE', $like);
+
+                    if ($hasUsersName) {
+                        $uq->orWhere('name', 'ILIKE', $like);
+                    }
+                    if ($hasUsersCompany) {
+                        $uq->orWhere('company', 'ILIKE', $like);
+                    }
+                    if ($hasUsersBusinessName) {
+                        $uq->orWhere('business_name', 'ILIKE', $like);
+                    }
+                });
+            });
+        }
+
+        if ($peerPhone !== '') {
+            $query->whereHas('user', fn ($userQuery) => $userQuery->where('phone', 'ILIKE', "%{$peerPhone}%"));
+        }
+
+        if ($activity !== '') {
+            $query->where('activity_code', 'ILIKE', "%{$activity}%");
+        }
+
+        if ($keyFields !== '') {
+            $like = "%{$keyFields}%";
+            $query->where(function ($keyFieldsQuery) use ($like) {
+                $keyFieldsQuery->where('activity_code', 'ILIKE', $like)
+                    ->orWhere('admin_note', 'ILIKE', $like)
+                    ->orWhereRaw("COALESCE(payload::text,'') ILIKE ?", [$like]);
             });
         }
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'coin_claim_requests.user_id', null);
 
-        $claims = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
+        $claims = $query->orderByDesc('created_at')->paginate(25)->appends($request->query());
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
 
         return view('admin.coin_claims.index', [
             'claims' => $claims,
             'registry' => $this->registry,
-            'filters' => ['search' => $search, 'status' => $status],
+            'circles' => $circles,
+            'filters' => [
+                'q' => $q,
+                'status' => in_array($status, ['all', 'pending', 'approved', 'rejected'], true) ? $status : 'all',
+                'circle_id' => $circleId,
+                'peer_q' => $peerQ,
+                'peer_phone' => $peerPhone,
+                'activity' => $activity,
+                'key_fields' => $keyFields,
+            ],
             'statuses' => ['pending', 'approved', 'rejected'],
         ]);
     }
@@ -86,10 +188,9 @@ class CoinClaimsController extends Controller
         Log::info('Coin claim approve requested', ['request_id' => $requestId, 'id' => $id]);
 
         $admin = Auth::guard('admin')->user();
-        $adminId = $admin?->id;
 
         try {
-            $message = DB::transaction(function () use ($id, $admin, $adminId, $requestId, $request) {
+            $message = DB::transaction(function () use ($id, $admin, $requestId, $request) {
                 $claim = CoinClaimRequest::with('user')->where('id', $id)->lockForUpdate()->firstOrFail();
 
                 if (! AdminCircleScope::userInScope($admin, $claim->user_id)) {
@@ -104,60 +205,22 @@ class CoinClaimsController extends Controller
                 $coins = (int) ($activity['coins'] ?? 0);
 
                 $claim->status = 'approved';
-                $claim->reviewed_by_admin_id = $adminId;
+                $claim->reviewed_by_admin_id = $admin?->id;
                 $claim->reviewed_at = now();
                 $claim->coins_awarded = $coins;
                 $claim->admin_note = $request->input('admin_note');
                 $claim->save();
 
                 if ($coins > 0 && $claim->user) {
-                    $reference = 'Coin claim approved: ' . $claim->activity_code . ' #' . $claim->id;
-
-                    // ✅ IMPORTANT:
-                    // Coins ledger "created_by" is a FK to users (not admins),
-                    // so we never pass admin_id as created_by.
-                    // We store admin_id safely inside meta.
-                    $meta = [
-                        'source' => 'coin_claim',
-                        'coin_claim_request_id' => (string) $claim->id,
-                        'activity_code' => (string) $claim->activity_code,
-                        'reviewed_by_admin_id' => $adminId ? (string) $adminId : null,
-                        'admin_note' => $claim->admin_note ? (string) $claim->admin_note : null,
-                        // keep a user-safe creator marker if your service uses it
-                        'created_by_user_id' => (string) $claim->user_id,
-                    ];
-
-                    Log::info('coin_claim.approve.ledger_payload', [
-                        'claim_id' => (string) $claim->id,
-                        'user_id' => (string) $claim->user_id,
-                        'amount' => $coins,
-                        'reference' => $reference,
-                        'meta' => $meta,
-                    ]);
-
                     $this->coinsService->reward(
-                        $claim->user,      // User model
-                        $coins,            // amount
-                        $reference,        // reference string
-                        $meta              // ✅ meta MUST be array
+                        $claim->user,
+                        $coins,
+                        'Coin claim approved: ' . $claim->activity_code . ' #' . $claim->id,
+                        $admin?->id
                     );
                 }
 
-                // Fire notifications/emails AFTER COMMIT (prevents partial writes on rollback)
-                DB::afterCommit(function () use ($claim) {
-                    try {
-                        $fresh = $claim->fresh('user');
-                        if ($fresh && $fresh->user) {
-                            $this->userNotificationService->sendApproved($fresh);
-                        }
-                        $this->emailService->sendApproved($fresh);
-                    } catch (\Throwable $e) {
-                        Log::error('coin_claim.approve.after_commit_failed', [
-                            'claim_id' => (string) $claim->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                });
+                $this->emailService->sendApproved($claim->fresh('user'));
 
                 return 'Coin claim approved.';
             });
@@ -167,7 +230,7 @@ class CoinClaimsController extends Controller
             Log::error('Coin claim approve failed', [
                 'request_id' => $requestId,
                 'id' => $id,
-                'admin_id' => $adminId,
+                'admin_id' => $admin?->id,
                 'error' => $exception->getMessage(),
             ]);
 
@@ -181,10 +244,9 @@ class CoinClaimsController extends Controller
         Log::info('Coin claim reject requested', ['request_id' => $requestId, 'id' => $id]);
 
         $admin = Auth::guard('admin')->user();
-        $adminId = $admin?->id;
 
         try {
-            $message = DB::transaction(function () use ($id, $admin, $adminId, $request) {
+            $message = DB::transaction(function () use ($id, $admin, $request) {
                 $claim = CoinClaimRequest::with('user')->where('id', $id)->lockForUpdate()->firstOrFail();
 
                 if (! AdminCircleScope::userInScope($admin, $claim->user_id)) {
@@ -196,25 +258,12 @@ class CoinClaimsController extends Controller
                 }
 
                 $claim->status = 'rejected';
-                $claim->reviewed_by_admin_id = $adminId;
+                $claim->reviewed_by_admin_id = $admin?->id;
                 $claim->reviewed_at = now();
                 $claim->admin_note = $request->validated('admin_note');
                 $claim->save();
 
-                DB::afterCommit(function () use ($claim) {
-                    try {
-                        $fresh = $claim->fresh('user');
-                        if ($fresh && $fresh->user) {
-                            $this->userNotificationService->sendRejected($fresh);
-                        }
-                        $this->emailService->sendRejected($fresh);
-                    } catch (\Throwable $e) {
-                        Log::error('coin_claim.reject.after_commit_failed', [
-                            'claim_id' => (string) $claim->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                });
+                $this->emailService->sendRejected($claim->fresh('user'));
 
                 return 'Coin claim rejected.';
             });
@@ -224,7 +273,7 @@ class CoinClaimsController extends Controller
             Log::error('Coin claim reject failed', [
                 'request_id' => $requestId,
                 'id' => $id,
-                'admin_id' => $adminId,
+                'admin_id' => $admin?->id,
                 'error' => $exception->getMessage(),
             ]);
 

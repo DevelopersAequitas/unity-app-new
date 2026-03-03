@@ -31,6 +31,8 @@ class CoinClaimRequest extends Model
 
     protected $casts = [
         'payload' => 'array',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'reviewed_at' => 'datetime',
         'coins_awarded' => 'integer',
     ];

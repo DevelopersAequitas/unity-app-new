@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminUser;
+use App\Models\Circle;
 use App\Models\City;
 use App\Models\Role;
 use App\Models\User;
@@ -14,6 +15,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -24,7 +26,7 @@ class UsersController extends Controller
     {
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
-        $users = $query->paginate($perPage)->withQueryString();
+        $users = $query->paginate($perPage)->appends($request->query());
         $canEditUsers = AdminAccess::canEditUsers(Auth::guard('admin')->user());
 
         $membershipStatuses = User::query()
@@ -34,12 +36,16 @@ class UsersController extends Controller
             ->sort()
             ->values();
 
-        $cities = City::query()->orderBy('name')->get();
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $q = $filters['search'] ?? '';
+        $circleId = $filters['circle_id'] ?? 'all';
 
         return view('admin.users.index', [
             'users' => $users,
             'membershipStatuses' => $membershipStatuses,
-            'cities' => $cities,
+            'circles' => $circles,
+            'q' => $q,
+            'circleId' => $circleId,
             'filters' => $filters,
             'canEditUsers' => $canEditUsers,
         ]);
@@ -576,7 +582,16 @@ class UsersController extends Controller
                 'deleted_at',
                 'status',
             ])
-            ->with('city');
+            ->with([
+                'city',
+                'circleMembers' => function ($circleMembersQuery) {
+                    $circleMembersQuery
+                        ->where('status', 'approved')
+                        ->whereNull('deleted_at')
+                        ->orderByDesc('joined_at')
+                        ->with(['circle:id,name']);
+                },
+            ]);
 
         if ($isCircleScoped && is_array($allowedCircleIds)) {
             if ($allowedCircleIds === []) {
@@ -594,24 +609,58 @@ class UsersController extends Controller
         }
 
         $search = trim((string) $request->query('q', $request->input('search', '')));
+        $circleId = (string) $request->query('circle_id', 'all');
         $membership = $request->input('membership_status');
-        $cityId = $request->input('city_id', $request->input('city'));
         $phone = $request->input('phone');
-        $company = $request->input('company_name');
         $perPage = $request->integer('per_page') ?: 20;
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $like = "%{$search}%";
-                $q->where('display_name', 'ILIKE', $like)
-                    ->orWhere('first_name', 'ILIKE', $like)
-                    ->orWhere('last_name', 'ILIKE', $like)
-                    ->orWhere('email', 'ILIKE', $like)
-                    ->orWhere('company_name', 'ILIKE', $like)
-                    ->orWhere('city', 'ILIKE', $like)
-                    ->orWhereHas('city', function ($cityQuery) use ($like) {
-                        $cityQuery->where('name', 'ILIKE', $like);
-                    });
+
+                $searchableColumns = [
+                    'name',
+                    'display_name',
+                    'first_name',
+                    'last_name',
+                    'email',
+                    'company',
+                    'company_name',
+                    'business_name',
+                    'city',
+                ];
+
+                $hasSearchColumn = false;
+                foreach ($searchableColumns as $column) {
+                    if (! Schema::hasColumn('users', $column)) {
+                        continue;
+                    }
+
+                    if (! $hasSearchColumn) {
+                        $q->where($column, 'ILIKE', $like);
+                        $hasSearchColumn = true;
+                        continue;
+                    }
+
+                    $q->orWhere($column, 'ILIKE', $like);
+                }
+
+                if (! $hasSearchColumn) {
+                    $q->whereRaw('1=0');
+                }
+
+                $q->orWhereHas('city', function ($cityQuery) use ($like) {
+                    $cityQuery->where('name', 'ILIKE', $like);
+                });
+            });
+        }
+
+        if ($circleId !== '' && $circleId !== 'all') {
+            $query->whereHas('circleMembers', function ($circleMembersQuery) use ($circleId) {
+                $circleMembersQuery
+                    ->where('circle_id', $circleId)
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at');
             });
         }
 
@@ -619,16 +668,8 @@ class UsersController extends Controller
             $query->where('membership_status', $membership);
         }
 
-        if ($cityId && $cityId !== 'all') {
-            $query->where('city_id', $cityId);
-        }
-
         if ($phone) {
             $query->where('phone', 'ILIKE', "%{$phone}%");
-        }
-
-        if ($company) {
-            $query->where('company_name', 'ILIKE', "%{$company}%");
         }
 
         $sortable = ['display_name', 'coins_balance', 'last_login_at', 'created_at'];
@@ -645,10 +686,9 @@ class UsersController extends Controller
 
         $filters = [
             'search' => $search,
+            'circle_id' => $circleId,
             'membership_status' => $membership,
-            'city_id' => $cityId,
             'phone' => $phone,
-            'company_name' => $company,
             'per_page' => $perPage,
             'sort' => $sort,
             'dir' => $direction,

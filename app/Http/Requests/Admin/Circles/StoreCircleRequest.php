@@ -23,6 +23,7 @@ class StoreCircleRequest extends FormRequest
             'purpose' => ['nullable', 'string'],
             'announcement' => ['nullable', 'string'],
             'city_id' => ['required', 'uuid', 'exists:cities,id'],
+            'country' => ['required', 'string', 'max:100'],
             'founder_user_id' => ['required', 'uuid', 'exists:users,id'],
             'director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],

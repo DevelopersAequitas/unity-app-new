@@ -28,17 +28,29 @@
         $industryTagsValue = implode(', ', $industryTagsValue);
     }
     $founderId = old('founder_user_id', $defaultFounder?->id);
-    $founderLabel = old('founder_search', $defaultFounderLabel);
-    $calendar = $circle->calendar ?? [];
-    $calendarMeetings = old('calendar_meetings');
-    if (! is_array($calendarMeetings)) {
-        $calendarMeetings = is_array(data_get($calendar, 'meetings')) && data_get($calendar, 'meetings') !== []
-            ? array_values(data_get($calendar, 'meetings'))
+    $calendar = is_array($circle->calendar) ? $circle->calendar : [];
+    $meetingScheduleFrequency = old('meeting_schedule_frequency');
+    $meetingScheduleTimes = old('meeting_schedule_default_meet_time');
+    $meetingScheduleDays = old('meeting_schedule_day_of_week');
+
+    $calendarMeetings = [];
+
+    if (is_array($meetingScheduleFrequency) || is_array($meetingScheduleTimes) || is_array($meetingScheduleDays)) {
+        $max = max(count((array) $meetingScheduleFrequency), count((array) $meetingScheduleTimes), count((array) $meetingScheduleDays));
+        for ($i = 0; $i < $max; $i++) {
+            $calendarMeetings[] = [
+                'frequency' => (string) (($meetingScheduleFrequency[$i] ?? '') ?: ''),
+                'default_meet_time' => (string) (($meetingScheduleTimes[$i] ?? '') ?: ''),
+                'day_of_week' => (string) (($meetingScheduleDays[$i] ?? '') ?: ''),
+            ];
+        }
+    } else {
+        $calendarMeetings = is_array(data_get($calendar, 'meeting_schedule')) && data_get($calendar, 'meeting_schedule') !== []
+            ? array_values(data_get($calendar, 'meeting_schedule'))
             : [[
-                'frequency' => data_get($calendar, 'frequency', ''),
-                'default_meet_day' => data_get($calendar, 'default_meet_day', ''),
-                'default_meet_time' => data_get($calendar, 'default_meet_time', ''),
-                'monthly_rule' => data_get($calendar, 'monthly_rule', ''),
+                'frequency' => '',
+                'default_meet_time' => '',
+                'day_of_week' => '',
             ]];
     }
 @endphp
@@ -58,19 +70,12 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Circle Founder</label>
-                        <div class="position-relative">
-                            <input type="text"
-                                   name="founder_search"
-                                   id="founderSearch"
-                                   class="form-control"
-                                   value="{{ $founderLabel }}"
-                                   data-default-id="{{ $founderId }}"
-                                   data-default-label="{{ $founderLabel }}"
-                                   autocomplete="off"
-                                   placeholder="Search by name or email">
-                            <input type="hidden" name="founder_user_id" id="founderUserId" value="{{ $founderId }}">
-                            <div id="founderResults" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 1000;"></div>
-                        </div>
+                        <select name="founder_user_id" class="form-select" required>
+                            <option value="">Select a member</option>
+                            @foreach ($allUsers as $user)
+                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminFounderOptionLabel() }}</option>
+                            @endforeach
+                        </select>
                         <div class="form-text">Defaults to the logged-in admin user.</div>
                     </div>
                     <div class="col-md-3">
@@ -136,14 +141,14 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Launch Date</label>
-                        <input type="date" name="launch_date" class="form-control" value="{{ old('launch_date', optional($circle->launch_date)->format('Y-m-d')) }}">
+                        <input type="date" name="launch_date" class="form-control" value="{{ old('launch_date', $circle->launch_date) }}">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Circle Director</label>
                         <select name="director_user_id" class="form-select">
                             <option value="">Select director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('director_user_id', $circle->director_user_id) === $user->id)>{{ $user->display_name ?: trim($user->first_name . ' ' . ($user->last_name ?? '')) }}</option>
+                                <option value="{{ $user->id }}" @selected(old('director_user_id', $circle->director_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -152,7 +157,7 @@
                         <select name="industry_director_user_id" class="form-select">
                             <option value="">Select industry director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id', $circle->industry_director_user_id) === $user->id)>{{ $user->display_name ?: trim($user->first_name . ' ' . ($user->last_name ?? '')) }}</option>
+                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id', $circle->industry_director_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -161,7 +166,7 @@
                         <select name="ded_user_id" class="form-select">
                             <option value="">Select DED</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('ded_user_id', $circle->ded_user_id) === $user->id)>{{ $user->display_name ?: trim($user->first_name . ' ' . ($user->last_name ?? '')) }}</option>
+                                <option value="{{ $user->id }}" @selected(old('ded_user_id', $circle->ded_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -198,15 +203,14 @@
                         @foreach ($calendarMeetings as $index => $meeting)
                             @php
                                 $rowFrequency = strtolower((string) data_get($meeting, 'frequency', ''));
-                                $rowDay = strtolower((string) data_get($meeting, 'default_meet_day', ''));
+                                $rowDay = (string) data_get($meeting, 'day_of_week', '');
                                 $rowTime = (string) data_get($meeting, 'default_meet_time', '');
-                                $rowRule = strtolower((string) data_get($meeting, 'monthly_rule', ''));
-                            @endphp
+                                                            @endphp
                             <div class="border rounded p-3 meeting-row" data-index="{{ $index }}">
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-3">
                                         <label class="form-label">Frequency</label>
-                                        <select class="form-select js-meeting-frequency" name="calendar_meetings[{{ $index }}][frequency]">
+                                        <select class="form-select js-meeting-frequency" name="meeting_schedule_frequency[]">
                                             <option value="">Select frequency</option>
                                             <option value="weekly" @selected($rowFrequency === 'weekly')>Weekly</option>
                                             <option value="monthly" @selected($rowFrequency === 'monthly')>Monthly</option>
@@ -215,23 +219,14 @@
                                     </div>
                                     <div class="col-md-3 js-meeting-time-wrap">
                                         <label class="form-label">Default Meet Time</label>
-                                        <input type="time" class="form-control js-meeting-time" name="calendar_meetings[{{ $index }}][default_meet_time]" value="{{ $rowTime }}">
+                                        <input type="time" class="form-control js-meeting-time" name="meeting_schedule_default_meet_time[]" value="{{ $rowTime }}">
                                     </div>
                                     <div class="col-md-3 js-meeting-day-wrap">
                                         <label class="form-label">Day of Week</label>
-                                        <select class="form-select js-meeting-day" name="calendar_meetings[{{ $index }}][default_meet_day]">
+                                        <select class="form-select js-meeting-day" name="meeting_schedule_day_of_week[]">
                                             <option value="">Select day</option>
-                                            @foreach (['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as $day)
-                                                <option value="{{ $day }}" @selected($rowDay === $day)>{{ ucfirst($day) }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-md-2 js-meeting-rule-wrap">
-                                        <label class="form-label">Week Rule</label>
-                                        <select class="form-select js-meeting-rule" name="calendar_meetings[{{ $index }}][monthly_rule]">
-                                            <option value="">Select</option>
-                                            @foreach (['first','second','third','fourth','last'] as $rule)
-                                                <option value="{{ $rule }}" @selected($rowRule === $rule)>{{ ucfirst($rule) }}</option>
+                                            @foreach (['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as $day)
+                                                <option value="{{ $day }}" @selected($rowDay === $day)>{{ $day }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -256,7 +251,7 @@
                 <div class="card-body row g-3">
                     <div class="col-md-4">
                         <label class="form-label">Country</label>
-                        <select name="country" id="countrySelect" class="form-select">
+                        <select name="country" id="countrySelect" class="form-select" required>
                             @foreach ($countries as $country)
                                 <option value="{{ $country }}" @selected(old('country', $selectedCountry) === $country)>{{ $country }}</option>
                             @endforeach
@@ -359,17 +354,12 @@
         const frequency = row.querySelector('.js-meeting-frequency')?.value || '';
         const day = row.querySelector('.js-meeting-day')?.value || '';
         const time = row.querySelector('.js-meeting-time')?.value || '';
-        const rule = row.querySelector('.js-meeting-rule')?.value || '';
-
         row.querySelector('.js-meeting-time-wrap')?.classList.toggle('d-none', !frequency);
         row.querySelector('.js-meeting-day-wrap')?.classList.toggle('d-none', !frequency);
-        row.querySelector('.js-meeting-rule-wrap')?.classList.toggle('d-none', !['monthly', 'quarterly'].includes(frequency));
 
         let preview = '—';
-        if (frequency === 'weekly' && day && time) {
-            preview = `Every ${title(day)} at ${time}`;
-        } else if ((frequency === 'monthly' || frequency === 'quarterly') && rule && day && time) {
-            preview = `${title(rule)} ${title(day)} at ${time}${frequency === 'quarterly' ? ' (Quarterly)' : ''}`;
+        if (frequency && day && time) {
+            preview = `${title(day)} at ${time} (${title(frequency)})`;
         }
 
         const previewEl = row.querySelector('.js-meeting-preview');
@@ -379,7 +369,7 @@
     };
 
     const bindMeetingRow = (row) => {
-        row.querySelectorAll('.js-meeting-frequency, .js-meeting-day, .js-meeting-time, .js-meeting-rule')
+        row.querySelectorAll('.js-meeting-frequency, .js-meeting-day, .js-meeting-time')
             .forEach((input) => input.addEventListener('change', () => updateMeetingRowState(row)));
 
         row.querySelector('.js-meeting-time')?.addEventListener('input', () => updateMeetingRowState(row));
@@ -400,7 +390,7 @@
             row.querySelectorAll('select, input').forEach((el) => {
                 const name = el.getAttribute('name');
                 if (!name) return;
-                el.setAttribute('name', name.replace(/calendar_meetings\[\d+\]/, `calendar_meetings[${index}]`));
+                el.setAttribute('name', name);
             });
 
             const removeBtn = row.querySelector('.js-remove-meeting');
@@ -420,7 +410,7 @@
         clone.querySelectorAll('select, input').forEach((el) => {
             const name = el.getAttribute('name');
             if (!name) return;
-            el.setAttribute('name', name.replace(/calendar_meetings\[\d+\]/, `calendar_meetings[${index}]`));
+            el.setAttribute('name', name);
             if (el.tagName === 'SELECT') el.value = '';
             if (el.tagName === 'INPUT' && el.type !== 'hidden') el.value = '';
         });
@@ -433,84 +423,6 @@
     meetingRows?.querySelectorAll('.meeting-row').forEach((row) => bindMeetingRow(row));
     addMeetingBtn?.addEventListener('click', createMeetingRow);
 
-    (() => {
-        const input = document.getElementById('founderSearch');
-        const hidden = document.getElementById('founderUserId');
-        const results = document.getElementById('founderResults');
-        if (!input || !hidden || !results) {
-            return;
-        }
 
-        const defaultId = input.dataset.defaultId || '';
-        const defaultLabel = input.dataset.defaultLabel || '';
-        let timer = null;
-
-        const clearResults = () => {
-            results.innerHTML = '';
-            results.classList.add('d-none');
-        };
-
-        const setSelection = (id, label) => {
-            hidden.value = id || '';
-            input.value = label || '';
-        };
-
-        const restoreDefault = () => {
-            if (defaultId) {
-                setSelection(defaultId, defaultLabel);
-            } else {
-                setSelection('', '');
-            }
-        };
-
-        const renderResults = (items) => {
-            results.innerHTML = '';
-            if (!items.length) {
-                const empty = document.createElement('div');
-                empty.className = 'list-group-item small text-muted';
-                empty.textContent = 'No users found';
-                results.appendChild(empty);
-            } else {
-                items.forEach((item) => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'list-group-item list-group-item-action';
-                    button.textContent = item.label;
-                    button.addEventListener('click', () => {
-                        setSelection(item.id, item.label);
-                        clearResults();
-                    });
-                    results.appendChild(button);
-                });
-            }
-            results.classList.remove('d-none');
-        };
-
-        const fetchResults = (query) => {
-            fetch(`{{ route('admin.users.search') }}?q=${encodeURIComponent(query)}`, {
-                headers: { 'Accept': 'application/json' },
-            })
-                .then((response) => response.json())
-                .then((data) => renderResults(Array.isArray(data) ? data : []))
-                .catch(() => clearResults());
-        };
-
-        input.addEventListener('input', () => {
-            const query = input.value.trim();
-            if (!query) {
-                restoreDefault();
-                clearResults();
-                return;
-            }
-            clearTimeout(timer);
-            timer = window.setTimeout(() => fetchResults(query), 300);
-        });
-
-        document.addEventListener('click', (event) => {
-            if (!results.contains(event.target) && event.target !== input) {
-                clearResults();
-            }
-        });
-    })();
 </script>
 @endpush
