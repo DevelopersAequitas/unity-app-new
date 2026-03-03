@@ -162,15 +162,12 @@
                                 @endif
                             </td>
                             <td>
-                                @php
-                                    $coverId = $circle->cover_file_id ?? ($circle->coverFile->id ?? null);
-                                @endphp
-                                @if ($coverId)
-                                    <a href="{{ url('/api/v1/files/'.$coverId) }}" target="_blank">
+                                @if ($circle->cover_image_url)
+                                    <a href="{{ $circle->cover_image_url }}" target="_blank">
                                         <img
-                                            src="{{ url('/api/v1/files/'.$coverId) }}"
+                                            src="{{ $circle->cover_image_url }}"
                                             alt="Cover"
-                                            style="width:44px;height:44px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;"
+                                            style="width:48px;height:48px;object-fit:cover;border-radius:8px;"
                                         />
                                     </a>
                                 @else

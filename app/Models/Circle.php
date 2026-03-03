@@ -214,13 +214,23 @@ class Circle extends Model
         return $this->hasMany(CircleMember::class);
     }
 
+
+    public function coverFile(): BelongsTo
+    {
+        return $this->belongsTo(File::class, 'cover_file_id');
+    }
+
     public function getCoverImageUrlAttribute(): ?string
     {
         if (! $this->cover_file_id) {
             return null;
         }
 
-        return url("/api/v1/files/{$this->cover_file_id}");
+        if ($this->relationLoaded('coverFile') && $this->coverFile && isset($this->coverFile->url)) {
+            return $this->coverFile->url;
+        }
+
+        return url('/api/v1/files/' . $this->cover_file_id);
     }
 
     public static function generateUniqueSlug(string $name, ?string $ignoreId = null): string
