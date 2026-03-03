@@ -30,7 +30,7 @@
                         <th>Meeting Mode</th>
                         <th>Meeting Frequency</th>
                         <th>Launch Date</th>
-                        <th>Cover</th>
+                        <th>Cover Image</th>
                         <th>Director</th>
                         <th>Industry Director</th>
                         <th>DED</th>
@@ -97,9 +97,7 @@
                         <th>
                             <input type="date" name="launch_date" class="form-control form-control-sm" value="{{ $filters['launch_date'] }}">
                         </th>
-                        <th>
-                            <input type="text" name="cover" class="form-control form-control-sm" value="{{ $filters['cover'] }}" placeholder="Cover">
-                        </th>
+                        <th class="text-muted small">—</th>
                         <th>
                             <input type="text" name="director" class="form-control form-control-sm" value="{{ $filters['director'] }}" placeholder="Director">
                         </th>
@@ -163,7 +161,22 @@
                                     —
                                 @endif
                             </td>
-                            <td>{{ !empty($circle->cover_file_id) ? 'Yes' : '—' }}</td>
+                            <td>
+                                @php
+                                    $coverId = $circle->cover_file_id ?? ($circle->coverFile->id ?? null);
+                                @endphp
+                                @if ($coverId)
+                                    <a href="{{ url('/api/v1/files/'.$coverId) }}" target="_blank">
+                                        <img
+                                            src="{{ url('/api/v1/files/'.$coverId) }}"
+                                            alt="Cover"
+                                            style="width:44px;height:44px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;"
+                                        />
+                                    </a>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td>{{ $circle->director?->display_name ?? '—' }}</td>
                             <td>{{ $circle->industryDirector?->display_name ?? '—' }}</td>
                             <td>{{ $circle->ded?->display_name ?? '—' }}</td>

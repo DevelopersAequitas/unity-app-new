@@ -38,7 +38,6 @@ class CircleController extends Controller
             'meeting_mode' => trim((string) $request->query('meeting_mode', '')),
             'meeting_frequency' => trim((string) $request->query('meeting_frequency', '')),
             'launch_date' => trim((string) $request->query('launch_date', '')),
-            'cover' => trim((string) $request->query('cover', '')),
             'director' => trim((string) $request->query('director', '')),
             'industry_director' => trim((string) $request->query('industry_director', '')),
             'ded' => trim((string) $request->query('ded', '')),
@@ -54,7 +53,7 @@ class CircleController extends Controller
                 'city.name as city_name',
                 'city.country as city_country',
             ])
-            ->with(['founder', 'director', 'industryDirector', 'ded', 'city'])
+            ->with(['founder', 'director', 'industryDirector', 'ded', 'city', 'coverFile'])
             ->withCount('members');
 
         if (is_array($allowedCircleIds)) {
@@ -122,13 +121,7 @@ class CircleController extends Controller
             $query->whereRaw('CAST(industry_tags AS TEXT) ILIKE ?', ['%'.$filters['industry_tags'].'%']);
         }
 
-        if ($filters['cover'] !== '') {
-            if (Schema::hasColumn('circles', 'cover_file_id')) {
-                $query->whereRaw('CAST(cover_file_id AS TEXT) ILIKE ?', ['%'.$filters['cover'].'%']);
-            } elseif (Schema::hasColumn('circles', 'calendar')) {
-                $query->whereRaw("COALESCE(calendar->'cover'->>'file_id', calendar->'cover'->>'url', '') ILIKE ?", ['%'.$filters['cover'].'%']);
-            }
-        }
+
 
         if ($filters['launch_date'] !== '') {
             if (Schema::hasColumn('circles', 'launch_date')) {
