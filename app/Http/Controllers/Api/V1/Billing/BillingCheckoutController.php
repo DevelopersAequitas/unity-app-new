@@ -79,12 +79,61 @@ class BillingCheckoutController extends Controller
         }
     }
 
+
+    public function syncHostedPage(Request $request, string $hostedpageId)
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        try {
+            $hostedPageResponse = $this->zohoBillingService->getHostedPage($hostedpageId);
+            $updated = $this->zohoBillingService->syncMembershipFromHostedPage($user, $hostedPageResponse);
+            $user->refresh();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Hosted page membership sync completed.',
+                'data' => [
+                    'handled' => $updated,
+                    'zoho_customer_id' => $user->zoho_customer_id,
+                    'zoho_subscription_id' => $user->zoho_subscription_id,
+                    'zoho_plan_code' => $user->zoho_plan_code,
+                    'zoho_last_invoice_id' => $user->zoho_last_invoice_id,
+                    'membership_starts_at' => $user->membership_starts_at,
+                    'membership_ends_at' => $user->membership_ends_at,
+                    'last_payment_at' => $user->last_payment_at,
+                ],
+            ]);
+        } catch (Throwable $throwable) {
+            Log::error('Zoho hosted page sync failed', [
+                'user_id' => $user->id,
+                'hostedpage_id' => $hostedpageId,
+                'message' => $throwable->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Hosted page sync failed.',
+                'data' => [],
+            ], 500);
+        }
+    }
+
     public function status(Request $request, string $hostedpage_id)
     {
         try {
-            $payment = Payment::query()
-                ->where('provider', 'zoho')
-                ->where('zoho_hostedpage_id', $hostedpage_id)
+            $paymentQuery = Payment::query()
+                ->whereNotNull('zoho_hostedpage_id')
+                ->where('zoho_hostedpage_id', $hostedpage_id);
+
+            if (Schema::hasColumn('payments', 'provider')) {
+                $paymentQuery->where(function ($query) {
+                    $query->where('provider', 'zoho')
+                        ->orWhereNull('provider');
+                });
+            }
+
+            $payment = $paymentQuery
                 ->latest('created_at')
                 ->first();
 
@@ -272,23 +321,36 @@ class BillingCheckoutController extends Controller
 
     private function recordPendingZohoPayment(User $user, string $planCode, string $hostedpageId): void
     {
-        $payment = Payment::query()
-            ->where('provider', 'zoho')
-            ->where('zoho_hostedpage_id', $hostedpageId)
-            ->first();
+        $paymentQuery = Payment::query()
+            ->whereNotNull('zoho_hostedpage_id')
+            ->where('zoho_hostedpage_id', $hostedpageId);
+
+        if (Schema::hasColumn('payments', 'provider')) {
+            $paymentQuery->where(function ($query) {
+                $query->where('provider', 'zoho')
+                    ->orWhereNull('provider');
+            });
+        }
+
+        $payment = $paymentQuery->first();
 
         if (! $payment) {
             $payment = new Payment();
             $payment->id = (string) Str::uuid();
         }
 
-        $payment->forceFill([
+        $payload = [
             'user_id' => $user->id,
-            'provider' => 'zoho',
             'zoho_plan_code' => $planCode,
             'zoho_hostedpage_id' => $hostedpageId,
             'status' => 'pending',
-        ]);
+        ];
+
+        if (Schema::hasColumn('payments', 'provider')) {
+            $payload['provider'] = 'zoho';
+        }
+
+        $payment->forceFill($payload);
 
         $payment->save();
     }

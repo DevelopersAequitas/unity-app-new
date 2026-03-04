@@ -268,8 +268,117 @@ class ZohoBillingService
 
     public function applyWebhookEvent(array $event): bool
     {
-        $eventType = strtolower((string) ($event['event_type'] ?? Arr::get($event, 'eventType', '')));
-        $payload = Arr::get($event, 'payload', $event['data'] ?? []);
+        $eventType = strtolower((string) ($event['event_type'] ?? $event['eventType'] ?? ''));
+        $payload = $event['payload'] ?? $event['data'] ?? $event;
+
+        if (is_string($payload)) {
+            $decodedPayload = json_decode($payload, true);
+            $payload = is_array($decodedPayload) ? $decodedPayload : [];
+        }
+
+        if (! is_array($payload)) {
+            $payload = [];
+        }
+
+        if (isset($payload['subscription']) && is_array($payload['subscription'])) {
+            $sub = $payload['subscription'];
+            $subscriptionId = (string) ($sub['subscription_id'] ?? '');
+            $customerId = trim((string) ($sub['customer_id'] ?? ''));
+
+            if ($subscriptionId === '') {
+                Log::warning('Zoho webhook subscription payload missing subscription_id');
+
+                return false;
+            }
+
+            $planCode = (string) ($sub['plan_code'] ?? data_get($sub, 'plan.plan_code') ?? '');
+            $status = strtolower((string) ($sub['status'] ?? ''));
+            $startsAt = $sub['start_date'] ?? $sub['created_time'] ?? now()->toDateTimeString();
+            $endsAt = $sub['next_billing_at']
+                ?? $sub['current_term_ends_at']
+                ?? $sub['current_term_end']
+                ?? null;
+
+            if ($customerId === '') {
+                try {
+                    $full = $this->getSubscription($subscriptionId);
+                    $subscription = is_array($full['subscription'] ?? null) ? $full['subscription'] : $full;
+
+                    $customerId = trim((string) ($subscription['customer_id'] ?? ''));
+                    $planCode = (string) (data_get($subscription, 'plan.plan_code') ?? $subscription['plan_code'] ?? $planCode ?? '');
+                    $status = strtolower((string) ($subscription['status'] ?? $status));
+                    $startsAt = $subscription['start_date'] ?? $subscription['created_time'] ?? $startsAt;
+                    $endsAt = $subscription['next_billing_at']
+                        ?? $subscription['current_term_ends_at']
+                        ?? $subscription['current_term_end']
+                        ?? $endsAt;
+
+                    Log::info('Zoho webhook subscription enriched', [
+                        'subscription_id' => $subscriptionId,
+                        'customer_id' => $customerId,
+                        'plan_code' => $planCode,
+                        'status' => $status,
+                    ]);
+                } catch (\Throwable $throwable) {
+                    Log::warning('Zoho webhook subscription enrich failed', [
+                        'subscription_id' => $subscriptionId,
+                        'message' => $throwable->getMessage(),
+                    ]);
+                }
+            }
+
+            Log::info('Zoho webhook parsed', [
+                'event_type' => $eventType,
+                'customer_id' => $customerId,
+                'subscription_id' => $subscriptionId,
+                'status' => $status,
+                'plan_code' => $planCode,
+            ]);
+
+            $isPaidStatus = in_array($status, ['live', 'active', 'paid', 'success', 'payment_success', 'completed'], true);
+
+            if (! $isPaidStatus) {
+                Log::info('Zoho webhook subscription ignored due to non-paid status', [
+                    'subscription_id' => $subscriptionId,
+                    'customer_id' => $customerId,
+                    'status' => $status,
+                ]);
+
+                return false;
+            }
+
+            $user = User::query()
+                ->where(function ($query) use ($customerId, $subscriptionId) {
+                    if ($customerId !== '') {
+                        $query->orWhere('zoho_customer_id', $customerId);
+                    }
+
+                    $query->orWhere('zoho_subscription_id', $subscriptionId);
+                })
+                ->first();
+
+            if (! $user) {
+                Log::warning('Zoho webhook user not found', [
+                    'event_type' => $eventType,
+                    'customer_id' => $customerId,
+                    'subscription_id' => $subscriptionId,
+                    'plan_code' => $planCode,
+                    'status' => $status,
+                ]);
+
+                return false;
+            }
+
+            return $this->membershipUpdater->applyPaidMembership($user, [
+                'zoho_customer_id' => $customerId !== '' ? $customerId : $user->zoho_customer_id,
+                'zoho_subscription_id' => $subscriptionId,
+                'zoho_plan_code' => $planCode !== '' ? $planCode : $user->zoho_plan_code,
+                'zoho_last_invoice_id' => null,
+                'membership_starts_at' => $startsAt,
+                'membership_ends_at' => $endsAt,
+                'last_payment_at' => now(),
+            ]);
+        }
 
         $customerId = Arr::get($payload, 'customer.customer_id')
             ?? Arr::get($payload, 'subscription.customer_id')
@@ -279,6 +388,25 @@ class ZohoBillingService
         $subscriptionId = Arr::get($payload, 'subscription.subscription_id')
             ?? Arr::get($payload, 'subscription_id')
             ?? Arr::get($payload, 'invoice.subscription_id');
+
+        $planCode = Arr::get($payload, 'subscription.plan.plan_code')
+            ?? Arr::get($payload, 'plan.plan_code')
+            ?? Arr::get($payload, 'plan_code');
+
+        $status = strtolower((string) (
+            Arr::get($payload, 'subscription.status')
+            ?? Arr::get($payload, 'invoice.status')
+            ?? Arr::get($payload, 'status')
+            ?? ''
+        ));
+
+        Log::info('Zoho webhook parsed', [
+            'event_type' => $eventType,
+            'customer_id' => $customerId,
+            'subscription_id' => $subscriptionId,
+            'status' => $status,
+            'plan_code' => $planCode,
+        ]);
 
         $user = $this->resolveUserByZoho($customerId, $subscriptionId);
 
@@ -298,14 +426,25 @@ class ZohoBillingService
             $user->forceFill(['zoho_last_invoice_id' => $invoiceId])->save();
         }
 
-        if (in_array($eventType, ['payment_thankyou', 'subscription_created', 'subscription_activation', 'subscription_activated'], true)) {
+        if (in_array($eventType, [
+            'payment_thankyou',
+            'subscription_created',
+            'subscription_activation',
+            'subscription_activated',
+            'invoice_paid',
+            'payment_success',
+        ], true)) {
             return $this->membershipUpdater->applyPaidMembership($user, [
                 'zoho_customer_id' => $customerId,
                 'zoho_subscription_id' => $subscriptionId,
-                'zoho_plan_code' => Arr::get($payload, 'subscription.plan.plan_code') ?? Arr::get($payload, 'plan.plan_code'),
+                'zoho_plan_code' => $planCode,
                 'zoho_last_invoice_id' => $invoiceId,
-                'membership_starts_at' => Arr::get($payload, 'subscription.start_date'),
-                'membership_ends_at' => Arr::get($payload, 'subscription.next_billing_at'),
+                'membership_starts_at' => Arr::get($payload, 'subscription.start_date')
+                    ?? Arr::get($payload, 'subscription.current_term_starts_at')
+                    ?? Arr::get($payload, 'subscription.created_time')
+                    ?? now(),
+                'membership_ends_at' => Arr::get($payload, 'subscription.next_billing_at')
+                    ?? Arr::get($payload, 'subscription.current_term_ends_at'),
                 'last_payment_at' => now(),
             ]);
         }
