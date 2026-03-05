@@ -284,7 +284,7 @@ class CircleController extends Controller
             return redirect()
                 ->route('admin.circles.edit', $circle)
                 ->withInput()
-                ->with('error', 'Zoho addon sync failed. Please try again.');
+                ->with('error', 'Circle saved, but Zoho addon sync failed. Please try again.');
         }
 
         Cache::forget('admin.circles.index');
@@ -400,7 +400,7 @@ class CircleController extends Controller
             return redirect()
                 ->route('admin.circles.edit', $circle)
                 ->withInput()
-                ->with('error', 'Zoho addon sync failed. Please try again.');
+                ->with('error', 'Circle saved, but Zoho addon sync failed. Please try again.');
         }
 
         Cache::forget('admin.circles.index');

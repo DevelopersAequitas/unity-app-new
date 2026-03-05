@@ -8,6 +8,7 @@ use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Throwable;
 
 class ZohoCircleAddonService
@@ -58,45 +59,56 @@ class ZohoCircleAddonService
 
     public function generateUniqueAddonCode(Circle $circle, int $durationMonths): string
     {
-        $maxUsed = (int) (CircleSubscriptionPrice::query()
+        $dbCodes = CircleSubscriptionPrice::query()
             ->whereNotNull('zoho_addon_code')
-            ->whereRaw("zoho_addon_code ~ '^[0-9]+$'")
-            ->selectRaw('COALESCE(MAX(CAST(zoho_addon_code AS INT)), 0) as max_code')
-            ->value('max_code') ?? 0);
+            ->pluck('zoho_addon_code')
+            ->filter(fn ($code) => is_string($code) && preg_match('/^[0-9]+$/', $code))
+            ->map(fn ($code) => (int) $code)
+            ->values();
 
-        $next = max(1, $maxUsed + 1);
+        $zohoCodes = collect($this->fetchZohoAddonCodes())
+            ->filter(fn ($code) => preg_match('/^[0-9]+$/', (string) $code))
+            ->map(fn ($code) => (int) $code)
+            ->values();
+
+        $used = $dbCodes->merge($zohoCodes)->unique()->values();
+        $usedSet = array_flip($used->map(fn ($n) => (string) $n)->all());
+
+        $next = max(10, ((int) ($used->max() ?? 0)) + 1);
 
         for ($i = 0; $i < self::MAX_DB_CODE_SCAN_ATTEMPTS; $i++) {
-            if (! $this->addonCodeExists($next)) {
-                return $this->formatNumericCode($next);
+            if (! isset($usedSet[(string) $next])) {
+                return (string) $next;
             }
 
             $next++;
         }
 
-        throw new \RuntimeException('Unable to generate unique numeric Zoho addon code within scan limit.');
+        throw new RuntimeException('Unable to generate unique numeric Zoho addon code within scan limit.');
     }
 
     private function createAddonWithRetry(Circle $circle, CircleSubscriptionPrice $price, string $addonName): void
     {
+        $productId = $this->resolveCircleAddonProductId();
         $codeNumber = $this->resolveInitialCodeNumber($circle, $price);
 
         for ($attempt = 1; $attempt <= self::MAX_ZOHO_CREATE_ATTEMPTS; $attempt++) {
             $codeNumber = $this->nextFreeCodeNumber($codeNumber, $price->id);
+            $addonCode = (string) $codeNumber;
 
-            $addonCode = $this->formatNumericCode($codeNumber);
             $payload = [
+                'product_id' => $productId,
                 'name' => $addonName,
                 'code' => $addonCode,
                 'price' => (float) $price->price,
                 'type' => 'recurring',
             ];
 
-            Log::info('Zoho circle addon create attempt', [
+            Log::info('Zoho addon create attempt', [
                 'circle_id' => $circle->id,
-                'duration_months' => $price->duration_months,
+                'duration' => $price->duration_months,
+                'code' => $addonCode,
                 'attempt' => $attempt,
-                'addon_code' => $addonCode,
                 'payload' => $payload,
             ]);
 
@@ -113,19 +125,25 @@ class ZohoCircleAddonService
                     ])->save();
                 });
 
+                Log::info('Zoho addon create success', [
+                    'circle_id' => $circle->id,
+                    'duration' => $price->duration_months,
+                    'addon_id' => $price->zoho_addon_id,
+                    'code' => $addonCode,
+                ]);
+
                 return;
             } catch (Throwable $throwable) {
+                Log::error('Zoho addon create failed', [
+                    'circle_id' => $circle->id,
+                    'duration' => $price->duration_months,
+                    'code' => $addonCode,
+                    'message' => $throwable->getMessage(),
+                ]);
+
                 if (! $this->isCodeRelatedZohoError($throwable) || $attempt === self::MAX_ZOHO_CREATE_ATTEMPTS) {
                     throw $throwable;
                 }
-
-                Log::warning('Zoho circle addon create retry due to code issue', [
-                    'circle_id' => $circle->id,
-                    'duration_months' => $price->duration_months,
-                    'attempt' => $attempt,
-                    'addon_code' => $addonCode,
-                    'message' => $throwable->getMessage(),
-                ]);
 
                 $codeNumber++;
             }
@@ -134,14 +152,9 @@ class ZohoCircleAddonService
 
     private function syncExistingAddon(Circle $circle, CircleSubscriptionPrice $price, string $addonName): void
     {
-        $codeNumber = $this->resolveInitialCodeNumber($circle, $price);
-        $codeNumber = $this->nextFreeCodeNumber($codeNumber, $price->id);
-
-        $addonCode = $this->formatNumericCode($codeNumber);
-
         $payload = [
             'name' => $addonName,
-            'code' => $addonCode,
+            'code' => (string) $price->zoho_addon_code,
             'price' => (float) $price->price,
             'type' => 'recurring',
         ];
@@ -152,7 +165,7 @@ class ZohoCircleAddonService
 
             $price->forceFill([
                 'zoho_addon_id' => (string) (data_get($addon, 'addon_id') ?? data_get($addon, 'id') ?? $price->zoho_addon_id),
-                'zoho_addon_code' => (string) (data_get($addon, 'code') ?? $addonCode),
+                'zoho_addon_code' => (string) (data_get($addon, 'code') ?? $price->zoho_addon_code),
                 'zoho_addon_name' => (string) (data_get($addon, 'name') ?? $addonName),
                 'payload' => $response,
             ])->save();
@@ -163,7 +176,7 @@ class ZohoCircleAddonService
 
             Log::warning('Zoho circle addon update failed due to code issue, creating replacement addon', [
                 'circle_id' => $circle->id,
-                'duration_months' => $price->duration_months,
+                'duration' => $price->duration_months,
                 'addon_id' => $price->zoho_addon_id,
                 'message' => $throwable->getMessage(),
             ]);
@@ -186,32 +199,23 @@ class ZohoCircleAddonService
         return (int) $this->generateUniqueAddonCode($circle, (int) $price->duration_months);
     }
 
-    private function formatNumericCode(int $number): string
-    {
-        if ($number < 100) {
-            return str_pad((string) $number, 2, '0', STR_PAD_LEFT);
-        }
-
-        return (string) $number;
-    }
-
     private function nextFreeCodeNumber(int $codeNumber, ?string $ignoreId = null): int
     {
         for ($i = 0; $i < self::MAX_DB_CODE_SCAN_ATTEMPTS; $i++) {
-            if (! $this->addonCodeExists($codeNumber, $ignoreId)) {
+            if (! $this->addonCodeExists((string) $codeNumber, $ignoreId)) {
                 return $codeNumber;
             }
 
             $codeNumber++;
         }
 
-        throw new \RuntimeException('Unable to resolve free numeric Zoho addon code within scan limit.');
+        throw new RuntimeException('Unable to resolve free numeric Zoho addon code within scan limit.');
     }
 
-    private function addonCodeExists(int $codeNumber, ?string $ignoreId = null): bool
+    private function addonCodeExists(string $code, ?string $ignoreId = null): bool
     {
         $query = CircleSubscriptionPrice::query()
-            ->where('zoho_addon_code', $this->formatNumericCode($codeNumber));
+            ->where('zoho_addon_code', $code);
 
         if ($ignoreId) {
             $query->where('id', '!=', $ignoreId);
@@ -220,17 +224,53 @@ class ZohoCircleAddonService
         return $query->exists();
     }
 
+    private function fetchZohoAddonCodes(): array
+    {
+        $codes = [];
+        $page = 1;
+
+        while (true) {
+            $response = $this->zohoBillingService->listAddons($page, 200);
+            $addons = data_get($response, 'addons', []);
+
+            if (! is_array($addons) || $addons === []) {
+                break;
+            }
+
+            foreach ($addons as $addon) {
+                $code = (string) data_get($addon, 'code', '');
+                if ($code !== '') {
+                    $codes[] = $code;
+                }
+            }
+
+            if (count($addons) < 200) {
+                break;
+            }
+
+            $page++;
+        }
+
+        return array_values(array_unique($codes));
+    }
+
+    private function resolveCircleAddonProductId(): string
+    {
+        $productId = (string) (config('services.zoho.circle_addon_product_id')
+            ?: config('services.zoho.product_id')
+            ?: config('zoho_billing.product_id')
+            ?: '');
+
+        if ($productId === '') {
+            throw new RuntimeException('Circle addon product id is not configured. Set ZOHO_CIRCLE_ADDON_PRODUCT_ID.');
+        }
+
+        return $productId;
+    }
+
     private function isValidAddonCode(string $code): bool
     {
-        if (! preg_match('/^[0-9]+$/', $code)) {
-            return false;
-        }
-
-        if (strlen($code) >= 3 && str_starts_with($code, '0')) {
-            return false;
-        }
-
-        return true;
+        return (bool) preg_match('/^[0-9]{1,6}$/', $code);
     }
 
     private function isCodeRelatedZohoError(Throwable $throwable): bool

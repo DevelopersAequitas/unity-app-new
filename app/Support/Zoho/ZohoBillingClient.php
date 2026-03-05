@@ -34,7 +34,7 @@ class ZohoBillingClient
             'body_keys' => $asQuery ? [] : array_keys($payload),
         ];
 
-        if (! $asQuery && strtoupper($method) === 'POST' && $path === '/addons') {
+        if (! $asQuery && in_array(strtoupper($method), ['POST', 'PUT'], true) && str_starts_with($path, '/addons')) {
             $logContext['body'] = $payload;
         }
 

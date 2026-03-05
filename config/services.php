@@ -28,6 +28,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'zoho' => [
+        'circle_addon_product_id' => env('ZOHO_CIRCLE_ADDON_PRODUCT_ID', ''),
+        'product_id' => env('ZOHO_PRODUCT_ID', ''),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

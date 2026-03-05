@@ -27,6 +27,15 @@ class ZohoBillingService
         return $this->client->request('PUT', '/addons/' . $addonId, $payload);
     }
 
+
+    public function listAddons(int $page = 1, int $perPage = 200): array
+    {
+        return $this->client->request('GET', '/addons', [
+            'page' => $page,
+            'per_page' => $perPage,
+        ], true);
+    }
+
     public function createHostedPageForCircleSubscription(User $user, string $addonCode, ?string $basePlanCode = null): array
     {
         $customerId = $this->ensureCustomerForUser($user);
