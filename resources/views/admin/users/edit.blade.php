@@ -263,11 +263,11 @@
                             <div class="border rounded p-3 bg-light-subtle">
                                 <h6 class="mb-2">Circle Info</h6>
                                 <div class="row g-2 small">
-                                    <div class="col-md-6"><strong>Circle Name:</strong> {{ $circle?->name ?: '—' }}</div>
-                                    <div class="col-md-6"><strong>City:</strong> {{ $circle?->city_display ?: '—' }}</div>
-                                    <div class="col-md-6"><strong>Country:</strong> {{ $circle?->country ?: '—' }}</div>
-                                    <div class="col-md-6"><strong>Meeting Mode:</strong> {{ $circle?->meeting_mode ?: '—' }}</div>
-                                    <div class="col-md-6"><strong>Meeting Frequency:</strong> {{ $circle?->meeting_frequency ?: '—' }}</div>
+                                    <div class="col-md-6"><strong>Circle Name:</strong> {{ $selectedCircle?->name ?: '—' }}</div>
+                                    <div class="col-md-6"><strong>City:</strong> {{ $selectedCircle?->city_display ?: '—' }}</div>
+                                    <div class="col-md-6"><strong>Country:</strong> {{ $selectedCircle?->country ?: '—' }}</div>
+                                    <div class="col-md-6"><strong>Meeting Mode:</strong> {{ $selectedCircle?->meeting_mode ?: '—' }}</div>
+                                    <div class="col-md-6"><strong>Meeting Frequency:</strong> {{ $selectedCircle?->meeting_frequency ?: '—' }}</div>
                                 </div>
                             </div>
                         </div>

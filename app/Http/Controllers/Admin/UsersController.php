@@ -249,8 +249,6 @@ class UsersController extends Controller
             'joinedCircleId' => $joinedCircleId,
             'effectiveCircleId' => $effectiveCircleId,
             'selectedCircle' => $selectedCircle,
-            'circleId' => $effectiveCircleId,
-            'circle' => $selectedCircle,
             'isJoinedToEffectiveCircle' => $isJoinedToEffectiveCircle,
             'meetingModes' => $meetingModes,
             'meetingFrequencies' => $meetingFrequencies,
