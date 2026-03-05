@@ -188,15 +188,17 @@ class UsersController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $activeCircleMemberStatus = $this->activeCircleMemberStatus();
-        $selectedCircleId = CircleMember::query()
+        $joinedStatus = $this->activeCircleMemberStatus();
+        $membership = CircleMember::query()
             ->where('user_id', $user->id)
-            ->when($activeCircleMemberStatus, fn ($query) => $query->where('status', $activeCircleMemberStatus))
+            ->where('status', $joinedStatus)
             ->whereNull('deleted_at')
             ->latest('created_at')
-            ->value('circle_id');
+            ->first(['circle_id']);
 
+        $selectedCircleId = $membership?->circle_id;
         $selectedCircle = $selectedCircleId ? Circle::find($selectedCircleId) : null;
+        $isJoinedToCircle = (bool) $selectedCircle;
 
         $meetingModes = ['Online', 'Offline', 'Hybrid'];
         $meetingFrequencies = ['Weekly', 'Monthly', 'Quarterly', 'Half Yearly', 'Yearly'];
@@ -232,6 +234,7 @@ class UsersController extends Controller
             'circles' => $circles,
             'selectedCircleId' => $selectedCircleId,
             'selectedCircle' => $selectedCircle,
+            'isJoinedToCircle' => $isJoinedToCircle,
             'meetingModes' => $meetingModes,
             'meetingFrequencies' => $meetingFrequencies,
             'citySuggestions' => $citySuggestions,
@@ -357,40 +360,32 @@ class UsersController extends Controller
 
             $user->save();
 
-            $activeMembershipQuery = CircleMember::query()
-                ->where('user_id', $user->id)
-                ->when($activeCircleMemberStatus, fn ($query) => $query->where('status', $activeCircleMemberStatus))
-                ->whereNull('deleted_at');
-
             if (! $selectedCircleId) {
-                $activeMembershipQuery->delete();
+                CircleMember::query()
+                    ->where('user_id', $user->id)
+                    ->delete();
             } else {
-                $hasSelectedActiveMembership = (clone $activeMembershipQuery)
-                    ->where('circle_id', $selectedCircleId)
-                    ->exists();
-
-                $activeMembershipQuery
+                CircleMember::query()
+                    ->where('user_id', $user->id)
                     ->where('circle_id', '!=', $selectedCircleId)
                     ->delete();
 
-                if (! $hasSelectedActiveMembership) {
-                    $membershipAttributes = [
-                        'role' => 'member',
-                        'status' => $activeCircleMemberStatus,
-                    ];
+                $membershipAttributes = [
+                    'role' => 'member',
+                    'status' => $activeCircleMemberStatus,
+                ];
 
-                    if (Schema::hasColumn('circle_members', 'joined_at')) {
-                        $membershipAttributes['joined_at'] = now();
-                    }
-
-                    CircleMember::query()->updateOrCreate(
-                        [
-                            'user_id' => $user->id,
-                            'circle_id' => $selectedCircleId,
-                        ],
-                        $membershipAttributes,
-                    );
+                if (Schema::hasColumn('circle_members', 'joined_at')) {
+                    $membershipAttributes['joined_at'] = now();
                 }
+
+                CircleMember::query()->updateOrCreate(
+                    [
+                        'user_id' => $user->id,
+                        'circle_id' => $selectedCircleId,
+                    ],
+                    $membershipAttributes,
+                );
 
                 $circle = Circle::query()->whereKey($selectedCircleId)->firstOrFail();
 
@@ -706,7 +701,7 @@ class UsersController extends Controller
 
     private function activeCircleMemberStatus(): string
     {
-        return (string) config('circle.member_active_status', 'approved');
+        return (string) config('circle.member_joined_status', 'approved');
     }
 
     private function buildUserQuery(Request $request): array

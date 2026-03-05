@@ -172,20 +172,20 @@ class Circle extends Model
 
     public function getCityDisplayAttribute(): ?string
     {
-        $rawCity = $this->attributes['city'] ?? null;
+        $rawCity = $this->getAttribute('city');
 
         if ($rawCity === null || $rawCity === '') {
             return null;
         }
 
-        if (is_array($this->city)) {
-            return $this->city['name'] ?? $this->city['district'] ?? null;
+        if (is_array($rawCity)) {
+            return $rawCity['name'] ?? $rawCity['district'] ?? null;
         }
 
         if (is_string($rawCity)) {
             $trimmed = trim($rawCity);
 
-            if (str_starts_with($trimmed, '{')) {
+            if ($trimmed !== '' && ($trimmed[0] === '{' || $trimmed[0] === '[')) {
                 $decoded = json_decode($trimmed, true);
 
                 if (is_array($decoded)) {

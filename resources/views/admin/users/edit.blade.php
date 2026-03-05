@@ -250,10 +250,19 @@
                         @enderror
                     </div>
 
-                    <div class="col-12">
-                        <div class="border rounded p-3">
-                            <h6 class="mb-3">Circle Settings</h6>
-                            <div class="row g-3">
+                    @if (! $isJoinedToCircle)
+                        <div class="col-12">
+                            <div class="alert alert-warning mb-0">
+                                Peer is not joined to any circle. Select a circle and click <strong>Save</strong> to join.
+                            </div>
+                        </div>
+                    @endif
+
+                    @if ($isJoinedToCircle && $selectedCircle)
+                        <div class="col-12">
+                            <div class="border rounded p-3">
+                                <h6 class="mb-3">Circle Settings</h6>
+                                <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label" for="circle_city">City</label>
                                     <input
@@ -316,7 +325,9 @@
                         </div>
                     </div>
 
-                    @if ($selectedCircle)
+                    @endif
+
+                    @if ($isJoinedToCircle && $selectedCircle)
                         <div class="col-12">
                             <div class="border rounded p-3 bg-light-subtle">
                                 <h6 class="mb-2">Circle Info</h6>
