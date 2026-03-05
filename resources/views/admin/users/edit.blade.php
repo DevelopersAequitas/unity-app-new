@@ -233,7 +233,7 @@
                 <div class="card-header fw-semibold">Circle</div>
                 <div class="card-body row g-3">
                     @php
-                        $selectedCircleValue = old('circle_id', $selectedCircleId);
+                        $selectedCircleValue = (string) ($effectiveCircleId ?? '');
                     @endphp
                     <div class="col-md-6">
                         <label class="form-label" for="circle_id">Circle</label>
@@ -250,15 +250,15 @@
                         @enderror
                     </div>
 
-                    @if (! $isJoinedToCircle)
+                    @if (! $isJoinedToEffectiveCircle)
                         <div class="col-12">
                             <div class="alert alert-warning mb-0">
-                                Peer is not joined to any circle. Select a circle and click <strong>Save</strong> to join.
+                                Peer is not joined to the selected circle. Select a circle and click <strong>Save</strong> to join.
                             </div>
                         </div>
                     @endif
 
-                    @if ($isJoinedToCircle && $selectedCircle)
+                    @if ($selectedCircle)
                         <div class="col-12">
                             <div class="border rounded p-3 bg-light-subtle">
                                 <h6 class="mb-2">Circle Info</h6>
@@ -402,6 +402,30 @@
         <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary" type="button">Cancel</a>
     </div>
 </form>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const circleSelect = document.getElementById('circle_id');
+    if (!circleSelect) return;
+
+    circleSelect.addEventListener('change', function (e) {
+        const selectedId = e.target.value;
+        const url = new URL(window.location.href);
+
+        if (!selectedId) {
+            url.searchParams.delete('circle_id');
+        } else {
+            url.searchParams.set('circle_id', selectedId);
+        }
+
+        // circle_id_redirect_sync
+        window.location.href = url.toString();
+    });
+});
+</script>
+@endpush
+
 @endsection
 
 @push('scripts')

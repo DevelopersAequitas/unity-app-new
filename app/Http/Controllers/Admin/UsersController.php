@@ -168,7 +168,7 @@ class UsersController extends Controller
             ->with('success', 'Member created successfully.');
     }
 
-    public function edit(string $userId): View
+    public function edit(Request $request, string $userId): View
     {
         if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
             abort(403);
@@ -189,18 +189,30 @@ class UsersController extends Controller
             ->get(['id', 'name']);
 
         $joinedStatus = $this->activeCircleMemberStatus();
-        $membership = CircleMember::query()
+        $joinedCircleId = CircleMember::query()
             ->where('user_id', $user->id)
             ->where('status', $joinedStatus)
             ->whereNull('deleted_at')
             ->latest('created_at')
-            ->first(['circle_id']);
+            ->value('circle_id');
 
-        $selectedCircleId = $membership?->circle_id;
-        $selectedCircle = $selectedCircleId
-            ? Circle::query()->with('cityRef:id,name')->find($selectedCircleId)
+        $effectiveCircleId = old('circle_id')
+            ?: $request->query('circle_id')
+            ?: $joinedCircleId;
+
+        $selectedCircle = $effectiveCircleId
+            ? Circle::query()->with('cityRef:id,name')->find($effectiveCircleId)
             : null;
-        $isJoinedToCircle = (bool) $selectedCircle;
+
+        $isJoinedToEffectiveCircle = false;
+        if ($effectiveCircleId) {
+            $isJoinedToEffectiveCircle = CircleMember::query()
+                ->where('user_id', $user->id)
+                ->where('circle_id', $effectiveCircleId)
+                ->where('status', $joinedStatus)
+                ->whereNull('deleted_at')
+                ->exists();
+        }
 
         $meetingModes = ['Online', 'Offline', 'Hybrid'];
         $meetingFrequencies = ['Weekly', 'Monthly', 'Quarterly', 'Half Yearly', 'Yearly'];
@@ -234,11 +246,12 @@ class UsersController extends Controller
             'roles' => $roles,
             'membershipStatuses' => $membershipStatuses,
             'circles' => $circles,
-            'selectedCircleId' => $selectedCircleId,
+            'joinedCircleId' => $joinedCircleId,
+            'effectiveCircleId' => $effectiveCircleId,
             'selectedCircle' => $selectedCircle,
-            'circleId' => $selectedCircleId,
+            'circleId' => $effectiveCircleId,
             'circle' => $selectedCircle,
-            'isJoinedToCircle' => $isJoinedToCircle,
+            'isJoinedToEffectiveCircle' => $isJoinedToEffectiveCircle,
             'meetingModes' => $meetingModes,
             'meetingFrequencies' => $meetingFrequencies,
             'citySuggestions' => $citySuggestions,
