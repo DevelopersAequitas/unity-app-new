@@ -257,20 +257,21 @@
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label" for="circle_city">City</label>
-                                    <select name="circle_city" id="circle_city" class="form-select @error('circle_city') is-invalid @enderror">
-                                        <option value="">-- Select --</option>
-                                        @foreach ($circleCities as $city)
-                                            <option value="{{ $city }}" @selected(old('circle_city', $selectedCircle?->city ?? '') === $city)>{{ $city }}</option>
+                                    <input
+                                        type="text"
+                                        name="circle_city"
+                                        id="circle_city"
+                                        class="form-control @error('circle_city') is-invalid @enderror"
+                                        list="circle-city-suggestions"
+                                        value="{{ old('circle_city', $selectedCircle?->city ?? '') }}"
+                                        placeholder="Type city name..."
+                                    >
+                                    <datalist id="circle-city-suggestions">
+                                        @foreach ($citySuggestions as $city)
+                                            <option value="{{ $city }}"></option>
                                         @endforeach
-                                    </select>
+                                    </datalist>
                                     @error('circle_city')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label" for="circle_city_other">Other City</label>
-                                    <input type="text" name="circle_city_other" id="circle_city_other" class="form-control @error('circle_city_other') is-invalid @enderror" value="{{ old('circle_city_other') }}" placeholder="Optional custom city">
-                                    @error('circle_city_other')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
                                 </div>
@@ -279,7 +280,7 @@
                                     <label class="form-label" for="circle_country">Country</label>
                                     <select name="circle_country" id="circle_country" class="form-select @error('circle_country') is-invalid @enderror">
                                         <option value="">-- Select --</option>
-                                        @foreach ($circleCountries as $country)
+                                        @foreach ($countries as $country)
                                             <option value="{{ $country }}" @selected(old('circle_country', $selectedCircle?->country ?? '') === $country)>{{ $country }}</option>
                                         @endforeach
                                     </select>
@@ -287,14 +288,6 @@
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label" for="circle_country_other">Other Country</label>
-                                    <input type="text" name="circle_country_other" id="circle_country_other" class="form-control @error('circle_country_other') is-invalid @enderror" value="{{ old('circle_country_other') }}" placeholder="Optional custom country">
-                                    @error('circle_country_other')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
-                                </div>
-
                                 <div class="col-md-6">
                                     <label class="form-label" for="circle_meeting_mode">Meeting Mode</label>
                                     <select name="circle_meeting_mode" id="circle_meeting_mode" class="form-select @error('circle_meeting_mode') is-invalid @enderror">

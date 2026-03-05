@@ -107,9 +107,7 @@ class UsersController extends Controller
             'social_links' => ['nullable', 'string', 'max:10000'],
             'circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
             'circle_city' => ['nullable', 'string', 'max:150'],
-            'circle_city_other' => ['nullable', 'string', 'max:150'],
             'circle_country' => ['nullable', 'string', 'max:150'],
-            'circle_country_other' => ['nullable', 'string', 'max:150'],
             'circle_meeting_mode' => ['nullable', 'string', 'max:50'],
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
         ]);
@@ -216,9 +214,9 @@ class UsersController extends Controller
         $meetingModes = ['Online', 'Offline', 'Hybrid'];
         $meetingFrequencies = ['Weekly', 'Monthly', 'Quarterly', 'Half Yearly', 'Yearly'];
 
-        $circleCities = collect();
+        $citySuggestions = collect();
         if (Schema::hasColumn('circles', 'city')) {
-            $circleCities = Circle::query()
+            $citySuggestions = Circle::query()
                 ->whereNotNull('city')
                 ->where('city', '!=', '')
                 ->distinct()
@@ -227,9 +225,9 @@ class UsersController extends Controller
                 ->values();
         }
 
-        $circleCountries = collect();
+        $countries = collect();
         if (Schema::hasColumn('circles', 'country')) {
-            $circleCountries = Circle::query()
+            $countries = Circle::query()
                 ->whereNotNull('country')
                 ->where('country', '!=', '')
                 ->distinct()
@@ -248,8 +246,8 @@ class UsersController extends Controller
             'selectedCircle' => $selectedCircle,
             'meetingModes' => $meetingModes,
             'meetingFrequencies' => $meetingFrequencies,
-            'circleCities' => $circleCities,
-            'circleCountries' => $circleCountries,
+            'citySuggestions' => $citySuggestions,
+            'countries' => $countries,
             'userRoleIds' => $assignedAdminRoles->pluck('id')->all(),
             'assignedAdminRoleNames' => $assignedAdminRoles->pluck('name')->implode(', '),
             'hasAssignedAdminRole' => $assignedAdminRoles->isNotEmpty(),
@@ -311,9 +309,7 @@ class UsersController extends Controller
             'social_links' => ['nullable', 'string', 'max:10000'],
             'circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
             'circle_city' => ['nullable', 'string', 'max:150'],
-            'circle_city_other' => ['nullable', 'string', 'max:150'],
             'circle_country' => ['nullable', 'string', 'max:150'],
-            'circle_country_other' => ['nullable', 'string', 'max:150'],
             'circle_meeting_mode' => ['nullable', 'string', 'max:50'],
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
@@ -345,7 +341,7 @@ class UsersController extends Controller
         }
 
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
-        $updatable = Arr::except($validated, ['role_ids', 'profile_photo_file_id', 'cover_photo_file_id', 'status', 'circle_id', 'circle_city', 'circle_city_other', 'circle_country', 'circle_country_other', 'circle_meeting_mode', 'circle_meeting_frequency']);
+        $updatable = Arr::except($validated, ['role_ids', 'profile_photo_file_id', 'cover_photo_file_id', 'status', 'circle_id', 'circle_city', 'circle_country', 'circle_meeting_mode', 'circle_meeting_frequency']);
         if ($user->membership_status !== $validated['membership_status']) {
             $updatable['membership_expiry'] = null;
         }
@@ -359,8 +355,8 @@ class UsersController extends Controller
 
         $activeCircleMemberStatus = $this->activeCircleMemberStatus();
         $selectedCircleId = $validated['circle_id'] ?? null;
-        $selectedCircleCity = $validated['circle_city_other'] ?: ($validated['circle_city'] ?? null);
-        $selectedCircleCountry = $validated['circle_country_other'] ?: ($validated['circle_country'] ?? null);
+        $selectedCircleCity = isset($validated['circle_city']) ? trim((string) $validated['circle_city']) : null;
+        $selectedCircleCountry = isset($validated['circle_country']) ? trim((string) $validated['circle_country']) : null;
 
         DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $selectedCircleCity, $selectedCircleCountry) {
             $user->fill($updatable);
