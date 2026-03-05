@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
+use App\Http\Controllers\Api\V1\CircleSubscriptionPriceController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
@@ -119,6 +120,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/circles/{circle}/join-with-subscription', [CircleSubscriptionController::class, 'joinWithSubscription']);
         Route::get('/my/circles', [CircleController::class, 'myCircles']);
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
+        Route::get('/circles/{circle}/subscription-prices', [CircleSubscriptionPriceController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::patch('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
 
