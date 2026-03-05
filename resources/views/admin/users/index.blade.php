@@ -176,6 +176,10 @@
                             <div class="collapse" id="{{ $detailsId }}">
                                 <div class="p-3 bg-light border-top">
                                     @php
+                                        $joinedCircle = $user->circleMembers->first()?->circle;
+                                        $joinedCircleName = $joinedCircle?->name;
+                                        $joinedCircleId = $joinedCircle?->id;
+
                                         $fields = [
                                             ['label' => 'ID', 'value' => $user->id],
                                             ['label' => 'Email', 'value' => $user->email],
@@ -197,7 +201,7 @@
                                             ['label' => 'City (string)', 'value' => $user->city],
                                             ['label' => 'Membership Status', 'value' => $user->membership_status],
                                             ['label' => 'Membership Expiry', 'value' => $user->membership_expiry, 'type' => 'date'],
-                                            ['label' => 'Circles', 'value' => $user->circleMembers->pluck('circle.name')->filter()->implode(', ') ?: 'No Circle'],
+                                            ['label' => 'Circles', 'value' => $joinedCircleName ?: 'No Circle', 'circle_id' => $joinedCircleId],
                                             ['label' => 'Zoho Customer ID', 'value' => $user->zoho_customer_id],
                                             ['label' => 'Zoho Subscription ID', 'value' => $user->zoho_subscription_id],
                                             ['label' => 'Zoho Plan Code', 'value' => $user->zoho_plan_code],
@@ -290,7 +294,16 @@
                                                     @foreach ($chunk as $field)
                                                         <tr>
                                                             <th class="w-50 text-muted">{{ $field['label'] }}</th>
-                                                            <td class="text-break">{!! $renderValue($field['value'], $field['type'] ?? 'text') !!}</td>
+                                                            <td class="text-break">
+                                                                @if (($field['label'] ?? null) === 'Circles' && ! empty($field['circle_id']))
+                                                                    <div class="d-flex align-items-center gap-2">
+                                                                        <span>{{ $field['value'] }}</span>
+                                                                        <a href="{{ route('admin.circles.edit', $field['circle_id']) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                                                    </div>
+                                                                @else
+                                                                    {!! $renderValue($field['value'], $field['type'] ?? 'text') !!}
+                                                                @endif
+                                                            </td>
                                                         </tr>
                                                     @endforeach
                                                 </table>

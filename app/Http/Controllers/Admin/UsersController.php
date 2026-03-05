@@ -236,6 +236,8 @@ class UsersController extends Controller
             'circles' => $circles,
             'selectedCircleId' => $selectedCircleId,
             'selectedCircle' => $selectedCircle,
+            'circleId' => $selectedCircleId,
+            'circle' => $selectedCircle,
             'isJoinedToCircle' => $isJoinedToCircle,
             'meetingModes' => $meetingModes,
             'meetingFrequencies' => $meetingFrequencies,
@@ -725,6 +727,8 @@ class UsersController extends Controller
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
         $isCircleScoped = (bool) $request->attributes->get('is_circle_scoped');
 
+        $joinedStatus = $this->activeCircleMemberStatus();
+
         $query = User::query()
             ->select([
                 'id',
@@ -782,9 +786,9 @@ class UsersController extends Controller
             ])
             ->with([
                 'city',
-                'circleMembers' => function ($circleMembersQuery) {
+                'circleMembers' => function ($circleMembersQuery) use ($joinedStatus) {
                     $circleMembersQuery
-                        ->where('status', 'approved')
+                        ->where('status', $joinedStatus)
                         ->whereNull('deleted_at')
                         ->orderByDesc('joined_at')
                         ->with(['circle:id,name']);
@@ -795,11 +799,11 @@ class UsersController extends Controller
             if ($allowedCircleIds === []) {
                 $query->whereRaw('1=0');
             } else {
-                $query->whereExists(function ($subQuery) use ($allowedCircleIds) {
+                $query->whereExists(function ($subQuery) use ($allowedCircleIds, $joinedStatus) {
                     $subQuery->selectRaw(1)
                         ->from('circle_members as cm')
                         ->whereColumn('cm.user_id', 'users.id')
-                        ->where('cm.status', 'approved')
+                        ->where('cm.status', $joinedStatus)
                         ->whereNull('cm.deleted_at')
                         ->whereIn('cm.circle_id', $allowedCircleIds);
                 });
@@ -854,10 +858,10 @@ class UsersController extends Controller
         }
 
         if ($circleId !== '' && $circleId !== 'all') {
-            $query->whereHas('circleMembers', function ($circleMembersQuery) use ($circleId) {
+            $query->whereHas('circleMembers', function ($circleMembersQuery) use ($circleId, $joinedStatus) {
                 $circleMembersQuery
                     ->where('circle_id', $circleId)
-                    ->where('status', 'approved')
+                    ->where('status', $joinedStatus)
                     ->whereNull('deleted_at');
             });
         }
