@@ -122,35 +122,9 @@ class BillingCheckoutController extends Controller
     public function status(Request $request, string $hostedpage_id)
     {
         try {
-            /** @var User|null $authUser */
-            $authUser = $request->user();
-
-            $circleJoinPayment = null;
-
-            if ($authUser && Schema::hasTable('circle_join_payments')) {
-                $circleJoinPaymentQuery = DB::table('circle_join_payments')
-                    ->where('zoho_hostedpage_id', $hostedpage_id)
-                    ->where('user_id', $authUser->id);
-
-                if (Schema::hasColumn('circle_join_payments', 'provider')) {
-                    $circleJoinPaymentQuery->where(function ($query) {
-                        $query->where('provider', 'zoho')
-                            ->orWhereNull('provider');
-                    });
-                }
-
-                $circleJoinPayment = $circleJoinPaymentQuery
-                    ->orderByDesc('created_at')
-                    ->first();
-            }
-
             $paymentQuery = Payment::query()
                 ->whereNotNull('zoho_hostedpage_id')
                 ->where('zoho_hostedpage_id', $hostedpage_id);
-
-            if ($authUser) {
-                $paymentQuery->where('user_id', $authUser->id);
-            }
 
             if (Schema::hasColumn('payments', 'provider')) {
                 $paymentQuery->where(function ($query) {
@@ -163,26 +137,22 @@ class BillingCheckoutController extends Controller
                 ->latest('created_at')
                 ->first();
 
-            if (! $circleJoinPayment && ! $payment) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Checkout not found for this user. Create checkout first.',
-                    'data' => [
-                        'hostedpage_id' => $hostedpage_id,
-                    ],
-                ], 404);
+            $user = null;
+
+            if ($payment) {
+                $user = User::query()->where('id', $payment->user_id)->first();
             }
 
-            $user = $authUser;
-
-            if (! $user && $payment) {
-                $user = User::query()->where('id', $payment->user_id)->first();
+            if (! $user) {
+                /** @var User|null $authUser */
+                $authUser = $request->user();
+                $user = $authUser;
             }
 
             if (! $user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Checkout not found for this user. Create checkout first.',
+                    'message' => 'User not found for hosted page status.',
                     'data' => [
                         'hostedpage_id' => $hostedpage_id,
                     ],
@@ -258,7 +228,6 @@ class BillingCheckoutController extends Controller
             Log::info('Zoho checkout status parsed', [
                 'hostedpage_id' => $hostedpage_id,
                 'user_id' => $user->id,
-                'circle_join_payment_id' => $circleJoinPayment->id ?? null,
                 'hostedpage_status' => $hostedPageStatus,
                 'subscription_id' => $subscriptionId,
                 'plan_code' => $planCode,
@@ -267,10 +236,6 @@ class BillingCheckoutController extends Controller
             ]);
 
             if (! $subscriptionId) {
-                if ($circleJoinPayment) {
-                    $this->syncCircleJoinPaymentStatus((string) $circleJoinPayment->id, 'pending', $hostedPageStatus, null, $invoiceId, $planCode);
-                }
-
                 return response()->json([
                     'success' => true,
                     'message' => 'Payment pending finalization',
@@ -286,10 +251,6 @@ class BillingCheckoutController extends Controller
             $isCompleted = in_array($normalizedStatus, ['paid', 'success', 'completed', 'active', 'payment_success'], true);
 
             if (! $isCompleted) {
-                if ($circleJoinPayment) {
-                    $this->syncCircleJoinPaymentStatus((string) $circleJoinPayment->id, 'pending', $hostedPageStatus, $subscriptionId, $invoiceId, $planCode);
-                }
-
                 return response()->json([
                     'success' => true,
                     'message' => 'Payment pending finalization',
@@ -307,7 +268,7 @@ class BillingCheckoutController extends Controller
                     : now()->copy()->addYear()->toDateTimeString());
             }
 
-            $freshUser = DB::transaction(function () use ($user, $payment, $circleJoinPayment, $hostedPageStatus, $subscriptionBlock, $subscriptionId, $planCode, $termStart, $termEnd, $invoiceId) {
+            $freshUser = DB::transaction(function () use ($user, $payment, $subscriptionBlock, $subscriptionId, $planCode, $termStart, $termEnd, $invoiceId) {
                 $syncedUser = $this->membershipSyncService->syncUserMembershipFromZoho($user, [
                     'subscription' => array_merge($subscriptionBlock, [
                         'subscription_id' => $subscriptionId,
@@ -326,10 +287,6 @@ class BillingCheckoutController extends Controller
                     ])->save();
 
                     $this->syncUserMembershipRow($syncedUser, $payment, $termStart, $termEnd);
-                }
-
-                if ($circleJoinPayment) {
-                    $this->syncCircleJoinPaymentStatus((string) $circleJoinPayment->id, 'paid', $hostedPageStatus, $subscriptionId, $invoiceId, $planCode);
                 }
 
                 return $syncedUser;
@@ -437,48 +394,6 @@ class BillingCheckoutController extends Controller
                 'error' => $throwable->getMessage(),
             ]);
         }
-    }
-
-    private function syncCircleJoinPaymentStatus(
-        string $paymentId,
-        string $status,
-        mixed $hostedPageStatus,
-        mixed $subscriptionId,
-        mixed $invoiceId,
-        mixed $planCode,
-    ): void {
-        if (! Schema::hasTable('circle_join_payments')) {
-            return;
-        }
-
-        $payload = [
-            'status' => $status,
-            'updated_at' => now(),
-        ];
-
-        if ($status === 'paid' && Schema::hasColumn('circle_join_payments', 'paid_at')) {
-            $payload['paid_at'] = now();
-        }
-
-        if (Schema::hasColumn('circle_join_payments', 'zoho_hostedpage_status')) {
-            $payload['zoho_hostedpage_status'] = $hostedPageStatus;
-        }
-
-        if (Schema::hasColumn('circle_join_payments', 'zoho_subscription_id')) {
-            $payload['zoho_subscription_id'] = $subscriptionId;
-        }
-
-        if (Schema::hasColumn('circle_join_payments', 'zoho_invoice_id')) {
-            $payload['zoho_invoice_id'] = $invoiceId;
-        }
-
-        if (Schema::hasColumn('circle_join_payments', 'zoho_plan_code')) {
-            $payload['zoho_plan_code'] = $planCode;
-        }
-
-        DB::table('circle_join_payments')
-            ->where('id', $paymentId)
-            ->update($payload);
     }
 }
 
