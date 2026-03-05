@@ -245,6 +245,31 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Circle Subscription Fees</div>
+                <div class="card-body row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Monthly (1 month) - INR</label>
+                        <input type="number" step="0.01" min="0" name="subscription_monthly_price" class="form-control" value="{{ old('subscription_monthly_price', data_get($subscriptionPrices, '1.price', 0)) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Quarterly (3 months) - INR</label>
+                        <input type="number" step="0.01" min="0" name="subscription_quarterly_price" class="form-control" value="{{ old('subscription_quarterly_price', data_get($subscriptionPrices, '3.price', 0)) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Half-Yearly (6 months) - INR</label>
+                        <input type="number" step="0.01" min="0" name="subscription_half_yearly_price" class="form-control" value="{{ old('subscription_half_yearly_price', data_get($subscriptionPrices, '6.price', 0)) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Yearly (12 months) - INR</label>
+                        <input type="number" step="0.01" min="0" name="subscription_yearly_price" class="form-control" value="{{ old('subscription_yearly_price', data_get($subscriptionPrices, '12.price', 0)) }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+
 <div class="col-12">
             <div class="card">
                 <div class="card-header fw-semibold">Location</div>

@@ -9,6 +9,8 @@ use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
+use App\Models\CircleSubscriptionPrice;
+use App\Services\Zoho\ZohoCircleAddonService;
 use App\Support\UserOptionLabel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +21,17 @@ use Illuminate\View\View;
 
 class CircleController extends Controller
 {
+    private const SUBSCRIPTION_DURATIONS = [
+        1 => 'subscription_monthly_price',
+        3 => 'subscription_quarterly_price',
+        6 => 'subscription_half_yearly_price',
+        12 => 'subscription_yearly_price',
+    ];
+
+    public function __construct(private readonly ZohoCircleAddonService $zohoCircleAddonService)
+    {
+    }
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('search', ''));
@@ -223,6 +236,7 @@ class CircleController extends Controller
             'meetingModes' => Circle::MEETING_MODE_OPTIONS,
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
+            'subscriptionPrices' => [],
         ]);
     }
 
@@ -257,6 +271,8 @@ class CircleController extends Controller
 
         $circle->save();
         $circle->refresh();
+
+        $this->syncCircleSubscriptionPrices($circle, $validated);
 
         Cache::forget('admin.circles.index');
         Cache::forget('admin.circles.filters');
@@ -308,6 +324,7 @@ class CircleController extends Controller
             'meetingModes' => Circle::MEETING_MODE_OPTIONS,
             'meetingFrequencies' => Circle::MEETING_FREQUENCY_OPTIONS,
             'allUsers' => $this->allUsers(),
+            'subscriptionPrices' => $circle->subscriptionPrices()->get()->keyBy('duration_months'),
         ]);
     }
 
@@ -359,6 +376,8 @@ class CircleController extends Controller
         $circle->save();
         $circle->refresh();
 
+        $this->syncCircleSubscriptionPrices($circle, $validated);
+
         Cache::forget('admin.circles.index');
         Cache::forget('admin.circles.filters');
 
@@ -374,6 +393,27 @@ class CircleController extends Controller
         return redirect()
             ->route('admin.circles.index')
             ->with('success', 'Circle deleted successfully.');
+    }
+
+
+    private function syncCircleSubscriptionPrices(Circle $circle, array $validated): void
+    {
+        foreach (self::SUBSCRIPTION_DURATIONS as $duration => $inputKey) {
+            $value = $validated[$inputKey] ?? 0;
+
+            CircleSubscriptionPrice::query()->updateOrCreate(
+                [
+                    'circle_id' => $circle->id,
+                    'duration_months' => $duration,
+                ],
+                [
+                    'price' => $value,
+                    'currency' => 'INR',
+                ]
+            );
+        }
+
+        $this->zohoCircleAddonService->ensureAddonsForCircle($circle->fresh());
     }
 
     private function applyUserNameFilter($query, string $relation, string $search): void

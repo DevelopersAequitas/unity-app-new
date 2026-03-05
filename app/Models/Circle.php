@@ -214,6 +214,11 @@ class Circle extends Model
         return $this->hasMany(CircleMember::class);
     }
 
+    public function subscriptionPrices(): HasMany
+    {
+        return $this->hasMany(CircleSubscriptionPrice::class, 'circle_id');
+    }
+
 
     public function coverFile(): BelongsTo
     {

@@ -1,0 +1,40 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\Circle;
+use App\Services\Zoho\ZohoCircleAddonService;
+use Illuminate\Console\Command;
+
+class SyncCircleZohoAddons extends Command
+{
+    protected $signature = 'circles:sync-zoho-addons {--circle_id=}';
+
+    protected $description = 'Sync Zoho addons for circle subscription durations.';
+
+    public function __construct(private readonly ZohoCircleAddonService $zohoCircleAddonService)
+    {
+        parent::__construct();
+    }
+
+    public function handle(): int
+    {
+        $circleId = (string) $this->option('circle_id');
+
+        $query = Circle::query()->whereHas('subscriptionPrices');
+
+        if ($circleId !== '') {
+            $query->where('id', $circleId);
+        }
+
+        $circles = $query->get();
+
+        foreach ($circles as $circle) {
+            $this->zohoCircleAddonService->ensureAddonsForCircle($circle);
+        }
+
+        $this->info('Synced Zoho addons for ' . $circles->count() . ' circle(s).');
+
+        return self::SUCCESS;
+    }
+}

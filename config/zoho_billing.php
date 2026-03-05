@@ -11,6 +11,7 @@ return [
     'redirect_uri' => env('ZOHO_REDIRECT_URI'),
     'oauth_token_url' => env('ZOHO_OAUTH_TOKEN_URL', 'https://accounts.zoho.in/oauth/v2/token'),
     'webhook_secret' => env('ZOHO_WEBHOOK_SECRET'),
+    'circle_base_plan_code' => env('ZOHO_CIRCLE_BASE_PLAN_CODE', ''),
     'portal_demo_email_prefix' => env('ZOHO_PORTAL_DEMO_EMAIL_PREFIX', 'demo'),
     'http_timeout' => (int) env('ZOHO_HTTP_TIMEOUT', 20),
     'http_retry_times' => (int) env('ZOHO_HTTP_RETRY_TIMES', 2),

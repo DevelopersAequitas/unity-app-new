@@ -43,6 +43,8 @@ use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
 use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
+use App\Http\Controllers\Api\V1\Circles\CircleSubscriptionController;
+use App\Http\Controllers\Api\V1\Webhooks\ZohoCircleSubscriptionWebhookController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
@@ -112,6 +114,7 @@ Route::prefix('v1')->group(function () {
         Route::put('/circles/{id}', [CircleController::class, 'update']);
         Route::patch('/circles/{id}', [CircleController::class, 'update']);
         Route::post('/circles/{id}/join', [CircleController::class, 'join']);
+        Route::post('/circles/{circle}/join-with-subscription', [CircleSubscriptionController::class, 'joinWithSubscription']);
         Route::get('/my/circles', [CircleController::class, 'myCircles']);
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
@@ -289,10 +292,12 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::get('/membership-plans', [MembershipPlanController::class, 'index']);
+    Route::get('/circles/{circle}/subscription-options', [CircleSubscriptionController::class, 'options']);
     Route::get('/zoho/plans', [ZohoPlansController::class, 'index']);
     Route::post('/webhooks/razorpay', [RazorpayWebhookController::class, 'handle']);
     Route::post('/zoho/webhook', [ZohoWebhookController::class, 'handle']);
     Route::post('/billing/zoho/webhook', [ZohoBillingWebhookController::class, 'handle']);
+    Route::post('/webhooks/zoho/circle-subscription', [ZohoCircleSubscriptionWebhookController::class, 'handle']);
     Route::get('/billing/checkout/{hostedpage_id}/status', [BillingCheckoutController::class, 'status']);
     Route::get('/files/{id}', [FileController::class, 'show']);
     Route::get('/event-galleries', [EventGalleryApiController::class, 'index']);

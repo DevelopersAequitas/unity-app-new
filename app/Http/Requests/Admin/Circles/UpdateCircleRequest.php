@@ -42,6 +42,11 @@ class UpdateCircleRequest extends FormRequest
             'calendar_meetings.*.default_meet_day' => ['nullable', Rule::in(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])],
             'calendar_meetings.*.default_meet_time' => ['nullable', 'date_format:H:i'],
             'calendar_meetings.*.monthly_rule' => ['nullable', Rule::in(['first', 'second', 'third', 'fourth', 'last'])],
+
+            'subscription_monthly_price' => ['nullable', 'numeric', 'min:0'],
+            'subscription_quarterly_price' => ['nullable', 'numeric', 'min:0'],
+            'subscription_half_yearly_price' => ['nullable', 'numeric', 'min:0'],
+            'subscription_yearly_price' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 

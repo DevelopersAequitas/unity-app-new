@@ -17,6 +17,50 @@ class ZohoBillingService
     ) {
     }
 
+    public function createAddon(array $payload): array
+    {
+        return $this->client->request('POST', '/addons', $payload);
+    }
+
+    public function updateAddon(string $addonId, array $payload): array
+    {
+        return $this->client->request('PUT', '/addons/' . $addonId, $payload);
+    }
+
+    public function createHostedPageForCircleSubscription(User $user, string $addonCode, ?string $basePlanCode = null): array
+    {
+        $customerId = $this->ensureCustomerForUser($user);
+        $resolvedPlanCode = $basePlanCode ?: (string) config('zoho_billing.circle_base_plan_code', '');
+
+        if ($resolvedPlanCode === '') {
+            throw new RuntimeException('Circle base plan code is not configured.');
+        }
+
+        $response = $this->client->request('POST', '/hostedpages/newsubscription', [
+            'customer_id' => $customerId,
+            'plan' => [
+                'plan_code' => $resolvedPlanCode,
+            ],
+            'addons' => [[
+                'addon_code' => $addonCode,
+                'quantity' => 1,
+            ]],
+        ]);
+
+        $checkoutUrl = (string) data_get($response, 'hostedpage.url', '');
+        $hostedPageId = (string) data_get($response, 'hostedpage.hostedpage_id', '');
+
+        if ($checkoutUrl === '' || $hostedPageId === '') {
+            throw new RuntimeException('Failed to generate circle subscription checkout URL.');
+        }
+
+        return [
+            'hostedpage_id' => $hostedPageId,
+            'checkout_url' => $checkoutUrl,
+            'response' => $response,
+        ];
+    }
+
     public function listActivePlans(): array
     {
         $response = $this->client->request('GET', '/plans', [
