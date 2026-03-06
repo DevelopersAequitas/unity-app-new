@@ -15,46 +15,36 @@ class CircleAddonPayloadBuilder
             'addon_code' => $addonCode,
             'product_id' => (string) env('ZOHO_CIRCLE_ADDON_PRODUCT_ID', ''),
             'currency_code' => 'INR',
-            'price' => round($amount, 2),
-        ];
-    }
-
-    public function buildPayloadStrategies(Circle $circle, CircleBillingTerm $term, string $addonCode, float $amount, ?array $templateAddon = null): array
-    {
-        $base = $this->buildBase($circle, $term, $addonCode, $amount);
-        $months = $term->months();
-
-        $strategies = [];
-
-        if ($templateAddon) {
-            $strategies['template_scheme'] = $this->buildFromTemplate($base, $templateAddon, $months, $amount);
-        }
-
-        $strategies['recurring_price_interval'] = array_merge($base, [
             'type' => 'recurring',
-            'recurring_price' => round($amount, 2),
-            'interval' => $months,
-            'interval_unit' => 'months',
-        ]);
-
-        $strategies['price_interval'] = array_merge($base, [
-            'type' => 'recurring',
-            'price' => round($amount, 2),
-            'interval' => $months,
-            'interval_unit' => 'months',
-        ]);
-
-        $strategies['per_unit_brackets'] = array_merge($base, [
-            'type' => 'recurring',
-            'pricing_scheme' => 'per_unit',
-            'interval' => $months,
-            'interval_unit' => 'months',
+            'pricing_scheme' => 'unit',
             'price_brackets' => [[
                 'start_quantity' => 1,
                 'end_quantity' => 0,
                 'price' => round($amount, 2),
             ]],
-        ]);
+        ];
+    }
+
+    public function buildPayloadStrategies(
+        Circle $circle,
+        CircleBillingTerm $term,
+        string $addonCode,
+        float $amount,
+        string $intervalUnit,
+        ?array $templateAddon = null,
+    ): array {
+        $base = array_merge(
+            $this->buildBase($circle, $term, $addonCode, $amount),
+            ['interval_unit' => $intervalUnit]
+        );
+
+        $strategies = [
+            'unit_brackets_mapped_interval' => $base,
+        ];
+
+        if ($templateAddon) {
+            $strategies['template_aligned_unit'] = $this->buildFromTemplate($base, $templateAddon, $amount, $intervalUnit);
+        }
 
         return $strategies;
     }
@@ -72,7 +62,7 @@ class CircleAddonPayloadBuilder
         ]));
     }
 
-    private function buildFromTemplate(array $base, array $templateAddon, int $months, float $amount): array
+    private function buildFromTemplate(array $base, array $templateAddon, float $amount, string $intervalUnit): array
     {
         $payload = $base;
 
@@ -82,36 +72,21 @@ class CircleAddonPayloadBuilder
             }
         }
 
-        if (array_key_exists('interval_unit', $templateAddon)) {
-            $payload['interval_unit'] = 'months';
-        }
-
-        if (array_key_exists('interval', $templateAddon)) {
-            $payload['interval'] = $months;
-        }
+        $payload['interval_unit'] = $intervalUnit;
 
         $brackets = $templateAddon['price_brackets'] ?? null;
-
         if (is_array($brackets) && $brackets !== []) {
             $first = is_array($brackets[0] ?? null) ? $brackets[0] : [];
             $priceKey = array_key_exists('recurring_price', $first) ? 'recurring_price' : 'price';
 
-            $bracket = [
+            $payload['price_brackets'] = [[
                 'start_quantity' => (int) ($first['start_quantity'] ?? 1),
                 'end_quantity' => (int) ($first['end_quantity'] ?? 0),
                 $priceKey => round($amount, 2),
-            ];
-
-            $payload['price_brackets'] = [$bracket];
-            unset($payload['price'], $payload['recurring_price']);
-
-            return $payload;
+            ]];
         }
 
-        if (array_key_exists('recurring_price', $templateAddon)) {
-            unset($payload['price']);
-            $payload['recurring_price'] = round($amount, 2);
-        }
+        unset($payload['interval']);
 
         return $payload;
     }

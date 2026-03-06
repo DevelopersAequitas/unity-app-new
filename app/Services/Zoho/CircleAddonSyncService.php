@@ -44,9 +44,10 @@ class CircleAddonSyncService
 
         $counts = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
         $templateAddon = $this->resolveTemplateAddon();
+        $intervalUnits = $this->resolveIntervalUnitMap();
 
         foreach (CircleBillingTerm::cases() as $term) {
-            $res = $this->syncSingleTerm($circle, $term, $templateAddon);
+            $res = $this->syncSingleTerm($circle, $term, $templateAddon, $intervalUnits[$term->value] ?? $this->defaultIntervalUnit($term));
             $counts['created'] += $res['created'];
             $counts['updated'] += $res['updated'];
             $counts['skipped'] += $res['skipped'];
@@ -70,7 +71,9 @@ class CircleAddonSyncService
             return ['created' => 0, 'updated' => 0, 'skipped' => 1, 'errors' => 0];
         }
 
-        return $this->syncSingleTerm($circle, $term, $this->resolveTemplateAddon());
+        $intervalUnits = $this->resolveIntervalUnitMap();
+
+        return $this->syncSingleTerm($circle, $term, $this->resolveTemplateAddon(), $intervalUnits[$term->value] ?? $this->defaultIntervalUnit($term));
     }
 
     public function resolveAvailablePlans(Circle $circle): array
@@ -121,7 +124,7 @@ class CircleAddonSyncService
         return 0;
     }
 
-    private function syncSingleTerm(Circle $circle, CircleBillingTerm $term, ?array $templateAddon): array
+    private function syncSingleTerm(Circle $circle, CircleBillingTerm $term, ?array $templateAddon, string $intervalUnit): array
     {
         $amount = $this->resolveAmount($circle, $term);
         $code = $this->codeGenerator->generate($circle, $term);
@@ -131,6 +134,7 @@ class CircleAddonSyncService
             'billing_term' => $term->value,
             'amount' => $amount,
             'addon_code' => $code,
+            'interval_unit' => $intervalUnit,
         ]);
 
         if ($amount <= 0) {
@@ -161,7 +165,7 @@ class CircleAddonSyncService
 
         try {
             $remoteAddon = $this->resolveRemoteAddon($local, $code);
-            $strategies = $this->payloadBuilder->buildPayloadStrategies($circle, $term, $code, $amount, $templateAddon);
+            $strategies = $this->payloadBuilder->buildPayloadStrategies($circle, $term, $code, $amount, $intervalUnit, $templateAddon);
             $action = 'created';
 
             if ($remoteAddon && (string) ($remoteAddon['addon_id'] ?? '') !== '') {
@@ -322,6 +326,53 @@ class CircleAddonSyncService
         }
 
         return null;
+    }
+
+
+    private function resolveIntervalUnitMap(): array
+    {
+        $map = [
+            'monthly' => (string) config('zoho_billing.circle_addon_interval_units.monthly', env('ZOHO_CIRCLE_INTERVAL_MONTHLY', 'monthly')),
+            'quarterly' => (string) config('zoho_billing.circle_addon_interval_units.quarterly', env('ZOHO_CIRCLE_INTERVAL_QUARTERLY', 'quarterly')),
+            'half_yearly' => (string) config('zoho_billing.circle_addon_interval_units.half_yearly', env('ZOHO_CIRCLE_INTERVAL_HALF_YEARLY', 'half_yearly')),
+            'yearly' => (string) config('zoho_billing.circle_addon_interval_units.yearly', env('ZOHO_CIRCLE_INTERVAL_YEARLY', 'yearly')),
+        ];
+
+        $addons = $this->fetchAddons();
+
+        $legacyCodeToTerm = [
+            '02' => 'monthly',
+            '03' => 'quarterly',
+            '04' => 'half_yearly',
+            '15' => 'yearly',
+        ];
+
+        foreach ($addons as $addon) {
+            $code = (string) ($addon['addon_code'] ?? '');
+            $intervalUnit = trim((string) ($addon['interval_unit'] ?? ''));
+
+            if ($intervalUnit === '') {
+                continue;
+            }
+
+            if (isset($legacyCodeToTerm[$code])) {
+                $map[$legacyCodeToTerm[$code]] = $intervalUnit;
+            }
+        }
+
+        Log::info('[CircleAddonSync] resolved interval unit map', $map);
+
+        return $map;
+    }
+
+    private function defaultIntervalUnit(CircleBillingTerm $term): string
+    {
+        return match ($term) {
+            CircleBillingTerm::MONTHLY => 'monthly',
+            CircleBillingTerm::QUARTERLY => 'quarterly',
+            CircleBillingTerm::HALF_YEARLY => 'half_yearly',
+            CircleBillingTerm::YEARLY => 'yearly',
+        };
     }
 
     private function saveLocalAddon(
