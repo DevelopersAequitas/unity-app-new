@@ -160,6 +160,7 @@ class ZohoBillingService
                 'addon_code' => $addonCode,
                 'quantity' => 1,
             ]],
+            'prorate' => false,
             'reference_id' => $referenceId,
         ];
 
