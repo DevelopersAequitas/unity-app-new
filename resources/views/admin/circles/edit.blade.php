@@ -213,14 +213,13 @@
                 </div>
                 <div class="card-body">
                     <div id="meetingRows" class="d-flex flex-column gap-3">
-                        @foreach($calendarMeetings as $index => $meeting)
+                        @foreach($calendarMeetings as $meeting)
                             @php
                                 $rowFrequency = strtolower((string) data_get($meeting, 'frequency', ''));
                                 $rowDay = (string) data_get($meeting, 'day_of_week', '');
                                 $rowTime = (string) data_get($meeting, 'default_meet_time', '');
-                                $rowIndex = $index ?? $loop->index ?? 0;
                             @endphp
-                            <div class="border rounded p-3 meeting-row" data-index="{{ $rowIndex }}">
+                            <div class="border rounded p-3 meeting-row" data-index="{{ $loop->index }}">
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-3">
                                         <label class="form-label">Frequency</label>
@@ -245,7 +244,7 @@
                                         </select>
                                     </div>
                                     <div class="col-md-1 text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-danger js-remove-meeting" @if($rowIndex === 0) disabled @endif>Remove</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger js-remove-meeting" @if($loop->index === 0) disabled @endif>Remove</button>
                                     </div>
                                     <div class="col-12">
                                         <div class="small text-muted">Preview: <span class="js-meeting-preview">—</span></div>
