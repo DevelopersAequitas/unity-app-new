@@ -15,6 +15,7 @@ return [
     'http_timeout' => (int) env('ZOHO_HTTP_TIMEOUT', 20),
     'http_retry_times' => (int) env('ZOHO_HTTP_RETRY_TIMES', 2),
     'http_retry_sleep_ms' => (int) env('ZOHO_HTTP_RETRY_SLEEP_MS', 200),
+    'circle_addon_unit_name' => env('ZOHO_CIRCLE_ADDON_UNIT_NAME', 'Member'),
     'circle_addon_interval_units' => [
         'monthly' => env('ZOHO_CIRCLE_INTERVAL_MONTHLY', 'monthly'),
         'quarterly' => env('ZOHO_CIRCLE_INTERVAL_QUARTERLY', 'quarterly'),

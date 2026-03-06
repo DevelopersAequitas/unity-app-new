@@ -17,6 +17,8 @@ class CircleAddonPayloadBuilder
             'currency_code' => 'INR',
             'type' => 'recurring',
             'pricing_scheme' => 'unit',
+            'unit_name' => (string) config('zoho_billing.circle_addon_unit_name', 'Member'),
+            'interval_unit' => $this->defaultIntervalUnit($term),
             'price_brackets' => [[
                 'start_quantity' => 1,
                 'end_quantity' => 0,
@@ -72,6 +74,10 @@ class CircleAddonPayloadBuilder
             }
         }
 
+        if (! empty($templateAddon['unit_name'])) {
+            $payload['unit_name'] = (string) $templateAddon['unit_name'];
+        }
+
         $payload['interval_unit'] = $intervalUnit;
 
         $brackets = $templateAddon['price_brackets'] ?? null;
@@ -89,5 +95,15 @@ class CircleAddonPayloadBuilder
         unset($payload['interval']);
 
         return $payload;
+    }
+
+    private function defaultIntervalUnit(CircleBillingTerm $term): string
+    {
+        return match ($term) {
+            CircleBillingTerm::MONTHLY => 'monthly',
+            CircleBillingTerm::QUARTERLY => 'quarterly',
+            CircleBillingTerm::HALF_YEARLY => 'half_yearly',
+            CircleBillingTerm::YEARLY => 'yearly',
+        };
     }
 }

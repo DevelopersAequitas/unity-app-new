@@ -338,29 +338,7 @@ class CircleAddonSyncService
             'yearly' => (string) config('zoho_billing.circle_addon_interval_units.yearly', env('ZOHO_CIRCLE_INTERVAL_YEARLY', 'yearly')),
         ];
 
-        $addons = $this->fetchAddons();
-
-        $legacyCodeToTerm = [
-            '02' => 'monthly',
-            '03' => 'quarterly',
-            '04' => 'half_yearly',
-            '15' => 'yearly',
-        ];
-
-        foreach ($addons as $addon) {
-            $code = (string) ($addon['addon_code'] ?? '');
-            $intervalUnit = trim((string) ($addon['interval_unit'] ?? ''));
-
-            if ($intervalUnit === '') {
-                continue;
-            }
-
-            if (isset($legacyCodeToTerm[$code])) {
-                $map[$legacyCodeToTerm[$code]] = $intervalUnit;
-            }
-        }
-
-        Log::info('[CircleAddonSync] resolved interval unit map', $map);
+        Log::info('[CircleAddonSync] resolved interval unit map (config/env)', $map);
 
         return $map;
     }
@@ -475,6 +453,7 @@ class CircleAddonSyncService
                 'product_id',
                 'type',
                 'pricing_scheme',
+                'unit_name',
                 'currency_code',
                 'price',
                 'recurring_price',
