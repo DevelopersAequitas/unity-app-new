@@ -245,6 +245,43 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Circle Subscription Pricing</div>
+                <div class="card-body row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label" for="price_monthly">Monthly Price</label>
+                        <input id="price_monthly" type="number" step="0.01" min="0" name="price_monthly" class="form-control @error('price_monthly') is-invalid @enderror" value="{{ old('price_monthly', $circle->price_monthly) }}">
+                        @error('price_monthly')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="price_quarterly">Quarterly Price</label>
+                        <input id="price_quarterly" type="number" step="0.01" min="0" name="price_quarterly" class="form-control @error('price_quarterly') is-invalid @enderror" value="{{ old('price_quarterly', $circle->price_quarterly) }}">
+                        @error('price_quarterly')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="price_half_yearly">Half Yearly Price</label>
+                        <input id="price_half_yearly" type="number" step="0.01" min="0" name="price_half_yearly" class="form-control @error('price_half_yearly') is-invalid @enderror" value="{{ old('price_half_yearly', $circle->price_half_yearly) }}">
+                        @error('price_half_yearly')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="price_yearly">Yearly Price</label>
+                        <input id="price_yearly" type="number" step="0.01" min="0" name="price_yearly" class="form-control @error('price_yearly') is-invalid @enderror" value="{{ old('price_yearly', $circle->price_yearly) }}">
+                        @error('price_yearly')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+            </div>
+        </div>
+
 <div class="col-12">
             <div class="card">
                 <div class="card-header fw-semibold">Location</div>

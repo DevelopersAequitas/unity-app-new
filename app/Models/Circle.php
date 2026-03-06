@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Services\Zoho\ZohoCircleAddonService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -82,17 +81,6 @@ class Circle extends Model
 
             if (empty($circle->status)) {
                 $circle->status = 'pending';
-            }
-        });
-        static::saved(function (Circle $circle): void {
-            try {
-                app(ZohoCircleAddonService::class)->syncCircleAddons($circle);
-            } catch (\Throwable $exception) {
-                \Illuminate\Support\Facades\Log::error('zoho api error', [
-                    'context' => 'circle_saved_hook',
-                    'circle_id' => $circle->id,
-                    'message' => $exception->getMessage(),
-                ]);
             }
         });
     }
@@ -282,6 +270,11 @@ class Circle extends Model
     public function memberships(): HasMany
     {
         return $this->hasMany(CircleMember::class);
+    }
+
+    public function zohoCircleAddons(): HasMany
+    {
+        return $this->hasMany(ZohoCircleAddon::class, 'circle_id');
     }
 
 

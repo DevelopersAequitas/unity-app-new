@@ -10,10 +10,12 @@ use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
 use App\Support\UserOptionLabel;
+use App\Services\Zoho\ZohoCircleAddonService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
@@ -262,6 +264,16 @@ class CircleController extends Controller
         $circle->save();
         $circle->refresh();
 
+        try {
+            app(ZohoCircleAddonService::class)->syncCircleAddons($circle);
+        } catch (\Throwable $exception) {
+            Log::error('zoho api error', [
+                'context' => 'circle_store_sync',
+                'circle_id' => $circle->id,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
         Cache::forget('admin.circles.index');
         Cache::forget('admin.circles.filters');
 
@@ -366,6 +378,16 @@ class CircleController extends Controller
 
         $circle->save();
         $circle->refresh();
+
+        try {
+            app(ZohoCircleAddonService::class)->syncCircleAddons($circle);
+        } catch (\Throwable $exception) {
+            Log::error('zoho api error', [
+                'context' => 'circle_update_sync',
+                'circle_id' => $circle->id,
+                'message' => $exception->getMessage(),
+            ]);
+        }
 
         Cache::forget('admin.circles.index');
         Cache::forget('admin.circles.filters');

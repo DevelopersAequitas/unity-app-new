@@ -5,17 +5,18 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\ZohoCircleAddon;
-use App\Services\Zoho\ZohoTokenService;
+use App\Support\Zoho\ZohoBillingClient;
+use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class CircleSubscriptionController extends Controller
 {
-    public function __construct(private readonly ZohoTokenService $tokenService)
-    {
+    public function __construct(
+        private readonly ZohoBillingClient $zohoBillingClient,
+        private readonly ZohoBillingService $zohoBillingService,
+    ) {
     }
 
     public function checkout(Request $request): JsonResponse
@@ -25,41 +26,47 @@ class CircleSubscriptionController extends Controller
             'interval_type' => ['required', 'in:monthly,quarterly,half_yearly,yearly'],
         ]);
 
+        $circle = Circle::query()->findOrFail($validated['circle_id']);
+
         $addon = ZohoCircleAddon::query()
-            ->where('circle_id', $validated['circle_id'])
+            ->where('circle_id', $circle->id)
             ->where('interval_type', $validated['interval_type'])
             ->first();
 
         if (! $addon) {
             return response()->json([
-                'message' => 'No addon available for selected interval.',
-            ], 404);
+                'success' => false,
+                'message' => 'Addon is not available for the selected interval. Please ask admin to sync circle pricing first.',
+                'data' => [],
+            ], 422);
         }
 
-        $baseUrl = rtrim((string) env('ZOHO_BILLING_BASE_URL'), '/');
-
         try {
-            $response = Http::timeout(20)
-                ->acceptJson()
-                ->withHeaders([
-                    'Authorization' => 'Zoho-oauthtoken ' . $this->tokenService->getAccessToken(),
-                    'X-com-zoho-subscriptions-organizationid' => (string) env('ZOHO_BILLING_ORG_ID'),
-                ])
-                ->post($baseUrl . '/hostedpages/newsubscription', [
-                    'plan_code' => env('ZOHO_CIRCLE_BASE_PLAN_CODE'),
-                    'addons' => [
-                        [
-                            'addon_code' => $addon->zoho_addon_code,
-                        ],
-                    ],
-                ])
-                ->throw();
+            $customerId = $this->zohoBillingService->ensureCustomerForUser($request->user());
 
-            $checkoutUrl = (string) data_get($response->json(), 'hostedpage.url', '');
+            $response = $this->zohoBillingClient->request('POST', '/hostedpages/newsubscription', [
+                'customer_id' => $customerId,
+                'plan' => [
+                    'plan_code' => (string) env('ZOHO_CIRCLE_BASE_PLAN_CODE'),
+                ],
+                'addons' => [
+                    ['addon_code' => $addon->zoho_addon_code],
+                ],
+            ]);
+
+            $checkoutUrl = (string) data_get($response, 'hostedpage.url', '');
 
             if ($checkoutUrl === '') {
+                Log::error('checkout create failed', [
+                    'circle_id' => $circle->id,
+                    'interval_type' => $validated['interval_type'],
+                    'response' => $response,
+                ]);
+
                 return response()->json([
-                    'message' => 'Unable to generate checkout URL.',
+                    'success' => false,
+                    'message' => 'Unable to create checkout right now.',
+                    'data' => [],
                 ], 422);
             }
 
@@ -67,37 +74,52 @@ class CircleSubscriptionController extends Controller
             $addon->save();
 
             Log::info('checkout created', [
-                'circle_id' => $validated['circle_id'],
+                'user_id' => $request->user()?->id,
+                'circle_id' => $circle->id,
                 'interval_type' => $validated['interval_type'],
                 'addon_code' => $addon->zoho_addon_code,
                 'checkout_url' => $checkoutUrl,
             ]);
 
             return response()->json([
-                'checkout_url' => $checkoutUrl,
+                'success' => true,
+                'message' => 'Checkout created successfully.',
+                'data' => [
+                    'circle_id' => $circle->id,
+                    'interval_type' => $validated['interval_type'],
+                    'addon_code' => $addon->zoho_addon_code,
+                    'checkout_url' => $checkoutUrl,
+                ],
             ]);
-        } catch (RequestException $exception) {
-            Log::error('zoho api error', [
-                'context' => 'circle_checkout',
-                'status' => $exception->response?->status(),
-                'body' => $exception->response?->json() ?? $exception->response?->body(),
+        } catch (\Throwable $exception) {
+            Log::error('checkout create failed', [
+                'user_id' => $request->user()?->id,
+                'circle_id' => $circle->id,
+                'interval_type' => $validated['interval_type'],
+                'message' => $exception->getMessage(),
             ]);
 
             return response()->json([
-                'message' => 'Unable to create checkout at the moment.',
+                'success' => false,
+                'message' => 'Unable to create checkout right now.',
+                'data' => [],
             ], 502);
         }
     }
 
-    public function plans(string $circleId): JsonResponse
+    public function plans(Circle $circle): JsonResponse
     {
-        $circle = Circle::query()->findOrFail($circleId);
-
         return response()->json([
-            'monthly' => $circle->price_monthly,
-            'quarterly' => $circle->price_quarterly,
-            'half_yearly' => $circle->price_half_yearly,
-            'yearly' => $circle->price_yearly,
+            'success' => true,
+            'message' => 'Circle plans fetched successfully.',
+            'data' => [
+                'circle_id' => $circle->id,
+                'circle_name' => $circle->name,
+                'monthly' => $circle->price_monthly,
+                'quarterly' => $circle->price_quarterly,
+                'half_yearly' => $circle->price_half_yearly,
+                'yearly' => $circle->price_yearly,
+            ],
         ]);
     }
 }

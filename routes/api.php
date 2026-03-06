@@ -293,7 +293,7 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/membership-plans', [MembershipPlanController::class, 'index']);
     Route::get('/zoho/plans', [ZohoPlansController::class, 'index']);
-    Route::get('/circles/{circle_id}/plans', [CircleSubscriptionController::class, 'plans']);
+    Route::get('/circles/{circle}/plans', [CircleSubscriptionController::class, 'plans']);
     Route::post('/webhooks/razorpay', [RazorpayWebhookController::class, 'handle']);
     Route::post('/zoho/webhook', [ZohoWebhookController::class, 'handle']);
     Route::post('/billing/zoho/webhook', [ZohoBillingWebhookController::class, 'handle']);
