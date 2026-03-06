@@ -2,6 +2,7 @@
 
 namespace App\Support\Zoho;
 
+use App\Models\Circle;
 use App\Models\User;
 use App\Support\Membership\MembershipUpdater;
 use Illuminate\Support\Arr;
@@ -40,6 +41,96 @@ class ZohoBillingService
             ])
             ->values()
             ->all();
+    }
+
+
+    public function listAddons(bool $activeOnly = true): array
+    {
+        $response = $this->client->request('GET', '/addons', [
+            'page' => 1,
+            'per_page' => 200,
+        ], true);
+
+        $addons = $response['addons'] ?? [];
+
+        $normalized = collect($addons)
+            ->filter(fn ($addon) => is_array($addon))
+            ->map(function (array $addon) {
+                return [
+                    'addon_id' => (string) ($addon['addon_id'] ?? ''),
+                    'addon_code' => (string) ($addon['addon_code'] ?? ''),
+                    'name' => (string) ($addon['name'] ?? ''),
+                    'amount' => $addon['price']
+                        ?? $addon['rate']
+                        ?? data_get($addon, 'addon_price')
+                        ?? null,
+                    'currency_code' => (string) ($addon['currency_code'] ?? ''),
+                    'billing_frequency' => $addon['billing_frequency'] ?? null,
+                    'status' => strtolower((string) ($addon['status'] ?? '')),
+                    'raw' => $addon,
+                ];
+            });
+
+        if ($activeOnly) {
+            $normalized = $normalized->filter(fn (array $addon) => $addon['status'] === 'active');
+        }
+
+        return $normalized->values()->all();
+    }
+
+    public function listCirclePackageAddons(bool $activeOnly = true): array
+    {
+        return collect($this->listAddons($activeOnly))
+            ->filter(fn (array $addon) => str_starts_with((string) ($addon['addon_code'] ?? ''), 'Package-'))
+            ->values()
+            ->all();
+    }
+
+    public function findCirclePackageAddonByCodeOrId(string $addonCodeOrId, bool $activeOnly = true): ?array
+    {
+        $needle = trim($addonCodeOrId);
+
+        if ($needle === '') {
+            return null;
+        }
+
+        return collect($this->listCirclePackageAddons($activeOnly))
+            ->first(function (array $addon) use ($needle) {
+                return (string) ($addon['addon_id'] ?? '') === $needle
+                    || (string) ($addon['addon_code'] ?? '') === $needle;
+            });
+    }
+
+    public function createHostedPageForCircleAddon(User $user, Circle $circle): array
+    {
+        $addonCode = trim((string) ($circle->zoho_addon_code ?? ''));
+
+        if ($addonCode === '') {
+            throw ValidationException::withMessages([
+                'circle' => 'Selected circle does not have a package configured.',
+            ]);
+        }
+
+        $customerId = $this->ensureCustomerForUser($user);
+
+        $response = $this->client->request('POST', '/hostedpages/newsubscription', [
+            'customer_id' => $customerId,
+            'plan' => [
+                'plan_code' => (string) config('zoho_billing.circle_plan_code', config('zoho_billing.default_plan_code', '013')),
+            ],
+            'addons' => [[
+                'addon_code' => $addonCode,
+                'quantity' => 1,
+            ]],
+            'reference_id' => sprintf('circle:%s:user:%s', $circle->id, $user->id),
+        ]);
+
+        return [
+            'hostedpage_id' => (string) data_get($response, 'hostedpage.hostedpage_id', ''),
+            'checkout_url' => (string) data_get($response, 'hostedpage.url', ''),
+            'customer_id' => $customerId,
+            'raw' => $response,
+        ];
     }
 
     public function getOrganization(): array
