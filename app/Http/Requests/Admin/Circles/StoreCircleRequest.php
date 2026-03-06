@@ -42,6 +42,23 @@ class StoreCircleRequest extends FormRequest
             'calendar_meetings.*.default_meet_day' => ['nullable', Rule::in(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])],
             'calendar_meetings.*.default_meet_time' => ['nullable', 'date_format:H:i'],
             'calendar_meetings.*.monthly_rule' => ['nullable', Rule::in(['first', 'second', 'third', 'fourth', 'last'])],
+
+            'payment_enabled' => ['sometimes', 'boolean'],
+            'is_payment_enabled' => ['sometimes', 'boolean'],
+            'is_paid' => ['sometimes', 'boolean'],
+            'paid_enabled' => ['sometimes', 'boolean'],
+            'monthly_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'quarterly_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'half_yearly_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'yearly_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'monthly_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'quarterly_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'half_yearly_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'yearly_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'price_monthly' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'price_quarterly' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'price_half_yearly' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'price_yearly' => ['sometimes', 'nullable', 'numeric', 'min:0'],
         ];
     }
 

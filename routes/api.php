@@ -55,6 +55,9 @@ use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
+use App\Http\Controllers\Api\CirclePlansController;
+use App\Http\Controllers\Api\CircleCheckoutController;
+use App\Http\Controllers\Api\ZohoCircleWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -114,6 +117,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/circles/{id}/join', [CircleController::class, 'join']);
         Route::get('/my/circles', [CircleController::class, 'myCircles']);
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
+        Route::get('/circles/{circle}/plans', [CirclePlansController::class, 'show']);
+        Route::post('/circles/{circle}/checkout', [CircleCheckoutController::class, 'store']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::patch('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
 
@@ -293,6 +298,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/webhooks/razorpay', [RazorpayWebhookController::class, 'handle']);
     Route::post('/zoho/webhook', [ZohoWebhookController::class, 'handle']);
     Route::post('/billing/zoho/webhook', [ZohoBillingWebhookController::class, 'handle']);
+    Route::post('/webhooks/zoho/circle-subscription', [ZohoCircleWebhookController::class, 'handle']);
     Route::get('/billing/checkout/{hostedpage_id}/status', [BillingCheckoutController::class, 'status']);
     Route::get('/files/{id}', [FileController::class, 'show']);
     Route::get('/event-galleries', [EventGalleryApiController::class, 'index']);

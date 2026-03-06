@@ -9,16 +9,23 @@ use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
+use App\Services\Zoho\CircleAddonSyncService;
 use App\Support\UserOptionLabel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class CircleController extends Controller
 {
+    public function __construct(private readonly CircleAddonSyncService $circleAddonSyncService)
+    {
+    }
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('search', ''));
@@ -242,6 +249,17 @@ class CircleController extends Controller
             'industry_tags' => $this->normalizeIndustryTags($validated['industry_tags'] ?? null),
         ];
 
+        foreach ([
+            'payment_enabled', 'is_payment_enabled', 'is_paid', 'paid_enabled',
+            'monthly_amount', 'quarterly_amount', 'half_yearly_amount', 'yearly_amount',
+            'monthly_price', 'quarterly_price', 'half_yearly_price', 'yearly_price',
+            'price_monthly', 'price_quarterly', 'price_half_yearly', 'price_yearly',
+        ] as $column) {
+            if (array_key_exists($column, $validated)) {
+                $payload[$column] = $validated[$column];
+            }
+        }
+
         if (empty($payload['status'])) {
             unset($payload['status']);
         }
@@ -256,6 +274,18 @@ class CircleController extends Controller
         $circle->calendar = $calendar;
 
         $circle->save();
+
+        DB::afterCommit(function () use ($circle): void {
+            try {
+                $this->circleAddonSyncService->syncCircle($circle->fresh());
+            } catch (\Throwable $throwable) {
+                Log::error('Circle addon sync failed after create', [
+                    'circle_id' => $circle->id,
+                    'error' => $throwable->getMessage(),
+                ]);
+            }
+        });
+
         $circle->refresh();
 
         Cache::forget('admin.circles.index');
@@ -263,7 +293,7 @@ class CircleController extends Controller
 
         return redirect()
             ->route('admin.circles.show', $circle)
-            ->with('success', 'Circle created successfully.');
+            ->with('success', 'Circle created successfully. Addon sync runs in background after save.');
     }
 
     public function show(Request $request, Circle $circle): View
@@ -328,6 +358,10 @@ class CircleController extends Controller
             'description',
             'purpose',
             'announcement',
+            'payment_enabled', 'is_payment_enabled', 'is_paid', 'paid_enabled',
+            'monthly_amount', 'quarterly_amount', 'half_yearly_amount', 'yearly_amount',
+            'monthly_price', 'quarterly_price', 'half_yearly_price', 'yearly_price',
+            'price_monthly', 'price_quarterly', 'price_half_yearly', 'price_yearly',
         ] as $column) {
             if (Schema::hasColumn('circles', $column) && array_key_exists($column, $validated)) {
                 $allowed[$column] = $validated[$column];
@@ -357,6 +391,18 @@ class CircleController extends Controller
         }
 
         $circle->save();
+
+        DB::afterCommit(function () use ($circle): void {
+            try {
+                $this->circleAddonSyncService->syncCircle($circle->fresh());
+            } catch (\Throwable $throwable) {
+                Log::error('Circle addon sync failed after update', [
+                    'circle_id' => $circle->id,
+                    'error' => $throwable->getMessage(),
+                ]);
+            }
+        });
+
         $circle->refresh();
 
         Cache::forget('admin.circles.index');
@@ -364,7 +410,7 @@ class CircleController extends Controller
 
         return redirect()
             ->route('admin.circles.show', $circle)
-            ->with('success', 'Circle updated successfully.');
+            ->with('success', 'Circle updated successfully. Addon sync runs in background after save.');
     }
 
     public function destroy(Circle $circle): RedirectResponse
