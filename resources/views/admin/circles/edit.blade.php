@@ -215,6 +215,7 @@
                     <div id="meetingRows" class="d-flex flex-column gap-3">
                         @foreach ($calendarMeetings as $index => $meeting)
                             @php
+                                $index = is_numeric($index ?? null) ? (int) $index : 0;
                                 $rowFrequency = strtolower((string) data_get($meeting, 'frequency', ''));
                                 $rowDay = (string) data_get($meeting, 'day_of_week', '');
                                 $rowTime = (string) data_get($meeting, 'default_meet_time', '');
