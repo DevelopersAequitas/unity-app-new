@@ -7,6 +7,7 @@ use App\Http\Resources\P2PMeetingRequestResource;
 use App\Models\Notification;
 use App\Models\P2PMeetingRequest;
 use App\Models\User;
+use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,7 @@ use Illuminate\Validation\Rule;
 
 class P2PMeetingRequestController extends BaseApiController
 {
-    public function store(Request $request)
+    public function store(Request $request, NotifyUserService $notifyUserService)
     {
         $authUser = $request->user();
 
@@ -28,6 +29,8 @@ class P2PMeetingRequestController extends BaseApiController
             'scheduled_at' => ['required', 'date'],
             'place' => ['required', 'string', 'max:255'],
             'message' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'to_user_id.not_in' => 'You cannot send a meeting request to yourself.',
         ]);
 
         $scheduledAt = Carbon::parse($validated['scheduled_at']);
@@ -45,7 +48,7 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('A similar pending meeting request already exists near this schedule time.', 422);
         }
 
-        $meetingRequest = DB::transaction(function () use ($authUser, $validated, $scheduledAt) {
+        $meetingRequest = DB::transaction(function () use ($authUser, $validated, $scheduledAt, $notifyUserService) {
             $meetingRequest = P2PMeetingRequest::create([
                 'requester_id' => $authUser->id,
                 'invitee_id' => $validated['to_user_id'],
@@ -56,22 +59,8 @@ class P2PMeetingRequestController extends BaseApiController
             ]);
 
             $invitee = User::query()->findOrFail($validated['to_user_id']);
-
-            Notification::create([
-                'user_id' => $invitee->id,
-                'type' => 'p2p_meeting_request',
-                'payload' => [
-                    'notification_type' => 'p2p_meeting_request',
-                    'meeting_request_id' => (string) $meetingRequest->id,
-                    'scheduled_at' => $meetingRequest->scheduled_at?->toIso8601String(),
-                    'place' => $meetingRequest->place,
-                    'message' => $meetingRequest->message,
-                    'from_user' => $authUser->publicProfileArray(),
-                ],
-                'is_read' => false,
-                'created_at' => now(),
-                'read_at' => null,
-            ]);
+            $this->createMeetingNotification($invitee, 'p2p_meeting_request', $meetingRequest, $authUser);
+            $this->dispatchPushNotification($notifyUserService, $invitee, $authUser, 'p2p_meeting_request', $meetingRequest);
 
             return $meetingRequest;
         });
@@ -135,17 +124,17 @@ class P2PMeetingRequestController extends BaseApiController
         return $this->success(new P2PMeetingRequestResource($meetingRequest));
     }
 
-    public function accept(Request $request, string $id)
+    public function accept(Request $request, string $id, NotifyUserService $notifyUserService)
     {
-        return $this->respondToRequest($request, $id, 'accepted');
+        return $this->respondToRequest($request, $id, 'accepted', $notifyUserService);
     }
 
-    public function reject(Request $request, string $id)
+    public function reject(Request $request, string $id, NotifyUserService $notifyUserService)
     {
-        return $this->respondToRequest($request, $id, 'rejected');
+        return $this->respondToRequest($request, $id, 'rejected', $notifyUserService);
     }
 
-    public function cancel(Request $request, string $id)
+    public function cancel(Request $request, string $id, NotifyUserService $notifyUserService)
     {
         $meetingRequest = P2PMeetingRequest::query()
             ->with(['requester', 'invitee'])
@@ -163,27 +152,20 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Only pending requests can be cancelled.', 422);
         }
 
-        DB::transaction(function () use ($meetingRequest, $request) {
+        DB::transaction(function () use ($meetingRequest, $request, $notifyUserService) {
             $meetingRequest->update([
                 'status' => 'cancelled',
                 'responded_at' => now(),
             ]);
 
-            Notification::create([
-                'user_id' => $meetingRequest->invitee_id,
-                'type' => 'p2p_meeting_cancelled',
-                'payload' => [
-                    'notification_type' => 'p2p_meeting_cancelled',
-                    'meeting_request_id' => (string) $meetingRequest->id,
-                    'scheduled_at' => $meetingRequest->scheduled_at?->toIso8601String(),
-                    'place' => $meetingRequest->place,
-                    'message' => $meetingRequest->message,
-                    'from_user' => $request->user()->publicProfileArray(),
-                ],
-                'is_read' => false,
-                'created_at' => now(),
-                'read_at' => null,
-            ]);
+            $meetingRequest->loadMissing(['requester', 'invitee']);
+            $invitee = $meetingRequest->invitee;
+            $actor = $request->user();
+
+            if ($invitee) {
+                $this->createMeetingNotification($invitee, 'p2p_meeting_cancelled', $meetingRequest, $actor);
+                $this->dispatchPushNotification($notifyUserService, $invitee, $actor, 'p2p_meeting_cancelled', $meetingRequest);
+            }
         });
 
         $meetingRequest->refresh()->load(['requester', 'invitee']);
@@ -191,7 +173,7 @@ class P2PMeetingRequestController extends BaseApiController
         return $this->success(new P2PMeetingRequestResource($meetingRequest), 'Meeting request cancelled successfully.');
     }
 
-    private function respondToRequest(Request $request, string $id, string $status)
+    private function respondToRequest(Request $request, string $id, string $status, NotifyUserService $notifyUserService)
     {
         $meetingRequest = P2PMeetingRequest::query()
             ->with(['requester', 'invitee'])
@@ -209,32 +191,67 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Only pending requests can be updated.', 422);
         }
 
-        DB::transaction(function () use ($meetingRequest, $status, $request) {
+        DB::transaction(function () use ($meetingRequest, $status, $request, $notifyUserService) {
             $meetingRequest->update([
                 'status' => $status,
                 'responded_at' => now(),
             ]);
 
-            Notification::create([
-                'user_id' => $meetingRequest->requester_id,
-                'type' => 'p2p_meeting_' . $status,
-                'payload' => [
-                    'notification_type' => 'p2p_meeting_' . $status,
-                    'meeting_request_id' => (string) $meetingRequest->id,
-                    'scheduled_at' => $meetingRequest->scheduled_at?->toIso8601String(),
-                    'place' => $meetingRequest->place,
-                    'message' => $meetingRequest->message,
-                    'from_user' => $request->user()->publicProfileArray(),
-                ],
-                'is_read' => false,
-                'created_at' => now(),
-                'read_at' => null,
-            ]);
+            $meetingRequest->loadMissing(['requester', 'invitee']);
+            $requester = $meetingRequest->requester;
+            $actor = $request->user();
+
+            if ($requester) {
+                $notificationType = 'p2p_meeting_' . $status;
+                $this->createMeetingNotification($requester, $notificationType, $meetingRequest, $actor);
+                $this->dispatchPushNotification($notifyUserService, $requester, $actor, $notificationType, $meetingRequest);
+            }
         });
 
         $meetingRequest->refresh()->load(['requester', 'invitee']);
 
         return $this->success(new P2PMeetingRequestResource($meetingRequest), 'Meeting request ' . $status . ' successfully.');
+    }
+
+    private function createMeetingNotification(User $toUser, string $type, P2PMeetingRequest $meetingRequest, User $fromUser): void
+    {
+        Notification::create([
+            'user_id' => $toUser->id,
+            'type' => $type,
+            'payload' => [
+                'notification_type' => $type,
+                'meeting_request_id' => (string) $meetingRequest->id,
+                'scheduled_at' => $meetingRequest->scheduled_at?->toIso8601String(),
+                'place' => $meetingRequest->place,
+                'message' => $meetingRequest->message,
+                'from_user' => $fromUser->publicProfileArray(),
+            ],
+            'is_read' => false,
+            'created_at' => now(),
+            'read_at' => null,
+        ]);
+    }
+
+    private function dispatchPushNotification(
+        NotifyUserService $notifyUserService,
+        User $toUser,
+        User $fromUser,
+        string $notificationType,
+        P2PMeetingRequest $meetingRequest
+    ): void {
+        $notifyUserService->notifyUser(
+            $toUser,
+            $fromUser,
+            $notificationType,
+            [
+                'title' => 'P2P Meeting Update',
+                'body' => 'You have a new P2P meeting update.',
+                'meeting_request_id' => (string) $meetingRequest->id,
+                'scheduled_at' => $meetingRequest->scheduled_at?->toIso8601String(),
+                'place' => $meetingRequest->place,
+            ],
+            $meetingRequest
+        );
     }
 
     private function isParticipant(P2PMeetingRequest $meetingRequest, string $authUserId): bool
