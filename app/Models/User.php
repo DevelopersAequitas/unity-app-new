@@ -197,6 +197,7 @@ class User extends Authenticatable
         return $this->hasMany(CircleMember::class, 'user_id');
     }
 
+
     public function circleSubscriptions(): HasMany
     {
         return $this->hasMany(CircleSubscription::class, 'user_id');
@@ -230,6 +231,7 @@ class User extends Authenticatable
         }
 
         $fullName = trim(trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? '')));
+        $fullName = trim(trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? '')));
 
         return $fullName !== '' ? $fullName : 'Unknown';
     }
@@ -302,6 +304,7 @@ class User extends Authenticatable
 
         $fullName = trim(
             trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
+            trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? ''))
         );
 
         if ($fullName !== '') {
@@ -543,4 +546,5 @@ class User extends Authenticatable
             'industry' => $industry,
         ];
     }
+}
 }
