@@ -31,10 +31,12 @@ class CircleChatService
     {
         $this->accessService->ensureUserIsCircleMember($user, $circle->id);
 
+        $userId = (string) $user->id;
+
         $query = CircleChatMessage::query()
             ->where('circle_id', $circle->id)
             ->where('is_deleted_for_all', false)
-            ->whereRaw("NOT (COALESCE(deleted_for_users, '[]'::jsonb) ? ?)", [(string) $user->id])
+            ->whereRaw("NOT jsonb_exists(COALESCE(deleted_for_users, '[]'::jsonb), ?)", [$userId])
             ->when($beforeMessageId, function ($q) use ($beforeMessageId) {
                 $before = CircleChatMessage::query()->find($beforeMessageId);
                 if ($before) {
