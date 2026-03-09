@@ -212,6 +212,22 @@ class User extends Authenticatable
         return $this->belongsTo(CircleSubscription::class, 'active_circle_subscription_id');
     }
 
+
+    public function circleChatMessagesSent(): HasMany
+    {
+        return $this->hasMany(CircleChatMessage::class, 'sender_id');
+    }
+
+    public function circleChatMessageReads(): HasMany
+    {
+        return $this->hasMany(CircleChatMessageRead::class, 'user_id');
+    }
+
+    public function circleChatMessageDeletions(): HasMany
+    {
+        return $this->hasMany(CircleChatMessageDeletion::class, 'user_id');
+    }
+
     public function circles(): BelongsToMany
     {
         return $this->belongsToMany(Circle::class, 'circle_members', 'user_id', 'circle_id')

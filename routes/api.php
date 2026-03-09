@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\BusinessDealController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ChatTypingController;
 use App\Http\Controllers\Api\CircleController;
+use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\FileController;
@@ -205,6 +206,14 @@ Route::prefix('v1')->group(function () {
         // Support - admin-facing
         Route::get('/support/admin', [SupportController::class, 'adminIndex']);
         Route::patch('/support/admin/{id}', [SupportController::class, 'adminUpdate']);
+
+
+        Route::get('/circles/{circle}/chat/messages', [CircleChatController::class, 'index']);
+        Route::post('/circles/{circle}/chat/messages', [CircleChatController::class, 'store']);
+        Route::post('/circles/{circle}/chat/messages/read', [CircleChatController::class, 'markRead']);
+        Route::get('/circles/{circle}/chat/messages/{message}/reads', [CircleChatController::class, 'readDetails']);
+        Route::post('/circles/{circle}/chat/messages/{message}/delete-for-me', [CircleChatController::class, 'deleteForMe']);
+        Route::delete('/circles/{circle}/chat/messages/{message}', [CircleChatController::class, 'destroy']);
 
         // Chats & Messages
         Route::get('/chats', [ChatController::class, 'index']);
