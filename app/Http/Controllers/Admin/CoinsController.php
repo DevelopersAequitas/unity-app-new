@@ -31,10 +31,12 @@ class CoinsController extends Controller
     public function index(Request $request): View
     {
         $filters = $this->indexFilters($request);
+        $perPage = (int) ($filters['per_page'] ?? 20);
+
         $members = $this->coinsIndexMembersQuery($filters)
             ->orderByDesc('total_coins_sort')
             ->orderBy('users.display_name')
-            ->paginate($filters['per_page'])
+            ->paginate($perPage)
             ->appends($request->query());
 
         $activityStats = $this->coinStatsByUserId($members->pluck('id')->all());
@@ -42,6 +44,7 @@ class CoinsController extends Controller
         return view('admin.coins.index', [
             'members' => $members,
             'filters' => $filters,
+            'circles' => Circle::query()->orderBy('name')->get(['id', 'name']),
             'activityStats' => $activityStats,
         ]);
     }
@@ -251,9 +254,12 @@ class CoinsController extends Controller
 
         $this->applyCircleScopeToUsersQuery($query, auth('admin')->user());
 
-        if ($filters['q'] !== '') {
-            $query->where(function ($searchQuery) use ($filters, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
-                $like = "%{$filters['q']}%";
+        $search = trim((string) ($filters['q'] ?? $filters['search'] ?? ''));
+        $circleId = (string) ($filters['circle_id'] ?? 'all');
+
+        if ($search !== '') {
+            $query->where(function ($searchQuery) use ($search, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                $like = "%{$search}%";
 
                 $searchQuery->where('users.display_name', 'ILIKE', $like)
                     ->orWhere('users.first_name', 'ILIKE', $like)
@@ -275,9 +281,9 @@ class CoinsController extends Controller
             });
         }
 
-        if ($filters['circle_id'] !== '' && $filters['circle_id'] !== 'all') {
-            $query->whereHas('circleMembers', function ($circleMembersQuery) use ($filters) {
-                $circleMembersQuery->where('circle_id', $filters['circle_id'])
+        if ($circleId !== '' && $circleId !== 'all') {
+            $query->whereHas('circleMembers', function ($circleMembersQuery) use ($circleId) {
+                $circleMembersQuery->where('circle_id', $circleId)
                     ->where('status', 'approved')
                     ->whereNull('deleted_at');
             });
@@ -311,6 +317,12 @@ class CoinsController extends Controller
 
     private function ledgerQuery(User $member, array $filters, ?string $type = null): Builder
     {
+        $from = trim((string) ($filters['from'] ?? ''));
+        $to = trim((string) ($filters['to'] ?? ''));
+        $date = trim((string) ($filters['date'] ?? ''));
+        $coins = trim((string) ($filters['coins'] ?? ''));
+        $why = trim((string) ($filters['why'] ?? ''));
+
         $query = CoinLedger::query()
             ->where('user_id', $member->id)
             ->with(['createdBy' => function ($q) {
@@ -326,20 +338,20 @@ class CoinsController extends Controller
             ->when($type && isset(self::ACTIVITY_REFERENCE_PATTERNS[$type]), function (Builder $q) use ($type) {
                 $q->where('reference', 'ILIKE', self::ACTIVITY_REFERENCE_PATTERNS[$type]);
             })
-            ->when($filters['from'], fn (Builder $q) => $q->whereDate('created_at', '>=', $filters['from']))
-            ->when($filters['to'], fn (Builder $q) => $q->whereDate('created_at', '<=', $filters['to']))
-            ->when($filters['date'], fn (Builder $q) => $q->whereDate('created_at', '=', $filters['date']))
-            ->when($filters['coins'] !== '', function (Builder $q) use ($filters) {
-                if (is_numeric($filters['coins'])) {
-                    $q->where('amount', (int) $filters['coins']);
+            ->when($from !== '', fn (Builder $q) => $q->whereDate('created_at', '>=', $from))
+            ->when($to !== '', fn (Builder $q) => $q->whereDate('created_at', '<=', $to))
+            ->when($date !== '', fn (Builder $q) => $q->whereDate('created_at', '=', $date))
+            ->when($coins !== '', function (Builder $q) use ($coins) {
+                if (is_numeric($coins)) {
+                    $q->where('amount', (int) $coins);
                 } else {
-                    $q->whereRaw('CAST(amount AS TEXT) ILIKE ?', ['%' . $filters['coins'] . '%']);
+                    $q->whereRaw('CAST(amount AS TEXT) ILIKE ?', ['%' . $coins . '%']);
                 }
             })
             ->orderByDesc('created_at');
 
-        if ($filters['why'] !== '') {
-            $this->applyWhyFilter($query, $filters['why']);
+        if ($why !== '') {
+            $this->applyWhyFilter($query, $why);
         }
 
         return $query;
@@ -377,6 +389,7 @@ class CoinsController extends Controller
         return [
             'q' => trim((string) $request->query('q', $request->query('search', ''))),
             'search' => trim((string) $request->query('q', $request->query('search', ''))),
+            'circle_id' => (string) $request->query('circle_id', 'all'),
             'per_page' => $perPage,
         ];
     }
