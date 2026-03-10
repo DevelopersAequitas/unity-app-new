@@ -23,6 +23,18 @@
             white-space: nowrap;
             word-break: keep-all;
         }
+
+        .coins-filter-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+        }
+
+        .coins-filter-actions .btn {
+            flex: 0 0 auto;
+        }
     </style>
 @endpush
 
@@ -89,7 +101,7 @@
                         <th class="text-center text-muted small">—</th>
                         <th class="text-end">
                             <div class="text-muted small mb-2 text-center">—</div>
-                            <form id="coinsFiltersForm" method="GET" class="d-inline-flex flex-wrap justify-content-end gap-2">
+                            <form id="coinsFiltersForm" method="GET" class="coins-filter-actions justify-content-end">
                                 <button type="submit" class="btn btn-sm btn-primary">Apply</button>
                                 <a href="{{ route('admin.coins.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
                                 <button type="button" id="coinsExportBtn" class="btn btn-sm btn-outline-primary">Export</button>
@@ -112,7 +124,7 @@
                         @endphp
                         <tr>
                             <td class="text-center">
-                                <input type="checkbox" class="form-check-input coins-row-checkbox" value="{{ $member->id }}">
+                                <input type="checkbox" name="selected_user_ids[]" class="form-check-input coins-row-checkbox" value="{{ $member->id }}">
                             </td>
                             <td>
                                 @include('admin.shared.peer_card', ['user' => $member])
