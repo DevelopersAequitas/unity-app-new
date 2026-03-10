@@ -2,6 +2,30 @@
 
 @section('title', 'Coins')
 
+@push('styles')
+    <style>
+        .coins-table-wrapper {
+            width: 100%;
+        }
+
+        .coins-table-scroll {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .coins-table {
+            width: 100%;
+            min-width: 1120px;
+        }
+
+        .coins-table thead th {
+            white-space: nowrap;
+            word-break: keep-all;
+        }
+    </style>
+@endpush
+
 @section('content')
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
@@ -20,20 +44,21 @@
             <a href="{{ route('admin.coins.create') }}" class="btn btn-sm btn-primary">Add Coins</a>
         </div>
 
-        <div class="table-responsive">
-            <table class="table mb-0 align-middle table-hover" style="width: 100%;">
+        <div class="coins-table-wrapper">
+            <div class="coins-table-scroll">
+            <table class="table mb-0 align-middle table-hover coins-table">
                 <thead class="table-light">
                     <tr>
-                        <th class="text-center" style="width: 44px;">
+                        <th class="text-center" style="width: 50px; min-width: 50px;">
                             <input type="checkbox" class="form-check-input" id="coins-select-all">
                         </th>
-                        <th style="width: 28%;">Peer Name</th>
-                        <th class="text-center" style="width: 11%;"><span class="d-inline-block">Total<br>Coins</span></th>
-                        <th class="text-center text-nowrap" style="width: 11%;">Testimonials</th>
-                        <th class="text-center text-nowrap" style="width: 10%;">Referrals</th>
-                        <th class="text-center" style="width: 11%;"><span class="d-inline-block">Business<br>Deals</span></th>
-                        <th class="text-center" style="width: 11%;"><span class="d-inline-block">P2P<br>Meetings</span></th>
-                        <th class="text-center text-nowrap" style="width: 11%;">Requirements</th>
+                        <th style="width: 300px; min-width: 300px;">Peer Name</th>
+                        <th class="text-center" style="width: 120px; min-width: 120px;"><span class="d-inline-block">Total<br>Coins</span></th>
+                        <th class="text-center text-nowrap" style="width: 120px; min-width: 120px;">Testimonials</th>
+                        <th class="text-center text-nowrap" style="width: 120px; min-width: 120px;">Referrals</th>
+                        <th class="text-center" style="width: 140px; min-width: 140px;"><span class="d-inline-block">Business<br>Deals</span></th>
+                        <th class="text-center" style="width: 140px; min-width: 140px;"><span class="d-inline-block">P2P<br>Meetings</span></th>
+                        <th class="text-center text-nowrap" style="width: 130px; min-width: 130px;">Requirements</th>
                     </tr>
 
                     <tr class="align-middle">
@@ -118,6 +143,7 @@
                     @endforelse
                 </tbody>
             </table>
+            </div>
         </div>
 
         <div class="p-3">
