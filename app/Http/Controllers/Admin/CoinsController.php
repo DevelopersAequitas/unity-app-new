@@ -7,23 +7,19 @@ use App\Models\Circle;
 use App\Models\CoinLedger;
 use App\Models\User;
 use App\Support\AdminCircleScope;
+use App\Support\Coins\CoinLedgerFormatter;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CoinsController extends Controller
 {
-    private const ACTIVITY_TABLES = [
-        'testimonials' => 'testimonials',
-        'referrals' => 'referrals',
-        'business_deals' => 'business_deals',
-        'p2p_meetings' => 'p2p_meetings',
-        'requirements' => 'requirements',
-    ];
-
     private const ACTIVITY_REFERENCE_PATTERNS = [
         'testimonial' => 'Activity: testimonial%',
         'referral' => 'Activity: referral%',
@@ -34,125 +30,64 @@ class CoinsController extends Controller
 
     public function index(Request $request): View
     {
-        $q = trim((string) $request->query('q', $request->query('search', '')));
-        $circleId = (string) $request->query('circle_id', 'all');
-        $membership = $request->query('membership_status');
-        $perPage = $request->integer('per_page') ?: 20;
-        $perPage = in_array($perPage, [10, 20, 25, 50, 100], true) ? $perPage : 20;
+        $filters = $this->indexFilters($request);
+        $perPage = (int) ($filters['per_page'] ?? 20);
 
-        $hasUsersName = Schema::hasColumn('users', 'name');
-        $hasUsersCompany = Schema::hasColumn('users', 'company');
-        $hasUsersBusinessName = Schema::hasColumn('users', 'business_name');
-
-        $totalCoinsSubQuery = DB::table('coins_ledger as cl')
-            ->selectRaw('cl.user_id, COALESCE(SUM(cl.amount),0) as total_coins')
-            ->groupBy('cl.user_id');
-
-        $query = User::query()
-            ->select([
-                'users.id',
-                'users.email',
-                'users.first_name',
-                'users.last_name',
-                'users.display_name',
-                'users.membership_status',
-                'users.company_name',
-                'users.city',
-            ])
-            ->leftJoinSub($totalCoinsSubQuery, 'coins_totals', fn ($join) => $join->on('coins_totals.user_id', '=', 'users.id'))
-            ->addSelect(DB::raw('COALESCE(coins_totals.total_coins, 0) as total_coins_sort'))
-            ->with(['circleMembers' => function ($circleMembersQuery) {
-                $circleMembersQuery
-                    ->where('status', 'approved')
-                    ->whereNull('deleted_at')
-                    ->orderByDesc('joined_at')
-                    ->with(['circle:id,name']);
-            }]);
-
-        $this->applyCircleScopeToUsersQuery($query, auth('admin')->user());
-
-        if ($q !== '') {
-            $query->where(function ($searchQuery) use ($q, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
-                $like = "%{$q}%";
-
-                $searchQuery->where('users.display_name', 'ILIKE', $like)
-                    ->orWhere('users.first_name', 'ILIKE', $like)
-                    ->orWhere('users.last_name', 'ILIKE', $like)
-                    ->orWhere('users.company_name', 'ILIKE', $like)
-                    ->orWhere('users.city', 'ILIKE', $like);
-
-                if ($hasUsersName) {
-                    $searchQuery->orWhere('users.name', 'ILIKE', $like);
-                }
-
-                if ($hasUsersCompany) {
-                    $searchQuery->orWhere('users.company', 'ILIKE', $like);
-                }
-
-                if ($hasUsersBusinessName) {
-                    $searchQuery->orWhere('users.business_name', 'ILIKE', $like);
-                }
-            });
-        }
-
-        if ($circleId !== '' && $circleId !== 'all') {
-            $query->whereHas('circleMembers', function ($circleMembersQuery) use ($circleId) {
-                $circleMembersQuery
-                    ->where('circle_id', $circleId)
-                    ->where('status', 'approved')
-                    ->whereNull('deleted_at');
-            });
-        }
-
-        if ($membership && $membership !== 'all') {
-            $query->where('users.membership_status', $membership);
-        }
-
-        $members = $query
+        $members = $this->coinsIndexMembersQuery($filters)
             ->orderByDesc('total_coins_sort')
             ->orderBy('users.display_name')
             ->paginate($perPage)
             ->appends($request->query());
 
-        $memberIds = $members->pluck('id')->all();
-
-        $coinsByUserId = DB::table('coins_ledger as cl')
-            ->whereIn('cl.user_id', $memberIds)
-            ->select([
-                'cl.user_id',
-                DB::raw('sum(cl.amount) as total_coins'),
-                DB::raw("sum(case when cl.reference ilike 'Activity: testimonial%' then cl.amount else 0 end) as testimonial_coins"),
-                DB::raw("sum(case when cl.reference ilike 'Activity: referral%' then cl.amount else 0 end) as referral_coins"),
-                DB::raw("sum(case when cl.reference ilike 'Activity: business_deal%' then cl.amount else 0 end) as business_deal_coins"),
-                DB::raw("sum(case when cl.reference ilike 'Activity: requirement%' then cl.amount else 0 end) as requirement_coins"),
-                DB::raw("sum(case when cl.reference ilike 'Activity: p2p_meeting%' then cl.amount else 0 end) as p2p_meeting_coins"),
-            ])
-            ->groupBy('cl.user_id')
-            ->get()
-            ->keyBy('user_id')
-            ->all();
-
-        $membershipStatuses = User::query()
-            ->whereNotNull('membership_status')
-            ->distinct()
-            ->pluck('membership_status')
-            ->sort()
-            ->values();
-
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $activityStats = $this->coinStatsByUserId($members->pluck('id')->all());
 
         return view('admin.coins.index', [
             'members' => $members,
-            'filters' => [
-                'q' => $q,
-                'search' => $q,
-                'circle_id' => $circleId,
-                'membership_status' => $membership,
-                'per_page' => $perPage,
-            ],
-            'membershipStatuses' => $membershipStatuses,
-            'coinsByUserId' => $coinsByUserId,
-            'circles' => $circles,
+            'filters' => $filters,
+            'circles' => Circle::query()->orderBy('name')->get(['id', 'name']),
+            'activityStats' => $activityStats,
+        ]);
+    }
+
+    public function exportIndex(Request $request): StreamedResponse
+    {
+        $filters = $this->indexFilters($request);
+
+        $query = $this->coinsIndexMembersQuery($filters)
+            ->orderByDesc('total_coins_sort')
+            ->orderBy('users.display_name');
+
+        $filename = 'coins_index_' . now()->format('Ymd_His') . '.csv';
+
+        return response()->streamDownload(function () use ($query): void {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['Peer Name', 'Company', 'City', 'Circle', 'Total Coins', 'Testimonials', 'Referrals', 'Business Deals', 'P2P Meetings', 'Requirements']);
+
+            $query->chunk(500, function ($chunk) use ($handle): void {
+                $stats = $this->coinStatsByUserId($chunk->pluck('id')->all());
+
+                foreach ($chunk as $member) {
+                    $item = $stats[$member->id] ?? null;
+
+                    fputcsv($handle, [
+                        $member->adminName(),
+                        $member->adminCompany(),
+                        $member->adminCity(),
+                        $member->adminCircleName(),
+                        (int) ($item->total_coins ?? 0),
+                        (int) ($item->testimonial_count ?? 0),
+                        (int) ($item->referral_count ?? 0),
+                        (int) ($item->business_deal_count ?? 0),
+                        (int) ($item->p2p_meeting_count ?? 0),
+                        (int) ($item->requirement_count ?? 0),
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
     }
 
@@ -178,10 +113,8 @@ class CoinsController extends Controller
 
         $this->applyCircleScopeToUsersQuery($usersQuery, auth('admin')->user());
 
-        $users = $usersQuery->get();
-
         return view('admin.coins.create', [
-            'users' => $users,
+            'users' => $usersQuery->get(),
             'activityTypes' => array_keys(self::ACTIVITY_REFERENCE_PATTERNS),
         ]);
     }
@@ -224,23 +157,14 @@ class CoinsController extends Controller
             ]);
         });
 
-        return redirect()
-            ->route('admin.coins.index')
-            ->with('success', 'Coins added successfully.');
+        return redirect()->route('admin.coins.index')->with('success', 'Coins added successfully.');
     }
 
     public function ledger(User $member, Request $request): View
     {
         $this->ensureMemberInScope($member->id, auth('admin')->user());
-        $filters = $this->dateFilters($request);
-
-        $query = CoinLedger::query()
-            ->where('user_id', $member->id)
-            ->when($filters['from'], fn ($q) => $q->whereDate('created_at', '>=', $filters['from']))
-            ->when($filters['to'], fn ($q) => $q->whereDate('created_at', '<=', $filters['to']))
-            ->orderByDesc('created_at');
-
-        $items = $query->paginate(20)->withQueryString();
+        $filters = $this->ledgerFilters($request);
+        $items = $this->ledgerQuery($member, $filters)->paginate(20)->withQueryString();
 
         return view('admin.coins.ledger', $this->ledgerViewData($member, $items, $filters));
     }
@@ -252,80 +176,236 @@ class CoinsController extends Controller
         }
 
         $this->ensureMemberInScope($member->id, auth('admin')->user());
-        $filters = $this->dateFilters($request);
-        $referencePattern = self::ACTIVITY_REFERENCE_PATTERNS[$type];
+
+        $filters = $this->ledgerFilters($request);
+        $filters['active_type'] = $type;
+
+        $items = $this->ledgerQuery($member, $filters, $type)->paginate(20)->withQueryString();
+
+        return view('admin.coins.ledger', $this->ledgerViewData($member, $items, $filters));
+    }
+
+    public function exportLedger(User $member, Request $request): StreamedResponse
+    {
+        $this->ensureMemberInScope($member->id, auth('admin')->user());
+
+        $type = (string) $request->query('type', '');
+        $activeType = $type !== '' && array_key_exists($type, self::ACTIVITY_REFERENCE_PATTERNS) ? $type : null;
+
+        $filters = $this->ledgerFilters($request);
+        $query = $this->ledgerQuery($member, $filters, $activeType)->orderByDesc('created_at');
+
+        $filename = 'coins_ledger_' . ($activeType ?: 'all') . '_' . now()->format('Ymd_His') . '.csv';
+
+        return response()->streamDownload(function () use ($query): void {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['Date', 'Coins', 'Balance After', 'Why', 'Created By Name', 'Company', 'City', 'Circle']);
+
+            $query->chunkById(500, function ($chunk) use ($handle): void {
+                foreach ($chunk as $item) {
+                    $createdBy = $item->createdBy;
+
+                    fputcsv($handle, [
+                        optional($item->created_at)->format('Y-m-d H:i') ?? '—',
+                        (int) $item->amount,
+                        (int) $item->balance_after,
+                        CoinLedgerFormatter::why($item->reason_type),
+                        $createdBy?->adminName() ?? '—',
+                        $createdBy?->adminCompany() ?? 'No Company',
+                        $createdBy?->adminCity() ?? 'No City',
+                        $createdBy?->adminCircleName() ?? 'No Circle',
+                    ]);
+                }
+            }, 'transaction_id');
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    private function coinsIndexMembersQuery(array $filters): Builder
+    {
+        $hasUsersName = Schema::hasColumn('users', 'name');
+        $hasUsersCompany = Schema::hasColumn('users', 'company');
+        $hasUsersBusinessName = Schema::hasColumn('users', 'business_name');
+
+        $totalCoinsSubQuery = DB::table('coins_ledger as cl')
+            ->selectRaw('cl.user_id, COALESCE(SUM(cl.amount),0) as total_coins')
+            ->groupBy('cl.user_id');
+
+        $query = User::query()
+            ->select([
+                'users.id',
+                'users.email',
+                'users.first_name',
+                'users.last_name',
+                'users.display_name',
+                'users.company_name',
+                'users.city',
+            ])
+            ->leftJoinSub($totalCoinsSubQuery, 'coins_totals', fn ($join) => $join->on('coins_totals.user_id', '=', 'users.id'))
+            ->addSelect(DB::raw('COALESCE(coins_totals.total_coins, 0) as total_coins_sort'))
+            ->with(['circleMembers' => function ($circleMembersQuery) {
+                $circleMembersQuery->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }]);
+
+        $this->applyCircleScopeToUsersQuery($query, auth('admin')->user());
+
+        $search = trim((string) ($filters['q'] ?? $filters['search'] ?? ''));
+        $circleId = (string) ($filters['circle_id'] ?? 'all');
+
+        if ($search !== '') {
+            $query->where(function ($searchQuery) use ($search, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
+                $like = "%{$search}%";
+
+                $searchQuery->where('users.display_name', 'ILIKE', $like)
+                    ->orWhere('users.first_name', 'ILIKE', $like)
+                    ->orWhere('users.last_name', 'ILIKE', $like)
+                    ->orWhere('users.company_name', 'ILIKE', $like)
+                    ->orWhere('users.city', 'ILIKE', $like);
+
+                if ($hasUsersName) {
+                    $searchQuery->orWhere('users.name', 'ILIKE', $like);
+                }
+
+                if ($hasUsersCompany) {
+                    $searchQuery->orWhere('users.company', 'ILIKE', $like);
+                }
+
+                if ($hasUsersBusinessName) {
+                    $searchQuery->orWhere('users.business_name', 'ILIKE', $like);
+                }
+            });
+        }
+
+        if ($circleId !== '' && $circleId !== 'all') {
+            $query->whereHas('circleMembers', function ($circleMembersQuery) use ($circleId) {
+                $circleMembersQuery->where('circle_id', $circleId)
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at');
+            });
+        }
+
+
+        return $query;
+    }
+
+
+    private function coinStatsByUserId(array $memberIds): array
+    {
+        if ($memberIds === []) {
+            return [];
+        }
+
+        return DB::table('coins_ledger as cl')
+            ->whereIn('cl.user_id', $memberIds)
+            ->select([
+                'cl.user_id',
+                DB::raw('sum(cl.amount) as total_coins'),
+                DB::raw("count(case when cl.reference ilike 'Activity: testimonial%' then 1 end) as testimonial_count"),
+                DB::raw("count(case when cl.reference ilike 'Activity: referral%' then 1 end) as referral_count"),
+                DB::raw("count(case when cl.reference ilike 'Activity: business_deal%' then 1 end) as business_deal_count"),
+                DB::raw("count(case when cl.reference ilike 'Activity: p2p_meeting%' then 1 end) as p2p_meeting_count"),
+                DB::raw("count(case when cl.reference ilike 'Activity: requirement%' then 1 end) as requirement_count"),
+            ])
+            ->groupBy('cl.user_id')
+            ->get()
+            ->keyBy('user_id')
+            ->all();
+    }
+
+    private function ledgerQuery(User $member, array $filters, ?string $type = null): Builder
+    {
+        $from = trim((string) ($filters['from'] ?? ''));
+        $to = trim((string) ($filters['to'] ?? ''));
+        $date = trim((string) ($filters['date'] ?? ''));
+        $coins = trim((string) ($filters['coins'] ?? ''));
+        $why = trim((string) ($filters['why'] ?? ''));
 
         $query = CoinLedger::query()
             ->where('user_id', $member->id)
-            ->where('reference', 'ILIKE', $referencePattern)
-            ->when($filters['from'], fn ($q) => $q->whereDate('created_at', '>=', $filters['from']))
-            ->when($filters['to'], fn ($q) => $q->whereDate('created_at', '<=', $filters['to']))
+            ->with(['createdBy' => function ($q) {
+                $q->with(['circleMembers' => function ($circleMembersQuery) {
+                    $circleMembersQuery->where('status', 'approved')
+                        ->whereNull('deleted_at')
+                        ->orderByDesc('joined_at')
+                        ->with('circle:id,name');
+                }]);
+            }])
+            ->select('coins_ledger.*')
+            ->selectRaw("COALESCE(NULLIF(split_part(split_part(reference, '|', 1), ':', 2), ''), '') as reason_type")
+            ->when($type && isset(self::ACTIVITY_REFERENCE_PATTERNS[$type]), function (Builder $q) use ($type) {
+                $q->where('reference', 'ILIKE', self::ACTIVITY_REFERENCE_PATTERNS[$type]);
+            })
+            ->when($from !== '', fn (Builder $q) => $q->whereDate('created_at', '>=', $from))
+            ->when($to !== '', fn (Builder $q) => $q->whereDate('created_at', '<=', $to))
+            ->when($date !== '', fn (Builder $q) => $q->whereDate('created_at', '=', $date))
+            ->when($coins !== '', function (Builder $q) use ($coins) {
+                if (is_numeric($coins)) {
+                    $q->where('amount', (int) $coins);
+                } else {
+                    $q->whereRaw('CAST(amount AS TEXT) ILIKE ?', ['%' . $coins . '%']);
+                }
+            })
             ->orderByDesc('created_at');
 
-        $items = $query->paginate(20)->withQueryString();
+        if ($why !== '') {
+            $this->applyWhyFilter($query, $why);
+        }
 
-        return view('admin.coins.ledger', array_merge(
-            $this->ledgerViewData($member, $items, $filters),
-            ['activeType' => $type]
-        ));
+        return $query;
     }
 
-    private function ledgerViewData(User $member, $items, array $filters): array
+    private function applyWhyFilter(Builder $query, string $whyFilter): void
     {
-        $activityTypes = $this->resolveActivityTypes($items->pluck('activity_id')->filter()->unique()->all());
-        $createdBy = $this->resolveCreatedByUsers($items->pluck('created_by')->filter()->unique()->all());
+        $value = strtolower(trim($whyFilter));
+        $query->where(function (Builder $nested) use ($value) {
+            $nested->whereRaw('LOWER(reference) LIKE ?', ['%' . $value . '%']);
 
+            foreach (self::ACTIVITY_REFERENCE_PATTERNS as $type => $pattern) {
+                if (str_contains(strtolower(CoinLedgerFormatter::why($type)), $value) || str_contains($type, $value)) {
+                    $nested->orWhere('reference', 'ILIKE', $pattern);
+                }
+            }
+        });
+    }
+
+    private function ledgerViewData(User $member, LengthAwarePaginator $items, array $filters): array
+    {
         return [
             'member' => $member,
             'items' => $items,
             'filters' => $filters,
-            'activityTypes' => $activityTypes,
-            'createdByUsers' => $createdBy,
-            'activeType' => null,
+            'activeType' => $filters['active_type'] ?? null,
         ];
     }
 
-    private function resolveActivityTypes(array $activityIds): array
+    private function indexFilters(Request $request): array
     {
-        if ($activityIds === []) {
-            return [];
-        }
+        $perPage = $request->integer('per_page') ?: 20;
+        $perPage = in_array($perPage, [10, 20, 25, 50, 100], true) ? $perPage : 20;
 
-        $types = [];
-
-        foreach (self::ACTIVITY_TABLES as $type => $table) {
-            $ids = DB::table($table)
-                ->whereIn('id', $activityIds)
-                ->pluck('id')
-                ->all();
-
-            foreach ($ids as $id) {
-                $types[$id] = $type;
-            }
-        }
-
-        return $types;
+        return [
+            'q' => trim((string) $request->query('q', $request->query('search', ''))),
+            'search' => trim((string) $request->query('q', $request->query('search', ''))),
+            'circle_id' => (string) $request->query('circle_id', 'all'),
+            'per_page' => $perPage,
+        ];
     }
 
-    private function resolveCreatedByUsers(array $userIds): array
-    {
-        if ($userIds === []) {
-            return [];
-        }
-
-        return User::query()
-            ->select(['id', 'email', 'first_name', 'last_name', 'display_name'])
-            ->whereIn('id', $userIds)
-            ->get()
-            ->keyBy('id')
-            ->all();
-    }
-
-    private function dateFilters(Request $request): array
+    private function ledgerFilters(Request $request): array
     {
         return [
-            'from' => $request->query('from'),
-            'to' => $request->query('to'),
+            'from' => trim((string) $request->query('from', '')),
+            'to' => trim((string) $request->query('to', '')),
+            'date' => trim((string) $request->query('date', '')),
+            'coins' => trim((string) $request->query('coins', '')),
+            'why' => trim((string) $request->query('why', '')),
+            'active_type' => $request->query('active_type'),
         ];
     }
 
@@ -337,9 +417,7 @@ class CoinsController extends Controller
                 : "Activity: {$activity} | Admin adjustment";
         }
 
-        return $remarks !== ''
-            ? "Admin adjustment | {$remarks}"
-            : 'Admin adjustment';
+        return $remarks !== '' ? "Admin adjustment | {$remarks}" : 'Admin adjustment';
     }
 
     private function applyCircleScopeToUsersQuery($query, $admin): void

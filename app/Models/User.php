@@ -234,21 +234,23 @@ class User extends Authenticatable
             return $displayName;
         }
 
-<<<<<<< HEAD
         $fullName = trim(
             trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
         );
-=======
         $fullName = trim(trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? '')));
->>>>>>> 4d85a397c18e0f85d158a4f7c3eae8b0a9adc7cf
+ main
 
         return $fullName !== '' ? $fullName : 'Unknown';
     }
-
     public function getDisplayNameAttribute()
     {
         $firstName = trim($this->first_name ?? '');
         $lastName = trim($this->last_name ?? '');
+
+    public function getDisplayNameAttribute()
+    {
+        $firstName = trim($this->first_name ?? '');
+        $lastName  = trim($this->last_name ?? '');
 
         $fullName = trim($firstName . ' ' . $lastName);
 
@@ -578,4 +580,6 @@ class User extends Authenticatable
             'industry' => $industry,
         ];
     }
+}
+}
 }
