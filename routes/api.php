@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MessageDeletionController;
+use App\Http\Controllers\Api\MembershipSummaryController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\P2pMeetingController;
 use App\Http\Controllers\Api\PostController;
@@ -82,6 +83,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
+
         Route::get('/profile', [ProfileController::class, 'show']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
