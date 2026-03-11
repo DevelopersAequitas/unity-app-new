@@ -7,6 +7,7 @@ use App\Models\CircleMember;
 use App\Models\CircleSubscription;
 use App\Models\User;
 use App\Services\Billing\MembershipSyncService;
+use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Support\Zoho\ZohoBillingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ class ZohoBillingWebhookController extends Controller
     public function __construct(
         private readonly ZohoBillingService $zohoBillingService,
         private readonly MembershipSyncService $membershipSyncService,
+        private readonly CircleJoinRequestPaymentSyncService $circleJoinRequestPaymentSyncService,
     ) {
     }
 
@@ -199,7 +201,12 @@ class ZohoBillingWebhookController extends Controller
                 'circle_id' => $subscription->circle_id,
             ]);
 
+            $this->circleJoinRequestPaymentSyncService->updateUserCircleMembershipTier($user);
+
             $this->upsertPaidCircleMember($subscription, $paidAt, $startedAt, $expiresAt);
+
+            $user->refresh();
+            $this->safeSyncJoinRequestPayment($user);
 
             return response()->json(['success' => true]);
         } catch (Throwable $throwable) {
@@ -501,6 +508,20 @@ class ZohoBillingWebhookController extends Controller
             'circle_id' => $subscription->circle_id,
             'user_id' => $subscription->user_id,
         ]);
+    }
+
+
+    private function safeSyncJoinRequestPayment(User $user): void
+    {
+        try {
+            $this->circleJoinRequestPaymentSyncService->markRequestPaidFromUserCircle($user);
+        } catch (Throwable $exception) {
+            Log::warning('circle join request payment sync failed', [
+                'user_id' => $user->id,
+                'active_circle_id' => $user->active_circle_id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function firstString(array $payload, array $keys): ?string

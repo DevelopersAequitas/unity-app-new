@@ -58,8 +58,9 @@
     $pendingRequestsMenu = [
         ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
         ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
+        ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
     ];
-    $pendingRequestsActive = request()->routeIs('admin.visitor-registrations.*') || request()->routeIs('admin.coin-claims.*');
+    $pendingRequestsActive = request()->routeIs('admin.visitor-registrations.*') || request()->routeIs('admin.coin-claims.*') || request()->routeIs('admin.circle-joining-requests.*');
 @endphp
 <aside class="admin-sidebar d-flex flex-column">
     <div class="text-center mb-2">

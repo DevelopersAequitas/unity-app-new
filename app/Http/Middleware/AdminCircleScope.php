@@ -31,7 +31,7 @@ class AdminCircleScope
             $request->attributes->set('primary_circle_role_label', AdminAccess::primaryCircleRoleLabel($admin));
 
             $routeName = $request->route()?->getName() ?? '';
-            $allowedPrefixes = ['admin.users.', 'admin.activities.', 'admin.coins.', 'admin.visitor-registrations.'];
+            $allowedPrefixes = ['admin.users.', 'admin.activities.', 'admin.coins.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.'];
             $allowedRoutes = ['admin.logout', 'admin.files.upload'];
 
             if (in_array($routeName, ['admin.dashboard', 'admin.home'], true) || Str::startsWith($routeName, 'admin.circles.')) {
