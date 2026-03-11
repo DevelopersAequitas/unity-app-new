@@ -18,6 +18,7 @@ class ZohoPlansController extends Controller
     {
         try {
             $cacheKey = 'zoho_active_plans';
+            $allowedPlanCodes = ['012', '013', '014'];
 
             if (Cache::has($cacheKey)) {
                 Log::info('Zoho plans cache hit', [
@@ -33,12 +34,17 @@ class ZohoPlansController extends Controller
                 return $this->zohoBillingService->listActivePlans();
             });
 
+            $plans = collect($plans)
+                ->filter(function ($plan) use ($allowedPlanCodes) {
+                    return in_array($plan['plan_code'] ?? null, $allowedPlanCodes, true);
+                })
+                ->values()
+                ->all();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Active plans fetched successfully.',
-                'data' => [
-                    'plans' => $plans,
-                ],
+                'message' => 'Plans fetched successfully',
+                'data' => $plans,
             ]);
         } catch (Throwable $throwable) {
             return response()->json([

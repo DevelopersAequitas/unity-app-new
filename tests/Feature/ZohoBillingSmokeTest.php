@@ -14,7 +14,7 @@ class ZohoBillingSmokeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_plans_endpoint_returns_success_shape(): void
+    public function test_plans_endpoint_returns_only_allowed_plan_codes(): void
     {
         Http::fake([
             'https://accounts.zoho.in/oauth/v2/token' => Http::response([
@@ -23,7 +23,11 @@ class ZohoBillingSmokeTest extends TestCase
             ]),
             'https://subscriptions.zoho.in/api/v1/plans*' => Http::response([
                 'plans' => [
-                    ['plan_code' => '01', 'name' => 'Starter', 'price' => 100, 'interval' => 'month', 'status' => 'active'],
+                    ['plan_code' => '011', 'name' => 'Legacy', 'price' => 100, 'interval' => 'month', 'status' => 'active'],
+                    ['plan_code' => '012', 'name' => 'Unity Peer', 'price' => 200, 'interval' => 'month', 'status' => 'active'],
+                    ['plan_code' => '013', 'name' => 'Unity Pro', 'price' => 300, 'interval' => 'month', 'status' => 'active'],
+                    ['plan_code' => '014', 'name' => 'Unity Premium', 'price' => 400, 'interval' => 'month', 'status' => 'active'],
+                    ['plan_code' => '015', 'name' => 'Enterprise', 'price' => 500, 'interval' => 'month', 'status' => 'active'],
                 ],
             ]),
         ]);
@@ -35,7 +39,15 @@ class ZohoBillingSmokeTest extends TestCase
 
         $response->assertOk()->assertJson([
             'success' => true,
+            'message' => 'Plans fetched successfully',
+            'data' => [
+                ['plan_code' => '012'],
+                ['plan_code' => '013'],
+                ['plan_code' => '014'],
+            ],
         ]);
+
+        $this->assertSame(['012', '013', '014'], array_column($response->json('data'), 'plan_code'));
     }
 
     public function test_webhook_rejects_invalid_secret(): void
