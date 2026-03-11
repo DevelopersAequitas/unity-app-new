@@ -14,6 +14,12 @@ class MembershipSummaryService
 {
     public function getSummary(User $user): array
     {
+        $user->loadMissing([
+            'city:id,name',
+            'cityRelation:id,name',
+            'activeCircle:id,name',
+        ]);
+
         $peerSinceAt = $this->resolveDateByPriority($user, [
             'membership_starts_at',
             'membership_started_at',
@@ -30,12 +36,104 @@ class MembershipSummaryService
         ]);
 
         return [
+            'user_name' => $this->resolveUserName($user),
+            'company_name' => $user->company_name,
+            'city' => $this->resolveCityName($user),
+            'circle' => $this->resolvePrimaryCircleName($user),
+            'membership_status' => $this->firstFilledValue($user, ['membership_status', 'membership_type', 'membership']),
+            'membership_expiry' => $this->formatDate($this->resolveDateByPriority($user, [
+                'membership_expires_at',
+                'membership_valid_till',
+                'peer_till',
+                'membership_ends_at',
+                'membership_expiry',
+            ])),
             'peer_since' => $this->formatDate($peerSinceAt),
             'peer_till' => $this->formatDate($peerTillAt),
             'total_experience' => $this->formatExperience($user),
             'peer_payment_details' => $this->getPeerPayments($user),
             'circle_wise_details' => $this->getCircleWiseDetails($user),
         ];
+    }
+
+    private function resolveUserName(User $user): ?string
+    {
+        $displayName = trim((string) ($user->display_name ?? ''));
+
+        if ($displayName !== '') {
+            return $displayName;
+        }
+
+        $fullName = trim(trim((string) ($user->first_name ?? '')) . ' ' . trim((string) ($user->last_name ?? '')));
+
+        if ($fullName !== '') {
+            return $fullName;
+        }
+
+        $name = trim((string) ($user->getAttribute('name') ?? ''));
+
+        return $name !== '' ? $name : null;
+    }
+
+    private function resolveCityName(User $user): ?string
+    {
+        $cityFromRelation = trim((string) (
+            $user->city?->name
+            ?? $user->cityRelation?->name
+            ?? ''
+        ));
+
+        if ($cityFromRelation !== '') {
+            return $cityFromRelation;
+        }
+
+        $city = $this->firstFilledValue($user, ['city', 'current_city']);
+
+        if (is_array($city)) {
+            $cityName = trim((string) ($city['name'] ?? ''));
+
+            return $cityName !== '' ? $cityName : null;
+        }
+
+        $cityString = trim((string) ($city ?? ''));
+
+        return $cityString !== '' ? $cityString : null;
+    }
+
+    private function resolvePrimaryCircleName(User $user): ?string
+    {
+        if ($user->activeCircle?->name) {
+            return $user->activeCircle->name;
+        }
+
+        $circleName = trim((string) ($this->firstFilledValue($user, ['active_circle_name', 'circle_name']) ?? ''));
+
+        if ($circleName !== '') {
+            return $circleName;
+        }
+
+        $currentMemberCircle = CircleMember::query()
+            ->with('circle:id,name')
+            ->where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->whereNull('deleted_at')
+            ->whereNull('left_at')
+            ->orderByDesc('joined_at')
+            ->first();
+
+        if ($currentMemberCircle?->circle?->name) {
+            return $currentMemberCircle->circle->name;
+        }
+
+        $latestMemberCircle = CircleMember::query()
+            ->with('circle:id,name')
+            ->where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->whereNull('deleted_at')
+            ->orderByDesc('joined_at')
+            ->first();
+
+        return $latestMemberCircle?->circle?->name;
     }
 
     private function getPeerPayments(User $user): array
