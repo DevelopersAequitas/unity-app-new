@@ -48,6 +48,7 @@ class CoinClaimController extends BaseApiController
             $fieldMap = $this->registry->fieldMap($activityCode);
             $fields = (array) $request->input('fields', []);
             $uploaded = $request->file('files', []);
+            $coinsAwarded = $this->resolveCoinsAwarded($activityCode);
 
             $normalizedFields = $fields;
             $fileIds = [];
@@ -71,7 +72,7 @@ class CoinClaimController extends BaseApiController
                     'files' => $fileIds,
                 ],
                 'status' => 'pending',
-                'coins_awarded' => null,
+                'coins_awarded' => $coinsAwarded,
             ]);
 
             $claim->load('user:id,display_name,first_name,last_name,email,phone');
@@ -97,7 +98,6 @@ class CoinClaimController extends BaseApiController
             return $this->error($exception->getMessage(), 500);
         }
     }
-
 
     public function myRequests(Request $request): JsonResponse
     {
@@ -164,5 +164,22 @@ class CoinClaimController extends BaseApiController
         ]);
 
         return (string) $record->id;
+    }
+
+    private function resolveCoinsAwarded(string $activityCode): int
+    {
+        $activity = $this->registry->get($activityCode);
+
+        if (! is_array($activity)) {
+            return 0;
+        }
+
+        $configuredCoins = $activity['coins'] ?? 0;
+
+        if (is_numeric($configuredCoins)) {
+            return max(0, (int) $configuredCoins);
+        }
+
+        return 0;
     }
 }
