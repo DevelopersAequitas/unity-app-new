@@ -179,7 +179,6 @@
 <div class="card mt-3">
     <div class="card-header fw-semibold">Circle Ranking</div>
     <div class="card-body">
-        @php($rankingData = $circle->getCircleRanking())
         <div class="row g-3">
             <div class="col-md-4">
                 <div class="small text-muted">Total Members</div>
@@ -200,30 +199,13 @@
 <div class="card mt-3">
     <div class="card-header fw-semibold">Meeting Schedule</div>
     <div class="card-body">
-        @php
-            $meetings = is_array($meetings ?? null) ? $meetings : [];
-            $timezone = is_string($timezone ?? null) && trim((string) $timezone) !== '' ? trim((string) $timezone) : 'Asia/Kolkata';
-
-            $formatMeeting = static function (array $meeting): string {
-                $frequency = strtolower((string) ($meeting['frequency'] ?? ''));
-                $day = (string) ($meeting['day_of_week'] ?? '');
-                $time = (string) ($meeting['default_meet_time'] ?? '');
-
-                if ($frequency !== '' && $day !== '' && $time !== '') {
-                    return "{$day} at {$time} (" . ucfirst($frequency) . ")";
-                }
-
-                return '—';
-            };
-        @endphp
-
-        @if ($meetings === [])
+        @if (empty($meetingRows))
             <div class="text-muted">—</div>
         @else
             <ul class="list-group list-group-flush">
-                @foreach ($meetings as $index => $meeting)
+                @foreach ($meetingRows as $meetingRow)
                     <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-                        <span><strong>Meeting #{{ $index + 1 }}:</strong> {{ $formatMeeting($meeting) }}</span>
+                        <span><strong>{{ $meetingRow['label'] }}:</strong> {{ $meetingRow['value'] }}</span>
                     </li>
                 @endforeach
             </ul>

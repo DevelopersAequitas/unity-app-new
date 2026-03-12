@@ -301,12 +301,22 @@ class CircleController extends Controller
         $meetings = is_array($rawMeetingSchedule) ? array_values($rawMeetingSchedule) : [];
         $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
 
+        $meetingRows = array_map(function ($meeting, int $index): array {
+            $meeting = is_array($meeting) ? $meeting : [];
+
+            return [
+                'label' => 'Meeting #'.($index + 1),
+                'value' => $this->formatMeetingScheduleEntry($meeting),
+            ];
+        }, $meetings, array_keys($meetings));
+
         return view('admin.circles.show', [
             'circle' => $circle,
             'allUsers' => $this->allUsers(),
             'roles' => CircleMember::roleOptions(),
-            'meetings' => $meetings,
-            'timezone' => is_string($timezone) && trim($timezone) !== '' ? $timezone : 'Asia/Kolkata',
+            'meetingRows' => $meetingRows,
+            'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : 'Asia/Kolkata',
+            'rankingData' => $circle->getCircleRanking(),
         ]);
     }
 
@@ -437,6 +447,20 @@ class CircleController extends Controller
         return null;
     }
 
+
+
+    private function formatMeetingScheduleEntry(array $meeting): string
+    {
+        $frequency = strtolower(trim((string) ($meeting['frequency'] ?? '')));
+        $day = trim((string) ($meeting['day_of_week'] ?? ''));
+        $time = trim((string) ($meeting['default_meet_time'] ?? ''));
+
+        if ($frequency === '' || $day === '' || $time === '') {
+            return '—';
+        }
+
+        return $day.' at '.$time.' ('.ucfirst($frequency).')';
+    }
 
     private function normalizeCalendarMeetings(mixed $meetings): ?array
     {
