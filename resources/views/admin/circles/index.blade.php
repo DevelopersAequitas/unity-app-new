@@ -15,7 +15,7 @@
     <div class="alert alert-success">{{ session('success') }}</div>
 @endif
 
-<form method="GET" action="{{ route('admin.circles.index') }}">
+<form id="circleFiltersForm" method="GET" action="{{ route('admin.circles.index') }}">
     <div class="card p-3">
         <div class="table-responsive" style="overflow-x: auto;">
             <table class="table align-middle" style="white-space: nowrap;">
@@ -100,7 +100,7 @@
                             <input type="date" name="launch_date" class="form-control form-control-sm" value="{{ $filters['launch_date'] }}">
                         </th>
                         <th>
-                            <select name="circle_stage" class="form-select form-select-sm">
+                            <select id="circleStageFilter" name="circle_stage" class="form-select form-select-sm">
                                 <option value="">Any</option>
                                 @foreach ($circleStageOptions as $circleStage)
                                     <option value="{{ $circleStage }}" @selected($filters['circle_stage'] === $circleStage)>{{ $circleStage }}</option>
@@ -121,7 +121,7 @@
                             <input type="text" class="form-control form-control-sm" placeholder="—" disabled>
                         </th>
                         <th>
-                            <select name="rank" class="form-select form-select-sm">
+                            <select id="circleRankFilter" name="rank" class="form-select form-select-sm">
                                 <option value="">Any</option>
                                 @foreach ($rankOptions as $rank)
                                     <option value="{{ $rank }}" @selected(($filters['rank'] ?? '') === $rank)>{{ $rank }}</option>
@@ -232,4 +232,33 @@
         </div>
     </div>
 </form>
+
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('circleFiltersForm');
+
+        if (!form) {
+            return;
+        }
+
+        const autoSubmitFields = [
+            document.getElementById('circleStageFilter'),
+            document.getElementById('circleRankFilter'),
+        ];
+
+        autoSubmitFields.forEach(function (field) {
+            if (!field) {
+                return;
+            }
+
+            field.addEventListener('change', function () {
+                form.submit();
+            });
+        });
+    });
+</script>
+@endpush
+
 @endsection
