@@ -241,6 +241,16 @@
 
                                         $chunks = array_chunk($fields, (int) ceil(count($fields) / 2));
                                         $renderValue = function ($value, $type = 'text') {
+                                            $normalizeText = static function ($input) {
+                                                if (! is_string($input)) {
+                                                    return $input;
+                                                }
+
+                                                $trimmed = trim($input);
+
+                                                return $trimmed === '' ? null : $trimmed;
+                                            };
+
                                             if ($type === 'bool') {
                                                 $class = $value ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary';
                                                 $label = $value ? 'Yes' : 'No';
@@ -248,6 +258,8 @@
                                             }
 
                                             if ($type === 'date') {
+                                                $value = $normalizeText($value);
+
                                                 if (! $value) {
                                                     return '—';
                                                 }
@@ -259,6 +271,8 @@
                                             }
 
                                             if ($type === 'membership_date') {
+                                                $value = $normalizeText($value);
+
                                                 if (! $value) {
                                                     return '—';
                                                 }
@@ -284,7 +298,9 @@
                                                 return '—';
                                             }
 
-                                            if ($value === null || $value === '') {
+                                            $value = $normalizeText($value);
+
+                                            if ($value === null) {
                                                 return '—';
                                             }
 
