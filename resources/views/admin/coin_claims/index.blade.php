@@ -1,5 +1,9 @@
 @extends('admin.layouts.app')
 
+@php
+    use App\Support\CoinClaims\CoinClaimKeyFieldsFormatter;
+@endphp
+
 @section('title', 'Coin Claims')
 
 @section('content')
@@ -114,12 +118,7 @@
                         $company = $user->company_name ?? $user->company ?? $user->business_name ?? 'No Company';
                         $city = $user->city ?? 'No City';
                         $circleName = optional($user?->circleMembers?->first()?->circle)->name ?? 'No Circle';
-                        $fields = (array) data_get($claim->payload, 'fields', []);
-                        $keyFields = collect($fields)
-                            ->except(collect($fields)->keys()->filter(fn($k) => str_ends_with($k, '_normalized'))->all())
-                            ->map(fn($v,$k)=>$k.': '.$v)
-                            ->take(4)
-                            ->implode(', ');
+                        $keyFieldsRows = CoinClaimKeyFieldsFormatter::formatForAdminList(data_get($claim->payload, 'fields', data_get($claim->payload, 'key_fields')));
                     @endphp
                     <tr>
                         <td>
@@ -132,7 +131,17 @@
                         </td>
                         <td>{{ $user->phone ?? '—' }}</td>
                         <td>{{ data_get($registry->get($claim->activity_code), 'label', $claim->activity_code) }}</td>
-                        <td>{{ $keyFields ?: '—' }}</td>
+                        <td>
+                            @if ($keyFieldsRows !== [])
+                                <div class="small">
+                                    @foreach ($keyFieldsRows as $row)
+                                        <div><span class="fw-semibold">{{ $row['label'] }}:</span> {{ $row['value'] }}</div>
+                                    @endforeach
+                                </div>
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td>{{ ucfirst($claim->status) }}</td>
                         <td class="text-end">
                             <a href="{{ route('admin.coin-claims.show', $claim->id) }}" class="btn btn-sm btn-outline-primary">Details</a>

@@ -36,25 +36,22 @@ class PostModerationController extends Controller
             'search' => $request->input('search'),
         ];
 
-        $postId = $request->query('post_id');
         $peer = $request->query('peer');
         $inlineVisibility = $request->query('inline_visibility', 'any');
         $inlineModerationStatus = $request->query('inline_moderation_status', 'any');
         $inlineActive = $request->query('inline_active', 'any');
         $media = $request->query('media', 'any');
 
-        $query = Post::query()
+        $query = Post::withTrashed()
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
         if ($filters['active'] === 'active') {
-            $query->where('posts.is_deleted', false)->whereNull('posts.deleted_at');
+            $query->where('posts.is_deleted', false);
         }
 
         if ($filters['active'] === 'deactivated') {
-            $query->where(function ($subQuery) {
-                $subQuery->where('posts.is_deleted', true)->orWhereNotNull('posts.deleted_at');
-            });
+            $query->where('posts.is_deleted', true);
         }
 
         if (filled($filters['visibility']) && $filters['visibility'] !== 'any') {
@@ -74,13 +71,11 @@ class PostModerationController extends Controller
         }
 
         if ($inlineActive === 'yes') {
-            $query->where('posts.is_deleted', false)->whereNull('posts.deleted_at');
+            $query->where('posts.is_deleted', false);
         }
 
         if ($inlineActive === 'no') {
-            $query->where(function ($subQuery) {
-                $subQuery->where('posts.is_deleted', true)->orWhereNotNull('posts.deleted_at');
-            });
+            $query->where('posts.is_deleted', true);
         }
 
         if ($filters['search']) {
@@ -96,9 +91,6 @@ class PostModerationController extends Controller
             });
         }
 
-        if (filled($postId)) {
-            $query->where('posts.id', 'ILIKE', '%' . $postId . '%');
-        }
 
         if (filled($peer)) {
             $peerQuery = '%' . $peer . '%';
@@ -156,7 +148,6 @@ class PostModerationController extends Controller
             'moderationOptions' => $moderationOptions,
             'circles' => $circles,
             'circleId' => $circleId,
-            'postId' => $postId,
             'peer' => $peer,
             'inlineVisibility' => $inlineVisibility,
             'inlineModerationStatus' => $inlineModerationStatus,
@@ -189,7 +180,7 @@ class PostModerationController extends Controller
 
         DB::transaction(function () use ($post): void {
             $post->is_deleted = true;
-            $post->deleted_at = now();
+            $post->deleted_at = null;
             $post->save();
         });
 
@@ -208,6 +199,6 @@ class PostModerationController extends Controller
             $post->save();
         });
 
-        return redirect()->back()->with('success', 'Post restored.');
+        return redirect()->back()->with('success', 'Post activated.');
     }
 }

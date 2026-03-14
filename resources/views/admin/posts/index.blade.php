@@ -65,7 +65,6 @@
                     <thead class="table-light">
                         <tr>
                             <th>Created At</th>
-                            <th>Post ID</th>
                             <th>Peer Name</th>
                             <th>Visibility</th>
                             <th>Moderation Status</th>
@@ -76,7 +75,6 @@
                         </tr>
                         <tr class="bg-light">
                             <th></th>
-                            <th><input type="text" name="post_id" class="form-control form-control-sm" style="min-width:220px" value="{{ $postId ?? '' }}" placeholder="Post ID"></th>
                             <th><input type="text" name="peer" class="form-control form-control-sm" style="min-width:180px" value="{{ $peer ?? '' }}" placeholder="Peer/Company/City"></th>
                             <th>
                                 <select name="inline_visibility" class="form-select form-select-sm">
@@ -121,7 +119,7 @@
                             @php
                                 $owner = $post->user;
                                 $circleName = optional($post->circle)->name;
-                                $isActive = ! $post->is_deleted && ! $post->deleted_at;
+                                $isActive = ! $post->is_deleted;
                                 $mediaUrl = (function ($media) {
                                     if (empty($media)) {
                                         return null;
@@ -161,7 +159,6 @@
                             @endphp
                             <tr>
                                 <td>{{ $post->created_at?->format('Y-m-d H:i') }}</td>
-                                <td>{{ $post->id }}</td>
                                 <td>@include('admin.partials.peer_identity', ['user' => $owner, 'circleName' => $circleName])</td>
                                 <td>{{ ucfirst($post->visibility) }}</td>
                                 <td>{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</td>
@@ -177,15 +174,22 @@
                                 <td class="text-end" style="white-space:nowrap;">
                                     <div class="d-inline-flex align-items-center gap-2" style="flex-wrap:nowrap;">
                                         <a href="{{ route('admin.posts.show', $post) }}" class="btn btn-sm btn-outline-primary">View</a>
-                                        <form method="POST" action="{{ route('admin.posts.deactivate', $post) }}" class="m-0 p-0 d-inline">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this post?')">Deactivate</button>
-                                        </form>
+                                        @if ($isActive)
+                                            <form method="POST" action="{{ route('admin.posts.deactivate', $post) }}" class="m-0 p-0 d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this post?')">Deactivate</button>
+                                            </form>
+                                        @else
+                                            <form method="POST" action="{{ route('admin.posts.restore', $post) }}" class="m-0 p-0 d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Activate this post?')">Activate</button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="9" class="text-center text-muted">No posts found.</td></tr>
+                            <tr><td colspan="8" class="text-center text-muted">No posts found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

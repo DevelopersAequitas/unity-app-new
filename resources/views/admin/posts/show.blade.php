@@ -14,7 +14,7 @@
     @php
         $owner = $post->user;
         $ownerName = $owner?->display_name ?: trim(($owner?->first_name ?? '') . ' ' . ($owner?->last_name ?? ''));
-        $isActive = ! $post->is_deleted && ! $post->deleted_at;
+        $isActive = ! $post->is_deleted;
         $mediaItems = is_array($post->media) ? $post->media : [];
     @endphp
 
