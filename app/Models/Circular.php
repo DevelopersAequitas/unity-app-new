@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -139,24 +140,36 @@ class Circular extends Model
 
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('status', 'active');
+        return $query->whereRaw('LOWER(COALESCE(status::text, ?)) = ?', ['', 'active']);
     }
 
-    public function scopePublished(Builder $query): Builder
+    public function scopePublished(Builder $query, ?CarbonInterface $now = null): Builder
     {
-        return $query->where('publish_date', '<=', now());
+        $currentTime = $now ?? now(config('app.timezone'));
+
+        return $query
+            ->whereNotNull('publish_date')
+            ->where('publish_date', '<=', $currentTime);
     }
 
-    public function scopeNotExpired(Builder $query): Builder
+    public function scopeNotExpired(Builder $query, ?CarbonInterface $now = null): Builder
     {
-        return $query->where(function (Builder $expiryQuery): void {
-            $expiryQuery->whereNull('expiry_date')->orWhere('expiry_date', '>=', now());
+        $currentTime = $now ?? now(config('app.timezone'));
+
+        return $query->where(function (Builder $expiryQuery) use ($currentTime): void {
+            $expiryQuery->whereNull('expiry_date')->orWhere('expiry_date', '>=', $currentTime);
         });
     }
 
-    public function scopeVisibleInApp(Builder $query): Builder
+    public function scopeVisibleInApp(Builder $query, ?CarbonInterface $now = null): Builder
     {
-        return $query->active()->published()->notExpired();
+        $currentTime = $now ?? now(config('app.timezone'));
+
+        return $query
+            ->whereNull('deleted_at')
+            ->active()
+            ->published($currentTime)
+            ->notExpired($currentTime);
     }
 
     public static function statusOptions(): array

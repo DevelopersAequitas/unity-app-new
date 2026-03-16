@@ -6,6 +6,7 @@ use App\Models\Circular;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class CircularController extends BaseApiController
@@ -13,17 +14,35 @@ class CircularController extends BaseApiController
     public function index(Request $request)
     {
         $user = $request->user();
+        $now = now(config('app.timezone'));
 
-        $query = Circular::query()->visibleInApp();
+        $perPage = (int) $request->query('per_page', 20);
+        $perPage = max(1, min($perPage, 100));
+
+        $totalRows = Circular::query()->count();
+
+        $query = Circular::query()->visibleInApp($now);
         $this->applyAudienceFilter($query, $user);
 
-        $circulars = $query
-            ->orderByDesc('is_pinned')
-            ->orderByRaw("CASE priority WHEN 'urgent' THEN 3 WHEN 'important' THEN 2 ELSE 1 END DESC")
-            ->orderByDesc('publish_date')
-            ->get();
+        $filteredCount = (clone $query)->count();
 
-        $items = $circulars->map(fn (Circular $circular) => [
+        $query->orderByDesc('is_pinned')
+            ->orderByRaw("CASE priority WHEN 'urgent' THEN 1 WHEN 'important' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END")
+            ->orderByDesc('publish_date');
+
+        Log::info('Circular feed filters applied', [
+            'user_id' => $user?->id,
+            'now' => $now->toIso8601String(),
+            'total_rows' => $totalRows,
+            'filtered_rows' => $filteredCount,
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+            'per_page' => $perPage,
+        ]);
+
+        $paginator = $query->paginate($perPage);
+
+        $items = $paginator->getCollection()->map(fn (Circular $circular) => [
             'id' => $circular->id,
             'title' => $circular->title,
             'summary' => $circular->summary,
@@ -37,26 +56,47 @@ class CircularController extends BaseApiController
             'view_count' => (int) $circular->view_count,
             'is_pinned' => (bool) $circular->is_pinned,
             'allow_comments' => (bool) $circular->allow_comments,
-        ]);
+        ])->values();
 
-        return $this->success(['items' => $items, 'total' => $items->count()]);
+        return $this->success([
+            'items' => $items,
+            'total' => $paginator->total(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+        ]);
     }
 
-    public function show(Request $request, string $slug)
+    public function show(Request $request, string $identifier)
     {
         $user = $request->user();
+        $now = now(config('app.timezone'));
 
-        $query = Circular::query()->visibleInApp()->with(['city:id,name', 'circle:id,name']);
+        $query = Circular::query()
+            ->visibleInApp($now)
+            ->with(['city:id,name', 'circle:id,name']);
+
         $this->applyAudienceFilter($query, $user);
 
-        $circular = $query->where('slug', $slug)->first();
+        $circular = (clone $query)
+            ->where(function (Builder $identifierQuery) use ($identifier): void {
+                $identifierQuery->where('slug', $identifier)->orWhere('id', $identifier);
+            })
+            ->first();
+
+        Log::info('Circular detail filters applied', [
+            'user_id' => $user?->id,
+            'identifier' => $identifier,
+            'now' => $now->toIso8601String(),
+            'matched' => (bool) $circular,
+        ]);
 
         if (! $circular) {
             return $this->error('Circular not found.', 404);
         }
 
-        DB::table('circulars')->where('id', $circular->id)->increment('view_count');
-        $circular->refresh();
+        Circular::query()->whereKey($circular->id)->increment('view_count');
+        $circular->refresh()->loadMissing(['city:id,name', 'circle:id,name']);
 
         return $this->success([
             'id' => $circular->id,
@@ -86,37 +126,51 @@ class CircularController extends BaseApiController
         $cityId = $user?->city_id;
         $circleId = $user?->circle_id;
 
-        if (! $circleId && Schema::hasColumn('circle_members', 'user_id') && Schema::hasColumn('circle_members', 'circle_id')) {
-            $circleId = DB::table('circle_members')->where('user_id', $user?->id)->value('circle_id');
+        if (! $circleId && $user?->id && Schema::hasTable('circle_members') && Schema::hasColumn('circle_members', 'user_id') && Schema::hasColumn('circle_members', 'circle_id')) {
+            $circleId = DB::table('circle_members')
+                ->where('user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->orderByDesc('created_at')
+                ->value('circle_id');
         }
 
         $userType = strtolower((string) ($user->membership_type ?? $user->member_type ?? $user->persona ?? ''));
 
         $query->where(function (Builder $audienceQuery) use ($cityId, $circleId, $userType): void {
-            $audienceQuery->where('audience_type', 'all_members')
+            $audienceQuery
+                ->whereNull('audience_type')
+                ->orWhere('audience_type', 'all_members')
                 ->orWhere(function (Builder $circleAudience) use ($circleId): void {
                     $circleAudience->where('audience_type', 'circle_members')
-                        ->when($circleId, fn (Builder $q) => $q->where(function (Builder $match) use ($circleId): void {
-                            $match->whereNull('circle_id')->orWhere('circle_id', $circleId);
-                        }));
+                        ->where(function (Builder $circleScope) use ($circleId): void {
+                            $circleScope->whereNull('circle_id');
+
+                            if ($circleId) {
+                                $circleScope->orWhere('circle_id', $circleId);
+                            }
+                        });
                 })
                 ->orWhere(function (Builder $fempreneurAudience) use ($userType): void {
                     $fempreneurAudience->where('audience_type', 'fempreneur');
-                    if ($userType !== 'fempreneur') {
+
+                    if ($userType !== '' && $userType !== 'fempreneur') {
                         $fempreneurAudience->whereRaw('1=0');
                     }
                 })
                 ->orWhere(function (Builder $greenpreneurAudience) use ($userType): void {
                     $greenpreneurAudience->where('audience_type', 'greenpreneur');
-                    if ($userType !== 'greenpreneur') {
+
+                    if ($userType !== '' && $userType !== 'greenpreneur') {
                         $greenpreneurAudience->whereRaw('1=0');
                     }
                 });
+        });
+
+        $query->where(function (Builder $cityScope) use ($cityId): void {
+            $cityScope->whereNull('city_id');
 
             if ($cityId) {
-                $audienceQuery->where(function (Builder $cityScope) use ($cityId): void {
-                    $cityScope->whereNull('city_id')->orWhere('city_id', $cityId);
-                });
+                $cityScope->orWhere('city_id', $cityId);
             }
         });
     }
