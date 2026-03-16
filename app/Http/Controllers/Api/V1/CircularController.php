@@ -19,124 +19,105 @@ class CircularController extends BaseApiController
     {
         /** @var User|null $user */
         $user = $request->user();
+        $now = now();
+        $model = new Circular();
+        $connectionName = $model->getConnectionName() ?: config('database.default');
 
         // TEMP DEBUG FOR CIRCULAR API
         Log::debug('circulars_api_reached', [
             'path' => $request->path(),
             'full_url' => $request->fullUrl(),
+            'app_timezone' => config('app.timezone'),
+            'php_now' => $now->toIso8601String(),
+            'db_connection_name' => $connectionName,
+            'db_name' => config('database.connections.' . $connectionName . '.database'),
+        ]);
+
+        // TEMP DEBUG FOR CIRCULAR API
+        Log::debug('circulars_api_user', [
+            'request_user_is_null' => $user === null,
             'request_user_id' => $user?->id,
             'request_user_class' => $user ? get_class($user) : null,
             'auth_id' => Auth::id(),
             'auth_user_id' => Auth::user()?->id,
             'auth_user_class' => Auth::user() ? get_class(Auth::user()) : null,
-            'app_timezone' => config('app.timezone'),
-            'now' => now()->toIso8601String(),
-            'connection_name' => (new Circular())->getConnectionName() ?: config('database.default'),
-            'database_name' => config('database.connections.' . ((new Circular())->getConnectionName() ?: config('database.default')) . '.database'),
+            'default_guard' => config('auth.defaults.guard'),
         ]);
 
         if (! $user) {
-            Log::warning('circulars_user_context', ['authenticated' => false]);
-
             return $this->error('Unauthenticated.', 401);
         }
 
-        $now = now();
-        $userCircleIds = $this->userCircleIds($user);
+        // TEMP DEBUG FOR CIRCULAR API: exact requested count sequence
+        $countTotal = Circular::count();
+        $countActive = Circular::query()->where('status', 'active')->count();
+        $countActiveNotDeleted = Circular::query()->where('status', 'active')->whereNull('deleted_at')->count();
+        $countActivePublished = Circular::query()->where('status', 'active')->whereNull('deleted_at')->where('publish_date', '<=', $now)->count();
+        $countActivePublishedExpiryValid = Circular::query()->where('status', 'active')->whereNull('deleted_at')->where('publish_date', '<=', $now)->where(function ($q) use ($now) {
+            $q->whereNull('expiry_date')->orWhere('expiry_date', '>', $now);
+        })->count();
+        $countAllMembersVisible = Circular::query()->where('status', 'active')->whereNull('deleted_at')->where('publish_date', '<=', $now)->where(function ($q) use ($now) {
+            $q->whereNull('expiry_date')->orWhere('expiry_date', '>', $now);
+        })->where('audience_type', 'all_members')->count();
 
-        // TEMP DEBUG FOR CIRCULAR API: required ordered count trace
-        $totalCircularsInDb = Circular::query()->withTrashed()->count();
-        $totalActiveCirculars = Circular::query()->where('status', 'ILIKE', 'active')->count();
-        $totalActiveNotDeleted = Circular::query()->where('status', 'ILIKE', 'active')->whereNull('deleted_at')->count();
-        $totalPublished = Circular::query()
-            ->where('status', 'ILIKE', 'active')
-            ->whereNull('deleted_at')
-            ->where('publish_date', '<=', $now)
-            ->count();
-        $totalExpiryValid = Circular::query()
-            ->where('status', 'ILIKE', 'active')
-            ->whereNull('deleted_at')
-            ->where('publish_date', '<=', $now)
-            ->where(function (Builder $query): void {
-                $query->whereNull('expiry_date')->orWhere('expiry_date', '>', now());
-            })
-            ->count();
+        // TEMP DEBUG FOR CIRCULAR API: resilient equivalents for diagnosing data quality issues
+        $countActiveNormalized = Circular::query()->whereRaw("LOWER(TRIM(COALESCE(status, ''))) = ?", ['active'])->count();
+        $countAllMembersNormalized = Circular::query()->whereRaw("LOWER(TRIM(COALESCE(audience_type, ''))) = ?", ['all_members'])->count();
 
         $baseVisibleQuery = Circular::query()->visibleNow();
         $baseVisibleCount = (clone $baseVisibleQuery)->count();
 
-        $allMembersVisibleRows = (clone $baseVisibleQuery)
-            ->where('audience_type', 'all_members')
-            ->count();
-
-        $circleMembersVisibleRows = (clone $baseVisibleQuery)
-            ->where('audience_type', 'circle_members')
-            ->count();
-
-        $fempreneurVisibleRows = (clone $baseVisibleQuery)
-            ->where('audience_type', 'fempreneur')
-            ->count();
-
-        $greenpreneurVisibleRows = (clone $baseVisibleQuery)
-            ->where('audience_type', 'greenpreneur')
-            ->count();
-
-        // TEMP DEBUG FOR CIRCULAR API
-        Log::debug('circulars_user_context', [
-            'user_id' => $user->id,
-            'user_city_id' => $user->city_id,
-            'user_circle_ids' => $userCircleIds,
-        ]);
-
-        Log::debug('circulars_count_trace', [
-            'circulars_total_count' => $totalCircularsInDb,
-            'circulars_active_count' => $totalActiveCirculars,
-            'circulars_active_not_deleted_count' => $totalActiveNotDeleted,
-            'circulars_active_not_deleted_published_count' => $totalPublished,
-            'circulars_active_not_deleted_published_expiry_valid_count' => $totalExpiryValid,
-            'circulars_visible_count' => $baseVisibleCount,
-            'circulars_audience_all_members_count' => $allMembersVisibleRows,
-            'circulars_audience_circle_members_count' => $circleMembersVisibleRows,
-            'circulars_audience_fempreneur_count' => $fempreneurVisibleRows,
-            'circulars_audience_greenpreneur_count' => $greenpreneurVisibleRows,
-        ]);
+        $userCircleIds = $this->userCircleIds($user);
 
         $query = Circular::query()->visibleNow();
-
         $this->applyAudienceFilter($query, $user, $userCircleIds);
 
         $afterAudienceCount = (clone $query)->count();
-
         $query->orderedForFeed();
 
-        $sql = $query->toSql();
-        $bindings = $query->getBindings();
+        // TEMP DEBUG FOR CIRCULAR API
+        Log::debug('circulars_api_counts', [
+            'total_circular_count' => $countTotal,
+            'total_active_circular_count' => $countActive,
+            'total_active_not_deleted_count' => $countActiveNotDeleted,
+            'total_active_not_deleted_published_count' => $countActivePublished,
+            'total_active_not_deleted_published_expiry_valid_count' => $countActivePublishedExpiryValid,
+            'total_active_not_deleted_published_expiry_valid_all_members_count' => $countAllMembersVisible,
+            'total_active_normalized_count' => $countActiveNormalized,
+            'total_all_members_normalized_count' => $countAllMembersNormalized,
+            'total_visible_by_scope_count' => $baseVisibleCount,
+            'total_after_audience_filter_count' => $afterAudienceCount,
+            'user_circle_ids' => $userCircleIds,
+            'user_city_id' => $user->city_id,
+        ]);
+
+        // TEMP DEBUG FOR CIRCULAR API
+        Log::debug('circulars_api_sql', [
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+        ]);
 
         $perPage = (int) min(max((int) $request->query('per_page', 20), 1), 100);
+        $paginator = $query->paginate($perPage);
 
-        $circulars = $query->paginate($perPage);
-
-        $resourceCollection = CircularListResource::collection($circulars);
+        $resourceCollection = CircularListResource::collection($paginator);
         $resolvedItems = $resourceCollection->resolve($request);
         $resolvedItemsCount = is_countable($resolvedItems) ? count($resolvedItems) : 0;
 
         // TEMP DEBUG FOR CIRCULAR API
-        Log::debug('circulars_query_trace', [
-            'circulars_after_audience_count' => $afterAudienceCount,
-            'circulars_final_sql' => $sql,
-            'circulars_final_bindings' => $bindings,
-            'circulars_paginated_count' => $circulars->count(),
-            'circulars_paginated_total' => $circulars->total(),
-            'circulars_final_json_items_count' => $resolvedItemsCount,
+        Log::debug('circulars_api_result', [
+            'paginator_total' => $paginator->total(),
+            'paginator_collection_count' => $paginator->count(),
+            'final_response_item_count' => $resolvedItemsCount,
         ]);
 
         return $this->success([
             'items' => $resourceCollection,
             'pagination' => [
-                'current_page' => $circulars->currentPage(),
-                'last_page' => $circulars->lastPage(),
-                'per_page' => $circulars->perPage(),
-                'total' => $circulars->total(),
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
             ],
         ]);
     }
@@ -147,17 +128,12 @@ class CircularController extends BaseApiController
         $user = $request->user();
 
         // TEMP DEBUG FOR CIRCULAR API
-        Log::debug('circulars_detail_api_reached', [
+        Log::debug('circulars_api_reached', [
             'path' => $request->path(),
             'full_url' => $request->fullUrl(),
             'requested_id' => $id,
+            'detail_endpoint' => true,
             'request_user_id' => $user?->id,
-            'request_user_class' => $user ? get_class($user) : null,
-            'auth_id' => Auth::id(),
-            'auth_user_id' => Auth::user()?->id,
-            'auth_user_class' => Auth::user() ? get_class(Auth::user()) : null,
-            'app_timezone' => config('app.timezone'),
-            'now' => now()->toIso8601String(),
         ]);
 
         if (! $user) {
@@ -167,21 +143,21 @@ class CircularController extends BaseApiController
         $userCircleIds = $this->userCircleIds($user);
 
         $query = Circular::query()->visibleNow()->where('id', $id);
-
         $this->applyAudienceFilter($query, $user, $userCircleIds);
 
-        $sql = $query->toSql();
-        $bindings = $query->getBindings();
+        // TEMP DEBUG FOR CIRCULAR API
+        Log::debug('circulars_api_sql', [
+            'detail_endpoint' => true,
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+        ]);
 
         $circular = $query->first();
 
         // TEMP DEBUG FOR CIRCULAR API
-        Log::debug('circulars_detail_query_trace', [
-            'user_id' => $user->id,
+        Log::debug('circulars_api_result', [
+            'detail_endpoint' => true,
             'requested_id' => $id,
-            'user_circle_ids' => $userCircleIds,
-            'sql' => $sql,
-            'bindings' => $bindings,
             'found' => (bool) $circular,
         ]);
 
@@ -192,26 +168,18 @@ class CircularController extends BaseApiController
         return $this->success(new CircularDetailResource($circular));
     }
 
-    /**
-     * Apply audience targeting only.
-     *
-     * Note: city_id and circle_id are audience constraints only for matching audience types,
-     * they are not global hard filters for all_members circulars.
-     */
     private function applyAudienceFilter(Builder $query, User $user, array $userCircleIds): void
     {
         $isFempreneur = $this->userHasSegment($user, 'fempreneur');
         $isGreenpreneur = $this->userHasSegment($user, 'greenpreneur');
 
         $query->where(function (Builder $audience) use ($user, $userCircleIds, $isFempreneur, $isGreenpreneur): void {
-            // 1) all_members: visible to every authenticated app user.
-            $audience->where(function (Builder $allMembers): void {
-                $allMembers->where('audience_type', 'all_members');
-            });
+            // all_members must not be blocked by circle/city filters.
+            $audience->whereRaw("LOWER(TRIM(COALESCE(audience_type, ''))) = ?", ['all_members']);
 
-            // 2) circle_members: user must belong to circular's circle_id.
+            // circle_members is only for members of matching circles.
             $audience->orWhere(function (Builder $circleMembers) use ($userCircleIds): void {
-                $circleMembers->where('audience_type', 'circle_members')
+                $circleMembers->whereRaw("LOWER(TRIM(COALESCE(audience_type, ''))) = ?", ['circle_members'])
                     ->whereNotNull('circle_id')
                     ->when(
                         $userCircleIds !== [],
@@ -220,10 +188,9 @@ class CircularController extends BaseApiController
                     );
             });
 
-            // 3) fempreneur: include only users matching fempreneur segment logic.
             if ($isFempreneur) {
                 $audience->orWhere(function (Builder $fempreneur) use ($user): void {
-                    $fempreneur->where('audience_type', 'fempreneur')
+                    $fempreneur->whereRaw("LOWER(TRIM(COALESCE(audience_type, ''))) = ?", ['fempreneur'])
                         ->where(function (Builder $city) use ($user): void {
                             $city->whereNull('city_id')
                                 ->orWhere('city_id', $user->city_id);
@@ -231,10 +198,9 @@ class CircularController extends BaseApiController
                 });
             }
 
-            // 4) greenpreneur: include only users matching greenpreneur segment logic.
             if ($isGreenpreneur) {
                 $audience->orWhere(function (Builder $greenpreneur) use ($user): void {
-                    $greenpreneur->where('audience_type', 'greenpreneur')
+                    $greenpreneur->whereRaw("LOWER(TRIM(COALESCE(audience_type, ''))) = ?", ['greenpreneur'])
                         ->where(function (Builder $city) use ($user): void {
                             $city->whereNull('city_id')
                                 ->orWhere('city_id', $user->city_id);
@@ -249,7 +215,9 @@ class CircularController extends BaseApiController
         return CircleMember::query()
             ->where('user_id', $user->id)
             ->where(function (Builder $statusQuery): void {
-                $statusQuery->whereNull('status')->orWhere('status', 'ILIKE', 'active');
+                $statusQuery->whereNull('status')
+                    ->orWhere('status', 'active')
+                    ->orWhereRaw("LOWER(TRIM(COALESCE(status, ''))) = ?", ['active']);
             })
             ->pluck('circle_id')
             ->filter()

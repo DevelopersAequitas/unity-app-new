@@ -102,7 +102,7 @@ class Circular extends Model
 
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('status', 'ILIKE', 'active');
+        return $query->whereRaw("LOWER(TRIM(COALESCE(status, ''))) = ?", ['active']);
     }
 
     public function scopePublished(Builder $query): Builder
@@ -123,7 +123,7 @@ class Circular extends Model
     public function scopeOrderedForFeed(Builder $query): Builder
     {
         return $query->orderByDesc('is_pinned')
-            ->orderByRaw("CASE priority WHEN 'urgent' THEN 1 WHEN 'important' THEN 2 ELSE 3 END")
+            ->orderByRaw("CASE LOWER(TRIM(COALESCE(priority, ''))) WHEN 'urgent' THEN 1 WHEN 'important' THEN 2 ELSE 3 END")
             ->orderByDesc('publish_date');
     }
 
