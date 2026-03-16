@@ -11,7 +11,7 @@
     <a href="{{ route('admin.circulars.index') }}" class="btn btn-outline-secondary btn-sm">Back to Circulars</a>
 </div>
 
-<form action="{{ route('admin.circulars.update', $circular) }}" method="POST" enctype="multipart/form-data">
+<form action="{{ route('admin.circulars.update', $circular->getKey()) }}" method="POST" enctype="multipart/form-data">
     @csrf
     @method('PUT')
     @include('admin.circulars._form')

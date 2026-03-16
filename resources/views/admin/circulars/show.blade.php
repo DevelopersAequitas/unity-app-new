@@ -6,7 +6,7 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <strong>{{ $circular->title }}</strong>
-        <a href="{{ route('admin.circulars.edit', $circular) }}" class="btn btn-sm btn-primary">Edit</a>
+        <a href="{{ route('admin.circulars.edit', $circular->getKey()) }}" class="btn btn-sm btn-primary">Edit</a>
     </div>
     <div class="card-body">
         <p><strong>Summary:</strong> {{ $circular->summary }}</p>

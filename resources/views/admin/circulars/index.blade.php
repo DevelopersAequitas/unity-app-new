@@ -102,9 +102,9 @@
                         <td>{{ (int)$circular->view_count }}</td>
                         <td>{{ $circular->creator?->display_name ?? trim(($circular->creator?->first_name ?? '').' '.($circular->creator?->last_name ?? '')) ?: '—' }}</td>
                         <td class="text-nowrap">
-                            <a class="btn btn-sm btn-outline-primary" href="{{ route('admin.circulars.show', $circular) }}">View</a>
-                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.circulars.edit', $circular) }}">Edit</a>
-                            <form action="{{ route('admin.circulars.destroy', $circular) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this circular?')">
+                            <a class="btn btn-sm btn-outline-primary" href="{{ route('admin.circulars.show', $circular->getKey()) }}">View</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.circulars.edit', $circular->getKey()) }}">Edit</a>
+                            <form action="{{ route('admin.circulars.destroy', $circular->getKey()) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this circular?')">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
                             </form>

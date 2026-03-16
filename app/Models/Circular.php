@@ -17,6 +17,10 @@ class Circular extends Model
     use HasFactory;
     use SoftDeletes;
 
+    protected $keyType = 'string';
+
+    public $incrementing = false;
+
     public const CATEGORY_OPTIONS = [
         'event',
         'announcement',
@@ -90,12 +94,12 @@ class Circular extends Model
 
         static::updating(function (Circular $circular): void {
             if ($circular->isDirty('title') && filled($circular->title)) {
-                $circular->slug = static::generateUniqueSlug((string) $circular->title, (int) $circular->id);
+                $circular->slug = static::generateUniqueSlug((string) $circular->title, (string) $circular->id);
             }
         });
     }
 
-    public static function generateUniqueSlug(string $title, ?int $ignoreId = null): string
+    public static function generateUniqueSlug(string $title, ?string $ignoreId = null): string
     {
         $baseSlug = Str::slug($title);
 
