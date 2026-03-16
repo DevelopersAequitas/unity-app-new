@@ -21,9 +21,6 @@ class CircularController extends BaseApiController
 
         $userCircleIds = $this->resolveUserCircleIds($user);
 
-        $totalCircularCount = Circular::query()->count();
-        $totalActiveCircularCount = Circular::query()->active()->count();
-
         $query = Circular::query()->visibleInApp($now);
         $baseVisibleCount = (clone $query)->count();
 
@@ -39,19 +36,14 @@ class CircularController extends BaseApiController
             'user_city_id' => $user?->city_id,
             'user_circle_ids' => $userCircleIds,
             'now' => $now->toIso8601String(),
-            'total_circular_count' => $totalCircularCount,
-            'total_active_circular_count' => $totalActiveCircularCount,
             'base_visible_count' => $baseVisibleCount,
             'after_audience_count' => $afterAudienceCount,
-            'sql' => $query->toSql(),
-            'bindings' => $query->getBindings(),
-            'per_page' => $perPage,
         ]);
 
         $paginator = $query->paginate($perPage);
 
         $items = $paginator->getCollection()->map(fn (Circular $circular) => [
-            'id' => $circular->id,
+            'id' => (string) $circular->id,
             'title' => $circular->title,
             'summary' => $circular->summary,
             'category' => $circular->category,
@@ -68,10 +60,7 @@ class CircularController extends BaseApiController
 
         Log::info('Circular feed response built', [
             'user_id' => $user?->id,
-            'final_response_item_count' => $items->count(),
-            'final_total' => $paginator->total(),
-            'current_page' => $paginator->currentPage(),
-            'last_page' => $paginator->lastPage(),
+            'final_response_count' => $items->count(),
         ]);
 
         return $this->success([
@@ -101,15 +90,6 @@ class CircularController extends BaseApiController
             })
             ->first();
 
-        Log::info('Circular detail filters applied', [
-            'user_id' => $user?->id,
-            'user_city_id' => $user?->city_id,
-            'user_circle_ids' => $userCircleIds,
-            'identifier' => $identifier,
-            'now' => $now->toIso8601String(),
-            'matched' => (bool) $circular,
-        ]);
-
         if (! $circular) {
             return $this->error('Circular not found.', 404);
         }
@@ -118,7 +98,7 @@ class CircularController extends BaseApiController
         $circular->refresh()->loadMissing(['city:id,name', 'circle:id,name']);
 
         return $this->success([
-            'id' => $circular->id,
+            'id' => (string) $circular->id,
             'title' => $circular->title,
             'summary' => $circular->summary,
             'content' => $circular->content,
@@ -145,41 +125,60 @@ class CircularController extends BaseApiController
         $userCityId = $user?->city_id;
         $userType = strtolower((string) ($user->membership_type ?? $user->member_type ?? $user->persona ?? ''));
 
-        $query->where(function (Builder $audienceQuery) use ($userType, $userCircleIds): void {
-            $audienceQuery
-                ->whereNull('audience_type')
-                ->orWhere('audience_type', 'all_members')
-                ->orWhere(function (Builder $circleAudience) use ($userCircleIds): void {
-                    $circleAudience->where('audience_type', 'circle_members')
-                        ->where(function (Builder $circleScope) use ($userCircleIds): void {
-                            $circleScope->whereNull('circle_id');
+        $query->where(function (Builder $audienceQuery) use ($userCityId, $userCircleIds, $userType): void {
+            // all_members (and null audience fallback)
+            $audienceQuery->where(function (Builder $allMembersQuery) use ($userCityId, $userCircleIds): void {
+                $allMembersQuery
+                    ->where(function (Builder $typeQuery): void {
+                        $typeQuery->whereNull('audience_type')->orWhere('audience_type', 'all_members');
+                    })
+                    ->where(function (Builder $cityQuery) use ($userCityId): void {
+                        $cityQuery->whereNull('city_id');
 
-                            if ($userCircleIds !== []) {
-                                $circleScope->orWhereIn('circle_id', $userCircleIds);
-                            }
-                        });
-                })
-                ->orWhere(function (Builder $fempreneurAudience) use ($userType): void {
-                    $fempreneurAudience->where('audience_type', 'fempreneur');
+                        if ($userCityId) {
+                            $cityQuery->orWhere('city_id', $userCityId);
+                        }
+                    })
+                    ->where(function (Builder $circleQuery) use ($userCircleIds): void {
+                        $circleQuery->whereNull('circle_id');
 
-                    if ($userType !== '' && $userType !== 'fempreneur') {
-                        $fempreneurAudience->whereRaw('1=0');
-                    }
-                })
-                ->orWhere(function (Builder $greenpreneurAudience) use ($userType): void {
-                    $greenpreneurAudience->where('audience_type', 'greenpreneur');
-
-                    if ($userType !== '' && $userType !== 'greenpreneur') {
-                        $greenpreneurAudience->whereRaw('1=0');
-                    }
-                });
-        });
-
-        if ($userCityId) {
-            $query->where(function (Builder $cityScope) use ($userCityId): void {
-                $cityScope->whereNull('city_id')->orWhere('city_id', $userCityId);
+                        if ($userCircleIds !== []) {
+                            $circleQuery->orWhereIn('circle_id', $userCircleIds);
+                        }
+                    });
             });
-        }
+
+            // circle_members
+            $audienceQuery->orWhere(function (Builder $circleMembersQuery) use ($userCircleIds): void {
+                $circleMembersQuery
+                    ->where('audience_type', 'circle_members')
+                    ->where(function (Builder $circleScope) use ($userCircleIds): void {
+                        $circleScope->whereNull('circle_id');
+
+                        if ($userCircleIds !== []) {
+                            $circleScope->orWhereIn('circle_id', $userCircleIds);
+                        }
+                    });
+            });
+
+            // fempreneur: only strict-block when user type is known and different
+            $audienceQuery->orWhere(function (Builder $fempreneurQuery) use ($userType): void {
+                $fempreneurQuery->where('audience_type', 'fempreneur');
+
+                if ($userType !== '' && $userType !== 'fempreneur') {
+                    $fempreneurQuery->whereRaw('1=0');
+                }
+            });
+
+            // greenpreneur: only strict-block when user type is known and different
+            $audienceQuery->orWhere(function (Builder $greenpreneurQuery) use ($userType): void {
+                $greenpreneurQuery->where('audience_type', 'greenpreneur');
+
+                if ($userType !== '' && $userType !== 'greenpreneur') {
+                    $greenpreneurQuery->whereRaw('1=0');
+                }
+            });
+        });
     }
 
     private function resolveUserCircleIds($user): array
