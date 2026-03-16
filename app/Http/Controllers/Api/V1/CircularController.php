@@ -212,13 +212,18 @@ class CircularController extends BaseApiController
 
     private function userCircleIds(User $user): array
     {
+        $membershipStatuses = ['active', 'approved'];
+
+        // TEMP DEBUG FOR CIRCULAR API
+        Log::debug('circulars_api_user_circle_membership_query', [
+            'user_id' => $user->id,
+            'statuses' => $membershipStatuses,
+        ]);
+
         return CircleMember::query()
             ->where('user_id', $user->id)
-            ->where(function (Builder $statusQuery): void {
-                $statusQuery->whereNull('status')
-                    ->orWhere('status', 'active')
-                    ->orWhereRaw("LOWER(TRIM(COALESCE(status, ''))) = ?", ['active']);
-            })
+            ->whereNull('deleted_at')
+            ->whereIn('status', $membershipStatuses)
             ->pluck('circle_id')
             ->filter()
             ->map(fn ($id) => (string) $id)
