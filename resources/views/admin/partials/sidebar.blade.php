@@ -12,6 +12,7 @@
     $navItems = $isCircleScoped
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
+            ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index', 'active' => 'admin.circulars.*'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
             ...($isGlobalAdmin ? [['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index']] : []),
         ]
@@ -19,6 +20,7 @@
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
+            ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index', 'active' => 'admin.circulars.*'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
             ...($isGlobalAdmin ? [['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index']] : []),
             ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => '#'],
@@ -91,7 +93,8 @@
                         <ul class="nav flex-column ms-3">
                             @foreach ($activityMenu as $item)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    @php($itemActiveRoute = $item['active'] ?? $item['route'])
+                        <a class="nav-link {{ request()->routeIs($itemActiveRoute) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                                         {{ $item['label'] }}
                                     </a>
                                 </li>
@@ -110,7 +113,8 @@
                         <ul class="nav flex-column ms-3">
                             @foreach ($postsMenu as $item)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    @php($itemActiveRoute = $item['active'] ?? $item['route'])
+                        <a class="nav-link {{ request()->routeIs($itemActiveRoute) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                                         {{ $item['label'] }}
                                     </a>
                                 </li>
@@ -128,7 +132,8 @@
                     <ul class="nav flex-column ms-3">
                         @foreach ($pendingRequestsMenu as $item)
                             <li class="nav-item">
-                                <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                @php($itemActiveRoute = $item['active'] ?? $item['route'])
+                        <a class="nav-link {{ request()->routeIs($itemActiveRoute) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                                     {{ $item['label'] }}
                                 </a>
                             </li>
@@ -143,7 +148,8 @@
                             <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                         </span>
                     @else
-                        <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                        @php($itemActiveRoute = $item['active'] ?? $item['route'])
+                        <a class="nav-link {{ request()->routeIs($itemActiveRoute) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                             <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                         </a>
                     @endif

@@ -19,12 +19,16 @@ class CircularController extends BaseApiController
         $perPage = (int) $request->query('per_page', 20);
         $perPage = max(1, min($perPage, 100));
 
-        $totalRows = Circular::query()->count();
+        $userCircleIds = $this->resolveUserCircleIds($user);
+
+        $totalCircularCount = Circular::query()->count();
+        $totalActiveCircularCount = Circular::query()->active()->count();
 
         $query = Circular::query()->visibleInApp($now);
-        $this->applyAudienceFilter($query, $user);
+        $baseVisibleCount = (clone $query)->count();
 
-        $filteredCount = (clone $query)->count();
+        $this->applyAudienceFilter($query, $user, $userCircleIds);
+        $afterAudienceCount = (clone $query)->count();
 
         $query->orderByDesc('is_pinned')
             ->orderByRaw("CASE priority WHEN 'urgent' THEN 1 WHEN 'important' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END")
@@ -32,9 +36,13 @@ class CircularController extends BaseApiController
 
         Log::info('Circular feed filters applied', [
             'user_id' => $user?->id,
+            'user_city_id' => $user?->city_id,
+            'user_circle_ids' => $userCircleIds,
             'now' => $now->toIso8601String(),
-            'total_rows' => $totalRows,
-            'filtered_rows' => $filteredCount,
+            'total_circular_count' => $totalCircularCount,
+            'total_active_circular_count' => $totalActiveCircularCount,
+            'base_visible_count' => $baseVisibleCount,
+            'after_audience_count' => $afterAudienceCount,
             'sql' => $query->toSql(),
             'bindings' => $query->getBindings(),
             'per_page' => $perPage,
@@ -58,6 +66,14 @@ class CircularController extends BaseApiController
             'allow_comments' => (bool) $circular->allow_comments,
         ])->values();
 
+        Log::info('Circular feed response built', [
+            'user_id' => $user?->id,
+            'final_response_item_count' => $items->count(),
+            'final_total' => $paginator->total(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+        ]);
+
         return $this->success([
             'items' => $items,
             'total' => $paginator->total(),
@@ -71,12 +87,13 @@ class CircularController extends BaseApiController
     {
         $user = $request->user();
         $now = now(config('app.timezone'));
+        $userCircleIds = $this->resolveUserCircleIds($user);
 
         $query = Circular::query()
             ->visibleInApp($now)
             ->with(['city:id,name', 'circle:id,name']);
 
-        $this->applyAudienceFilter($query, $user);
+        $this->applyAudienceFilter($query, $user, $userCircleIds);
 
         $circular = (clone $query)
             ->where(function (Builder $identifierQuery) use ($identifier): void {
@@ -86,6 +103,8 @@ class CircularController extends BaseApiController
 
         Log::info('Circular detail filters applied', [
             'user_id' => $user?->id,
+            'user_city_id' => $user?->city_id,
+            'user_circle_ids' => $userCircleIds,
             'identifier' => $identifier,
             'now' => $now->toIso8601String(),
             'matched' => (bool) $circular,
@@ -121,32 +140,22 @@ class CircularController extends BaseApiController
         ]);
     }
 
-    private function applyAudienceFilter(Builder $query, $user): void
+    private function applyAudienceFilter(Builder $query, $user, array $userCircleIds): void
     {
-        $cityId = $user?->city_id;
-        $circleId = $user?->circle_id;
-
-        if (! $circleId && $user?->id && Schema::hasTable('circle_members') && Schema::hasColumn('circle_members', 'user_id') && Schema::hasColumn('circle_members', 'circle_id')) {
-            $circleId = DB::table('circle_members')
-                ->where('user_id', $user->id)
-                ->whereNull('deleted_at')
-                ->orderByDesc('created_at')
-                ->value('circle_id');
-        }
-
+        $userCityId = $user?->city_id;
         $userType = strtolower((string) ($user->membership_type ?? $user->member_type ?? $user->persona ?? ''));
 
-        $query->where(function (Builder $audienceQuery) use ($cityId, $circleId, $userType): void {
+        $query->where(function (Builder $audienceQuery) use ($userType, $userCircleIds): void {
             $audienceQuery
                 ->whereNull('audience_type')
                 ->orWhere('audience_type', 'all_members')
-                ->orWhere(function (Builder $circleAudience) use ($circleId): void {
+                ->orWhere(function (Builder $circleAudience) use ($userCircleIds): void {
                     $circleAudience->where('audience_type', 'circle_members')
-                        ->where(function (Builder $circleScope) use ($circleId): void {
+                        ->where(function (Builder $circleScope) use ($userCircleIds): void {
                             $circleScope->whereNull('circle_id');
 
-                            if ($circleId) {
-                                $circleScope->orWhere('circle_id', $circleId);
+                            if ($userCircleIds !== []) {
+                                $circleScope->orWhereIn('circle_id', $userCircleIds);
                             }
                         });
                 })
@@ -166,12 +175,27 @@ class CircularController extends BaseApiController
                 });
         });
 
-        $query->where(function (Builder $cityScope) use ($cityId): void {
-            $cityScope->whereNull('city_id');
+        if ($userCityId) {
+            $query->where(function (Builder $cityScope) use ($userCityId): void {
+                $cityScope->whereNull('city_id')->orWhere('city_id', $userCityId);
+            });
+        }
+    }
 
-            if ($cityId) {
-                $cityScope->orWhere('city_id', $cityId);
-            }
-        });
+    private function resolveUserCircleIds($user): array
+    {
+        if (! $user?->id || ! Schema::hasTable('circle_members') || ! Schema::hasColumn('circle_members', 'user_id') || ! Schema::hasColumn('circle_members', 'circle_id')) {
+            return [];
+        }
+
+        return DB::table('circle_members')
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->whereNotNull('circle_id')
+            ->pluck('circle_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 }
