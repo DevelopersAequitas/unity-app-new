@@ -140,9 +140,23 @@
                 <div class="card-body row g-3">
                     <div class="col-md-4">
                         <label class="form-label">Membership Status</label>
+                        @php
+                            $membershipStatusLabels = [
+                                'free_peer' => 'Free Peer',
+                                'Only Unity Peer' => 'Only Unity Peer',
+                                'Circle Peer' => 'Circle Peer',
+                                'Multi Circle Peer' => 'Multi Circle Peer',
+                                'Charter Peer' => 'Charter Peer',
+                                'Industry Advisor' => 'Industry Advisor',
+                                'Charter Investor' => 'Charter Investor',
+                                'Circle Founder' => 'Circle Founder',
+                                'Circle Director' => 'Circle Director',
+                                'Board Advisor' => 'Board Advisor',
+                            ];
+                        @endphp
                         <select name="membership_status" class="form-select">
                             @foreach ($membershipStatuses as $status)
-                                <option value="{{ $status }}" @selected(old('membership_status', $user->membership_status) === $status)>{{ $status }}</option>
+                                <option value="{{ $status }}" @selected(old('membership_status', $user->membership_status) === $status)>{{ $membershipStatusLabels[$status] ?? $status }}</option>
                             @endforeach
                         </select>
                     </div>

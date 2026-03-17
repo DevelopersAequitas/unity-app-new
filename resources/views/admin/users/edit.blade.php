@@ -176,6 +176,11 @@
                                 'Circle Peer' => 'Circle Peer',
                                 'Multi Circle Peer' => 'Multi Circle Peer',
                                 'Charter Peer' => 'Charter Peer',
+                                'Industry Advisor' => 'Industry Advisor',
+                                'Charter Investor' => 'Charter Investor',
+                                'Circle Founder' => 'Circle Founder',
+                                'Circle Director' => 'Circle Director',
+                                'Board Advisor' => 'Board Advisor',
                             ];
                         @endphp
                         <select name="membership_status" class="form-select" required>

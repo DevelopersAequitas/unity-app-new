@@ -7,5 +7,10 @@ return [
         'Circle Peer',
         'Multi Circle Peer',
         'Charter Peer',
+        'Industry Advisor',
+        'Charter Investor',
+        'Circle Founder',
+        'Circle Director',
+        'Board Advisor',
     ],
 ];
