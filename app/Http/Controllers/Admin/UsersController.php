@@ -10,10 +10,12 @@ use App\Models\City;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\AdminAccess;
+use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -23,6 +25,10 @@ use Illuminate\View\View;
 
 class UsersController extends Controller
 {
+    public function __construct(private readonly ZohoBillingService $zohoBillingService)
+    {
+    }
+
     public function index(Request $request): View
     {
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
@@ -57,13 +63,14 @@ class UsersController extends Controller
         $user = new User();
         $cities = City::query()->orderBy('name')->get();
         $membershipStatuses = $this->membershipStatuses();
-        $circles = Circle::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']);
+        $circles = Circle::query()->where('status', 'active')->orderBy('name')->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
 
         return view('admin.users.create', [
             'user' => $user,
             'cities' => $cities,
             'membershipStatuses' => $membershipStatuses,
             'circles' => $circles,
+            'membershipPlanOptions' => $this->membershipPlanOptions(),
         ]);
     }
 
@@ -92,7 +99,7 @@ class UsersController extends Controller
             'membership_expiry' => ['nullable', 'date'],
             'membership_starts_at' => ['nullable', 'date'],
             'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at'],
-            'zoho_plan_code' => ['nullable', 'string', 'max:100'],
+            'zoho_plan_code' => ['nullable', 'string', 'max:100', Rule::in($this->membershipPlanCodes())],
             'zoho_last_invoice_id' => ['nullable', 'string', 'max:255'],
             'active_circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
             'active_circle_addon_code' => ['nullable', 'string', 'max:100'],
@@ -146,6 +153,8 @@ class UsersController extends Controller
         $validated['active_circle_id'] = $circleId;
         unset($validated['circle_id']);
 
+        $this->applyCircleAddonFields($validated, $circleId);
+
         $user = null;
 
         DB::transaction(function () use (&$user, $validated, $circleId) {
@@ -197,7 +206,7 @@ class UsersController extends Controller
         $circles = Circle::query()
             ->where('status', 'active')
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
 
         $joinedStatus = $this->activeCircleMemberStatus();
         $joinedCircleId = CircleMember::query()
@@ -270,6 +279,7 @@ class UsersController extends Controller
             'userRoleIds' => $assignedAdminRoles->pluck('id')->all(),
             'assignedAdminRoleNames' => $assignedAdminRoles->pluck('name')->implode(', '),
             'hasAssignedAdminRole' => $assignedAdminRoles->isNotEmpty(),
+            'membershipPlanOptions' => $this->membershipPlanOptions($user->zoho_plan_code),
         ]);
     }
 
@@ -310,7 +320,7 @@ class UsersController extends Controller
             'membership_expiry' => ['nullable', 'date'],
             'membership_starts_at' => ['nullable', 'date'],
             'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at'],
-            'zoho_plan_code' => ['nullable', 'string', 'max:100'],
+            'zoho_plan_code' => ['nullable', 'string', 'max:100', Rule::in($this->membershipPlanCodes($user->zoho_plan_code))],
             'zoho_last_invoice_id' => ['nullable', 'string', 'max:255'],
             'active_circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
             'active_circle_addon_code' => ['nullable', 'string', 'max:100'],
@@ -384,6 +394,7 @@ class UsersController extends Controller
         $activeCircleMemberStatus = $this->activeCircleMemberStatus();
         $selectedCircleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
         $validated['active_circle_id'] = $selectedCircleId;
+        $this->applyCircleAddonFields($validated, $selectedCircleId);
         DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId) {
             $user->fill($updatable);
             $user->status = $validated['status'];
@@ -699,6 +710,68 @@ class UsersController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    private function membershipPlanOptions(?string $selectedCode = null): array
+    {
+        $cacheKey = 'zoho_active_plans';
+        $allowedPlanCodes = ['012', '013', '014'];
+
+        try {
+            $plans = Cache::remember($cacheKey, 600, function () {
+                return $this->zohoBillingService->listActivePlans();
+            });
+        } catch (\Throwable $throwable) {
+            report($throwable);
+            $plans = [];
+        }
+
+        $options = collect($plans)
+            ->filter(fn ($plan) => in_array((string) ($plan['plan_code'] ?? ''), $allowedPlanCodes, true))
+            ->map(function (array $plan): array {
+                $code = (string) ($plan['plan_code'] ?? '');
+                $name = trim((string) ($plan['name'] ?? ''));
+
+                return [
+                    'code' => $code,
+                    'label' => $name !== '' ? sprintf('%s (%s)', $name, $code) : $code,
+                ];
+            })
+            ->filter(fn (array $plan) => $plan['code'] !== '')
+            ->values();
+
+        if ($selectedCode !== null && trim($selectedCode) !== '' && ! $options->contains(fn (array $plan) => $plan['code'] === $selectedCode)) {
+            $options->prepend([
+                'code' => $selectedCode,
+                'label' => 'Current Saved Plan (' . $selectedCode . ')',
+            ]);
+        }
+
+        return $options->all();
+    }
+
+    private function membershipPlanCodes(?string $selectedCode = null): array
+    {
+        return collect($this->membershipPlanOptions($selectedCode))
+            ->pluck('code')
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function applyCircleAddonFields(array &$validated, ?string $circleId): void
+    {
+        if (! $circleId) {
+            $validated['active_circle_addon_code'] = null;
+            $validated['active_circle_addon_name'] = null;
+
+            return;
+        }
+
+        $circle = Circle::query()->find($circleId);
+
+        $validated['active_circle_addon_code'] = $circle?->zoho_addon_code;
+        $validated['active_circle_addon_name'] = $circle?->zoho_addon_name;
     }
 
     private function membershipStatuses(): array

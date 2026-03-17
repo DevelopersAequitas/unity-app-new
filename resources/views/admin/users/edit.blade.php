@@ -245,8 +245,17 @@
                         <input type="date" name="membership_ends_at" class="form-control" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Zoho Plan Code</label>
-                        <input type="text" name="zoho_plan_code" class="form-control" value="{{ old('zoho_plan_code', $user->zoho_plan_code) }}">
+                        <label class="form-label">Membership Plan</label>
+                        <select name="zoho_plan_code" class="form-select @error('zoho_plan_code') is-invalid @enderror">
+                            <option value="">Select Membership Plan</option>
+                            @foreach ($membershipPlanOptions as $plan)
+                                <option value="{{ $plan['code'] }}" @selected(old('zoho_plan_code', $user->zoho_plan_code) === $plan['code'])>{{ $plan['label'] }}</option>
+                            @endforeach
+                        </select>
+                        @error('zoho_plan_code')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <div class="form-text">Membership plan list is loaded from existing system plans.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Zoho Last Invoice ID</label>
@@ -262,7 +271,12 @@
                         <select name="active_circle_id" id="active_circle_id" class="form-select @error('active_circle_id') is-invalid @enderror">
                             <option value="">-- No Circle --</option>
                             @foreach ($circles as $circle)
-                                <option value="{{ $circle->id }}" @selected((string) $selectedCircleValue === (string) $circle->id)>
+                                <option
+                                    value="{{ $circle->id }}"
+                                    data-addon-code="{{ $circle->zoho_addon_code }}"
+                                    data-addon-name="{{ $circle->zoho_addon_name }}"
+                                    @selected((string) $selectedCircleValue === (string) $circle->id)
+                                >
                                     {{ $circle->name }}
                                 </option>
                             @endforeach
@@ -273,11 +287,12 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Circle Package / Addon Code</label>
-                        <input type="text" name="active_circle_addon_code" class="form-control" value="{{ old('active_circle_addon_code', $user->active_circle_addon_code) }}">
+                        <input type="text" name="active_circle_addon_code" id="active_circle_addon_code" class="form-control" value="{{ old('active_circle_addon_code', $user->active_circle_addon_code) }}" readonly>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Circle Package / Addon Name</label>
-                        <input type="text" name="active_circle_addon_name" class="form-control" value="{{ old('active_circle_addon_name', $user->active_circle_addon_name) }}">
+                        <input type="text" name="active_circle_addon_name" id="active_circle_addon_name" class="form-control" value="{{ old('active_circle_addon_name', $user->active_circle_addon_name) }}" readonly>
+                        <div class="form-text">Circle package details are auto-filled from the selected circle.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Circle Joined Date</label>
@@ -443,22 +458,23 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const circleSelect = document.getElementById('circle_id');
-    if (!circleSelect) return;
+    const circleSelect = document.getElementById('active_circle_id');
+    const addonCodeInput = document.getElementById('active_circle_addon_code');
+    const addonNameInput = document.getElementById('active_circle_addon_name');
 
-    circleSelect.addEventListener('change', function (e) {
-        const selectedId = e.target.value;
-        const url = new URL(window.location.href);
+    const syncCircleAddonDetails = () => {
+        if (!circleSelect) return;
 
-        if (!selectedId) {
-            url.searchParams.delete('circle_id');
-        } else {
-            url.searchParams.set('circle_id', selectedId);
-        }
+        const selectedOption = circleSelect.options[circleSelect.selectedIndex];
+        const addonCode = selectedOption?.dataset?.addonCode ?? '';
+        const addonName = selectedOption?.dataset?.addonName ?? '';
 
-        // circle_id_redirect_sync
-        window.location.href = url.toString();
-    });
+        if (addonCodeInput) addonCodeInput.value = addonCode;
+        if (addonNameInput) addonNameInput.value = addonName;
+    };
+
+    circleSelect?.addEventListener('change', syncCircleAddonDetails);
+    syncCircleAddonDetails();
 });
 </script>
 @endpush
