@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Api\FileController as ApiFileController;
 use App\Http\Controllers\Controller;
-use App\Models\Category;
 use App\Models\EventGallery;
 use App\Models\EventGalleryMedia;
 use Illuminate\Http\JsonResponse;
@@ -19,14 +18,11 @@ class EventGalleryController extends Controller
     {
         $search = trim((string) $request->query('q', ''));
         $selectedEventId = $request->query('event_id');
-        $selectedCategoryId = trim((string) $request->query('category_id', ''));
 
         $events = EventGallery::query()
-            ->with('categoryRef')
             ->when($search !== '', function ($query) use ($search) {
                 $query->where('event_name', 'ILIKE', '%' . $search . '%');
             })
-            ->when($selectedCategoryId !== '', fn ($query) => $query->where('category_id', $selectedCategoryId))
             ->withCount([
                 'media',
                 'media as images_count' => function ($query) {
@@ -43,7 +39,7 @@ class EventGalleryController extends Controller
 
         if ($selectedEventId) {
             $selectedEvent = EventGallery::query()
-                ->with(['categoryRef', 'media' => function ($query) {
+                ->with(['media' => function ($query) {
                     $query->orderBy('sort_order')
                         ->orderBy('created_at');
                 }])
@@ -54,8 +50,6 @@ class EventGalleryController extends Controller
             'events' => $events,
             'selectedEvent' => $selectedEvent,
             'search' => $search,
-            'categories' => Category::query()->orderBy('category_name')->get(['id', 'category_name']),
-            'selectedCategoryId' => $selectedCategoryId,
         ]);
     }
 
@@ -65,7 +59,6 @@ class EventGalleryController extends Controller
             'event_name' => ['required', 'string', 'max:180'],
             'event_date' => ['nullable', 'date'],
             'description' => ['nullable', 'string'],
-            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
         ]);
 
         $normalizedName = mb_strtolower(trim($data['event_name']));
@@ -75,11 +68,6 @@ class EventGalleryController extends Controller
             ->first();
 
         if ($existing) {
-            if (array_key_exists('category_id', $data) && $existing->category_id !== ($data['category_id'] ?? null)) {
-                $existing->category_id = $data['category_id'] ?? null;
-                $existing->save();
-            }
-
             return redirect()
                 ->route('admin.event-gallery.index', ['event_id' => $existing->id])
                 ->with('success', 'Event already exists.');
@@ -89,7 +77,6 @@ class EventGalleryController extends Controller
             'event_name' => $data['event_name'],
             'event_date' => $data['event_date'] ?? null,
             'description' => $data['description'] ?? null,
-            'category_id' => $data['category_id'] ?? null,
             'created_by_admin_id' => Auth::guard('admin')->id(),
         ]);
 
@@ -108,7 +95,6 @@ class EventGalleryController extends Controller
             'file.*' => ['file', 'max:51200'],
             'caption' => ['nullable', 'string', 'max:255'],
             'thumbnail_file' => ['nullable', 'file', 'max:51200'],
-            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
         ]);
 
         if (empty($data['event_gallery_id']) && empty($data['event_name'])) {
@@ -133,7 +119,6 @@ class EventGalleryController extends Controller
             if (! $event) {
                 $event = EventGallery::create([
                     'event_name' => $data['event_name'],
-                    'category_id' => $data['category_id'] ?? null,
                     'created_by_admin_id' => Auth::guard('admin')->id(),
                 ]);
             }
@@ -141,11 +126,6 @@ class EventGalleryController extends Controller
 
         if (! $event) {
             return back()->withErrors(['event_gallery_id' => 'Event not found.'])->withInput();
-        }
-
-        if (array_key_exists('category_id', $data) && $data['category_id']) {
-            $event->category_id = $data['category_id'];
-            $event->save();
         }
 
         try {

@@ -67,21 +67,9 @@
         <div class="col-lg-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white">
-                    <form method="GET" class="row g-2 align-items-center">
-                        <div class="col-md-4">
-                            <input type="text" name="q" class="form-control form-control-sm" placeholder="Search events" value="{{ $search }}">
-                        </div>
-                        <div class="col-md-4">
-                            <select name="category_id" class="form-select form-select-sm" onchange="this.form.submit()">
-                                <option value="">All Category</option>
-                                @foreach($categories as $category)
-                                    <option value="{{ $category->id }}" @selected((string) $selectedCategoryId === (string) $category->id)>{{ $category->category_name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-auto">
-                            <button class="btn btn-sm btn-outline-secondary">Search</button>
-                        </div>
+                    <form method="GET" class="d-flex gap-2">
+                        <input type="text" name="q" class="form-control form-control-sm" placeholder="Search events" value="{{ $search }}">
+                        <button class="btn btn-sm btn-outline-secondary">Search</button>
                     </form>
                 </div>
                 <div class="list-group list-group-flush">
@@ -89,7 +77,7 @@
                         @php
                             $isActive = $selectedEvent && $selectedEvent->id === $event->id;
                             $eventDate = $event->event_date ? $event->event_date->format('M d, Y') : 'Date TBD';
-                            $query = array_filter(['event_id' => $event->id, 'q' => $search, 'category_id' => $selectedCategoryId]);
+                            $query = array_filter(['event_id' => $event->id, 'q' => $search]);
                         @endphp
                         <a
                             href="{{ route('admin.event-gallery.index', $query) }}"
@@ -97,9 +85,6 @@
                         >
                             <div class="fw-semibold">{{ $event->event_name }}</div>
                             <div class="small {{ $isActive ? 'text-white-50' : 'text-muted' }}">{{ $eventDate }}</div>
-                            <div class="small {{ $isActive ? 'text-white-50' : 'text-muted' }}">
-                                {{ $event->categoryRef?->category_name ?? '—' }}
-                            </div>
                             <div class="small {{ $isActive ? 'text-white-50' : 'text-muted' }}">
                                 {{ $event->images_count ?? 0 }} images • {{ $event->videos_count ?? 0 }} videos
                             </div>
@@ -120,7 +105,6 @@
                                 <div class="text-muted">
                                     {{ $selectedEvent->event_date ? $selectedEvent->event_date->format('M d, Y') : 'Date TBD' }}
                                 </div>
-                                <div class="small text-muted mt-1">Category: {{ $selectedEvent->categoryRef?->category_name ?? '—' }}</div>
                                 @if ($selectedEvent->description)
                                     <p class="mt-2 mb-0">{{ $selectedEvent->description }}</p>
                                 @endif
@@ -190,15 +174,6 @@
                             <input type="text" name="event_name" class="form-control" required maxlength="180">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Category</label>
-                            <select name="category_id" class="form-select">
-                                <option value="">All Category</option>
-                                @foreach($categories as $category)
-                                    <option value="{{ $category->id }}">{{ $category->category_name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="mb-3">
                             <label class="form-label">Event Date</label>
                             <input type="date" name="event_date" class="form-control">
                         </div>
@@ -239,15 +214,6 @@
                             <div class="col-md-6">
                                 <label class="form-label">Or Add New Event Name</label>
                                 <input type="text" name="event_name" class="form-control" maxlength="180">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Category</label>
-                                <select name="category_id" class="form-select">
-                                    <option value="">All Category</option>
-                                    @foreach($categories as $category)
-                                        <option value="{{ $category->id }}">{{ $category->category_name }}</option>
-                                    @endforeach
-                                </select>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Media Type</label>
