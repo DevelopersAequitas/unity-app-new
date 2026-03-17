@@ -57,7 +57,7 @@ class UsersController extends Controller
         $user = new User();
         $cities = City::query()->orderBy('name')->get();
         $membershipStatuses = $this->membershipStatuses();
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $circles = Circle::query()->where('status', 'active')->orderBy('name')->get(['id', 'name']);
 
         return view('admin.users.create', [
             'user' => $user,
@@ -90,6 +90,15 @@ class UsersController extends Controller
             'public_profile_slug' => ['nullable', 'string', 'max:80', 'unique:users,public_profile_slug'],
             'membership_status' => ['nullable', Rule::in($membershipStatuses)],
             'membership_expiry' => ['nullable', 'date'],
+            'membership_starts_at' => ['nullable', 'date'],
+            'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at'],
+            'zoho_plan_code' => ['nullable', 'string', 'max:100'],
+            'zoho_last_invoice_id' => ['nullable', 'string', 'max:255'],
+            'active_circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
+            'active_circle_addon_code' => ['nullable', 'string', 'max:100'],
+            'active_circle_addon_name' => ['nullable', 'string', 'max:255'],
+            'circle_joined_at' => ['nullable', 'date'],
+            'circle_expires_at' => ['nullable', 'date', 'after_or_equal:circle_joined_at'],
             'coins_balance' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
             'city_id' => ['nullable', 'exists:cities,id'],
@@ -133,7 +142,8 @@ class UsersController extends Controller
         $validated['coins_balance'] = $validated['coins_balance'] ?? 0;
         $validated['password_hash'] = Hash::make(Str::random(32));
 
-        $circleId = $validated['circle_id'] ?? null;
+        $circleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
+        $validated['active_circle_id'] = $circleId;
         unset($validated['circle_id']);
 
         $user = null;
@@ -151,7 +161,7 @@ class UsersController extends Controller
             ];
 
             if (Schema::hasColumn('circle_members', 'joined_at')) {
-                $membershipAttributes['joined_at'] = now();
+                $membershipAttributes['joined_at'] = $validated['circle_joined_at'] ?? now();
             }
 
             CircleMember::query()->updateOrCreate(
@@ -185,6 +195,7 @@ class UsersController extends Controller
         $adminRoleIds = $roles->pluck('id')->all();
         $assignedAdminRoles = $user->roles->whereIn('id', $adminRoleIds)->values();
         $circles = Circle::query()
+            ->where('status', 'active')
             ->orderBy('name')
             ->get(['id', 'name']);
 
@@ -196,7 +207,9 @@ class UsersController extends Controller
             ->latest('created_at')
             ->value('circle_id');
 
-        $effectiveCircleId = old('circle_id')
+        $effectiveCircleId = old('active_circle_id')
+            ?: old('circle_id')
+            ?: ($user->active_circle_id ?: null)
             ?: $request->query('circle_id')
             ?: $joinedCircleId;
 
@@ -295,6 +308,15 @@ class UsersController extends Controller
             'membership_status' => ['required', Rule::in($membershipStatuses)],
             'status' => ['required', 'in:active,inactive'],
             'membership_expiry' => ['nullable', 'date'],
+            'membership_starts_at' => ['nullable', 'date'],
+            'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at'],
+            'zoho_plan_code' => ['nullable', 'string', 'max:100'],
+            'zoho_last_invoice_id' => ['nullable', 'string', 'max:255'],
+            'active_circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
+            'active_circle_addon_code' => ['nullable', 'string', 'max:100'],
+            'active_circle_addon_name' => ['nullable', 'string', 'max:255'],
+            'circle_joined_at' => ['nullable', 'date'],
+            'circle_expires_at' => ['nullable', 'date', 'after_or_equal:circle_joined_at'],
             'coins_balance' => ['required', 'integer', 'min:0'],
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
@@ -347,7 +369,7 @@ class UsersController extends Controller
         }
 
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
-        $updatable = Arr::except($validated, ['role_ids', 'profile_photo_file_id', 'cover_photo_file_id', 'status', 'circle_id', 'circle_city', 'circle_country', 'circle_meeting_mode', 'circle_meeting_frequency']);
+        $updatable = Arr::except($validated, ['role_ids', 'profile_photo_file_id', 'cover_photo_file_id', 'status', 'circle_id', 'active_circle_id', 'circle_city', 'circle_country', 'circle_meeting_mode', 'circle_meeting_frequency']);
         if ($user->membership_status !== $validated['membership_status']) {
             $updatable['membership_expiry'] = null;
         }
@@ -360,10 +382,12 @@ class UsersController extends Controller
         }
 
         $activeCircleMemberStatus = $this->activeCircleMemberStatus();
-        $selectedCircleId = $validated['circle_id'] ?? null;
+        $selectedCircleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
+        $validated['active_circle_id'] = $selectedCircleId;
         DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId) {
             $user->fill($updatable);
             $user->status = $validated['status'];
+            $user->active_circle_id = $selectedCircleId;
 
             if ($request->filled('profile_photo_file_id')) {
                 $user->profile_photo_file_id = $request->input('profile_photo_file_id');
@@ -391,7 +415,7 @@ class UsersController extends Controller
                 ];
 
                 if (Schema::hasColumn('circle_members', 'joined_at')) {
-                    $membershipAttributes['joined_at'] = now();
+                    $membershipAttributes['joined_at'] = $validated['circle_joined_at'] ?? now();
                 }
 
                 CircleMember::query()->updateOrCreate(

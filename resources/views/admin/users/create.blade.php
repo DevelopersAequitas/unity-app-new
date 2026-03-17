@@ -168,24 +168,61 @@
 
         <div class="col-12">
             <div class="card">
-                <div class="card-header fw-semibold">Circle</div>
+                <div class="card-header fw-semibold">Membership & Circle Details</div>
                 <div class="card-body row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label" for="circle_id">Select Circle</label>
-                        <select name="circle_id" id="circle_id" class="form-select @error('circle_id') is-invalid @enderror">
+                    <div class="col-12">
+                        <small class="text-muted">Manual admin override only. Does not affect payment history. Expired membership will be treated as Free Peer.</small>
+                    </div>
+                    <div class="col-12"><h6 class="mb-0">Membership Details</h6></div>
+                    <div class="col-md-4">
+                        <label class="form-label">Membership Start Date</label>
+                        <input type="date" name="membership_starts_at" class="form-control" value="{{ old('membership_starts_at', optional($user->membership_starts_at)->format('Y-m-d')) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Membership Expiry Date</label>
+                        <input type="date" name="membership_ends_at" class="form-control" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Zoho Plan Code</label>
+                        <input type="text" name="zoho_plan_code" class="form-control" value="{{ old('zoho_plan_code', $user->zoho_plan_code) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Zoho Last Invoice ID</label>
+                        <input type="text" name="zoho_last_invoice_id" class="form-control" value="{{ old('zoho_last_invoice_id', $user->zoho_last_invoice_id) }}">
+                    </div>
+
+                    <div class="col-12"><h6 class="mb-0 mt-2">Circle Membership Details</h6></div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="active_circle_id">Circle</label>
+                        <select name="active_circle_id" id="active_circle_id" class="form-select @error('active_circle_id') is-invalid @enderror">
                             <option value="">-- No Circle --</option>
                             @foreach ($circles as $circle)
-                                <option value="{{ $circle->id }}" @selected(old('circle_id') === $circle->id)>{{ $circle->name }}</option>
+                                <option value="{{ $circle->id }}" @selected(old('active_circle_id', old('circle_id')) === $circle->id)>{{ $circle->name }}</option>
                             @endforeach
                         </select>
-                        @error('circle_id')
+                        @error('active_circle_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Circle Package / Addon Code</label>
+                        <input type="text" name="active_circle_addon_code" class="form-control" value="{{ old('active_circle_addon_code', $user->active_circle_addon_code) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Circle Package / Addon Name</label>
+                        <input type="text" name="active_circle_addon_name" class="form-control" value="{{ old('active_circle_addon_name', $user->active_circle_addon_name) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Circle Joined Date</label>
+                        <input type="date" name="circle_joined_at" class="form-control" value="{{ old('circle_joined_at', optional($user->circle_joined_at)->format('Y-m-d')) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Circle Expiry Date</label>
+                        <input type="date" name="circle_expires_at" class="form-control" value="{{ old('circle_expires_at', optional($user->circle_expires_at)->format('Y-m-d')) }}">
                     </div>
                 </div>
             </div>
         </div>
-
 
         <div class="col-12">
             <div class="card">
