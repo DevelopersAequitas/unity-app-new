@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ChatTypingController;
 use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\CircleController;
+use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\CircleJoinRequestController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\FeedbackController;
@@ -262,6 +263,12 @@ Route::prefix('v1')->group(function () {
         Route::post('/chats/{id}/mark-read', [ChatController::class, 'markRead']);
         Route::post('/chats/{id}/typing', [ChatController::class, 'typing']);
 
+
+        Route::post('/circulars/{circular}/read', [CircularController::class, 'markRead']);
+        Route::post('/circulars/{circular}/bookmark', [CircularController::class, 'bookmark']);
+        Route::delete('/circulars/{circular}/bookmark', [CircularController::class, 'removeBookmark']);
+        Route::post('/circulars/{circular}/reaction', [CircularController::class, 'reaction']);
+
         // Notifications
         Route::get('/notifications', [NotificationController::class, 'index']);
         Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
@@ -351,6 +358,11 @@ Route::prefix('v1')->group(function () {
 
     // Ads banners (public)
     Route::get('/ads/banners', [AdsController::class, 'index']);
+
+
+    Route::get('/circulars', [CircularController::class, 'index']);
+    Route::get('/circulars/{circular}', [CircularController::class, 'show']);
+
 
     // Other module routes (members, circles, posts, etc.) will be added here later.
 });

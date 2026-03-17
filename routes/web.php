@@ -27,6 +27,7 @@ use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\PostReportsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\CircularController;
 
 Route::get('/', function () {
     return view('landing');
@@ -99,6 +100,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users/import', [UsersController::class, 'import'])->name('users.import.submit');
         Route::post('/users/export/csv', [UsersController::class, 'exportCsv'])->name('users.export.csv');
         Route::get('/users/search', UserSearchController::class)->name('users.search');
+        
+        Route::get('/circulars', [CircularController::class, 'index'])->name('circulars.index');
+        Route::get('/circulars/create', [CircularController::class, 'create'])->name('circulars.create');
+        Route::post('/circulars', [CircularController::class, 'store'])->name('circulars.store');
+        Route::get('/circulars/{circular}', [CircularController::class, 'show'])->name('circulars.show');
+        Route::get('/circulars/{circular}/edit', [CircularController::class, 'edit'])->name('circulars.edit');
+        Route::put('/circulars/{circular}', [CircularController::class, 'update'])->name('circulars.update');
+        Route::delete('/circulars/{circular}', [CircularController::class, 'destroy'])->name('circulars.destroy');
+
         Route::get('/circles', [CircleController::class, 'index'])->name('circles.index');
         Route::get('/circles/create', [CircleController::class, 'create'])->name('circles.create');
         Route::post('/circles', [CircleController::class, 'store'])->name('circles.store');
