@@ -73,7 +73,7 @@
                         <select name="founder_user_id" class="form-select" required>
                             <option value="">Select a member</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ \App\Support\UserOptionLabel::make($user) }}</option>
+                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
                             @endforeach
                         </select>
                         <div class="form-text">Defaults to the logged-in admin user.</div>
@@ -128,62 +128,7 @@
                         <div class="form-text">Separate tags with commas.</div>
                     </div>
 
-                    <div class="col-12">
-                        <label class="form-label d-block">Categories</label>
-                        <div class="form-text mb-2">Select a category from dropdown and click Add</div>
-                        <div class="row g-3 align-items-start">
-                            <div class="col-lg-6">
-                                <div class="input-group mb-2">
-                                    <select id="categoryPicker" class="form-select">
-                                        <option value="">Select category</option>
-                                        @foreach(($categories ?? collect()) as $category)
-                                            <option value="{{ $category->id }}">{{ $category->category_name }}</option>
-                                        @endforeach
-                                    </select>
-                                    <button type="button" class="btn btn-outline-primary" id="addCategoryBtn">Add Category</button>
-                                </div>
-                                <div class="border rounded p-3 bg-white" style="max-height: 220px; overflow-y: auto;">
-                                    <div class="small fw-semibold text-muted mb-2">Available Categories</div>
-                                    <div class="row g-2" id="categoryCheckboxList">
-                                        @forelse(($categories ?? collect()) as $category)
-                                            <div class="col-12">
-                                                <div class="form-check">
-                                                    <input
-                                                        class="form-check-input"
-                                                        type="checkbox"
-                                                        name="categories[]"
-                                                        value="{{ $category->id }}"
-                                                        data-category-name="{{ $category->category_name }}"
-                                                        id="category_{{ $category->id }}"
-                                                        @checked(in_array($category->id, $selectedCategoryIds ?? []))
-                                                    >
-                                                    <label class="form-check-label" for="category_{{ $category->id }}">
-                                                        {{ $category->category_name }}
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        @empty
-                                            <div class="col-12">
-                                                <div class="text-muted small">No categories available.</div>
-                                            </div>
-                                        @endforelse
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-lg-6">
-                                <div class="border rounded p-3 bg-white" style="max-height: 220px; overflow-y: auto;">
-                                    <div class="small fw-semibold text-muted mb-2">Selected Categories</div>
-                                    <div id="selectedCategoryPreview" class="d-flex flex-wrap gap-2"></div>
-                                </div>
-                            </div>
-                        </div>
-                        @error('categories')
-                            <div class="text-danger small mt-2">{{ $message }}</div>
-                        @enderror
-                        @error('categories.*')
-                            <div class="text-danger small mt-1">{{ $message }}</div>
-                        @enderror
-                    </div>
+                    @include('admin.circles.partials.categories-selector')
 
                 </div>
             </div>
@@ -231,7 +176,7 @@
                         <select name="director_user_id" class="form-select">
                             <option value="">Select director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('director_user_id', $circle->director_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected(old('director_user_id', $circle->director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -240,7 +185,7 @@
                         <select name="industry_director_user_id" class="form-select">
                             <option value="">Select industry director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id', $circle->industry_director_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id', $circle->industry_director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -435,65 +380,7 @@
         window.location.href = url.toString();
     });
 
-    const categoryPicker = document.getElementById('categoryPicker');
-    const addCategoryBtn = document.getElementById('addCategoryBtn');
-    const categoryCheckboxes = document.getElementById('categoryCheckboxList');
-    const selectedCategoryPreview = document.getElementById('selectedCategoryPreview');
-
-    const categoryInputs = () => categoryCheckboxes
-        ? Array.from(categoryCheckboxes.querySelectorAll('input[name="categories[]"]'))
-        : [];
-
-    const renderSelectedCategoryPreview = () => {
-        if (!selectedCategoryPreview) {
-            return;
-        }
-
-        const selected = categoryInputs().filter((checkbox) => checkbox.checked);
-
-        if (selected.length === 0) {
-            selectedCategoryPreview.innerHTML = '<span class="text-muted small">No categories selected</span>';
-            return;
-        }
-
-        selectedCategoryPreview.innerHTML = '';
-
-        selected.forEach((checkbox) => {
-            const badge = document.createElement('span');
-            badge.className = 'badge bg-light text-dark border';
-            badge.textContent = checkbox.dataset.categoryName || 'Category';
-            selectedCategoryPreview.appendChild(badge);
-        });
-    };
-
-    const addCategoryFromPicker = () => {
-        const selectedId = categoryPicker?.value;
-        if (!selectedId) {
-            return;
-        }
-
-        const targetCheckbox = categoryInputs().find((checkbox) => checkbox.value === selectedId);
-
-        if (!targetCheckbox) {
-            return;
-        }
-
-        targetCheckbox.checked = true;
-        targetCheckbox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-        if (categoryPicker) {
-            categoryPicker.value = '';
-        }
-
-        renderSelectedCategoryPreview();
-    };
-
-    categoryInputs().forEach((checkbox) => {
-        checkbox.addEventListener('change', renderSelectedCategoryPreview);
-    });
-
-    addCategoryBtn?.addEventListener('click', addCategoryFromPicker);
-    renderSelectedCategoryPreview();
+    @include('admin.circles.partials.categories-selector-script')
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     const uploadUrl = @json(route('admin.files.upload'));

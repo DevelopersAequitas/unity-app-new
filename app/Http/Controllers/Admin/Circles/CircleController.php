@@ -10,7 +10,6 @@ use App\Models\CircleMember;
 use App\Models\Category;
 use App\Models\City;
 use App\Models\User;
-use App\Support\UserOptionLabel;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -337,7 +336,17 @@ class CircleController extends Controller
             abort(403);
         }
 
-        $relations = ['city', 'founder', 'director', 'industryDirector', 'ded', 'members.user', 'members.roleRef'];
+        $validatedFilters = $request->validate([
+            'peer_name' => ['nullable', 'string', 'max:120'],
+            'peer_email' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        $peerFilters = [
+            'peer_name' => $this->sanitizeFilterInput($validatedFilters['peer_name'] ?? ''),
+            'peer_email' => $this->sanitizeFilterInput($validatedFilters['peer_email'] ?? ''),
+        ];
+
+        $relations = ['city', 'founder', 'director', 'industryDirector', 'ded'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
             $relations[] = 'categories';
@@ -365,6 +374,29 @@ class CircleController extends Controller
             ];
         }, $meetings, array_keys($meetings));
 
+        $peerMembers = $circle->members()
+            ->with(['user', 'roleRef'])
+            ->when($peerFilters['peer_name'] !== '', function ($query) use ($peerFilters): void {
+                $like = '%'.$peerFilters['peer_name'].'%';
+
+                $query->whereHas('user', function ($userQuery) use ($like): void {
+                    $userQuery->where(function ($nameQuery) use ($like): void {
+                        $nameQuery->where('display_name', 'ILIKE', $like)
+                            ->orWhere('first_name', 'ILIKE', $like)
+                            ->orWhere('last_name', 'ILIKE', $like)
+                            ->orWhereRaw("CONCAT_WS(' ', first_name, last_name) ILIKE ?", [$like]);
+                    });
+                });
+            })
+            ->when($peerFilters['peer_email'] !== '', function ($query) use ($peerFilters): void {
+                $like = '%'.$peerFilters['peer_email'].'%';
+                $query->whereHas('user', fn ($userQuery) => $userQuery->where('email', 'ILIKE', $like));
+            })
+            ->orderByDesc('joined_at')
+            ->orderByDesc('created_at')
+            ->paginate(15)
+            ->appends($peerFilters);
+
         return view('admin.circles.show', [
             'circle' => $circle,
             'circleStage' => $circleStage,
@@ -374,6 +406,8 @@ class CircleController extends Controller
             'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : 'Asia/Kolkata',
             'rankingData' => $circle->getCircleRanking(),
             'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
+            'peerMembers' => $peerMembers,
+            'peerFilters' => $peerFilters,
         ]);
     }
 
@@ -803,7 +837,12 @@ class CircleController extends Controller
             return '';
         }
 
-        return UserOptionLabel::make($user);
+        return $user->adminFounderDropdownLabel();
+    }
+
+    private function sanitizeFilterInput(mixed $value): string
+    {
+        return trim((string) $value);
     }
 
     private function categoryFeatureEnabled(): bool
