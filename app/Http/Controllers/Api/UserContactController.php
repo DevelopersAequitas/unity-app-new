@@ -15,10 +15,9 @@ class UserContactController extends BaseApiController
     {
         $validator = Validator::make($request->all(), [
             'user_id' => ['required', 'integer'],
-            'device' => ['nullable', 'string', 'max:50'],
-            'app_version' => ['nullable', 'string', 'max:20'],
+            'phone_user_name' => ['nullable', 'string', 'max:255'],
             'contacts' => ['required', 'array', 'min:1'],
-            'contacts.*.name' => ['required', 'string', 'max:255'],
+            'contacts.*.contact_name' => ['required', 'string', 'max:255'],
             'contacts.*.mobile' => ['required', 'string', 'max:20'],
         ]);
 
@@ -50,11 +49,10 @@ class UserContactController extends BaseApiController
 
             $prepared[$mobileNormalized] = [
                 'user_id' => (int) $payload['user_id'],
-                'name' => $contact['name'],
+                'phone_user_name' => $payload['phone_user_name'] ?? null,
+                'contact_name' => $contact['contact_name'],
                 'mobile' => $contact['mobile'],
                 'mobile_normalized' => $mobileNormalized,
-                'device' => $payload['device'] ?? null,
-                'app_version' => $payload['app_version'] ?? null,
             ];
         }
 
@@ -84,7 +82,7 @@ class UserContactController extends BaseApiController
                     UserContact::query()->upsert(
                         $chunk,
                         ['user_id', 'mobile_normalized'],
-                        ['name', 'mobile', 'device', 'app_version', 'updated_at']
+                        ['phone_user_name', 'contact_name', 'mobile', 'updated_at']
                     );
                 }
 
@@ -116,6 +114,16 @@ class UserContactController extends BaseApiController
         }
 
         $contacts = UserContact::query()
+            ->select([
+                'id',
+                'user_id',
+                'phone_user_name',
+                'contact_name',
+                'mobile',
+                'mobile_normalized',
+                'created_at',
+                'updated_at',
+            ])
             ->where('user_id', (int) $request->input('user_id'))
             ->latest('id')
             ->get();

@@ -4,23 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserContact extends Model
 {
     use HasFactory;
 
+    protected $table = 'user_contacts';
+
     protected $fillable = [
         'user_id',
-        'name',
+        'phone_user_name',
+        'contact_name',
         'mobile',
         'mobile_normalized',
-        'device',
-        'app_version',
     ];
-
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
 }
