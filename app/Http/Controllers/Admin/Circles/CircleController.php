@@ -125,7 +125,12 @@ class CircleController extends Controller
             }
         }
 
-        if ($circleStage !== '' && $circleStage !== 'any' && in_array($circleStage, Circle::STAGE_OPTIONS, true) && Schema::hasColumn('circles', 'circle_stage')) {
+        if (
+            $circleStage !== ''
+            && $circleStage !== 'any'
+            && in_array($circleStage, Circle::STAGE_OPTIONS, true)
+            && Schema::hasColumn('circles', 'circle_stage')
+        ) {
             $query->where('circles.circle_stage', $circleStage);
         }
 
@@ -151,8 +156,6 @@ class CircleController extends Controller
         if ($filters['industry_tags'] !== '' && Schema::hasColumn('circles', 'industry_tags')) {
             $query->whereRaw('CAST(industry_tags AS TEXT) ILIKE ?', ['%'.$filters['industry_tags'].'%']);
         }
-
-
 
         if ($filters['launch_date'] !== '') {
             if (Schema::hasColumn('circles', 'launch_date')) {
@@ -212,11 +215,8 @@ class CircleController extends Controller
             : collect();
 
         $meetingModeOptions = collect(Circle::MEETING_MODE_OPTIONS);
-
         $meetingFrequencyOptions = collect(Circle::MEETING_FREQUENCY_OPTIONS);
-
         $statusOptions = collect(Circle::STATUS_OPTIONS);
-
         $circleStageOptions = collect(Circle::STAGE_OPTIONS);
         $rankOptions = collect(Circle::RANK_OPTIONS);
 
@@ -260,8 +260,9 @@ class CircleController extends Controller
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
             'circleStages' => Circle::STAGE_OPTIONS,
-            'categories' => Category::query()->orderBy('category_name')->get(['id', 'category_name']),
+            'categories' => $this->categoriesList(),
             'selectedCategoryIds' => old('categories', []),
+            'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
         ]);
     }
 
@@ -298,7 +299,11 @@ class CircleController extends Controller
         $circle->calendar = $calendar;
 
         $circle->save();
-        $circle->categories()->sync($validated['categories'] ?? []);
+
+        if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
+            $circle->categories()->sync($validated['categories'] ?? []);
+        }
+
         $circle->refresh();
 
         Cache::forget('admin.circles.index');
@@ -317,7 +322,13 @@ class CircleController extends Controller
             abort(403);
         }
 
-        $circle->load(['city', 'founder', 'director', 'industryDirector', 'ded', 'categories', 'members.user', 'members.roleRef']);
+        $relations = ['city', 'founder', 'director', 'industryDirector', 'ded', 'members.user', 'members.roleRef'];
+
+        if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
+            $relations[] = 'categories';
+        }
+
+        $circle->load($relations);
 
         $calendar = is_array($circle->calendar) ? $circle->calendar : [];
 
@@ -347,12 +358,19 @@ class CircleController extends Controller
             'meetingRows' => $meetingRows,
             'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : 'Asia/Kolkata',
             'rankingData' => $circle->getCircleRanking(),
+            'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
         ]);
     }
 
     public function edit(Request $request, Circle $circle): View
     {
-        $circle->load(['city', 'categories']);
+        $relations = ['city'];
+
+        if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
+            $relations[] = 'categories';
+        }
+
+        $circle->load($relations);
 
         $defaultFounder = $circle->founder ?? $this->defaultFounderUser();
         $countries = $this->countriesList();
@@ -377,15 +395,20 @@ class CircleController extends Controller
             'allUsers' => $this->allUsers(),
             'circlePackages' => $this->circlePackageOptions(),
             'circleStages' => Circle::STAGE_OPTIONS,
-            'categories' => Category::query()->orderBy('category_name')->get(['id', 'category_name']),
-            'selectedCategoryIds' => old('categories', $circle->categories->pluck('id')->all()),
+            'categories' => $this->categoriesList(),
+            'selectedCategoryIds' => old(
+                'categories',
+                ($this->categoryFeatureEnabled() && method_exists($circle, 'categories'))
+                    ? $circle->categories->pluck('id')->all()
+                    : []
+            ),
+            'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
         ]);
     }
 
     public function update(UpdateCircleRequest $request, Circle $circle): RedirectResponse
     {
         $validated = $request->validated();
-
         $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
 
         $allowed = [];
@@ -432,7 +455,11 @@ class CircleController extends Controller
         }
 
         $circle->save();
-        $circle->categories()->sync($validated['categories'] ?? []);
+
+        if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
+            $circle->categories()->sync($validated['categories'] ?? []);
+        }
+
         $circle->refresh();
 
         Cache::forget('admin.circles.index');
@@ -479,8 +506,6 @@ class CircleController extends Controller
 
         return null;
     }
-
-
 
     private function formatMeetingScheduleEntry(array $meeting): string
     {
@@ -559,7 +584,6 @@ class CircleController extends Controller
         return $payload;
     }
 
-
     private function circlePackageOptions(): array
     {
         try {
@@ -629,7 +653,7 @@ class CircleController extends Controller
             ->orderBy('country')
             ->pluck('country');
 
-        if (!$countries->contains('India')) {
+        if (! $countries->contains('India')) {
             $countries->prepend('India');
         }
 
@@ -765,5 +789,23 @@ class CircleController extends Controller
         }
 
         return UserOptionLabel::make($user);
+    }
+
+    private function categoryFeatureEnabled(): bool
+    {
+        return class_exists(Category::class)
+            && Schema::hasTable('categories')
+            && Schema::hasTable('circle_category_mappings');
+    }
+
+    private function categoriesList()
+    {
+        if (! $this->categoryFeatureEnabled()) {
+            return collect();
+        }
+
+        return Category::query()
+            ->orderBy('category_name')
+            ->get(['id', 'category_name']);
     }
 }
