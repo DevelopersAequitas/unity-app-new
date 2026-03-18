@@ -73,7 +73,7 @@
                         <select name="founder_user_id" class="form-select" required>
                             <option value="">Select a member</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminFounderDropdownLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
                             @endforeach
                         </select>
                         <div class="form-text">Defaults to the logged-in admin user.</div>
@@ -231,7 +231,7 @@
                         <select name="director_user_id" class="form-select">
                             <option value="">Select director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('director_user_id', $circle->director_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected(old('director_user_id', $circle->director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -240,7 +240,7 @@
                         <select name="industry_director_user_id" class="form-select">
                             <option value="">Select industry director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id', $circle->industry_director_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected(old('industry_director_user_id', $circle->industry_director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
