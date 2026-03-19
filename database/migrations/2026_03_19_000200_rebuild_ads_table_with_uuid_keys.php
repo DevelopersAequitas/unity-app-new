@@ -15,8 +15,8 @@ return new class extends Migration {
         $idType = $this->columnType('id');
         $createdByType = $this->columnType('created_by');
 
-        $requiresRebuild = in_array($idType, ['bigint', 'integer', 'smallint'], true)
-            || in_array($createdByType, ['bigint', 'integer', 'smallint'], true);
+        $requiresRebuild = $idType !== 'uuid'
+            || ! in_array($createdByType, ['uuid', null], true);
 
         if (! $requiresRebuild) {
             return;
