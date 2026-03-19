@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -12,6 +13,7 @@ use Illuminate\Support\Str;
 class Ad extends Model
 {
     use HasFactory;
+    use HasUuids;
     use SoftDeletes;
 
     protected $keyType = 'string';
@@ -47,15 +49,6 @@ class Ad extends Model
     protected $appends = [
         'image_url',
     ];
-
-    protected static function booted(): void
-    {
-        static::creating(function (self $ad): void {
-            if (empty($ad->id)) {
-                $ad->id = Str::uuid()->toString();
-            }
-        });
-    }
 
     public function scopeActive(Builder $query): Builder
     {
