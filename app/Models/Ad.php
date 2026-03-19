@@ -87,10 +87,51 @@ class Ad extends Model
 
     public function getImageUrlAttribute(): ?string
     {
-        if (! $this->image_path) {
+        $path = $this->normalizedImagePath();
+
+        if (! $path) {
             return null;
         }
 
-        return Storage::disk('public')->url($this->image_path);
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        if (! Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($path);
+    }
+
+    public function setImagePathAttribute($value): void
+    {
+        $this->attributes['image_path'] = $this->normalizeImagePathValue($value);
+    }
+
+    public function normalizedImagePath(): ?string
+    {
+        return $this->normalizeImagePathValue($this->attributes['image_path'] ?? null);
+    }
+
+    private function normalizeImagePathValue(mixed $value): ?string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $path = trim($value);
+
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        $path = ltrim($path, '/');
+
+        if (Str::startsWith($path, 'storage/')) {
+            $path = Str::after($path, 'storage/');
+        }
+
+        return $path;
     }
 }

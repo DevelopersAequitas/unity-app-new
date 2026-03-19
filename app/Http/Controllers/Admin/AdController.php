@@ -46,7 +46,7 @@ class AdController extends Controller
         $data = $this->payload($request);
 
         if ($request->hasFile('image')) {
-            $data['image_path'] = $request->file('image')->store('ads', 'public');
+            $data['image_path'] = $this->storeImage($request);
         }
 
         $adminUser = Auth::guard('admin')->user();
@@ -70,11 +70,12 @@ class AdController extends Controller
         $data = $this->payload($request);
 
         if ($request->hasFile('image')) {
-            if ($ad->image_path) {
-                Storage::disk('public')->delete($ad->image_path);
-            }
+            $oldImagePath = $ad->normalizedImagePath();
+            $data['image_path'] = $this->storeImage($request);
 
-            $data['image_path'] = $request->file('image')->store('ads', 'public');
+            if ($oldImagePath && ! str_starts_with($oldImagePath, 'http')) {
+                Storage::disk('public')->delete($oldImagePath);
+            }
         }
 
         $ad->update($data);
@@ -84,8 +85,10 @@ class AdController extends Controller
 
     public function destroy(Ad $ad): RedirectResponse
     {
-        if ($ad->image_path) {
-            Storage::disk('public')->delete($ad->image_path);
+        $imagePath = $ad->normalizedImagePath();
+
+        if ($imagePath && ! str_starts_with($imagePath, 'http')) {
+            Storage::disk('public')->delete($imagePath);
         }
 
         $ad->delete();
@@ -119,5 +122,10 @@ class AdController extends Controller
     private function placements(): array
     {
         return ['timeline', 'home', 'category', 'sidebar'];
+    }
+
+    private function storeImage(StoreAdRequest|UpdateAdRequest $request): string
+    {
+        return (string) $request->file('image')->store('ads', 'public');
     }
 }
