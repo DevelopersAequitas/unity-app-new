@@ -27,7 +27,8 @@ class AdFeedService
             ->orderByRaw('CASE WHEN timeline_position IS NULL THEN 1 ELSE 0 END')
             ->orderBy('timeline_position')
             ->orderBy('sort_order')
-            ->orderBy('created_at');
+            ->orderBy('created_at')
+            ->orderBy('id');
 
         if ($limit !== null) {
             $query->limit($limit);
@@ -42,48 +43,69 @@ class AdFeedService
             return $posts->values();
         }
 
-        $items = $posts->values()->all();
-        $placedAds = [];
-        $floatingAds = [];
+        $postItems = $posts->values()->all();
 
-        foreach ($ads as $ad) {
-            $position = $ad->timeline_position;
-            if ($position && $position > 0) {
-                $placedAds[(int) $position][] = $ad;
-            } else {
-                $floatingAds[] = $ad;
+        $positioned = $ads
+            ->filter(fn (Ad $ad) => ! is_null($ad->timeline_position) && (int) $ad->timeline_position > 0)
+            ->groupBy(fn (Ad $ad) => (int) $ad->timeline_position)
+            ->map(function (Collection $group) {
+                return $group->sortBy([
+                    ['sort_order', 'asc'],
+                    ['created_at', 'asc'],
+                    ['id', 'asc'],
+                ])->values()->all();
+            })
+            ->sortKeys();
+
+        $unpositioned = $ads
+            ->filter(fn (Ad $ad) => is_null($ad->timeline_position) || (int) $ad->timeline_position <= 0)
+            ->sortBy([
+                ['sort_order', 'asc'],
+                ['created_at', 'asc'],
+                ['id', 'asc'],
+            ])
+            ->values()
+            ->all();
+
+        $result = [];
+        $postIndex = 0;
+        $slot = 1;
+        $maxSlot = max(
+            count($postItems) + $positioned->flatten(1)->count(),
+            (int) ($positioned->keys()->max() ?? 0)
+        );
+
+        while ($slot <= $maxSlot || $postIndex < count($postItems)) {
+            if ($positioned->has($slot)) {
+                foreach ($positioned->get($slot) as $ad) {
+                    $result[] = $this->transformAd($ad);
+                }
+                $positioned->forget($slot);
+            }
+
+            if ($postIndex < count($postItems)) {
+                $result[] = $postItems[$postIndex];
+                $postIndex++;
+            }
+
+            $slot++;
+        }
+
+        foreach ($positioned as $group) {
+            foreach ($group as $ad) {
+                $result[] = $this->transformAd($ad);
             }
         }
 
-        if (! empty($placedAds)) {
-            ksort($placedAds);
-            $offset = 0;
-
-            foreach ($placedAds as $position => $bucket) {
-                $index = max(0, min(count($items), $position - 1 + $offset));
-                array_splice($items, $index, 0, $bucket);
-                $offset += count($bucket);
-            }
+        foreach ($unpositioned as $ad) {
+            $result[] = $this->transformAd($ad);
         }
 
-        if (! empty($floatingAds)) {
-            $basePostsCount = max(1, $posts->count());
-            $gap = max(2, (int) ceil($basePostsCount / count($floatingAds)));
-            $offset = 0;
+        return collect($result)->values();
+    }
 
-            foreach ($floatingAds as $i => $ad) {
-                $index = min(count($items), (($i + 1) * $gap) - 1 + $offset);
-                array_splice($items, $index, 0, [$ad]);
-                $offset++;
-            }
-        }
-
-        return collect($items)->map(function ($item) {
-            if ($item instanceof Ad) {
-                return AdResource::make($item)->resolve();
-            }
-
-            return $item;
-        })->values();
+    private function transformAd(Ad $ad): array
+    {
+        return AdResource::make($ad)->resolve();
     }
 }
