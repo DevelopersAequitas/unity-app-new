@@ -16,6 +16,7 @@
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ['icon' => 'bi-tags', 'label' => 'Categories', 'route' => 'admin.categories.index'],
+                ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index'],
             ] : []),
         ]
         : [
@@ -27,6 +28,7 @@
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ['icon' => 'bi-tags', 'label' => 'Categories', 'route' => 'admin.categories.index'],
+                ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index'],
             ] : []),
             ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => '#'],
             ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],
@@ -57,9 +59,8 @@
     $postsMenu = $isGlobalAdmin ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
         ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
-        ['label' => 'Ads', 'route' => 'admin.ads.index'],
     ] : [];
-    $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*') || request()->routeIs('admin.ads.*');
+    $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*');
 
     $pendingRequestsMenu = [
         ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
