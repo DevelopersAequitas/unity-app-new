@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Exports\CategoryExport;
+use App\Exports\CategoriesExport;
 use App\Http\Requests\Admin\Categories\StoreCategoryRequest;
 use App\Http\Requests\Admin\Categories\UpdateCategoryRequest;
-use App\Imports\CategoryImport;
+use App\Imports\CategoriesImport;
 use App\Models\Category;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -93,19 +93,31 @@ class CategoryController extends Controller
 
     public function export()
     {
-        return Excel::download(new CategoryExport(), 'categories.xlsx');
+        try {
+            return Excel::download(new CategoriesExport(), 'categories.xlsx');
+        } catch (\Throwable $e) {
+            return redirect()
+                ->back()
+                ->with('error', 'Unable to export categories: ' . $e->getMessage());
+        }
     }
 
     public function import(Request $request): RedirectResponse
     {
         $request->validate([
-            'file' => 'required|mimes:xlsx,csv',
+            'file' => 'required|mimes:xlsx,xls,csv',
         ]);
 
-        Excel::import(new CategoryImport(), $request->file('file'));
+        try {
+            Excel::import(new CategoriesImport(), $request->file('file'));
+        } catch (\Throwable $e) {
+            return redirect()
+                ->back()
+                ->with('error', 'Unable to import categories: ' . $e->getMessage());
+        }
 
         return redirect()
             ->back()
-            ->with('success', 'Categories Imported Successfully');
+            ->with('success', 'Categories imported successfully.');
     }
 }
