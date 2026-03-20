@@ -43,6 +43,8 @@ use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\AdController;
+use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
+use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\FollowController;
@@ -83,6 +85,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
+    Route::get('/app/version', [AppVersionController::class, 'show']);
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
@@ -150,6 +153,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
 
         Route::prefix('admin')->group(function () {
+            Route::post('/app/version', [AdminAppVersionController::class, 'upsert']);
             Route::get('/circle-join-requests', [CircleJoinRequestAdminController::class, 'index']);
             Route::get('/circle-join-requests/{id}', [CircleJoinRequestAdminController::class, 'show'])->whereUuid('id');
             Route::post('/circle-join-requests/{id}/approve-cd', [CircleJoinRequestAdminController::class, 'approveCd'])->whereUuid('id');
