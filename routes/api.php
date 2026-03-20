@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\AdController;
+use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\FollowController;
@@ -83,6 +84,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
+    Route::get('/app/version', [AppVersionController::class, 'show']);
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
