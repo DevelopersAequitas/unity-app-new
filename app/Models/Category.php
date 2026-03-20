@@ -11,6 +11,8 @@ class Category extends Model
 {
     use HasFactory;
 
+    protected $table = 'categories';
+
     protected $fillable = [
         'category_name',
         'sector',
@@ -30,6 +32,6 @@ class Category extends Model
 
     public function eventGalleries(): HasMany
     {
-        return $this->hasMany(EventGallery::class);
+        return $this->hasMany(EventGallery::class, 'circle_category_id');
     }
 }

@@ -1,12 +1,28 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Categories')
+@section('title', 'Circle Categories')
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Categories</h1>
-    <a href="{{ route('admin.categories.create') }}" class="btn btn-primary btn-sm">Add Category</a>
+    <h1 class="h4 mb-0">Circle Categories</h1>
+    <div class="d-flex gap-2">
+        <a href="{{ route('admin.categories.export', request()->query()) }}" class="btn btn-success btn-sm">
+            Export
+        </a>
+
+        <form action="{{ route('admin.categories.import') }}" method="POST" enctype="multipart/form-data" class="d-flex gap-2">
+            @csrf
+            <input type="file" name="file" required class="form-control form-control-sm d-inline-block" style="width:200px;">
+            <button type="submit" class="btn btn-primary btn-sm">Import</button>
+        </form>
+
+        <a href="{{ route('admin.categories.create') }}" class="btn btn-primary btn-sm">Add Category</a>
+    </div>
 </div>
+
+@if(session('error'))
+    <div class="alert alert-danger">{{ session('error') }}</div>
+@endif
 
 @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>

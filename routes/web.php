@@ -126,6 +126,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/event-gallery/events', [EventGalleryController::class, 'storeEvent'])->name('event-gallery.events.store');
         Route::post('/event-gallery/media', [EventGalleryController::class, 'storeMedia'])->name('event-gallery.media.store');
         Route::delete('/event-gallery/media/{id}', [EventGalleryController::class, 'destroyMedia'])->name('event-gallery.media.destroy');
+        Route::get('/categories/export', [CategoryController::class, 'export'])->name('categories.export');
+        Route::post('/categories/import', [CategoryController::class, 'import'])->name('categories.import');
         Route::resource('categories', CategoryController::class)->except(['show']);
         Route::get('/ads', [AdController::class, 'index'])->name('ads.index');
         Route::get('/ads/create', [AdController::class, 'create'])->name('ads.create');
