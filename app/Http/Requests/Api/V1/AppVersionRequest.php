@@ -14,7 +14,7 @@ class AppVersionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'platform' => ['nullable', 'string', 'in:android'],
+            'platform' => ['nullable', 'string', 'in:android,ios'],
         ];
     }
 

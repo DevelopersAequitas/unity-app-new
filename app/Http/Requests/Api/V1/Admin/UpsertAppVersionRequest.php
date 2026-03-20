@@ -18,7 +18,6 @@ class UpsertAppVersionRequest extends FormRequest
             'latest_version' => ['required', 'string'],
             'min_version' => ['required', 'string'],
             'update_type' => ['required', 'in:force,optional'],
-            'playstore_url' => ['nullable', 'url'],
         ];
     }
 }

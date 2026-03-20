@@ -23,7 +23,6 @@ class AppVersion extends Model
         'latest_version',
         'min_version',
         'update_type',
-        'playstore_url',
         'is_active',
     ];
 

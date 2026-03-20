@@ -18,13 +18,12 @@ class AppVersionController extends Controller
             $version = AppVersion::query()
                 ->where('platform', $platform)
                 ->where('is_active', true)
-                ->latest('updated_at')
                 ->first();
 
             if (! $version) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'No active app version found.',
+                    'message' => 'No app version found for this platform.',
                     'data' => null,
                 ], 404);
             }
@@ -35,7 +34,7 @@ class AppVersionController extends Controller
                     'latest_version' => $version->latest_version,
                     'min_version' => $version->min_version,
                     'update_type' => $version->update_type,
-                    'playstore_url' => $version->playstore_url,
+                    'store_url' => $this->storeUrlForPlatform($platform),
                 ],
             ]);
         } catch (Throwable $exception) {
@@ -47,5 +46,11 @@ class AppVersionController extends Controller
                 'data' => null,
             ], 500);
         }
+    }
+
+    private function storeUrlForPlatform(string $platform): string
+    {
+        return config("app_links.$platform.store_url")
+            ?? config('app_links.android.store_url', '');
     }
 }
