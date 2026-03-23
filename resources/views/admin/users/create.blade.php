@@ -163,7 +163,7 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Membership Expiry</label>
-                        <input type="datetime-local" name="membership_expiry" class="form-control" value="{{ old('membership_expiry', optional($user->membership_expiry)->format('Y-m-d\TH:i')) }}">
+                        <input type="datetime-local" name="membership_expiry" class="form-control" value="{{ old('membership_expiry', optional($user->membership_ends_at)->format('Y-m-d\TH:i')) }}">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Coins Balance</label>

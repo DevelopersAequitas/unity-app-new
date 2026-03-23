@@ -30,7 +30,7 @@ class UserResource extends JsonResource
             'phone'               => $this->phone,
             'city'                => new CityResource($this->whenLoaded('city')),
             'membership_status'   => $membershipStatus,
-            'membership_expiry'   => $this->membership_expiry ?? $this->membership_ends_at,
+            'membership_expiry'   => $this->membership_ends_at,
             'membership_status_label' => match ($membershipStatus) {
                 User::STATUS_FREE_TRIAL => 'Free Trial Peer',
                 User::STATUS_FREE => 'Free Peer',

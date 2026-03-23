@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 // use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Console\Commands\ExpireTrialUsers;
+use App\Console\Commands\SyncMembershipExpiryFields;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
@@ -30,13 +31,32 @@ class ExampleTest extends TestCase
     {
         $user = new User([
             'membership_status' => User::STATUS_FREE_TRIAL,
-            'membership_expiry' => Carbon::parse('2026-03-26T00:00:00Z'),
+            'membership_ends_at' => Carbon::parse('2026-03-26T00:00:00Z'),
+            'membership_expiry' => Carbon::parse('2026-03-22T01:36:00Z'),
         ]);
 
         $resource = (new UserResource($user))->toArray(request());
 
         $this->assertSame(User::STATUS_FREE_TRIAL, $resource['membership_status']);
         $this->assertSame('Free Trial Peer', $resource['membership_status_label']);
+        $this->assertTrue($user->membership_ends_at->equalTo($resource['membership_expiry']));
+    }
+
+    public function test_user_model_syncs_membership_expiry_to_membership_ends_at(): void
+    {
+        $user = new User([
+            'membership_ends_at' => Carbon::parse('2026-03-26T00:00:00Z'),
+            'membership_expiry' => Carbon::parse('2026-03-22T01:36:00Z'),
+        ]);
+
+        $user->syncMembershipExpiryAttributes();
+
+        $this->assertTrue($user->membership_ends_at->equalTo($user->membership_expiry));
+    }
+
+    public function test_sync_membership_expiry_command_name_is_registered(): void
+    {
+        $this->assertSame('users:sync-membership-expiry', (new SyncMembershipExpiryFields())->getName());
     }
 
     public function test_expire_trial_command_downgrades_only_expired_trial_users(): void

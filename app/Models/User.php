@@ -136,6 +136,7 @@ class User extends Authenticatable
     protected static function booted(): void
     {
         static::saving(function (self $user): void {
+            $user->syncMembershipExpiryAttributes();
             $user->syncCoinMilestoneAttributes();
             $user->syncContributionMilestoneAttributes();
         });
@@ -215,6 +216,44 @@ class User extends Authenticatable
         }
 
         return $dirty;
+    }
+
+    public function syncMembershipExpiryAttributes(): bool
+    {
+        $targetExpiry = null;
+
+        if ($this->isDirty('membership_ends_at')) {
+            $targetExpiry = $this->membership_ends_at;
+        } elseif ($this->isDirty('membership_expiry')) {
+            $targetExpiry = $this->membership_expiry;
+        } elseif (! $this->membershipDatesMatch()) {
+            $targetExpiry = $this->membership_ends_at ?? $this->membership_expiry;
+        } else {
+            return false;
+        }
+
+        $this->membership_ends_at = $targetExpiry;
+        $this->membership_expiry = $targetExpiry;
+
+        return true;
+    }
+
+    public function membershipDatesMatch(): bool
+    {
+        return $this->normalizedMembershipDate($this->membership_ends_at) === $this->normalizedMembershipDate($this->membership_expiry);
+    }
+
+    private function normalizedMembershipDate(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d H:i:s.uP');
+        }
+
+        return (string) $value;
     }
 
     public function links(): HasMany
