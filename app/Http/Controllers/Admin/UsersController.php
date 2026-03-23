@@ -370,7 +370,7 @@ class UsersController extends Controller
         }
 
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
-        $validated = $this->syncMembershipExpiryInput($validated, $request);
+        $validated = $this->syncMembershipExpiryInput($validated, $request, $user);
 
         $booleanFields = ['is_sponsored_member'];
         foreach ($booleanFields as $field) {
@@ -779,7 +779,7 @@ class UsersController extends Controller
         return config('membership.statuses', []);
     }
 
-    private function syncMembershipExpiryInput(array $validated, Request $request): array
+    private function syncMembershipExpiryInput(array $validated, Request $request, ?User $user = null): array
     {
         $rawMembershipEndsAt = $request->input('membership_ends_at');
         $rawMembershipExpiry = $request->input('membership_expiry');
@@ -791,12 +791,27 @@ class UsersController extends Controller
             return $validated;
         }
 
-        $resolvedExpiry = $validated['membership_ends_at']
-            ?? $validated['membership_expiry']
-            ?? null;
+        $currentMembershipEndsAtDate = $user?->membership_ends_at?->format('Y-m-d');
+        $currentMembershipEndsAtDateTime = $user?->membership_ends_at?->format('Y-m-d\TH:i');
+
+        $membershipEndsAtChanged = $hasMembershipEndsAtInput
+            && $rawMembershipEndsAt !== ''
+            && $rawMembershipEndsAt !== $currentMembershipEndsAtDate;
+
+        $membershipExpiryChanged = $hasMembershipExpiryInput
+            && $rawMembershipExpiry !== ''
+            && $rawMembershipExpiry !== $currentMembershipEndsAtDateTime;
 
         if (($rawMembershipEndsAt === '' || $rawMembershipEndsAt === null) && ($rawMembershipExpiry === '' || $rawMembershipExpiry === null)) {
             $resolvedExpiry = null;
+        } elseif ($membershipEndsAtChanged) {
+            $resolvedExpiry = $validated['membership_ends_at'] ?? null;
+        } elseif ($membershipExpiryChanged) {
+            $resolvedExpiry = $validated['membership_expiry'] ?? null;
+        } else {
+            $resolvedExpiry = $validated['membership_ends_at']
+                ?? $validated['membership_expiry']
+                ?? null;
         }
 
         $validated['membership_ends_at'] = $resolvedExpiry;
