@@ -170,7 +170,10 @@
                     <div class="col-md-4">
                         <label class="form-label">Membership Status</label>
                         @php
+                            $selectedMembershipStatus = old('membership_status', $user->membership_status);
                             $membershipStatusLabels = [
+                                \App\Models\User::STATUS_FREE_TRIAL => 'Free Trial Peer',
+                                \App\Models\User::STATUS_FREE => 'Free Peer',
                                 'free_peer' => 'Free Peer',
                                 'Only Unity Peer' => 'Only Unity Peer',
                                 'Circle Peer' => 'Circle Peer',
@@ -184,13 +187,23 @@
                             ];
                         @endphp
                         <select name="membership_status" class="form-select" required>
+                            <option value="{{ \App\Models\User::STATUS_FREE_TRIAL }}" @selected($selectedMembershipStatus === \App\Models\User::STATUS_FREE_TRIAL)>
+                                {{ $membershipStatusLabels[\App\Models\User::STATUS_FREE_TRIAL] }}
+                            </option>
                             @foreach ($membershipStatuses as $status)
-                                <option value="{{ $status }}" @selected(old('membership_status', $user->membership_status) === $status)>
+                                @continue($status === \App\Models\User::STATUS_FREE_TRIAL)
+                                <option value="{{ $status }}" @selected($selectedMembershipStatus === $status)>
                                     {{ $membershipStatusLabels[$status] ?? $status }}
                                 </option>
                             @endforeach
                         </select>
                     </div>
+                    @if ($selectedMembershipStatus === \App\Models\User::STATUS_FREE_TRIAL)
+                        <div class="col-md-4">
+                            <label class="form-label">Trial Expiry Date</label>
+                            <input type="text" class="form-control" value="{{ $user->membership_expiry }}" readonly>
+                        </div>
+                    @endif
                     <div class="col-md-4">
                         <label class="form-label">Status</label>
                         <select name="status" class="form-select" required>

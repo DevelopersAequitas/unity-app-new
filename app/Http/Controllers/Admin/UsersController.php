@@ -773,7 +773,16 @@ class UsersController extends Controller
 
     private function membershipStatuses(): array
     {
-        return config('membership.statuses', []);
+        $configured = config('membership.statuses', []);
+
+        return collect([
+            User::STATUS_FREE_TRIAL,
+            User::STATUS_FREE,
+            ...$configured,
+        ])->filter(fn ($status) => filled($status))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function csvToArray(?string $value): array
