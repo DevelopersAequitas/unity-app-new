@@ -157,6 +157,11 @@ class ZohoBillingWebhookController extends Controller
                 $subscription->status === 'active'
                 && ($incomingPaymentId === '' || (string) ($subscription->zoho_payment_id ?? '') === $incomingPaymentId)
             ) {
+                $paidAt = $subscription->paid_at ?? now();
+                $startedAt = $subscription->started_at ?? $paidAt;
+                $expiresAt = $subscription->expires_at ?? $startedAt->copy()->addMonths(max(1, (int) ($subscription->circle?->circle_duration_months ?: 12)));
+                $this->upsertPaidCircleMember($subscription, $paidAt, $startedAt, $expiresAt);
+
                 Log::info('duplicate/idempotent webhook ignored', [
                     'circle_subscription_id' => $subscription->id,
                     'incoming_payment_id' => $incomingPaymentId,
@@ -492,6 +497,14 @@ class ZohoBillingWebhookController extends Controller
 
         if (Schema::hasColumn('circle_members', 'zoho_addon_code')) {
             $updates['zoho_addon_code'] = $subscription->zoho_addon_code;
+        }
+
+        if (Schema::hasColumn('circle_members', 'meta')) {
+            $updates['meta'] = array_filter([
+                'circle_subscription_id' => $subscription->id,
+                'zoho_payment_id' => $subscription->zoho_payment_id,
+                'zoho_hosted_page_id' => $subscription->zoho_hosted_page_id,
+            ], fn ($value) => $value !== null && $value !== '');
         }
 
         if ($member) {

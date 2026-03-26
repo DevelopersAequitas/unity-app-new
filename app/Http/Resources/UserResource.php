@@ -16,6 +16,8 @@ class UserResource extends JsonResource
             : null;
 
         $membershipStatus = $this->effective_membership_status ?? $this->membership_status;
+        $resolvedCircle = $this->resolvePrimaryCircleContext();
+        $resolvedCircleInfo = $resolvedCircle['circle'] ?? null;
 
         return [
             'id'                  => $this->id,
@@ -41,29 +43,39 @@ class UserResource extends JsonResource
             'membership_ends_at' => $this->membership_ends_at,
             'zoho_plan_code' => $this->zoho_plan_code,
             'zoho_last_invoice_id' => $this->zoho_last_invoice_id,
-            'active_circle_id' => $this->active_circle_id,
-            'active_circle_addon_code' => $this->active_circle_addon_code,
-            'active_circle_addon_name' => $this->active_circle_addon_name,
-            'circle_joined_at' => $this->circle_joined_at,
-            'circle_expires_at' => $this->circle_expires_at,
-            'active_circle_subscription_id' => $this->active_circle_subscription_id,
-            'active_circle' => $this->whenLoaded('activeCircle', function () {
-                $circle = $this->activeCircle;
-
-                if (! $circle) {
-                    return null;
-                }
-
-                return [
-                    'id' => $circle->id,
-                    'name' => $circle->name,
-                    'slug' => $circle->slug,
-                    'city' => $circle->relationLoaded('cityRef') ? [
-                        'id' => optional($circle->cityRef)->id,
-                        'name' => optional($circle->cityRef)->name,
+            'active_circle_id' => $resolvedCircle['circle_id'] ?? $this->active_circle_id,
+            'active_circle_addon_code' => $resolvedCircle['addon_code'] ?? $this->active_circle_addon_code,
+            'active_circle_addon_name' => $resolvedCircle['addon_name'] ?? $this->active_circle_addon_name,
+            'circle_joined_at' => $resolvedCircle['joined_at'] ?? $this->circle_joined_at,
+            'circle_expires_at' => $resolvedCircle['expires_at'] ?? $this->circle_expires_at,
+            'active_circle_subscription_id' => $resolvedCircle['circle_subscription_id'] ?? $this->active_circle_subscription_id,
+            'active_circle' => $resolvedCircleInfo
+                ? [
+                    'id' => $resolvedCircleInfo->id,
+                    'name' => $resolvedCircleInfo->name,
+                    'slug' => $resolvedCircleInfo->slug,
+                    'city' => $resolvedCircleInfo->relationLoaded('cityRef') ? [
+                        'id' => optional($resolvedCircleInfo->cityRef)->id,
+                        'name' => optional($resolvedCircleInfo->cityRef)->name,
                     ] : null,
-                ];
-            }),
+                ]
+                : $this->whenLoaded('activeCircle', function () {
+                    $circle = $this->activeCircle;
+
+                    if (! $circle) {
+                        return null;
+                    }
+
+                    return [
+                        'id' => $circle->id,
+                        'name' => $circle->name,
+                        'slug' => $circle->slug,
+                        'city' => $circle->relationLoaded('cityRef') ? [
+                            'id' => optional($circle->cityRef)->id,
+                            'name' => optional($circle->cityRef)->name,
+                        ] : null,
+                    ];
+                }),
             'circle_memberships' => $this->resolveCircleMemberships(),
             'coins_balance'       => $this->coins_balance,
             'business_type'       => $this->business_type,
@@ -141,6 +153,53 @@ class UserResource extends JsonResource
                 'subscription_status' => optional($subscription)->status,
             ];
         })->values()->all();
+    }
+
+    private function resolvePrimaryCircleContext(): array
+    {
+        $joinedStatus = (string) config('circle.member_joined_status', 'approved');
+        $membership = $this->resource->circleMemberships()
+            ->where('status', $joinedStatus)
+            ->whereNull('deleted_at')
+            // Selection rule for legacy single-circle fields:
+            // prefer paid memberships, then latest join.
+            ->orderByRaw('CASE WHEN paid_starts_at IS NULL THEN 1 ELSE 0 END ASC')
+            ->orderByDesc('paid_starts_at')
+            ->orderByDesc('joined_at')
+            ->orderByDesc('created_at')
+            ->with(['circle:id,name,slug,city_id', 'circle.cityRef:id,name'])
+            ->first();
+
+        if (! $membership) {
+            return [];
+        }
+
+        $subscription = $this->resource->circleSubscriptions()
+            ->where('circle_id', $membership->circle_id)
+            ->orderByDesc('paid_at')
+            ->orderByDesc('started_at')
+            ->orderByDesc('created_at')
+            ->first();
+
+        return [
+            'circle_id' => $membership->circle_id ?: $this->active_circle_id,
+            'joined_at' => $membership->paid_starts_at
+                ?? $membership->joined_at
+                ?? optional($subscription)->started_at
+                ?? $this->circle_joined_at,
+            'expires_at' => $membership->paid_ends_at
+                ?? optional($subscription)->expires_at
+                ?? $this->circle_expires_at,
+            'addon_code' => $membership->zoho_addon_code
+                ?: optional($subscription)->zoho_addon_code
+                ?: $this->active_circle_addon_code,
+            'addon_name' => optional($subscription)->zoho_addon_name
+                ?: $this->active_circle_addon_name,
+            'circle_subscription_id' => optional($subscription)->id
+                ?: $this->active_circle_subscription_id,
+            'circle' => $membership->circle,
+            'subscription' => $subscription,
+        ];
     }
 
     private function resolveSocialLinks(): ?array
