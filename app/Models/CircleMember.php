@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class CircleMember extends Model
@@ -39,11 +40,27 @@ class CircleMember extends Model
         'substitute_count',
         'joined_at',
         'left_at',
+        'joined_via',
+        'payment_id',
+        'paid_at',
+        'joined_via_payment',
+        'billing_term',
+        'paid_starts_at',
+        'paid_ends_at',
+        'zoho_subscription_id',
+        'zoho_addon_code',
+        'payment_status',
+        'meta',
     ];
 
     protected $casts = [
         'joined_at' => 'datetime',
         'left_at' => 'datetime',
+        'paid_at' => 'datetime',
+        'paid_starts_at' => 'datetime',
+        'paid_ends_at' => 'datetime',
+        'joined_via_payment' => 'boolean',
+        'meta' => 'array',
     ];
 
     public static function roleOptions(): array
@@ -53,6 +70,12 @@ class CircleMember extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (CircleMember $member): void {
+            if (empty($member->id)) {
+                $member->id = (string) Str::uuid();
+            }
+        });
+
         static::saving(function (CircleMember $member): void {
             if (! $member->role) {
                 return;

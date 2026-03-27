@@ -244,7 +244,20 @@ class AuthController extends BaseApiController
         ]);
 
         return $this->success([
-            'user' => new UserResource($user->load('city')),
+            'user' => new UserResource($user->load([
+                'city',
+                'activeCircle:id,name,slug,city_id',
+                'activeCircle.cityRef:id,name',
+                'circleMemberships' => fn ($query) => $query
+                    ->where('status', (string) config('circle.member_joined_status', 'approved'))
+                    ->whereNull('deleted_at')
+                    ->whereNull('left_at')
+                    ->where(function ($nested): void {
+                        $nested->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+                    })
+                    ->orderByDesc('joined_at')
+                    ->with('circle:id,name,slug'),
+            ])),
             'token' => $token,
         ], 'Login successful');
     }
@@ -363,6 +376,19 @@ class AuthController extends BaseApiController
         $user->expireFreeTrialIfNeeded();
         $user->refresh();
 
-        return $this->success(new UserResource($user->loadMissing('city')));
+        return $this->success(new UserResource($user->loadMissing([
+            'city',
+            'activeCircle:id,name,slug,city_id',
+            'activeCircle.cityRef:id,name',
+            'circleMemberships' => fn ($query) => $query
+                ->where('status', (string) config('circle.member_joined_status', 'approved'))
+                ->whereNull('deleted_at')
+                ->whereNull('left_at')
+                ->where(function ($nested): void {
+                    $nested->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+                })
+                ->orderByDesc('joined_at')
+                ->with('circle:id,name,slug'),
+        ])));
     }
 }

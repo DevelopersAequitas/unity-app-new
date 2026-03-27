@@ -273,33 +273,21 @@
                     @php
                         $selectedCircleValue = (string) old('active_circle_id', $user->active_circle_id ?? $effectiveCircleId ?? '');
                     @endphp
+                    <input type="hidden" name="active_circle_id" value="{{ $selectedCircleValue }}">
                     <div class="col-md-4">
-                        <label class="form-label" for="active_circle_id">Circle</label>
-                        <select name="active_circle_id" id="active_circle_id" class="form-select @error('active_circle_id') is-invalid @enderror">
-                            <option value="">-- No Circle --</option>
+                        <label class="form-label" for="additional_circle_id">Add Another Circle Membership</label>
+                        <select name="additional_circle_id" id="additional_circle_id" class="form-select @error('additional_circle_id') is-invalid @enderror">
+                            <option value="">-- Optional --</option>
                             @foreach ($circles as $circle)
-                                <option
-                                    value="{{ $circle->id }}"
-                                    data-addon-code="{{ $circle->zoho_addon_code }}"
-                                    data-addon-name="{{ $circle->zoho_addon_name }}"
-                                    @selected((string) $selectedCircleValue === (string) $circle->id)
-                                >
+                                <option value="{{ $circle->id }}" @selected((string) old('additional_circle_id') === (string) $circle->id)>
                                     {{ $circle->name }}
                                 </option>
                             @endforeach
                         </select>
-                        @error('active_circle_id')
+                        @error('additional_circle_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Circle Package / Addon Code</label>
-                        <input type="text" name="active_circle_addon_code" id="active_circle_addon_code" class="form-control" value="{{ old('active_circle_addon_code', $user->active_circle_addon_code) }}" readonly>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Circle Package / Addon Name</label>
-                        <input type="text" name="active_circle_addon_name" id="active_circle_addon_name" class="form-control" value="{{ old('active_circle_addon_name', $user->active_circle_addon_name) }}" readonly>
-                        <div class="form-text">Circle package details are auto-filled from the selected circle.</div>
+                        <div class="form-text">Adds or reactivates membership without removing existing circles.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Circle Joined Date</label>
@@ -308,6 +296,11 @@
                     <div class="col-md-4">
                         <label class="form-label">Circle Expiry Date</label>
                         <input type="date" name="circle_expires_at" class="form-control" value="{{ old('circle_expires_at', optional($user->circle_expires_at)->format('Y-m-d')) }}">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" name="add_circle_membership" value="1" class="btn btn-outline-primary w-100">
+                            Add Circle
+                        </button>
                     </div>
 
                     @if (! $isJoinedToEffectiveCircle)
@@ -318,20 +311,61 @@
                         </div>
                     @endif
 
-                    @if ($selectedCircle)
-                        <div class="col-12">
-                            <div class="border rounded p-3 bg-light-subtle">
-                                <h6 class="mb-2">Circle Info</h6>
-                                <div class="row g-2 small">
-                                    <div class="col-md-6"><strong>Circle Name:</strong> {{ $selectedCircle?->name ?: '—' }}</div>
-                                    <div class="col-md-6"><strong>City:</strong> {{ $selectedCircle?->city_display ?: '—' }}</div>
-                                    <div class="col-md-6"><strong>Country:</strong> {{ $selectedCircle?->country ?: '—' }}</div>
-                                    <div class="col-md-6"><strong>Meeting Mode:</strong> {{ $selectedCircle?->meeting_mode ?: '—' }}</div>
-                                    <div class="col-md-6"><strong>Meeting Frequency:</strong> {{ $selectedCircle?->meeting_frequency ?: '—' }}</div>
-                                </div>
-                            </div>
+                    <div class="col-12 mt-2">
+                        <h6 class="mb-2">Joined Circle Memberships (Multi-circle)</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Circle</th>
+                                        <th>Addon Code</th>
+                                        <th>Addon Name</th>
+                                        <th>Joined At</th>
+                                        <th>Expires At</th>
+                                        <th>Member Status</th>
+                                        <th>Payment Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($circleMemberships as $membership)
+                                        @php
+                                            $latestSubscription = $latestCircleSubscriptions->get((string) $membership->circle_id);
+                                        @endphp
+                                        <tr>
+                                            <td>
+                                                @if ($membership->circle?->id)
+                                                    <a href="{{ route('admin.circles.show', $membership->circle->id) }}">{{ $membership->circle?->name ?: '—' }}</a>
+                                                @else
+                                                    —
+                                                @endif
+                                            </td>
+                                            <td>{{ $membership->zoho_addon_code ?: ($latestSubscription->zoho_addon_code ?? '—') }}</td>
+                                            <td>{{ $latestSubscription->zoho_addon_name ?? '—' }}</td>
+                                            <td>{{ optional($membership->joined_at)->format('Y-m-d') ?: '—' }}</td>
+                                            <td>{{ optional($membership->paid_ends_at)->format('Y-m-d') ?: optional($latestSubscription?->expires_at)->format('Y-m-d') ?: '—' }}</td>
+                                            <td>{{ $membership->status ?: '—' }}</td>
+                                            <td>{{ $membership->payment_status ?: ($latestSubscription->status ?? '—') }}</td>
+                                            <td>
+                                                <button
+                                                    type="submit"
+                                                    form="remove-circle-membership-{{ $membership->id }}"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    onclick="return confirm('Remove this circle membership for this peer?');"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="8" class="text-muted text-center">No joined circle memberships.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
                         </div>
-                    @endif
+                    </div>
                 </div>
             </div>
         </div>
@@ -462,26 +496,21 @@
     </div>
 </form>
 
+@foreach ($circleMemberships as $membership)
+    <form
+        id="remove-circle-membership-{{ $membership->id }}"
+        method="POST"
+        action="{{ route('admin.users.circle-members.destroy', [$user->id, $membership->id]) }}"
+        class="d-none"
+    >
+        @csrf
+        @method('DELETE')
+    </form>
+@endforeach
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const circleSelect = document.getElementById('active_circle_id');
-    const addonCodeInput = document.getElementById('active_circle_addon_code');
-    const addonNameInput = document.getElementById('active_circle_addon_name');
-
-    const syncCircleAddonDetails = () => {
-        if (!circleSelect) return;
-
-        const selectedOption = circleSelect.options[circleSelect.selectedIndex];
-        const addonCode = selectedOption?.dataset?.addonCode ?? '';
-        const addonName = selectedOption?.dataset?.addonName ?? '';
-
-        if (addonCodeInput) addonCodeInput.value = addonCode;
-        if (addonNameInput) addonNameInput.value = addonName;
-    };
-
-    circleSelect?.addEventListener('change', syncCircleAddonDetails);
-    syncCircleAddonDetails();
 });
 </script>
 @endpush
