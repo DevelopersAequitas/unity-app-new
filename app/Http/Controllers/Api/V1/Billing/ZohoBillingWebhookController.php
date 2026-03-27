@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Billing;
 
 use App\Http\Controllers\Controller;
 use App\Models\CircleSubscription;
+use App\Models\CircleJoinRequest;
 use App\Models\User;
 use App\Services\Billing\MembershipSyncService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
@@ -158,7 +159,7 @@ class ZohoBillingWebhookController extends Controller
                 $paidAt = $subscription->paid_at ?? now();
                 $startedAt = $subscription->started_at ?? $paidAt;
                 $expiresAt = $subscription->expires_at ?? $startedAt->copy()->addMonths(max(1, (int) ($subscription->circle?->circle_duration_months ?: 12)));
-                $this->paidCircleMembershipFinalizer->finalize($subscription->user, $subscription, $paidAt, $startedAt, $expiresAt);
+                $this->finalizePaidCircleJoin($subscription->user, $subscription, $paidAt, $startedAt, $expiresAt);
 
                 Log::info('duplicate/idempotent webhook ignored', [
                     'circle_subscription_id' => $subscription->id,
@@ -208,8 +209,7 @@ class ZohoBillingWebhookController extends Controller
                     'circle_id' => $subscription->circle_id,
                 ]);
 
-                $this->paidCircleMembershipFinalizer->finalize($user, $subscription, $paidAt, $startedAt, $expiresAt);
-                $this->circleJoinRequestPaymentSyncService->markRequestPaid($user, (string) $subscription->circle_id, $paidAt);
+                $this->finalizePaidCircleJoin($user, $subscription, $paidAt, $startedAt, $expiresAt);
                 $this->circleJoinRequestPaymentSyncService->updateUserCircleMembershipTier($user);
             });
 
@@ -425,6 +425,29 @@ class ZohoBillingWebhookController extends Controller
         }
 
         if ($user) {
+            $pendingCandidates = CircleSubscription::query()
+                ->where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->when($addonCode !== '', fn ($query) => $query->where('zoho_addon_code', $addonCode))
+                ->latest('created_at')
+                ->get();
+
+            if ($pendingCandidates->isNotEmpty()) {
+                $byPendingJoinRequest = $pendingCandidates->first(function (CircleSubscription $candidate) use ($user) {
+                    return CircleJoinRequest::query()
+                        ->where('user_id', $user->id)
+                        ->where('circle_id', $candidate->circle_id)
+                        ->where('status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
+                        ->exists();
+                });
+
+                if ($byPendingJoinRequest) {
+                    return $byPendingJoinRequest;
+                }
+
+                return $pendingCandidates->first();
+            }
+
             if ($addonCode !== '') {
                 $byUserAndAddon = CircleSubscription::query()
                     ->where('user_id', $user->id)
@@ -436,28 +459,20 @@ class ZohoBillingWebhookController extends Controller
                     return $byUserAndAddon;
                 }
             }
-
-            $byUserPending = CircleSubscription::query()
-                ->where('user_id', $user->id)
-                ->where('status', 'pending')
-                ->latest('created_at')
-                ->first();
-
-            if ($byUserPending) {
-                return $byUserPending;
-            }
-
-            $byUserLatest = CircleSubscription::query()
-                ->where('user_id', $user->id)
-                ->latest('created_at')
-                ->first();
-
-            if ($byUserLatest) {
-                return $byUserLatest;
-            }
         }
 
         return null;
+    }
+
+    private function finalizePaidCircleJoin(
+        User $user,
+        CircleSubscription $subscription,
+        Carbon $paidAt,
+        Carbon $startedAt,
+        Carbon $expiresAt
+    ): void {
+        $this->paidCircleMembershipFinalizer->finalize($user, $subscription, $paidAt, $startedAt, $expiresAt);
+        $this->circleJoinRequestPaymentSyncService->markRequestPaid($user, (string) $subscription->circle_id, $paidAt);
     }
 
     private function firstString(array $payload, array $keys): ?string
