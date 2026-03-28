@@ -4,24 +4,31 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmailLog extends Model
 {
     use HasFactory;
 
     protected $table = 'email_logs';
-
     protected $keyType = 'string';
-
     public $incrementing = false;
-
     public $timestamps = false;
 
     protected $fillable = [
+        'id',
+        'user_id',
         'to_email',
+        'to_name',
         'template_key',
-        'payload',
+        'subject',
+        'source_module',
+        'related_type',
+        'related_id',
         'status',
+        'body_html',
+        'payload',
+        'error_message',
         'sent_at',
         'created_at',
     ];
@@ -31,4 +38,9 @@ class EmailLog extends Model
         'sent_at' => 'datetime',
         'created_at' => 'datetime',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }

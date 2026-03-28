@@ -30,6 +30,7 @@ use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\AdController;
+use App\Http\Controllers\Admin\EmailLogController;
 
 Route::get('/', function () {
     return view('landing');
@@ -164,5 +165,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-cd', [CircleJoinRequestsController::class, 'rejectCd'])->whereUuid('id')->name('circle-joining-requests.reject-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-id', [CircleJoinRequestsController::class, 'approveId'])->whereUuid('id')->name('circle-joining-requests.approve-id');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-id', [CircleJoinRequestsController::class, 'rejectId'])->whereUuid('id')->name('circle-joining-requests.reject-id');
+        Route::get('/email-logs', [EmailLogController::class, 'index'])->name('email-logs.index');
+        Route::get('/email-logs/{id}', [EmailLogController::class, 'show'])->name('email-logs.show');
     });
 });

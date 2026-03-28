@@ -9,6 +9,7 @@ use App\Mail\PasswordResetOtpMail;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Models\UserLoginHistory;
+use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -155,7 +156,39 @@ class AuthController extends BaseApiController
             'used_at'    => null,
         ]);
 
-        Mail::to($user->email)->send(new LoginOtpMail($otp, $user));
+        $mailable = new LoginOtpMail($otp, $user);
+
+        try {
+            Mail::to($user->email)->send($mailable);
+
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'login_otp',
+                'source_module' => 'Auth',
+                'related_type' => User::class,
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'purpose' => 'login_otp',
+                ],
+            ]);
+        } catch (\Throwable $exception) {
+            app(EmailLogService::class)->logMailableFailed($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'login_otp',
+                'source_module' => 'Auth',
+                'related_type' => User::class,
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'purpose' => 'login_otp',
+                ],
+            ], $exception);
+
+            throw $exception;
+        }
 
         return response()->json([
             'success' => true,
@@ -289,7 +322,39 @@ class AuthController extends BaseApiController
             'used_at'    => null,
         ]);
 
-        Mail::to($user->email)->send(new PasswordResetOtpMail($otp, $user));
+        $mailable = new PasswordResetOtpMail($otp, $user);
+
+        try {
+            Mail::to($user->email)->send($mailable);
+
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'password_reset_otp',
+                'source_module' => 'Auth',
+                'related_type' => User::class,
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'purpose' => 'password_reset',
+                ],
+            ]);
+        } catch (\Throwable $exception) {
+            app(EmailLogService::class)->logMailableFailed($mailable, [
+                'user_id' => (string) $user->id,
+                'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'template_key' => 'password_reset_otp',
+                'source_module' => 'Auth',
+                'related_type' => User::class,
+                'related_id' => (string) $user->id,
+                'payload' => [
+                    'purpose' => 'password_reset',
+                ],
+            ], $exception);
+
+            throw $exception;
+        }
 
         return response()->json([
             'success' => true,

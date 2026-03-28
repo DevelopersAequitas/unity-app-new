@@ -7,11 +7,16 @@ use App\Mail\CircleJoinRequestStatusMail;
 use App\Models\CircleJoinRequest;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class CircleJoinRequestNotificationService
 {
+    public function __construct(private readonly EmailLogService $emailLogService)
+    {
+    }
+
     public function sendCdApprovedToUser(CircleJoinRequest $request): void
     {
         $circleName = $request->circle?->name ?? 'this circle';
@@ -126,16 +131,43 @@ class CircleJoinRequestNotificationService
 
         try {
             if (! empty($user->email)) {
-                Mail::to($user->email)->send(new CircleJoinRequestStatusMail(
+                $mailable = new CircleJoinRequestStatusMail(
                     $request,
                     $emailSubject,
                     $title,
                     $body,
                     $this->statusLabel($status),
                     $rejectionReason,
-                ));
+                );
+
+                Mail::to($user->email)->send($mailable);
+
+                $this->emailLogService->logMailableSent($mailable, [
+                    'user_id' => (string) $user->id,
+                    'to_email' => (string) $user->email,
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'template_key' => $eventType,
+                    'source_module' => 'Circles',
+                    'related_type' => CircleJoinRequest::class,
+                    'related_id' => (string) $request->id,
+                    'payload' => $payloadData,
+                ]);
             }
         } catch (\Throwable $exception) {
+            if (! empty($user->email ?? null)) {
+                $this->emailLogService->logFailed([
+                    'user_id' => (string) $user->id,
+                    'to_email' => (string) $user->email,
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'template_key' => $eventType,
+                    'subject' => $emailSubject,
+                    'source_module' => 'Circles',
+                    'related_type' => CircleJoinRequest::class,
+                    'related_id' => (string) $request->id,
+                    'payload' => $payloadData,
+                ], $exception);
+            }
+
             Log::warning('Circle join request email send failed', [
                 'circle_join_request_id' => (string) $request->id,
                 'user_id' => (string) $user->id,

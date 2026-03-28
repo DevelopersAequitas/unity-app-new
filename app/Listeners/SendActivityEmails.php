@@ -7,6 +7,7 @@ use App\Mail\ActivityActorMail;
 use App\Mail\ActivityAdminMail;
 use App\Mail\ActivityOtherUserMail;
 use App\Models\User;
+use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -14,6 +15,10 @@ use Throwable;
 
 class SendActivityEmails
 {
+    public function __construct(private readonly EmailLogService $emailLogService)
+    {
+    }
+
     public function handle(ActivityCreated $event): void
     {
         if (! config('activity_emails.enabled')) {
@@ -58,12 +63,42 @@ class SendActivityEmails
         }
 
         try {
-            Mail::to($actor->email)->send(new ActivityActorMail(
+            $mailable = new ActivityActorMail(
                 $activityTypeNormalized,
                 $event->activityType,
                 $viewData,
-            ));
+            );
+
+            Mail::to($actor->email)->send($mailable);
+
+            $this->emailLogService->logMailableSent($mailable, [
+                'user_id' => (string) $actor->id,
+                'to_email' => (string) $actor->email,
+                'to_name' => (string) $this->displayName($actor),
+                'template_key' => 'activity_actor_' . $activityTypeNormalized,
+                'source_module' => 'Activities',
+                'related_type' => get_class($event->activityModel),
+                'related_id' => (string) $event->activityModel->getKey(),
+                'payload' => [
+                    'activity_type' => $event->activityType,
+                    'recipient_role' => 'actor',
+                ],
+            ]);
         } catch (Throwable $e) {
+            $this->emailLogService->logFailed([
+                'user_id' => $actor?->id,
+                'to_email' => (string) ($actor->email ?? ''),
+                'to_name' => (string) $this->displayName($actor),
+                'template_key' => 'activity_actor_' . $activityTypeNormalized,
+                'source_module' => 'Activities',
+                'related_type' => get_class($event->activityModel),
+                'related_id' => (string) $event->activityModel->getKey(),
+                'payload' => [
+                    'activity_type' => $event->activityType,
+                    'recipient_role' => 'actor',
+                ],
+            ], $e);
+
             Log::error('Failed to send actor activity email', [
                 'activity_type' => $event->activityType,
                 'activity_id' => $event->activityModel->getKey(),
@@ -95,12 +130,42 @@ class SendActivityEmails
         }
 
         try {
-            Mail::to($otherUser->email)->send(new ActivityOtherUserMail(
+            $mailable = new ActivityOtherUserMail(
                 $activityTypeNormalized,
                 $event->activityType,
                 $viewData,
-            ));
+            );
+
+            Mail::to($otherUser->email)->send($mailable);
+
+            $this->emailLogService->logMailableSent($mailable, [
+                'user_id' => (string) $otherUser->id,
+                'to_email' => (string) $otherUser->email,
+                'to_name' => (string) $this->displayName($otherUser),
+                'template_key' => 'activity_other_user_' . $activityTypeNormalized,
+                'source_module' => 'Activities',
+                'related_type' => get_class($event->activityModel),
+                'related_id' => (string) $event->activityModel->getKey(),
+                'payload' => [
+                    'activity_type' => $event->activityType,
+                    'recipient_role' => 'other_user',
+                ],
+            ]);
         } catch (Throwable $e) {
+            $this->emailLogService->logFailed([
+                'user_id' => $otherUser?->id,
+                'to_email' => (string) ($otherUser->email ?? ''),
+                'to_name' => (string) $this->displayName($otherUser),
+                'template_key' => 'activity_other_user_' . $activityTypeNormalized,
+                'source_module' => 'Activities',
+                'related_type' => get_class($event->activityModel),
+                'related_id' => (string) $event->activityModel->getKey(),
+                'payload' => [
+                    'activity_type' => $event->activityType,
+                    'recipient_role' => 'other_user',
+                ],
+            ], $e);
+
             Log::error('Failed to send other user activity email', [
                 'activity_type' => $event->activityType,
                 'activity_id' => $event->activityModel->getKey(),
@@ -127,13 +192,42 @@ class SendActivityEmails
         }
 
         try {
-            Mail::to($adminInbox)->send(new ActivityAdminMail(
+            $mailable = new ActivityAdminMail(
                 $event->activityType,
                 $activityTitle,
                 $actor,
                 $activityAttributes,
-            ));
+            );
+
+            Mail::to($adminInbox)->send($mailable);
+
+            $this->emailLogService->logMailableSent($mailable, [
+                'user_id' => null,
+                'to_email' => (string) $adminInbox,
+                'to_name' => 'Admin Inbox',
+                'template_key' => 'activity_admin_requirement',
+                'source_module' => 'Activities',
+                'related_type' => get_class($event->activityModel),
+                'related_id' => (string) $event->activityModel->getKey(),
+                'payload' => [
+                    'activity_type' => $event->activityType,
+                    'recipient_role' => 'admin',
+                ],
+            ]);
         } catch (Throwable $e) {
+            $this->emailLogService->logFailed([
+                'to_email' => (string) $adminInbox,
+                'to_name' => 'Admin Inbox',
+                'template_key' => 'activity_admin_requirement',
+                'source_module' => 'Activities',
+                'related_type' => get_class($event->activityModel),
+                'related_id' => (string) $event->activityModel->getKey(),
+                'payload' => [
+                    'activity_type' => $event->activityType,
+                    'recipient_role' => 'admin',
+                ],
+            ], $e);
+
             Log::error('Failed to send admin activity email', [
                 'activity_type' => $event->activityType,
                 'activity_id' => $event->activityModel->getKey(),
