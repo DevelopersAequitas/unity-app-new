@@ -149,29 +149,6 @@ class User extends Authenticatable
             if (empty($user->display_name)) {
                 $user->display_name = trim($user->first_name . ' ' . ($user->last_name ?? ''));
             }
-
-            if (empty($user->public_profile_slug)) {
-                $base = Str::slug(
-                    $user->display_name
-                    ?: trim($user->first_name . ' ' . ($user->last_name ?? ''))
-                    ?: $user->email
-                    ?: 'user'
-                );
-
-                if ($base === '') {
-                    $base = 'user';
-                }
-
-                $slug = $base;
-                $i = 1;
-
-                while (static::where('public_profile_slug', $slug)->exists()) {
-                    $slug = $base . '-' . $i;
-                    $i++;
-                }
-
-                $user->public_profile_slug = $slug;
-            }
         });
     }
 

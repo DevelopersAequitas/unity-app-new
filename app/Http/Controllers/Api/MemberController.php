@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Resources\ConnectionResource;
 use App\Http\Resources\MemberDetailResource;
-use App\Http\Resources\PublicUserResource;
 use App\Http\Resources\UserResource;
 use App\Models\Connection;
 use App\Models\User;
@@ -115,7 +114,7 @@ class MemberController extends BaseApiController
 
     public function publicProfileBySlug(Request $request, string $slug)
     {
-        $user = User::with('city')
+        $user = User::with(['city', 'activeCircle.cityRef'])
             ->where('public_profile_slug', $slug)
             ->first();
 
@@ -123,7 +122,7 @@ class MemberController extends BaseApiController
             return $this->error('Public profile not found', 404);
         }
 
-        return $this->success(new PublicUserResource($user));
+        return $this->success(new MemberDetailResource($user));
     }
 
     public function sendConnectionRequest(Request $request, string $id, NotifyUserService $notifyUserService)

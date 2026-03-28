@@ -8,6 +8,7 @@ use App\Http\Requests\Profile\UpdateProfileRequest;
 use App\Http\Requests\Profile\UpdateUserLinkRequest;
 use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserProfileResource;
+use App\Services\Users\PublicProfileSlugService;
 use Illuminate\Http\Request;
 
 class ProfileController extends BaseApiController
@@ -23,7 +24,7 @@ class ProfileController extends BaseApiController
         return $this->success(new UserProfileResource($user), 'Profile fetched successfully');
     }
 
-    public function update(UpdateProfileRequest $request)
+    public function update(UpdateProfileRequest $request, PublicProfileSlugService $publicProfileSlugService)
     {
         $user = $request->user();
         $data = $request->validated();
@@ -61,6 +62,11 @@ class ProfileController extends BaseApiController
         }
 
         $user->fill($data);
+
+        if (empty($user->public_profile_slug)) {
+            $user->public_profile_slug = $publicProfileSlugService->generateUniqueForUser($user);
+        }
+
         $user->save();
 
         $user->load(['profilePhotoFile', 'coverPhotoFile', 'userLinks']);

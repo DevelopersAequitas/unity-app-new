@@ -9,6 +9,7 @@ use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
@@ -25,8 +26,10 @@ use Illuminate\View\View;
 
 class UsersController extends Controller
 {
-    public function __construct(private readonly ZohoBillingService $zohoBillingService)
-    {
+    public function __construct(
+        private readonly ZohoBillingService $zohoBillingService,
+        private readonly PublicProfileSlugService $publicProfileSlugService,
+    ) {
     }
 
     public function index(Request $request): View
@@ -80,6 +83,10 @@ class UsersController extends Controller
     {
         $membershipStatuses = $this->membershipStatuses();
 
+        $request->merge([
+            'public_profile_slug' => $this->publicProfileSlugService->normalize($request->input('public_profile_slug')),
+        ]);
+
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['nullable', 'string', 'max:100'],
@@ -96,7 +103,7 @@ class UsersController extends Controller
             'experience_summary' => ['nullable', 'string'],
             'short_bio' => ['nullable', 'string'],
             'long_bio_html' => ['nullable', 'string'],
-            'public_profile_slug' => ['nullable', 'string', 'max:80', 'unique:users,public_profile_slug'],
+            'public_profile_slug' => ['nullable', 'string', 'max:255', 'unique:users,public_profile_slug'],
             'membership_status' => ['nullable', Rule::in($membershipStatuses)],
             'membership_expiry' => ['nullable', 'date'],
             'membership_starts_at' => ['nullable', 'date'],
@@ -305,6 +312,10 @@ class UsersController extends Controller
         $user = User::query()->findOrFail($userId);
 
         $membershipStatuses = $this->membershipStatuses();
+
+        $request->merge([
+            'public_profile_slug' => $this->publicProfileSlugService->normalize($request->input('public_profile_slug')),
+        ]);
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $adminRoleIds = Role::query()
             ->whereIn('key', $adminRoleKeys)
@@ -327,7 +338,7 @@ class UsersController extends Controller
             'experience_summary' => ['nullable', 'string'],
             'short_bio' => ['nullable', 'string'],
             'long_bio_html' => ['nullable', 'string'],
-            'public_profile_slug' => ['nullable', 'string', 'max:80', 'unique:users,public_profile_slug,' . $user->id],
+            'public_profile_slug' => ['nullable', 'string', 'max:255', 'unique:users,public_profile_slug,' . $user->id],
             'membership_status' => ['required', Rule::in($membershipStatuses)],
             'status' => ['required', 'in:active,inactive'],
             'membership_expiry' => ['nullable', 'date'],

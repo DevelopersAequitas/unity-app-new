@@ -106,10 +106,11 @@ Route::prefix('v1')->group(function () {
         // Members & connections
         Route::get('members/names', [MemberController::class, 'names']);
 
+        Route::get('/members/profile/{slug}', [MemberController::class, 'publicProfileBySlug']);
+        Route::get('/members/public/{slug}', [MemberController::class, 'publicProfileBySlug']);
+
         Route::apiResource('members', MemberController::class)
             ->only(['index', 'show']);
-
-        Route::get('/members/public/{slug}', [MemberController::class, 'publicProfileBySlug']);
 
         Route::post('/members/{id}/connections', [MemberController::class, 'sendConnectionRequest']);
         Route::post('/members/{id}/connections/accept', [MemberController::class, 'acceptConnection']);
