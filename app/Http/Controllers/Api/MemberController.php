@@ -4,81 +4,62 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Resources\ConnectionResource;
 use App\Http\Resources\MemberDetailResource;
-use App\Http\Resources\UserResource;
 use App\Models\Connection;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MemberController extends BaseApiController
 {
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
+        $authUser = $request->user();
+
+        if (! $this->isAdminUser($authUser)) {
+            return $this->error('Forbidden', 403);
+        }
+
+        $perPage = min(max((int) $request->input('per_page', 20), 1), 100);
         $query = User::query()
             ->select([
                 'id',
-                'public_profile_slug',
-                'first_name',
-                'last_name',
                 'display_name',
-                'company_name',
                 'email',
                 'phone',
+                'public_profile_slug',
                 'membership_status',
-                'coins_balance',
-                'last_login_at',
                 'created_at',
-                'updated_at',
-                'profile_photo_file_id',
-                'city_id',
-                'business_type',
-            ])
-            ->with('city:id,name');
+            ]);
 
-        // Manual test: inactive members should be excluded from the members list API.
-        $query->where(function ($statusQuery) {
-            $statusQuery->whereNull('status')->orWhere('status', 'active');
-        });
+        $paginator = $query
+            ->orderByDesc('created_at')
+            ->paginate($perPage)
+            ->appends($request->query());
 
-        if ($search = trim((string) $request->input('q', ''))) {
-            $query->whereRaw(
-                "search_vector @@ plainto_tsquery('simple', unaccent(?))",
-                [$search]
-            );
-        }
+        $items = $paginator->getCollection()->map(function (User $user): array {
+            $name = trim((string) ($user->display_name ?? ''));
 
-        if ($cityId = $request->input('city_id')) {
-            $query->where('city_id', $cityId);
-        }
-
-        $tags = $request->input('industry_tags');
-        if ($tags) {
-            if (is_string($tags)) {
-                $tags = array_filter(array_map('trim', explode(',', $tags)));
-            }
-
-            if (is_array($tags) && count($tags) > 0) {
-                $query->where(function ($q) use ($tags) {
-                    foreach ($tags as $tag) {
-                        $q->orWhereJsonContains('industry_tags', $tag);
-                    }
-                });
-            }
-        }
-
-        if ($request->has('business_type')) {
-            $query->where('business_type', $request->input('business_type'));
-        }
-
-        $authBusinessType = $request->user()->business_type;
-
-        $query->orderByRaw(
-            'CASE WHEN business_type = ? THEN 0 ELSE 1 END',
-            [$authBusinessType]
-        )->orderByDesc('created_at');
+            return [
+                'id' => $user->id,
+                'name' => $name !== '' ? $name : null,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'profile_slug' => $user->public_profile_slug,
+                'membership_status' => $user->membership_status,
+                'created_at' => optional($user->created_at)?->toISOString(),
+            ];
+        })->values();
 
         $data = [
-            'items' => UserResource::collection($query->get()),
+            'items' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
         ];
 
         return $this->success($data);
@@ -99,6 +80,36 @@ class MemberController extends BaseApiController
             $members,
             'Member names fetched successfully.'
         );
+    }
+
+    private function isAdminUser(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        $adminRoleKeys = [
+            'global_admin',
+            'industry_director',
+            'ded',
+            'circle_leader',
+            'chair',
+            'vice_chair',
+            'secretary',
+            'founder',
+            'director',
+            'committee_leader',
+        ];
+
+        $roleIds = Role::query()
+            ->whereIn('key', $adminRoleKeys)
+            ->pluck('id');
+
+        if ($roleIds->isEmpty()) {
+            return false;
+        }
+
+        return $user->roles()->whereIn('roles.id', $roleIds)->exists();
     }
 
     public function show(Request $request, string $id)

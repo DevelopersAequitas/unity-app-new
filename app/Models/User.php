@@ -102,6 +102,8 @@ class User extends Authenticatable
         'password',
         'password_hash',
         'remember_token',
+        'zoho_customer_id',
+        'zoho_subscription_id',
     ];
 
     protected $casts = [
