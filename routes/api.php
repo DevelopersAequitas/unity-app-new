@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MembershipSummaryController;
 use App\Http\Controllers\Api\MessageDeletionController;
+use App\Http\Controllers\Api\MemberWithCircleController;
 use App\Http\Controllers\Api\MyCircleController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\P2pMeetingController;
@@ -93,6 +94,7 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
     Route::get('/contacts', [UserContactController::class, 'getContacts']);
+    Route::get('/members-with-circles', [MemberWithCircleController::class, 'index']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
