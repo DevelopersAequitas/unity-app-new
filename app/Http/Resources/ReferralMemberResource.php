@@ -9,19 +9,18 @@ class ReferralMemberResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $history = $this->referralHistoryAsReferred;
+        $referredUser = $this->referredUser;
 
         return [
-            'id' => (string) $this->id,
-            'name' => (string) ($this->display_name ?? trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''))),
-            'email' => $this->email,
-            'company_name' => $this->company_name,
-            'mobile' => $this->phone,
-            'profile_image' => $this->profile_photo_url,
-            'registered_at' => optional($this->created_at)->toISOString(),
-            'referral_code_used' => $this->referral_code_used,
-            'reward_coins' => (int) ($history->reward_coins ?? 0),
+            'id' => (string) ($referredUser?->id ?? ''),
+            'name' => (string) ($referredUser?->display_name ?? trim((string) (($referredUser?->first_name ?? '') . ' ' . ($referredUser?->last_name ?? '')))),
+            'email' => $referredUser?->email,
+            'business_name' => $referredUser?->company_name,
+            'position' => $referredUser?->designation,
+            'registered_at' => optional($referredUser?->created_at)->toISOString(),
+            'referral_code' => $this->referral_code,
+            'coins' => (int) ($this->coins ?? 0),
+            'reward_status' => (string) ($this->reward_status ?? 'pending'),
         ];
     }
 }
-

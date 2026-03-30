@@ -5,17 +5,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class ReferralHistory extends Model
+class ReferralData extends Model
 {
-    protected $table = 'referral_histories';
+    protected $table = 'referraldata';
 
     protected $fillable = [
         'referrer_user_id',
         'referred_user_id',
         'referral_code',
-        'reward_coins',
+        'referral_link',
+        'referrer_email',
+        'coins',
         'reward_status',
-        'source',
+        'used_at',
+    ];
+
+    protected $casts = [
+        'coins' => 'integer',
+        'used_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     public function referrer(): BelongsTo
@@ -23,9 +32,8 @@ class ReferralHistory extends Model
         return $this->belongsTo(User::class, 'referrer_user_id');
     }
 
-    public function referred(): BelongsTo
+    public function referredUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'referred_user_id');
     }
 }
-

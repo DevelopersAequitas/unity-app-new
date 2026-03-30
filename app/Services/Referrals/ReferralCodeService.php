@@ -2,9 +2,7 @@
 
 namespace App\Services\Referrals;
 
-use App\Models\User;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class ReferralCodeService
 {
@@ -16,27 +14,20 @@ class ReferralCodeService
         return $trimmed !== '' ? $trimmed : 'PEER';
     }
 
-    public function generateUniqueCodeForUser(User $user): string
+    public function generateUniqueCode(string $name): string
     {
-        $name = trim((string) ($user->display_name ?: ($user->first_name . ' ' . $user->last_name)));
         $prefix = $this->sanitizeNamePrefix($name, 6);
-
         $attempts = 0;
+
         do {
             $attempts++;
             $code = $prefix . str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
-            $exists = User::query()->where('referral_code', $code)->exists();
-        } while ($exists && $attempts < 25);
+            $exists = DB::table('referraldata')->where('referral_code', $code)->exists();
+        } while ($exists && $attempts < 50);
 
         if ($exists) {
-            $code = 'PEER' . strtoupper(Str::random(2)) . str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+            $code = 'PEER' . str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
         }
-
-        Log::info('referral.code.generated', [
-            'user_id' => (string) $user->id,
-            'referral_code' => $code,
-            'attempts' => $attempts,
-        ]);
 
         return $code;
     }
@@ -49,4 +40,3 @@ class ReferralCodeService
         return rtrim($base, '?&') . '?' . http_build_query([$param => $code]);
     }
 }
-

@@ -25,9 +25,9 @@ class AuthController extends BaseApiController
     {
         $data = $request->validated();
 
-        $referrer = $referralService->validateReferralCodeOrFail($data['referral_code'] ?? null);
+        $referralRow = $referralService->validateReferralCodeOrFail($data['referral_code'] ?? null);
 
-        $registrationContext = DB::transaction(function () use ($data, $referralService, $referrer) {
+        $registrationContext = DB::transaction(function () use ($data, $referralService, $referralRow) {
             // Build a display name from first + last name
             $displayName = trim($data['first_name'] . ' ' . ($data['last_name'] ?? ''));
 
@@ -61,8 +61,8 @@ class AuthController extends BaseApiController
 
             $referralMeta = null;
 
-            if ($referrer) {
-                $referralMeta = $referralService->processRegistrationReferral($user, (string) $data['referral_code']);
+            if ($referralRow) {
+                $referralMeta = $referralService->applyReferralOnRegistration($user, (string) $data['referral_code']);
             }
 
             return [
@@ -74,8 +74,6 @@ class AuthController extends BaseApiController
         /** @var User $user */
         $user = $registrationContext['user'];
         $referralMeta = $registrationContext['referral'];
-
-        $referralService->ensureReferralCode($user);
 
         $token = $user->createToken('auth_token')->plainTextToken;
 

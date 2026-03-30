@@ -11,7 +11,6 @@ use App\Models\Referral;
 use App\Models\User;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
-use App\Services\Referrals\ReferralCodeService;
 use App\Services\Referrals\ReferralService;
 use Illuminate\Http\Request;
 use Throwable;
@@ -20,23 +19,20 @@ class ReferralController extends BaseApiController
 {
     public function me(Request $request, ReferralService $referralService)
     {
-        return $this->success($referralService->buildReferralProfile($request->user()));
+        return $this->success($referralService->getMyReferralSummary($request->user()));
     }
 
-    public function generate(GenerateReferralCodeRequest $request, ReferralService $referralService, ReferralCodeService $referralCodeService)
+    public function generate(GenerateReferralCodeRequest $request, ReferralService $referralService)
     {
-        $user = $request->user();
-        $code = $referralService->ensureReferralCode($user, $request->boolean('regenerate'));
-
-        return $this->success([
-            'referral_code' => $code,
-            'referral_link' => $referralCodeService->buildReferralLink($code),
-        ], 'Referral code generated successfully.');
+        return $this->success(
+            $referralService->generateOrGetReferral($request->user()),
+            'Referral code generated successfully.'
+        );
     }
 
     public function members(Request $request, ReferralService $referralService)
     {
-        $paginator = $referralService->members($request->user(), (int) $request->input('per_page', 20));
+        $paginator = $referralService->getReferralMembers($request->user(), (int) $request->input('per_page', 20));
 
         return $this->success([
             'items' => ReferralMemberResource::collection($paginator->items()),
@@ -51,12 +47,19 @@ class ReferralController extends BaseApiController
 
     public function stats(Request $request, ReferralService $referralService)
     {
-        return $this->success($referralService->getStats($request->user()));
+        return $this->success($referralService->getReferralStats($request->user()));
     }
 
     public function validateCode(string $code, ReferralService $referralService)
     {
-        return $this->success($referralService->validateCodeResponse($code));
+        $row = $referralService->validateReferralCode($code);
+
+        return $this->success([
+            'valid' => $row !== null,
+            'referrer_name' => $row
+                ? trim((string) (($row->referrer?->display_name) ?: (($row->referrer?->first_name ?? '') . ' ' . ($row->referrer?->last_name ?? ''))))
+                : null,
+        ]);
     }
 
     public function index(Request $request)

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class RegisterRequest extends FormRequest
 {
@@ -37,7 +38,15 @@ class RegisterRequest extends FormRequest
             // NEW OPTIONAL FIELDS FOR REGISTRATION
             'company_name' => ['nullable', 'string', 'max:255'],
             'designation'  => ['nullable', 'string', 'max:255'],
-            'referral_code' => ['nullable', 'string', 'max:32', 'regex:/^[A-Z]+\d{4}$/'],
+            'referral_code' => [
+                'nullable',
+                'string',
+                'max:32',
+                'regex:/^[A-Z]+\d{4}$/',
+                Rule::exists('referraldata', 'referral_code')->where(static function ($query) {
+                    $query->whereNull('referred_user_id');
+                }),
+            ],
         ];
     }
 
@@ -46,6 +55,7 @@ class RegisterRequest extends FormRequest
         return [
             'phone.unique' => 'This phone number is already registered.',
             'referral_code.regex' => 'Referral code format is invalid.',
+            'referral_code.exists' => 'The selected referral code is invalid or already used.',
         ];
     }
 }
