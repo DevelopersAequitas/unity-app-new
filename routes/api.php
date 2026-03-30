@@ -113,7 +113,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/members/public/{slug}', [MemberController::class, 'publicProfileBySlug']);
 
         Route::apiResource('members', MemberController::class)
-            ->only(['index', 'show']);
+            ->only(['show']);
 
         Route::post('/members/{id}/connections', [MemberController::class, 'sendConnectionRequest']);
         Route::post('/members/{id}/connections/accept', [MemberController::class, 'acceptConnection']);
