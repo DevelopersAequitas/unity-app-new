@@ -18,26 +18,40 @@ class MemberController extends BaseApiController
         $query = User::query()
             ->select([
                 'id',
-                'public_profile_slug',
+                'email',
+                'phone',
                 'first_name',
                 'last_name',
                 'display_name',
+                'designation',
                 'company_name',
-                'email',
-                'phone',
-                'membership_status',
-                'coins_balance',
-                'last_login_at',
-                'created_at',
-                'updated_at',
-                'profile_photo_file_id',
+                'profile_photo_url',
                 'city_id',
                 'city',
-                'country',
+                'membership_status',
+                'membership_expiry',
+                'coins_balance',
+                'public_profile_slug',
+                'last_login_at',
                 'status',
+                'membership_starts_at',
+                'membership_ends_at',
+                'last_payment_at',
+                'active_circle_id',
+                'active_circle_addon_name',
+                'circle_joined_at',
+                'circle_expires_at',
+                'coin_medal_rank',
+                'coin_milestone_title',
+                'contribution_award_name',
+                'created_at',
+                'updated_at',
                 'business_type',
             ])
-            ->with('city:id,name');
+            ->with([
+                'city:id,name,country,country_name',
+                'activeCircle:id,name',
+            ]);
 
         // Manual test: inactive members should be excluded from the members list API.
         $query->where(function ($statusQuery) {
