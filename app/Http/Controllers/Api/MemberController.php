@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Resources\ConnectionResource;
 use App\Http\Resources\MemberDetailResource;
+use App\Http\Resources\PublicMemberResource;
 use App\Http\Resources\UserResource;
 use App\Models\Connection;
 use App\Models\User;
@@ -31,6 +32,9 @@ class MemberController extends BaseApiController
                 'updated_at',
                 'profile_photo_file_id',
                 'city_id',
+                'city',
+                'country',
+                'status',
                 'business_type',
             ])
             ->with('city:id,name');
@@ -70,15 +74,21 @@ class MemberController extends BaseApiController
             $query->where('business_type', $request->input('business_type'));
         }
 
-        $authBusinessType = $request->user()->business_type;
+        $authUser = $request->user();
 
-        $query->orderByRaw(
-            'CASE WHEN business_type = ? THEN 0 ELSE 1 END',
-            [$authBusinessType]
-        )->orderByDesc('created_at');
+        if ($authUser) {
+            $query->orderByRaw(
+                'CASE WHEN business_type = ? THEN 0 ELSE 1 END',
+                [$authUser->business_type]
+            )->orderByDesc('created_at');
+        } else {
+            $query->orderByDesc('created_at');
+        }
 
         $data = [
-            'items' => UserResource::collection($query->get()),
+            'items' => $authUser
+                ? UserResource::collection($query->get())
+                : PublicMemberResource::collection($query->get()),
         ];
 
         return $this->success($data);

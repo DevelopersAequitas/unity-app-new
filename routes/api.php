@@ -91,6 +91,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
 
+    // Public members listing (no Authorization required)
+    Route::get('/members', [MemberController::class, 'index']);
+
     Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
     Route::get('/contacts', [UserContactController::class, 'getContacts']);
 
