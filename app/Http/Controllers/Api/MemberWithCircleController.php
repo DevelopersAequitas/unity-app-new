@@ -4,67 +4,81 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class MemberWithCircleController extends BaseApiController
 {
     public function index()
     {
+        $baseColumns = [
+            'id',
+            'first_name',
+            'last_name',
+            'display_name',
+            'email',
+            'phone',
+            'designation',
+            'company_name',
+            'city_id',
+            'city',
+            'membership_status',
+            'membership_expiry',
+            'coins_balance',
+            'public_profile_slug',
+            'last_login_at',
+            'status',
+            'created_at',
+        ];
+
+        $optionalColumns = [
+            'updated_at',
+            'profile_photo_file_id',
+            'cover_photo_file_id',
+            'membership_starts_at',
+            'membership_ends_at',
+            'zoho_plan_code',
+            'zoho_last_invoice_id',
+            'active_circle_id',
+            'active_circle_addon_code',
+            'active_circle_addon_name',
+            'circle_joined_at',
+            'circle_expires_at',
+            'active_circle_subscription_id',
+            'business_type',
+            'turnover_range',
+            'gender',
+            'dob',
+            'experience_years',
+            'experience_summary',
+            'short_bio',
+            'long_bio_html',
+            'industry_tags',
+            'skills',
+            'interests',
+            'target_regions',
+            'target_business_categories',
+            'hobbies_interests',
+            'leadership_roles',
+            'special_recognitions',
+            'social_links',
+            'is_sponsored_member',
+            'coin_medal_rank',
+            'coin_milestone_title',
+            'coin_milestone_meaning',
+            'contribution_award_name',
+            'contribution_award_recognition',
+        ];
+
+        $availableOptionalColumns = array_values(array_filter(
+            $optionalColumns,
+            fn (string $column): bool => Schema::hasColumn('users', $column)
+        ));
+
         $members = User::query()
-            ->select([
-                'id',
-                'first_name',
-                'last_name',
-                'display_name',
-                'email',
-                'phone',
-                'designation',
-                'company_name',
-                'city_id',
-                'city',
-                'membership_status',
-                'membership_expiry',
-                'coins_balance',
-                'public_profile_slug',
-                'last_login_at',
-                'status',
-                'created_at',
-                'updated_at',
-                'profile_photo_file_id',
-                'cover_photo_file_id',
-                'membership_starts_at',
-                'membership_ends_at',
-                'zoho_plan_code',
-                'zoho_last_invoice_id',
-                'active_circle_id',
-                'active_circle_addon_code',
-                'active_circle_addon_name',
-                'circle_joined_at',
-                'circle_expires_at',
-                'active_circle_subscription_id',
-                'business_type',
-                'turnover_range',
-                'gender',
-                'dob',
-                'experience_years',
-                'experience_summary',
-                'short_bio',
-                'long_bio_html',
-                'industry_tags',
-                'skills',
-                'interests',
-                'target_regions',
-                'target_business_categories',
-                'hobbies_interests',
-                'leadership_roles',
-                'special_recognitions',
-                'social_links',
-                'is_sponsored_member',
-                'coin_medal_rank',
-                'coin_milestone_title',
-                'coin_milestone_meaning',
-                'contribution_award_name',
-                'contribution_award_recognition',
-            ])
+            ->select(array_merge(
+                array_map(fn (string $column): string => 'users.' . $column, $baseColumns),
+                array_map(fn (string $column): string => 'users.' . $column, $availableOptionalColumns)
+            ))
             ->with([
                 'city:id,name',
                 'activeCircle:id,name',
@@ -77,14 +91,14 @@ class MemberWithCircleController extends BaseApiController
             ->orderByDesc('created_at')
             ->get();
 
-        $items = $members->map(function (User $member): array {
+        $items = $members->map(function (User $member) use ($availableOptionalColumns): array {
             $fullName = trim((string) $member->first_name . ' ' . (string) $member->last_name);
             $name = $member->display_name ?: ($fullName !== '' ? $fullName : $member->email);
 
             $cityName = $member->city?->name ?? $member->getAttribute('city');
             $membershipStatus = $member->membership_status;
-            $profilePhotoId = $member->profile_photo_file_id;
-            $coverPhotoId = $member->cover_photo_file_id;
+            $profilePhotoId = $this->optionalValue($member, 'profile_photo_file_id', $availableOptionalColumns);
+            $coverPhotoId = $this->optionalValue($member, 'cover_photo_file_id', $availableOptionalColumns);
 
             $circles = $member->circleMembers
                 ->map(function ($circleMember): array {
@@ -118,17 +132,17 @@ class MemberWithCircleController extends BaseApiController
                 'membership_status' => $membershipStatus,
                 'membership_expiry' => $member->membership_expiry,
                 'membership_status_label' => $this->membershipStatusLabel($membershipStatus),
-                'membership_starts_at' => $member->membership_starts_at,
-                'membership_ends_at' => $member->membership_ends_at,
-                'zoho_plan_code' => $member->zoho_plan_code,
-                'zoho_last_invoice_id' => $member->zoho_last_invoice_id,
-                'active_circle_id' => $member->active_circle_id,
-                'active_circle_addon_code' => $member->active_circle_addon_code,
-                'active_circle_addon_name' => $member->active_circle_addon_name,
-                'circle_joined_at' => $member->circle_joined_at,
-                'circle_expires_at' => $member->circle_expires_at,
-                'active_circle_subscription_id' => $member->active_circle_subscription_id,
-                'active_circle' => $member->activeCircle
+                'membership_starts_at' => $this->optionalValue($member, 'membership_starts_at', $availableOptionalColumns),
+                'membership_ends_at' => $this->optionalValue($member, 'membership_ends_at', $availableOptionalColumns),
+                'zoho_plan_code' => $this->optionalValue($member, 'zoho_plan_code', $availableOptionalColumns),
+                'zoho_last_invoice_id' => $this->optionalValue($member, 'zoho_last_invoice_id', $availableOptionalColumns),
+                'active_circle_id' => $this->optionalValue($member, 'active_circle_id', $availableOptionalColumns),
+                'active_circle_addon_code' => $this->optionalValue($member, 'active_circle_addon_code', $availableOptionalColumns),
+                'active_circle_addon_name' => $this->optionalValue($member, 'active_circle_addon_name', $availableOptionalColumns),
+                'circle_joined_at' => $this->optionalValue($member, 'circle_joined_at', $availableOptionalColumns),
+                'circle_expires_at' => $this->optionalValue($member, 'circle_expires_at', $availableOptionalColumns),
+                'active_circle_subscription_id' => $this->optionalValue($member, 'active_circle_subscription_id', $availableOptionalColumns),
+                'active_circle' => $member->activeCircle && $this->optionalValue($member, 'active_circle_id', $availableOptionalColumns)
                     ? [
                         'id' => $member->activeCircle->id,
                         'name' => $member->activeCircle->name,
@@ -138,23 +152,23 @@ class MemberWithCircleController extends BaseApiController
                 'circles' => $circles,
                 'circle_memberships' => $circles,
                 'coins_balance' => $member->coins_balance,
-                'business_type' => $member->business_type,
-                'turnover_range' => $member->turnover_range,
-                'gender' => $member->gender,
-                'dob' => optional($member->dob)?->format('Y-m-d'),
-                'experience_years' => $member->experience_years,
-                'experience_summary' => $member->experience_summary,
-                'bio' => $member->short_bio,
-                'long_bio_html' => $member->long_bio_html,
-                'industry_tags' => $member->industry_tags ?? [],
-                'skills' => $member->skills ?? [],
-                'interests' => $member->interests ?? [],
-                'target_regions' => $member->target_regions ?? [],
-                'target_business_categories' => $member->target_business_categories ?? [],
-                'hobbies_interests' => $member->hobbies_interests ?? [],
-                'leadership_roles' => $member->leadership_roles ?? [],
-                'special_recognitions' => $member->special_recognitions ?? [],
-                'social_links' => $member->social_links,
+                'business_type' => $this->optionalValue($member, 'business_type', $availableOptionalColumns),
+                'turnover_range' => $this->optionalValue($member, 'turnover_range', $availableOptionalColumns),
+                'gender' => $this->optionalValue($member, 'gender', $availableOptionalColumns),
+                'dob' => optional($this->optionalValue($member, 'dob', $availableOptionalColumns))?->format('Y-m-d'),
+                'experience_years' => $this->optionalValue($member, 'experience_years', $availableOptionalColumns),
+                'experience_summary' => $this->optionalValue($member, 'experience_summary', $availableOptionalColumns),
+                'bio' => $this->optionalValue($member, 'short_bio', $availableOptionalColumns),
+                'long_bio_html' => $this->optionalValue($member, 'long_bio_html', $availableOptionalColumns),
+                'industry_tags' => $this->optionalValue($member, 'industry_tags', $availableOptionalColumns) ?? [],
+                'skills' => $this->optionalValue($member, 'skills', $availableOptionalColumns) ?? [],
+                'interests' => $this->optionalValue($member, 'interests', $availableOptionalColumns) ?? [],
+                'target_regions' => $this->optionalValue($member, 'target_regions', $availableOptionalColumns) ?? [],
+                'target_business_categories' => $this->optionalValue($member, 'target_business_categories', $availableOptionalColumns) ?? [],
+                'hobbies_interests' => $this->optionalValue($member, 'hobbies_interests', $availableOptionalColumns) ?? [],
+                'leadership_roles' => $this->optionalValue($member, 'leadership_roles', $availableOptionalColumns) ?? [],
+                'special_recognitions' => $this->optionalValue($member, 'special_recognitions', $availableOptionalColumns) ?? [],
+                'social_links' => $this->optionalValue($member, 'social_links', $availableOptionalColumns),
                 'profile_photo_url' => $profilePhotoId ? url('/api/v1/files/' . $profilePhotoId) : null,
                 'profile_image_url' => $profilePhotoId ? url('/api/v1/files/' . $profilePhotoId) : null,
                 'cover_photo_url' => $coverPhotoId ? url('/api/v1/files/' . $coverPhotoId) : null,
@@ -163,22 +177,31 @@ class MemberWithCircleController extends BaseApiController
                 'country' => null,
                 'pincode' => null,
                 'is_verified' => null,
-                'is_sponsored_member' => (bool) $member->is_sponsored_member,
+                'is_sponsored_member' => (bool) ($this->optionalValue($member, 'is_sponsored_member', $availableOptionalColumns) ?? false),
                 'last_login_at' => $member->last_login_at,
                 'status' => $member->status,
                 'created_at' => $member->created_at,
-                'updated_at' => $member->updated_at,
-                'medal_rank' => $member->coin_medal_rank,
-                'title' => $member->coin_milestone_title,
-                'meaning_and_vibe' => $member->coin_milestone_meaning,
-                'contribution_award_name' => $member->contribution_award_name,
-                'contribution_recognition' => $member->contribution_award_recognition,
+                'updated_at' => $this->optionalValue($member, 'updated_at', $availableOptionalColumns),
+                'medal_rank' => $this->optionalValue($member, 'coin_medal_rank', $availableOptionalColumns),
+                'title' => $this->optionalValue($member, 'coin_milestone_title', $availableOptionalColumns),
+                'meaning_and_vibe' => $this->optionalValue($member, 'coin_milestone_meaning', $availableOptionalColumns),
+                'contribution_award_name' => $this->optionalValue($member, 'contribution_award_name', $availableOptionalColumns),
+                'contribution_recognition' => $this->optionalValue($member, 'contribution_award_recognition', $availableOptionalColumns),
             ];
         })->values();
 
         return $this->success([
             'items' => $items,
         ]);
+    }
+
+    private function optionalValue(User $member, string $field, array $availableOptionalColumns): mixed
+    {
+        if (! in_array($field, $availableOptionalColumns, true)) {
+            return null;
+        }
+
+        return $member->getAttribute($field);
     }
 
     private function membershipStatusLabel(?string $status): ?string
