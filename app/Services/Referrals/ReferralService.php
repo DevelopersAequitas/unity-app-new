@@ -153,6 +153,12 @@ class ReferralService
                 ->where('referred_user_id', $newUser->id)
                 ->exists();
 
+            Log::info('referral.registration.referred_lookup', [
+                'referred_user_id' => (string) $newUser->id,
+                'already_referred' => $alreadyReferred,
+                'referral_code' => $normalized,
+            ]);
+
             if ($alreadyReferred) {
                 Log::warning('referral.registration.duplicate_referred_user', [
                     'referred_user_id' => (string) $newUser->id,
@@ -175,6 +181,13 @@ class ReferralService
 
             $rewardCoins = (int) config('coins.activity_rewards.referral_signup', 100);
 
+            Log::info('referral.registration.before_insert', [
+                'referrer_user_id' => (string) $link->user_id,
+                'referred_user_id' => (string) $newUser->id,
+                'referral_code' => $normalized,
+                'coins' => $rewardCoins,
+            ]);
+
             $data = ReferralData::query()->create([
                 'referrer_user_id' => $link->user_id,
                 'referred_user_id' => $newUser->id,
@@ -183,6 +196,18 @@ class ReferralService
                 'coins' => $rewardCoins,
                 'reward_status' => 'granted',
                 'used_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            if (! $data->exists || ! $data->id) {
+                throw new \RuntimeException('Referral registration failed: referraldata row was not created.');
+            }
+
+            Log::info('referral.registration.insert_success', [
+                'referral_data_id' => (int) $data->id,
+                'referred_user_id' => (string) $newUser->id,
+                'referrer_user_id' => (string) $link->user_id,
             ]);
 
             $referrer = User::query()->find($link->user_id);
