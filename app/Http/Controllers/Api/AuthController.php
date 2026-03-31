@@ -88,13 +88,13 @@ class AuthController extends BaseApiController
             ];
         });
 
-        /** @var User|null $user */
-        $user = $registrationContext['user'] ?? null;
+        /** @var User|null $transactionUser */
+        $transactionUser = $registrationContext['user'] ?? null;
         $referralMeta = $registrationContext['referral'];
 
-        if (! $user instanceof User || ! $user->exists || blank($user->id)) {
+        if (! $transactionUser instanceof User || ! $transactionUser->exists || blank($transactionUser->id)) {
             Log::error('auth.register.user_missing_after_transaction', [
-                'user_id' => $user?->id,
+                'user_id' => $transactionUser?->id,
                 'email' => (string) ($data['email'] ?? ''),
                 'has_referral_code' => filled($normalizedReferralCode),
                 'referral_code' => (string) ($normalizedReferralCode ?? ''),
@@ -103,11 +103,29 @@ class AuthController extends BaseApiController
             throw new \RuntimeException('Registration failed: user record was not found after creation.');
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $persistedUser = User::query()
+            ->useWritePdo()
+            ->find((string) $transactionUser->id);
+
+        if (! $persistedUser) {
+            Log::error('auth.register.user_not_found_on_write_connection', [
+                'user_id' => (string) $transactionUser->id,
+                'email' => (string) ($data['email'] ?? ''),
+            ]);
+
+            throw new \RuntimeException('Registration failed: persisted user row was not found in users table.');
+        }
+
+        Log::info('auth.register.before_token_creation', [
+            'user_id' => (string) $persistedUser->id,
+            'email' => (string) $persistedUser->email,
+        ]);
+
+        $token = $persistedUser->createToken('auth_token')->plainTextToken;
 
         Log::info('auth.register.before_response', [
-            'user_id' => (string) $user->id,
-            'email' => (string) $user->email,
+            'user_id' => (string) $persistedUser->id,
+            'email' => (string) $persistedUser->email,
             'has_referral_meta' => $referralMeta !== null,
         ]);
 
@@ -116,7 +134,7 @@ class AuthController extends BaseApiController
             'message' => 'Registration successful.',
             'data'    => [
                 'token' => $token,
-                'user'  => $user,
+                'user'  => $persistedUser,
                 'referral' => $referralMeta,
             ],
         ], 201);
@@ -153,6 +171,13 @@ class AuthController extends BaseApiController
         if (isset($user->password)) {
             $user->password = null;
         }
+
+        Log::info('auth.register.before_user_save', [
+            'email' => (string) $user->email,
+            'first_name' => (string) ($user->first_name ?? ''),
+            'last_name' => (string) ($user->last_name ?? ''),
+            'phone' => (string) ($user->phone ?? ''),
+        ]);
 
         $user->save();
 
