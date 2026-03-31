@@ -34,6 +34,7 @@ class AuthController extends BaseApiController
             'phone' => (string) ($data['phone'] ?? ''),
             'display_name' => trim((string) (($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''))),
             'has_referral_code' => filled($normalizedReferralCode),
+            'referral_code' => (string) ($normalizedReferralCode ?? ''),
         ]);
 
         $referralRow = $referralService->validateReferralCodeOrFail($normalizedReferralCode);
@@ -96,6 +97,7 @@ class AuthController extends BaseApiController
                 'user_id' => $user?->id,
                 'email' => (string) ($data['email'] ?? ''),
                 'has_referral_code' => filled($normalizedReferralCode),
+                'referral_code' => (string) ($normalizedReferralCode ?? ''),
             ]);
 
             throw new \RuntimeException('Registration failed: user record was not found after creation.');

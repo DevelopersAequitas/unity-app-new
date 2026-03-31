@@ -9,9 +9,15 @@ class RegisterRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
-        if ($this->has('referral_code')) {
+        $incomingReferralCode = $this->input('referral_code');
+
+        if (blank($incomingReferralCode) && $this->has('referralCode')) {
+            $incomingReferralCode = $this->input('referralCode');
+        }
+
+        if (! blank($incomingReferralCode)) {
             $this->merge([
-                'referral_code' => strtoupper(trim((string) $this->input('referral_code'))),
+                'referral_code' => strtoupper(trim((string) $incomingReferralCode)),
             ]);
         }
     }
