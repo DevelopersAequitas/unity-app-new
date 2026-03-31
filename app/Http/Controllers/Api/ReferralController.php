@@ -68,12 +68,41 @@ class ReferralController extends BaseApiController
     {
         $user = $request->user();
         $payload = $referralService->generateOrGetReferral($user);
+        $user->loadMissing(['activeCircle:id,name']);
+
+        $resolvedName = trim((string) (($user->display_name ?: '') ?: (($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))));
+        $resolvedCity = is_string($user->city)
+            ? $user->city
+            : data_get($user, 'city.name');
+
+        $activeCircle = $user->activeCircle;
+        $fallbackCircle = null;
+
+        if (! $activeCircle && method_exists($user, 'circles')) {
+            $fallbackCircle = $user->circles()
+                ->select('circles.id', 'circles.name')
+                ->first();
+        }
+
+        $resolvedCircle = $activeCircle ?: $fallbackCircle;
 
         return $this->success([
             'valid' => true,
             'referral_code' => $payload['referral_code'] ?? null,
             'referral_link' => $payload['referral_link'] ?? null,
-            'referrer_name' => trim((string) (($user->display_name ?: '') ?: (($user->first_name ?? '') . ' ' . ($user->last_name ?? '')))),
+            'referrer' => [
+                'id' => (string) $user->id,
+                'name' => $resolvedName !== '' ? $resolvedName : null,
+                'email' => $user->email,
+                'company_name' => $user->company_name ?? data_get($user, 'business_name'),
+                'city' => $resolvedCity,
+                'circle' => $resolvedCircle
+                    ? [
+                        'id' => (string) $resolvedCircle->id,
+                        'name' => (string) $resolvedCircle->name,
+                    ]
+                    : null,
+            ],
         ]);
     }
 
