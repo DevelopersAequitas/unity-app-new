@@ -35,16 +35,19 @@ class MemberWithCircleController extends BaseApiController
     public function show(string $member)
     {
         $availableOptionalColumns = $this->availableOptionalColumns();
+        $identifier = trim($member);
 
         $query = $this->baseMemberQuery($availableOptionalColumns);
         $user = null;
 
-        if ($this->looksLikeUuid($member)) {
-            $user = (clone $query)->where('users.id', $member)->first();
+        if (Str::isUuid($identifier)) {
+            $user = (clone $query)->where('users.id', $identifier)->first();
         }
 
         if (! $user) {
-            $user = (clone $query)->where('users.public_profile_slug', $member)->first();
+            $user = (clone $query)
+                ->whereRaw('LOWER(users.public_profile_slug) = ?', [Str::lower($identifier)])
+                ->first();
         }
 
         if (! $user) {
@@ -282,13 +285,5 @@ class MemberWithCircleController extends BaseApiController
                 ->title()
                 ->toString(),
         };
-    }
-
-    private function looksLikeUuid(string $value): bool
-    {
-        return (bool) preg_match(
-            '/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/',
-            $value
-        );
     }
 }
