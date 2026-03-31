@@ -14,6 +14,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class ReferralService
@@ -191,26 +192,40 @@ class ReferralService
                 'coins' => $rewardCoins,
             ]);
 
-            $data = ReferralData::query()->create([
+            $referralCodeColumn = Schema::hasColumn('referraldata', 'referralCode') ? 'referralCode' : 'referral_code';
+
+            $insertPayload = [
                 'referrer_user_id' => $referrerUserId,
                 'referred_user_id' => $newUserId,
-                'referral_code' => $normalized,
+                $referralCodeColumn => $normalized,
                 'referrer_email' => null,
                 'coins' => $rewardCoins,
                 'reward_status' => 'granted',
                 'used_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
 
-            if (! $data->exists || ! $data->id) {
+            $inserted = DB::table('referraldata')->insert($insertPayload);
+
+            if (! $inserted) {
                 throw new \RuntimeException('Referral registration failed: referraldata row was not created.');
+            }
+
+            $data = ReferralData::query()
+                ->where('referred_user_id', $newUserId)
+                ->orderByDesc('id')
+                ->first();
+
+            if (! $data) {
+                throw new \RuntimeException('Referral registration failed: referraldata row was not retrievable.');
             }
 
             Log::info('referral.registration.insert_success', [
                 'referral_data_id' => (int) $data->id,
                 'referred_user_id' => $newUserId,
                 'referrer_user_id' => $referrerUserId,
+                'referral_code_column' => $referralCodeColumn,
             ]);
 
             $referrer = User::query()->find($referrerUserId);
