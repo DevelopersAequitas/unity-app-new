@@ -7,6 +7,7 @@ use App\Http\Resources\UserResource;
 use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Models\OtpCode;
+use App\Models\ReferralData;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Services\EmailLogs\EmailLogService;
@@ -86,6 +87,8 @@ class AuthController extends BaseApiController
                 'referrer_user_id' => (string) ($referralMeta['referrer_user_id'] ?? ''),
                 'reward_status' => (string) ($referralMeta['reward_status'] ?? ''),
             ]);
+
+            $this->ensureReferralDataPersisted($persistedUser, $normalizedReferralCode, $referralMeta);
         }
 
         Log::info('auth.register.before_token_creation', [
@@ -110,6 +113,55 @@ class AuthController extends BaseApiController
                 'referral' => $referralMeta,
             ],
         ], 201);
+    }
+
+    private function ensureReferralDataPersisted(User $user, string $referralCode, array $referralMeta): void
+    {
+        $alreadyExists = ReferralData::query()
+            ->where('referred_user_id', (string) $user->id)
+            ->exists();
+
+        if ($alreadyExists) {
+            Log::info('auth.register.referraldata_duplicate_skip', [
+                'referred_user_id' => (string) $user->id,
+                'referral_code' => $referralCode,
+            ]);
+
+            return;
+        }
+
+        $insertPayload = [
+            'referrer_user_id' => (string) ($referralMeta['referrer_user_id'] ?? ''),
+            'referred_user_id' => (string) $user->id,
+            'referral_code' => $referralCode,
+            'referrer_email' => (string) ($referralMeta['referrer_email'] ?? ''),
+            'coins' => (int) ($referralMeta['coins'] ?? (int) config('coins.activity_rewards.referral_signup', 100)),
+            'reward_status' => (string) ($referralMeta['reward_status'] ?? 'granted'),
+            'used_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
+        Log::info('auth.register.referraldata_insert_start', [
+            'payload' => $insertPayload,
+        ]);
+
+        $data = ReferralData::query()->create($insertPayload);
+
+        if (! $data->exists || ! $data->id) {
+            Log::error('auth.register.referraldata_insert_failed', [
+                'referred_user_id' => (string) $user->id,
+                'referral_code' => $referralCode,
+            ]);
+
+            throw new \RuntimeException('Referral registration failed: unable to persist referraldata row.');
+        }
+
+        Log::info('auth.register.referraldata_insert_success', [
+            'referral_data_id' => (int) $data->id,
+            'referred_user_id' => (string) $user->id,
+            'referral_code' => $referralCode,
+        ]);
     }
 
     private function createRegisteredUser(array $data): User
