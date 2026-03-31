@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class AuthController extends BaseApiController
@@ -24,45 +25,29 @@ class AuthController extends BaseApiController
     public function register(RegisterRequest $request, ReferralService $referralService)
     {
         $data = $request->validated();
+        $normalizedReferralCode = isset($data['referral_code']) ? strtoupper(trim((string) $data['referral_code'])) : null;
 
-        $referralRow = $referralService->validateReferralCodeOrFail($data['referral_code'] ?? null);
+        $referralRow = $referralService->validateReferralCodeOrFail($normalizedReferralCode);
 
-        $registrationContext = DB::transaction(function () use ($data, $referralService, $referralRow) {
-            // Build a display name from first + last name
-            $displayName = trim($data['first_name'] . ' ' . ($data['last_name'] ?? ''));
+        $registrationContext = DB::transaction(function () use ($data, $referralService, $referralRow, $normalizedReferralCode) {
+            $user = $this->createRegisteredUser($data);
 
-            $user                 = new User();
-            $user->id             = Str::uuid();
-            $user->first_name     = $data['first_name'];
-            $user->last_name      = $data['last_name'] ?? null;
-            $user->display_name   = $displayName;
-            $user->email          = $data['email'];
-            $user->phone          = $data['phone'] ?? null;
-            $user->company_name   = $data['company_name'] ?? null;
-            $user->designation    = $data['designation'] ?? null;
-            $user->city_id        = $user->city_id ?? null;
-            $trialEndsAt = now()->addDays(3);
-
-            $user->membership_status = User::STATUS_FREE_TRIAL;
-            $user->membership_starts_at = now();
-            $user->membership_ends_at = $trialEndsAt;
-            $user->membership_expiry = $trialEndsAt;
-            $user->coins_balance  = $user->coins_balance ?? 0;
-
-            // Store the hashed password in password_hash (not password)
-            $user->password_hash = Hash::make($data['password']);
-
-            // Ensure any legacy password attribute isn't used
-            if (isset($user->password)) {
-                $user->password = null;
-            }
-
-            $user->save();
+            Log::info('auth.register.user_created', [
+                'user_id' => (string) $user->id,
+                'email' => (string) $user->email,
+                'first_name' => (string) ($user->first_name ?? ''),
+                'last_name' => (string) ($user->last_name ?? ''),
+                'phone' => (string) ($user->phone ?? ''),
+                'display_name' => (string) ($user->display_name ?? ''),
+                'status' => (string) ($user->status ?? 'active'),
+                'deleted_at' => $user->deleted_at,
+                'registration_path' => blank($normalizedReferralCode) ? 'standard' : 'referral',
+            ]);
 
             $referralMeta = null;
 
             if ($referralRow) {
-                $referralMeta = $referralService->applyReferralOnRegistration($user, (string) $data['referral_code']);
+                $referralMeta = $referralService->applyReferralOnRegistration($user, (string) $normalizedReferralCode);
             }
 
             return [
@@ -86,6 +71,43 @@ class AuthController extends BaseApiController
                 'referral' => $referralMeta,
             ],
         ], 201);
+    }
+
+    private function createRegisteredUser(array $data): User
+    {
+        // Build a display name from first + last name
+        $displayName = trim($data['first_name'] . ' ' . ($data['last_name'] ?? ''));
+
+        $user = new User();
+        $user->id = Str::uuid();
+        $user->first_name = $data['first_name'];
+        $user->last_name = $data['last_name'] ?? null;
+        $user->display_name = $displayName;
+        $user->email = $data['email'];
+        $user->phone = $data['phone'] ?? null;
+        $user->company_name = $data['company_name'] ?? null;
+        $user->designation = $data['designation'] ?? null;
+        $user->city_id = $user->city_id ?? null;
+
+        $trialEndsAt = now()->addDays(3);
+
+        $user->membership_status = User::STATUS_FREE_TRIAL;
+        $user->membership_starts_at = now();
+        $user->membership_ends_at = $trialEndsAt;
+        $user->membership_expiry = $trialEndsAt;
+        $user->coins_balance = $user->coins_balance ?? 0;
+
+        // Store the hashed password in password_hash (not password)
+        $user->password_hash = Hash::make($data['password']);
+
+        // Ensure any legacy password attribute isn't used
+        if (isset($user->password)) {
+            $user->password = null;
+        }
+
+        $user->save();
+
+        return $user;
     }
 
     public function login(Request $request)
