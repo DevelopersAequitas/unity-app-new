@@ -5,6 +5,7 @@ namespace App\Services\Referrals;
 use App\Models\CoinsLedger;
 use App\Models\ReferralData;
 use App\Models\User;
+use App\Http\Resources\MemberDetailResource;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -258,7 +259,7 @@ class ReferralService
         $query = ReferralData::query()->where('referrer_user_id', $user->id);
 
         $referrer = User::query()
-            ->with(['circles:id,name'])
+            ->with(['city', 'activeCircle.cityRef'])
             ->find($user->id);
 
         $referredUsers = ReferralData::query()
@@ -273,37 +274,23 @@ class ReferralService
 
                 return [
                     'id' => (string) ($referred?->id ?? ''),
-                    'name' => trim((string) (($referred?->display_name ?: '') ?: (($referred?->first_name ?? '') . ' ' . ($referred?->last_name ?? '')))),
+                    'name' => trim((string) (($referred?->display_name ?: '') ?: (($referred?->first_name ?? '') . ' ' . ($referred?->last_name ?? '')) ?: ($referred?->name ?? ''))),
                     'email' => $referred?->email,
-                    'business_name' => $referred?->company_name,
-                    'position' => $referred?->designation,
+                    'business_name' => data_get($referred, 'business_name') ?: $referred?->company_name,
+                    'position' => data_get($referred, 'position') ?: $referred?->designation,
                 ];
             })
             ->values()
             ->all();
+
+        $referrerProfile = $referrer ? (new MemberDetailResource($referrer))->resolve() : null;
 
         return [
             'total_referrals' => (clone $query)->whereNotNull('referred_user_id')->count(),
             'total_referral_coins' => (int) (clone $query)->where('reward_status', 'granted')->sum('coins'),
             'granted_referrals' => (clone $query)->where('reward_status', 'granted')->whereNotNull('referred_user_id')->count(),
             'pending_referrals' => (clone $query)->where('reward_status', 'pending')->whereNull('referred_user_id')->count(),
-            'referrer' => [
-                'id' => (string) ($referrer?->id ?? ''),
-                'name' => trim((string) (($referrer?->display_name ?: '') ?: (($referrer?->first_name ?? '') . ' ' . ($referrer?->last_name ?? '')))),
-                'company_name' => $referrer?->company_name,
-                'city' => $referrer?->city,
-                'email' => $referrer?->email,
-                'phone' => $referrer?->phone,
-                'first_name' => $referrer?->first_name,
-                'last_name' => $referrer?->last_name,
-                'profile_photo' => $referrer?->profile_photo_url,
-                'circle' => $referrer?->circles?->first()
-                    ? [
-                        'id' => (string) $referrer->circles->first()->id,
-                        'name' => (string) $referrer->circles->first()->name,
-                    ]
-                    : null,
-            ],
+            'referrer' => $referrerProfile,
             'referred_users' => $referredUsers,
         ];
     }
