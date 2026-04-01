@@ -54,6 +54,7 @@ use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
 use App\Http\Controllers\Api\V1\Forms\BecomeMentorController;
 use App\Http\Controllers\Api\V1\Forms\PeerRecommendationController;
 use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
+use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
@@ -376,6 +377,10 @@ Route::prefix('v1')->group(function () {
     // Feedback (public, user optional)
     Route::post('/feedback', [FeedbackController::class, 'store']);
     Route::post('/become-a-mentor', [BecomeMentorController::class, 'submit']);
+    Route::post('/become-a-speaker', [WebsiteFormsController::class, 'submitBecomeSpeaker']);
+    Route::post('/share-sme-business-story', [WebsiteFormsController::class, 'submitSmeBusinessStory']);
+    Route::post('/leadership-certification', [WebsiteFormsController::class, 'submitLeadershipCertification']);
+    Route::post('/entrepreneur-certification', [WebsiteFormsController::class, 'submitEntrepreneurCertification']);
 
     // Ads banners (public)
     Route::get('/ads/banners', [AdsController::class, 'index']);
