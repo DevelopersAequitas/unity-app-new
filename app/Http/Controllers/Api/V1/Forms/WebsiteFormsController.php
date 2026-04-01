@@ -23,6 +23,9 @@ class WebsiteFormsController extends BaseApiController
         $data = $request->validated();
 
         Log::info('Become a speaker submission started', [
+            'headers' => $request->headers->all(),
+            'all' => $request->all(),
+            'all_files' => array_keys($request->allFiles()),
             'email' => $data['email'] ?? null,
             'phone' => $data['phone'] ?? null,
             'ip' => $request->ip(),
@@ -31,7 +34,7 @@ class WebsiteFormsController extends BaseApiController
         try {
             $storedImage = null;
 
-            if ($request->hasFile('image')) {
+            if ($request->hasFile('image') && $request->file('image') instanceof UploadedFile) {
                 $storedImage = $this->storeWebsiteFormImage($request->file('image'));
             }
 

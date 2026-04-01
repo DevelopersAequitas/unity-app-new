@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Forms;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Log;
 
 class SubmitBecomeSpeakerRequest extends FormRequest
 {
@@ -13,6 +14,13 @@ class SubmitBecomeSpeakerRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        Log::info('BecomeSpeakerRequest incoming payload', [
+            'headers' => $this->headers->all(),
+            'all' => $this->all(),
+            'all_files' => array_keys($this->allFiles()),
+            'content_type' => $this->header('Content-Type'),
+        ]);
+
         $this->merge([
             'first_name' => $this->trimValue($this->input('first_name')),
             'last_name' => $this->trimValue($this->input('last_name')),
@@ -24,6 +32,11 @@ class SubmitBecomeSpeakerRequest extends FormRequest
             'brief_bio' => $this->trimValue($this->input('brief_bio')),
             'topics_to_speak_on' => $this->trimValue($this->input('topics_to_speak_on')),
         ]);
+    }
+
+    protected function validationData(): array
+    {
+        return $this->all();
     }
 
     public function rules(): array
