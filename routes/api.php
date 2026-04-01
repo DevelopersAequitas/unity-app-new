@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\FollowController;
 use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
+use App\Http\Controllers\Api\V1\Forms\BecomeMentorController;
 use App\Http\Controllers\Api\V1\Forms\PeerRecommendationController;
 use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\IndustryController;
@@ -374,6 +375,7 @@ Route::prefix('v1')->group(function () {
 
     // Feedback (public, user optional)
     Route::post('/feedback', [FeedbackController::class, 'store']);
+    Route::post('/become-a-mentor', [BecomeMentorController::class, 'submit']);
 
     // Ads banners (public)
     Route::get('/ads/banners', [AdsController::class, 'index']);
