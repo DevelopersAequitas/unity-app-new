@@ -9,6 +9,7 @@ use App\Models\Impact;
 use App\Services\Impacts\ImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class ImpactController extends BaseApiController
 {
@@ -56,14 +57,27 @@ class ImpactController extends BaseApiController
     public function my(Request $request): JsonResponse
     {
         $perPage = max(1, min((int) $request->query('per_page', 20), 50));
+        $user = $request->user();
 
         $impacts = Impact::query()
             ->with(['user:id,display_name,first_name,last_name', 'impactedPeer:id,display_name,first_name,last_name'])
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $user->id)
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
+        $totalLifeImpacted = 0;
+
+        if (Schema::hasColumn('users', 'life_impacted_count')) {
+            $totalLifeImpacted = (int) ($user->life_impacted_count ?? 0);
+        } else {
+            $totalLifeImpacted = (int) Impact::query()
+                ->where('user_id', $user->id)
+                ->where('status', 'approved')
+                ->sum('life_impacted');
+        }
+
         return $this->success([
+            'total_life_impacted' => $totalLifeImpacted,
             'items' => ImpactResource::collection($impacts->getCollection())->resolve(),
             'pagination' => [
                 'current_page' => $impacts->currentPage(),

@@ -65,11 +65,11 @@ class ImpactService
             $impact->review_remarks = $reviewRemarks;
             $impact->save();
 
+            $incrementBy = max(1, (int) ($impact->life_impacted ?? 1));
+
             User::query()
                 ->where('id', $impact->user_id)
-                ->update([
-                    'life_impacted_count' => DB::raw('COALESCE(life_impacted_count, 0) + ' . max(1, (int) ($impact->life_impacted ?? 1))),
-                ]);
+                ->increment('life_impacted_count', $incrementBy);
 
             Log::info('impact.approved', [
                 'impact_id' => (string) $impact->id,
@@ -80,7 +80,7 @@ class ImpactService
             Log::info('impact.life_impacted_incremented', [
                 'impact_id' => (string) $impact->id,
                 'user_id' => (string) $impact->user_id,
-                'incremented_by' => max(1, (int) ($impact->life_impacted ?? 1)),
+                'incremented_by' => $incrementBy,
             ]);
 
             $this->notify((string) $impact->user_id, 'impact_approved', [
