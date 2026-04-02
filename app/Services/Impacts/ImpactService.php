@@ -59,12 +59,12 @@ class ImpactService
                 'admin_id' => $adminId,
             ]);
 
-            if ($impact->status === 'approved') {
-                return $impact;
-            }
+            if ($impact->status !== 'pending') {
+                if ($impact->status === 'approved') {
+                    return $impact->fresh(['user', 'impactedPeer']);
+                }
 
-            if ($impact->status === 'rejected') {
-                throw new \RuntimeException('Rejected impact cannot be approved.');
+                throw new \RuntimeException('Only pending impacts can be approved.');
             }
 
             $impact->status = 'approved';
@@ -85,10 +85,7 @@ class ImpactService
             ]);
 
             $incrementBy = max(1, (int) ($impact->life_impacted ?? 1));
-
-            User::query()
-                ->where('id', $impact->user_id)
-                ->increment('life_impacted_count', $incrementBy);
+            $recalculatedTotal = $this->recalculateUserLifeImpactedCount((string) $impact->user_id);
 
             Log::info('impact.approved', [
                 'impact_id' => (string) $impact->id,
@@ -100,6 +97,7 @@ class ImpactService
                 'impact_id' => (string) $impact->id,
                 'user_id' => (string) $impact->user_id,
                 'incremented_by' => $incrementBy,
+                'recalculated_total' => $recalculatedTotal,
             ]);
 
             $impact = $impact->fresh(['user', 'impactedPeer']);
@@ -175,6 +173,22 @@ class ImpactService
         }
 
         return (string) $adminOrId;
+    }
+
+    public function recalculateUserLifeImpactedCount(User|string $userOrId): int
+    {
+        $userId = $userOrId instanceof User ? (string) $userOrId->id : (string) $userOrId;
+
+        $sum = (int) Impact::query()
+            ->where('user_id', $userId)
+            ->where('status', 'approved')
+            ->sum(DB::raw('COALESCE(life_impacted, 1)'));
+
+        User::query()
+            ->where('id', $userId)
+            ->update(['life_impacted_count' => $sum]);
+
+        return $sum;
     }
 
     private function notify(string $userId, string $type, array $payload): void

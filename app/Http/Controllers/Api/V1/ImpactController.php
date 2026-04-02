@@ -65,16 +65,12 @@ class ImpactController extends BaseApiController
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
-        $totalLifeImpacted = 0;
-
-        if (Schema::hasColumn('users', 'life_impacted_count')) {
-            $totalLifeImpacted = (int) ($user->life_impacted_count ?? 0);
-        } else {
-            $totalLifeImpacted = (int) Impact::query()
+        $totalLifeImpacted = Schema::hasColumn('users', 'life_impacted_count')
+            ? $this->impactService->recalculateUserLifeImpactedCount($user)
+            : (int) Impact::query()
                 ->where('user_id', $user->id)
                 ->where('status', 'approved')
                 ->sum('life_impacted');
-        }
 
         return $this->success([
             'total_life_impacted' => $totalLifeImpacted,
