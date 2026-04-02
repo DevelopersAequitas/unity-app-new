@@ -27,19 +27,9 @@ class PostController extends BaseApiController
         $perPage = max(1, min((int) $request->integer('per_page', 20), 50));
         $page = LengthAwarePaginator::resolveCurrentPage();
 
-        $query = Post::query()
-            ->with([
-                'author:id,display_name,first_name,last_name,profile_photo_file_id',
-            ])
-            ->withCount(['likes', 'comments', 'saves'])
-            ->withExists([
-                'likes as is_liked_by_me' => fn ($query) => $query->where('user_id', $user->id),
-                'saves as is_saved_by_me' => fn ($query) => $query->where('user_id', $user->id),
-            ])
-            ->orderByDesc('created_at');
-
-        $query->where('visibility', 'public');
-        $query->where('posts.is_deleted', false)
+        $postFilterQuery = Post::query();
+        $postFilterQuery->where('visibility', 'public');
+        $postFilterQuery->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at');
 
         $impactQuery = Impact::query()
@@ -50,7 +40,7 @@ class PostController extends BaseApiController
             ->where('status', 'approved')
             ->whereNotNull('timeline_posted_at');
 
-        $postRows = (clone $query)->toBase()
+        $postRows = (clone $postFilterQuery)->toBase()
             ->selectRaw("posts.id as id, posts.created_at as sort_at, 'post' as source_type");
         $impactRows = (clone $impactQuery)->toBase()
             ->selectRaw("impacts.id as id, COALESCE(impacts.timeline_posted_at, impacts.approved_at, impacts.created_at) as sort_at, 'impact' as source_type");
