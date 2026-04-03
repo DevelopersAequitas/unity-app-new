@@ -139,7 +139,15 @@ class ImpactsController extends Controller
             ->with(['user:id,display_name,first_name,last_name,email,phone', 'impactedPeer:id,display_name,first_name,last_name,email,phone'])
             ->findOrFail($id);
 
-        return view('admin.impacts.show', compact('impact'));
+        $totalLifeImpacted = (int) Impact::query()
+            ->where('impacted_peer_id', (string) $impact->impacted_peer_id)
+            ->where('status', 'approved')
+            ->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(life_impacted, 1)'));
+
+        return view('admin.impacts.show', [
+            'impact' => $impact,
+            'total_life_impacted' => $totalLifeImpacted,
+        ]);
     }
 
     public function approve(string $id, ReviewImpactRequest $request): RedirectResponse
