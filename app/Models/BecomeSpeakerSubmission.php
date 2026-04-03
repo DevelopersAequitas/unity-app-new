@@ -9,7 +9,7 @@ class BecomeSpeakerSubmission extends Model
 {
     use HasUuids;
 
-    protected $table = 'public.become_speaker_submissions';
+    protected $table = 'become_speaker_submissions';
 
     protected $keyType = 'string';
 

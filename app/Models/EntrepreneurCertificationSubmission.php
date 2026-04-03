@@ -9,7 +9,7 @@ class EntrepreneurCertificationSubmission extends Model
 {
     use HasUuids;
 
-    protected $table = 'public.entrepreneur_certification_submissions';
+    protected $table = 'entrepreneur_certification_submissions';
 
     protected $keyType = 'string';
 

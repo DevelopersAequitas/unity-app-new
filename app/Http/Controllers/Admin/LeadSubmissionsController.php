@@ -7,7 +7,7 @@ use App\Models\BecomeMentorSubmission;
 use App\Models\BecomeSpeakerSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\LeadershipCertificationSubmission;
-use App\Models\PartnerWithUsSubmission;
+use App\Models\SmeBusinessStorySubmission;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -172,12 +172,12 @@ class LeadSubmissionsController extends Controller
                 'key' => 'partner_with_us',
                 'title' => 'Partner With Us Leads',
                 'menu_label' => 'Partner With Us',
-                'model' => PartnerWithUsSubmission::class,
+                'model' => SmeBusinessStorySubmission::class,
                 'index_route' => 'admin.leads.partner-with-us.index',
                 'show_route' => 'admin.leads.partner-with-us.show',
-                'search_columns' => ['id', 'full_name', 'mobile_number', 'email_id', 'city', 'brand_or_company_name', 'industry', 'about_your_business', 'partnership_goal', 'why_partner_with_peers_global', 'notes'],
-                'columns' => ['id', 'full_name', 'mobile_number', 'email_id', 'city', 'brand_or_company_name', 'website_or_social_media_link', 'industry', 'about_your_business', 'partnership_goal', 'why_partner_with_peers_global', 'status', 'notes', 'created_at', 'updated_at'],
-                'long_text_columns' => ['about_your_business', 'partnership_goal', 'why_partner_with_peers_global', 'notes'],
+                'search_columns' => ['id', 'full_name', 'email', 'contact_number', 'business_name', 'company_introduction', 'co_founders_and_partners_details', 'notes'],
+                'columns' => ['id', 'full_name', 'email', 'contact_number', 'business_name', 'company_introduction', 'co_founders_and_partners_details', 'status', 'notes', 'created_at', 'updated_at'],
+                'long_text_columns' => ['company_introduction', 'co_founders_and_partners_details', 'notes'],
             ],
             'become_speaker' => [
                 'key' => 'become_speaker',

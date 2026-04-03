@@ -9,7 +9,7 @@ class LeadershipCertificationSubmission extends Model
 {
     use HasUuids;
 
-    protected $table = 'public.leadership_certification_submissions';
+    protected $table = 'leadership_certification_submissions';
 
     protected $keyType = 'string';
 

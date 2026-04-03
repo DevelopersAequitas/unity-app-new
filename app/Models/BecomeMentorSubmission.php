@@ -9,7 +9,7 @@ class BecomeMentorSubmission extends Model
 {
     use HasUuids;
 
-    protected $table = 'public.become_mentor_submissions';
+    protected $table = 'become_mentor_submissions';
 
     protected $keyType = 'string';
 

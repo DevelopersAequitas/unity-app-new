@@ -9,7 +9,7 @@ class PartnerWithUsSubmission extends Model
 {
     use HasUuids;
 
-    protected $table = 'public.partner_with_us_submissions';
+    protected $table = 'partner_with_us_submissions';
 
     protected $keyType = 'string';
 
