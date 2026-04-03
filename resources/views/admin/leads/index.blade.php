@@ -2,6 +2,25 @@
 
 @section('title', $resource['title'])
 
+@push('styles')
+    <style>
+        .table-responsive-horizontal {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .table-responsive-horizontal table {
+            min-width: 1200px;
+        }
+
+        .scroll-cell {
+            max-width: 150px;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+    </style>
+@endpush
+
 @section('content')
     @php
         $formatValue = function ($value, string $column, bool $isLongText = false): string {
@@ -35,6 +54,22 @@
                 default => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
             };
         };
+
+        $scrollableColumns = [
+            'full_name',
+            'first_name',
+            'last_name',
+            'contact_no',
+            'contact_number',
+            'phone',
+            'mobile_number',
+            'city',
+            'email',
+            'email_id',
+            'business_name',
+            'brand_or_company_name',
+            'company_name',
+        ];
     @endphp
 
     <form id="leadFiltersForm" method="GET" action="{{ route($resource['index_route']) }}"></form>
@@ -77,12 +112,12 @@
     </div>
 
     <div class="card shadow-sm">
-        <div class="table-responsive">
+        <div class="table-responsive-horizontal">
             <table class="table mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
                         @foreach ($resource['columns'] as $column)
-                            <th>{{ str_replace('_', ' ', ucfirst($column)) }}</th>
+                            <th @if (in_array($column, $scrollableColumns, true)) style="min-width:150px;" @endif>{{ str_replace('_', ' ', ucfirst($column)) }}</th>
                         @endforeach
                         <th class="text-end">Action</th>
                     </tr>
@@ -95,7 +130,7 @@
                                     $isLongText = in_array($column, $resource['long_text_columns'], true);
                                     $value = data_get($item, $column);
                                 @endphp
-                                <td>
+                                <td @if (in_array($column, $scrollableColumns, true)) class="scroll-cell" @endif>
                                     @if ($column === 'status')
                                         <span class="badge {{ $statusBadgeClass((string) $value) }}">{{ $formatValue($value, $column) }}</span>
                                     @elseif ($column === 'id')
