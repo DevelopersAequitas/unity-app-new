@@ -171,6 +171,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::get('/impacts', [ImpactsController::class, 'index'])->name('impacts.index');
         Route::post('/impacts', [ImpactsController::class, 'store'])->name('impacts.store');
+        Route::post('/impacts/actions', [ImpactsController::class, 'storeAction'])->name('impacts.actions.store');
         Route::get('/impacts/pending', [ImpactsController::class, 'pending'])->name('impacts.pending');
         Route::get('/impacts/posts', [ImpactsController::class, 'posts'])->name('impacts.posts');
         Route::get('/impacts/{id}', [ImpactsController::class, 'show'])->whereUuid('id')->name('impacts.show');

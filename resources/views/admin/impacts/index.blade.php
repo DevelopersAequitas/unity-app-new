@@ -35,6 +35,9 @@
     @if (session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
+    @if (session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
 
     @if ($errors->any())
         <div class="alert alert-danger">
@@ -45,6 +48,49 @@
             </ul>
         </div>
     @endif
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold">Manage Impact Actions</div>
+        <div class="card-body">
+            <form method="POST" action="{{ route('admin.impacts.actions.store') }}" class="row g-2 align-items-end mb-3">
+                @csrf
+                <div class="col-md-6">
+                    <label class="form-label">Action Name <span class="text-danger">*</span></label>
+                    <input type="text" name="name" class="form-control" value="{{ old('name') }}" required maxlength="255" placeholder="Enter action name">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary">Add Action</button>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Action Name</th>
+                        <th>Status</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @forelse($impactActionItems as $actionItem)
+                        <tr>
+                            <td>{{ $actionItem->name }}</td>
+                            <td>
+                                <span class="badge {{ $actionItem->is_active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' }}">
+                                    {{ $actionItem->is_active ? 'Active' : 'Inactive' }}
+                                </span>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="2" class="text-center text-muted py-2">No actions found.</td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <div class="card shadow-sm mb-3">
         <div class="card-header fw-semibold">Create Impact</div>

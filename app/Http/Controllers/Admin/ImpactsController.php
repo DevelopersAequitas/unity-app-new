@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\Impacts\StoreImpactRequest;
 use App\Http\Requests\Impacts\ReviewImpactRequest;
 use App\Models\Impact;
 use App\Models\User;
+use App\Services\Impacts\ImpactActionService;
 use App\Services\Impacts\ImpactService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
@@ -17,8 +18,10 @@ use Illuminate\View\View;
 
 class ImpactsController extends Controller
 {
-    public function __construct(private readonly ImpactService $impactService)
-    {
+    public function __construct(
+        private readonly ImpactService $impactService,
+        private readonly ImpactActionService $impactActionService,
+    ) {
     }
 
     public function index(Request $request): View
@@ -74,6 +77,7 @@ class ImpactsController extends Controller
         return view('admin.impacts.index', [
             'impacts' => $impacts,
             'impactActions' => $impactActions,
+            'impactActionItems' => $this->impactActionService->listForAdmin(),
             'peers' => $peers,
             'filters' => [
                 'status' => $status,
@@ -108,6 +112,29 @@ class ImpactsController extends Controller
         return redirect()
             ->route('admin.impacts.index')
             ->with('success', 'Impact created successfully.');
+    }
+
+    public function storeAction(Request $request): RedirectResponse
+    {
+        $this->ensureGlobalAdmin();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ], [
+            'name.required' => 'Action name is required.',
+        ]);
+
+        try {
+            $this->impactActionService->createAction((string) $validated['name']);
+        } catch (\InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['name' => $exception->getMessage()]);
+        } catch (\RuntimeException $exception) {
+            return redirect()->route('admin.impacts.index')
+                ->withInput()
+                ->with('error', 'Impact actions table is not available yet. Please run the provided SQL first.');
+        }
+
+        return redirect()->route('admin.impacts.index')->with('success', 'Impact action added successfully.');
     }
 
     public function pending(): View

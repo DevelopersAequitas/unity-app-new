@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Services\Impacts\ImpactActionService;
 
 class Impact extends Model
 {
@@ -47,7 +48,7 @@ class Impact extends Model
 
     public static function availableActions(): array
     {
-        return array_values((array) config('impact.actions', []));
+        return app(ImpactActionService::class)->availableActions();
     }
 
     public function user(): BelongsTo
