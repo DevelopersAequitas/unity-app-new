@@ -78,7 +78,7 @@
         ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
     ];
     $leadsActive = request()->routeIs('admin.leads.*');
-    $pendingRequestsActive = request()->routeIs('admin.visitor-registrations.*') || request()->routeIs('admin.coin-claims.*') || request()->routeIs('admin.circle-joining-requests.*') || $leadsActive;
+    $pendingRequestsActive = request()->routeIs('admin.visitor-registrations.*') || request()->routeIs('admin.coin-claims.*') || request()->routeIs('admin.circle-joining-requests.*');
 @endphp
 <aside class="admin-sidebar d-flex flex-column">
     <div class="text-center mb-2">
@@ -153,23 +153,23 @@
                                 </a>
                             </li>
                         @endforeach
-                        <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
-                            <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
-                                <span>Leads</span>
-                                <i class="bi bi-chevron-right menu-arrow"></i>
-                            </a>
-                            <div class="collapse {{ $leadsActive ? 'show' : '' }}" id="leadsSubmenu">
-                                <ul class="nav flex-column ms-3">
-                                    @foreach ($leadsMenu as $item)
-                                        <li class="nav-item">
-                                            <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                                                {{ $item['label'] }}
-                                            </a>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        </li>
+                    </ul>
+                </div>
+            </li>
+            <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
+                <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
+                    <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
+                    <i class="bi bi-chevron-right menu-arrow"></i>
+                </a>
+                <div class="collapse {{ $leadsActive ? 'show' : '' }}" id="leadsSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        @foreach ($leadsMenu as $item)
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    {{ $item['label'] }}
+                                </a>
+                            </li>
+                        @endforeach
                     </ul>
                 </div>
             </li>
