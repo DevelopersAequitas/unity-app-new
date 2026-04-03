@@ -170,6 +170,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/email-logs', [EmailLogController::class, 'index'])->name('email-logs.index');
 
         Route::get('/impacts', [ImpactsController::class, 'index'])->name('impacts.index');
+        Route::get('/impacts/export/csv', [ImpactsController::class, 'exportCsv'])->name('impacts.export.csv');
         Route::post('/impacts', [ImpactsController::class, 'store'])->name('impacts.store');
         Route::post('/impacts/actions', [ImpactsController::class, 'storeAction'])->name('impacts.actions.store');
         Route::get('/impacts/pending', [ImpactsController::class, 'pending'])->name('impacts.pending');

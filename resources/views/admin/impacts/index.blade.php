@@ -146,31 +146,6 @@
         </div>
     </div>
 
-    <form id="impactFiltersForm" method="GET" action="{{ route('admin.impacts.index') }}"></form>
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search</label>
-                    <input type="text" name="q" form="impactFiltersForm" value="{{ $filters['q'] }}" class="form-control" placeholder="Search by action, story, or peer">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">Status</label>
-                    <select name="status" form="impactFiltersForm" class="form-select">
-                        <option value="all" @selected($filters['status'] === 'all')>All</option>
-                        <option value="pending" @selected($filters['status'] === 'pending')>Pending</option>
-                        <option value="approved" @selected($filters['status'] === 'approved')>Approved</option>
-                        <option value="rejected" @selected($filters['status'] === 'rejected')>Rejected</option>
-                    </select>
-                </div>
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="submit" form="impactFiltersForm" class="btn btn-primary">Apply</button>
-                    <a href="{{ route('admin.impacts.index') }}" class="btn btn-outline-secondary">Reset</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="card shadow-sm">
         <form id="impactTableFiltersForm" method="GET" action="{{ route('admin.impacts.index') }}"></form>
         <div class="table-responsive">
@@ -187,7 +162,13 @@
                         <th>Approved By</th>
                         <th>Approved At</th>
                         <th>Created At</th>
-                        <th class="text-end">Actions</th>
+                        <th class="text-end">
+                            <div class="d-inline-flex align-items-center gap-2">
+                                <span>Actions</span>
+                                <button type="button" class="btn btn-sm btn-primary" disabled>Import</button>
+                                <a href="{{ route('admin.impacts.export.csv', request()->query()) }}" class="btn btn-sm btn-outline-secondary">Export CSV</a>
+                            </div>
+                        </th>
                     </tr>
                     <tr>
                         <th>

@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
 
 class ImpactsController extends Controller
@@ -201,6 +202,114 @@ class ImpactsController extends Controller
             ->paginate(25);
 
         return view('admin.impacts.pending', compact('impacts'));
+    }
+
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $this->ensureGlobalAdmin();
+
+        $status = (string) $request->query('status', 'all');
+        $headerStatus = (string) $request->query('filter_status', '');
+
+        if ($headerStatus !== '') {
+            $status = $headerStatus;
+        }
+
+        if (! in_array($status, ['all', 'pending', 'approved', 'rejected'], true)) {
+            $status = 'all';
+        }
+
+        $filterDate = trim((string) $request->query('filter_date', ''));
+        $filterAction = trim((string) $request->query('filter_action', ''));
+        $filterImpactedPeer = trim((string) $request->query('filter_impacted_peer', ''));
+        $filterSubmittedBy = trim((string) $request->query('filter_submitted_by', ''));
+        $filterApprovedBy = trim((string) $request->query('filter_approved_by', ''));
+        $search = trim((string) $request->query('q', ''));
+
+        $impacts = Impact::query()
+            ->with([
+                'user:id,display_name,first_name,last_name,email',
+                'impactedPeer:id,display_name,first_name,last_name,email',
+                'approvedBy:id,name',
+            ])
+            ->when($status !== 'all', fn ($query) => $query->where('status', $status))
+            ->when($filterDate !== '', fn ($query) => $query->whereDate('impact_date', $filterDate))
+            ->when($filterAction !== '', fn ($query) => $query->where('action', $filterAction))
+            ->when($filterImpactedPeer !== '', function ($query) use ($filterImpactedPeer) {
+                $term = "%{$filterImpactedPeer}%";
+                $query->whereHas('impactedPeer', function ($peerQuery) use ($term) {
+                    $peerQuery->where('display_name', 'ILIKE', $term)
+                        ->orWhere('first_name', 'ILIKE', $term)
+                        ->orWhere('last_name', 'ILIKE', $term)
+                        ->orWhere('email', 'ILIKE', $term)
+                        ->orWhere('company_name', 'ILIKE', $term)
+                        ->orWhere('city', 'ILIKE', $term);
+                });
+            })
+            ->when($filterSubmittedBy !== '', function ($query) use ($filterSubmittedBy) {
+                $term = "%{$filterSubmittedBy}%";
+                $query->whereHas('user', function ($userQuery) use ($term) {
+                    $userQuery->where('display_name', 'ILIKE', $term)
+                        ->orWhere('first_name', 'ILIKE', $term)
+                        ->orWhere('last_name', 'ILIKE', $term)
+                        ->orWhere('email', 'ILIKE', $term)
+                        ->orWhere('company_name', 'ILIKE', $term)
+                        ->orWhere('city', 'ILIKE', $term);
+                });
+            })
+            ->when($filterApprovedBy !== '', function ($query) use ($filterApprovedBy) {
+                $term = "%{$filterApprovedBy}%";
+                $query->whereHas('approvedBy', function ($approvedByQuery) use ($term) {
+                    $approvedByQuery->where('name', 'ILIKE', $term)
+                        ->orWhere('email', 'ILIKE', $term);
+                });
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $term = "%{$search}%";
+                $query->where(function ($subQuery) use ($term) {
+                    $subQuery->where('action', 'ILIKE', $term)
+                        ->orWhere('story_to_share', 'ILIKE', $term);
+                });
+            })
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->streamDownload(function () use ($impacts): void {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, [
+                'Date',
+                'Add Impact Details',
+                'Impacted Peer',
+                'Submitted By / User',
+                'Life Impacted',
+                'Status',
+                'Review Remarks',
+                'Approved By',
+                'Approved At',
+                'Created At',
+            ]);
+
+            foreach ($impacts as $impact) {
+                $impactedPeer = $impact->impactedPeer?->display_name ?: trim(($impact->impactedPeer?->first_name ?? '') . ' ' . ($impact->impactedPeer?->last_name ?? ''));
+                $submittedBy = $impact->user?->display_name ?: trim(($impact->user?->first_name ?? '') . ' ' . ($impact->user?->last_name ?? ''));
+
+                fputcsv($handle, [
+                    optional($impact->impact_date)->toDateString(),
+                    $impact->action,
+                    $impactedPeer,
+                    $submittedBy,
+                    (int) ($impact->life_impacted ?? 1),
+                    (string) $impact->status,
+                    (string) ($impact->review_remarks ?? ''),
+                    (string) ($impact->approvedBy?->name ?? ''),
+                    optional($impact->approved_at)?->format('Y-m-d H:i:s'),
+                    optional($impact->created_at)?->format('Y-m-d H:i:s'),
+                ]);
+            }
+
+            fclose($handle);
+        }, 'impact-list.csv');
     }
 
     public function posts(): RedirectResponse
