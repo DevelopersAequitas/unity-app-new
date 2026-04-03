@@ -61,9 +61,7 @@ class PostResource extends JsonResource
                         'display_name'     => $author?->display_name,
                         'first_name'       => $author?->first_name,
                         'last_name'        => $author?->last_name,
-                        'profile_photo_url' => $author && $author->profile_photo_id
-                            ? url('/api/v1/files/' . $author->profile_photo_id)
-                            : null,
+                        'profile_photo_url'=> $author?->profile_photo_url,
                     ];
                 }
             ),
