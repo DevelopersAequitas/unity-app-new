@@ -11,6 +11,7 @@ use App\Services\Impacts\ImpactService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -63,8 +64,10 @@ class ImpactsController extends Controller
             ->withQueryString();
 
         $impactActions = array_values((array) config('impact.actions', []));
+        $adminId = (string) Auth::guard('admin')->id();
         $peers = User::query()
             ->select(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'business_type'])
+            ->when($adminId !== '', fn ($query) => $query->where('id', '!=', $adminId))
             ->orderByRaw("COALESCE(NULLIF(display_name, ''), NULLIF(TRIM(CONCAT(first_name, ' ', last_name)), ''), email) ASC")
             ->get();
 
@@ -84,9 +87,23 @@ class ImpactsController extends Controller
         $this->ensureGlobalAdmin();
 
         $data = $request->validated();
-        $submittedBy = User::query()->findOrFail($data['impacted_peer_id']);
+        $adminId = (string) Auth::guard('admin')->id();
 
-        $this->impactService->submitImpact($submittedBy, $data);
+        if ((string) $data['impacted_peer_id'] === $adminId) {
+            throw ValidationException::withMessages([
+                'impacted_peer_id' => 'You cannot create an impact for yourself.',
+            ]);
+        }
+
+        $submittedBy = User::query()->find($adminId);
+
+        if (! $submittedBy) {
+            throw ValidationException::withMessages([
+                'impacted_peer_id' => 'Current admin user is not linked to a peer account.',
+            ]);
+        }
+
+        $this->impactService->submitImpact($submittedBy, array_merge($data, ['life_impacted' => 1]));
 
         return redirect()
             ->route('admin.impacts.index')

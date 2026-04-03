@@ -98,10 +98,6 @@
                         <label class="form-label">Additional Remarks</label>
                         <textarea name="additional_remarks" class="form-control" rows="3">{{ old('additional_remarks') }}</textarea>
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Life Impacted</label>
-                        <input type="number" min="1" max="100" name="life_impacted" class="form-control" value="{{ old('life_impacted', 1) }}">
-                    </div>
                 </div>
                 <div class="mt-3">
                     <button type="submit" class="btn btn-primary">Create Impact</button>
