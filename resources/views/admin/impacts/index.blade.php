@@ -194,7 +194,12 @@
                             <input type="date" name="filter_date" form="impactTableFiltersForm" class="form-control form-control-sm" value="{{ $filters['filter_date'] ?? '' }}">
                         </th>
                         <th>
-                            <input type="text" name="filter_action" form="impactTableFiltersForm" class="form-control form-control-sm" placeholder="Search add impact details" value="{{ $filters['filter_action'] ?? '' }}">
+                            <select name="filter_action" form="impactTableFiltersForm" class="form-select form-select-sm">
+                                <option value="">All</option>
+                                @foreach($impactActions as $action)
+                                    <option value="{{ $action }}" @selected(($filters['filter_action'] ?? '') === $action)>{{ $action }}</option>
+                                @endforeach
+                            </select>
                         </th>
                         <th>
                             <input type="text" name="filter_impacted_peer" form="impactTableFiltersForm" class="form-control form-control-sm" placeholder="Peer/Company/City" value="{{ $filters['filter_impacted_peer'] ?? '' }}">

@@ -54,7 +54,7 @@ class ImpactsController extends Controller
             ])
             ->when($status !== 'all', fn ($query) => $query->where('status', $status))
             ->when($filterDate !== '', fn ($query) => $query->whereDate('impact_date', $filterDate))
-            ->when($filterAction !== '', fn ($query) => $query->where('action', 'ILIKE', "%{$filterAction}%"))
+            ->when($filterAction !== '', fn ($query) => $query->where('action', $filterAction))
             ->when($filterImpactedPeer !== '', function ($query) use ($filterImpactedPeer) {
                 $term = "%{$filterImpactedPeer}%";
 
