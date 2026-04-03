@@ -30,6 +30,17 @@ class ImpactsController extends Controller
 
         $status = (string) $request->query('status', 'all');
         $search = trim((string) $request->query('q', ''));
+        $headerStatus = (string) $request->query('filter_status', '');
+
+        if ($headerStatus !== '') {
+            $status = $headerStatus;
+        }
+
+        $filterDate = trim((string) $request->query('filter_date', ''));
+        $filterAction = trim((string) $request->query('filter_action', ''));
+        $filterImpactedPeer = trim((string) $request->query('filter_impacted_peer', ''));
+        $filterSubmittedBy = trim((string) $request->query('filter_submitted_by', ''));
+        $filterApprovedBy = trim((string) $request->query('filter_approved_by', ''));
 
         if (! in_array($status, ['all', 'pending', 'approved', 'rejected'], true)) {
             $status = 'all';
@@ -42,6 +53,40 @@ class ImpactsController extends Controller
                 'approvedBy:id,name',
             ])
             ->when($status !== 'all', fn ($query) => $query->where('status', $status))
+            ->when($filterDate !== '', fn ($query) => $query->whereDate('impact_date', $filterDate))
+            ->when($filterAction !== '', fn ($query) => $query->where('action', 'ILIKE', "%{$filterAction}%"))
+            ->when($filterImpactedPeer !== '', function ($query) use ($filterImpactedPeer) {
+                $term = "%{$filterImpactedPeer}%";
+
+                $query->whereHas('impactedPeer', function ($peerQuery) use ($term) {
+                    $peerQuery->where('display_name', 'ILIKE', $term)
+                        ->orWhere('first_name', 'ILIKE', $term)
+                        ->orWhere('last_name', 'ILIKE', $term)
+                        ->orWhere('email', 'ILIKE', $term)
+                        ->orWhere('company_name', 'ILIKE', $term)
+                        ->orWhere('city', 'ILIKE', $term);
+                });
+            })
+            ->when($filterSubmittedBy !== '', function ($query) use ($filterSubmittedBy) {
+                $term = "%{$filterSubmittedBy}%";
+
+                $query->whereHas('user', function ($userQuery) use ($term) {
+                    $userQuery->where('display_name', 'ILIKE', $term)
+                        ->orWhere('first_name', 'ILIKE', $term)
+                        ->orWhere('last_name', 'ILIKE', $term)
+                        ->orWhere('email', 'ILIKE', $term)
+                        ->orWhere('company_name', 'ILIKE', $term)
+                        ->orWhere('city', 'ILIKE', $term);
+                });
+            })
+            ->when($filterApprovedBy !== '', function ($query) use ($filterApprovedBy) {
+                $term = "%{$filterApprovedBy}%";
+
+                $query->whereHas('approvedBy', function ($approvedByQuery) use ($term) {
+                    $approvedByQuery->where('name', 'ILIKE', $term)
+                        ->orWhere('email', 'ILIKE', $term);
+                });
+            })
             ->when($search !== '', function ($query) use ($search) {
                 $term = "%{$search}%";
 
@@ -82,6 +127,11 @@ class ImpactsController extends Controller
             'filters' => [
                 'status' => $status,
                 'q' => $search,
+                'filter_date' => $filterDate,
+                'filter_action' => $filterAction,
+                'filter_impacted_peer' => $filterImpactedPeer,
+                'filter_submitted_by' => $filterSubmittedBy,
+                'filter_approved_by' => $filterApprovedBy,
             ],
         ]);
     }

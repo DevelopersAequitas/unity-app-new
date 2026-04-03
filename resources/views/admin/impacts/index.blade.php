@@ -172,12 +172,13 @@
     </div>
 
     <div class="card shadow-sm">
+        <form id="impactTableFiltersForm" method="GET" action="{{ route('admin.impacts.index') }}"></form>
         <div class="table-responsive">
             <table class="table mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
                         <th>Date</th>
-                        <th>Action</th>
+                        <th>Add Impact Details</th>
                         <th>Impacted Peer</th>
                         <th>Submitted By / User</th>
                         <th>Life Impacted</th>
@@ -187,6 +188,41 @@
                         <th>Approved At</th>
                         <th>Created At</th>
                         <th class="text-end">Actions</th>
+                    </tr>
+                    <tr>
+                        <th>
+                            <input type="date" name="filter_date" form="impactTableFiltersForm" class="form-control form-control-sm" value="{{ $filters['filter_date'] ?? '' }}">
+                        </th>
+                        <th>
+                            <input type="text" name="filter_action" form="impactTableFiltersForm" class="form-control form-control-sm" placeholder="Search add impact details" value="{{ $filters['filter_action'] ?? '' }}">
+                        </th>
+                        <th>
+                            <input type="text" name="filter_impacted_peer" form="impactTableFiltersForm" class="form-control form-control-sm" placeholder="Peer/Company/City" value="{{ $filters['filter_impacted_peer'] ?? '' }}">
+                        </th>
+                        <th>
+                            <input type="text" name="filter_submitted_by" form="impactTableFiltersForm" class="form-control form-control-sm" placeholder="User/Company/City" value="{{ $filters['filter_submitted_by'] ?? '' }}">
+                        </th>
+                        <th></th>
+                        <th>
+                            <select name="filter_status" form="impactTableFiltersForm" class="form-select form-select-sm">
+                                <option value="all" @selected(($filters['status'] ?? 'all') === 'all')>All</option>
+                                <option value="pending" @selected(($filters['status'] ?? '') === 'pending')>Pending</option>
+                                <option value="approved" @selected(($filters['status'] ?? '') === 'approved')>Approved</option>
+                                <option value="rejected" @selected(($filters['status'] ?? '') === 'rejected')>Rejected</option>
+                            </select>
+                        </th>
+                        <th></th>
+                        <th>
+                            <input type="text" name="filter_approved_by" form="impactTableFiltersForm" class="form-control form-control-sm" placeholder="Approved by" value="{{ $filters['filter_approved_by'] ?? '' }}">
+                        </th>
+                        <th></th>
+                        <th></th>
+                        <th class="text-end">
+                            <div class="d-inline-flex align-items-center gap-2">
+                                <button type="submit" form="impactTableFiltersForm" class="btn btn-sm btn-primary">Apply</button>
+                                <a href="{{ route('admin.impacts.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
