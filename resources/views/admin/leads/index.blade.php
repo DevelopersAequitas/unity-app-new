@@ -70,6 +70,30 @@
             'brand_or_company_name',
             'company_name',
         ];
+
+        $columnFilterMap = [
+            'full_name' => 'name',
+            'first_name' => 'name',
+            'contact_no' => 'phone',
+            'contact_number' => 'phone',
+            'phone' => 'phone',
+            'city' => 'city',
+            'email' => 'email',
+            'email_id' => 'email',
+            'business_name' => 'company',
+            'brand_or_company_name' => 'company',
+            'company_name' => 'company',
+        ];
+
+        $columnFilterLabels = [
+            'name' => 'Name',
+            'phone' => 'Mobile / Phone',
+            'city' => 'City',
+            'email' => 'Email',
+            'company' => 'Company Name',
+        ];
+
+        $renderedFilterKeys = [];
     @endphp
 
     <form id="leadFiltersForm" method="GET" action="{{ route($resource['index_route']) }}"></form>
@@ -120,6 +144,33 @@
                             <th @if (in_array($column, $scrollableColumns, true)) style="min-width:150px;" @endif>{{ str_replace('_', ' ', ucfirst($column)) }}</th>
                         @endforeach
                         <th class="text-end">Action</th>
+                    </tr>
+                    <tr>
+                        @foreach ($resource['columns'] as $column)
+                            @php
+                                $filterKey = $columnFilterMap[$column] ?? null;
+                                $canRenderFilter = $filterKey && array_key_exists($filterKey, $filters) && ! in_array($filterKey, $renderedFilterKeys, true);
+                            @endphp
+                            <th>
+                                @if ($canRenderFilter)
+                                    @php $renderedFilterKeys[] = $filterKey; @endphp
+                                    <input
+                                        type="text"
+                                        name="{{ $filterKey }}"
+                                        form="leadFiltersForm"
+                                        class="form-control form-control-sm"
+                                        placeholder="{{ $columnFilterLabels[$filterKey] ?? 'Filter' }}"
+                                        value="{{ $filters[$filterKey] ?? '' }}"
+                                    >
+                                @endif
+                            </th>
+                        @endforeach
+                        <th class="text-end">
+                            <div class="d-inline-flex align-items-center gap-2" style="white-space:nowrap;">
+                                <button type="submit" form="leadFiltersForm" class="btn btn-sm btn-primary">Apply</button>
+                                <a href="{{ route($resource['index_route']) }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
