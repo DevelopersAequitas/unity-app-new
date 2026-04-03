@@ -185,13 +185,12 @@
                                     <a href="{{ route('admin.posts.show', $post) }}" class="btn btn-outline-primary btn-sm">View</a>
 
                                     <form method="POST"
-                                          action="{{ route('admin.posts.destroy', $post) }}"
+                                          action="{{ route('admin.posts.deactivate', $post) }}"
                                           style="display:inline-block; margin-left:6px;">
                                         @csrf
-                                        @method('DELETE')
                                         <button type="submit"
                                                 class="btn btn-danger btn-sm"
-                                                onclick="return confirm('Are you sure you want to remove this post?')">
+                                                onclick="return confirm('Are you sure you want to deactivate this post?')">
                                             Deactivate
                                         </button>
                                     </form>

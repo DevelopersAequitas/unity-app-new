@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class PostModerationController extends Controller
@@ -33,7 +34,7 @@ class PostModerationController extends Controller
         $circleId = $request->query('circle_id', 'all');
 
         $filters = [
-            'active' => $request->input('active', 'all'),
+            'active' => $request->input('active', 'active'),
             'visibility' => $request->input('visibility'),
             'moderation_status' => $request->input('moderation_status'),
             'search' => $request->input('search'),
@@ -113,6 +114,19 @@ class PostModerationController extends Controller
                     ->orWhereRaw("TRIM(posts.media::text) = ''")
                     ->orWhereRaw("posts.media::text IN ('[]', '{}', 'null')");
             });
+        }
+
+        if (($filters['active'] ?? 'active') === 'deactivated' || $inlineActive === 'no') {
+            $query->where(function ($subQuery) {
+                $subQuery->whereNotNull('posts.deleted_at')
+                    ->orWhere('posts.is_deleted', true);
+            });
+        } else {
+            $query->whereNull('posts.deleted_at')
+                ->where(function ($subQuery) {
+                    $subQuery->where('posts.is_deleted', false)
+                        ->orWhereNull('posts.is_deleted');
+                });
         }
 
         $impactQuery = Impact::query()
@@ -316,7 +330,21 @@ class PostModerationController extends Controller
 
     public function deactivate(Post $post): RedirectResponse
     {
-        return $this->destroy($post);
+        $this->ensureGlobalAdmin();
+
+        DB::transaction(function () use ($post): void {
+            if (Schema::hasColumn('posts', 'is_active')) {
+                $post->setAttribute('is_active', false);
+            }
+
+            if (array_key_exists('is_deleted', $post->getAttributes())) {
+                $post->is_deleted = true;
+            }
+
+            $post->save();
+        });
+
+        return redirect()->back()->with('success', 'Post deactivated successfully.');
     }
 
 
