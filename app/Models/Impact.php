@@ -45,6 +45,11 @@ class Impact extends Model
         'life_impacted' => 'integer',
     ];
 
+    public static function availableActions(): array
+    {
+        return array_values((array) config('impact.actions', []));
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');

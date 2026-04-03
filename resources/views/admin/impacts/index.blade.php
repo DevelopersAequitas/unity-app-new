@@ -18,20 +18,6 @@
             return $name !== '' ? $name : ((string) ($user->email ?? '—'));
         };
 
-        $peerSubtitle = function ($user): string {
-            if (! $user) {
-                return '';
-            }
-
-            $parts = array_filter([
-                $user->company_name ?? null,
-                $user->business_type ?? null,
-                $user->email ?? null,
-            ]);
-
-            return implode(' • ', $parts);
-        };
-
         $statusBadge = function (?string $status): string {
             return match ($status) {
                 'approved' => 'bg-success-subtle text-success border border-success-subtle',
@@ -85,7 +71,7 @@
                             <option value="">Select peer</option>
                             @foreach($peers as $peer)
                                 <option value="{{ $peer->id }}" @selected(old('impacted_peer_id') === (string) $peer->id)>
-                                    {{ $displayUser($peer) }}{{ $peerSubtitle($peer) ? ' — ' . $peerSubtitle($peer) : '' }}
+                                    {{ $peer->adminFounderDropdownLabel() }}
                                 </option>
                             @endforeach
                         </select>

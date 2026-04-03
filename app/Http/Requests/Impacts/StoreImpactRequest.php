@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Impacts;
 
+use App\Models\Impact;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -22,7 +23,7 @@ class StoreImpactRequest extends FormRequest
 
     public function rules(): array
     {
-        $actions = (array) config('impact.actions', []);
+        $actions = Impact::availableActions();
 
         return [
             'date' => ['required', 'date'],

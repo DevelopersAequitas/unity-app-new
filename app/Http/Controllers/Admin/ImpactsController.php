@@ -63,10 +63,10 @@ class ImpactsController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        $impactActions = array_values((array) config('impact.actions', []));
+        $impactActions = Impact::availableActions();
         $adminId = (string) Auth::guard('admin')->id();
         $peers = User::query()
-            ->select(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'business_type'])
+            ->select(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'business_type', 'city'])
             ->when($adminId !== '', fn ($query) => $query->where('id', '!=', $adminId))
             ->orderByRaw("COALESCE(NULLIF(display_name, ''), NULLIF(TRIM(CONCAT(first_name, ' ', last_name)), ''), email) ASC")
             ->get();
