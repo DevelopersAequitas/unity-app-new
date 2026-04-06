@@ -3,13 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\User;
+use App\Services\Blocks\PeerBlockService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class MemberWithCircleController extends BaseApiController
 {
-    public function index()
+    public function index(Request $request, PeerBlockService $peerBlockService)
     {
         $availableOptionalColumns = $this->availableOptionalColumns();
         $listOptionalColumns = array_values(array_intersect($availableOptionalColumns, [
@@ -36,8 +38,20 @@ class MemberWithCircleController extends BaseApiController
                 'users.company_name',
             ], array_map(fn (string $column): string => 'users.' . $column, $listOptionalColumns)))
             ->with('activeCircle:id,name')
-            ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('created_at');
+
+        if ($request->user()) {
+            $blockedIds = array_unique(array_merge(
+                $peerBlockService->blockedUserIdsFor((string) $request->user()->id),
+                $peerBlockService->usersWhoBlockedMeIdsFor((string) $request->user()->id)
+            ));
+
+            if ($blockedIds !== []) {
+                $members->whereNotIn('users.id', $blockedIds);
+            }
+        }
+
+        $members = $members->get();
 
         $items = $members
             ->map(fn (User $member): array => $this->transformListMember($member, $listOptionalColumns))
@@ -48,7 +62,7 @@ class MemberWithCircleController extends BaseApiController
         ]);
     }
 
-    public function show(string $identifier)
+    public function show(string $identifier, Request $request, PeerBlockService $peerBlockService)
     {
         $availableOptionalColumns = $this->availableOptionalColumns();
         $identifier = trim($identifier);
@@ -68,6 +82,10 @@ class MemberWithCircleController extends BaseApiController
 
         if (! $user) {
             return $this->error('Member not found.', 404);
+        }
+
+        if ($request->user() && $peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
+            return $this->error('Peer not found.', 404);
         }
 
         return $this->success($this->transformMember($user, $availableOptionalColumns));

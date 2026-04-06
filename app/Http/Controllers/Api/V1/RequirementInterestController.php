@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Requirements\InterestRequirementRequest;
 use App\Models\Requirement;
 use App\Models\RequirementInterest;
+use App\Services\Blocks\PeerBlockService;
 use App\Services\Requirements\RequirementNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -13,12 +14,25 @@ use Throwable;
 
 class RequirementInterestController extends Controller
 {
-    public function __construct(private readonly RequirementNotificationService $requirementNotificationService)
+    public function __construct(
+        private readonly RequirementNotificationService $requirementNotificationService,
+        private readonly PeerBlockService $peerBlockService,
+    )
     {
     }
 
     public function store(InterestRequirementRequest $request, Requirement $requirement): JsonResponse
     {
+        $ownerId = (string) ($requirement->user_id ?? '');
+        if ($ownerId !== '' && $this->peerBlockService->isBlockedEitherWay((string) $request->user()->id, $ownerId)) {
+            return response()->json([
+                'status' => false,
+                'message' => PeerBlockService::INTERACTION_BLOCKED_MESSAGE,
+                'data' => null,
+                'meta' => null,
+            ], 403);
+        }
+
         if ($requirement->status !== 'open') {
             return response()->json([
                 'status' => false,

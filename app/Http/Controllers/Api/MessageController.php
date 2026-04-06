@@ -6,6 +6,7 @@ use App\Events\Chat\NewChatMessage;
 use App\Http\Resources\MessageResource;
 use App\Models\Chat;
 use App\Models\FileModel;
+use App\Services\Blocks\PeerBlockService;
 use App\Support\Chat\AuthorizesChatAccess;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -34,12 +35,17 @@ class MessageController extends BaseApiController
         return $this->success($messages->through(fn ($message) => new MessageResource($message)));
     }
 
-    public function store(Request $request, Chat $chat)
+    public function store(Request $request, Chat $chat, PeerBlockService $peerBlockService)
     {
         $user = $request->user();
 
         if (! $this->canAccessChat($user, $chat)) {
             return $this->error('Forbidden', 403);
+        }
+
+        $otherUserId = (string) ((string) $chat->user1_id === (string) $user->id ? $chat->user2_id : $chat->user1_id);
+        if ($peerBlockService->isBlockedEitherWay((string) $user->id, $otherUserId)) {
+            return $this->error(PeerBlockService::INTERACTION_BLOCKED_MESSAGE, 403);
         }
 
         $validated = $request->validate([

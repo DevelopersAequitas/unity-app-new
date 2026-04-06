@@ -17,6 +17,7 @@ use App\Events\Chat\MessageSent;
 use App\Events\Chat\ChatTyping;
 use App\Jobs\SendPushNotificationJob;
 use App\Support\Chat\AuthorizesChatAccess;
+use App\Services\Blocks\PeerBlockService;
 use App\Support\Media\Probe;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -65,7 +66,7 @@ class ChatController extends BaseApiController
         return $this->success(ChatResource::collection($chats));
     }
 
-    public function storeChat(StoreChatRequest $request)
+    public function storeChat(StoreChatRequest $request, PeerBlockService $peerBlockService)
     {
         $authUserId = (string) auth()->id();
         $data = $request->validated();
@@ -78,6 +79,10 @@ class ChatController extends BaseApiController
         $otherUser = User::find($otherUserId);
         if (! $otherUser) {
             return $this->error('User not found', 404);
+        }
+
+        if ($peerBlockService->isBlockedEitherWay((string) $authUserId, (string) $otherUserId)) {
+            return $this->error(PeerBlockService::INTERACTION_BLOCKED_MESSAGE, 403);
         }
 
         [$userSmall, $userBig] = strcmp($authUserId, $otherUserId) <= 0
@@ -187,7 +192,7 @@ class ChatController extends BaseApiController
         return $this->success($data);
     }
 
-    public function storeMessage(StoreMessageRequest $request, string $id)
+    public function storeMessage(StoreMessageRequest $request, string $id, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
         $data = $request->validated() ?? [];
@@ -201,6 +206,11 @@ class ChatController extends BaseApiController
 
         if (! $chat) {
             return $this->error('Chat not found', 404);
+        }
+
+        $otherUserId = (string) ((string) $chat->user1_id === (string) $authUser->id ? $chat->user2_id : $chat->user1_id);
+        if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $otherUserId)) {
+            return $this->error(PeerBlockService::INTERACTION_BLOCKED_MESSAGE, 403);
         }
 
         $filesInput = $request->file('files', []);

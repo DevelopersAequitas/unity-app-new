@@ -61,6 +61,7 @@ use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
@@ -113,6 +114,11 @@ Route::prefix('v1')->group(function () {
         Route::patch('/profile', [ProfileController::class, 'update']);
 
         // Members & connections
+        Route::get('/blocked-peers', [PeerBlockController::class, 'index']);
+        Route::post('/peers/{user}/block', [PeerBlockController::class, 'store'])->whereUuid('user');
+        Route::delete('/peers/{user}/block', [PeerBlockController::class, 'destroy'])->whereUuid('user');
+        Route::get('/peers/{user}/block-status', [PeerBlockController::class, 'status'])->whereUuid('user');
+
         Route::get('members/names', [MemberController::class, 'names']);
 
         Route::get('/members/profile/{slug}', [MemberController::class, 'publicProfileBySlug']);
