@@ -47,51 +47,51 @@
         </div>
     </div>
     <div class="card-body">
-        @if($level2Categories->isEmpty())
-            <div class="alert alert-warning mb-0">No Level 2 categories found.</div>
-        @else
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <label for="level2Select" class="form-label mb-1">Select Level 2 Category</label>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-add-level="2">Add Level 2</button>
-                    </div>
-                    <select id="level2Select" class="form-select">
-                        <option value="">Select Level 2 Category</option>
-                        @foreach($level2Categories as $item)
-                            <option value="{{ $item->id }}">{{ $item->category_name }}</option>
-                        @endforeach
-                    </select>
-                    <div id="level2Message" class="form-text text-muted mt-2"></div>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label for="level2Select" class="form-label mb-1">Select Level 2 Category</label>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-add-level="2">Add Level 2</button>
                 </div>
-                <div class="col-md-4">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <label for="level3Select" class="form-label mb-1">Select Level 3 Category</label>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-add-level="3">Add Level 3</button>
-                    </div>
-                    <select id="level3Select" class="form-select" disabled>
-                        <option value="">Select Level 3 Category</option>
-                    </select>
-                    <div id="level3Message" class="form-text text-muted mt-2">Select a Level 2 category.</div>
-                </div>
-                <div class="col-md-4">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <label for="level4Select" class="form-label mb-1">Select Level 4 Category</label>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-add-level="4">Add Level 4</button>
-                    </div>
-                    <select id="level4Select" class="form-select" disabled>
-                        <option value="">Select Level 4 Category</option>
-                    </select>
-                    <div id="level4Message" class="form-text text-muted mt-2">Select a Level 3 category.</div>
+                <select id="level2Select" class="form-select">
+                    <option value="">Select Level 2 Category</option>
+                    @foreach($level2Categories as $item)
+                        <option value="{{ $item->id }}">{{ $item->category_name }}</option>
+                    @endforeach
+                </select>
+                <div id="level2Message" class="form-text text-muted mt-2">
+                    @if($level2Categories->isEmpty()) No Level 2 categories found. @endif
                 </div>
             </div>
-        @endif
+            <div class="col-md-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label for="level3Select" class="form-label mb-1">Select Level 3 Category</label>
+                </div>
+                <select id="level3Select" class="form-select" disabled>
+                    <option value="">Select Level 3 Category</option>
+                </select>
+                <div id="level3Message" class="form-text text-muted mt-2">Select a Level 2 category.</div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label for="level4Select" class="form-label mb-1">Select Level 4 Category</label>
+                </div>
+                <select id="level4Select" class="form-select" disabled>
+                    <option value="">Select Level 4 Category</option>
+                </select>
+                <div id="level4Message" class="form-text text-muted mt-2">Select a Level 3 category.</div>
+            </div>
+        </div>
     </div>
 </div>
 
 <div class="card shadow-sm">
-    <div class="card-header bg-white">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h2 class="h6 mb-0">Selected Branch Details</h2>
+        <div class="d-flex flex-column align-items-end">
+            <button type="button" id="contextAddCategoryBtn" class="btn btn-sm btn-primary" disabled>Add Category</button>
+            <small id="contextAddCategoryHint" class="text-muted mt-1">Please select a Level 2 category first.</small>
+        </div>
     </div>
     <div class="table-responsive">
         <table class="table table-sm table-bordered mb-0">
@@ -114,7 +114,6 @@
     </div>
 </div>
 
-@if($level2Categories->isNotEmpty())
 <div class="modal fade" id="addHierarchyCategoryModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -161,6 +160,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const childrenUrlTemplate = @json(route('admin.categories.children', ['category' => '__ID__']));
     const hierarchyStoreUrl = @json(route('admin.categories.hierarchy.store', $category));
     const addButtons = document.querySelectorAll('[data-add-level]');
+    const contextAddCategoryBtn = document.getElementById('contextAddCategoryBtn');
+    const contextAddCategoryHint = document.getElementById('contextAddCategoryHint');
     const modalEl = document.getElementById('addHierarchyCategoryModal');
     const modalForm = document.getElementById('addHierarchyCategoryForm');
     const modalTitle = document.getElementById('addHierarchyModalTitle');
@@ -243,32 +244,71 @@ document.addEventListener('DOMContentLoaded', function () {
         modalErrorBox.classList.remove('d-none');
     };
 
+    const openAddModal = (level, parentId) => {
+        modalErrorBox.classList.add('d-none');
+        modalErrorBox.textContent = '';
+        modalForm.reset();
+        modalLevel.value = level;
+        modalParentId.value = parentId;
+        modalTitle.textContent = `Add Level ${level} Category`;
+
+        if (addModal) {
+            addModal.show();
+        }
+    };
+
+    const updateContextAddButton = () => {
+        if (!level2Select.value) {
+            contextAddCategoryBtn.disabled = true;
+            contextAddCategoryBtn.textContent = 'Add Category';
+            contextAddCategoryHint.textContent = 'Please select a Level 2 category first.';
+            return;
+        }
+
+        if (level4Select.value) {
+            contextAddCategoryBtn.disabled = true;
+            contextAddCategoryBtn.textContent = 'Add Category';
+            contextAddCategoryHint.textContent = 'Maximum hierarchy level reached.';
+            return;
+        }
+
+        if (level3Select.value) {
+            contextAddCategoryBtn.disabled = false;
+            contextAddCategoryBtn.textContent = 'Add Level 4 Category';
+            contextAddCategoryHint.textContent = 'Add a child under selected Level 3 category.';
+            return;
+        }
+
+        contextAddCategoryBtn.disabled = false;
+        contextAddCategoryBtn.textContent = 'Add Level 3 Category';
+        contextAddCategoryHint.textContent = 'Add a child under selected Level 2 category.';
+    };
+
     addButtons.forEach((button) => {
         button.addEventListener('click', function () {
             const level = parseInt(this.dataset.addLevel, 10);
             const parentId = resolveParentForLevel(level);
-
-            if (level === 3 && !parentId) {
-                level3Message.textContent = 'Please select a Level 2 category first.';
-                return;
-            }
-
-            if (level === 4 && !parentId) {
-                level4Message.textContent = 'Please select a Level 3 category first.';
-                return;
-            }
-
-            modalErrorBox.classList.add('d-none');
-            modalErrorBox.textContent = '';
-            modalForm.reset();
-            modalLevel.value = level;
-            modalParentId.value = parentId;
-            modalTitle.textContent = `Add Level ${level} Category`;
-
-            if (addModal) {
-                addModal.show();
-            }
+            openAddModal(level, parentId);
         });
+    });
+
+    contextAddCategoryBtn.addEventListener('click', function () {
+        if (!level2Select.value) {
+            level3Message.textContent = 'Please select a Level 2 category first.';
+            return;
+        }
+
+        if (level4Select.value) {
+            contextAddCategoryHint.textContent = 'Maximum hierarchy level reached.';
+            return;
+        }
+
+        if (level3Select.value) {
+            openAddModal(4, resolveParentForLevel(4));
+            return;
+        }
+
+        openAddModal(3, resolveParentForLevel(3));
     });
 
     modalForm.addEventListener('submit', async function (event) {
@@ -325,6 +365,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (addModal) {
                 addModal.hide();
             }
+
+            updateContextAddButton();
         } catch (error) {
             showInlineError('Unable to save category.');
         }
@@ -338,10 +380,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!this.value) {
             level3Message.textContent = 'Select a Level 2 category.';
             setTableRows([]);
+            updateContextAddButton();
             return;
         }
 
         await fetchChildren(this.value, level3Select, 'Select Level 3 Category', level3Message, 'No Level 3 categories found.');
+        updateContextAddButton();
     });
 
     level3Select.addEventListener('change', async function () {
@@ -349,10 +393,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!this.value) {
             level4Message.textContent = 'Select a Level 3 category.';
+            updateContextAddButton();
             return;
         }
 
         await fetchChildren(this.value, level4Select, 'Select Level 4 Category', level4Message, 'No Level 4 categories found.');
+        updateContextAddButton();
     });
 
     level4Select.addEventListener('change', function () {
@@ -368,8 +414,11 @@ document.addEventListener('DOMContentLoaded', function () {
             sector: null,
             remarks: null,
         }]);
+
+        updateContextAddButton();
     });
+
+    updateContextAddButton();
 });
 </script>
-@endif
 @endsection
