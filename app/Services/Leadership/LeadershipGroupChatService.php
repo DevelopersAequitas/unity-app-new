@@ -12,6 +12,45 @@ use Illuminate\Support\Facades\DB;
 
 class LeadershipGroupChatService
 {
+    public function markMessagesRead(Circle $circle, User $user, array $messageIds): ?int
+    {
+        if (! $this->isActiveMember($circle, $user)) {
+            return null;
+        }
+
+        $validMessageIds = LeadershipGroupMessage::query()
+            ->where('circle_id', $circle->id)
+            ->whereNull('deleted_at')
+            ->whereIn('id', $messageIds)
+            ->pluck('id')
+            ->all();
+
+        if (empty($validMessageIds)) {
+            return 0;
+        }
+
+        $now = now();
+        $rows = collect($validMessageIds)
+            ->map(function (string $messageId) use ($user, $now): array {
+                return [
+                    'message_id' => $messageId,
+                    'user_id' => $user->id,
+                    'read_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            })
+            ->all();
+
+        DB::table('leadership_group_message_reads')->upsert(
+            $rows,
+            ['message_id', 'user_id'],
+            ['read_at', 'updated_at']
+        );
+
+        return count($validMessageIds);
+    }
+
     public function getMessages(Circle $circle, User $user, int $perPage = 20): ?LengthAwarePaginator
     {
         if (! $this->isActiveMember($circle, $user)) {

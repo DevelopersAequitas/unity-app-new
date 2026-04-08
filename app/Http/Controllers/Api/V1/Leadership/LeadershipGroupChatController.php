@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Leadership;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Requests\Leadership\MarkLeadershipMessagesReadRequest;
 use App\Http\Requests\Leadership\SendLeadershipMessageRequest;
 use App\Http\Resources\Leadership\LeadershipMessageResource;
 use App\Http\Resources\Leadership\LeadershipMemberResource;
@@ -51,6 +52,23 @@ class LeadershipGroupChatController extends BaseApiController
                 'total' => $messages->total(),
             ],
         ], 'Leadership chat messages fetched successfully.');
+    }
+
+    public function markRead(MarkLeadershipMessagesReadRequest $request, Circle $circle): JsonResponse
+    {
+        $markedCount = $this->leadershipGroupChatService->markMessagesRead(
+            $circle,
+            $request->user(),
+            $request->validated()['message_ids']
+        );
+
+        if ($markedCount === null) {
+            return $this->error('Forbidden.', 403);
+        }
+
+        return $this->success([
+            'marked_count' => $markedCount,
+        ], 'Messages marked as read successfully.');
     }
 
     public function sendMessage(SendLeadershipMessageRequest $request, Circle $circle): JsonResponse
