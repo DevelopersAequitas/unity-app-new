@@ -55,21 +55,14 @@
                 <tr>
                     <th>ID</th>
                     <th>Category Name</th>
-                    <th>Sector</th>
-                    <th>Remarks</th>
                     <th style="width: 140px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($categories as $category)
-                    @php
-                        $sectorLabel = $category->parent?->name ?? $category->circle_key ?? 'Main Category';
-                    @endphp
                     <tr>
                         <td>{{ $category->id }}</td>
                         <td>{{ $category->name }}</td>
-                        <td>{{ $sectorLabel ?: '-' }}</td>
-                        <td>{{ $category->remarks ?: '-' }}</td>
                         <td>
                             <div class="d-flex gap-1">
                                 <a href="{{ route('admin.categories.edit', $category) }}" class="btn btn-sm btn-outline-primary">Edit</a>
@@ -83,7 +76,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-3">No categories found.</td>
+                        <td colspan="3" class="text-center text-muted py-3">No categories found.</td>
                     </tr>
                 @endforelse
             </tbody>
