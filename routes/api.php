@@ -59,6 +59,7 @@ use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\ImpactController;
+use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -192,6 +193,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/circles/{circle}/chat/messages/{message}/reads', [CircleChatController::class, 'readDetails']);
         Route::post('/circles/{circle}/chat/messages/{message}/delete-for-me', [CircleChatController::class, 'deleteForMe']);
         Route::delete('/circles/{circle}/chat/messages/{message}', [CircleChatController::class, 'destroy']);
+        Route::get('/circles/{circle}/leadership-chat/members', [LeadershipGroupChatController::class, 'members']);
+        Route::get('/circles/{circle}/leadership-chat/messages', [LeadershipGroupChatController::class, 'messages']);
+        Route::post('/circles/{circle}/leadership-chat/messages/read', [LeadershipGroupChatController::class, 'markRead']);
+        Route::post('/circles/{circle}/leadership-chat/messages/{message}/delete-for-me', [LeadershipGroupChatController::class, 'deleteForMe']);
+        Route::post('/circles/{circle}/leadership-chat/messages/{message}/delete-for-everyone', [LeadershipGroupChatController::class, 'deleteForEveryone']);
+        Route::post('/circles/{circle}/leadership-chat/messages', [LeadershipGroupChatController::class, 'sendMessage']);
 
         // Posts & feed
         Route::post('/posts/{post}/report', [PostReportController::class, 'store']);
