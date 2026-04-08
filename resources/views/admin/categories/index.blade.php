@@ -62,11 +62,14 @@
             </thead>
             <tbody>
                 @forelse ($categories as $category)
+                    @php
+                        $sectorLabel = $category->parent?->name ?? $category->circle_key ?? 'Main Category';
+                    @endphp
                     <tr>
                         <td>{{ $category->id }}</td>
-                        <td>{{ $category->category_name }}</td>
-                        <td>{{ $category->sector ?: '—' }}</td>
-                        <td>{{ $category->remarks ?: '—' }}</td>
+                        <td>{{ $category->name }}</td>
+                        <td>{{ $sectorLabel ?: '-' }}</td>
+                        <td>{{ $category->remarks ?: '-' }}</td>
                         <td>
                             <div class="d-flex gap-1">
                                 <a href="{{ route('admin.categories.edit', $category) }}" class="btn btn-sm btn-outline-primary">Edit</a>

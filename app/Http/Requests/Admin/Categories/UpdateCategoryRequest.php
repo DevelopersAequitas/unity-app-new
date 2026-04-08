@@ -17,22 +17,27 @@ class UpdateCategoryRequest extends FormRequest
         $category = $this->route('category');
 
         return [
-            'category_name' => [
+            'name' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('categories', 'category_name')->ignore($category?->id),
+                Rule::unique('circle_categories', 'name')
+                    ->where(fn ($query) => $query->where('level', 1))
+                    ->ignore($category?->id),
             ],
-            'sector' => ['nullable', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255'],
+            'circle_key' => ['nullable', 'string', 'max:255'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
             'remarks' => ['nullable', 'string'],
+            'is_active' => ['nullable', 'boolean'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'category_name.required' => 'Category name is required.',
-            'category_name.unique' => 'This category already exists.',
+            'name.required' => 'Category name is required.',
+            'name.unique' => 'This category already exists.',
         ];
     }
 }

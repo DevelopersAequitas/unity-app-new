@@ -6,10 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Categories\StoreCategoryRequest;
 use App\Http\Requests\Admin\Categories\UpdateCategoryRequest;
 use App\Imports\CategoriesImport;
-use App\Models\Category;
+use App\Models\CircleCategory;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class CategoryController extends Controller
@@ -18,14 +19,16 @@ class CategoryController extends Controller
     {
         $search = trim((string) $request->query('q', ''));
 
-        $categories = Category::query()
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($subQuery) use ($search) {
-                    $subQuery
-                        ->where('category_name', 'ILIKE', '%' . $search . '%')
-                        ->orWhere('sector', 'ILIKE', '%' . $search . '%');
-                });
+        $categories = CircleCategory::query()
+            ->where('level', 1)
+            ->when($this->hasIsActiveColumn(), function ($query) {
+                $query->where('is_active', true);
             })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where('name', 'ILIKE', '%' . $search . '%');
+            })
+            ->with('parent:id,name')
+            ->orderByRaw('COALESCE(sort_order, 2147483647) ASC')
             ->orderBy('id')
             ->paginate(20)
             ->appends($request->query());
@@ -39,56 +42,61 @@ class CategoryController extends Controller
     public function create(): View
     {
         return view('admin.categories.create', [
-            'category' => new Category(),
+            'category' => new CircleCategory([
+                'level' => 1,
+                'is_active' => true,
+            ]),
         ]);
     }
 
     public function store(StoreCategoryRequest $request): RedirectResponse
     {
-        Category::query()->create($request->validated());
+        $payload = $this->filterPayload($request->validated());
+        $payload['level'] = 1;
+
+        if ($this->hasIsActiveColumn()) {
+            $payload['is_active'] = (bool) ($payload['is_active'] ?? true);
+        }
+
+        CircleCategory::query()->create($payload);
 
         return redirect()
             ->route('admin.categories.index')
             ->with('success', 'Category created successfully.');
     }
 
-    public function edit(Category $category): View
+    public function edit(CircleCategory $category): View
     {
         return view('admin.categories.edit', [
             'category' => $category,
         ]);
     }
 
-    public function update(UpdateCategoryRequest $request, Category $category): RedirectResponse
+    public function update(UpdateCategoryRequest $request, CircleCategory $category): RedirectResponse
     {
-        $category->update($request->validated());
+        $payload = $this->filterPayload($request->validated());
+        $payload['level'] = 1;
+
+        if ($this->hasIsActiveColumn()) {
+            $payload['is_active'] = (bool) ($payload['is_active'] ?? $category->is_active ?? true);
+        }
+
+        $category->update($payload);
 
         return redirect()
             ->route('admin.categories.index')
             ->with('success', 'Category updated successfully.');
     }
 
-    public function destroy(Category $category): RedirectResponse
+    public function destroy(CircleCategory $category): RedirectResponse
     {
         try {
-            if (
-                $category->circleMappings()->exists() ||
-                (
-                    DB::getSchemaBuilder()->hasColumn('event_galleries', 'circle_category_id') &&
-                    DB::table('event_galleries')->where('circle_category_id', $category->id)->exists()
-                )
-            ) {
-                return redirect()
-                    ->route('admin.categories.index')
-                    ->with('error', 'This category is in use and cannot be deleted.');
-            }
-
             $category->delete();
 
             return redirect()
                 ->route('admin.categories.index')
                 ->with('success', 'Category deleted successfully.');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return redirect()
                 ->route('admin.categories.index')
                 ->with('error', 'Something went wrong: ' . $e->getMessage());
@@ -100,22 +108,16 @@ class CategoryController extends Controller
         try {
             $search = trim((string) $request->query('q', ''));
 
-            $categories = Category::query()
-                ->select([
-                    'id',
-                    'category_name',
-                    'sector',
-                    'remarks',
-                    'created_at',
-                    'updated_at',
-                ])
-                ->when($search !== '', function ($query) use ($search) {
-                    $query->where(function ($subQuery) use ($search) {
-                        $subQuery
-                            ->where('category_name', 'ILIKE', '%' . $search . '%')
-                            ->orWhere('sector', 'ILIKE', '%' . $search . '%');
-                    });
+            $categories = CircleCategory::query()
+                ->with('parent:id,name')
+                ->where('level', 1)
+                ->when($this->hasIsActiveColumn(), function ($query) {
+                    $query->where('is_active', true);
                 })
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where('name', 'ILIKE', '%' . $search . '%');
+                })
+                ->orderByRaw('COALESCE(sort_order, 2147483647) ASC')
                 ->orderBy('id')
                 ->get();
 
@@ -128,14 +130,19 @@ class CategoryController extends Controller
                     }
 
                     fwrite($handle, "\xEF\xBB\xBF");
-                    fputcsv($handle, ['ID', 'Category Name', 'Sector', 'Remarks', 'Created At', 'Updated At']);
+                    fputcsv($handle, ['ID', 'Category Name', 'Sector', 'Remarks', 'Sort Order', 'Created At', 'Updated At']);
 
                     foreach ($categories as $category) {
+                        $sector = $category->parent?->name
+                            ?? $category->circle_key
+                            ?? 'Main Category';
+
                         fputcsv($handle, [
                             $category->id,
-                            (string) ($category->category_name ?? ''),
-                            (string) ($category->sector ?? ''),
+                            (string) ($category->name ?? ''),
+                            (string) $sector,
                             (string) ($category->remarks ?? ''),
+                            (string) ($category->sort_order ?? ''),
                             (string) ($category->created_at ?? ''),
                             (string) ($category->updated_at ?? ''),
                         ]);
@@ -175,5 +182,27 @@ class CategoryController extends Controller
             ->with('imported_count', $result['imported_count'])
             ->with('skipped_duplicate_count', $result['skipped_duplicate_count'])
             ->with('skipped_empty_count', $result['skipped_empty_count']);
+    }
+
+    private function hasIsActiveColumn(): bool
+    {
+        return Schema::hasColumn('circle_categories', 'is_active');
+    }
+
+    private function filterPayload(array $payload): array
+    {
+        $allowedColumns = Collection::make([
+            'name',
+            'slug',
+            'circle_key',
+            'sort_order',
+            'remarks',
+            'is_active',
+            'parent_id',
+            'level',
+        ])->filter(fn (string $column) => Schema::hasColumn('circle_categories', $column))
+            ->all();
+
+        return array_intersect_key($payload, array_flip($allowedColumns));
     }
 }
