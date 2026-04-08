@@ -7,10 +7,54 @@ use App\Models\LeadershipGroupMember;
 use App\Models\LeadershipGroupMessage;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class LeadershipGroupChatService
 {
+    public function getMessages(Circle $circle, User $user, int $perPage = 20): ?LengthAwarePaginator
+    {
+        if (! $this->isActiveMember($circle, $user)) {
+            return null;
+        }
+
+        $perPage = max(1, min($perPage, 100));
+
+        $paginator = LeadershipGroupMessage::query()
+            ->where('circle_id', $circle->id)
+            ->whereNull('deleted_at')
+            ->with([
+                'sender',
+                'reads' => function ($query) use ($user): void {
+                    $query->where('user_id', $user->id);
+                },
+            ])
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        $replyIds = collect($paginator->items())
+            ->pluck('reply_to_message_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $replyMessages = $replyIds->isEmpty()
+            ? collect()
+            : LeadershipGroupMessage::query()
+                ->where('circle_id', $circle->id)
+                ->whereNull('deleted_at')
+                ->whereIn('id', $replyIds)
+                ->with('sender')
+                ->get()
+                ->keyBy('id');
+
+        foreach ($paginator->items() as $message) {
+            $message->setRelation('replyTo', $replyMessages->get($message->reply_to_message_id));
+        }
+
+        return $paginator;
+    }
+
     public function sendMessage(Circle $circle, User $user, array $data): ?LeadershipGroupMessage
     {
         if (! $this->isActiveMember($circle, $user)) {

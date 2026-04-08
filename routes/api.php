@@ -193,6 +193,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/circles/{circle}/chat/messages/{message}/delete-for-me', [CircleChatController::class, 'deleteForMe']);
         Route::delete('/circles/{circle}/chat/messages/{message}', [CircleChatController::class, 'destroy']);
         Route::get('/circles/{circle}/leadership-chat/members', [LeadershipGroupChatController::class, 'members']);
+        Route::get('/circles/{circle}/leadership-chat/messages', [LeadershipGroupChatController::class, 'messages']);
         Route::post('/circles/{circle}/leadership-chat/messages', [LeadershipGroupChatController::class, 'sendMessage']);
 
         // Posts & feed

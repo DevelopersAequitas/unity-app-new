@@ -33,6 +33,26 @@ class LeadershipGroupChatController extends BaseApiController
         ], 'Leadership members fetched successfully.');
     }
 
+    public function messages(Request $request, Circle $circle): JsonResponse
+    {
+        $perPage = (int) $request->input('per_page', 20);
+        $messages = $this->leadershipGroupChatService->getMessages($circle, $request->user(), $perPage);
+
+        if (! $messages) {
+            return $this->error('Forbidden.', 403);
+        }
+
+        return $this->success([
+            'items' => LeadershipMessageResource::collection($messages->items()),
+            'pagination' => [
+                'current_page' => $messages->currentPage(),
+                'last_page' => $messages->lastPage(),
+                'per_page' => $messages->perPage(),
+                'total' => $messages->total(),
+            ],
+        ], 'Leadership chat messages fetched successfully.');
+    }
+
     public function sendMessage(SendLeadershipMessageRequest $request, Circle $circle): JsonResponse
     {
         $message = $this->leadershipGroupChatService->sendMessage($circle, $request->user(), $request->validated());
