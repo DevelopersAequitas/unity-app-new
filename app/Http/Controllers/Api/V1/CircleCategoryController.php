@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\CircleCategoryNodeResource;
 use App\Http\Resources\CircleCategoryResource;
-use App\Models\Category;
+use App\Models\CircleCategory;
 use App\Services\CircleCategoryHierarchyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -20,12 +20,12 @@ class CircleCategoryController extends BaseApiController
     public function main()
     {
         $data = $this->hierarchyService->getMainCircles()
-            ->map(static function (Category $category): array {
+            ->map(static function (CircleCategory $category): array {
                 $childrenCount = (int) ($category->children_count ?? 0);
 
                 return [
                     'id' => $category->id,
-                    'name' => $category->category_name,
+                    'name' => $category->name,
                     'parent_id' => $category->parent_id,
                     'level' => (int) $category->level,
                     'has_children' => $childrenCount > 0,
@@ -39,7 +39,7 @@ class CircleCategoryController extends BaseApiController
 
     public function children(int $id)
     {
-        if (! Category::query()->whereKey($id)->exists()) {
+        if (! CircleCategory::query()->whereKey($id)->exists()) {
             return $this->error('Category not found', 404);
         }
 
@@ -62,7 +62,7 @@ class CircleCategoryController extends BaseApiController
     public function final(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'parent_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'parent_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
         ]);
 
         if ($validator->fails()) {
