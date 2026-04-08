@@ -49,20 +49,32 @@ class CategoryController extends Controller
     {
         abort_unless($this->isMainCategory($category), 404);
 
-        $level2Categories = $this->childrenQuery($category->id)->get();
+        $level2Categories = $this->childrenQuery($category->id, 2)->get();
         $level2Ids = $level2Categories->pluck('id');
 
         $level3Count = $level2Ids->isEmpty()
             ? 0
-            : CircleCategory::query()->whereIn('parent_id', $level2Ids)->count();
+            : $this->applyActiveFilter(
+                CircleCategory::query()
+                    ->whereIn('parent_id', $level2Ids)
+                    ->where('level', 3)
+            )->count();
 
         $level3Ids = $level2Ids->isEmpty()
             ? collect()
-            : CircleCategory::query()->whereIn('parent_id', $level2Ids)->pluck('id');
+            : $this->applyActiveFilter(
+                CircleCategory::query()
+                    ->whereIn('parent_id', $level2Ids)
+                    ->where('level', 3)
+            )->pluck('id');
 
         $level4Count = $level3Ids->isEmpty()
             ? 0
-            : CircleCategory::query()->whereIn('parent_id', $level3Ids)->count();
+            : $this->applyActiveFilter(
+                CircleCategory::query()
+                    ->whereIn('parent_id', $level3Ids)
+                    ->where('level', 4)
+            )->count();
 
         return view('admin.categories.view', [
             'category' => $category,
@@ -77,8 +89,12 @@ class CategoryController extends Controller
 
     public function children(CircleCategory $category, Request $request): JsonResponse
     {
+        $requestedLevel = $request->filled('level')
+            ? (int) $request->query('level')
+            : $this->resolveExpectedChildLevel($category);
+
         $items = $this->childrenQuery($category->id)
-            ->when($request->filled('level'), fn ($query) => $query->where('level', (int) $request->query('level')))
+            ->when($requestedLevel !== null, fn ($query) => $query->where('level', $requestedLevel))
             ->get()
             ->map(fn (CircleCategory $item) => [
                 'id' => $item->id,
@@ -357,11 +373,13 @@ class CategoryController extends Controller
             ->all();
     }
 
-    private function childrenQuery(int $parentId)
+    private function childrenQuery(int $parentId, ?int $level = null)
     {
-        return CircleCategory::query()
+        return $this->applyActiveFilter(
+            CircleCategory::query()
             ->where('parent_id', $parentId)
-            ->when(Schema::hasColumn('circle_categories', 'is_active'), fn ($query) => $query->where('is_active', true))
+            ->when($level !== null, fn ($query) => $query->where('level', $level))
+        )
             ->orderByRaw(Schema::hasColumn('circle_categories', 'sort_order') ? 'sort_order ASC NULLS LAST' : 'id ASC')
             ->orderBy('name');
     }
@@ -410,5 +428,28 @@ class CategoryController extends Controller
         }
 
         return redirect()->back()->withErrors(['category_name' => $message]);
+    }
+
+    private function resolveExpectedChildLevel(CircleCategory $category): ?int
+    {
+        $level = (int) ($category->level ?? 0);
+
+        if ($level >= 1 && $level < 4) {
+            return $level + 1;
+        }
+
+        return null;
+    }
+
+    private function applyActiveFilter($query)
+    {
+        if (! Schema::hasColumn('circle_categories', 'is_active')) {
+            return $query;
+        }
+
+        return $query->where(function ($activeQuery): void {
+            $activeQuery->where('is_active', true)
+                ->orWhereNull('is_active');
+        });
     }
 }
