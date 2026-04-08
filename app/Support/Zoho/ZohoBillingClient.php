@@ -32,6 +32,8 @@ class ZohoBillingClient
             'final_url' => $url,
             'query_keys' => $asQuery ? array_keys($payload) : [],
             'body_keys' => $asQuery ? [] : array_keys($payload),
+            'contains_invoice_number' => $this->payloadContainsKey($payload, 'invoice_number'),
+            'contains_ignore_auto_number_generation' => $this->payloadContainsKey($payload, 'ignore_auto_number_generation'),
         ]);
 
         try {
@@ -101,5 +103,20 @@ class ZohoBillingClient
 
         $formattedCode = $code ? ' code ' . $code : '';
         throw new RuntimeException('Zoho API request failed' . $formattedCode . ': ' . $message, $status);
+    }
+
+    private function payloadContainsKey(array $payload, string $targetKey): bool
+    {
+        foreach ($payload as $key => $value) {
+            if ((string) $key === $targetKey) {
+                return true;
+            }
+
+            if (is_array($value) && $this->payloadContainsKey($value, $targetKey)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
