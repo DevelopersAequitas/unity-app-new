@@ -35,7 +35,7 @@ class LeadershipGroupChatService
         $unreadCount = LeadershipGroupMessage::query()
             ->where('circle_id', $circle->id)
             ->whereNull('deleted_at')
-            ->where('sender_id', '!=', $user->id)
+            ->where('sender_user_id', '!=', $user->id)
             ->whereNotExists(function (Builder $query) use ($user): void {
                 $query->selectRaw('1')
                     ->from('leadership_group_message_reads')
