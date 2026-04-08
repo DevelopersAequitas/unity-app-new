@@ -13,6 +13,14 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class LeadershipGroupChatService
 {
+    private const CHAT_ALLOWED_ROLES = [
+        'founder',
+        'director',
+        'chair',
+        'vice_chair',
+        'secretary',
+    ];
+
     public function deleteForMe(Circle $circle, User $user, LeadershipGroupMessage $message): string
     {
         if (! $this->isActiveMember($circle, $user)) {
@@ -198,6 +206,7 @@ class LeadershipGroupChatService
         $membersQuery = LeadershipGroupMember::query()
             ->where('circle_id', $circle->id)
             ->where('is_active', true)
+            ->whereIn('leader_role', self::CHAT_ALLOWED_ROLES)
             ->whereNull('deleted_at');
 
         $members = (clone $membersQuery)
@@ -254,6 +263,7 @@ class LeadershipGroupChatService
             ->where('circle_id', $circle->id)
             ->where('user_id', $user->id)
             ->where('is_active', true)
+            ->whereIn('leader_role', self::CHAT_ALLOWED_ROLES)
             ->whereNull('deleted_at')
             ->exists();
     }
