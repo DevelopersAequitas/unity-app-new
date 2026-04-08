@@ -2,8 +2,9 @@
 
 namespace App\Imports;
 
-use App\Models\Category;
+use App\Models\CircleCategory;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Schema;
 use ZipArchive;
 
 class CategoriesImport
@@ -26,8 +27,9 @@ class CategoriesImport
             ];
         }
 
-        $existingNormalized = Category::query()
-            ->pluck('category_name')
+        $existingNormalized = CircleCategory::query()
+            ->where('level', 1)
+            ->pluck('name')
             ->mapWithKeys(fn ($name) => [$this->normalizeName((string) $name) => true])
             ->all();
 
@@ -40,30 +42,35 @@ class CategoriesImport
         $insertRows = [];
 
         foreach ($rows as $row) {
-            $categoryNameRaw = $this->firstNonNull($row, ['category', 'category_name']);
-            $categoryName = trim((string) ($categoryNameRaw ?? ''));
+            $nameRaw = $this->firstNonNull($row, ['name', 'category', 'category_name']);
+            $name = trim((string) ($nameRaw ?? ''));
 
-            if ($categoryName === '') {
+            if ($name === '') {
                 $skippedEmptyCount++;
                 continue;
             }
 
-            $normalizedName = $this->normalizeName($categoryName);
+            $normalizedName = $this->normalizeName($name);
             if (isset($existingNormalized[$normalizedName]) || isset($seenInFile[$normalizedName])) {
                 $skippedDuplicateCount++;
                 continue;
             }
 
-            $sector = $this->firstNonNull($row, ['sector']);
-            $remarks = $this->firstNonNull($row, ['remarks']);
-
-            $insertRows[] = [
-                'category_name' => $categoryName,
-                'sector' => $this->nullableTrim($sector),
-                'remarks' => $this->nullableTrim($remarks),
+            $rowToInsert = [
+                'name' => $name,
+                'slug' => $this->nullableTrim($this->firstNonNull($row, ['slug'])),
+                'circle_key' => $this->nullableTrim($this->firstNonNull($row, ['circle_key', 'sector'])),
+                'sort_order' => $this->parseIntegerOrNull($this->firstNonNull($row, ['sort_order'])),
+                'level' => 1,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
+
+            if (Schema::hasColumn('circle_categories', 'is_active')) {
+                $rowToInsert['is_active'] = true;
+            }
+
+            $insertRows[] = $rowToInsert;
 
             $seenInFile[$normalizedName] = true;
             $existingNormalized[$normalizedName] = true;
@@ -71,7 +78,7 @@ class CategoriesImport
 
         if ($insertRows !== []) {
             foreach (array_chunk($insertRows, 500) as $chunk) {
-                Category::query()->insert($chunk);
+                CircleCategory::query()->insert($chunk);
             }
 
             $importedCount = count($insertRows);
@@ -240,12 +247,12 @@ class CategoriesImport
 
         return match ($header) {
             'category' => 'category',
+            'name' => 'name',
             'category_name' => 'category_name',
+            'circle_key' => 'circle_key',
             'sector' => 'sector',
-            'remarks' => 'remarks',
-            'id' => 'id',
-            'created_at' => 'created_at',
-            'updated_at' => 'updated_at',
+            'slug' => 'slug',
+            'sort_order' => 'sort_order',
             default => $header,
         };
     }
@@ -259,6 +266,16 @@ class CategoriesImport
     {
         $trimmed = trim((string) ($value ?? ''));
         return $trimmed === '' ? null : $trimmed;
+    }
+
+    private function parseIntegerOrNull(mixed $value): ?int
+    {
+        $trimmed = trim((string) ($value ?? ''));
+        if ($trimmed === '' || ! is_numeric($trimmed)) {
+            return null;
+        }
+
+        return (int) $trimmed;
     }
 
     private function firstNonNull(array $row, array $keys): mixed
