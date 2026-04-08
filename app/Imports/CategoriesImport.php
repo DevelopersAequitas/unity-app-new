@@ -2,28 +2,21 @@
 
 namespace App\Imports;
 
-use App\Models\CircleCategory;
-use Illuminate\Support\Facades\Schema;
-        $existingNormalized = CircleCategory::query()
-            ->where('level', 1)
-            ->pluck('name')
-            $nameRaw = $this->firstNonNull($row, ['name', 'category', 'category_name']);
-            $name = trim((string) ($nameRaw ?? ''));
-            if ($name === '') {
-            $normalizedName = $this->normalizeName($name);
-            $rowToInsert = [
-                'name' => $name,
-                'slug' => $this->nullableTrim($this->firstNonNull($row, ['slug'])),
-                'circle_key' => $this->nullableTrim($this->firstNonNull($row, ['circle_key', 'sector'])),
-                'sort_order' => $this->parseIntegerOrNull($this->firstNonNull($row, ['sort_order'])),
-                'level' => 1,
-            if (Schema::hasColumn('circle_categories', 'is_active')) {
-                $rowToInsert['is_active'] = true;
-            }
+use App\Models\Category;
+        $existingNormalized = Category::query()
+            ->pluck('category_name')
+            $categoryNameRaw = $this->firstNonNull($row, ['category', 'category_name']);
+            $categoryName = trim((string) ($categoryNameRaw ?? ''));
+            if ($categoryName === '') {
+            $normalizedName = $this->normalizeName($categoryName);
+            $sector = $this->firstNonNull($row, ['sector']);
+            $remarks = $this->firstNonNull($row, ['remarks']);
 
-            $insertRows[] = $rowToInsert;
-
-                CircleCategory::query()->insert($chunk);
+            $insertRows[] = [
+                'category_name' => $categoryName,
+                'sector' => $this->nullableTrim($sector),
+                'remarks' => $this->nullableTrim($remarks),
+                Category::query()->insert($chunk);
         };
 
         if ($rows === []) {
@@ -222,20 +215,10 @@ use Illuminate\Support\Facades\Schema;
                 if ($type === 's') {
                     $sharedIndex = (int) ($cell->v ?? 0);
                     $value = $sharedStrings[$sharedIndex] ?? '';
-            'name' => 'name',
-            'circle_key' => 'circle_key',
-            'slug' => 'slug',
-            'sort_order' => 'sort_order',
-    private function parseIntegerOrNull(mixed $value): ?int
-    {
-        $trimmed = trim((string) ($value ?? ''));
-        if ($trimmed === '' || ! is_numeric($trimmed)) {
-            return null;
-        }
-
-        return (int) $trimmed;
-    }
-
+            'remarks' => 'remarks',
+            'id' => 'id',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
                 }
 
                 $rowValues[$colIndex] = $value;

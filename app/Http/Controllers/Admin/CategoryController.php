@@ -6,52 +6,54 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Categories\StoreCategoryRequest;
 use App\Http\Requests\Admin\Categories\UpdateCategoryRequest;
 use App\Imports\CategoriesImport;
-use App\Models\CircleCategory;
+use App\Models\Category;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Schema;
-        $categories = CircleCategory::query()
-            ->where('level', 1)
-            ->when(Schema::hasColumn('circle_categories', 'is_active'), function ($query) {
-                $query->where('is_active', true);
-            })
-                $query->where('name', 'ILIKE', '%' . $search . '%');
-            ->orderByRaw('COALESCE(sort_order, 2147483647) ASC')
-            'category' => new CircleCategory([
-                'level' => 1,
-                'is_active' => true,
-            ]),
+use Illuminate\Support\Facades\DB;
+        $categories = Category::query()
+                $query->where(function ($subQuery) use ($search) {
+                    $subQuery
+                        ->where('category_name', 'ILIKE', '%' . $search . '%')
+                        ->orWhere('sector', 'ILIKE', '%' . $search . '%');
+                });
+            'category' => new Category(),
     {
-        $payload = $request->validated();
-        $payload['level'] = 1;
-        $payload['is_active'] = (bool) ($payload['is_active'] ?? true);
+        Category::query()->create($request->validated());
 
-        CircleCategory::query()->create($payload);
+    public function edit(Category $category): View
+    public function update(UpdateCategoryRequest $request, Category $category): RedirectResponse
+        $category->update($request->validated());
+    public function destroy(Category $category): RedirectResponse
+            if (
+                $category->circleMappings()->exists() ||
+                (
+                    DB::getSchemaBuilder()->hasColumn('event_galleries', 'circle_category_id') &&
+                    DB::table('event_galleries')->where('circle_category_id', $category->id)->exists()
+                )
+            ) {
+                return redirect()
+                    ->route('admin.categories.index')
+                    ->with('error', 'This category is in use and cannot be deleted.');
+            }
 
-    public function edit(CircleCategory $category): View
-    public function update(UpdateCategoryRequest $request, CircleCategory $category): RedirectResponse
-        $payload = $request->validated();
-        $payload['level'] = 1;
-
-        if (Schema::hasColumn('circle_categories', 'is_active')) {
-            $payload['is_active'] = (bool) ($payload['is_active'] ?? $category->is_active ?? true);
-        }
-
-        $category->update($payload);
-    public function destroy(CircleCategory $category): RedirectResponse
-        } catch (\Throwable $e) {
-            $categories = CircleCategory::query()
-                ->where('level', 1)
-                ->when(Schema::hasColumn('circle_categories', 'is_active'), function ($query) {
-                    $query->where('is_active', true);
-                })
-                    $query->where('name', 'ILIKE', '%' . $search . '%');
-                ->orderByRaw('COALESCE(sort_order, 2147483647) ASC')
-                    fputcsv($handle, ['ID', 'Category Name', 'Slug', 'Circle Key', 'Sort Order', 'Is Active', 'Created At', 'Updated At']);
-                            (string) ($category->name ?? ''),
-                            (string) ($category->slug ?? ''),
-                            (string) ($category->circle_key ?? ''),
-                            (string) ($category->sort_order ?? ''),
-                            (string) ((bool) ($category->is_active ?? true) ? 'true' : 'false'),
+        } catch (\Exception $e) {
+            $categories = Category::query()
+                ->select([
+                    'id',
+                    'category_name',
+                    'sector',
+                    'remarks',
+                    'created_at',
+                    'updated_at',
+                ])
+                    $query->where(function ($subQuery) use ($search) {
+                        $subQuery
+                            ->where('category_name', 'ILIKE', '%' . $search . '%')
+                            ->orWhere('sector', 'ILIKE', '%' . $search . '%');
+                    });
+                    fputcsv($handle, ['ID', 'Category Name', 'Sector', 'Remarks', 'Created At', 'Updated At']);
+                            (string) ($category->category_name ?? ''),
+                            (string) ($category->sector ?? ''),
+                            (string) ($category->remarks ?? ''),
         if ($this->hasIsActiveColumn()) {
             $payload['is_active'] = (bool) ($payload['is_active'] ?? true);
         }
