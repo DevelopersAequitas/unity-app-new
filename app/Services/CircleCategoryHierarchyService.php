@@ -10,10 +10,21 @@ class CircleCategoryHierarchyService
 {
     public function getMainCircles(): Collection
     {
-        $query = $this->activeQuery()
+        $query = CircleCategory::query()
             ->whereNull('parent_id')
             ->where('level', 1)
-            ->withCount('children');
+            ->withCount([
+                'children as children_count' => function ($childrenQuery): void {
+                    $childrenQuery->where('level', 2);
+                },
+            ]);
+
+        if (Schema::hasColumn('circle_categories', 'is_active')) {
+            $query->where(function ($activeQuery): void {
+                $activeQuery->where('is_active', true)
+                    ->orWhereNull('is_active');
+            });
+        }
 
         return $this->orderedQuery($query)->get();
     }
@@ -24,7 +35,7 @@ class CircleCategoryHierarchyService
             return new Collection();
         }
 
-        $query = $this->activeQuery()
+        $query = CircleCategory::query()
             ->where('parent_id', $parentId)
             ->withCount('children');
 
@@ -51,7 +62,7 @@ class CircleCategoryHierarchyService
 
     public function getFinalCategories(?int $parentId): Collection
     {
-        $query = $this->activeQuery();
+        $query = CircleCategory::query();
 
         if ($parentId !== null) {
             $query->where('parent_id', $parentId);
@@ -81,11 +92,14 @@ class CircleCategoryHierarchyService
             return new Collection();
         }
 
-        $childrenQuery = $this->activeQuery()
+        $childrenQuery = CircleCategory::query()
             ->where('parent_id', $parentId)
             ->when(
                 Schema::hasColumn('circle_categories', 'level'),
-                fn ($query) => $query->where('level', $expectedLevel)
+                fn ($query) => $query->where(function ($levelQuery) use ($expectedLevel): void {
+                    $levelQuery->where('level', $expectedLevel)
+                        ->orWhereNull('level');
+                })
             )
             ->withCount('children');
 
