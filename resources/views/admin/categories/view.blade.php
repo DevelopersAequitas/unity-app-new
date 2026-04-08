@@ -29,6 +29,10 @@
                 <div class="text-muted small">Remarks</div>
                 <div>{{ $category->remarks ?: '—' }}</div>
             </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Level</div>
+                <div>{{ $category->level ?? '—' }}</div>
+            </div>
         </div>
     </div>
 </div>
@@ -44,13 +48,13 @@
     </div>
     <div class="card-body">
         @if($level2Categories->isEmpty())
-            <div class="alert alert-warning mb-0">No child categories found for this main category.</div>
+            <div class="alert alert-warning mb-0">No Level 2 categories found.</div>
         @else
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label for="level2Select" class="form-label">Level 2 Categories</label>
+                    <label for="level2Select" class="form-label">Select Level 2 Category</label>
                     <select id="level2Select" class="form-select">
-                        <option value="">Select Level 2</option>
+                        <option value="">Select Level 2 Category</option>
                         @foreach($level2Categories as $item)
                             <option value="{{ $item->id }}">{{ $item->category_name }}</option>
                         @endforeach
@@ -58,16 +62,16 @@
                     <div id="level2Message" class="form-text text-muted mt-2"></div>
                 </div>
                 <div class="col-md-4">
-                    <label for="level3Select" class="form-label">Level 3 Categories</label>
+                    <label for="level3Select" class="form-label">Select Level 3 Category</label>
                     <select id="level3Select" class="form-select" disabled>
-                        <option value="">Select Level 3</option>
+                        <option value="">Select Level 3 Category</option>
                     </select>
                     <div id="level3Message" class="form-text text-muted mt-2">Select a Level 2 category.</div>
                 </div>
                 <div class="col-md-4">
-                    <label for="level4Select" class="form-label">Level 4 Categories</label>
+                    <label for="level4Select" class="form-label">Select Level 4 Category</label>
                     <select id="level4Select" class="form-select" disabled>
-                        <option value="">Select Level 4</option>
+                        <option value="">Select Level 4 Category</option>
                     </select>
                     <div id="level4Message" class="form-text text-muted mt-2">Select a Level 3 category.</div>
                 </div>
@@ -163,8 +167,8 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     level2Select.addEventListener('change', async function () {
-        clearSelect(level3Select, 'Select Level 3');
-        clearSelect(level4Select, 'Select Level 4');
+        clearSelect(level3Select, 'Select Level 3 Category');
+        clearSelect(level4Select, 'Select Level 4 Category');
         level4Message.textContent = 'Select a Level 3 category.';
 
         if (!this.value) {
@@ -173,30 +177,33 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        await fetchChildren(this.value, level3Select, 'Select Level 3', level3Message, 'No Level 3 categories found.');
+        await fetchChildren(this.value, level3Select, 'Select Level 3 Category', level3Message, 'No Level 3 categories found.');
     });
 
     level3Select.addEventListener('change', async function () {
-        clearSelect(level4Select, 'Select Level 4');
+        clearSelect(level4Select, 'Select Level 4 Category');
 
         if (!this.value) {
             level4Message.textContent = 'Select a Level 3 category.';
             return;
         }
 
-        await fetchChildren(this.value, level4Select, 'Select Level 4', level4Message, 'No Level 4 categories found.');
+        await fetchChildren(this.value, level4Select, 'Select Level 4 Category', level4Message, 'No Level 4 categories found.');
     });
 
-    level4Select.addEventListener('change', async function () {
+    level4Select.addEventListener('change', function () {
         if (!this.value) {
             return;
         }
 
-        const url = childrenUrlTemplate.replace('__ID__', this.value);
-        const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-        const payload = await response.json();
-        const data = payload?.data ?? [];
-        setTableRows(data.length ? data : [{ id: this.value, name: this.options[this.selectedIndex].text, level: 4 }]);
+        setTableRows([{
+            id: this.value,
+            name: this.options[this.selectedIndex].text,
+            level: 4,
+            parent_name: level3Select.options[level3Select.selectedIndex]?.text || null,
+            sector: null,
+            remarks: null,
+        }]);
     });
 });
 </script>
