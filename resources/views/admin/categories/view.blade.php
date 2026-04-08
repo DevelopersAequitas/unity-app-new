@@ -140,10 +140,6 @@
                         <label for="modalCategoryName" class="form-label">Category Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="modalCategoryName" name="category_name" required>
                     </div>
-                    <div class="mb-3">
-                        <label for="modalSector" class="form-label">Sector</label>
-                        <input type="text" class="form-control" id="modalSector" name="sector">
-                    </div>
                     <div>
                         <label for="modalRemarks" class="form-label">Remarks</label>
                         <textarea class="form-control" id="modalRemarks" name="remarks" rows="3"></textarea>
@@ -183,7 +179,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalMainSectorLabel = document.getElementById('modalMainSectorLabel');
     const modalCreatingLevelLabel = document.getElementById('modalCreatingLevelLabel');
     const modalCategoryName = document.getElementById('modalCategoryName');
-    const modalSector = document.getElementById('modalSector');
     const modalRemarks = document.getElementById('modalRemarks');
     const addModal = window.bootstrap ? new window.bootstrap.Modal(modalEl) : null;
 

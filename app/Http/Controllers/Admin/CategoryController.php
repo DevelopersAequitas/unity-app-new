@@ -58,6 +58,9 @@ class CategoryController extends Controller
         abort_unless($this->isMainCategory($category), 404);
 
         $level2Categories = $this->childrenQuery($category->id)->get();
+        $level2Categories->each(function (Category $item): void {
+            $item->setAttribute('circle_category_id', $this->resolveCircleCategoryParentId($item->id));
+        });
         $level2Ids = $level2Categories->pluck('id');
 
         $level3Count = $level2Ids->isEmpty()
@@ -546,7 +549,7 @@ class CategoryController extends Controller
 
         if ($circleParentId !== null) {
             $row = DB::table('circle_categories')->where('id', $circleParentId)->first();
-            if ($row && (int) ($row->level ?? 0) === ($level - 1)) {
+            if ($row && ((int) ($row->level ?? 0) === ($level - 1) || $row->level === null)) {
                 return (int) $row->id;
             }
         }
