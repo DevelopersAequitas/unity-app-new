@@ -9,8 +9,10 @@ use App\Imports\CategoriesImport;
 use App\Models\Category;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -107,7 +109,35 @@ class CategoryController extends Controller
         $payload = $this->filterCategoryPayload($request->validated());
         $payload = $this->applyMainCategoryDefaults($payload);
 
-        Category::query()->create($payload);
+        try {
+            DB::transaction(function () use ($payload): void {
+                $created = false;
+
+                if (Schema::hasTable('categories')) {
+                    Category::query()->create($payload);
+                    $created = true;
+                }
+
+                if (Schema::hasTable('circle_categories')) {
+                    $this->insertIntoCircleCategories($payload);
+                    $created = true;
+                }
+
+                if (! $created) {
+                    throw new \RuntimeException('No category table found for insert.');
+                }
+            });
+        } catch (\Throwable $e) {
+            Log::error('Category create failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['category_name' => 'Unable to create category right now. Please try again.']);
+        }
 
         return redirect()
             ->route('admin.categories.index')
@@ -307,5 +337,79 @@ class CategoryController extends Controller
             'parent_id' => null,
             'level' => 1,
         ]);
+    }
+
+    private function insertIntoCircleCategories(array $payload): void
+    {
+        $name = trim((string) ($payload['category_name'] ?? $payload['name'] ?? ''));
+        if ($name === '') {
+            throw new \RuntimeException('Category name is required for circle_categories insert.');
+        }
+
+        $data = [
+            'name' => $name,
+        ];
+
+        if (Schema::hasColumn('circle_categories', 'parent_id')) {
+            $data['parent_id'] = null;
+        }
+
+        if (Schema::hasColumn('circle_categories', 'level')) {
+            $data['level'] = 1;
+        }
+
+        if (Schema::hasColumn('circle_categories', 'is_active')) {
+            $data['is_active'] = true;
+        }
+
+        if (Schema::hasColumn('circle_categories', 'slug')) {
+            $data['slug'] = $this->nextUniqueValue('circle_categories', 'slug', Str::slug($name));
+        }
+
+        if (Schema::hasColumn('circle_categories', 'circle_key')) {
+            $baseKey = Str::upper(Str::snake($name));
+            $data['circle_key'] = $this->nextUniqueValue('circle_categories', 'circle_key', $baseKey, '_');
+        }
+
+        if (Schema::hasColumn('circle_categories', 'sort_order')) {
+            $nextOrder = ((int) DB::table('circle_categories')->max('sort_order')) + 1;
+            $data['sort_order'] = $nextOrder;
+        }
+
+        if (Schema::hasColumn('circle_categories', 'sector') && array_key_exists('sector', $payload)) {
+            $data['sector'] = $payload['sector'];
+        }
+
+        if (Schema::hasColumn('circle_categories', 'remarks') && array_key_exists('remarks', $payload)) {
+            $data['remarks'] = $payload['remarks'];
+        }
+
+        if (Schema::hasColumn('circle_categories', 'created_at')) {
+            $data['created_at'] = now();
+        }
+
+        if (Schema::hasColumn('circle_categories', 'updated_at')) {
+            $data['updated_at'] = now();
+        }
+
+        DB::table('circle_categories')->insert($data);
+    }
+
+    private function nextUniqueValue(string $table, string $column, string $baseValue, string $separator = '-'): string
+    {
+        $value = trim($baseValue);
+        if ($value === '') {
+            $value = 'category';
+        }
+
+        $candidate = $value;
+        $suffix = 1;
+
+        while (DB::table($table)->where($column, $candidate)->exists()) {
+            $candidate = $value . $separator . $suffix;
+            $suffix++;
+        }
+
+        return $candidate;
     }
 }
