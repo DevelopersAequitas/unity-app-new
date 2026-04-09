@@ -167,3 +167,7 @@ body {
 .sticky-x-scrollbar-inner {
     height: 1px;
 }
+
+.admin-content .select2-container {
+    width: 100% !important;
+}
