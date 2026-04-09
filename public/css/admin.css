@@ -142,3 +142,33 @@ body {
     display: inline-block;
     margin-right: 6px;
 }
+
+.admin-content .select2-container {
+    width: 100% !important;
+}
+
+.admin-content .select2-container .select2-selection--single {
+    min-height: calc(1.5em + .75rem + 2px);
+    border-color: var(--bs-border-color, #dee2e6);
+    border-radius: var(--bs-border-radius, .375rem);
+}
+
+.admin-content .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: calc(1.5em + .75rem);
+    padding-left: .75rem;
+}
+
+.admin-content .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 100%;
+    right: .5rem;
+}
+
+.admin-content .select2-dropdown {
+    z-index: 2100;
+    border-color: var(--bs-border-color, #dee2e6);
+}
+
+.admin-content .select2-search--dropdown .select2-search__field {
+    min-height: 2.25rem;
+    border-radius: .375rem;
+}

@@ -83,17 +83,3 @@
         </div>
     </div>
 @endsection
-
-@push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        if (window.$ && $.fn.select2) {
-            $('.js-user-select').select2({
-                placeholder: 'Select a member',
-                allowClear: true,
-                width: '100%'
-            });
-        }
-    });
-</script>
-@endpush

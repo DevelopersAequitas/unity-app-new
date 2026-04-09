@@ -24,6 +24,110 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        (function () {
+            const ADMIN_SELECT_SELECTOR = '.admin-content select.form-select';
+            let rescanQueued = false;
+
+            function buildSelect2Config(selectEl) {
+                const firstOption = selectEl.options.length > 0 ? selectEl.options[0] : null;
+                const hasEmptyOption = !!firstOption && firstOption.value === '';
+                const placeholderText = selectEl.dataset.placeholder
+                    || (hasEmptyOption ? firstOption.text.trim() : '');
+                const isRequired = selectEl.required || selectEl.dataset.required === 'true';
+                const modalParent = selectEl.closest('.modal');
+
+                return {
+                    width: '100%',
+                    placeholder: placeholderText || undefined,
+                    allowClear: hasEmptyOption && !isRequired,
+                    minimumResultsForSearch: 0,
+                    dropdownAutoWidth: true,
+                    dropdownParent: modalParent ? $(modalParent) : undefined
+                };
+            }
+
+            function shouldSkipSelect(selectEl) {
+                if (!selectEl.matches(ADMIN_SELECT_SELECTOR)) {
+                    return true;
+                }
+
+                if (selectEl.dataset.select2 === 'off' || selectEl.dataset.select2Manual === 'true') {
+                    return true;
+                }
+
+                return selectEl.classList.contains('select2-hidden-accessible');
+            }
+
+            function enhanceSelects(root) {
+                if (!window.$ || !$.fn.select2) {
+                    return;
+                }
+
+                const scope = root instanceof Element ? root : document;
+                const selects = scope.matches?.(ADMIN_SELECT_SELECTOR)
+                    ? [scope]
+                    : scope.querySelectorAll(ADMIN_SELECT_SELECTOR);
+
+                selects.forEach((selectEl) => {
+                    if (shouldSkipSelect(selectEl)) {
+                        return;
+                    }
+
+                    $(selectEl).select2(buildSelect2Config(selectEl));
+                });
+            }
+
+            function queueRescan(root) {
+                if (rescanQueued) {
+                    return;
+                }
+
+                rescanQueued = true;
+                requestAnimationFrame(() => {
+                    rescanQueued = false;
+                    enhanceSelects(root || document);
+                });
+            }
+
+            window.AdminSelectEnhancer = {
+                refresh(root) {
+                    enhanceSelects(root || document);
+                }
+            };
+
+            document.addEventListener('DOMContentLoaded', () => {
+                enhanceSelects(document);
+
+                const observer = new MutationObserver((mutations) => {
+                    for (const mutation of mutations) {
+                        if (mutation.type !== 'childList' || mutation.addedNodes.length === 0) {
+                            continue;
+                        }
+
+                        for (const node of mutation.addedNodes) {
+                            if (!(node instanceof Element)) {
+                                continue;
+                            }
+
+                            if (node.matches?.(ADMIN_SELECT_SELECTOR) || node.querySelector?.(ADMIN_SELECT_SELECTOR)) {
+                                queueRescan(node);
+                                return;
+                            }
+                        }
+                    }
+                });
+
+                observer.observe(document.body, { childList: true, subtree: true });
+
+                if (window.bootstrap?.Modal) {
+                    document.addEventListener('shown.bs.modal', (event) => {
+                        enhanceSelects(event.target);
+                    });
+                }
+            });
+        })();
+    </script>
     @stack('scripts')
 </body>
 </html>
