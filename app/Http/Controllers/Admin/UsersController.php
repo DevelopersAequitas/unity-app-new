@@ -10,8 +10,8 @@ use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
-use App\Models\CircleMemberCategorySelection;
 use App\Models\City;
+use App\Models\JoinedCircleCategory;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Users\PublicProfileSlugService;
@@ -610,8 +610,8 @@ class UsersController extends Controller
             'left_at' => now(),
         ])->save();
 
-        if (Schema::hasTable('circle_member_category_selections')) {
-            CircleMemberCategorySelection::query()
+        if (Schema::hasTable('joined_circle_categories')) {
+            JoinedCircleCategory::query()
                 ->where('circle_member_id', $member->id)
                 ->delete();
         }
@@ -1348,8 +1348,8 @@ class UsersController extends Controller
             ->keyBy('id');
 
         $selectionByCircleMemberId = collect();
-        if (Schema::hasTable('circle_member_category_selections')) {
-            $selectionByCircleMemberId = CircleMemberCategorySelection::query()
+        if (Schema::hasTable('joined_circle_categories')) {
+            $selectionByCircleMemberId = JoinedCircleCategory::query()
                 ->whereIn('circle_member_id', $circleMemberships->pluck('id')->filter()->values())
                 ->get([
                     'circle_member_id',
@@ -1358,7 +1358,7 @@ class UsersController extends Controller
                     'level3_category_id',
                     'level4_category_id',
                 ])
-                ->keyBy(fn (CircleMemberCategorySelection $row) => (string) $row->circle_member_id);
+                ->keyBy(fn (JoinedCircleCategory $row) => (string) $row->circle_member_id);
         }
 
         $selectedIdsByMembership = $circleMemberships->mapWithKeys(function ($membership) use ($selectionByCircleMemberId) {
@@ -1465,7 +1465,7 @@ class UsersController extends Controller
 
     private function upsertCircleMemberCategorySelection(CircleMember $memberRecord, string $userId, array $validated): void
     {
-        if (! Schema::hasTable('circle_member_category_selections')) {
+        if (! Schema::hasTable('joined_circle_categories')) {
             return;
         }
 
@@ -1476,14 +1476,14 @@ class UsersController extends Controller
         $hasSelection = $level1Id > 0 || $level2Id > 0 || $level3Id > 0 || $level4Id > 0;
 
         if (! $hasSelection) {
-            CircleMemberCategorySelection::query()
+            JoinedCircleCategory::query()
                 ->where('circle_member_id', $memberRecord->id)
                 ->delete();
 
             return;
         }
 
-        CircleMemberCategorySelection::query()->updateOrCreate(
+        JoinedCircleCategory::query()->updateOrCreate(
             ['circle_member_id' => $memberRecord->id],
             [
                 'user_id' => $userId,
