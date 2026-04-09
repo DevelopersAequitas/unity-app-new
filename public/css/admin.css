@@ -227,6 +227,23 @@ body {
     border-top: 1px solid var(--gray-300);
 }
 
+.admin-content .admin-sticky-scrollbar.is-floating {
+    position: fixed;
+    z-index: 1040;
+    bottom: 12px;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.admin-content .admin-sticky-scrollbar.is-anchored {
+    position: absolute;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    bottom: 0;
+    z-index: 20;
+    box-shadow: none;
+}
+
 .admin-content .admin-sticky-scrollbar-inner {
     height: 1px;
 }

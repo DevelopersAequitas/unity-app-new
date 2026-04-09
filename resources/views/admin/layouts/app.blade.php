@@ -131,6 +131,54 @@
     <script>
         (function () {
             const AREA_SELECTOR = '.admin-content .admin-sticky-scroll-area';
+            const FLOATING_BOTTOM = 12;
+
+            function resetStickyBarPosition(stickyBar) {
+                stickyBar.classList.remove('is-floating', 'is-anchored');
+                stickyBar.style.left = '';
+                stickyBar.style.width = '';
+                stickyBar.style.bottom = '';
+            }
+
+            function updateStickyBarPosition(area) {
+                const content = area.querySelector('.admin-sticky-scroll-content');
+                const stickyBar = area.querySelector('.admin-sticky-scrollbar');
+
+                if (!content || !stickyBar || stickyBar.style.display === 'none') {
+                    if (stickyBar) {
+                        resetStickyBarPosition(stickyBar);
+                    }
+                    return;
+                }
+
+                const areaRect = area.getBoundingClientRect();
+                const contentRect = content.getBoundingClientRect();
+                const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+                const barHeight = stickyBar.offsetHeight || 16;
+                const floatingTop = viewportHeight - FLOATING_BOTTOM - barHeight;
+                const areaBottomTop = areaRect.bottom - barHeight;
+
+                const isAreaVisible = areaRect.top < viewportHeight && areaRect.bottom > 0;
+                if (!isAreaVisible) {
+                    resetStickyBarPosition(stickyBar);
+                    return;
+                }
+
+                if (floatingTop >= areaBottomTop) {
+                    stickyBar.classList.remove('is-floating');
+                    stickyBar.classList.add('is-anchored');
+                    stickyBar.style.left = '';
+                    stickyBar.style.width = '';
+                    stickyBar.style.bottom = '';
+                    return;
+                }
+
+                stickyBar.classList.add('is-floating');
+                stickyBar.classList.remove('is-anchored');
+                stickyBar.style.left = `${contentRect.left}px`;
+                stickyBar.style.width = `${contentRect.width}px`;
+                stickyBar.style.bottom = `${FLOATING_BOTTOM}px`;
+            }
 
             function syncArea(area) {
                 const content = area.querySelector('.admin-sticky-scroll-content');
@@ -144,6 +192,7 @@
                 stickyInner.style.width = `${content.scrollWidth}px`;
                 stickyBar.style.display = content.scrollWidth > content.clientWidth ? 'block' : 'none';
                 stickyBar.scrollLeft = content.scrollLeft;
+                updateStickyBarPosition(area);
             }
 
             function initArea(area) {
@@ -207,6 +256,10 @@
                 areas.forEach((area) => initArea(area));
             }
 
+            function updateAllStickyPositions() {
+                document.querySelectorAll(AREA_SELECTOR).forEach((area) => updateStickyBarPosition(area));
+            }
+
             window.AdminStickyScrollbar = {
                 refresh(root) {
                     initAllAreas(root || document);
@@ -215,6 +268,7 @@
                             area.__adminStickyScrollSync();
                         }
                     });
+                    updateAllStickyPositions();
                 }
             };
 
@@ -245,6 +299,7 @@
                 document.addEventListener('shown.bs.collapse', () => window.AdminStickyScrollbar.refresh());
                 document.addEventListener('shown.bs.modal', () => window.AdminStickyScrollbar.refresh());
                 window.addEventListener('load', () => window.AdminStickyScrollbar.refresh());
+                window.addEventListener('scroll', updateAllStickyPositions, { passive: true });
             });
         })();
     </script>
