@@ -366,6 +366,69 @@
                             </table>
                         </div>
                     </div>
+
+                    <div class="col-12 mt-3">
+                        <h6 class="mb-2">Joined Circle Categories</h6>
+                        @php
+                            $joinedCircleCategoryTrees = $joinedCircleCategoryTrees ?? collect();
+                        @endphp
+
+                        @if($joinedCircleCategoryTrees->isEmpty())
+                            <div class="text-muted">—</div>
+                        @else
+                            <div class="row g-3">
+                                @foreach($joinedCircleCategoryTrees as $circleTree)
+                                    <div class="col-12">
+                                        <div class="border rounded p-3 bg-light-subtle">
+                                            <div class="fw-semibold mb-2">
+                                                Joined Circle: {{ $circleTree['circle']?->name ?: ($circleTree['membership']->circle?->name ?? '—') }}
+                                            </div>
+
+                                            @if(($circleTree['categories'] ?? collect())->isEmpty())
+                                                <div class="text-muted">—</div>
+                                            @else
+                                                @foreach($circleTree['categories'] as $mainCategoryTree)
+                                                    <div class="mb-3">
+                                                        <span class="badge bg-light text-dark border mb-2">
+                                                            Category: {{ $mainCategoryTree['node']->name }}
+                                                        </span>
+
+                                                        @if(($mainCategoryTree['children'] ?? collect())->isEmpty())
+                                                            <div class="text-muted ms-2">—</div>
+                                                        @else
+                                                            <ul class="mb-0">
+                                                                @foreach($mainCategoryTree['children'] as $level2Tree)
+                                                                    <li>
+                                                                        {{ $level2Tree['node']->name }}
+                                                                        @if(($level2Tree['children'] ?? collect())->isNotEmpty())
+                                                                            <ul>
+                                                                                @foreach($level2Tree['children'] as $level3Tree)
+                                                                                    <li>
+                                                                                        {{ $level3Tree['node']->name }}
+                                                                                        @if(($level3Tree['children'] ?? collect())->isNotEmpty())
+                                                                                            <ul>
+                                                                                                @foreach($level3Tree['children'] as $level4Node)
+                                                                                                    <li>{{ $level4Node->name }}</li>
+                                                                                                @endforeach
+                                                                                            </ul>
+                                                                                        @endif
+                                                                                    </li>
+                                                                                @endforeach
+                                                                            </ul>
+                                                                        @endif
+                                                                    </li>
+                                                                @endforeach
+                                                            </ul>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>

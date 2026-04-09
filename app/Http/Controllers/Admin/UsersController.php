@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AdminUser;
 use App\Models\Circle;
+use App\Models\CircleCategoryLevel2;
+use App\Models\CircleCategoryLevel3;
+use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\Role;
@@ -239,6 +242,105 @@ class UsersController extends Controller
             ->orderByDesc('joined_at')
             ->get();
 
+        $joinedCircleCategoryTrees = collect();
+        $circleIds = $circleMemberships->pluck('circle_id')->filter()->unique()->values();
+
+        if ($circleIds->isNotEmpty()) {
+            $circlesWithCategories = Circle::query()
+                ->whereIn('id', $circleIds)
+                ->with(['categories' => function ($query) {
+                    $query->orderBy('sort_order')->orderBy('id');
+                }])
+                ->get(['id', 'name'])
+                ->keyBy('id');
+
+            $mappedMainCategoryIds = $circlesWithCategories
+                ->flatMap(fn (Circle $circle) => $circle->categories->pluck('id'))
+                ->unique()
+                ->values();
+
+            $level2ByMain = collect();
+            $level3ByMain = collect();
+            $level4ByMain = collect();
+
+            if ($mappedMainCategoryIds->isNotEmpty()) {
+                $level2ByMain = CircleCategoryLevel2::query()
+                    ->whereIn('circle_category_id', $mappedMainCategoryIds)
+                    ->orderBy('sort_order')
+                    ->orderBy('id')
+                    ->get()
+                    ->groupBy('circle_category_id');
+
+                $level3ByMain = CircleCategoryLevel3::query()
+                    ->whereIn('circle_category_id', $mappedMainCategoryIds)
+                    ->orderBy('sort_order')
+                    ->orderBy('id')
+                    ->get()
+                    ->groupBy('circle_category_id');
+
+                $level4ByMain = CircleCategoryLevel4::query()
+                    ->whereIn('circle_category_id', $mappedMainCategoryIds)
+                    ->orderBy('sort_order')
+                    ->orderBy('id')
+                    ->get()
+                    ->groupBy('circle_category_id');
+            }
+
+            $joinedCircleCategoryTrees = $circleMemberships->map(function ($membership) use ($circlesWithCategories, $level2ByMain, $level3ByMain, $level4ByMain) {
+                $circle = $circlesWithCategories->get($membership->circle_id);
+                $mainCategories = $circle?->categories ?? collect();
+
+                $categoryTree = $mainCategories->map(function ($mainCategory) use ($level2ByMain, $level3ByMain, $level4ByMain) {
+                    $level2Items = $level2ByMain->get($mainCategory->id, collect());
+                    $level3Items = $level3ByMain->get($mainCategory->id, collect());
+                    $level4Items = $level4ByMain->get($mainCategory->id, collect());
+
+                    $level3ByLevel2 = [];
+                    foreach ($level3Items as $level3) {
+                        $level2Id = $level3->level2_id ?? $level3->circle_category_level2_id ?? null;
+                        if ($level2Id === null) {
+                            continue;
+                        }
+                        $level3ByLevel2[$level2Id][] = $level3;
+                    }
+
+                    $level4ByLevel3 = [];
+                    foreach ($level4Items as $level4) {
+                        $level3Id = $level4->level3_id ?? $level4->circle_category_level3_id ?? null;
+                        if ($level3Id === null) {
+                            continue;
+                        }
+                        $level4ByLevel3[$level3Id][] = $level4;
+                    }
+
+                    $level2Tree = collect($level2Items)->map(function ($level2) use ($level3ByLevel2, $level4ByLevel3) {
+                        $level3Tree = collect($level3ByLevel2[$level2->id] ?? [])->map(function ($level3) use ($level4ByLevel3) {
+                            return [
+                                'node' => $level3,
+                                'children' => collect($level4ByLevel3[$level3->id] ?? []),
+                            ];
+                        });
+
+                        return [
+                            'node' => $level2,
+                            'children' => $level3Tree,
+                        ];
+                    });
+
+                    return [
+                        'node' => $mainCategory,
+                        'children' => $level2Tree,
+                    ];
+                });
+
+                return [
+                    'membership' => $membership,
+                    'circle' => $circle,
+                    'categories' => $categoryTree,
+                ];
+            });
+        }
+
         $latestCircleSubscriptions = $user->circleSubscriptions()
             ->whereIn('circle_id', $circleMemberships->pluck('circle_id')->filter()->values())
             ->latest('paid_at')
@@ -292,6 +394,7 @@ class UsersController extends Controller
             'selectedCircle' => $selectedCircle,
             'isJoinedToEffectiveCircle' => $isJoinedToEffectiveCircle,
             'circleMemberships' => $circleMemberships,
+            'joinedCircleCategoryTrees' => $joinedCircleCategoryTrees,
             'latestCircleSubscriptions' => $latestCircleSubscriptions,
             'meetingModes' => $meetingModes,
             'meetingFrequencies' => $meetingFrequencies,
