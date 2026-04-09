@@ -116,13 +116,6 @@ body {
     overflow-x: hidden;
 }
 
-.admin-content {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    overflow-x: hidden;
-}
-
 .admin-topbar .input-group .form-control {
     background: #fff;
 }
@@ -229,4 +222,12 @@ body {
 
 .admin-content .admin-sticky-scrollbar-inner {
     height: 1px;
+}
+
+.admin-content .circles-page-wrapper,
+.admin-content .circles-card,
+.admin-content .circles-table-section {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
 }

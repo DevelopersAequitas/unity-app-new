@@ -234,6 +234,7 @@
 
                             if (node.matches?.(AREA_SELECTOR) || node.querySelector?.(AREA_SELECTOR)) {
                                 initAllAreas(node);
+                                return;
                             }
                         }
                     }
@@ -244,7 +245,6 @@
                 document.addEventListener('shown.bs.tab', () => window.AdminStickyScrollbar.refresh());
                 document.addEventListener('shown.bs.collapse', () => window.AdminStickyScrollbar.refresh());
                 document.addEventListener('shown.bs.modal', () => window.AdminStickyScrollbar.refresh());
-                window.addEventListener('load', () => window.AdminStickyScrollbar.refresh());
             });
         })();
     </script>
