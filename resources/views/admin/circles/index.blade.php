@@ -3,24 +3,23 @@
 @section('title', 'Circles')
 
 @section('content')
-<div class="circles-page-wrapper">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h5 class="mb-0">Circles</h5>
-            <small class="text-muted">Community circles overview</small>
-        </div>
-        <a href="{{ route('admin.circles.create') }}" class="btn btn-primary btn-sm">Create Circle</a>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h5 class="mb-0">Circles</h5>
+        <small class="text-muted">Community circles overview</small>
     </div>
+    <a href="{{ route('admin.circles.create') }}" class="btn btn-primary btn-sm">Create Circle</a>
+</div>
 
-    @if (session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
+@if (session('success'))
+    <div class="alert alert-success">{{ session('success') }}</div>
+@endif
 
-    <form id="circleFiltersForm" method="GET" action="{{ route('admin.circles.index') }}">
-        <div class="card p-3 circles-card">
-            <div class="admin-sticky-scroll-area circles-table-section">
-                <div class="admin-sticky-scroll-content table-responsive">
-                    <table class="table align-middle" style="white-space: nowrap;">
+<form id="circleFiltersForm" method="GET" action="{{ route('admin.circles.index') }}">
+    <div class="card p-3">
+        <div class="admin-sticky-scroll-area">
+            <div class="admin-sticky-scroll-content table-responsive">
+                <table class="table align-middle" style="white-space: nowrap;">
                     <thead>
                     <tr>
                         <th>Circle</th>
@@ -229,16 +228,15 @@
                     </tbody>
                 </table>
             </div>
-                <div class="admin-sticky-scrollbar" aria-hidden="true">
-                    <div class="admin-sticky-scrollbar-inner"></div>
-                </div>
-            </div>
-            <div class="mt-2">
-                {{ $circles->links() }}
+            <div class="admin-sticky-scrollbar" aria-hidden="true">
+                <div class="admin-sticky-scrollbar-inner"></div>
             </div>
         </div>
-    </form>
-</div>
+        <div class="mt-2">
+            {{ $circles->links() }}
+        </div>
+    </div>
+</form>
 
 
 @push('scripts')

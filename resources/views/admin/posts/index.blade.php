@@ -61,8 +61,8 @@
             </div>
         </div>
 
-        <div class="admin-sticky-scroll-area posts-index-scroll-area">
-            <div class="admin-sticky-scroll-content posts-index-table-scroll table-responsive">
+        <div class="admin-sticky-scroll-area">
+            <div class="admin-sticky-scroll-content table-responsive">
                 <table class="table mb-0 align-middle text-nowrap">
                     <thead class="table-light">
                         <tr>
@@ -216,8 +216,8 @@
                     </tbody>
                 </table>
             </div>
-            <div class="admin-sticky-scrollbar posts-index-scrollbar-sticky" aria-hidden="true">
-                <div class="admin-sticky-scrollbar-inner posts-index-scrollbar-inner"></div>
+            <div class="admin-sticky-scrollbar" aria-hidden="true">
+                <div class="admin-sticky-scrollbar-inner"></div>
             </div>
         </div>
     </div>

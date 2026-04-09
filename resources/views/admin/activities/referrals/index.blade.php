@@ -51,43 +51,49 @@
         <div class="card-header bg-white">
             <strong>Top 5 Peers</strong>
         </div>
-        <div class="table-responsive">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Rank</th>
-                        <th>Peer Name</th>
-                        <th>Total Referrals</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($topMembers as $index => $member)
+        <div class="admin-sticky-scroll-area">
+            <div class="admin-sticky-scroll-content table-responsive">
+                <table class="table mb-0 align-middle">
+                    <thead class="table-light">
                         <tr>
-                            <td>{{ $index + 1 }}</td>
-                            <td>
-                                @include('admin.components.peer-card', [
-                                    'name' => $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null),
-                                    'company' => $member->peer_company ?? '',
-                                    'city' => $member->peer_city ?? '',
-                                    'maxWidth' => 260,
-                                ])
-                            </td>
-                            <td>{{ $member->total_count ?? 0 }}</td>
+                            <th>Rank</th>
+                            <th>Peer Name</th>
+                            <th>Total Referrals</th>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="3" class="text-center text-muted">No data available.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @forelse ($topMembers as $index => $member)
+                            <tr>
+                                <td>{{ $index + 1 }}</td>
+                                <td>
+                                    @include('admin.components.peer-card', [
+                                        'name' => $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null),
+                                        'company' => $member->peer_company ?? '',
+                                        'city' => $member->peer_city ?? '',
+                                        'maxWidth' => 260,
+                                    ])
+                                </td>
+                                <td>{{ $member->total_count ?? 0 }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">No data available.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="admin-sticky-scrollbar" aria-hidden="true">
+                <div class="admin-sticky-scrollbar-inner"></div>
+            </div>
         </div>
     </div>
 
     <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
+        <div class="admin-sticky-scroll-area">
+            <div class="admin-sticky-scroll-content table-responsive">
+                <table class="table mb-0 align-middle">
+                    <thead class="table-light">
                     <tr>
                         <th>From</th>
                         <th>To</th>
@@ -134,8 +140,8 @@
                             </div>
                         </th>
                     </tr>
-                </thead>
-                <tbody>
+                    </thead>
+                    <tbody>
                     @forelse ($items as $referral)
                         @php
                             $actorName = $displayName($referral->actor_display_name ?? null, $referral->actor_first_name ?? null, $referral->actor_last_name ?? null);
@@ -187,8 +193,12 @@
                             <td colspan="12" class="text-center text-muted">No referrals found.</td>
                         </tr>
                     @endforelse
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
+            <div class="admin-sticky-scrollbar" aria-hidden="true">
+                <div class="admin-sticky-scrollbar-inner"></div>
+            </div>
         </div>
     </div>
 
