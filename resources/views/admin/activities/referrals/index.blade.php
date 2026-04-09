@@ -3,13 +3,6 @@
 @section('title', 'Referrals')
 
 @section('content')
-    <style>
-        .peer-name {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-    </style>
     @php
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {

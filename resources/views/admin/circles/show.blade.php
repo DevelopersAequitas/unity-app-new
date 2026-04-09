@@ -397,7 +397,7 @@
 
             <div class="col-md-6">
                 <label class="form-label">Select Peer</label>
-                <select id="peer_select" name="user_id" class="form-select" required></select>
+                <select id="peer_select" name="user_id" class="form-select js-no-searchable-select" required></select>
             </div>
 
             <div class="col-md-3">
