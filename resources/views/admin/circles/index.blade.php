@@ -17,9 +17,10 @@
 
 <form id="circleFiltersForm" method="GET" action="{{ route('admin.circles.index') }}">
     <div class="card p-3">
-        <div class="table-responsive" style="overflow-x: auto;">
-            <table class="table align-middle" style="white-space: nowrap;">
-                <thead>
+        <div class="admin-sticky-scroll-area">
+            <div class="admin-sticky-scroll-content table-responsive">
+                <table class="table align-middle" style="white-space: nowrap;">
+                    <thead>
                     <tr>
                         <th>Circle</th>
                         <th>Founder</th>
@@ -146,8 +147,8 @@
                             </div>
                         </th>
                     </tr>
-                </thead>
-                <tbody>
+                    </thead>
+                    <tbody>
                     @forelse ($circles as $circle)
                         <tr>
                             <td class="fw-semibold">{{ $circle->name ?? '—' }}</td>
@@ -224,8 +225,12 @@
                             <td colspan="20" class="text-center text-muted py-4">No circles found.</td>
                         </tr>
                     @endforelse
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
+            <div class="admin-sticky-scrollbar" aria-hidden="true">
+                <div class="admin-sticky-scrollbar-inner"></div>
+            </div>
         </div>
         <div class="mt-2">
             {{ $circles->links() }}
