@@ -7,7 +7,7 @@ use App\Http\Requests\Admin\Circles\StoreCircleRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleRequest;
 use App\Models\Circle;
 use App\Models\CircleMember;
-use App\Models\Category;
+use App\Models\CircleCategory;
 use App\Models\City;
 use App\Models\User;
 use App\Support\Zoho\ZohoBillingService;
@@ -847,8 +847,8 @@ class CircleController extends Controller
 
     private function categoryFeatureEnabled(): bool
     {
-        return class_exists(Category::class)
-            && Schema::hasTable('categories')
+        return class_exists(CircleCategory::class)
+            && Schema::hasTable('circle_categories')
             && Schema::hasTable('circle_category_mappings');
     }
 
@@ -858,8 +858,11 @@ class CircleController extends Controller
             return collect();
         }
 
-        return Category::query()
-            ->orderBy('category_name')
-            ->get(['id', 'category_name']);
+        return CircleCategory::query()
+            ->where('level', 1)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name', 'slug', 'circle_key', 'level']);
     }
 }

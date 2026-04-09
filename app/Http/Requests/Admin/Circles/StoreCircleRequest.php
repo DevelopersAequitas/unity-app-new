@@ -45,7 +45,7 @@ class StoreCircleRequest extends FormRequest
             'calendar_meetings.*.monthly_rule' => ['nullable', Rule::in(['first', 'second', 'third', 'fourth', 'last'])],
             'circle_package' => ['nullable', 'string', 'max:120'],
             'categories' => ['nullable', 'array'],
-            'categories.*' => ['integer', 'exists:categories,id'],
+            'categories.*' => ['integer', 'exists:circle_categories,id'],
         ];
     }
 
