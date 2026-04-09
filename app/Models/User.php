@@ -442,7 +442,7 @@ class User extends Authenticatable
 
     public function adminDisplayInlineLabel(): string
     {
-        return implode(' — ', $this->adminDisplayParts());
+        return implode(', ', $this->adminDisplayParts());
     }
 
     public function adminNameCompanyCityLabel(): string
