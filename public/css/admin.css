@@ -9,6 +9,11 @@
 body {
     background: var(--gray-100);
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    overflow-x: hidden;
+}
+
+html {
+    overflow-x: hidden;
 }
 
 .pagination {
@@ -32,6 +37,8 @@ body {
 
 .admin-shell {
     min-height: 100vh;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 .admin-sidebar {
@@ -105,6 +112,20 @@ body {
     background: var(--gray-100);
     min-height: 100vh;
     min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.admin-content {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.table-responsive,
+.table-responsive-horizontal {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
 }
 
 .admin-topbar .input-group .form-control {
@@ -141,31 +162,4 @@ body {
     border-radius: 50%;
     display: inline-block;
     margin-right: 6px;
-}
-
-.table-responsive[data-sticky-scroll-ready="true"] {
-    scrollbar-width: none;
-}
-
-.table-responsive[data-sticky-scroll-ready="true"]::-webkit-scrollbar {
-    display: none;
-}
-
-.table-responsive-sticky-bar {
-    position: sticky;
-    bottom: 0;
-    z-index: 10;
-    height: 14px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    border-top: 1px solid var(--gray-300);
-    background: #fff;
-}
-
-.table-responsive-sticky-bar.is-hidden {
-    display: none;
-}
-
-.table-responsive-sticky-track {
-    height: 1px;
 }
