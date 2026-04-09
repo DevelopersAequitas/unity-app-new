@@ -142,3 +142,28 @@ body {
     display: inline-block;
     margin-right: 6px;
 }
+
+.has-sticky-x-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.has-sticky-x-scroll::-webkit-scrollbar {
+    height: 0;
+    width: 0;
+}
+
+.sticky-x-scrollbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.95);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.sticky-x-scrollbar-inner {
+    height: 1px;
+}

@@ -3,28 +3,6 @@
 @section('title', 'Referrals')
 
 @section('content')
-    <style>
-        .peer-name {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .referrals-sticky-scrollbar {
-            position: sticky;
-            bottom: 0;
-            z-index: 3;
-            overflow-x: auto;
-            overflow-y: hidden;
-            height: 16px;
-            background: rgba(255, 255, 255, 0.95);
-            border-top: 1px solid rgba(0, 0, 0, 0.08);
-        }
-
-        .referrals-sticky-scrollbar-inner {
-            height: 1px;
-        }
-    </style>
     @php
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
@@ -100,7 +78,7 @@
     </div>
 
     <div class="card shadow-sm">
-        <div class="table-responsive" id="referralsTableScroll">
+        <div class="table-responsive">
             <table class="table mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
@@ -205,9 +183,6 @@
                 </tbody>
             </table>
         </div>
-        <div class="referrals-sticky-scrollbar d-none" id="referralsStickyScrollbar" aria-hidden="true">
-            <div class="referrals-sticky-scrollbar-inner" id="referralsStickyScrollbarInner"></div>
-        </div>
     </div>
 
     </form>
@@ -216,57 +191,3 @@
         {{ $items->links() }}
     </div>
 @endsection
-
-@push('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const tableScroll = document.getElementById('referralsTableScroll');
-            const stickyScroll = document.getElementById('referralsStickyScrollbar');
-            const stickyInner = document.getElementById('referralsStickyScrollbarInner');
-
-            if (!tableScroll || !stickyScroll || !stickyInner) {
-                return;
-            }
-
-            let syncingFromTable = false;
-            let syncingFromSticky = false;
-
-            const updateStickyScrollbar = () => {
-                const hasOverflow = tableScroll.scrollWidth > tableScroll.clientWidth + 1;
-                stickyInner.style.width = `${tableScroll.scrollWidth}px`;
-
-                if (hasOverflow) {
-                    stickyScroll.classList.remove('d-none');
-                    stickyScroll.scrollLeft = tableScroll.scrollLeft;
-                } else {
-                    stickyScroll.classList.add('d-none');
-                    stickyScroll.scrollLeft = 0;
-                }
-            };
-
-            tableScroll.addEventListener('scroll', function () {
-                if (syncingFromSticky) {
-                    syncingFromSticky = false;
-                    return;
-                }
-
-                syncingFromTable = true;
-                stickyScroll.scrollLeft = tableScroll.scrollLeft;
-            }, { passive: true });
-
-            stickyScroll.addEventListener('scroll', function () {
-                if (syncingFromTable) {
-                    syncingFromTable = false;
-                    return;
-                }
-
-                syncingFromSticky = true;
-                tableScroll.scrollLeft = stickyScroll.scrollLeft;
-            }, { passive: true });
-
-            updateStickyScrollbar();
-            window.addEventListener('resize', updateStickyScrollbar, { passive: true });
-            window.addEventListener('load', updateStickyScrollbar, { passive: true });
-        });
-    </script>
-@endpush
