@@ -11,6 +11,11 @@ body {
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
+.admin-body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
 .pagination {
     gap: 0.25rem;
 }
@@ -32,6 +37,8 @@ body {
 
 .admin-shell {
     min-height: 100vh;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 .admin-sidebar {
@@ -105,6 +112,8 @@ body {
     background: var(--gray-100);
     min-height: 100vh;
     min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 .admin-topbar .input-group .form-control {
@@ -114,6 +123,7 @@ body {
 .admin-content .card {
     border: 1px solid var(--gray-300);
     border-radius: 14px;
+    min-width: 0;
 }
 
 .table thead {
@@ -175,9 +185,16 @@ body {
 
 .admin-content .admin-sticky-scroll-area {
     position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .admin-content .admin-sticky-scroll-content {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
     overflow-y: visible;
     padding-bottom: .75rem;
@@ -193,6 +210,8 @@ body {
 .admin-content .admin-sticky-scrollbar {
     position: sticky;
     bottom: 0;
+    width: 100%;
+    max-width: 100%;
     z-index: 20;
     overflow-x: auto;
     overflow-y: hidden;
@@ -203,4 +222,12 @@ body {
 
 .admin-content .admin-sticky-scrollbar-inner {
     height: 1px;
+}
+
+.admin-content .circles-page-wrapper,
+.admin-content .circles-card,
+.admin-content .circles-table-section {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
 }

@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
     @stack('styles')
 </head>
-<body>
+<body class="admin-body">
     <div class="admin-shell d-flex">
         @include('admin.partials.sidebar')
         <div class="admin-main flex-grow-1">
