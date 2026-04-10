@@ -243,38 +243,89 @@ class CircleCategoryUsageController extends Controller
         }
 
         $mainCategoryId = $this->resolveCircleMainCategoryId($circle->id);
-        $mainCategory = $mainCategoryId
-            ? CircleCategory::query()->select(['id', 'name'])->where('id', $mainCategoryId)->first()
-            : null;
+        if (! $mainCategoryId) {
+            return response()->json([
+                'success' => true,
+                'message' => null,
+                'data' => [
+                    'circle' => [
+                        'id' => $circle->id,
+                        'name' => $circle->name,
+                    ],
+                    'level1_category' => null,
+                    'available_categories' => [],
+                ],
+            ]);
+        }
 
-        $selectedRow = Schema::hasTable('joined_circle_categories')
-            ? JoinedCircleCategory::query()
-                ->where('user_id', $member->id)
-                ->where('circle_id', $circle->id)
-                ->with([
-                    'level1Category:id,name',
-                    'level2Category:id,name',
-                    'level3Category:id,name',
-                ])
-                ->latest('updated_at')
-                ->first()
-            : null;
+        $mainCategory = CircleCategory::query()
+            ->select(['id', 'name'])
+            ->where('id', $mainCategoryId)
+            ->first();
 
-        $selectedLevel3Id = (int) ($selectedRow?->level3_category_id ?? 0);
-        $selectedLevel4Id = (int) ($selectedRow?->level4_category_id ?? 0);
+        $level2 = CircleCategoryLevel2::query()
+            ->where('circle_category_id', $mainCategoryId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name']);
 
-        $availableLevel4Categories = [];
-        if ($selectedLevel3Id > 0) {
-            $level4Query = CircleCategoryLevel4::query()
-                ->where('level3_id', $selectedLevel3Id)
+        $level2Ids = $level2->pluck('id')->values();
+
+        $level3 = $level2Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel3::query()
+                ->whereIn('level2_id', $level2Ids)
                 ->orderBy('sort_order')
-                ->orderBy('id');
+                ->orderBy('id')
+                ->get(['id', 'name', 'level2_id']);
 
-            if ($selectedLevel4Id > 0) {
-                $level4Query->where('id', '!=', $selectedLevel4Id);
+        $level3Ids = $level3->pluck('id')->values();
+
+        $level4 = $level3Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel4::query()
+                ->whereIn('level3_id', $level3Ids)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(['id', 'name', 'level3_id']);
+
+        $level4ByLevel3 = [];
+        foreach ($level4 as $row) {
+            $parentId = (int) ($row->level3_id ?? 0);
+            if ($parentId <= 0) {
+                continue;
             }
 
-            $availableLevel4Categories = $level4Query->get(['id', 'name'])->all();
+            $level4ByLevel3[$parentId][] = [
+                'id' => $row->id,
+                'name' => $row->name,
+                'level' => 4,
+            ];
+        }
+
+        $level3ByLevel2 = [];
+        foreach ($level3 as $row) {
+            $parentId = (int) ($row->level2_id ?? 0);
+            if ($parentId <= 0) {
+                continue;
+            }
+
+            $level3ByLevel2[$parentId][] = [
+                'id' => $row->id,
+                'name' => $row->name,
+                'level' => 3,
+                'children' => $level4ByLevel3[$row->id] ?? [],
+            ];
+        }
+
+        $availableCategories = [];
+        foreach ($level2 as $row) {
+            $availableCategories[] = [
+                'id' => $row->id,
+                'name' => $row->name,
+                'level' => 2,
+                'children' => $level3ByLevel2[$row->id] ?? [],
+            ];
         }
 
         return response()->json([
@@ -285,10 +336,10 @@ class CircleCategoryUsageController extends Controller
                     'id' => $circle->id,
                     'name' => $circle->name,
                 ],
-                'level1_category' => $selectedRow?->level1Category
-                    ? ['id' => $selectedRow->level1Category->id, 'name' => $selectedRow->level1Category->name]
-                    : ($mainCategory ? ['id' => $mainCategory->id, 'name' => $mainCategory->name] : null),
-                'available_level4_categories' => $availableLevel4Categories,
+                'level1_category' => $mainCategory
+                    ? ['id' => $mainCategory->id, 'name' => $mainCategory->name]
+                    : null,
+                'available_categories' => $availableCategories,
             ],
         ]);
     }
