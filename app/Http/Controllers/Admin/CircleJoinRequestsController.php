@@ -9,12 +9,15 @@ use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleJoinRequest;
+use App\Models\CircleMember;
 use App\Services\Circles\CircleJoinRequestService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -44,7 +47,6 @@ class CircleJoinRequestsController extends Controller
 
         $pendingStatuses = [
             CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
-            CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
         ];
 
         $query->whereIn('status', $pendingStatuses)
@@ -98,7 +100,7 @@ class CircleJoinRequestsController extends Controller
     {
         return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor): void {
             abort_unless($this->canApproveCd($admin, $actor, $record), 403);
-            $this->service->approveByCd($record, $actor);
+            $this->approveRequest($record, $actor);
         });
     }
 
@@ -108,7 +110,7 @@ class CircleJoinRequestsController extends Controller
 
         return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($request): void {
             abort_unless($this->canApproveCd($admin, $actor, $record), 403);
-            $this->service->rejectByCd($record, $actor, (string) $request->input('reason'));
+            $this->rejectRequest($record, $actor, (string) $request->input('reason'));
         });
     }
 
@@ -116,7 +118,7 @@ class CircleJoinRequestsController extends Controller
     {
         return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor): void {
             abort_unless($this->canApproveId($admin, $actor, $record), 403);
-            $this->service->approveById($record, $actor);
+            $this->approveRequest($record, $actor);
         });
     }
 
@@ -126,7 +128,7 @@ class CircleJoinRequestsController extends Controller
 
         return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor) use ($request): void {
             abort_unless($this->canApproveId($admin, $actor, $record), 403);
-            $this->service->rejectById($record, $actor, (string) $request->input('reason'));
+            $this->rejectRequest($record, $actor, (string) $request->input('reason'));
         });
     }
 
@@ -158,6 +160,102 @@ class CircleJoinRequestsController extends Controller
         }
     }
 
+
+    private function approveRequest(CircleJoinRequest $record, $actor): void
+    {
+        DB::transaction(function () use ($record, $actor): void {
+            $locked = CircleJoinRequest::query()->lockForUpdate()->findOrFail($record->id);
+
+            $updates = ['status' => 'approved'];
+
+            if (Schema::hasColumn('circle_join_requests', 'approved_by')) {
+                $updates['approved_by'] = $actor->id;
+            }
+            if (Schema::hasColumn('circle_join_requests', 'approved_at')) {
+                $updates['approved_at'] = now();
+            }
+            if (Schema::hasColumn('circle_join_requests', 'cd_approved_by')) {
+                $updates['cd_approved_by'] = $actor->id;
+            }
+            if (Schema::hasColumn('circle_join_requests', 'cd_approved_at')) {
+                $updates['cd_approved_at'] = now();
+            }
+            if (Schema::hasColumn('circle_join_requests', 'id_approved_by')) {
+                $updates['id_approved_by'] = $actor->id;
+            }
+            if (Schema::hasColumn('circle_join_requests', 'id_approved_at')) {
+                $updates['id_approved_at'] = now();
+            }
+
+            $locked->forceFill($updates)->save();
+
+            $member = CircleMember::withTrashed()
+                ->where('circle_id', $locked->circle_id)
+                ->where('user_id', $locked->user_id)
+                ->first();
+
+            if ($member) {
+                if ($member->trashed()) {
+                    $member->restore();
+                }
+
+                $member->forceFill([
+                    'status' => 'approved',
+                    'role' => $member->role ?: 'member',
+                    'joined_at' => $member->joined_at ?: now(),
+                    'left_at' => null,
+                ])->save();
+            } else {
+                CircleMember::query()->create([
+                    'circle_id' => $locked->circle_id,
+                    'user_id' => $locked->user_id,
+                    'status' => 'approved',
+                    'role' => 'member',
+                    'joined_at' => now(),
+                    'left_at' => null,
+                ]);
+            }
+        });
+    }
+
+    private function rejectRequest(CircleJoinRequest $record, $actor, string $reason): void
+    {
+        DB::transaction(function () use ($record, $actor, $reason): void {
+            $locked = CircleJoinRequest::query()->lockForUpdate()->findOrFail($record->id);
+
+            $updates = ['status' => 'rejected'];
+
+            if (Schema::hasColumn('circle_join_requests', 'rejected_by')) {
+                $updates['rejected_by'] = $actor->id;
+            }
+            if (Schema::hasColumn('circle_join_requests', 'rejected_at')) {
+                $updates['rejected_at'] = now();
+            }
+            if (Schema::hasColumn('circle_join_requests', 'rejection_reason')) {
+                $updates['rejection_reason'] = $reason;
+            }
+            if (Schema::hasColumn('circle_join_requests', 'cd_rejected_by')) {
+                $updates['cd_rejected_by'] = $actor->id;
+            }
+            if (Schema::hasColumn('circle_join_requests', 'cd_rejected_at')) {
+                $updates['cd_rejected_at'] = now();
+            }
+            if (Schema::hasColumn('circle_join_requests', 'cd_rejection_reason')) {
+                $updates['cd_rejection_reason'] = $reason;
+            }
+            if (Schema::hasColumn('circle_join_requests', 'id_rejected_by')) {
+                $updates['id_rejected_by'] = $actor->id;
+            }
+            if (Schema::hasColumn('circle_join_requests', 'id_rejected_at')) {
+                $updates['id_rejected_at'] = now();
+            }
+            if (Schema::hasColumn('circle_join_requests', 'id_rejection_reason')) {
+                $updates['id_rejection_reason'] = $reason;
+            }
+
+            $locked->forceFill($updates)->save();
+        });
+    }
 
     private function resolveSelectedCategoryIds(CircleJoinRequest $record): array
     {
