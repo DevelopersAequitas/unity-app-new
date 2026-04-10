@@ -8,6 +8,8 @@ use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\WelcomePeerMail;
 use App\Models\EmailLog;
+use App\Models\CircleCategoryLevel3;
+use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\JoinedCircleCategory;
 use App\Models\OtpCode;
@@ -31,6 +33,7 @@ class AuthController extends BaseApiController
     public function register(RegisterRequest $request, ReferralService $referralService)
     {
         $data = $request->validated();
+        $data = $this->resolveRegisterCategoryPath($data);
         $incomingReferralCode = $data['referral_code']
             ?? $request->input('referral_code')
             ?? $request->input('referralCode');
@@ -211,6 +214,55 @@ class AuthController extends BaseApiController
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    private function resolveRegisterCategoryPath(array $data): array
+    {
+        $level1CategoryId = (int) ($data['level1_category_id'] ?? 0);
+        $level2CategoryId = (int) ($data['level2_category_id'] ?? 0);
+        $level3CategoryId = (int) ($data['level3_category_id'] ?? 0);
+        $level4CategoryId = (int) ($data['level4_category_id'] ?? 0);
+
+        if ($level4CategoryId <= 0) {
+            return $data;
+        }
+
+        $level4 = CircleCategoryLevel4::query()
+            ->select(['id', 'level3_id', 'level2_id', 'circle_category_id'])
+            ->find($level4CategoryId);
+
+        if (! $level4) {
+            return $data;
+        }
+
+        if ($level3CategoryId <= 0 && (int) $level4->level3_id > 0) {
+            $level3CategoryId = (int) $level4->level3_id;
+        }
+
+        $level3Level2Id = null;
+        if ($level3CategoryId > 0) {
+            $level3 = CircleCategoryLevel3::query()
+                ->select(['id', 'level2_id'])
+                ->find($level3CategoryId);
+
+            $level3Level2Id = $level3 ? (int) ($level3->level2_id ?? 0) : null;
+        }
+
+        if ($level2CategoryId <= 0) {
+            $level2FromLevel4 = (int) ($level4->level2_id ?? 0);
+            $level2CategoryId = $level2FromLevel4 > 0 ? $level2FromLevel4 : (int) ($level3Level2Id ?? 0);
+        }
+
+        if ($level1CategoryId <= 0 && (int) $level4->circle_category_id > 0) {
+            $level1CategoryId = (int) $level4->circle_category_id;
+        }
+
+        $data['level1_category_id'] = $level1CategoryId > 0 ? $level1CategoryId : null;
+        $data['level2_category_id'] = $level2CategoryId > 0 ? $level2CategoryId : null;
+        $data['level3_category_id'] = $level3CategoryId > 0 ? $level3CategoryId : null;
+        $data['level4_category_id'] = $level4CategoryId > 0 ? $level4CategoryId : null;
+
+        return $data;
     }
 
     private function buildJoinedCategoriesPayload(User $user): array
