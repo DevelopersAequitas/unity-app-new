@@ -4,12 +4,17 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
+use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel2;
+use App\Models\CircleCategoryLevel3;
+use App\Models\CircleCategoryLevel4;
 use App\Models\CircleJoinRequest;
 use App\Services\Circles\CircleJoinRequestService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -68,10 +73,18 @@ class CircleJoinRequestsController extends Controller
         $record = CircleJoinRequest::query()->with(['user', 'circle', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy'])->findOrFail($id);
         abort_unless($this->canAccessRecord($admin, $actor, $record), 403);
 
+        $selectedCategoryIds = $this->resolveSelectedCategoryIds($record);
+
         return view('admin.circle_join_requests.show', [
             'record' => $record,
             'canApproveCd' => $this->canApproveCd($admin, $actor, $record),
             'canApproveId' => $this->canApproveId($admin, $actor, $record),
+            'categoryPath' => [
+                'level1' => $selectedCategoryIds['level1_category_id'] ? CircleCategory::query()->find($selectedCategoryIds['level1_category_id']) : null,
+                'level2' => $selectedCategoryIds['level2_category_id'] ? CircleCategoryLevel2::query()->find($selectedCategoryIds['level2_category_id']) : null,
+                'level3' => $selectedCategoryIds['level3_category_id'] ? CircleCategoryLevel3::query()->find($selectedCategoryIds['level3_category_id']) : null,
+                'level4' => $selectedCategoryIds['level4_category_id'] ? CircleCategoryLevel4::query()->find($selectedCategoryIds['level4_category_id']) : null,
+            ],
         ]);
     }
 
@@ -120,12 +133,50 @@ class CircleJoinRequestsController extends Controller
         try {
             $record = CircleJoinRequest::query()->with('circle')->findOrFail($id);
             abort_unless($this->canAccessRecord($admin, $actor, $record), 403);
+
+            $oldStatus = (string) $record->status;
             $callback($record, $admin, $actor);
+            $freshRecord = CircleJoinRequest::query()->findOrFail($id);
+
+            Log::info('circle_join_request.admin_action_completed', [
+                'request_id' => $freshRecord->id,
+                'old_status' => $oldStatus,
+                'new_status' => (string) $freshRecord->status,
+                'actor_user_id' => $actor->id ?? null,
+                'admin_user_id' => $admin->id ?? null,
+            ]);
 
             return back()->with('success', 'Action completed successfully.');
         } catch (ValidationException $exception) {
             return back()->withErrors($exception->errors());
         }
+    }
+
+
+    private function resolveSelectedCategoryIds(CircleJoinRequest $record): array
+    {
+        $notes = $record->notes;
+        $notesSelection = is_array($notes) ? ($notes['category_selection'] ?? []) : [];
+
+        $resolve = static function (string $key) use ($record, $notesSelection): ?int {
+            $value = $record->getAttribute($key);
+            if ($value !== null) {
+                return (int) $value;
+            }
+
+            if (is_array($notesSelection) && array_key_exists($key, $notesSelection) && $notesSelection[$key] !== null) {
+                return (int) $notesSelection[$key];
+            }
+
+            return null;
+        };
+
+        return [
+            'level1_category_id' => $resolve('level1_category_id'),
+            'level2_category_id' => $resolve('level2_category_id'),
+            'level3_category_id' => $resolve('level3_category_id'),
+            'level4_category_id' => $resolve('level4_category_id'),
+        ];
     }
 
     private function canAccessRecord($admin, $actor, CircleJoinRequest $record): bool

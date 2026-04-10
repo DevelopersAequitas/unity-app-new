@@ -99,6 +99,8 @@ class CircleJoinRequestService
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_CD_APPROVAL);
 
+            $oldStatus = (string) $locked->status;
+
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
                 'cd_approved_by' => $admin->id,
@@ -109,6 +111,13 @@ class CircleJoinRequestService
             ])->save();
 
             $updated = $locked->fresh(['user', 'circle']);
+
+            Log::info('circle_join_request.approved_cd', [
+                'request_id' => $updated->id,
+                'old_status' => $oldStatus,
+                'new_status' => (string) $updated->status,
+                'approved_by' => $admin->id,
+            ]);
 
             $this->safeSendTransitionNotifications(
                 $updated,
@@ -149,6 +158,8 @@ class CircleJoinRequestService
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL);
 
+            $oldStatus = (string) $locked->status;
+
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
                 'id_approved_by' => $admin->id,
@@ -160,6 +171,13 @@ class CircleJoinRequestService
             ])->save();
 
             $updated = $locked->fresh(['user', 'circle']);
+
+            Log::info('circle_join_request.approved_id', [
+                'request_id' => $updated->id,
+                'old_status' => $oldStatus,
+                'new_status' => (string) $updated->status,
+                'approved_by' => $admin->id,
+            ]);
 
             $this->safeSendTransitionNotifications(
                 $updated,
@@ -175,6 +193,8 @@ class CircleJoinRequestService
         return DB::transaction(function () use ($request, $admin, $reason) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL);
+
+            $oldStatus = (string) $locked->status;
 
             $locked->forceFill([
                 'status' => CircleJoinRequest::STATUS_REJECTED_BY_ID,

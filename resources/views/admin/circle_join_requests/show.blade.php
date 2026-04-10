@@ -37,6 +37,26 @@
             <p>Circle: {{ $record->circle?->name }}</p>
             <p>Reason: {{ $record->reason_for_joining }}</p>
             <p>Status: <span class="badge text-bg-secondary">{{ $statusLabels[$record->status] ?? $record->status }}</span></p>
+
+            @if(($categoryPath['level1'] ?? null) || ($categoryPath['level2'] ?? null) || ($categoryPath['level3'] ?? null) || ($categoryPath['level4'] ?? null))
+                <hr>
+                <h6>Selected Category</h6>
+                <ul class="mb-3">
+                    @if($categoryPath['level1'] ?? null)
+                        <li>{{ $categoryPath['level1']->name }}</li>
+                    @endif
+                    @if($categoryPath['level2'] ?? null)
+                        <li>→ {{ $categoryPath['level2']->name }}</li>
+                    @endif
+                    @if($categoryPath['level3'] ?? null)
+                        <li>→ {{ $categoryPath['level3']->name }}</li>
+                    @endif
+                    @if($categoryPath['level4'] ?? null)
+                        <li>→ {{ $categoryPath['level4']->name }}</li>
+                    @endif
+                </ul>
+            @endif
+
             <p>Payment Status: <span class="badge {{ $record->fee_paid_at ? 'text-bg-success' : 'text-bg-warning' }}">{{ $record->fee_paid_at ? 'Paid' : 'Unpaid' }}</span></p>
 
             <hr>
