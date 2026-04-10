@@ -315,7 +315,15 @@ class CircleController extends Controller
         $circle->save();
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
-            $circle->categories()->sync($validated['categories'] ?? []);
+            $categoryIds = collect($validated['categories'] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->take(1)
+                ->values()
+                ->all();
+
+            $circle->categories()->sync($categoryIds);
         }
 
         $circle->refresh();
@@ -506,7 +514,15 @@ class CircleController extends Controller
         $circle->save();
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
-            $circle->categories()->sync($validated['categories'] ?? []);
+            $categoryIds = collect($validated['categories'] ?? [])
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->take(1)
+                ->values()
+                ->all();
+
+            $circle->categories()->sync($categoryIds);
         }
 
         $circle->refresh();
