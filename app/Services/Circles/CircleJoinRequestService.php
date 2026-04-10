@@ -170,33 +170,6 @@ class CircleJoinRequestService
                 'fee_marked_at' => now(),
             ])->save();
 
-            $member = CircleMember::withTrashed()
-                ->where('circle_id', $locked->circle_id)
-                ->where('user_id', $locked->user_id)
-                ->first();
-
-            if ($member) {
-                if ($member->trashed()) {
-                    $member->restore();
-                }
-
-                $member->forceFill([
-                    'status' => 'approved',
-                    'role' => $member->role ?: 'member',
-                    'joined_at' => $member->joined_at ?: now(),
-                    'left_at' => null,
-                ])->save();
-            } else {
-                CircleMember::query()->create([
-                    'circle_id' => $locked->circle_id,
-                    'user_id' => $locked->user_id,
-                    'role' => 'member',
-                    'status' => 'approved',
-                    'joined_at' => now(),
-                    'left_at' => null,
-                ]);
-            }
-
             $updated = $locked->fresh(['user', 'circle']);
 
             Log::info('circle_join_request.approved_id', [
