@@ -167,7 +167,6 @@ class CircleJoinRequestService
                 'id_rejected_by' => null,
                 'id_rejected_at' => null,
                 'id_rejection_reason' => null,
-                'fee_marked_at' => now(),
             ])->save();
 
             $updated = $locked->fresh(['user', 'circle']);

@@ -181,7 +181,6 @@ class CircleJoinRequestsController extends Controller
                 $request->id_rejected_by = null;
                 $request->id_rejected_at = null;
                 $request->id_rejection_reason = null;
-                $request->fee_marked_at = $request->fee_marked_at ?: now();
             } else {
                 throw ValidationException::withMessages([
                     'status' => ["Invalid status transition from {$oldStatus}."],
