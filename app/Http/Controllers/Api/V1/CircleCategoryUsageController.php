@@ -288,12 +288,6 @@ class CircleCategoryUsageController extends Controller
                 'level1_category' => $selectedRow?->level1Category
                     ? ['id' => $selectedRow->level1Category->id, 'name' => $selectedRow->level1Category->name]
                     : ($mainCategory ? ['id' => $mainCategory->id, 'name' => $mainCategory->name] : null),
-                'level2_category' => $selectedRow?->level2Category
-                    ? ['id' => $selectedRow->level2Category->id, 'name' => $selectedRow->level2Category->name]
-                    : null,
-                'level3_category' => $selectedRow?->level3Category
-                    ? ['id' => $selectedRow->level3Category->id, 'name' => $selectedRow->level3Category->name]
-                    : null,
                 'available_level4_categories' => $availableLevel4Categories,
             ],
         ]);
