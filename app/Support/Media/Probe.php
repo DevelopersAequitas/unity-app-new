@@ -111,6 +111,11 @@ class Probe
         return $mime ? Str::startsWith($mime, 'video/') : false;
     }
 
+    public function isPdfMime(?string $mime): bool
+    {
+        return $mime === 'application/pdf';
+    }
+
     private function binaryAvailable(string $binary, array $arguments = []): bool
     {
         try {

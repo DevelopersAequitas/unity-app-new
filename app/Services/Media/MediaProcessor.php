@@ -14,7 +14,7 @@ class MediaProcessor
     }
 
     /**
-        * @param  string  $type  image|video
+        * @param  string  $type  image|video|document
         * @return array{path:string,mime_type:string,size_bytes:int|null,width:int|null,height:int|null,duration:int|null}
         */
     public function optimize(string $sourcePath, string $type, ?string $mimeType = null): array
@@ -25,6 +25,17 @@ class MediaProcessor
 
         if ($type === 'video') {
             return $this->processVideo($sourcePath, $mimeType);
+        }
+
+        if ($type === 'document') {
+            return [
+                'path' => $sourcePath,
+                'mime_type' => $mimeType ?: ($this->probe->mimeType($sourcePath) ?: 'application/octet-stream'),
+                'size_bytes' => @filesize($sourcePath) ?: null,
+                'width' => null,
+                'height' => null,
+                'duration' => null,
+            ];
         }
 
         throw new MediaProcessingException('Unsupported media type.');

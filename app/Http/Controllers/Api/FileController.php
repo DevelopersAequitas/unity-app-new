@@ -115,18 +115,23 @@ class FileController extends BaseApiController
         $type = null;
 
         try {
-            $mimeType = $this->probe->mimeType($tempOriginal) ?: $file->getClientMimeType();
+            $detectedMimeType = $this->probe->mimeType($tempOriginal);
+            $clientMimeType = $file->getClientMimeType();
+            $mimeType = $detectedMimeType ?: $clientMimeType;
 
-            if ($this->probe->isImageMime($mimeType)) {
+            if ($this->probe->isImageMime($detectedMimeType) || $this->probe->isImageMime($clientMimeType)) {
                 $type = 'image';
                 if (! $this->probe->imagickAvailable() && ! $this->probe->gdAvailable()) {
                     throw new MediaProcessingException('Image optimization requires GD or Imagick. Upload rejected.');
                 }
-            } elseif ($this->probe->isVideoMime($mimeType)) {
+            } elseif ($this->probe->isVideoMime($detectedMimeType) || $this->probe->isVideoMime($clientMimeType)) {
                 $type = 'video';
                 if (! $this->probe->ffmpegAvailable()) {
                     throw new MediaProcessingException('Video optimization requires FFmpeg. Upload rejected.');
                 }
+            } elseif ($this->probe->isPdfMime($detectedMimeType) || $this->probe->isPdfMime($clientMimeType)) {
+                $type = 'document';
+                $mimeType = 'application/pdf';
             }
 
             if (! $type) {
