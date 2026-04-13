@@ -161,17 +161,23 @@ class BusinessDealController extends BaseApiController
                 return [$businessDeal, $coinsLedger, $lifeImpact];
             });
 
-            if ($coinsLedger) {
-                $businessDeal->setAttribute('coins', [
-                    'earned' => $coinsLedger->amount,
-                    'balance_after' => $coinsLedger->balance_after,
-                ]);
-            }
+            $coinsPayload = $coinsLedger ? [
+                'earned' => $coinsLedger->amount,
+                'balance_after' => $coinsLedger->balance_after,
+            ] : null;
 
-            $businessDeal->setAttribute('life_impact', [
+            $lifeImpactPayload = [
                 'earned' => (int) ($lifeImpact['earned'] ?? 0),
                 'total_after' => (int) ($lifeImpact['total_after'] ?? 0),
-            ]);
+            ];
+
+            $responsePayload = $businessDeal->toArray();
+
+            if ($coinsPayload !== null) {
+                $responsePayload['coins'] = $coinsPayload;
+            }
+
+            $responsePayload['life_impact'] = $lifeImpactPayload;
 
             $this->createPostForBusinessDeal($businessDeal);
 
@@ -199,7 +205,7 @@ class BusinessDealController extends BaseApiController
                 );
             }
 
-            return $this->success($businessDeal, 'Business deal saved successfully', 201);
+            return $this->success($responsePayload, 'Business deal saved successfully', 201);
         } catch (Throwable $e) {
             Log::error('business_deal.create_failed', [
                 'user_id' => (string) $authUser->id,
