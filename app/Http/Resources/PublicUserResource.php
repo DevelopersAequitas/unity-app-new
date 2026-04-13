@@ -18,6 +18,7 @@ class PublicUserResource extends JsonResource
             'company_name' => $this->company_name,
             'profile_photo_url' => $this->profile_photo_url,
             'short_bio' => $this->short_bio,
+            'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'city' => new CityResource($this->whenLoaded('city')),
         ];
     }

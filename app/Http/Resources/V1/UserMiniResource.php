@@ -12,6 +12,7 @@ class UserMiniResource extends JsonResource
             'id' => $this->id,
             'display_name' => $this->display_name,
             'profile_photo_url' => $this->profile_photo_url,
+            'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
         ];
     }
 }

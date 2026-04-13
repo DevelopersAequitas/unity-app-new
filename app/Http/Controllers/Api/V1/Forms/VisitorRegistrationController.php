@@ -30,10 +30,33 @@ class VisitorRegistrationController extends BaseApiController
             'coins_awarded' => false,
         ]);
 
+        $updatedLifeImpact = $this->increaseLifeImpact(
+            (string) $authUser->id,
+            1,
+            'visitor_registration',
+            'Brought a quality visitor to the meeting',
+            (string) $authUser->id,
+            null,
+            'Life impact added for visitor registration activity.',
+            [
+                'event_type' => $registration->event_type,
+                'event_name' => $registration->event_name,
+                'event_date' => $registration->event_date,
+                'visitor_full_name' => $registration->visitor_full_name,
+                'visitor_mobile' => $registration->visitor_mobile,
+                'visitor_email' => $registration->visitor_email,
+                'visitor_city' => $registration->visitor_city,
+                'visitor_business' => $registration->visitor_business,
+                'how_known' => $registration->how_known,
+                'note' => $registration->note,
+            ]
+        );
+
         return $this->success([
             'id' => $registration->id,
             'status' => $registration->status,
             'created_at' => $registration->created_at,
+            'life_impacted_count' => $updatedLifeImpact,
         ], 'Visitor registration submitted successfully.', 201);
     }
 

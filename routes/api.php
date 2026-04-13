@@ -62,6 +62,7 @@ use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
+use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -249,6 +250,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/impacts', [ImpactController::class, 'store']);
         Route::get('/impacts/my', [ImpactController::class, 'my']);
         Route::get('/impacts/timeline', [ImpactController::class, 'timeline']);
+        Route::get('/life-impact/history', [LifeImpactHistoryController::class, 'index']);
 
         Route::prefix('activities')->group(function () {
             Route::get('p2p-meetings', [P2pMeetingHistoryController::class, 'index']);

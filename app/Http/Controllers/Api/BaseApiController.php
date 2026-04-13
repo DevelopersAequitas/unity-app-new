@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Http\JsonResponse;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -69,5 +70,33 @@ class BaseApiController extends Controller
         }
 
         return $message;
+    }
+
+    protected function increaseLifeImpact(
+        string $userId,
+        int $points,
+        string $activityType,
+        string $title,
+        ?string $triggeredByUserId = null,
+        ?string $activityId = null,
+        ?string $description = null,
+        ?array $meta = null,
+    ): int
+    {
+        return app(LifeImpactService::class)->addLifeImpact(
+            $userId,
+            $triggeredByUserId,
+            $activityType,
+            $activityId,
+            $points,
+            $title,
+            $description,
+            $meta ?? []
+        );
+    }
+
+    protected function getLifeImpactedCount(string $userId): int
+    {
+        return app(LifeImpactService::class)->getCurrentTotal($userId);
     }
 }

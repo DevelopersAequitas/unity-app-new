@@ -140,6 +140,11 @@ class User extends Authenticatable
         return $this->password_hash;
     }
 
+    public function getLifeImpactedCountAttribute($value): int
+    {
+        return (int) ($value ?? 0);
+    }
+
     protected static function booted(): void
     {
         static::saving(function (self $user): void {

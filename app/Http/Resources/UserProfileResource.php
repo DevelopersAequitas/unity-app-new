@@ -27,6 +27,7 @@ class UserProfileResource extends JsonResource
 
             'experience_years'   => $this->experience_years,
             'experience_summary' => $this->experience_summary,
+            'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
 
             'city'               => $this->city,
 

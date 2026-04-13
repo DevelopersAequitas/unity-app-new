@@ -9,12 +9,14 @@ use App\Models\ReferralData;
 use App\Models\User;
 use App\Services\Coins\CoinsService;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\LifeImpact\LifeImpactService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ReferralService
@@ -22,6 +24,7 @@ class ReferralService
     public function __construct(
         private readonly ReferralCodeService $referralCodeService,
         private readonly CoinsService $coinsService,
+        private readonly LifeImpactService $lifeImpactService,
         private readonly NotifyUserService $notifyUserService,
     ) {
     }
@@ -43,14 +46,12 @@ class ReferralService
             ];
         }
 
-        $name = trim((string) ($user->display_name ?: ($user->first_name . ' ' . $user->last_name)));
-        $code = $this->referralCodeService->generateUniqueCode($name);
-        $link = $this->referralCodeService->buildReferralLink($code);
+        $code = $this->referralCodeService->generateUniqueCode();
+        $link = $this->buildReferralLinkFromToken($code);
 
         $insertPayload = [
             $this->referralLinksUserColumn() => $user->id,
-            $this->referralLinksCodeColumn() => $code,
-            $this->referralLinksLinkColumn() => $link,
+            'token' => $code,
             'created_at' => now(),
             'updated_at' => now(),
         ];
@@ -86,16 +87,14 @@ class ReferralService
     {
         $normalized = strtoupper(trim($code));
         $userColumn = $this->referralLinksUserColumn();
-        $codeColumn = $this->referralLinksCodeColumn();
-        $linkColumn = $this->referralLinksLinkColumn();
 
         $row = DB::table('referral_links as rl')
             ->join('users as u', 'u.id', '=', 'rl.' . $userColumn)
-            ->where('rl.' . $codeColumn, $normalized)
+            ->where('rl.token', $normalized)
             ->select([
                 DB::raw('rl."' . $userColumn . '" as "user_id"'),
-                DB::raw('rl."' . $codeColumn . '" as "referral_code"'),
-                DB::raw('rl."' . $linkColumn . '" as "referral_link"'),
+                DB::raw('rl."token" as "referral_code"'),
+                DB::raw('CONCAT(\'https://peersglobal.com/join/\', rl."token") as "referral_link"'),
                 'u.first_name',
                 'u.last_name',
                 'u.display_name',
@@ -147,11 +146,10 @@ class ReferralService
     {
         $normalized = strtoupper(trim($code));
         $userColumn = $this->referralLinksUserColumn();
-        $codeColumn = $this->referralLinksCodeColumn();
 
-        return DB::transaction(function () use ($newUser, $normalized, $userColumn, $codeColumn) {
+        return DB::transaction(function () use ($newUser, $normalized, $userColumn) {
             $link = DB::table('referral_links')
-                ->where($codeColumn, $normalized)
+                ->where('token', $normalized)
                 ->lockForUpdate()
                 ->first();
 
@@ -177,6 +175,10 @@ class ReferralService
 
             $alreadyReferred = ReferralData::query()
                 ->where('referred_user_id', $newUserId)
+                ->exists();
+            $alreadyGrantedForReferredUser = ReferralData::query()
+                ->where('referred_user_id', $newUserId)
+                ->where('reward_status', 'granted')
                 ->exists();
 
             Log::info('referral.registration.referred_lookup', [
@@ -267,6 +269,37 @@ class ReferralService
                 ]);
             }
 
+            if (! $alreadyGrantedForReferredUser) {
+                $lifeImpactActivityId = (is_string($data->id) && Str::isUuid($data->id))
+                    ? (string) $data->id
+                    : null;
+
+                $updatedLifeImpacted = $this->lifeImpactService->addLifeImpact(
+                    $referrerUserId,
+                    $newUserId,
+                    'referral_registration',
+                    $lifeImpactActivityId,
+                    5,
+                    'New referral joined successfully',
+                    'Life impact added for successful referral-based registration.',
+                    [
+                        'to_user_id' => $newUserId,
+                        'referred_user_id' => $newUserId,
+                        'referrer_user_id' => $referrerUserId,
+                        'referral_code' => $normalized,
+                        'coins' => $rewardCoins,
+                    ]
+                );
+
+                Log::info('referral.life_impacted.incremented', [
+                    'referrer_user_id' => $referrerUserId,
+                    'referred_user_id' => $newUserId,
+                    'increment_by' => 5,
+                    'updated_total' => $updatedLifeImpacted,
+                    'referral_data_id' => (int) $data->id,
+                ]);
+            }
+
             if ($referrer) {
                 $this->notifyUserService->notifyUser(
                     $referrer,
@@ -292,12 +325,17 @@ class ReferralService
                 'referral_code' => $normalized,
             ]);
 
+            $referrerLifeImpactedCount = (int) (User::query()
+                ->whereKey($referrerUserId)
+                ->value('life_impacted_count') ?? 0);
+
             return [
                 'referrer_user_id' => $referrerUserId,
                 'referrer_email' => (string) ($data->referrer_email ?? ''),
                 'referral_code' => $normalized,
                 'coins' => (int) $rewardCoins,
                 'reward_status' => 'granted',
+                'referrer_life_impacted_count' => $referrerLifeImpactedCount,
             ];
         });
     }
@@ -434,16 +472,11 @@ class ReferralService
     private function getReferralLinkRowByUserId(string $userId): ?object
     {
         $userColumn = $this->referralLinksUserColumn();
-        $codeColumn = $this->referralLinksCodeColumn();
-        $linkColumn = $this->referralLinksLinkColumn();
 
         return DB::table('referral_links')
             ->where($userColumn, $userId)
             ->orderBy('id', 'asc')
-            ->select([
-                DB::raw('"' . $codeColumn . '" as "referral_code"'),
-                DB::raw('"' . $linkColumn . '" as "referral_link"'),
-            ])
+            ->selectRaw('token as referral_code, CONCAT(\'https://peersglobal.com/join/\', token) as referral_link')
             ->first();
     }
 
@@ -456,25 +489,8 @@ class ReferralService
         return 'referrer_user_id';
     }
 
-    private function referralLinksCodeColumn(): string
+    private function buildReferralLinkFromToken(string $token): string
     {
-        if (Schema::hasColumn('referral_links', 'referral_code')) {
-            return 'referral_code';
-        }
-
-        return 'token';
-    }
-
-    private function referralLinksLinkColumn(): string
-    {
-        if (Schema::hasColumn('referral_links', 'referral_link')) {
-            return 'referral_link';
-        }
-
-        if (Schema::hasColumn('referral_links', 'referralLink')) {
-            return 'referralLink';
-        }
-
-        return 'referral_link';
+        return 'https://peersglobal.com/join/' . $token;
     }
 }

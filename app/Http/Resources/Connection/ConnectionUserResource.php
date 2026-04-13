@@ -20,6 +20,7 @@ class ConnectionUserResource extends JsonResource
                 ?? $this->city
                 ?? null,
             'membership_status' => $this->membership_status,
+            'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
         ];
     }
 }
