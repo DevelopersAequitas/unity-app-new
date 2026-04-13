@@ -214,6 +214,8 @@ class ReferralController extends BaseApiController
                 );
             }
 
+            $this->increaseLifeImpact((string) $authUser->id, 1);
+
             // Postman example (referral create):
             // {
             //   "to_user_id": "<receiver-user-uuid>",

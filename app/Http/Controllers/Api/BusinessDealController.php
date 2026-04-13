@@ -176,6 +176,8 @@ class BusinessDealController extends BaseApiController
                 );
             }
 
+            $this->increaseLifeImpact((string) $authUser->id, 5);
+
             // Postman example (business deal create):
             // {
             //   "to_user_id": "<receiver-user-uuid>",

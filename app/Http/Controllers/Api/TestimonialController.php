@@ -174,6 +174,8 @@ class TestimonialController extends BaseApiController
                 );
             }
 
+            $this->increaseLifeImpact((string) $authUser->id, 5);
+
             // Postman example (testimonial create):
             // {
             //   "to_user_id": "<receiver-user-uuid>",

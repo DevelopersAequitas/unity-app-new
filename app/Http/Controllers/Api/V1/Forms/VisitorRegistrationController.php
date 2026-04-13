@@ -30,6 +30,8 @@ class VisitorRegistrationController extends BaseApiController
             'coins_awarded' => false,
         ]);
 
+        $this->increaseLifeImpact((string) $authUser->id, 1);
+
         return $this->success([
             'id' => $registration->id,
             'status' => $registration->status,

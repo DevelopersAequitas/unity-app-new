@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class BaseApiController extends Controller
@@ -69,5 +70,21 @@ class BaseApiController extends Controller
         }
 
         return $message;
+    }
+
+    protected function increaseLifeImpact(string $userId, int $points): void
+    {
+        $incrementBy = (int) $points;
+
+        if ($incrementBy <= 0) {
+            return;
+        }
+
+        DB::table('users')
+            ->where('id', $userId)
+            ->update([
+                'life_impacted_count' => DB::raw('COALESCE(life_impacted_count, 0) + ' . $incrementBy),
+                'updated_at' => now(),
+            ]);
     }
 }
