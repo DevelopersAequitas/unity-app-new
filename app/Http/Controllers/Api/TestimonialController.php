@@ -174,6 +174,16 @@ class TestimonialController extends BaseApiController
                 );
             }
 
+            $updatedLifeImpact = $this->increaseLifeImpact(
+                (string) $authUser->id,
+                5,
+                'testimonial',
+                'Received a testimonial / review',
+                (string) $authUser->id,
+                (string) $testimonial->id,
+                'Life impact added for testimonial activity.'
+            );
+
             // Postman example (testimonial create):
             // {
             //   "to_user_id": "<receiver-user-uuid>",
@@ -194,6 +204,8 @@ class TestimonialController extends BaseApiController
             if ($testimonial->getAttribute('coins')) {
                 $data['coins'] = $testimonial->getAttribute('coins');
             }
+
+            $data['life_impacted_count'] = $updatedLifeImpact;
 
             return $this->success($data, 'Testimonial saved successfully', 201);
         } catch (Throwable $e) {

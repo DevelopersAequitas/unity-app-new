@@ -176,6 +176,17 @@ class BusinessDealController extends BaseApiController
                 );
             }
 
+            $updatedLifeImpact = $this->increaseLifeImpact(
+                (string) $authUser->id,
+                5,
+                'business_deal',
+                'Closed a business deal',
+                (string) $authUser->id,
+                (string) $businessDeal->id,
+                'Life impact added for business deal activity.'
+            );
+            $businessDeal->setAttribute('life_impacted_count', $updatedLifeImpact);
+
             // Postman example (business deal create):
             // {
             //   "to_user_id": "<receiver-user-uuid>",

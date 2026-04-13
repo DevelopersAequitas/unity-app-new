@@ -214,6 +214,17 @@ class ReferralController extends BaseApiController
                 );
             }
 
+            $updatedLifeImpact = $this->increaseLifeImpact(
+                (string) $authUser->id,
+                1,
+                'referral',
+                'Gave a qualified business referral',
+                (string) $authUser->id,
+                (string) $referral->id,
+                'Life impact added for referral activity.'
+            );
+            $referral->setAttribute('life_impacted_count', $updatedLifeImpact);
+
             // Postman example (referral create):
             // {
             //   "to_user_id": "<receiver-user-uuid>",

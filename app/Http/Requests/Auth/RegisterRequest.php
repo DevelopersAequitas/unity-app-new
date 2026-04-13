@@ -53,8 +53,8 @@ class RegisterRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:32',
-                'regex:/^[A-Z]+\d{4}$/',
-                Rule::exists('referral_links', 'referral_code'),
+                'regex:/^[A-Z0-9]{8}$/',
+                Rule::exists('referral_links', 'token'),
             ],
         ];
     }

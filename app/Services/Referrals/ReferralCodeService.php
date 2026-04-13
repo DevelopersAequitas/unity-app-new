@@ -6,27 +6,18 @@ use Illuminate\Support\Facades\DB;
 
 class ReferralCodeService
 {
-    public function sanitizeNamePrefix(string $name, int $maxLength = 6): string
+    public function generateUniqueCode(string $name = ''): string
     {
-        $clean = strtoupper((string) preg_replace('/[^A-Za-z]/', '', $name));
-        $trimmed = substr($clean, 0, max(1, min($maxLength, 10)));
-
-        return $trimmed !== '' ? $trimmed : 'PEER';
-    }
-
-    public function generateUniqueCode(string $name): string
-    {
-        $prefix = $this->sanitizeNamePrefix($name, 6);
         $attempts = 0;
 
         do {
             $attempts++;
-            $code = $prefix . str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
-            $exists = DB::table('referral_links')->where('referral_code', $code)->exists();
+            $code = strtoupper(substr(bin2hex(random_bytes(8)), 0, 8));
+            $exists = DB::table('referral_links')->where('token', $code)->exists();
         } while ($exists && $attempts < 50);
 
         if ($exists) {
-            $code = 'PEER' . str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+            throw new \RuntimeException('Unable to generate a unique referral token.');
         }
 
         return $code;

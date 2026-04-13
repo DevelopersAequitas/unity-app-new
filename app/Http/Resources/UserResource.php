@@ -84,6 +84,7 @@ class UserResource extends JsonResource
                 }),
             'circle_memberships' => $this->resolveCircleMemberships(),
             'coins_balance'       => $this->coins_balance,
+            'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'business_type'       => $this->business_type,
             'turnover_range'      => $this->turnover_range,
             'gender'              => $this->gender,

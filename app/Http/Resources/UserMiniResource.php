@@ -26,6 +26,7 @@ class UserMiniResource extends JsonResource
             'company_name' => $user->company_name,
             'city' => $user->city,
             'industry' => $user->industry ?? null,
+            'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
         ];
     }
 
