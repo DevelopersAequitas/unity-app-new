@@ -100,6 +100,54 @@ class RegisterTest extends TestCase
         $duplicateEmailResponse->assertStatus(422)->assertJsonValidationErrors(['email']);
     }
 
+    public function test_registration_succeeds_without_password_and_confirmation(): void
+    {
+        $payload = [
+            'first_name' => 'No',
+            'last_name' => 'Password',
+            'email' => 'no-password@example.com',
+            'phone' => '5555555555',
+        ];
+
+        $response = $this->postJson('/api/v1/auth/register', $payload);
+
+        $response->assertStatus(201)->assertJson(['success' => true]);
+        $this->assertDatabaseHas('users', [
+            'email' => 'no-password@example.com',
+        ]);
+    }
+
+    public function test_registration_requires_confirmation_when_password_is_present(): void
+    {
+        $payload = [
+            'first_name' => 'Missing',
+            'last_name' => 'Confirmation',
+            'email' => 'missing-confirmation@example.com',
+            'phone' => '6666666666',
+            'password' => 'password123',
+        ];
+
+        $response = $this->postJson('/api/v1/auth/register', $payload);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_registration_rejects_wrong_password_confirmation(): void
+    {
+        $payload = [
+            'first_name' => 'Wrong',
+            'last_name' => 'Confirmation',
+            'email' => 'wrong-confirmation@example.com',
+            'phone' => '7777777777',
+            'password' => 'password123',
+            'password_confirmation' => 'not-the-same',
+        ];
+
+        $response = $this->postJson('/api/v1/auth/register', $payload);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['password']);
+    }
+
     private function setUpInMemoryDatabase(): void
     {
         Schema::dropIfExists('personal_access_tokens');

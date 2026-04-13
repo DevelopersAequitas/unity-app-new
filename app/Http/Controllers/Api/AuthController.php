@@ -573,8 +573,11 @@ class AuthController extends BaseApiController
         $user->membership_expiry = $trialEndsAt;
         $user->coins_balance = $user->coins_balance ?? 0;
 
-        // Store the hashed password in password_hash (not password)
-        $user->password_hash = Hash::make($data['password']);
+        // Keep API password optional while still persisting a usable hash for non-nullable DB schema.
+        $plainPassword = filled($data['password'] ?? null)
+            ? (string) $data['password']
+            : Str::random(64);
+        $user->password_hash = Hash::make($plainPassword);
 
         // Ensure any legacy password attribute isn't used
         if (isset($user->password)) {
