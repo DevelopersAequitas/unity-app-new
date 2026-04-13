@@ -9,6 +9,7 @@ use App\Models\Impact;
 use App\Services\Impacts\ImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class ImpactController extends BaseApiController
@@ -65,12 +66,22 @@ class ImpactController extends BaseApiController
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
-        $totalLifeImpacted = Schema::hasColumn('users', 'life_impacted_count')
+        $impactModuleTotal = Schema::hasColumn('users', 'life_impacted_count')
             ? $this->impactService->recalculateUserLifeImpactedCount($user)
             : (int) Impact::query()
                 ->where('user_id', $user->id)
                 ->where('status', 'approved')
                 ->sum('life_impacted');
+
+        $activityLifeImpactTotal = Schema::hasTable('life_impact_histories')
+            ? (int) DB::table('life_impact_histories')
+                ->where('user_id', $user->id)
+                ->where('status', 'approved')
+                ->where('counted_in_total', true)
+                ->sum('life_impacted')
+            : 0;
+
+        $totalLifeImpacted = $impactModuleTotal + $activityLifeImpactTotal;
 
         return $this->success([
             'total_life_impacted' => $totalLifeImpacted,
