@@ -306,12 +306,17 @@ class ReferralService
                 'referral_code' => $normalized,
             ]);
 
+            $referrerLifeImpactedCount = (int) (User::query()
+                ->whereKey($referrerUserId)
+                ->value('life_impacted_count') ?? 0);
+
             return [
                 'referrer_user_id' => $referrerUserId,
                 'referrer_email' => (string) ($data->referrer_email ?? ''),
                 'referral_code' => $normalized,
                 'coins' => (int) $rewardCoins,
                 'reward_status' => 'granted',
+                'referrer_life_impacted_count' => $referrerLifeImpactedCount,
             ];
         });
     }
