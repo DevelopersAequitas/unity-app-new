@@ -179,6 +179,14 @@ class BusinessDealController extends BaseApiController
 
             $responsePayload['life_impact'] = $lifeImpactPayload;
 
+            Log::info('business_deal.response_payload_ready', [
+                'business_deal_id' => (string) $businessDeal->id,
+                'has_coins' => array_key_exists('coins', $responsePayload),
+                'has_life_impact' => array_key_exists('life_impact', $responsePayload),
+                'life_impact_earned' => (int) ($responsePayload['life_impact']['earned'] ?? 0),
+                'life_impact_total_after' => (int) ($responsePayload['life_impact']['total_after'] ?? 0),
+            ]);
+
             $this->createPostForBusinessDeal($businessDeal);
 
             event(new ActivityCreated(
