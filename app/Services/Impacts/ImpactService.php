@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ImpactService
 {
@@ -184,11 +185,64 @@ class ImpactService
             ->where('status', 'approved')
             ->sum(DB::raw('COALESCE(life_impacted, 1)'));
 
-        User::query()
-            ->where('id', $userId)
-            ->update(['life_impacted_count' => $sum]);
+        $updates = [];
+
+        if (Schema::hasColumn('users', 'life_impacted_count')) {
+            $updates['life_impacted_count'] = $sum;
+        }
+
+        if (Schema::hasColumn('users', 'total_life_impacted')) {
+            $updates['total_life_impacted'] = $sum;
+        }
+
+        if (! empty($updates)) {
+            User::query()
+                ->where('id', $userId)
+                ->update($updates);
+        }
 
         return $sum;
+    }
+
+    public function createApprovedActivityImpact(User|string $userOrId, array $data): array
+    {
+        $userId = $userOrId instanceof User ? (string) $userOrId->id : (string) $userOrId;
+        $lifeImpacted = max(1, (int) ($data['life_impacted'] ?? 1));
+        $action = (string) ($data['action'] ?? 'Activity impact');
+        $additionalRemarks = $data['idempotency_key'] ?? ($data['additional_remarks'] ?? null);
+
+        $impact = null;
+
+        if (! empty($data['idempotency_key'])) {
+            $impact = Impact::query()
+                ->where('user_id', $userId)
+                ->where('additional_remarks', (string) $data['idempotency_key'])
+                ->first();
+        }
+
+        if (! $impact) {
+            $impact = Impact::create([
+                'user_id' => $userId,
+                'impacted_peer_id' => $data['impacted_peer_id'] ?? null,
+                'impact_date' => $data['impact_date'] ?? now()->toDateString(),
+                'action' => $action,
+                'story_to_share' => $data['story_to_share'] ?? $action,
+                'life_impacted' => $lifeImpacted,
+                'additional_remarks' => $additionalRemarks,
+                'requires_leadership_approval' => false,
+                'status' => 'approved',
+                'approved_at' => now(),
+                'timeline_posted_at' => now(),
+            ]);
+        }
+
+        $totalLifeImpacted = $this->recalculateUserLifeImpactedCount($userId);
+
+        return [
+            'impact' => $impact,
+            'life_impacted' => $lifeImpacted,
+            'total_life_impacted' => $totalLifeImpacted,
+        ];
     }
 
     private function notify(string $userId, string $type, array $payload): void

@@ -10,8 +10,10 @@ use App\Models\BusinessDeal;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
+use App\Services\Impacts\ImpactService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -125,30 +127,52 @@ class BusinessDealController extends BaseApiController
         }
 
         try {
-            $businessDeal = BusinessDeal::create([
-                'from_user_id' => $authUser->id,
-                'to_user_id' => $request->input('to_user_id'),
-                'deal_date' => $request->input('deal_date'),
-                'deal_amount' => $request->input('deal_amount'),
-                'business_type' => $request->input('business_type'),
-                'comment' => $request->input('comment'),
-                'is_deleted' => false,
-            ]);
-
-            $coinsLedger = app(CoinsService::class)->rewardForActivity(
-                $authUser,
-                'business_deal',
-                null,
-                'Activity: business_deal',
-                $authUser->id
-            );
-
-            if ($coinsLedger) {
-                $businessDeal->setAttribute('coins', [
-                    'earned' => $coinsLedger->amount,
-                    'balance_after' => $coinsLedger->balance_after,
+            $payload = DB::transaction(function () use ($request, $authUser) {
+                $businessDeal = BusinessDeal::create([
+                    'from_user_id' => $authUser->id,
+                    'to_user_id' => $request->input('to_user_id'),
+                    'deal_date' => $request->input('deal_date'),
+                    'deal_amount' => $request->input('deal_amount'),
+                    'business_type' => $request->input('business_type'),
+                    'comment' => $request->input('comment'),
+                    'is_deleted' => false,
                 ]);
-            }
+
+                $coinsLedger = app(CoinsService::class)->rewardForActivity(
+                    $authUser,
+                    'business_deal',
+                    null,
+                    'Activity: business_deal',
+                    $authUser->id
+                );
+
+                if ($coinsLedger) {
+                    $businessDeal->setAttribute('coins', [
+                        'earned' => $coinsLedger->amount,
+                        'balance_after' => $coinsLedger->balance_after,
+                    ]);
+                }
+
+                $impactResult = app(ImpactService::class)->createApprovedActivityImpact($authUser, [
+                    'impacted_peer_id' => $businessDeal->to_user_id,
+                    'impact_date' => $businessDeal->deal_date,
+                    'action' => 'Closed a business deal',
+                    'story_to_share' => $businessDeal->comment ?: 'Business deal closed',
+                    'life_impacted' => 5,
+                    'additional_remarks' => sprintf('Auto impact for business deal %s', (string) $businessDeal->id),
+                    'idempotency_key' => sprintf('business_deal:%s', (string) $businessDeal->id),
+                ]);
+
+                $businessDeal->setAttribute('life_impacted', (int) $impactResult['life_impacted']);
+                $businessDeal->setAttribute('total_life_impacted', (int) $impactResult['total_life_impacted']);
+
+                return [
+                    'businessDeal' => $businessDeal,
+                ];
+            });
+
+            /** @var \App\Models\BusinessDeal $businessDeal */
+            $businessDeal = $payload['businessDeal'];
 
             $this->createPostForBusinessDeal($businessDeal);
 
