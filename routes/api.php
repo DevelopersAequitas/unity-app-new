@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MembershipSummaryController;
 use App\Http\Controllers\Api\MessageDeletionController;
 use App\Http\Controllers\Api\MemberWithCircleController;
+use App\Http\Controllers\Api\MasterPositionController;
 use App\Http\Controllers\Api\MyCircleController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\P2pMeetingController;
@@ -101,6 +102,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/referrals/validate/{code}', [ReferralController::class, 'validateCode']);
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
+    Route::get('/master/positions', [MasterPositionController::class, 'index']);
     Route::get('/circle-categories', [CircleCategoryController::class, 'index']);
     Route::get('/circle-categories/{idOrSlug}', [CircleCategoryController::class, 'show']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
