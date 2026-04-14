@@ -3,18 +3,39 @@
 
     const FILTER_FORM_CLASS = 'admin-filter-form';
     const SEARCHABLE_SELECT_CLASS = 'js-searchable-select';
+    const FILTER_FIELD_SELECTOR = [
+        'input[type="text"]',
+        'input[type="search"]',
+        'input[type="date"]',
+        'input[type="number"]',
+        'input[type="email"]',
+        'input[type="tel"]',
+        'select'
+    ].join(',');
 
-    function isLikelyFilterForm(form) {
-        if (!(form instanceof HTMLFormElement)) {
-            return false;
+    function isGetForm(form) {
+        return form instanceof HTMLFormElement
+            && (form.getAttribute('method') || 'GET').toUpperCase() === 'GET';
+    }
+
+    function getAssociatedFields(form) {
+        const inlineFields = Array.from(form.querySelectorAll(FILTER_FIELD_SELECTOR));
+
+        if (!form.id) {
+            return inlineFields;
         }
 
-        if ((form.getAttribute('method') || 'GET').toUpperCase() !== 'GET') {
-            return false;
-        }
+        const linkedFields = Array.from(document.querySelectorAll(`[form="${form.id}"]`)).filter(function (field) {
+            return field.matches(FILTER_FIELD_SELECTOR);
+        });
 
-        const idNameAction = [form.id, form.getAttribute('name'), form.getAttribute('action')].join(' ').toLowerCase();
-        if (idNameAction.includes('export')) {
+        return inlineFields.concat(linkedFields.filter(function (field) {
+            return !inlineFields.includes(field);
+        }));
+    }
+
+    function isAdminFilterForm(form) {
+        if (!isGetForm(form)) {
             return false;
         }
 
@@ -22,30 +43,30 @@
             return false;
         }
 
-        const selector = [
-            'input[type="text"]',
-            'input[type="search"]',
-            'input[type="date"]',
-            'input[type="number"]',
-            'input[type="email"]',
-            'input[type="tel"]',
-            'select'
-        ].join(',');
-
-        if (form.querySelector(selector)) {
-            return true;
-        }
-
-        if (!form.id) {
+        if (form.closest('.modal')) {
             return false;
         }
 
-        return !!document.querySelector(`${selector}[form="${form.id}"]`);
+        if (form.classList.contains(FILTER_FORM_CLASS)) {
+            return true;
+        }
+
+        const idNameAction = [form.id, form.getAttribute('name'), form.getAttribute('action')].join(' ').toLowerCase();
+        if (idNameAction.includes('export')) {
+            return false;
+        }
+
+        const fields = getAssociatedFields(form);
+        if (!fields.length) {
+            return false;
+        }
+
+        return true;
     }
 
     function markAdminFilterForms() {
         document.querySelectorAll('form').forEach(function (form) {
-            if (isLikelyFilterForm(form)) {
+            if (isAdminFilterForm(form)) {
                 form.classList.add(FILTER_FORM_CLASS);
             }
         });
@@ -85,15 +106,9 @@
     }
 
     function getFilterSelectsForForm(form) {
-        const selects = Array.from(form.querySelectorAll('select'));
-        if (!form.id) {
-            return selects;
-        }
-
-        const attached = Array.from(document.querySelectorAll(`select[form="${form.id}"]`));
-        return selects.concat(attached.filter(function (select) {
-            return !selects.includes(select);
-        }));
+        return getAssociatedFields(form).filter(function (field) {
+            return field instanceof HTMLSelectElement;
+        });
     }
 
     function initFilterSelects() {
@@ -148,26 +163,15 @@
             return null;
         }
 
-        if (target.form && target.form.classList.contains(FILTER_FORM_CLASS)) {
-            return target.form;
-        }
+        const form = target.form
+            || target.closest('form')
+            || (target.getAttribute('form') ? document.getElementById(target.getAttribute('form')) : null);
 
-        const nearest = target.closest(`form.${FILTER_FORM_CLASS}`);
-        if (nearest) {
-            return nearest;
-        }
-
-        const formId = target.getAttribute('form');
-        if (!formId) {
+        if (!isAdminFilterForm(form)) {
             return null;
         }
 
-        const linked = document.getElementById(formId);
-        if (linked && linked.classList.contains(FILTER_FORM_CLASS)) {
-            return linked;
-        }
-
-        return null;
+        return form;
     }
 
     function bindEnterSubmit() {
@@ -181,15 +185,7 @@
                 return;
             }
 
-            if (!(target instanceof HTMLElement)) {
-                return;
-            }
-
-            if (!target.matches('input, select')) {
-                return;
-            }
-
-            if (target.matches('input[type="submit"], input[type="button"], input[type="reset"], input[type="file"]')) {
+            if (!(target instanceof HTMLElement) || !target.matches(FILTER_FIELD_SELECTOR)) {
                 return;
             }
 
@@ -199,6 +195,7 @@
             }
 
             event.preventDefault();
+
             if (typeof form.requestSubmit === 'function') {
                 form.requestSubmit();
                 return;
