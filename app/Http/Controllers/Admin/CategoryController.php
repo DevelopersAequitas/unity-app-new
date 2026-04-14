@@ -13,6 +13,7 @@ use App\Models\CircleCategoryLevel4;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -53,22 +54,25 @@ class CategoryController extends Controller
 
     public function show(CircleCategory $category): View
     {
-        abort_unless((int) $category->level === 1, 404);
+        abort_unless((int) $category->level === 1 && $category->is_active, 404);
 
         $level2Categories = CircleCategoryLevel2::query()
             ->where('circle_category_id', $category->id)
+            ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
 
         $level3Categories = CircleCategoryLevel3::query()
             ->where('circle_category_id', $category->id)
+            ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
 
         $level4Categories = CircleCategoryLevel4::query()
             ->where('circle_category_id', $category->id)
+            ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -250,24 +254,63 @@ class CategoryController extends Controller
     public function destroy(CircleCategory $category): RedirectResponse
     {
         try {
-            if (
-                $category->circleMappings()->exists() ||
-                (
-                    DB::getSchemaBuilder()->hasColumn('event_galleries', 'circle_category_id') &&
-                    DB::table('event_galleries')->where('circle_category_id', $category->id)->exists()
-                )
-            ) {
+            if ((int) $category->level !== 1) {
                 return redirect()
                     ->route('admin.categories.index')
-                    ->with('error', 'This category is in use and cannot be deleted.');
+                    ->with('error', 'Category not found.');
             }
 
-            $category->delete();
+            if (! $category->is_active) {
+                return redirect()
+                    ->route('admin.categories.index')
+                    ->with('error', 'Category is already inactive.');
+            }
+
+            DB::transaction(function () use ($category): void {
+                $now = now();
+
+                DB::table('circle_category_level4')
+                    ->where('circle_category_id', $category->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => $now,
+                    ]);
+
+                DB::table('circle_category_level3')
+                    ->where('circle_category_id', $category->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => $now,
+                    ]);
+
+                DB::table('circle_category_level2')
+                    ->where('circle_category_id', $category->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => $now,
+                    ]);
+
+                $deactivatedMain = DB::table('circle_categories')
+                    ->where('id', $category->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => $now,
+                    ]);
+
+                if ($deactivatedMain !== 1) {
+                    throw new \RuntimeException('Circle category deactivation did not affect any rows.');
+                }
+            });
 
             return redirect()
                 ->route('admin.categories.index')
-                ->with('success', 'Category deleted successfully.');
-        } catch (\Exception $e) {
+                ->with('success', 'Category deactivated successfully.');
+        } catch (\Throwable $e) {
+            Log::error('admin.circle_category.delete_failed', [
+                'category_id' => (int) $category->id,
+                'message' => $e->getMessage(),
+            ]);
+
             return redirect()
                 ->route('admin.categories.index')
                 ->with('error', 'Something went wrong: ' . $e->getMessage());
