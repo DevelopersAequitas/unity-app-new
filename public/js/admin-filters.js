@@ -13,6 +13,49 @@
         'select'
     ].join(',');
 
+    function injectGlobalOverflowFix() {
+        if (document.getElementById('admin-global-overflow-fix')) {
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = 'admin-global-overflow-fix';
+        style.textContent = `
+            html, body {
+                max-width: 100%;
+                overflow-x: hidden !important;
+            }
+
+            .app,
+            .wrapper,
+            .main-wrapper,
+            .main-content,
+            .content-wrapper,
+            .page-wrapper,
+            .page-content,
+            .container-fluid,
+            .container {
+                max-width: 100%;
+                overflow-x: hidden;
+                box-sizing: border-box;
+            }
+
+            .table-responsive,
+            .custom-table-scroll,
+            .data-table-wrapper,
+            .table-scroll-wrapper {
+                max-width: 100%;
+                overflow-x: auto !important;
+                overflow-y: hidden;
+            }
+
+            .select2-container {
+                max-width: 100% !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     function isGetForm(form) {
         return form instanceof HTMLFormElement
             && (form.getAttribute('method') || 'GET').toUpperCase() === 'GET';
@@ -125,6 +168,7 @@
                 const placeholder = resolvePlaceholder(select);
                 const config = {
                     width: '100%',
+                    dropdownAutoWidth: false,
                     minimumResultsForSearch: 0,
                 };
 
@@ -173,7 +217,6 @@
 
         return form;
     }
-
 
     function isClosedSelect2SelectionTarget(target) {
         if (!(target instanceof HTMLElement)) {
@@ -271,6 +314,7 @@
     }
 
     function boot() {
+        injectGlobalOverflowFix();
         markAdminFilterForms();
         initFilterSelects();
         bindEnterSubmit();
