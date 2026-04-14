@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\CircleCategoryMapping;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -32,6 +33,11 @@ class CircleCategory extends Model
     public function circleMappings(): HasMany
     {
         return $this->hasMany(CircleCategoryMapping::class, 'category_id');
+    }
+
+    public function mappings(): HasMany
+    {
+        return $this->hasMany(CircleCategoryMapping::class, 'circle_category_id');
     }
 
     public function level2Categories(): HasMany

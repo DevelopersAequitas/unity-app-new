@@ -10,9 +10,15 @@ class CircleCategoryMapping extends Model
 {
     use HasFactory;
 
+    protected $table = 'circle_category_mappings';
+
     protected $fillable = [
         'circle_id',
         'category_id',
+        'circle_category_id',
+        'level2_id',
+        'level3_id',
+        'level4_id',
     ];
 
     public function circle(): BelongsTo
