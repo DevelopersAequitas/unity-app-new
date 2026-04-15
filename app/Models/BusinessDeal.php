@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class BusinessDeal extends Model
@@ -40,6 +42,13 @@ class BusinessDeal extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
+        });
+
+        static::deleted(function (self $model): void {
+            app(LifeImpactService::class)->reverseBusinessDealLifeImpact(
+                $model,
+                Auth::id() ? (string) Auth::id() : null,
+            );
         });
     }
 

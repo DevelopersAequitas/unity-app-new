@@ -247,12 +247,9 @@ class BusinessDealController extends BaseApiController
             $businessDeal->save();
             $businessDeal->delete();
 
-            $updatedLifeImpact = app(LifeImpactService::class)
-                ->reverseBusinessDealLifeImpact($businessDeal, (string) $authUser->id);
-
             return $this->success([
                 'id' => (string) $businessDeal->id,
-                'life_impacted_count' => $updatedLifeImpact,
+                'life_impacted_count' => app(LifeImpactService::class)->getCurrentTotal((string) $businessDeal->from_user_id),
             ], 'Business deal deleted successfully');
         } catch (Throwable $e) {
             return $this->error('Something went wrong', 500);

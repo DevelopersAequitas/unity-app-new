@@ -103,13 +103,14 @@ class LifeImpactService
             $originalHistory = LifeImpactHistory::query()
                 ->where('activity_type', 'business_deal')
                 ->where('activity_id', $dealId)
-                ->where('user_id', (string) $deal->from_user_id)
                 ->orderBy('created_at')
                 ->first();
 
             if (! $originalHistory) {
                 return $this->getCurrentTotal((string) $deal->from_user_id);
             }
+
+            $impactedUserId = (string) ($originalHistory->user_id ?? $deal->from_user_id);
 
             $alreadyReversed = LifeImpactHistory::query()
                 ->where('activity_type', 'business_deal_deleted')
@@ -118,7 +119,7 @@ class LifeImpactService
                 ->exists();
 
             if ($alreadyReversed) {
-                return $this->getCurrentTotal((string) $deal->from_user_id);
+                return $this->getCurrentTotal($impactedUserId);
             }
 
             $deletedAt = now();
@@ -137,21 +138,21 @@ class LifeImpactService
             ])->save();
 
             DB::table('users')
-                ->where('id', (string) $deal->from_user_id)
+                ->where('id', $impactedUserId)
                 ->update([
                     'life_impacted_count' => DB::raw('GREATEST(COALESCE(life_impacted_count, 0) - 5, 0)'),
                     'updated_at' => now(),
                 ]);
 
             $this->createBusinessDealReversalHistory(
-                userId: (string) $deal->from_user_id,
+                userId: $impactedUserId,
                 triggeredByUserId: $triggeredByUserId,
                 dealId: $dealId,
                 reversedFromHistoryId: (string) $originalHistory->id,
                 snapshot: $snapshot,
             );
 
-            return $this->getCurrentTotal((string) $deal->from_user_id);
+            return $this->getCurrentTotal($impactedUserId);
         });
     }
 
