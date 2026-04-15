@@ -27,14 +27,19 @@ class LifeImpactHistory extends Model
         'activity_type',
         'activity_id',
         'impact_value',
+        'impact_direction',
+        'status',
+        'reversed_from_history_id',
         'title',
         'description',
         'meta',
+        'activity_snapshot',
     ];
 
     protected $casts = [
         'impact_value' => 'integer',
         'meta' => 'array',
+        'activity_snapshot' => 'array',
     ];
 
     public function user()

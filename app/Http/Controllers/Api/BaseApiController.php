@@ -81,6 +81,10 @@ class BaseApiController extends Controller
         ?string $activityId = null,
         ?string $description = null,
         ?array $meta = null,
+        ?array $activitySnapshot = null,
+        string $impactDirection = 'credit',
+        string $status = 'active',
+        ?string $reversedFromHistoryId = null,
     ): int
     {
         return app(LifeImpactService::class)->addLifeImpact(
@@ -91,7 +95,11 @@ class BaseApiController extends Controller
             $points,
             $title,
             $description,
-            $meta ?? []
+            $meta ?? [],
+            $activitySnapshot,
+            $impactDirection,
+            $status,
+            $reversedFromHistoryId
         );
     }
 

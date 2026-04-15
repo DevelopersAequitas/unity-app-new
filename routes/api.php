@@ -269,6 +269,7 @@ Route::prefix('v1')->group(function () {
 
             Route::get('business-deals', [BusinessDealHistoryController::class, 'index']);
             Route::post('business-deals', [BusinessDealController::class, 'store']);
+            Route::delete('business-deals/{id}', [BusinessDealController::class, 'destroy']);
             Route::get('business-deals/{id}', [BusinessDealHistoryController::class, 'show']);
 
             Route::get('testimonials', [TestimonialHistoryController::class, 'index']);

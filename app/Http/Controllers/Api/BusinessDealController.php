@@ -2,17 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\ActivityCreated;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Activity\StoreBusinessDealRequest;
-use App\Events\ActivityCreated;
-use App\Models\Post;
 use App\Models\BusinessDeal;
+use App\Models\Post;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
+use App\Services\LifeImpact\LifeImpactService;
 use App\Services\Notifications\NotifyUserService;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class BusinessDealController extends BaseApiController
@@ -24,13 +23,13 @@ class BusinessDealController extends BaseApiController
         }
 
         return collect($media)->map(function ($item) {
-            $id   = $item['id']   ?? null;
+            $id = $item['id'] ?? null;
             $type = $item['type'] ?? 'image';
 
             return [
-                'id'   => $id,
+                'id' => $id,
                 'type' => $type,
-                'url'  => $id ? url('/api/v1/files/' . $id) : null,
+                'url' => $id ? url('/api/v1/files/' . $id) : null,
             ];
         })->all();
     }
@@ -53,25 +52,25 @@ class BusinessDealController extends BaseApiController
             ]);
 
             Post::create([
-                'user_id'           => $deal->from_user_id ?? $deal->user_id ?? $deal->created_by ?? $deal->to_user_id,
-                'circle_id'         => null,
-                'content_text'      => $contentText,
-                'media'             => $mediaForPost,
-                'tags'              => ['business_deal'],
-                'visibility'        => 'public',
+                'user_id' => $deal->from_user_id ?? $deal->user_id ?? $deal->created_by ?? $deal->to_user_id,
+                'circle_id' => null,
+                'content_text' => $contentText,
+                'media' => $mediaForPost,
+                'tags' => ['business_deal'],
+                'visibility' => 'public',
                 'moderation_status' => 'pending',
-                'sponsored'         => false,
-                'is_deleted'        => false,
+                'sponsored' => false,
+                'is_deleted' => false,
             ]);
         } catch (Throwable $e) {
-            Log::error('Failed to create post for business deal', [
+            \Log::error('Failed to create post for business deal', [
                 'business_deal_id' => $deal->id,
-                'error'            => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
 
-    public function index(Request $request)
+    public function index(\Illuminate\Http\Request $request)
     {
         $authUser = $request->user();
         $filter = $request->input('filter', 'given');
@@ -176,6 +175,9 @@ class BusinessDealController extends BaseApiController
                 );
             }
 
+            $lifeImpactService = app(LifeImpactService::class);
+            $snapshot = $lifeImpactService->buildBusinessDealSnapshot($businessDeal);
+
             $updatedLifeImpact = $this->increaseLifeImpact(
                 (string) $authUser->id,
                 5,
@@ -184,26 +186,12 @@ class BusinessDealController extends BaseApiController
                 (string) $authUser->id,
                 (string) $businessDeal->id,
                 'Life impact added for business deal activity.',
-                [
-                    'deal_date' => $businessDeal->deal_date,
-                    'deal_amount' => $businessDeal->deal_amount,
-                    'business_type' => $businessDeal->business_type,
-                    'comment' => $businessDeal->comment,
-                    'to_user_id' => $businessDeal->to_user_id ? (string) $businessDeal->to_user_id : null,
-                ]
+                $snapshot,
+                $snapshot,
+                'credit',
+                'active',
             );
             $businessDeal->setAttribute('life_impacted_count', $updatedLifeImpact);
-
-            // Postman example (business deal create):
-            // {
-            //   "to_user_id": "<receiver-user-uuid>",
-            //   "deal_date": "2026-01-20",
-            //   "deal_amount": 5000,
-            //   "business_type": "B2B",
-            //   "comment": "Closed via referral"
-            // }
-            // Verify SQL:
-            // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
 
             return $this->success($businessDeal, 'Business deal saved successfully', 201);
         } catch (Throwable $e) {
@@ -211,7 +199,7 @@ class BusinessDealController extends BaseApiController
         }
     }
 
-    public function show(Request $request, string $id)
+    public function show(\Illuminate\Http\Request $request, string $id)
     {
         $authUser = $request->user();
 
@@ -229,5 +217,45 @@ class BusinessDealController extends BaseApiController
         }
 
         return $this->success($businessDeal);
+    }
+
+    public function destroy(\Illuminate\Http\Request $request, string $id)
+    {
+        $authUser = $request->user();
+
+        $businessDeal = BusinessDeal::query()
+            ->where('id', $id)
+            ->where(function ($q) use ($authUser) {
+                $q->where('from_user_id', (string) $authUser->id)
+                    ->orWhere('to_user_id', (string) $authUser->id);
+            })
+            ->first();
+
+        if (! $businessDeal) {
+            return $this->error('Business deal not found', 404);
+        }
+
+        if ($businessDeal->is_deleted || $businessDeal->deleted_at !== null) {
+            return $this->success([
+                'id' => (string) $businessDeal->id,
+                'life_impacted_count' => app(LifeImpactService::class)->getCurrentTotal((string) $businessDeal->from_user_id),
+            ], 'Business deal already deleted');
+        }
+
+        try {
+            $businessDeal->is_deleted = true;
+            $businessDeal->save();
+            $businessDeal->delete();
+
+            $updatedLifeImpact = app(LifeImpactService::class)
+                ->reverseBusinessDealLifeImpact($businessDeal, (string) $authUser->id);
+
+            return $this->success([
+                'id' => (string) $businessDeal->id,
+                'life_impacted_count' => $updatedLifeImpact,
+            ], 'Business deal deleted successfully');
+        } catch (Throwable $e) {
+            return $this->error('Something went wrong', 500);
+        }
     }
 }
