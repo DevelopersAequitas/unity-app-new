@@ -8,6 +8,7 @@ use App\Models\LifeImpactHistory;
 use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class LifeImpactHistoryController extends BaseApiController
 {
@@ -28,6 +29,18 @@ class LifeImpactHistoryController extends BaseApiController
             ])
             ->orderByDesc('created_at');
 
+        if (Schema::hasColumn('life_impact_histories', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        if (Schema::hasColumn('life_impact_histories', 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        if (Schema::hasColumn('life_impact_histories', 'status')) {
+            $query->where('status', 'active');
+        }
+
         if (filled($request->query('activity_type'))) {
             $query->where('activity_type', (string) $request->query('activity_type'));
         }
@@ -41,12 +54,13 @@ class LifeImpactHistoryController extends BaseApiController
         }
 
         $histories = $query->paginate($perPage);
+        $totalLifeImpacted = $this->lifeImpactService->recalculateUserLifeImpact((string) $user->id);
 
         return response()->json([
             'success' => true,
             'message' => null,
             'data' => [
-                'total_life_impacted' => $this->lifeImpactService->getCurrentTotal((string) $user->id),
+                'total_life_impacted' => $totalLifeImpacted,
                 'items' => LifeImpactHistoryResource::collection($histories->getCollection())->resolve(),
             ],
             'meta' => [
