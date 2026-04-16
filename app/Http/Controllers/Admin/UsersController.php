@@ -618,7 +618,7 @@ class UsersController extends Controller
             ? 'Circle membership added successfully.'
             : 'User updated successfully.';
 
-        return redirect()->route('admin.users.edit', ['user' => $user->id])
+        return redirect()->to('/admin/users/' . $user->id . '/edit')
             ->with('status', $statusMessage);
     }
 
