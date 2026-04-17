@@ -4,10 +4,12 @@ namespace App\Services\Impacts;
 
 use App\Models\AdminUser;
 use App\Models\Impact;
+use App\Models\LifeImpactHistory;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ImpactService
 {
@@ -75,6 +77,8 @@ class ImpactService
             $impact->rejected_at = null;
             $impact->review_remarks = $reviewRemarks;
             $impact->save();
+
+            $this->storeApprovedImpactHistory($impact, $adminId, $reviewRemarks);
 
             Log::info('impact.approve.saved', [
                 'impact_id' => (string) $impact->id,
@@ -200,6 +204,56 @@ class ImpactService
             'is_read' => false,
             'created_at' => now(),
             'read_at' => null,
+        ]);
+    }
+
+    private function storeApprovedImpactHistory(Impact $impact, string $adminId, ?string $reviewRemarks = null): void
+    {
+        $alreadyExists = LifeImpactHistory::query()
+            ->where('activity_id', (string) $impact->id)
+            ->where('activity_type', 'impact')
+            ->exists();
+
+        if ($alreadyExists) {
+            Log::info('impact.approve.history_exists', [
+                'impact_id' => (string) $impact->id,
+                'user_id' => (string) $impact->user_id,
+                'admin_id' => $adminId,
+            ]);
+
+            return;
+        }
+
+        $history = LifeImpactHistory::query()->create([
+            'id' => (string) Str::uuid(),
+            'user_id' => (string) $impact->user_id,
+            'triggered_by_user_id' => $adminId,
+            'activity_type' => 'impact',
+            'activity_id' => (string) $impact->id,
+            'impact_value' => max(1, (int) ($impact->life_impacted ?? 1)),
+            'title' => (string) $impact->action,
+            'description' => $impact->additional_remarks ?: $reviewRemarks,
+            'meta' => [
+                'source' => 'impact_approval',
+                'impact_id' => (string) $impact->id,
+                'impact_date' => optional($impact->impact_date)?->toDateString(),
+                'impacted_peer_id' => (string) ($impact->impacted_peer_id ?? ''),
+                'story_to_share' => $impact->story_to_share,
+                'additional_remarks' => $impact->additional_remarks,
+                'review_remarks' => $reviewRemarks,
+                'requires_leadership_approval' => (bool) $impact->requires_leadership_approval,
+                'status' => (string) $impact->status,
+                'approved_at' => optional($impact->approved_at)?->toISOString(),
+            ],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Log::info('impact.approve.history_created', [
+            'impact_id' => (string) $impact->id,
+            'user_id' => (string) $impact->user_id,
+            'admin_id' => $adminId,
+            'history_id' => (string) $history->id,
         ]);
     }
 }
