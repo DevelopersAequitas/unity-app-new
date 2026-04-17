@@ -139,21 +139,38 @@ class LifeImpactService
                 ];
             }
 
-            $meta = array_filter([
+            $metaPayload = array_filter([
                 'impact_id' => $impactId,
                 'impact_date' => optional($impact->impact_date)?->toDateString(),
-                'action' => (string) $impact->action,
+                'action' => $this->normalizeNullableString($impact->action),
                 'action_key' => $actionKey,
                 'action_label' => $actionLabel,
                 'impact_value' => $impactValue,
                 'impacted_peer_id' => $impact->impacted_peer_id ? (string) $impact->impacted_peer_id : null,
                 'affected_user_id' => $impact->impacted_peer_id ? (string) $impact->impacted_peer_id : null,
-                'story_to_share' => $impact->story_to_share,
-                'additional_remarks' => $impact->additional_remarks,
-                'review_remarks' => $impact->review_remarks,
+                'story_to_share' => $this->normalizeNullableString($impact->story_to_share),
+                'additional_remarks' => $this->normalizeNullableString($impact->additional_remarks),
+                'review_remarks' => $this->normalizeNullableString($impact->review_remarks),
                 'approved_by' => $approvedByAdminId,
                 'approved_at' => optional($impact->approved_at)->toISOString(),
             ], fn ($value) => $value !== null && $value !== '');
+
+            $title = $this->normalizeNullableString($actionLabel) ?? 'Impact Approved';
+            $description = $this->normalizeNullableString('Impact approved: '.($actionLabel !== '' ? $actionLabel : 'Impact action'));
+            $normalizedRemarks = $this->normalizeNullableString($remarks);
+            $meta = null;
+            if (! empty($metaPayload)) {
+                $encodedMeta = json_encode($metaPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $meta = $encodedMeta === false ? null : $encodedMeta;
+            }
+
+            Log::info('impact.approval.payload_types', [
+                'impact_id' => $impactId,
+                'title_type' => gettype($title),
+                'description_type' => gettype($description),
+                'remarks_type' => gettype($normalizedRemarks),
+                'meta_payload_type' => gettype($metaPayload),
+            ]);
 
             $payload = [
                 'id' => (string) Str::uuid(),
@@ -162,8 +179,8 @@ class LifeImpactService
                 'activity_type' => 'impact',
                 'activity_id' => $impactId,
                 'impact_value' => $impactValue,
-                'title' => $actionLabel !== '' ? $actionLabel : 'Impact Approved',
-                'description' => 'Impact approved: '.($actionLabel !== '' ? $actionLabel : 'Impact action'),
+                'title' => $title,
+                'description' => $description,
                 'meta' => $meta,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -190,7 +207,7 @@ class LifeImpactService
             }
 
             if (Schema::hasColumn('life_impact_histories', 'remarks')) {
-                $payload['remarks'] = $remarks;
+                $payload['remarks'] = $normalizedRemarks;
             }
 
             DB::table('life_impact_histories')->insert($payload);
@@ -244,5 +261,20 @@ class LifeImpactService
             ]);
 
         return $sum;
+    }
+
+    private function normalizeNullableString(mixed $value): ?string
+    {
+        if (is_array($value) || is_object($value)) {
+            return null;
+        }
+
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = trim((string) $value);
+
+        return $normalized !== '' ? $normalized : null;
     }
 }
