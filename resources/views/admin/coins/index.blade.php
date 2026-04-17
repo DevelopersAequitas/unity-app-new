@@ -110,7 +110,7 @@
                     @forelse ($members as $member)
                         @php
                             $stats = $activityStats[$member->id] ?? null;
-                            $totalCoins = (int) ($stats->total_coins ?? 0);
+                            $totalCoins = (int) ($member->coins_balance ?? 0);
                             $testimonialCount = (int) ($stats->testimonial_count ?? 0);
                             $referralCount = (int) ($stats->referral_count ?? 0);
                             $businessDealCount = (int) ($stats->business_deal_count ?? 0);

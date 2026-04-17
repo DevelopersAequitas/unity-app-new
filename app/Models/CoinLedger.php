@@ -26,6 +26,7 @@ class CoinLedger extends Model
         'balance_after',
         'activity_id',
         'reference',
+        'remark',
         'created_by',
         'created_at',
     ];

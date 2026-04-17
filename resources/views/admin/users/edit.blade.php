@@ -229,6 +229,20 @@
                         <input type="number" name="coins_balance" class="form-control" min="0" value="{{ old('coins_balance', $user->coins_balance) }}">
                     </div>
                     <div class="col-md-4">
+                        <label class="form-label">Coins Remark</label>
+                        <input
+                            type="text"
+                            name="coins_remark"
+                            class="form-control @error('coins_remark') is-invalid @enderror"
+                            maxlength="1000"
+                            value="{{ old('coins_remark', !empty($hasCoinsRemarkColumn) ? $user->coins_remark : '') }}"
+                            placeholder="Required when coins balance is changed"
+                        >
+                        @error('coins_remark')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label">Influencer Stars</label>
                         <input type="number" name="influencer_stars" class="form-control" min="0" value="{{ old('influencer_stars', $user->influencer_stars) }}">
                     </div>

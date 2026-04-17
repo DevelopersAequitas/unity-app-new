@@ -52,6 +52,7 @@
                         <th>Coins</th>
                         <th>Balance After</th>
                         <th>Why</th>
+                        <th>Remark</th>
                         <th>Created By</th>
                     </tr>
                     <tr>
@@ -87,6 +88,7 @@
                             </select>
                         </th>
                         <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="—" disabled></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -99,6 +101,7 @@
                             <td>{{ $item->amount }}</td>
                             <td>{{ $item->balance_after }}</td>
                             <td class="text-muted">{{ \App\Support\Coins\CoinLedgerFormatter::why($reasonType) }}</td>
+                            <td class="text-wrap" style="max-width: 280px; white-space: normal;">{{ $item->admin_remark ?: '—' }}</td>
                             <td>
                                 @if ($item->createdBy)
                                     @include('admin.shared.peer_card', ['user' => $item->createdBy])
@@ -109,7 +112,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center text-muted">No ledger entries found.</td>
+                            <td colspan="6" class="text-center text-muted">No ledger entries found.</td>
                         </tr>
                     @endforelse
                 </tbody>

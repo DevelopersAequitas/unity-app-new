@@ -56,6 +56,7 @@ class User extends Authenticatable
         'membership_status',
         'membership_expiry',
         'coins_balance',
+        'coins_remark',
         'coin_medal_rank',
         'coin_milestone_title',
         'coin_milestone_meaning',

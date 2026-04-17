@@ -74,7 +74,7 @@ class CoinsController extends Controller
                         $member->adminCompany(),
                         $member->adminCity(),
                         $member->adminCircleName(),
-                        (int) ($item->total_coins ?? 0),
+                        (int) ($member->coins_balance ?? 0),
                         (int) ($item->testimonial_count ?? 0),
                         (int) ($item->referral_count ?? 0),
                         (int) ($item->business_deal_count ?? 0),
@@ -136,25 +136,35 @@ class CoinsController extends Controller
         $remarks = trim((string) ($validated['remarks'] ?? ''));
         $reference = $this->buildReference($activity, $remarks);
 
-        DB::transaction(function () use ($userId, $amount, $reference): void {
-            $latest = DB::table('coins_ledger')
-                ->where('user_id', $userId)
-                ->orderByDesc('created_at')
+        $ledgerHasRemarkColumn = Schema::hasColumn('coins_ledger', 'remark');
+
+        DB::transaction(function () use ($userId, $amount, $reference, $validated, $ledgerHasRemarkColumn): void {
+            $user = User::query()
+                ->whereKey($userId)
                 ->lockForUpdate()
-                ->first();
+                ->firstOrFail();
 
-            $previousBalance = $latest?->balance_after ?? 0;
+            $previousBalance = (int) ($user->coins_balance ?? 0);
+            $newBalance = $previousBalance + $amount;
+            $user->coins_balance = $newBalance;
+            $user->save();
 
-            DB::table('coins_ledger')->insert([
+            $insertData = [
                 'transaction_id' => (string) Str::uuid(),
                 'user_id' => $userId,
                 'amount' => $amount,
-                'balance_after' => $previousBalance + $amount,
+                'balance_after' => $newBalance,
                 'activity_id' => null,
                 'reference' => $reference,
                 'created_by' => null,
                 'created_at' => now(),
-            ]);
+            ];
+
+            if ($ledgerHasRemarkColumn) {
+                $insertData['remark'] = trim((string) ($validated['remarks'] ?? '')) ?: null;
+            }
+
+            DB::table('coins_ledger')->insert($insertData);
         });
 
         return redirect()->route('admin.coins.index')->with('success', 'Coins added successfully.');
@@ -199,7 +209,7 @@ class CoinsController extends Controller
 
         return response()->streamDownload(function () use ($query): void {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Date', 'Coins', 'Balance After', 'Why', 'Created By Name', 'Company', 'City', 'Circle']);
+            fputcsv($handle, ['Date', 'Coins', 'Balance After', 'Why', 'Remark', 'Created By Name', 'Company', 'City', 'Circle']);
 
             $query->chunkById(500, function ($chunk) use ($handle): void {
                 foreach ($chunk as $item) {
@@ -210,6 +220,7 @@ class CoinsController extends Controller
                         (int) $item->amount,
                         (int) $item->balance_after,
                         CoinLedgerFormatter::why($item->reason_type),
+                        $item->admin_remark ?? '—',
                         $createdBy?->adminName() ?? '—',
                         $createdBy?->adminCompany() ?? 'No Company',
                         $createdBy?->adminCity() ?? 'No City',
@@ -230,10 +241,6 @@ class CoinsController extends Controller
         $hasUsersCompany = Schema::hasColumn('users', 'company');
         $hasUsersBusinessName = Schema::hasColumn('users', 'business_name');
 
-        $totalCoinsSubQuery = DB::table('coins_ledger as cl')
-            ->selectRaw('cl.user_id, COALESCE(SUM(cl.amount),0) as total_coins')
-            ->groupBy('cl.user_id');
-
         $query = User::query()
             ->select([
                 'users.id',
@@ -243,9 +250,9 @@ class CoinsController extends Controller
                 'users.display_name',
                 'users.company_name',
                 'users.city',
+                'users.coins_balance',
             ])
-            ->leftJoinSub($totalCoinsSubQuery, 'coins_totals', fn ($join) => $join->on('coins_totals.user_id', '=', 'users.id'))
-            ->addSelect(DB::raw('COALESCE(coins_totals.total_coins, 0) as total_coins_sort'))
+            ->addSelect(DB::raw('COALESCE(users.coins_balance, 0) as total_coins_sort'))
             ->with(['circleMembers' => function ($circleMembersQuery) {
                 $circleMembersQuery->where('status', 'approved')
                     ->whereNull('deleted_at')
@@ -305,7 +312,6 @@ class CoinsController extends Controller
             ->whereIn('cl.user_id', $memberIds)
             ->select([
                 'cl.user_id',
-                DB::raw('sum(cl.amount) as total_coins'),
                 DB::raw("count(case when cl.reference ilike 'Activity: testimonial%' then 1 end) as testimonial_count"),
                 DB::raw("count(case when cl.reference ilike 'Activity: referral%' then 1 end) as referral_count"),
                 DB::raw("count(case when cl.reference ilike 'Activity: business_deal%' then 1 end) as business_deal_count"),
@@ -338,6 +344,7 @@ class CoinsController extends Controller
             }])
             ->select('coins_ledger.*')
             ->selectRaw("COALESCE(NULLIF(split_part(split_part(reference, '|', 1), ':', 2), ''), '') as reason_type")
+            ->selectRaw($this->ledgerRemarkSelectSql() . ' as admin_remark')
             ->when($type && isset(self::ACTIVITY_REFERENCE_PATTERNS[$type]), function (Builder $q) use ($type) {
                 $q->where('reference', 'ILIKE', self::ACTIVITY_REFERENCE_PATTERNS[$type]);
             })
@@ -418,6 +425,17 @@ class CoinsController extends Controller
         }
 
         return $remarks !== '' ? "Admin adjustment | {$remarks}" : 'Admin adjustment';
+    }
+
+    private function ledgerRemarkSelectSql(): string
+    {
+        $parsedRemarkSql = "NULLIF(TRIM(REGEXP_REPLACE(split_part(reference, '|', 2), '^\\s*Admin:\\s*', '')), '')";
+
+        if (Schema::hasColumn('coins_ledger', 'remark')) {
+            return "COALESCE(NULLIF(TRIM(coins_ledger.remark), ''), {$parsedRemarkSql})";
+        }
+
+        return $parsedRemarkSql;
     }
 
     private function applyCircleScopeToUsersQuery($query, $admin): void
