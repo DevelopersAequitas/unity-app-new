@@ -22,6 +22,7 @@ use App\Services\Impacts\ImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminOpsController extends BaseApiController
@@ -85,13 +86,42 @@ class AdminOpsController extends BaseApiController
     public function eventReject(Request $request, string $id): JsonResponse { $e=Event::findOrFail($id); $e->status='rejected'; $e->save(); return $this->success($e); }
 
     // Revenue/Billing
-    public function payments(Request $request): JsonResponse { $q=Payment::query(); $q->when($request->source, fn($x)=>$x->where('source',$request->source))->when($request->status, fn($x)=>$x->where('status',$request->status))->when($request->user_id, fn($x)=>$x->where('user_id',$request->user_id)); return $this->success($q->latest('created_at')->paginate(20)); }
+    public function payments(Request $request): JsonResponse {
+        $amountColumn = $this->resolvePaymentAmountColumn();
+        $categoryColumn = $this->resolvePaymentCategoryColumn();
+        $q=Payment::query();
+        $q->when($categoryColumn && $request->source, fn($x)=>$x->where($categoryColumn,$request->source))
+            ->when($request->status, fn($x)=>$x->where('status',$request->status))
+            ->when($request->user_id, fn($x)=>$x->where('user_id',$request->user_id));
+        $items = $q->latest('created_at')->paginate(20);
+        $items->setCollection($items->getCollection()->map(function (Payment $payment) use ($amountColumn, $categoryColumn) {
+            $payment->display_amount = (float) ($payment->{$amountColumn} ?? 0);
+            $payment->display_source = $categoryColumn ? (string) ($payment->{$categoryColumn} ?? '-') : null;
+            return $payment;
+        }));
+        return $this->success($items);
+    }
     public function paymentShow(string $id): JsonResponse { return $this->success(Payment::findOrFail($id)); }
-    public function revenueSummary(Request $request): JsonResponse { $q=Payment::query()->where('status','paid'); return $this->success(['total_revenue'=>(float)$q->sum('amount'),'membership_revenue'=>(float)(clone $q)->where('source','membership')->sum('amount'),'circle_fee_revenue'=>(float)(clone $q)->where('source','circle_fee')->sum('amount'),'sponsor_revenue'=>(float)(clone $q)->where('source','sponsor')->sum('amount'),'paid_event_revenue'=>(float)(clone $q)->where('source','event')->sum('amount')]); }
-    public function revenueByCircle(): JsonResponse { return $this->success(Payment::query()->whereNotNull('circle_id')->where('status','paid')->selectRaw('circle_id, SUM(amount) as total')->groupBy('circle_id')->get()); }
-    public function revenueByIndustry(): JsonResponse { return $this->success(Payment::query()->whereNotNull('industry_id')->where('status','paid')->selectRaw('industry_id, SUM(amount) as total')->groupBy('industry_id')->get()); }
-    public function revenueByMember(): JsonResponse { return $this->success(Payment::query()->where('status','paid')->selectRaw('user_id, SUM(amount) as total')->groupBy('user_id')->get()); }
-    public function revenueExport(): StreamedResponse { return $this->csvResponse('revenue-export.csv', ['id','user_id','amount','status','source','created_at'], Payment::query()->latest('created_at')->get()->map(fn($x)=>[(string)$x->id,(string)$x->user_id,(string)$x->amount,(string)$x->status,(string)$x->source,(string)$x->created_at])->all()); }
+    public function revenueSummary(Request $request): JsonResponse {
+        $amountColumn = $this->resolvePaymentAmountColumn();
+        $categoryColumn = $this->resolvePaymentCategoryColumn();
+        $q=Payment::query()->whereIn('status',$this->resolvePaidStatuses());
+        return $this->success([
+            'total_revenue'=>(float)$q->sum($amountColumn),
+            'membership_revenue'=>$categoryColumn ? (float)(clone $q)->where($categoryColumn,'membership')->sum($amountColumn) : null,
+            'circle_fee_revenue'=>$categoryColumn ? (float)(clone $q)->where($categoryColumn,'circle_fee')->sum($amountColumn) : null,
+            'sponsor_revenue'=>$categoryColumn ? (float)(clone $q)->where($categoryColumn,'sponsor')->sum($amountColumn) : null,
+            'paid_event_revenue'=>$categoryColumn ? (float)(clone $q)->where($categoryColumn,'event')->sum($amountColumn) : null,
+        ]);
+    }
+    public function revenueByCircle(): JsonResponse { $amountColumn = $this->resolvePaymentAmountColumn(); return $this->success(Payment::query()->whereNotNull('circle_id')->whereIn('status',$this->resolvePaidStatuses())->selectRaw("circle_id, SUM({$amountColumn}) as total")->groupBy('circle_id')->get()); }
+    public function revenueByIndustry(): JsonResponse { $amountColumn = $this->resolvePaymentAmountColumn(); return $this->success(Payment::query()->whereNotNull('industry_id')->whereIn('status',$this->resolvePaidStatuses())->selectRaw("industry_id, SUM({$amountColumn}) as total")->groupBy('industry_id')->get()); }
+    public function revenueByMember(): JsonResponse { $amountColumn = $this->resolvePaymentAmountColumn(); return $this->success(Payment::query()->whereIn('status',$this->resolvePaidStatuses())->selectRaw("user_id, SUM({$amountColumn}) as total")->groupBy('user_id')->get()); }
+    public function revenueExport(): StreamedResponse {
+        $amountColumn = $this->resolvePaymentAmountColumn();
+        $categoryColumn = $this->resolvePaymentCategoryColumn();
+        return $this->csvResponse('revenue-export.csv', ['id','user_id',$amountColumn,'status','category','created_at'], Payment::query()->latest('created_at')->get()->map(fn($x)=>[(string)$x->id,(string)$x->user_id,(string)($x->{$amountColumn} ?? ''),(string)$x->status,(string)($categoryColumn ? ($x->{$categoryColumn} ?? '') : ''),(string)$x->created_at])->all());
+    }
 
     public function billingInvoices(): JsonResponse { return $this->success(Payment::query()->whereNotNull('invoice_id')->latest('created_at')->paginate(20)); }
     public function billingInvoiceShow(string $id): JsonResponse { return $this->success(Payment::query()->where('invoice_id',$id)->firstOrFail()); }
@@ -152,7 +182,7 @@ class AdminOpsController extends BaseApiController
     public function reportsEvents(): JsonResponse { return $this->success(['total'=>Event::count(),'upcoming'=>Event::whereDate('start_at','>=',now()->toDateString())->count()]); }
     public function reportsCoinClaims(): JsonResponse { return $this->success(['pending'=>CoinClaimRequest::where('status','pending')->count(),'approved'=>CoinClaimRequest::where('status','approved')->count()]); }
     public function reportsJoinRequests(): JsonResponse { return $this->success(['pending'=>CircleJoinRequest::whereIn('status',['pending_cd_approval','pending_id_approval','pending_circle_fee'])->count(),'paid'=>CircleJoinRequest::where('status','paid')->count()]); }
-    public function reportsExport(Request $request): JsonResponse|StreamedResponse { $type = strtolower((string) $request->query('type', 'csv')); if ($type === 'xlsx') { return $this->error('XLSX export is not available in current environment. Use CSV.', 422); } return $this->csvResponse('admin-report.csv', ['metric','value'], [['total_users', (string) User::count()],['total_circles',(string) DB::table('circles')->count()],['total_revenue',(string) Payment::where('status','paid')->sum('amount')]]); }
+    public function reportsExport(Request $request): JsonResponse|StreamedResponse { $type = strtolower((string) $request->query('type', 'csv')); if ($type === 'xlsx') { return $this->error('XLSX export is not available in current environment. Use CSV.', 422); } $amountColumn = $this->resolvePaymentAmountColumn(); return $this->csvResponse('admin-report.csv', ['metric','value'], [['total_users', (string) User::count()],['total_circles',(string) DB::table('circles')->count()],['total_revenue',(string) Payment::whereIn('status',$this->resolvePaidStatuses())->sum($amountColumn)]]); }
 
     private function csvResponse(string $filename, array $headers, array $rows): StreamedResponse
     {
@@ -164,5 +194,35 @@ class AdminOpsController extends BaseApiController
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    private function resolvePaymentAmountColumn(): string
+    {
+        foreach (['total_amount', 'amount', 'base_amount'] as $column) {
+            if (Schema::hasColumn('payments', $column)) {
+                return $column;
+            }
+        }
+
+        return 'total_amount';
+    }
+
+    private function resolvePaymentCategoryColumn(): ?string
+    {
+        foreach (['source', 'type', 'payment_type', 'category', 'transaction_type', 'purpose'] as $column) {
+            if (Schema::hasColumn('payments', $column)) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolvePaidStatuses(): array
+    {
+        $distinct = DB::table('payments')->select('status')->whereNotNull('status')->distinct()->pluck('status')->map(fn ($s) => strtolower((string) $s))->all();
+        $statuses = array_values(array_filter(['success', 'paid', 'completed'], fn ($candidate) => in_array($candidate, $distinct, true)));
+
+        return $statuses !== [] ? $statuses : ['success'];
     }
 }

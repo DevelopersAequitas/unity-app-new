@@ -16,6 +16,7 @@ use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends BaseApiController
 {
@@ -48,14 +49,28 @@ class DashboardController extends BaseApiController
     public function revenue(Request $request): JsonResponse
     {
         $user = $request->user();
-        $query = Payment::query()->where('status', 'paid');
+        $amountColumn = $this->resolvePaymentAmountColumn();
+        $categoryColumn = $this->resolvePaymentCategoryColumn();
+        $query = Payment::query()->whereIn('status', $this->resolvePaidStatuses());
 
         if (! $this->scope->isGlobal($user)) {
             $query->whereIn('circle_id', $this->scope->visibleCircleIds($user));
         }
 
-        $rows = $query->selectRaw("COALESCE(source, 'other') as source, SUM(amount) as total")->groupBy('source')->get();
-        $mapped = $rows->pluck('total', 'source');
+        if (! $categoryColumn) {
+            $total = (float) $query->sum($amountColumn);
+
+            return $this->success([
+                'membership_revenue' => null,
+                'circle_fee_revenue' => null,
+                'event_revenue' => null,
+                'sponsor_revenue' => null,
+                'total_revenue' => $total,
+            ]);
+        }
+
+        $rows = $query->selectRaw("COALESCE({$categoryColumn}, 'other') as source_key, SUM({$amountColumn}) as total")->groupBy($categoryColumn)->get();
+        $mapped = $rows->pluck('total', 'source_key');
 
         return $this->success([
             'membership_revenue' => (float) ($mapped['membership'] ?? 0),
@@ -64,6 +79,36 @@ class DashboardController extends BaseApiController
             'sponsor_revenue' => (float) ($mapped['sponsor'] ?? 0),
             'total_revenue' => (float) $rows->sum('total'),
         ]);
+    }
+
+    private function resolvePaymentAmountColumn(): string
+    {
+        foreach (['total_amount', 'amount', 'base_amount'] as $column) {
+            if (Schema::hasColumn('payments', $column)) {
+                return $column;
+            }
+        }
+
+        return 'total_amount';
+    }
+
+    private function resolvePaymentCategoryColumn(): ?string
+    {
+        foreach (['source', 'type', 'payment_type', 'category', 'transaction_type', 'purpose'] as $column) {
+            if (Schema::hasColumn('payments', $column)) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolvePaidStatuses(): array
+    {
+        $distinct = DB::table('payments')->select('status')->whereNotNull('status')->distinct()->pluck('status')->map(fn ($s) => strtolower((string) $s))->all();
+        $statuses = array_values(array_filter(['success', 'paid', 'completed'], fn ($candidate) => in_array($candidate, $distinct, true)));
+
+        return $statuses !== [] ? $statuses : ['success'];
     }
 
     public function lifeImpact(Request $request): JsonResponse

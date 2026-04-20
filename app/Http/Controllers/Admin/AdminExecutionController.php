@@ -17,6 +17,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AdminExecutionController extends Controller
 {
@@ -72,18 +73,34 @@ class AdminExecutionController extends Controller
 
     public function finance(Request $request)
     {
+        $amountColumn = $this->resolvePaymentAmountColumn();
+        $categoryColumn = $this->resolvePaymentCategoryColumn();
+        $successStatuses = $this->resolvePaidStatuses();
+
         $payments = Payment::query()
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
-            ->when($request->filled('source'), fn ($q) => $q->where('source', $request->string('source')))
+            ->when($categoryColumn && $request->filled('source'), fn ($q) => $q->where($categoryColumn, $request->string('source')))
             ->latest('created_at')
             ->paginate(20);
 
+        $payments->setCollection($payments->getCollection()->map(function (Payment $payment) use ($amountColumn, $categoryColumn) {
+            $payment->display_amount = (float) ($payment->{$amountColumn} ?? 0);
+            $payment->display_source = $categoryColumn ? (string) ($payment->{$categoryColumn} ?? '-') : null;
+
+            return $payment;
+        }));
+
+        $baseRevenueQuery = Payment::query()->whereIn('status', $successStatuses);
+
         $summary = [
-            'membership' => (float) Payment::query()->where('status', 'paid')->where('source', 'membership')->sum('amount'),
-            'circle_fee' => (float) Payment::query()->where('status', 'paid')->where('source', 'circle_fee')->sum('amount'),
-            'event' => (float) Payment::query()->where('status', 'paid')->where('source', 'event')->sum('amount'),
-            'sponsor' => (float) Payment::query()->where('status', 'paid')->where('source', 'sponsor')->sum('amount'),
-            'total' => (float) Payment::query()->where('status', 'paid')->sum('amount'),
+            'membership' => $categoryColumn ? (float) (clone $baseRevenueQuery)->where($categoryColumn, 'membership')->sum($amountColumn) : null,
+            'circle_fee' => $categoryColumn ? (float) (clone $baseRevenueQuery)->where($categoryColumn, 'circle_fee')->sum($amountColumn) : null,
+            'event' => $categoryColumn ? (float) (clone $baseRevenueQuery)->where($categoryColumn, 'event')->sum($amountColumn) : null,
+            'sponsor' => $categoryColumn ? (float) (clone $baseRevenueQuery)->where($categoryColumn, 'sponsor')->sum($amountColumn) : null,
+            'total' => (float) (clone $baseRevenueQuery)->sum($amountColumn),
+            'supports_source_split' => (bool) $categoryColumn,
+            'source_column' => $categoryColumn,
+            'amount_column' => $amountColumn,
         ];
 
         $subscriptions = User::query()->whereNotNull('zoho_subscription_id')->select('id', 'display_name', 'zoho_subscription_id', 'zoho_plan_code', 'membership_status')->limit(50)->get();
@@ -136,6 +153,9 @@ class AdminExecutionController extends Controller
 
     public function reports()
     {
+        $amountColumn = $this->resolvePaymentAmountColumn();
+        $successStatuses = $this->resolvePaidStatuses();
+
         $reportCards = [
             'users' => User::query()->count(),
             'circles' => Circle::query()->count(),
@@ -145,12 +165,55 @@ class AdminExecutionController extends Controller
             'pending_coin_claims' => CoinClaimRequest::query()->where('status', 'pending')->count(),
             'post_reports' => PostReport::query()->count(),
             'posts' => Post::query()->count(),
-            'revenue' => (float) Payment::query()->where('status', 'paid')->sum('amount'),
+            'revenue' => (float) Payment::query()->whereIn('status', $successStatuses)->sum($amountColumn),
             'events' => Event::query()->count(),
         ];
 
         $latestPayments = Payment::query()->latest('created_at')->limit(15)->get();
+        $categoryColumn = $this->resolvePaymentCategoryColumn();
+        $latestPayments->transform(function (Payment $payment) use ($amountColumn, $categoryColumn) {
+            $payment->display_amount = (float) ($payment->{$amountColumn} ?? 0);
+            $payment->display_source = $categoryColumn ? (string) ($payment->{$categoryColumn} ?? '-') : null;
+
+            return $payment;
+        });
 
         return view('admin/execution/reports', compact('reportCards', 'latestPayments'));
+    }
+
+    private function resolvePaymentAmountColumn(): string
+    {
+        foreach (['total_amount', 'amount', 'base_amount'] as $column) {
+            if (Schema::hasColumn('payments', $column)) {
+                return $column;
+            }
+        }
+
+        return 'total_amount';
+    }
+
+    private function resolvePaymentCategoryColumn(): ?string
+    {
+        foreach (['source', 'type', 'payment_type', 'category', 'transaction_type', 'purpose'] as $column) {
+            if (Schema::hasColumn('payments', $column)) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolvePaidStatuses(): array
+    {
+        $statuses = [];
+        $distinct = DB::table('payments')->select('status')->whereNotNull('status')->distinct()->pluck('status')->map(fn ($s) => strtolower((string) $s))->all();
+
+        foreach (['success', 'paid', 'completed'] as $candidate) {
+            if (in_array($candidate, $distinct, true)) {
+                $statuses[] = $candidate;
+            }
+        }
+
+        return $statuses !== [] ? $statuses : ['success'];
     }
 }
