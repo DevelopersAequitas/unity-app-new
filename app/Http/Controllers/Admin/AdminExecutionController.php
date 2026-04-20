@@ -48,7 +48,20 @@ class AdminExecutionController extends Controller
 
     public function industries()
     {
-        $industries = Industry::query()->withCount('circles')->paginate(20);
+        $industries = Industry::query()->paginate(20);
+
+        $circles = Circle::query()->select('id', 'industry_tags')->whereNull('deleted_at')->get();
+        $industries->setCollection($industries->getCollection()->map(function (Industry $industry) use ($circles) {
+            $industry->circles_count = $circles->filter(function (Circle $circle) use ($industry): bool {
+                $tags = is_array($circle->industry_tags) ? $circle->industry_tags : [];
+                $industryId = (string) $industry->id;
+                $industryName = trim((string) $industry->name);
+
+                return in_array($industryId, $tags, true) || ($industryName !== '' && in_array($industryName, $tags, true));
+            })->count();
+
+            return $industry;
+        }));
 
         return view('admin/execution/industries', compact('industries'));
     }

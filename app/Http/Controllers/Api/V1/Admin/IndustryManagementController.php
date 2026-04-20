@@ -10,6 +10,7 @@ use App\Services\Admin\AdminAuditService;
 use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class IndustryManagementController extends BaseApiController
 {
@@ -53,7 +54,8 @@ class IndustryManagementController extends BaseApiController
     public function destroy(Request $request, string $id): JsonResponse
     {
         $industry = Industry::query()->findOrFail($id);
-        if (Circle::query()->where('industry_id', $id)->exists() && isset($industry->is_active)) {
+        $circlesExists = $this->circleIndustryQuery($id, (string) $industry->name)->exists();
+        if ($circlesExists && isset($industry->is_active)) {
             $industry->is_active = false;
             $industry->save();
         } else {
@@ -68,18 +70,21 @@ class IndustryManagementController extends BaseApiController
     public function assignId(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate(['user_id' => ['required', 'uuid', 'exists:users,id']]);
-        Circle::query()->where('industry_id', $id)->update(['industry_director_user_id' => $validated['user_id']]);
+        $industry = Industry::query()->findOrFail($id);
+        $this->circleIndustryQuery($id, (string) $industry->name)->update(['industry_director_user_id' => $validated['user_id']]);
         return $this->success(['assigned' => true]);
     }
 
     public function circles(string $id): JsonResponse
     {
-        return $this->success(Circle::query()->where('industry_id', $id)->paginate(20));
+        $industry = Industry::query()->findOrFail($id);
+        return $this->success($this->circleIndustryQuery($id, (string) $industry->name)->paginate(20));
     }
 
     public function stats(string $id): JsonResponse
     {
-        $circles = Circle::query()->where('industry_id', $id);
+        $industry = Industry::query()->findOrFail($id);
+        $circles = $this->circleIndustryQuery($id, (string) $industry->name);
         $circleIds = $circles->pluck('id');
 
         return $this->success([
@@ -89,5 +94,25 @@ class IndustryManagementController extends BaseApiController
             'total_revenue' => Payment::query()->whereIn('circle_id', $circleIds)->where('status', 'paid')->sum('amount'),
             'total_impacts' => \App\Models\Impact::query()->whereIn('circle_id', $circleIds)->where('status', 'approved')->count(),
         ]);
+    }
+
+    private function circleIndustryQuery(string $industryId, string $industryName)
+    {
+        $query = Circle::query();
+
+        if (Schema::hasColumn('circles', 'industry_id')) {
+            return $query->where('industry_id', $industryId);
+        }
+
+        if (Schema::hasColumn('circles', 'industry_tags')) {
+            return $query->where(function ($q) use ($industryId, $industryName): void {
+                $q->whereJsonContains('industry_tags', $industryId);
+                if (trim($industryName) !== '') {
+                    $q->orWhereJsonContains('industry_tags', $industryName);
+                }
+            });
+        }
+
+        return $query->whereRaw('1 = 0');
     }
 }
