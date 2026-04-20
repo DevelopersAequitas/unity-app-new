@@ -477,6 +477,131 @@ class AdminPlatformController extends BaseApiController
         return $this->success($report);
     }
 
+    // Leadership
+    public function leadershipRoles(Request $request): JsonResponse { return $this->genericIndex($request, 'roles'); }
+    public function leadershipApplications(Request $request): JsonResponse { return $this->genericIndex($request, 'leader_interest_submissions'); }
+    public function leadershipApplicationShow(Request $request, string $id): JsonResponse { return $this->genericShow($request, 'leader_interest_submissions', $id); }
+    public function leadershipApplicationApprove(Request $request, string $id): JsonResponse { $request->merge(['status' => 'approved']); return $this->genericUpsert($request, 'leader_interest_submissions', $id); }
+    public function leadershipApplicationReject(Request $request, string $id): JsonResponse { $request->merge(['status' => 'rejected']); return $this->genericUpsert($request, 'leader_interest_submissions', $id); }
+    public function leadershipAssignments(Request $request): JsonResponse { return $this->genericIndex($request, 'leader_role_assignments'); }
+    public function leadershipAssignmentStore(Request $request): JsonResponse { return $this->genericUpsert($request, 'leader_role_assignments'); }
+    public function leadershipAssignmentUpdate(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'leader_role_assignments', $id); }
+    public function leadershipAssignmentDelete(Request $request, string $id): JsonResponse { $request->merge(['is_active' => false, 'revoked_at' => now()]); return $this->genericUpsert($request, 'leader_role_assignments', $id); }
+    public function leadershipPerformance(Request $request): JsonResponse { return $this->genericIndex($request, 'leadership_scorecards'); }
+
+    // Industries
+    public function industries(Request $request): JsonResponse { return $this->genericIndex($request, 'industries'); }
+    public function industryStore(Request $request): JsonResponse { return $this->genericUpsert($request, 'industries'); }
+    public function industryShow(Request $request, string $id): JsonResponse { return $this->genericShow($request, 'industries', $id); }
+    public function industryUpdate(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'industries', $id); }
+    public function industryDelete(Request $request, string $id): JsonResponse { return $this->genericDelete($request, 'industries', $id); }
+    public function industryAssignId(Request $request, string $id): JsonResponse { return $this->assignRole($request->merge(['role' => 'id', 'industry_id' => $id]), (string) $request->input('user_id')); }
+    public function industryCircles(Request $request, string $id): JsonResponse { $request->merge(['industry_id' => $id]); return $this->genericIndex($request, 'circles'); }
+    public function industryStats(Request $request, string $id): JsonResponse { return $this->dashboardSummary($request); }
+
+    // Circles
+    public function circles(Request $request): JsonResponse { return $this->genericIndex($request, 'circles'); }
+    public function circleStore(Request $request): JsonResponse { return $this->genericUpsert($request, 'circles'); }
+    public function circleShow(Request $request, string $id): JsonResponse { return $this->genericShow($request, 'circles', $id); }
+    public function circleUpdate(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'circles', $id); }
+    public function circleStatus(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'circles', $id); }
+    public function circleAssignFounder(Request $request, string $id): JsonResponse { return $this->assignRole($request->merge(['role' => 'cf', 'circle_id' => $id]), (string) $request->input('user_id')); }
+    public function circleAssignDirector(Request $request, string $id): JsonResponse { return $this->assignRole($request->merge(['role' => 'cd', 'circle_id' => $id]), (string) $request->input('user_id')); }
+    public function circleAssignLeadershipTeam(Request $request, string $id): JsonResponse { $request->merge(['circle_id' => $id]); return $this->genericUpsert($request, 'leader_role_assignments'); }
+    public function circleJoinRequests(Request $request, string $id): JsonResponse { $request->merge(['circle_id' => $id]); return $this->genericIndex($request, 'circle_join_requests'); }
+    public function circleMembers(Request $request, string $id): JsonResponse { $request->merge(['circle_id' => $id]); return $this->genericIndex($request, 'circle_members'); }
+    public function circleMemberStore(Request $request, string $id): JsonResponse { $request->merge(['circle_id' => $id]); return $this->genericUpsert($request, 'circle_members'); }
+    public function circleMemberDelete(Request $request, string $id, string $userId): JsonResponse { return $this->genericDelete($request, 'circle_members', $userId); }
+    public function circleHealth(Request $request, string $id): JsonResponse { return $this->dashboardSummary($request); }
+    public function circlePerformance(Request $request, string $id): JsonResponse { return $this->dashboardSummary($request); }
+    public function circlePackage(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'circles', $id); }
+
+    // Join request actions
+    public function joinRequestMarkPaid(Request $request, string $id): JsonResponse
+    {
+        $admin = $this->authorizeAdmin($request);
+        $record = CircleJoinRequest::query()->findOrFail($id);
+        $updated = $this->joinRequestService->markPaidAndConvertToMember($record, ['marked_by_admin_id' => $admin->id]);
+        $this->audit->log($admin, 'circle_join_request.mark_paid', 'circle_join_requests', $id, [], ['status' => $updated->status], $request);
+        return $this->success($updated, 'Marked paid and converted to member.');
+    }
+
+    public function joinRequestCancel(Request $request, string $id): JsonResponse
+    {
+        $admin = $this->authorizeAdmin($request);
+        $record = CircleJoinRequest::query()->findOrFail($id);
+        $record->status = CircleJoinRequest::STATUS_CANCELLED;
+        $record->save();
+        $this->audit->log($admin, 'circle_join_request.cancel', 'circle_join_requests', $id, [], ['status' => $record->status], $request);
+        return $this->success($record, 'Join request cancelled.');
+    }
+
+    // Events/Billing/Forms/Notifications/Meetings/Reports
+    public function events(Request $request): JsonResponse { return $this->genericIndex($request, 'events'); }
+    public function eventStore(Request $request): JsonResponse { return $this->genericUpsert($request, 'events'); }
+    public function eventShow(Request $request, string $id): JsonResponse { return $this->genericShow($request, 'events', $id); }
+    public function eventUpdate(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'events', $id); }
+    public function eventDelete(Request $request, string $id): JsonResponse { return $this->genericDelete($request, 'events', $id); }
+    public function eventRegistrations(Request $request, string $id): JsonResponse { $request->merge(['event_id' => $id]); return $this->genericIndex($request, 'event_rsvps'); }
+    public function eventAttendees(Request $request, string $id): JsonResponse { return $this->eventRegistrations($request, $id); }
+    public function eventSpeakersStore(Request $request, string $id): JsonResponse { $request->merge(['event_id' => $id]); return $this->genericUpsert($request, 'event_speakers'); }
+    public function eventSpeakersUpdate(Request $request, string $id, string $speakerId): JsonResponse { return $this->genericUpsert($request, 'event_speakers', $speakerId); }
+    public function eventSpeakersDelete(Request $request, string $id, string $speakerId): JsonResponse { return $this->genericDelete($request, 'event_speakers', $speakerId); }
+    public function eventExpensesStore(Request $request, string $id): JsonResponse { $request->merge(['event_id' => $id]); return $this->genericUpsert($request, 'event_expenses'); }
+    public function eventExpenses(Request $request, string $id): JsonResponse { $request->merge(['event_id' => $id]); return $this->genericIndex($request, 'event_expenses'); }
+    public function eventSponsorshipStore(Request $request, string $id): JsonResponse { $request->merge(['event_id' => $id]); return $this->genericUpsert($request, 'event_sponsors'); }
+    public function eventPnl(Request $request, string $id): JsonResponse { return $this->dashboardRevenue($request); }
+    public function eventApprove(Request $request, string $id): JsonResponse { $request->merge(['status' => 'approved']); return $this->genericUpsert($request, 'events', $id); }
+    public function eventReject(Request $request, string $id): JsonResponse { $request->merge(['status' => 'rejected']); return $this->genericUpsert($request, 'events', $id); }
+
+    public function billingInvoices(Request $request): JsonResponse { return $this->payments($request); }
+    public function billingInvoiceShow(Request $request, string $id): JsonResponse { return $this->paymentShow($request, $id); }
+    public function billingSubscriptions(Request $request): JsonResponse { return $this->genericIndex($request, 'circle_subscriptions'); }
+    public function billingPlans(Request $request): JsonResponse { return $this->genericIndex($request, 'membership_plans'); }
+    public function billingPlanUpdate(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'membership_plans', $id); }
+
+    public function formLeaderInterest(Request $request): JsonResponse { return $this->genericIndex($request, 'leader_interest_submissions'); }
+    public function formLeaderInterestShow(Request $request, string $id): JsonResponse { return $this->genericShow($request, 'leader_interest_submissions', $id); }
+    public function formLeaderInterestApprove(Request $request, string $id): JsonResponse { $request->merge(['status' => 'approved']); return $this->genericUpsert($request, 'leader_interest_submissions', $id); }
+    public function formLeaderInterestReject(Request $request, string $id): JsonResponse { $request->merge(['status' => 'rejected']); return $this->genericUpsert($request, 'leader_interest_submissions', $id); }
+    public function formRegisterVisitor(Request $request): JsonResponse { return $this->genericIndex($request, 'visitor_registrations'); }
+    public function formRegisterVisitorShow(Request $request, string $id): JsonResponse { return $this->genericShow($request, 'visitor_registrations', $id); }
+    public function formRegisterVisitorStatus(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'visitor_registrations', $id); }
+    public function formRecommendPeer(Request $request): JsonResponse { return $this->genericIndex($request, 'peer_recommendations'); }
+    public function formRecommendPeerShow(Request $request, string $id): JsonResponse { return $this->genericShow($request, 'peer_recommendations', $id); }
+    public function formRecommendPeerStatus(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'peer_recommendations', $id); }
+
+    public function notificationLogs(Request $request): JsonResponse { return $this->genericIndex($request, 'notifications'); }
+    public function notificationBroadcast(Request $request): JsonResponse { return $this->genericUpsert($request, 'broadcast_messages'); }
+    public function notificationTemplates(Request $request): JsonResponse { return $this->genericIndex($request, 'communication_templates'); }
+    public function notificationTemplateStore(Request $request): JsonResponse { return $this->genericUpsert($request, 'communication_templates'); }
+    public function notificationTemplateUpdate(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'communication_templates', $id); }
+    public function circulars(Request $request): JsonResponse { return $this->genericIndex($request, 'circulars'); }
+    public function circularStore(Request $request): JsonResponse { return $this->genericUpsert($request, 'circulars'); }
+    public function circularUpdate(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'circulars', $id); }
+    public function circularDelete(Request $request, string $id): JsonResponse { return $this->genericDelete($request, 'circulars', $id); }
+
+    public function circleMeetings(Request $request, string $circleId): JsonResponse { $request->merge(['circle_id' => $circleId]); return $this->genericIndex($request, 'circle_meetings'); }
+    public function circleMeetingsStore(Request $request, string $circleId): JsonResponse { $request->merge(['circle_id' => $circleId]); return $this->genericUpsert($request, 'circle_meetings'); }
+    public function meetingShow(Request $request, string $id): JsonResponse { return $this->genericShow($request, 'circle_meetings', $id); }
+    public function meetingUpdate(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'circle_meetings', $id); }
+    public function meetingAttendanceStore(Request $request, string $id): JsonResponse { $request->merge(['meeting_id' => $id]); return $this->genericUpsert($request, 'attendance_records'); }
+    public function meetingAttendance(Request $request, string $id): JsonResponse { $request->merge(['meeting_id' => $id]); return $this->genericIndex($request, 'attendance_records'); }
+    public function attendanceUpdate(Request $request, string $id): JsonResponse { return $this->genericUpsert($request, 'attendance_records', $id); }
+    public function meetingSubstitutesStore(Request $request, string $id): JsonResponse { $request->merge(['meeting_id' => $id]); return $this->genericUpsert($request, 'substitute_logs'); }
+    public function warnings(Request $request): JsonResponse { return $this->genericIndex($request, 'absence_warnings'); }
+    public function warningResolve(Request $request, string $id): JsonResponse { $request->merge(['is_resolved' => true]); return $this->genericUpsert($request, 'absence_warnings', $id); }
+
+    public function reportMembers(Request $request): JsonResponse { return $this->users($request); }
+    public function reportCircles(Request $request): JsonResponse { return $this->genericIndex($request, 'circles'); }
+    public function reportIndustries(Request $request): JsonResponse { return $this->genericIndex($request, 'industries'); }
+    public function reportRevenue(Request $request): JsonResponse { return $this->dashboardRevenue($request); }
+    public function reportImpacts(Request $request): JsonResponse { return $this->impacts($request); }
+    public function reportEvents(Request $request): JsonResponse { return $this->events($request); }
+    public function reportCoinClaims(Request $request): JsonResponse { return $this->coinClaims($request); }
+    public function reportJoinRequests(Request $request): JsonResponse { return $this->genericIndex($request, 'circle_join_requests'); }
+    public function reportExport(Request $request): JsonResponse { return $this->revenueByMember($request); }
+
     public function genericIndex(Request $request, string $table): JsonResponse
     {
         $this->authorizeAdmin($request);
