@@ -48,7 +48,13 @@ use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\AdController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
+use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
+use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
+use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
+use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
+use App\Http\Controllers\Api\V1\Admin\LeadershipController;
+use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\CircleCategoryController;
@@ -195,6 +201,171 @@ Route::prefix('v1')->group(function () {
             Route::post('/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
+
+            Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
+            Route::get('/dashboard/revenue', [DashboardController::class, 'revenue']);
+            Route::get('/dashboard/life-impact', [DashboardController::class, 'lifeImpact']);
+            Route::get('/dashboard/members-growth', [DashboardController::class, 'membersGrowth']);
+            Route::get('/dashboard/circles-overview', [DashboardController::class, 'circlesOverview']);
+            Route::get('/dashboard/pending-counts', [DashboardController::class, 'pendingCounts']);
+
+            Route::get('/users', [UserManagementController::class, 'index']);
+            Route::get('/users/{id}', [UserManagementController::class, 'show'])->whereUuid('id');
+            Route::put('/users/{id}', [UserManagementController::class, 'update'])->whereUuid('id');
+            Route::patch('/users/{id}/status', [UserManagementController::class, 'patchStatus'])->whereUuid('id');
+            Route::patch('/users/{id}/membership-status', [UserManagementController::class, 'patchMembershipStatus'])->whereUuid('id');
+            Route::patch('/users/{id}/assign-role', [UserManagementController::class, 'assignRole'])->whereUuid('id');
+            Route::patch('/users/{id}/remove-role', [UserManagementController::class, 'removeRole'])->whereUuid('id');
+            Route::get('/users/{id}/activity-summary', [UserManagementController::class, 'activitySummary'])->whereUuid('id');
+            Route::get('/users/{id}/payment-history', [UserManagementController::class, 'paymentHistory'])->whereUuid('id');
+            Route::get('/users/{id}/impact-history', [UserManagementController::class, 'impactHistory'])->whereUuid('id');
+            Route::get('/users/{id}/circle-memberships', [UserManagementController::class, 'circleMemberships'])->whereUuid('id');
+
+            Route::get('/leadership/roles', [LeadershipController::class, 'roles']);
+            Route::get('/leadership/applications', [LeadershipController::class, 'applications']);
+            Route::get('/leadership/applications/{id}', [LeadershipController::class, 'applicationShow'])->whereUuid('id');
+            Route::patch('/leadership/applications/{id}/approve', [LeadershipController::class, 'applicationApprove'])->whereUuid('id');
+            Route::patch('/leadership/applications/{id}/reject', [LeadershipController::class, 'applicationReject'])->whereUuid('id');
+            Route::post('/leadership/assignments', [LeadershipController::class, 'assignmentStore']);
+            Route::put('/leadership/assignments/{id}', [LeadershipController::class, 'assignmentUpdate'])->whereUuid('id');
+            Route::delete('/leadership/assignments/{id}', [LeadershipController::class, 'assignmentDelete'])->whereUuid('id');
+            Route::get('/leadership/assignments', [LeadershipController::class, 'assignments']);
+            Route::get('/leadership/performance', [LeadershipController::class, 'performance']);
+
+            Route::get('/industries', [IndustryManagementController::class, 'index']);
+            Route::post('/industries', [IndustryManagementController::class, 'store']);
+            Route::get('/industries/{id}', [IndustryManagementController::class, 'show'])->whereUuid('id');
+            Route::put('/industries/{id}', [IndustryManagementController::class, 'update'])->whereUuid('id');
+            Route::delete('/industries/{id}', [IndustryManagementController::class, 'destroy'])->whereUuid('id');
+            Route::patch('/industries/{id}/assign-id', [IndustryManagementController::class, 'assignId'])->whereUuid('id');
+            Route::get('/industries/{id}/circles', [IndustryManagementController::class, 'circles'])->whereUuid('id');
+            Route::get('/industries/{id}/stats', [IndustryManagementController::class, 'stats'])->whereUuid('id');
+
+            Route::get('/circles', [CircleManagementController::class, 'index']);
+            Route::post('/circles', [CircleManagementController::class, 'store']);
+            Route::get('/circles/{id}', [CircleManagementController::class, 'show'])->whereUuid('id');
+            Route::put('/circles/{id}', [CircleManagementController::class, 'update'])->whereUuid('id');
+            Route::patch('/circles/{id}/status', [CircleManagementController::class, 'patchStatus'])->whereUuid('id');
+            Route::patch('/circles/{id}/assign-founder', [CircleManagementController::class, 'assignFounder'])->whereUuid('id');
+            Route::patch('/circles/{id}/assign-director', [CircleManagementController::class, 'assignDirector'])->whereUuid('id');
+            Route::patch('/circles/{id}/assign-leadership-team', [CircleManagementController::class, 'assignLeadershipTeam'])->whereUuid('id');
+            Route::get('/circles/{id}/join-requests', [CircleManagementController::class, 'joinRequests'])->whereUuid('id');
+            Route::get('/circles/{id}/members', [CircleManagementController::class, 'members'])->whereUuid('id');
+            Route::post('/circles/{id}/members', [CircleManagementController::class, 'addMember'])->whereUuid('id');
+            Route::delete('/circles/{id}/members/{userId}', [CircleManagementController::class, 'removeMember'])->whereUuid('id')->whereUuid('userId');
+            Route::get('/circles/{id}/health', [CircleManagementController::class, 'health'])->whereUuid('id');
+            Route::get('/circles/{id}/performance', [CircleManagementController::class, 'performance'])->whereUuid('id');
+            Route::patch('/circles/{id}/package', [CircleManagementController::class, 'patchPackage'])->whereUuid('id');
+
+            Route::get('/circle-join-requests', [AdminOpsController::class, 'joinRequests']);
+            Route::get('/circle-join-requests/{id}', [AdminOpsController::class, 'joinRequestShow'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/cd-approve', [AdminOpsController::class, 'joinCdApprove'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/cd-reject', [AdminOpsController::class, 'joinCdReject'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/id-approve', [AdminOpsController::class, 'joinIdApprove'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/id-reject', [AdminOpsController::class, 'joinIdReject'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/mark-paid', [AdminOpsController::class, 'joinMarkPaid'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/cancel', [AdminOpsController::class, 'joinCancel'])->whereUuid('id');
+
+            Route::get('/impacts', [AdminOpsController::class, 'impacts']);
+            Route::get('/impacts/pending', [AdminOpsController::class, 'impactsPending']);
+            Route::get('/impacts/history', [AdminOpsController::class, 'impactsHistory']);
+            Route::get('/impacts/{id}', [AdminOpsController::class, 'impactShow'])->whereUuid('id');
+            Route::patch('/impacts/{id}/approve', [AdminOpsController::class, 'impactApprove'])->whereUuid('id');
+            Route::patch('/impacts/{id}/reject', [AdminOpsController::class, 'impactReject'])->whereUuid('id');
+            Route::get('/impact-actions', [AdminOpsController::class, 'impactActions']);
+            Route::post('/impact-actions', [AdminOpsController::class, 'impactActionStore']);
+            Route::put('/impact-actions/{id}', [AdminOpsController::class, 'impactActionUpdate'])->whereUuid('id');
+            Route::delete('/impact-actions/{id}', [AdminOpsController::class, 'impactActionDelete'])->whereUuid('id');
+
+            Route::get('/coin-claims', [AdminOpsController::class, 'coinClaims']);
+            Route::get('/coin-claims/{id}', [AdminOpsController::class, 'coinClaimShow'])->whereUuid('id');
+            Route::patch('/coin-claims/{id}/approve', [AdminOpsController::class, 'coinClaimApprove'])->whereUuid('id');
+            Route::patch('/coin-claims/{id}/reject', [AdminOpsController::class, 'coinClaimReject'])->whereUuid('id');
+            Route::get('/coin-rules', [AdminOpsController::class, 'coinRules']);
+            Route::post('/coin-rules', [AdminOpsController::class, 'coinRulesStore']);
+            Route::put('/coin-rules/{id}', [AdminOpsController::class, 'coinRulesUpdate']);
+            Route::delete('/coin-rules/{id}', [AdminOpsController::class, 'coinRulesDelete']);
+
+            Route::get('/events', [AdminOpsController::class, 'events']);
+            Route::post('/events', [AdminOpsController::class, 'eventStore']);
+            Route::get('/events/{id}', [AdminOpsController::class, 'eventShow'])->whereUuid('id');
+            Route::put('/events/{id}', [AdminOpsController::class, 'eventUpdate'])->whereUuid('id');
+            Route::delete('/events/{id}', [AdminOpsController::class, 'eventDelete'])->whereUuid('id');
+            Route::get('/events/{id}/registrations', [AdminOpsController::class, 'eventRegistrations'])->whereUuid('id');
+            Route::get('/events/{id}/attendees', [AdminOpsController::class, 'eventAttendees'])->whereUuid('id');
+            Route::post('/events/{id}/speakers', [AdminOpsController::class, 'eventSpeakerStore'])->whereUuid('id');
+            Route::put('/events/{id}/speakers/{speakerId}', [AdminOpsController::class, 'eventSpeakerUpdate'])->whereUuid('id');
+            Route::delete('/events/{id}/speakers/{speakerId}', [AdminOpsController::class, 'eventSpeakerDelete'])->whereUuid('id');
+            Route::post('/events/{id}/expenses', [AdminOpsController::class, 'eventExpenseStore'])->whereUuid('id');
+            Route::get('/events/{id}/expenses', [AdminOpsController::class, 'eventExpenses'])->whereUuid('id');
+            Route::post('/events/{id}/sponsorships', [AdminOpsController::class, 'eventSponsorshipStore'])->whereUuid('id');
+            Route::get('/events/{id}/pnl', [AdminOpsController::class, 'eventPnl'])->whereUuid('id');
+            Route::patch('/events/{id}/approve', [AdminOpsController::class, 'eventApprove'])->whereUuid('id');
+            Route::patch('/events/{id}/reject', [AdminOpsController::class, 'eventReject'])->whereUuid('id');
+
+            Route::get('/payments', [AdminOpsController::class, 'payments']);
+            Route::get('/payments/{id}', [AdminOpsController::class, 'paymentShow'])->whereUuid('id');
+            Route::get('/revenue/summary', [AdminOpsController::class, 'revenueSummary']);
+            Route::get('/revenue/by-circle', [AdminOpsController::class, 'revenueByCircle']);
+            Route::get('/revenue/by-industry', [AdminOpsController::class, 'revenueByIndustry']);
+            Route::get('/revenue/by-member', [AdminOpsController::class, 'revenueByMember']);
+            Route::get('/revenue/export', [AdminOpsController::class, 'revenueExport']);
+            Route::get('/billing/invoices', [AdminOpsController::class, 'billingInvoices']);
+            Route::get('/billing/invoices/{id}', [AdminOpsController::class, 'billingInvoiceShow']);
+            Route::get('/billing/subscriptions', [AdminOpsController::class, 'billingSubscriptions']);
+            Route::get('/billing/plans', [AdminOpsController::class, 'billingPlans']);
+            Route::put('/billing/plans/{id}', [AdminOpsController::class, 'billingPlanUpdate'])->whereUuid('id');
+
+            Route::get('/forms/leader-interest', [AdminOpsController::class, 'leaderInterestForms']);
+            Route::get('/forms/leader-interest/{id}', [AdminOpsController::class, 'leaderInterestFormShow'])->whereUuid('id');
+            Route::patch('/forms/leader-interest/{id}/approve', [AdminOpsController::class, 'leaderInterestApprove'])->whereUuid('id');
+            Route::patch('/forms/leader-interest/{id}/reject', [AdminOpsController::class, 'leaderInterestReject'])->whereUuid('id');
+            Route::get('/forms/register-visitor', [AdminOpsController::class, 'registerVisitorForms']);
+            Route::get('/forms/register-visitor/{id}', [AdminOpsController::class, 'registerVisitorFormShow'])->whereUuid('id');
+            Route::patch('/forms/register-visitor/{id}/status', [AdminOpsController::class, 'registerVisitorStatus'])->whereUuid('id');
+            Route::get('/forms/recommend-peer', [AdminOpsController::class, 'recommendPeerForms']);
+            Route::get('/forms/recommend-peer/{id}', [AdminOpsController::class, 'recommendPeerFormShow'])->whereUuid('id');
+            Route::patch('/forms/recommend-peer/{id}/status', [AdminOpsController::class, 'recommendPeerStatus'])->whereUuid('id');
+
+            Route::get('/posts', [AdminOpsController::class, 'posts']);
+            Route::get('/posts/{id}', [AdminOpsController::class, 'postShow'])->whereUuid('id');
+            Route::patch('/posts/{id}/status', [AdminOpsController::class, 'postStatus'])->whereUuid('id');
+            Route::delete('/posts/{id}', [AdminOpsController::class, 'postDelete'])->whereUuid('id');
+            Route::get('/post-reports', [AdminOpsController::class, 'postReports']);
+            Route::get('/post-reports/{id}', [AdminOpsController::class, 'postReportShow'])->whereUuid('id');
+            Route::patch('/post-reports/{id}/resolve', [AdminOpsController::class, 'postReportResolve'])->whereUuid('id');
+            Route::patch('/post-reports/{id}/dismiss', [AdminOpsController::class, 'postReportDismiss'])->whereUuid('id');
+
+            Route::get('/notifications/logs', [AdminOpsController::class, 'notificationLogs']);
+            Route::post('/notifications/broadcast', [AdminOpsController::class, 'notificationBroadcast']);
+            Route::get('/notifications/templates', [AdminOpsController::class, 'notificationTemplates']);
+            Route::post('/notifications/templates', [AdminOpsController::class, 'notificationTemplateStore']);
+            Route::put('/notifications/templates/{id}', [AdminOpsController::class, 'notificationTemplateUpdate'])->whereUuid('id');
+            Route::get('/circulars', [AdminOpsController::class, 'circulars']);
+            Route::post('/circulars', [AdminOpsController::class, 'circularStore']);
+            Route::put('/circulars/{id}', [AdminOpsController::class, 'circularUpdate'])->whereUuid('id');
+            Route::delete('/circulars/{id}', [AdminOpsController::class, 'circularDelete'])->whereUuid('id');
+
+            Route::get('/circles/{circleId}/meetings', [AdminOpsController::class, 'circleMeetings'])->whereUuid('circleId');
+            Route::post('/circles/{circleId}/meetings', [AdminOpsController::class, 'meetingStore'])->whereUuid('circleId');
+            Route::get('/meetings/{id}', [AdminOpsController::class, 'meetingShow'])->whereUuid('id');
+            Route::put('/meetings/{id}', [AdminOpsController::class, 'meetingUpdate'])->whereUuid('id');
+            Route::post('/meetings/{id}/attendance', [AdminOpsController::class, 'meetingAttendanceStore'])->whereUuid('id');
+            Route::get('/meetings/{id}/attendance', [AdminOpsController::class, 'meetingAttendance'])->whereUuid('id');
+            Route::patch('/attendance/{id}', [AdminOpsController::class, 'attendanceUpdate'])->whereUuid('id');
+            Route::post('/meetings/{id}/substitutes', [AdminOpsController::class, 'meetingSubstituteStore'])->whereUuid('id');
+            Route::get('/warnings', [AdminOpsController::class, 'warnings']);
+            Route::patch('/warnings/{id}/resolve', [AdminOpsController::class, 'warningResolve'])->whereUuid('id');
+
+            Route::get('/reports/members', [AdminOpsController::class, 'reportsMembers']);
+            Route::get('/reports/circles', [AdminOpsController::class, 'reportsCircles']);
+            Route::get('/reports/industries', [AdminOpsController::class, 'reportsIndustries']);
+            Route::get('/reports/revenue', [AdminOpsController::class, 'reportsRevenue']);
+            Route::get('/reports/impacts', [AdminOpsController::class, 'reportsImpacts']);
+            Route::get('/reports/events', [AdminOpsController::class, 'reportsEvents']);
+            Route::get('/reports/coin-claims', [AdminOpsController::class, 'reportsCoinClaims']);
+            Route::get('/reports/join-requests', [AdminOpsController::class, 'reportsJoinRequests']);
+            Route::get('/reports/export', [AdminOpsController::class, 'reportsExport']);
         });
 
         // Circle Chat
