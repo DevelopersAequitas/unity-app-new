@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\AdController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
+use App\Http\Controllers\Api\V1\Admin\AdminPlatformController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
@@ -80,6 +81,7 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use App\Http\Controllers\Api\WalletController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -195,6 +197,184 @@ Route::prefix('v1')->group(function () {
             Route::post('/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
+
+            // Dashboard
+            Route::get('/dashboard/summary', [AdminPlatformController::class, 'dashboardSummary']);
+            Route::get('/dashboard/revenue', [AdminPlatformController::class, 'dashboardRevenue']);
+            Route::get('/dashboard/life-impact', [AdminPlatformController::class, 'impactHistory']);
+            Route::get('/dashboard/members-growth', [AdminPlatformController::class, 'users']);
+            Route::get('/dashboard/circles-overview', [AdminPlatformController::class, 'dashboardSummary']);
+            Route::get('/dashboard/pending-counts', [AdminPlatformController::class, 'pendingCounts']);
+
+            // Users
+            Route::get('/users', [AdminPlatformController::class, 'users']);
+            Route::get('/users/{id}', [AdminPlatformController::class, 'userShow'])->whereUuid('id');
+            Route::put('/users/{id}', [AdminPlatformController::class, 'userUpdate'])->whereUuid('id');
+            Route::patch('/users/{id}/status', [AdminPlatformController::class, 'userUpdate'])->whereUuid('id');
+            Route::patch('/users/{id}/membership-status', [AdminPlatformController::class, 'userUpdate'])->whereUuid('id');
+            Route::patch('/users/{id}/assign-role', [AdminPlatformController::class, 'assignRole'])->whereUuid('id');
+            Route::patch('/users/{id}/remove-role', [AdminPlatformController::class, 'removeRole'])->whereUuid('id');
+            Route::get('/users/{id}/activity-summary', [AdminPlatformController::class, 'impactHistory'])->whereUuid('id');
+            Route::get('/users/{id}/payment-history', [AdminPlatformController::class, 'payments'])->whereUuid('id');
+            Route::get('/users/{id}/impact-history', [AdminPlatformController::class, 'impactHistory'])->whereUuid('id');
+            Route::get('/users/{id}/circle-memberships', [AdminPlatformController::class, 'userShow'])->whereUuid('id');
+
+            // Join requests
+            Route::patch('/circle-join-requests/{id}/cd-approve', [CircleJoinRequestAdminController::class, 'approveCd'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/cd-reject', [CircleJoinRequestAdminController::class, 'rejectCd'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/id-approve', [CircleJoinRequestAdminController::class, 'approveId'])->whereUuid('id');
+            Route::patch('/circle-join-requests/{id}/id-reject', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
+
+            // Impacts
+            Route::get('/impacts', [AdminPlatformController::class, 'impacts']);
+            Route::get('/impacts/pending', [AdminPlatformController::class, 'impactPending']);
+            Route::get('/impacts/history', [AdminPlatformController::class, 'impactHistory']);
+            Route::get('/impacts/{id}', [AdminPlatformController::class, 'impactShow'])->whereUuid('id');
+            Route::patch('/impacts/{impact}/approve', [AdminPlatformController::class, 'approveImpact'])->whereUuid('impact');
+            Route::patch('/impacts/{impact}/reject', [AdminPlatformController::class, 'rejectImpact'])->whereUuid('impact');
+            Route::get('/impact-actions', [AdminPlatformController::class, 'impactActions']);
+            Route::post('/impact-actions', [AdminPlatformController::class, 'impactActionStore']);
+            Route::put('/impact-actions/{id}', [AdminPlatformController::class, 'impactActionUpdate'])->whereUuid('id');
+            Route::delete('/impact-actions/{id}', [AdminPlatformController::class, 'impactActionDelete'])->whereUuid('id');
+
+            // Coins
+            Route::get('/coin-claims', [AdminPlatformController::class, 'coinClaims']);
+            Route::get('/coin-claims/{id}', [AdminPlatformController::class, 'coinClaimShow'])->whereUuid('id');
+            Route::patch('/coin-claims/{id}/approve', [AdminPlatformController::class, 'coinClaimApprove'])->whereUuid('id');
+            Route::patch('/coin-claims/{id}/reject', [AdminPlatformController::class, 'coinClaimReject'])->whereUuid('id');
+            Route::get('/coin-rules', [AdminPlatformController::class, 'coinRules']);
+            Route::post('/coin-rules', [AdminPlatformController::class, 'coinRuleStore']);
+            Route::put('/coin-rules/{id}', [AdminPlatformController::class, 'coinRuleUpdate'])->whereUuid('id');
+            Route::delete('/coin-rules/{id}', [AdminPlatformController::class, 'coinRuleDelete'])->whereUuid('id');
+
+            // Payments / revenue
+            Route::get('/payments', [AdminPlatformController::class, 'payments']);
+            Route::get('/payments/{id}', [AdminPlatformController::class, 'paymentShow'])->whereUuid('id');
+            Route::get('/revenue/summary', [AdminPlatformController::class, 'dashboardRevenue']);
+            Route::get('/revenue/by-member', [AdminPlatformController::class, 'revenueByMember']);
+            Route::get('/revenue/by-circle', [AdminPlatformController::class, 'dashboardRevenue']);
+            Route::get('/revenue/by-industry', [AdminPlatformController::class, 'dashboardRevenue']);
+            Route::get('/revenue/export', [AdminPlatformController::class, 'revenueByMember']);
+
+            // Moderation
+            Route::get('/posts', [AdminPlatformController::class, 'posts']);
+            Route::get('/posts/{id}', [AdminPlatformController::class, 'postShow'])->whereUuid('id');
+            Route::patch('/posts/{id}/status', [AdminPlatformController::class, 'postStatus'])->whereUuid('id');
+            Route::delete('/posts/{id}', [AdminPlatformController::class, 'postDelete'])->whereUuid('id');
+            Route::get('/post-reports', [AdminPlatformController::class, 'postReports']);
+            Route::get('/post-reports/{id}', [AdminPlatformController::class, 'postReportShow'])->whereUuid('id');
+            Route::patch('/post-reports/{id}/resolve', [AdminPlatformController::class, 'postReportResolve'])->whereUuid('id');
+            Route::patch('/post-reports/{id}/dismiss', [AdminPlatformController::class, 'postReportDismiss'])->whereUuid('id');
+
+            // Leadership
+            Route::get('/leadership/roles', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'roles'));
+            Route::get('/leadership/applications', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'leader_interest_submissions'));
+            Route::get('/leadership/applications/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericShow($request, 'leader_interest_submissions', $id))->whereUuid('id');
+            Route::patch('/leadership/applications/{id}/approve', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['status' => 'approved']), 'leader_interest_submissions', $id))->whereUuid('id');
+            Route::patch('/leadership/applications/{id}/reject', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['status' => 'rejected']), 'leader_interest_submissions', $id))->whereUuid('id');
+            Route::post('/leadership/assignments', fn (Request $request) => app(AdminPlatformController::class)->genericUpsert($request, 'leader_role_assignments'));
+            Route::put('/leadership/assignments/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'leader_role_assignments', $id))->whereUuid('id');
+            Route::delete('/leadership/assignments/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericDelete($request, 'leader_role_assignments', $id))->whereUuid('id');
+            Route::get('/leadership/assignments', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'leader_role_assignments'));
+            Route::get('/leadership/performance', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'leadership_scorecards'));
+
+            // Industry APIs
+            Route::get('/industries', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'industries'));
+            Route::post('/industries', fn (Request $request) => app(AdminPlatformController::class)->genericUpsert($request, 'industries'));
+            Route::get('/industries/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericShow($request, 'industries', $id))->whereUuid('id');
+            Route::put('/industries/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'industries', $id))->whereUuid('id');
+            Route::delete('/industries/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericDelete($request, 'industries', $id))->whereUuid('id');
+            Route::patch('/industries/{id}/assign-id', fn (Request $request, string $id) => app(AdminPlatformController::class)->assignRole($request->merge(['role' => 'id', 'industry_id' => $id]), $request->input('user_id')))->whereUuid('id');
+            Route::get('/industries/{id}/circles', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericIndex($request->merge(['industry_id' => $id]), 'circles'))->whereUuid('id');
+            Route::get('/industries/{id}/stats', [AdminPlatformController::class, 'dashboardSummary'])->whereUuid('id');
+
+            // Circle APIs
+            Route::get('/circles', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'circles'));
+            Route::post('/circles', fn (Request $request) => app(AdminPlatformController::class)->genericUpsert($request, 'circles'));
+            Route::get('/circles/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericShow($request, 'circles', $id))->whereUuid('id');
+            Route::put('/circles/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'circles', $id))->whereUuid('id');
+            Route::patch('/circles/{id}/status', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'circles', $id))->whereUuid('id');
+            Route::patch('/circles/{id}/assign-founder', fn (Request $request, string $id) => app(AdminPlatformController::class)->assignRole($request->merge(['role' => 'cf', 'circle_id' => $id]), $request->input('user_id')))->whereUuid('id');
+            Route::patch('/circles/{id}/assign-director', fn (Request $request, string $id) => app(AdminPlatformController::class)->assignRole($request->merge(['role' => 'cd', 'circle_id' => $id]), $request->input('user_id')))->whereUuid('id');
+            Route::patch('/circles/{id}/assign-leadership-team', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['circle_id' => $id]), 'leader_role_assignments'))->whereUuid('id');
+            Route::get('/circles/{id}/join-requests', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'circle_join_requests'))->whereUuid('id');
+            Route::get('/circles/{id}/members', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request->merge(['circle_id' => $request->route('id')]), 'circle_members'))->whereUuid('id');
+            Route::post('/circles/{id}/members', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['circle_id' => $id]), 'circle_members'))->whereUuid('id');
+            Route::delete('/circles/{id}/members/{userId}', fn (Request $request, string $id, string $userId) => app(AdminPlatformController::class)->genericDelete($request, 'circle_members', $userId))->whereUuid('id')->whereUuid('userId');
+            Route::get('/circles/{id}/health', [AdminPlatformController::class, 'dashboardSummary'])->whereUuid('id');
+            Route::get('/circles/{id}/performance', [AdminPlatformController::class, 'dashboardSummary'])->whereUuid('id');
+            Route::patch('/circles/{id}/package', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'circles', $id))->whereUuid('id');
+
+            // Events
+            Route::get('/events', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'events'));
+            Route::post('/events', fn (Request $request) => app(AdminPlatformController::class)->genericUpsert($request, 'events'));
+            Route::get('/events/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericShow($request, 'events', $id))->whereUuid('id');
+            Route::put('/events/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'events', $id))->whereUuid('id');
+            Route::delete('/events/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericDelete($request, 'events', $id))->whereUuid('id');
+            Route::get('/events/{id}/registrations', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'event_registrations'))->whereUuid('id');
+            Route::get('/events/{id}/attendees', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'event_attendees'))->whereUuid('id');
+            Route::post('/events/{id}/speakers', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['event_id' => $id]), 'event_speakers'))->whereUuid('id');
+            Route::put('/events/{id}/speakers/{speakerId}', fn (Request $request, string $speakerId) => app(AdminPlatformController::class)->genericUpsert($request, 'event_speakers', $speakerId))->whereUuid('id')->whereUuid('speakerId');
+            Route::delete('/events/{id}/speakers/{speakerId}', fn (Request $request, string $speakerId) => app(AdminPlatformController::class)->genericDelete($request, 'event_speakers', $speakerId))->whereUuid('id')->whereUuid('speakerId');
+            Route::post('/events/{id}/expenses', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['event_id' => $id]), 'event_expenses'))->whereUuid('id');
+            Route::get('/events/{id}/expenses', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'event_expenses'))->whereUuid('id');
+            Route::post('/events/{id}/sponsorships', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['event_id' => $id]), 'event_sponsors'))->whereUuid('id');
+            Route::get('/events/{id}/pnl', [AdminPlatformController::class, 'dashboardRevenue'])->whereUuid('id');
+            Route::patch('/events/{id}/approve', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['status' => 'approved']), 'events', $id))->whereUuid('id');
+            Route::patch('/events/{id}/reject', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['status' => 'rejected']), 'events', $id))->whereUuid('id');
+
+            // Billing
+            Route::get('/billing/invoices', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'payments'));
+            Route::get('/billing/invoices/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->paymentShow($request, $id))->whereUuid('id');
+            Route::get('/billing/subscriptions', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'circle_subscriptions'));
+            Route::get('/billing/plans', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'membership_plans'));
+            Route::put('/billing/plans/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'membership_plans', $id))->whereUuid('id');
+
+            // Forms
+            Route::get('/forms/leader-interest', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'leader_interest_submissions'));
+            Route::get('/forms/leader-interest/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericShow($request, 'leader_interest_submissions', $id))->whereUuid('id');
+            Route::patch('/forms/leader-interest/{id}/approve', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['status' => 'approved']), 'leader_interest_submissions', $id))->whereUuid('id');
+            Route::patch('/forms/leader-interest/{id}/reject', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['status' => 'rejected']), 'leader_interest_submissions', $id))->whereUuid('id');
+            Route::get('/forms/register-visitor', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'visitor_registrations'));
+            Route::get('/forms/register-visitor/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericShow($request, 'visitor_registrations', $id))->whereUuid('id');
+            Route::patch('/forms/register-visitor/{id}/status', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'visitor_registrations', $id))->whereUuid('id');
+            Route::get('/forms/recommend-peer', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'peer_recommendations'));
+            Route::get('/forms/recommend-peer/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericShow($request, 'peer_recommendations', $id))->whereUuid('id');
+            Route::patch('/forms/recommend-peer/{id}/status', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'peer_recommendations', $id))->whereUuid('id');
+
+            // Notifications / circulars
+            Route::get('/notifications/logs', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'notifications'));
+            Route::post('/notifications/broadcast', fn (Request $request) => app(AdminPlatformController::class)->genericUpsert($request, 'broadcast_messages'));
+            Route::get('/notifications/templates', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'communication_templates'));
+            Route::post('/notifications/templates', fn (Request $request) => app(AdminPlatformController::class)->genericUpsert($request, 'communication_templates'));
+            Route::put('/notifications/templates/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'communication_templates', $id))->whereUuid('id');
+            Route::get('/circulars', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'circulars'));
+            Route::post('/circulars', fn (Request $request) => app(AdminPlatformController::class)->genericUpsert($request, 'circulars'));
+            Route::put('/circulars/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'circulars', $id))->whereUuid('id');
+            Route::delete('/circulars/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericDelete($request, 'circulars', $id))->whereUuid('id');
+
+            // Meetings / attendance / warnings
+            Route::get('/circles/{circleId}/meetings', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'circle_meetings'))->whereUuid('circleId');
+            Route::post('/circles/{circleId}/meetings', fn (Request $request, string $circleId) => app(AdminPlatformController::class)->genericUpsert($request->merge(['circle_id' => $circleId]), 'circle_meetings'))->whereUuid('circleId');
+            Route::get('/meetings/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericShow($request, 'circle_meetings', $id))->whereUuid('id');
+            Route::put('/meetings/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'circle_meetings', $id))->whereUuid('id');
+            Route::post('/meetings/{id}/attendance', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['meeting_id' => $id]), 'attendance_records'))->whereUuid('id');
+            Route::get('/meetings/{id}/attendance', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'attendance_records'))->whereUuid('id');
+            Route::patch('/attendance/{id}', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request, 'attendance_records', $id))->whereUuid('id');
+            Route::post('/meetings/{id}/substitutes', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['meeting_id' => $id]), 'substitute_logs'))->whereUuid('id');
+            Route::get('/warnings', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'absence_warnings'));
+            Route::patch('/warnings/{id}/resolve', fn (Request $request, string $id) => app(AdminPlatformController::class)->genericUpsert($request->merge(['is_resolved' => true]), 'absence_warnings', $id))->whereUuid('id');
+
+            // Reports
+            Route::get('/reports/members', fn (Request $request) => app(AdminPlatformController::class)->users($request));
+            Route::get('/reports/circles', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'circles'));
+            Route::get('/reports/industries', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'industries'));
+            Route::get('/reports/revenue', fn (Request $request) => app(AdminPlatformController::class)->dashboardRevenue($request));
+            Route::get('/reports/impacts', fn (Request $request) => app(AdminPlatformController::class)->impacts($request));
+            Route::get('/reports/events', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'events'));
+            Route::get('/reports/coin-claims', fn (Request $request) => app(AdminPlatformController::class)->coinClaims($request));
+            Route::get('/reports/join-requests', fn (Request $request) => app(AdminPlatformController::class)->genericIndex($request, 'circle_join_requests'));
+            Route::get('/reports/export', fn (Request $request) => app(AdminPlatformController::class)->revenueByMember($request));
         });
 
         // Circle Chat
