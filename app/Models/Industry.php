@@ -43,4 +43,9 @@ class Industry extends Model
     {
         return $this->hasMany(self::class, 'parent_id');
     }
+
+    public function circles(): HasMany
+    {
+        return $this->hasMany(Circle::class, 'industry_id');
+    }
 }
