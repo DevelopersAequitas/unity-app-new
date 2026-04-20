@@ -68,47 +68,91 @@ class ChatController extends BaseApiController
 
     public function storeChat(StoreChatRequest $request, PeerBlockService $peerBlockService)
     {
-        $authUserId = (string) auth()->id();
+        $authUser = $request->user();
+
+        if (! $authUser) {
+            return $this->error('Unauthenticated.', 401);
+        }
+
+        $authUserId = (string) $authUser->id;
         $data = $request->validated();
-        $otherUserId = (string) ($data['user_id'] ?? $request->input('user_id'));
+        $otherUserId = (string) $data['user_id'];
+
+        Log::info('storeChat auth user', [
+            'auth_user_id' => $authUserId,
+        ]);
+
+        Log::info('storeChat requested user', [
+            'requested_user_id' => $otherUserId,
+        ]);
 
         if ($authUserId === $otherUserId) {
             return $this->error('You cannot start a chat with yourself', 422);
         }
 
-
         if ($peerBlockService->isBlockedEitherWay($authUserId, $otherUserId)) {
             return $this->error('You cannot interact with this peer.', 422);
         }
 
-        $otherUser = User::find($otherUserId);
+        $otherUser = User::query()->where('id', $otherUserId)->first();
+
         if (! $otherUser) {
             return $this->error('User not found', 404);
         }
 
-        [$userSmall, $userBig] = strcmp($authUserId, $otherUserId) <= 0
-            ? [$authUserId, $otherUserId]
-            : [$otherUserId, $authUserId];
-
-        $chat = Chat::where('user1_id', $userSmall)
-            ->where('user2_id', $userBig)
+        $chat = Chat::query()
+            ->where(function ($q) use ($authUserId, $otherUserId) {
+                $q->where('user1_id', $authUserId)
+                    ->where('user2_id', $otherUserId);
+            })
+            ->orWhere(function ($q) use ($authUserId, $otherUserId) {
+                $q->where('user1_id', $otherUserId)
+                    ->where('user2_id', $authUserId);
+            })
             ->first();
+
+        Log::info('storeChat existing chat result', [
+            'auth_user_id' => $authUserId,
+            'requested_user_id' => $otherUserId,
+            'existing_chat_id' => $chat?->id,
+        ]);
 
         if (! $chat) {
             try {
+                [$userSmall, $userBig] = strcmp($authUserId, $otherUserId) <= 0
+                    ? [$authUserId, $otherUserId]
+                    : [$otherUserId, $authUserId];
+
                 $chat = Chat::create([
                     'user1_id' => $userSmall,
                     'user2_id' => $userBig,
                 ]);
             } catch (QueryException $e) {
-                $chat = Chat::where('user1_id', $userSmall)
-                    ->where('user2_id', $userBig)
+                $chat = Chat::query()
+                    ->where(function ($q) use ($authUserId, $otherUserId) {
+                        $q->where('user1_id', $authUserId)
+                            ->where('user2_id', $otherUserId);
+                    })
+                    ->orWhere(function ($q) use ($authUserId, $otherUserId) {
+                        $q->where('user1_id', $otherUserId)
+                            ->where('user2_id', $authUserId);
+                    })
                     ->first();
 
                 if (! $chat) {
-                    throw $e;
+                    Log::error('storeChat failed to create or fetch chat', [
+                        'auth_user_id' => $authUserId,
+                        'requested_user_id' => $otherUserId,
+                        'exception_message' => $e->getMessage(),
+                    ]);
+
+                    return $this->error('Unable to create chat at the moment.', 500);
                 }
             }
+        }
+
+        if (! $chat) {
+            return $this->error('Unable to resolve chat.', 500);
         }
 
         $chat->load([
