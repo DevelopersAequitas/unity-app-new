@@ -45,7 +45,10 @@ class LifeImpactService
                 $normalizedMeta = $encodedMeta === false ? null : $encodedMeta;
             }
 
-            DB::table($historyTable)->insert([
+            $actionKey = Str::of($activityType)->lower()->replaceMatches('/[^a-z0-9]+/', '_')->trim('_')->value();
+            $actionLabel = $title !== '' ? $title : Str::of($activityType)->replace('_', ' ')->title()->value();
+
+            $payload = [
                 'id' => (string) Str::uuid(),
                 'user_id' => $userId,
                 'triggered_by_user_id' => $triggeredByUserId,
@@ -57,7 +60,33 @@ class LifeImpactService
                 'meta' => $normalizedMeta,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+
+            if (Schema::hasColumn($historyTable, 'life_impacted')) {
+                $payload['life_impacted'] = $impactValue;
+            }
+
+            if (Schema::hasColumn($historyTable, 'counted_in_total')) {
+                $payload['counted_in_total'] = true;
+            }
+
+            if (Schema::hasColumn($historyTable, 'impact_category')) {
+                $payload['impact_category'] = $activityType;
+            }
+
+            if (Schema::hasColumn($historyTable, 'action_key')) {
+                $payload['action_key'] = $actionKey !== '' ? $actionKey : 'referral_registration';
+            }
+
+            if (Schema::hasColumn($historyTable, 'action_label')) {
+                $payload['action_label'] = $actionLabel !== '' ? $actionLabel : null;
+            }
+
+            if (Schema::hasColumn($historyTable, 'status')) {
+                $payload['status'] = 'approved';
+            }
+
+            DB::table($historyTable)->insert($payload);
 
             return $this->getCurrentTotal($userId);
         });
