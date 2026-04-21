@@ -259,13 +259,13 @@ class AdminExecutionController extends Controller
         $statuses = [];
         $distinct = DB::table('payments')->select('status')->whereNotNull('status')->distinct()->pluck('status')->map(fn ($s) => strtolower((string) $s))->all();
 
-        foreach (['success', 'paid', 'completed'] as $candidate) {
+        foreach (['created', 'success', 'paid', 'completed', 'captured'] as $candidate) {
             if (in_array($candidate, $distinct, true)) {
                 $statuses[] = $candidate;
             }
         }
 
-        return $statuses !== [] ? $statuses : ['success'];
+        return $statuses !== [] ? $statuses : ['created', 'success', 'paid', 'completed', 'captured'];
     }
 
     private function derivePaymentCategory(Payment $payment): string
