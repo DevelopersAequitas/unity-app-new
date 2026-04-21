@@ -103,14 +103,14 @@ class ReferralService
     {
         $normalized = strtoupper(trim($code));
         $userColumn = $this->referralLinksUserColumn();
+        $codeColumn = $this->referralLinksCodeColumn();
 
         $row = DB::table('referral_links as rl')
             ->join('users as u', 'u.id', '=', 'rl.' . $userColumn)
-            ->where('rl.token', $normalized)
+            ->where('rl.' . $codeColumn, $normalized)
             ->select([
                 DB::raw('rl."' . $userColumn . '" as "user_id"'),
-                DB::raw('rl."token" as "referral_code"'),
-                DB::raw('CONCAT(\'https://peersglobal.com/join/\', rl."token") as "referral_link"'),
+                DB::raw('rl."' . $codeColumn . '" as "referral_code"'),
                 'u.first_name',
                 'u.last_name',
                 'u.display_name',
@@ -131,7 +131,7 @@ class ReferralService
         return [
             'referrer_user_id' => (string) $row->user_id,
             'referral_code' => (string) $row->referral_code,
-            'referral_link' => (string) $row->referral_link,
+            'referral_link' => $this->buildReferralLinkFromToken((string) $row->referral_code),
             'referrer_name' => trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '') . ' ' . ($row->last_name ?? '')))),
             'referrer_email' => (string) ($row->email ?? ''),
         ];
@@ -162,10 +162,11 @@ class ReferralService
     {
         $normalized = strtoupper(trim($code));
         $userColumn = $this->referralLinksUserColumn();
+        $codeColumn = $this->referralLinksCodeColumn();
 
-        return DB::transaction(function () use ($newUser, $normalized, $userColumn) {
+        return DB::transaction(function () use ($newUser, $normalized, $userColumn, $codeColumn) {
             $link = DB::table('referral_links')
-                ->where('token', $normalized)
+                ->where($codeColumn, $normalized)
                 ->lockForUpdate()
                 ->first();
 
