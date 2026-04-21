@@ -39,6 +39,12 @@ class LifeImpactService
                     'updated_at' => now(),
                 ]);
 
+            $normalizedMeta = null;
+            if (! empty($meta)) {
+                $encodedMeta = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $normalizedMeta = $encodedMeta === false ? null : $encodedMeta;
+            }
+
             DB::table($historyTable)->insert([
                 'id' => (string) Str::uuid(),
                 'user_id' => $userId,
@@ -48,7 +54,7 @@ class LifeImpactService
                 'impact_value' => $impactValue,
                 'title' => $title,
                 'description' => $description,
-                'meta' => $meta ?: null,
+                'meta' => $normalizedMeta,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
