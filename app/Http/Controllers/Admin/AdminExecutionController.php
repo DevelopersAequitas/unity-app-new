@@ -39,7 +39,7 @@ class AdminExecutionController extends Controller
             ->join('users', 'users.id', '=', 'cm.user_id')
             ->join('circles', 'circles.id', '=', 'cm.circle_id')
             ->whereIn(DB::raw('cm.role::text'), ['founder', 'director', 'chair', 'vice_chair', 'secretary', 'committee_leader'])
-            ->selectRaw('cm.id, cm.user_id, cm.circle_id, cm.role::text as role, cm.status, users.display_name, circles.name as circle_name, cm.created_at')
+            ->selectRaw("cm.id, cm.user_id, cm.circle_id, cm.role::text as role, cm.status, COALESCE(NULLIF(users.display_name, ''), NULLIF(TRIM(CONCAT_WS(' ', users.first_name, users.last_name)), ''), users.email, cm.user_id::text) as user_name, circles.name as circle_name, cm.created_at")
             ->orderByDesc('cm.created_at')
             ->paginate(20, ['*'], 'assignments_page');
 
@@ -133,7 +133,19 @@ class AdminExecutionController extends Controller
             'amount_column' => $amountColumn,
         ];
 
-        $subscriptions = User::query()->whereNotNull('zoho_subscription_id')->select('id', 'display_name', 'zoho_subscription_id', 'zoho_plan_code', 'membership_status')->limit(50)->get();
+        $subscriptions = User::query()
+            ->whereNotNull('zoho_subscription_id')
+            ->select('id', 'display_name', 'first_name', 'last_name', 'email', 'zoho_subscription_id', 'zoho_plan_code', 'membership_status')
+            ->limit(50)
+            ->get()
+            ->map(function (User $user) {
+                $user->display_user = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+                if ($user->display_user === '') {
+                    $user->display_user = $user->email ?: (string) $user->id;
+                }
+
+                return $user;
+            });
 
         return view('admin/execution/finance', compact('payments', 'summary', 'subscriptions'));
     }
@@ -189,7 +201,7 @@ class AdminExecutionController extends Controller
             ? DB::table($warningTable . ' as aw')
                 ->leftJoin('users', 'users.id', '=', 'aw.user_id')
                 ->leftJoin('circles', 'circles.id', '=', 'aw.circle_id')
-                ->select('aw.*', DB::raw("COALESCE(NULLIF(users.display_name, ''), users.email, aw.user_id::text) as user_name"), 'circles.name as circle_name')
+                ->select('aw.*', DB::raw("COALESCE(NULLIF(users.display_name, ''), NULLIF(TRIM(CONCAT_WS(' ', users.first_name, users.last_name)), ''), users.email, aw.user_id::text) as user_name"), 'circles.name as circle_name')
                 ->latest('aw.created_at')
                 ->paginate(20, ['*'], 'warnings_page')
             : $this->emptyPaginator(20, 'warnings_page');
@@ -259,13 +271,13 @@ class AdminExecutionController extends Controller
         $statuses = [];
         $distinct = DB::table('payments')->select('status')->whereNotNull('status')->distinct()->pluck('status')->map(fn ($s) => strtolower((string) $s))->all();
 
-        foreach (['created', 'success', 'paid', 'completed', 'captured'] as $candidate) {
+        foreach (['success', 'paid', 'completed', 'captured', 'payment_success'] as $candidate) {
             if (in_array($candidate, $distinct, true)) {
                 $statuses[] = $candidate;
             }
         }
 
-        return $statuses !== [] ? $statuses : ['created', 'success', 'paid', 'completed', 'captured'];
+        return $statuses !== [] ? $statuses : ['success', 'paid', 'completed', 'captured', 'payment_success'];
     }
 
     private function derivePaymentCategory(Payment $payment): string
