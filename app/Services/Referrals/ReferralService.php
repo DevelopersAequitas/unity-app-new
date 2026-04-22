@@ -35,20 +35,33 @@ class ReferralService
         $codeColumn = $this->referralLinksCodeColumn();
         $existing = $this->getReferralLinkRowByUserId((string) $user->id);
 
-        if ($existing && filled($existing->referral_code)) {
+        $existingCode = is_string($existing?->referral_code) ? trim($existing->referral_code) : '';
+
+        if ($existing && $existingCode !== '') {
+            $link = $this->buildReferralLinkFromToken($existingCode);
+
+            if (($existing->referral_link ?? null) !== $link) {
+                DB::table('referral_links')
+                    ->where('id', $existing->id)
+                    ->update([
+                        'referral_link' => $link,
+                        'updated_at' => now(),
+                    ]);
+            }
+
             Log::info('referral.code.existing_returned', [
                 'referrer_user_id' => (string) $user->id,
-                'referral_code' => (string) $existing->referral_code,
+                'referral_code' => $existingCode,
             ]);
 
             return [
-                'referral_code' => (string) $existing->referral_code,
-                'referral_link' => (string) $existing->referral_link,
+                'referral_code' => $existingCode,
+                'referral_link' => $link,
                 'is_existing' => true,
             ];
         }
 
-        $code = $this->referralCodeService->generateUniqueCode('', $codeColumn);
+        $code = $this->generateUniqueReferralToken($user, $codeColumn);
         $link = $this->buildReferralLinkFromToken($code);
 
         if ($existing && ! empty($existing->id)) {
@@ -56,6 +69,7 @@ class ReferralService
                 ->where('id', $existing->id)
                 ->update([
                     $codeColumn => $code,
+                    'referral_link' => $link,
                     'updated_at' => now(),
                 ]);
 
@@ -69,6 +83,7 @@ class ReferralService
         $insertPayload = [
             $this->referralLinksUserColumn() => $user->id,
             $codeColumn => $code,
+            'referral_link' => $link,
             'created_at' => now(),
             'updated_at' => now(),
         ];
@@ -447,6 +462,31 @@ class ReferralService
         ], $stats);
     }
 
+    private function generateUniqueReferralToken(User $user, string $codeColumn): string
+    {
+        return $this->referralCodeService->generateUniqueCode(
+            $this->generateReferralPrefixSource($user),
+            $codeColumn
+        );
+    }
+
+    private function generateReferralPrefixSource(User $user): string
+    {
+        $fullName = trim(trim((string) ($user->first_name ?? '')) . ' ' . trim((string) ($user->last_name ?? '')));
+
+        if ($fullName !== '') {
+            return $fullName;
+        }
+
+        $displayName = trim((string) ($user->display_name ?? ''));
+
+        if ($displayName !== '') {
+            return $displayName;
+        }
+
+        return 'PEERS';
+    }
+
     private function sendReferralEmail(User $referrer, User $referredUser, string $referralCode): void
     {
         if (blank($referrer->email)) {
@@ -533,16 +573,13 @@ class ReferralService
             ->select([
                 'id',
                 DB::raw('"' . $codeColumn . '" as "referral_code"'),
+                'referral_link',
             ])
             ->first();
 
         if (! $row) {
             return null;
         }
-
-        $row->referral_link = filled($row->referral_code)
-            ? $this->buildReferralLinkFromToken((string) $row->referral_code)
-            : null;
 
         return $row;
     }
