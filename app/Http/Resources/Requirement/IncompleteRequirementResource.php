@@ -46,7 +46,7 @@ class IncompleteRequirementResource extends JsonResource
             return null;
         }
 
-        $photoFileId = data_get($user, 'profile_photo_file_id') ?: data_get($user, 'profile_photo_id');
+        $photoFileId = data_get($user, 'profile_photo_file_id');
 
         if ($photoFileId) {
             return url('/api/v1/files/' . $photoFileId);

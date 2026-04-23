@@ -128,7 +128,19 @@ class RequirementController extends Controller
         $perPage = max(1, min((int) $request->query('per_page', 15), 100));
 
         $paginated = Requirement::query()
-            ->with(['user:id,first_name,last_name,display_name,company_name,designation,profile_photo_file_id,profile_photo_id,profile_photo_url,membership_status'])
+            ->with(['user' => function ($query): void {
+                $query->select(
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'display_name',
+                    'company_name',
+                    'designation',
+                    'profile_photo_url',
+                    'profile_photo_file_id',
+                    'membership_status'
+                );
+            }])
             ->whereNull('deleted_at')
             ->where(function ($query): void {
                 $query->whereNull('status')
