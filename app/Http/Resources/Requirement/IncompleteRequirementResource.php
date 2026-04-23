@@ -18,7 +18,15 @@ class IncompleteRequirementResource extends JsonResource
             'id' => (string) $this->id,
             'subject' => $this->subject,
             'description' => $this->description,
-            'media' => $this->media ?? [],
+            'media' => collect($this->media ?? [])->map(function ($item): array {
+                return [
+                    'id' => data_get($item, 'id'),
+                    'type' => data_get($item, 'type'),
+                    'url' => data_get($item, 'id')
+                        ? url('/api/v1/files/' . data_get($item, 'id'))
+                        : null,
+                ];
+            })->values()->all(),
             'region_filter' => $this->region_filter ?? [],
             'category_filter' => $this->category_filter ?? [],
             'status' => $this->status,
