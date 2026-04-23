@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\JoinedCircleCategory;
+use App\Support\MemberMedalResolver;
 use Illuminate\Support\Facades\Schema;
 
 class MemberDetailResource extends UserResource
@@ -11,9 +12,11 @@ class MemberDetailResource extends UserResource
     {
         $data = parent::toArray($request);
 
-        $data['medal_rank'] = $this->coin_medal_rank;
-        $data['title'] = $this->coin_milestone_title;
-        $data['meaning_and_vibe'] = $this->coin_milestone_meaning;
+        $medal = MemberMedalResolver::resolve($this->coins_balance);
+
+        $data['medal_rank'] = $medal['medal_rank'];
+        $data['title'] = $medal['medal_title'];
+        $data['meaning_and_vibe'] = $medal['medal_meaning'];
         $data['contribution_award_name'] = $this->contribution_award_name;
         $data['contribution_recognition'] = $this->contribution_award_recognition;
         $data['categories'] = $this->resolveJoinedCircleCategories();

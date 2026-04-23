@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\User;
+use App\Support\MemberMedalResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -183,6 +184,8 @@ class MemberWithCircleController extends BaseApiController
             ? url('/api/v1/files/' . $profilePhotoId)
             : $legacyProfilePhotoUrl;
 
+        $medal = MemberMedalResolver::resolve($member->coins_balance);
+
         $circles = $member->circleMembers
             ->map(function ($circleMember): array {
                 return [
@@ -272,9 +275,12 @@ class MemberWithCircleController extends BaseApiController
             'status' => $member->status,
             'created_at' => $member->created_at,
             'updated_at' => $this->optionalValue($member, 'updated_at', $availableOptionalColumns),
-            'medal_rank' => $this->optionalValue($member, 'coin_medal_rank', $availableOptionalColumns),
-            'title' => $this->optionalValue($member, 'coin_milestone_title', $availableOptionalColumns),
-            'meaning_and_vibe' => $this->optionalValue($member, 'coin_milestone_meaning', $availableOptionalColumns),
+            'medal_rank' => $medal['medal_rank'],
+            'medal_title' => $medal['medal_title'],
+            'medal_meaning' => $medal['medal_meaning'],
+            'medal_vibe' => $medal['medal_vibe'],
+            'title' => $medal['medal_title'],
+            'meaning_and_vibe' => $medal['medal_meaning'],
             'contribution_award_name' => $this->optionalValue($member, 'contribution_award_name', $availableOptionalColumns),
             'contribution_recognition' => $this->optionalValue($member, 'contribution_award_recognition', $availableOptionalColumns),
         ];

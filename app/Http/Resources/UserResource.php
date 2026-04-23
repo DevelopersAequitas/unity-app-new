@@ -8,6 +8,7 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\User;
+use App\Support\MemberMedalResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
@@ -24,6 +25,7 @@ class UserResource extends JsonResource
         $membershipStatus = $this->effective_membership_status ?? $this->membership_status;
         $resolvedCircle = $this->resolvePrimaryCircleContext();
         $resolvedCircleInfo = $resolvedCircle['circle'] ?? null;
+        $resolvedMedal = MemberMedalResolver::resolve($this->coins_balance);
 
         $resolvedCity = null;
         if ($this->relationLoaded('city') && $this->city) {
@@ -91,6 +93,10 @@ class UserResource extends JsonResource
                 }),
             'circle_memberships' => $this->resolveCircleMemberships(),
             'coins_balance'       => $this->coins_balance,
+            'medal_rank' => $resolvedMedal['medal_rank'],
+            'medal_title' => $resolvedMedal['medal_title'],
+            'medal_meaning' => $resolvedMedal['medal_meaning'],
+            'medal_vibe' => $resolvedMedal['medal_vibe'],
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'business_type'       => $this->business_type,
             'turnover_range'      => $this->turnover_range,
