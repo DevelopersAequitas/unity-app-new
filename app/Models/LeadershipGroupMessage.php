@@ -25,6 +25,7 @@ class LeadershipGroupMessage extends Model
         'sender_user_id',
         'message_type',
         'message_text',
+        'file_id',
         'reply_to_message_id',
         'meta',
     ];
@@ -53,6 +54,11 @@ class LeadershipGroupMessage extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_user_id');
+    }
+
+    public function file(): BelongsTo
+    {
+        return $this->belongsTo(File::class, 'file_id');
     }
 
     public function reads(): HasMany

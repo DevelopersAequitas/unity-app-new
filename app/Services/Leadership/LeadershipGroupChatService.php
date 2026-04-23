@@ -149,6 +149,7 @@ class LeadershipGroupChatService
             })
             ->with([
                 'sender',
+                'file',
                 'reads' => function ($query) use ($user): void {
                     $query->where('user_id', $user->id);
                 },
@@ -169,7 +170,7 @@ class LeadershipGroupChatService
                 ->where('circle_id', $circle->id)
                 ->whereNull('deleted_at')
                 ->whereIn('id', $replyIds)
-                ->with('sender')
+                ->with(['sender', 'file'])
                 ->get()
                 ->keyBy('id');
 
@@ -203,13 +204,14 @@ class LeadershipGroupChatService
                 'circle_id' => $circle->id,
                 'sender_user_id' => $user->id,
                 'message_type' => $data['message_type'],
-                'message_text' => $data['message_text'],
+                'message_text' => $data['message_text'] ?? null,
+                'file_id' => $data['file_id'] ?? null,
                 'reply_to_message_id' => $data['reply_to_message_id'] ?? null,
                 'meta' => null,
             ]);
         });
 
-        $message->load('sender');
+        $message->load(['sender', 'file']);
         $this->notifyLeadershipParticipants($circle, $user, $message);
 
         return $message;
