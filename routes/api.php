@@ -299,6 +299,7 @@ Route::prefix('v1')->group(function () {
         // Requirements
         Route::get('/timeline/requirements', [TimelineRequirementController::class, 'index']);
         Route::post('/requirements', [V1RequirementController::class, 'store']);
+        Route::get('/requirements/incompleted', [V1RequirementController::class, 'incompleted']);
         Route::get('/requirements/{id}', [V1RequirementController::class, 'show']);
         Route::patch('/requirements/{id}/close', [V1RequirementController::class, 'close']);
         Route::post('/requirements/{requirement}/interest', [RequirementInterestController::class, 'store']);
