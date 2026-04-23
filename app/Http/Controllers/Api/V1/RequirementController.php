@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Requirement\IncompleteRequirementResource;
 use App\Http\Resources\Requirement\RequirementDetailResource;
 use App\Models\Requirement;
 use App\Models\RequirementInterest;
@@ -121,6 +122,38 @@ class RequirementController extends Controller
         ]);
     }
 
+
+    public function incompleted(Request $request): JsonResponse
+    {
+        $perPage = max(1, min((int) $request->query('per_page', 15), 100));
+
+        $paginated = Requirement::query()
+            ->with(['user:id,first_name,last_name,display_name,company_name,designation,profile_photo_file_id,profile_photo_id,profile_photo_url,membership_status'])
+            ->whereNull('deleted_at')
+            ->where(function ($query): void {
+                $query->whereNull('status')
+                    ->orWhereRaw('LOWER(status) <> ?', ['completed']);
+            })
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        $pagination = [
+            'current_page' => $paginated->currentPage(),
+            'last_page' => $paginated->lastPage(),
+            'per_page' => $paginated->perPage(),
+            'total' => $paginated->total(),
+        ];
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Incomplete requirements fetched successfully.',
+            'data' => [
+                'requirements' => IncompleteRequirementResource::collection($paginated->items()),
+                'pagination' => $pagination,
+            ],
+            'meta' => $pagination,
+        ]);
+    }
     public function show(Request $request, $id): JsonResponse
     {
         try {
