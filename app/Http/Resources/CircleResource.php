@@ -57,8 +57,8 @@ class CircleResource extends JsonResource
                     return [
                         'id' => $category->id,
                         'category_name' => $category->category_name ?? $category->name,
-                        'sector' => $category->sector,
-                        'remarks' => $category->remarks,
+                        'sector' => $category->sector ?? null,
+                        'remarks' => $category->remarks ?? null,
                         'pivot' => $category->pivot ? [
                             'id' => $category->pivot->id ?? null,
                             'circle_id' => $category->pivot->circle_id ?? null,

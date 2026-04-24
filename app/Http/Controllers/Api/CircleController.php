@@ -60,8 +60,6 @@ class CircleController extends BaseApiController
                     $query->select([
                         'circle_categories.id',
                         DB::raw('circle_categories.name as category_name'),
-                        'circle_categories.sector',
-                        'circle_categories.remarks',
                     ])->orderBy('circle_categories.name');
                 },
             ])
@@ -129,8 +127,6 @@ class CircleController extends BaseApiController
                 $query->select([
                     'circle_categories.id',
                     DB::raw('circle_categories.name as category_name'),
-                    'circle_categories.sector',
-                    'circle_categories.remarks',
                 ])->orderBy('circle_categories.name');
             },
         ])
@@ -243,8 +239,6 @@ class CircleController extends BaseApiController
                     $query->select([
                         'circle_categories.id',
                         DB::raw('circle_categories.name as category_name'),
-                        'circle_categories.sector',
-                        'circle_categories.remarks',
                     ])->orderBy('circle_categories.name');
                 },
             ])
