@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Resources\ConnectionResource;
 use App\Http\Resources\MemberDetailResource;
-use App\Http\Resources\UserResource;
+use App\Http\Resources\MemberListResource;
 use App\Models\Connection;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
@@ -90,7 +90,7 @@ class MemberController extends BaseApiController
         )->orderByDesc('created_at');
 
         $data = [
-            'items' => UserResource::collection($query->get()),
+            'items' => MemberListResource::collection($query->get()),
         ];
 
         return $this->success($data);
