@@ -118,8 +118,12 @@ class CircleController extends BaseApiController
             'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
             'ded.cityRelation:id,name',
             'categories' => function ($query) {
-                $query->select(['circle_categories.id', 'circle_categories.category_name', 'circle_categories.sector', 'circle_categories.remarks'])
-                    ->orderBy('circle_categories.category_name');
+                $query->select([
+                    'circle_categories.id',
+                    DB::raw('circle_categories.name as category_name'),
+                    DB::raw('NULL as sector'),
+                    DB::raw('NULL as remarks'),
+                ])->orderBy('circle_categories.name');
             },
         ])
             ->withCount([
