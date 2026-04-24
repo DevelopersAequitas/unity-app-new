@@ -56,9 +56,16 @@ class CircleResource extends JsonResource
                 ->map(static function ($category): array {
                     return [
                         'id' => $category->id,
-                        'category_name' => $category->category_name,
+                        'category_name' => $category->category_name ?? $category->name,
                         'sector' => $category->sector,
                         'remarks' => $category->remarks,
+                        'pivot' => $category->pivot ? [
+                            'id' => $category->pivot->id ?? null,
+                            'circle_id' => $category->pivot->circle_id ?? null,
+                            'category_id' => $category->pivot->category_id ?? null,
+                            'created_at' => $category->pivot->created_at ?? null,
+                            'updated_at' => $category->pivot->updated_at ?? null,
+                        ] : null,
                     ];
                 })
                 ->values()
