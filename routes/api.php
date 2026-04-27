@@ -195,6 +195,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
+            Route::post('/life-impact/manual', [ImpactAdminController::class, 'storeManual']);
         });
 
         // Circle Chat

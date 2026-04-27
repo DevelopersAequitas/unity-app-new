@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Impacts\StoreImpactRequest;
 use App\Http\Resources\ImpactResource;
+use App\Http\Resources\LifeImpact\LifeImpactHistoryResource;
 use App\Models\Impact;
+use App\Models\LifeImpactHistory;
 use App\Services\Impacts\ImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -72,6 +74,18 @@ class ImpactController extends BaseApiController
                 ->where('status', 'approved')
                 ->sum('life_impacted');
 
+        $historyPerPage = max(1, min((int) $request->query('history_per_page', 20), 50));
+
+        $histories = LifeImpactHistory::query()
+            ->where('user_id', $user->id)
+            ->when(Schema::hasColumn((new LifeImpactHistory())->getTable(), 'status'), fn ($query) => $query->where('status', 'approved'))
+            ->with([
+                'user:id,first_name,last_name,display_name,email,life_impacted_count',
+                'triggeredByUser:id,first_name,last_name,display_name,email,life_impacted_count',
+            ])
+            ->orderByDesc('created_at')
+            ->paginate($historyPerPage, ['*'], 'history_page');
+
         return $this->success([
             'total_life_impacted' => $totalLifeImpacted,
             'items' => ImpactResource::collection($impacts->getCollection())->resolve(),
@@ -80,6 +94,15 @@ class ImpactController extends BaseApiController
                 'per_page' => $impacts->perPage(),
                 'total' => $impacts->total(),
                 'last_page' => $impacts->lastPage(),
+            ],
+            'life_impact_history' => [
+                'items' => LifeImpactHistoryResource::collection($histories->getCollection())->resolve(),
+                'pagination' => [
+                    'current_page' => $histories->currentPage(),
+                    'per_page' => $histories->perPage(),
+                    'total' => $histories->total(),
+                    'last_page' => $histories->lastPage(),
+                ],
             ],
         ]);
     }
