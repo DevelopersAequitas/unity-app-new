@@ -4,11 +4,13 @@ namespace App\Services\Impacts;
 
 use App\Models\AdminUser;
 use App\Models\Impact;
+use App\Models\LifeImpactHistory;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ImpactService
 {
@@ -195,14 +197,27 @@ class ImpactService
     {
         $userId = $userOrId instanceof User ? (string) $userOrId->id : (string) $userOrId;
 
-        $sum = (int) Impact::query()
-            ->where('user_id', $userId)
-            ->where('status', 'approved')
-            ->sum(DB::raw('COALESCE(life_impacted, 1)'));
+        $historyTable = (new LifeImpactHistory())->getTable();
+        $sumExpression = Schema::hasColumn($historyTable, 'impact_value')
+            ? 'COALESCE(impact_value, 0)'
+            : (Schema::hasColumn($historyTable, 'life_impacted')
+                ? 'COALESCE(life_impacted, 0)'
+                : '0');
+
+        $query = DB::table($historyTable)->where('user_id', $userId);
+
+        if (Schema::hasColumn($historyTable, 'status')) {
+            $query->where('status', 'approved');
+        }
+
+        $sum = (int) $query->sum(DB::raw($sumExpression));
 
         User::query()
             ->where('id', $userId)
-            ->update(['life_impacted_count' => $sum]);
+            ->update([
+                'life_impacted_count' => $sum,
+                'updated_at' => now(),
+            ]);
 
         return $sum;
     }
