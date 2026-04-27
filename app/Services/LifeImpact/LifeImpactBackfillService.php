@@ -26,9 +26,63 @@ class LifeImpactBackfillService
         $this->backfillReferrals($stats, $userIdsToRecalculate);
         $this->backfillTestimonials($stats, $userIdsToRecalculate);
 
-        $stats['users_recalculated'] = $this->recalculateTotals(array_keys($userIdsToRecalculate));
+        $stats['users_recalculated'] = $this->recalculateUsersWithHistory();
 
         return $stats;
+    }
+
+    public function recalculateUsersWithHistory(bool $resetMissingUsersToZero = false): int
+    {
+        $historyTable = (new LifeImpactHistory())->getTable();
+        $sumExpression = Schema::hasColumn($historyTable, 'impact_value')
+            ? 'COALESCE(impact_value, 0)'
+            : (Schema::hasColumn($historyTable, 'life_impacted')
+                ? 'COALESCE(life_impacted, 0)'
+                : '0');
+
+        $totalsQuery = DB::table($historyTable)
+            ->select('user_id', DB::raw("SUM({$sumExpression}) as total"))
+            ->groupBy('user_id');
+
+        if (Schema::hasColumn($historyTable, 'status')) {
+            $totalsQuery->where('status', 'approved');
+        }
+
+        $totalsByUser = $totalsQuery->pluck('total', 'user_id');
+        $userIdsWithHistory = $totalsByUser->keys()->filter()->values()->all();
+
+        if (! empty($userIdsWithHistory)) {
+            User::query()
+                ->whereIn('id', $userIdsWithHistory)
+                ->chunkById(300, function ($users) use ($totalsByUser): void {
+                    foreach ($users as $user) {
+                        $userId = (string) $user->id;
+                        $total = (int) ($totalsByUser[$userId] ?? 0);
+
+                        DB::table('users')
+                            ->where('id', $userId)
+                            ->update([
+                                'life_impacted_count' => $total,
+                                'updated_at' => now(),
+                            ]);
+                    }
+                });
+        }
+
+        if ($resetMissingUsersToZero && Schema::hasColumn('users', 'life_impacted_count')) {
+            $zeroQuery = DB::table('users');
+
+            if (! empty($userIdsWithHistory)) {
+                $zeroQuery->whereNotIn('id', $userIdsWithHistory);
+            }
+
+            $zeroQuery->update([
+                'life_impacted_count' => 0,
+                'updated_at' => now(),
+            ]);
+        }
+
+        return count($userIdsWithHistory);
     }
 
     public function createManualImpact(array $data): LifeImpactHistory
@@ -253,16 +307,22 @@ class LifeImpactBackfillService
         }
 
         $historyTable = (new LifeImpactHistory())->getTable();
-        $sumExpression = Schema::hasColumn($historyTable, 'life_impacted')
-            ? 'COALESCE(life_impacted, impact_value, 0)'
-            : 'COALESCE(impact_value, 0)';
+        $sumExpression = Schema::hasColumn($historyTable, 'impact_value')
+            ? 'COALESCE(impact_value, 0)'
+            : (Schema::hasColumn($historyTable, 'life_impacted')
+                ? 'COALESCE(life_impacted, 0)'
+                : '0');
 
-        $totalsByUser = DB::table($historyTable)
+        $totalsQuery = DB::table($historyTable)
             ->select('user_id', DB::raw("SUM({$sumExpression}) as total"))
             ->whereIn('user_id', $userIds)
-            ->where('status', 'approved')
-            ->groupBy('user_id')
-            ->pluck('total', 'user_id');
+            ->groupBy('user_id');
+
+        if (Schema::hasColumn($historyTable, 'status')) {
+            $totalsQuery->where('status', 'approved');
+        }
+
+        $totalsByUser = $totalsQuery->pluck('total', 'user_id');
 
         User::query()
             ->whereIn('id', $userIds)

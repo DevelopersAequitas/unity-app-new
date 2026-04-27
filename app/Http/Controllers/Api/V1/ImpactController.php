@@ -8,9 +8,11 @@ use App\Http\Resources\ImpactResource;
 use App\Http\Resources\LifeImpact\LifeImpactHistoryResource;
 use App\Models\Impact;
 use App\Models\LifeImpactHistory;
+use App\Models\User;
 use App\Services\Impacts\ImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class ImpactController extends BaseApiController
@@ -67,12 +69,28 @@ class ImpactController extends BaseApiController
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
-        $totalLifeImpacted = Schema::hasColumn('users', 'life_impacted_count')
-            ? $this->impactService->recalculateUserLifeImpactedCount($user)
-            : (int) Impact::query()
-                ->where('user_id', $user->id)
-                ->where('status', 'approved')
-                ->sum('life_impacted');
+        $historyTable = (new LifeImpactHistory())->getTable();
+        $sumExpression = Schema::hasColumn($historyTable, 'impact_value')
+            ? 'COALESCE(impact_value, 0)'
+            : (Schema::hasColumn($historyTable, 'life_impacted')
+                ? 'COALESCE(life_impacted, 0)'
+                : '0');
+
+        $totalQuery = DB::table($historyTable)->where('user_id', (string) $user->id);
+        if (Schema::hasColumn($historyTable, 'status')) {
+            $totalQuery->where('status', 'approved');
+        }
+
+        $totalLifeImpacted = (int) $totalQuery->sum(DB::raw($sumExpression));
+
+        if (Schema::hasColumn('users', 'life_impacted_count')) {
+            User::query()
+                ->where('id', (string) $user->id)
+                ->update([
+                    'life_impacted_count' => $totalLifeImpacted,
+                    'updated_at' => now(),
+                ]);
+        }
 
         $historyPerPage = max(1, min((int) $request->query('history_per_page', 20), 50));
 
