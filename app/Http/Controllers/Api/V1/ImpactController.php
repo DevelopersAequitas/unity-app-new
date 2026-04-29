@@ -26,8 +26,24 @@ class ImpactController extends BaseApiController
 
     public function actions(): JsonResponse
     {
+        $actions = $this->impactActionService->activeActionsForApi();
+
         return $this->success([
-            'actions' => $this->impactActionService->activeActionsForApi(),
+            'actions' => $actions,
+            'action_names' => collect($actions)
+                ->pluck('name')
+                ->map(fn ($name) => trim((string) $name))
+                ->filter(fn (string $name) => $name !== '')
+                ->values()
+                ->all(),
+            'action_options' => collect($actions)
+                ->map(fn (array $action) => [
+                    'label' => (string) ($action['name'] ?? ''),
+                    'value' => (string) ($action['name'] ?? ''),
+                    'id' => (string) ($action['id'] ?? ''),
+                ])
+                ->values()
+                ->all(),
             'requires_leadership_approval' => (bool) config('impact.requires_leadership_approval', true),
         ]);
     }
