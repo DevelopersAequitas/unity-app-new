@@ -9,6 +9,7 @@ use App\Http\Resources\LifeImpact\LifeImpactHistoryResource;
 use App\Models\Impact;
 use App\Models\LifeImpactHistory;
 use App\Models\User;
+use App\Services\Impacts\ImpactActionService;
 use App\Services\Impacts\ImpactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,14 +18,16 @@ use Illuminate\Support\Facades\Schema;
 
 class ImpactController extends BaseApiController
 {
-    public function __construct(private readonly ImpactService $impactService)
-    {
+    public function __construct(
+        private readonly ImpactService $impactService,
+        private readonly ImpactActionService $impactActionService,
+    ) {
     }
 
     public function actions(): JsonResponse
     {
         return $this->success([
-            'actions' => Impact::availableActions(),
+            'actions' => $this->impactActionService->activeActionsForApi(),
             'requires_leadership_approval' => (bool) config('impact.requires_leadership_approval', true),
         ]);
     }

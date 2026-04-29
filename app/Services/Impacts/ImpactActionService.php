@@ -12,7 +12,7 @@ class ImpactActionService
     public function availableActions(): array
     {
         if (! Schema::hasTable('impact_actions')) {
-            return array_values((array) config('impact.actions', []));
+            return [];
         }
 
         return ImpactAction::query()
@@ -33,16 +33,17 @@ class ImpactActionService
                 'name' => $name,
                 'is_active' => true,
                 'sort_order' => 0,
+                'impact_score' => 1,
             ]);
         }
 
         return ImpactAction::query()
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get(['id', 'name', 'is_active', 'sort_order', 'created_at']);
+            ->get(['id', 'name', 'impact_score', 'is_active', 'sort_order', 'created_at']);
     }
 
-    public function createAction(string $name): ImpactAction
+    public function createAction(string $name, int $impactScore = 1): ImpactAction
     {
         if (! Schema::hasTable('impact_actions')) {
             throw new \RuntimeException('impact_actions table is not available.');
@@ -64,8 +65,30 @@ class ImpactActionService
 
         return ImpactAction::query()->create([
             'name' => $normalized,
+            'impact_score' => max(1, $impactScore),
             'is_active' => true,
             'sort_order' => 0,
         ]);
+    }
+
+    public function activeActionsForApi(): array
+    {
+        if (! Schema::hasTable('impact_actions')) {
+            return [];
+        }
+
+        return ImpactAction::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'impact_score', 'is_active'])
+            ->map(fn (ImpactAction $action) => [
+                'id' => (string) $action->id,
+                'name' => trim((string) $action->name),
+                'impact_score' => max(1, (int) ($action->impact_score ?? 1)),
+                'is_active' => (bool) $action->is_active,
+            ])
+            ->values()
+            ->all();
     }
 }

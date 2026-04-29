@@ -171,12 +171,14 @@ class ImpactsController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'impact_score' => ['required', 'integer', 'min:1'],
         ], [
             'name.required' => 'Action name is required.',
+            'impact_score.required' => 'Impact score is required.',
         ]);
 
         try {
-            $this->impactActionService->createAction((string) $validated['name']);
+            $this->impactActionService->createAction((string) $validated['name'], (int) $validated['impact_score']);
         } catch (\InvalidArgumentException $exception) {
             throw ValidationException::withMessages(['name' => $exception->getMessage()]);
         } catch (\RuntimeException $exception) {

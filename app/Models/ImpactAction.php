@@ -21,10 +21,12 @@ class ImpactAction extends Model
         'name',
         'is_active',
         'sort_order',
+        'impact_score',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'sort_order' => 'integer',
+        'impact_score' => 'integer',
     ];
 }

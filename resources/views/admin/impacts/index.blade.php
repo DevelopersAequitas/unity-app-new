@@ -59,6 +59,10 @@
                     <input type="text" name="name" class="form-control" value="{{ old('name') }}" required maxlength="255" placeholder="Enter action name">
                 </div>
                 <div class="col-md-3">
+                    <label class="form-label">Impact Score <span class="text-danger">*</span></label>
+                    <input type="number" name="impact_score" class="form-control" min="1" value="{{ old('impact_score', 1) }}" required>
+                </div>
+                <div class="col-md-3">
                     <button type="submit" class="btn btn-primary">Add Action</button>
                 </div>
             </form>
@@ -68,6 +72,7 @@
                     <thead class="table-light">
                     <tr>
                         <th>Action Name</th>
+                        <th>Impact Score</th>
                         <th>Status</th>
                     </tr>
                     </thead>
@@ -75,6 +80,7 @@
                     @forelse($impactActionItems as $actionItem)
                         <tr class="impact-action-row" data-action-index="{{ $loop->index }}">
                             <td>{{ $actionItem->name }}</td>
+                            <td>{{ max(1, (int) ($actionItem->impact_score ?? 1)) }}</td>
                             <td>
                                 <span class="badge {{ $actionItem->is_active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' }}">
                                     {{ $actionItem->is_active ? 'Active' : 'Inactive' }}
@@ -83,7 +89,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="2" class="text-center text-muted py-2">No actions found.</td>
+                            <td colspan="3" class="text-center text-muted py-2">No actions found.</td>
                         </tr>
                     @endforelse
                     </tbody>
