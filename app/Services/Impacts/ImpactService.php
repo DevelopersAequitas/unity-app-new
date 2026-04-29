@@ -4,6 +4,7 @@ namespace App\Services\Impacts;
 
 use App\Models\AdminUser;
 use App\Models\Impact;
+use App\Models\ImpactAction;
 use App\Models\LifeImpactHistory;
 use App\Models\Notification;
 use App\Models\User;
@@ -23,13 +24,15 @@ class ImpactService
 
     public function submitImpact(User $user, array $data): Impact
     {
+        $impactScore = $this->resolveSubmittedImpactScore($data);
+
         $impact = Impact::create([
             'user_id' => $user->id,
             'impacted_peer_id' => $data['impacted_peer_id'],
             'impact_date' => $data['date'] ?? now()->toDateString(),
             'action' => $data['action'],
             'story_to_share' => $data['story_to_share'],
-            'life_impacted' => max(1, (int) ($data['life_impacted'] ?? 1)),
+            'life_impacted' => $impactScore,
             'additional_remarks' => $data['additional_remarks'] ?? null,
             'requires_leadership_approval' => (bool) config('impact.requires_leadership_approval', true),
             'status' => 'pending',
@@ -182,6 +185,43 @@ class ImpactService
 
             return $impact;
         });
+    }
+
+
+    private function resolveSubmittedImpactScore(array $data): int
+    {
+        $fallback = max(1, (int) ($data['life_impacted'] ?? 1));
+
+        if (! Schema::hasTable('impact_actions')) {
+            return $fallback;
+        }
+
+        $query = ImpactAction::query()->where('is_active', true);
+
+        if (! empty($data['impact_action_id'])) {
+            $impactAction = $query->where('id', (string) $data['impact_action_id'])->first(['impact_score']);
+
+            if ($impactAction) {
+                return max(1, (int) ($impactAction->impact_score ?? 1));
+            }
+        }
+
+        $actionName = trim((string) ($data['action'] ?? ''));
+
+        if ($actionName === '') {
+            return $fallback;
+        }
+
+        $impactAction = ImpactAction::query()
+            ->where('is_active', true)
+            ->whereRaw('LOWER(name) = ?', [strtolower($actionName)])
+            ->first(['impact_score']);
+
+        if ($impactAction) {
+            return max(1, (int) ($impactAction->impact_score ?? 1));
+        }
+
+        return 1;
     }
 
     private function resolveAdminId(User|AdminUser|string $adminOrId): string

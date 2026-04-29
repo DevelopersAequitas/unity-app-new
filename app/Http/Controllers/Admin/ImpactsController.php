@@ -158,7 +158,7 @@ class ImpactsController extends Controller
             ]);
         }
 
-        $this->impactService->submitImpact($submittedBy, array_merge($data, ['life_impacted' => 1]));
+        $this->impactService->submitImpact($submittedBy, $data);
 
         return redirect()
             ->route('admin.impacts.index')

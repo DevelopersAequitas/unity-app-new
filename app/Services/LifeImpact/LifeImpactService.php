@@ -130,7 +130,13 @@ class LifeImpactService
         $impactId = (string) $impact->id;
         $userId = (string) $impact->user_id;
         $triggeredByUserId = (string) $impact->user_id;
-        $impactValue = $this->resolveImpactScore($impact);
+        $impactValue = (int) ($impact->life_impacted ?? 0);
+
+        if ($impactValue <= 0) {
+            $impactValue = $this->resolveImpactScore($impact);
+        }
+
+        $impactValue = max(1, $impactValue);
         $actionLabel = trim((string) ($impact->action ?? 'Impact Approved'));
         $actionKey = Str::of($actionLabel)->lower()->replaceMatches('/[^a-z0-9]+/', '_')->trim('_')->value();
         $remarks = $impact->additional_remarks ?: $impact->review_remarks;
