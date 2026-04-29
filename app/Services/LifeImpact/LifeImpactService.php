@@ -3,6 +3,8 @@
 namespace App\Services\LifeImpact;
 
 use App\Models\Impact;
+use App\Models\ImpactAction;
+use App\Models\LifeImpactHistory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -129,7 +131,13 @@ class LifeImpactService
         $impactId = (string) $impact->id;
         $userId = (string) $impact->user_id;
         $triggeredByUserId = (string) $impact->user_id;
-        $impactValue = max(1, (int) ($impact->life_impacted ?? 1));
+        $impactValue = (int) ($impact->life_impacted ?? 0);
+
+        if ($impactValue <= 0) {
+            $impactValue = $this->resolveImpactScore($impact);
+        }
+
+        $impactValue = max(1, $impactValue);
         $actionLabel = trim((string) ($impact->action ?? 'Impact Approved'));
         $actionKey = Str::of($actionLabel)->lower()->replaceMatches('/[^a-z0-9]+/', '_')->trim('_')->value();
         $remarks = $impact->additional_remarks ?: $impact->review_remarks;
@@ -302,6 +310,33 @@ class LifeImpactService
             ]);
 
         return $sum;
+    }
+
+    private function resolveImpactScore(Impact $impact): int
+    {
+        $legacyLifeImpacted = (int) ($impact->life_impacted ?? 0);
+
+        if (! Schema::hasTable('impact_actions')) {
+            return max(1, $legacyLifeImpacted ?: 1);
+        }
+
+        $actionName = trim((string) ($impact->action ?? ''));
+
+        if ($actionName === '') {
+            return max(1, $legacyLifeImpacted ?: 1);
+        }
+
+        $impactAction = ImpactAction::query()
+            ->whereRaw('LOWER(name) = ?', [Str::lower($actionName)])
+            ->first(['impact_score']);
+
+        $dynamicScore = (int) ($impactAction?->impact_score ?? 0);
+
+        if ($dynamicScore > 0) {
+            return $dynamicScore;
+        }
+
+        return max(1, $legacyLifeImpacted ?: 1);
     }
 
     private function normalizeNullableString(mixed $value): ?string
