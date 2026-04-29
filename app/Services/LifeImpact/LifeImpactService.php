@@ -4,6 +4,7 @@ namespace App\Services\LifeImpact;
 
 use App\Models\Impact;
 use App\Models\ImpactAction;
+use App\Models\LifeImpactHistory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
