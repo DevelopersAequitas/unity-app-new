@@ -74,6 +74,7 @@
                         <th>Action Name</th>
                         <th>Impact Score</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -86,10 +87,48 @@
                                     {{ $actionItem->is_active ? 'Active' : 'Inactive' }}
                                 </span>
                             </td>
+                            <td>
+                                @if(!empty($actionItem->id))
+                                    <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#editImpactAction{{ $actionItem->id }}">Edit</button>
+                                    <form method="POST" action="{{ route('admin.impacts.actions.destroy', $actionItem->id) }}" class="d-inline" onsubmit="return confirm('Delete this impact action?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                    </form>
+                                @endif
+                            </td>
                         </tr>
+                        @if(!empty($actionItem->id))
+                            <tr class="collapse" id="editImpactAction{{ $actionItem->id }}">
+                                <td colspan="4">
+                                    <form method="POST" action="{{ route('admin.impacts.actions.update', $actionItem->id) }}" class="row g-2 align-items-end">
+                                        @csrf
+                                        @method('PUT')
+                                        <div class="col-md-5">
+                                            <label class="form-label">Action Name</label>
+                                            <input type="text" name="name" class="form-control" value="{{ $actionItem->name }}" required maxlength="255">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Impact Score</label>
+                                            <input type="number" name="impact_score" min="1" class="form-control" value="{{ max(1, (int) ($actionItem->impact_score ?? 1)) }}" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Status</label>
+                                            <select name="is_active" class="form-select">
+                                                <option value="1" @selected($actionItem->is_active)>Active</option>
+                                                <option value="0" @selected(! $actionItem->is_active)>Inactive</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endif
                     @empty
                         <tr>
-                            <td colspan="3" class="text-center text-muted py-2">No actions found.</td>
+                            <td colspan="4" class="text-center text-muted py-2">No actions found.</td>
                         </tr>
                     @endforelse
                     </tbody>

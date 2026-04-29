@@ -3,6 +3,7 @@
 namespace App\Services\Impacts;
 
 use App\Models\ImpactAction;
+use App\Models\Impact;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -69,6 +70,59 @@ class ImpactActionService
             'is_active' => true,
             'sort_order' => 0,
         ]);
+    }
+
+
+    public function updateAction(string $id, string $name, int $impactScore = 1, ?bool $isActive = null): ImpactAction
+    {
+        if (! Schema::hasTable('impact_actions')) {
+            throw new \RuntimeException('impact_actions table is not available.');
+        }
+
+        $action = ImpactAction::query()->findOrFail($id);
+        $normalized = trim($name);
+
+        if ($normalized === '') {
+            throw new \InvalidArgumentException('Action name is required.');
+        }
+
+        $exists = ImpactAction::query()
+            ->whereKeyNot($action->id)
+            ->whereRaw('LOWER(name) = ?', [Str::lower($normalized)])
+            ->exists();
+
+        if ($exists) {
+            throw new \InvalidArgumentException('This impact action already exists.');
+        }
+
+        $action->name = $normalized;
+        $action->impact_score = max(1, $impactScore);
+        if ($isActive !== null) {
+            $action->is_active = $isActive;
+        }
+        $action->save();
+
+        return $action;
+    }
+
+    public function deleteOrDeactivateAction(string $id): void
+    {
+        if (! Schema::hasTable('impact_actions')) {
+            throw new \RuntimeException('impact_actions table is not available.');
+        }
+
+        $action = ImpactAction::query()->findOrFail($id);
+
+        $isUsed = Impact::query()->where('action', $action->name)->exists();
+
+        if ($isUsed) {
+            $action->is_active = false;
+            $action->save();
+
+            return;
+        }
+
+        $action->delete();
     }
 
     public function activeActionsForApi(): array
