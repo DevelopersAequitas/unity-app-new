@@ -70,6 +70,7 @@ use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
+use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -366,6 +367,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/reports/coin-claims', [AdminOpsController::class, 'reportsCoinClaims']);
             Route::get('/reports/join-requests', [AdminOpsController::class, 'reportsJoinRequests']);
             Route::get('/reports/export', [AdminOpsController::class, 'reportsExport']);
+            Route::post('/life-impact/manual', [ImpactAdminController::class, 'storeManual']);
         });
 
         // Circle Chat
@@ -425,6 +427,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/impacts/timeline', [ImpactController::class, 'timeline']);
         Route::get('/life-impact/history', [LifeImpactHistoryController::class, 'index']);
 
+        // Leaderboards
+        Route::get('/leaderboards/coins', [LeaderboardController::class, 'coins']);
+        Route::get('/leaderboards/impacts', [LeaderboardController::class, 'impacts']);
+
         Route::prefix('activities')->group(function () {
             Route::get('p2p-meetings', [P2pMeetingHistoryController::class, 'index']);
             Route::post('p2p-meetings', [P2pMeetingController::class, 'store']);
@@ -470,6 +476,7 @@ Route::prefix('v1')->group(function () {
         // Requirements
         Route::get('/timeline/requirements', [TimelineRequirementController::class, 'index']);
         Route::post('/requirements', [V1RequirementController::class, 'store']);
+        Route::get('/requirements/incompleted', [V1RequirementController::class, 'incompleted']);
         Route::get('/requirements/{id}', [V1RequirementController::class, 'show']);
         Route::patch('/requirements/{id}/close', [V1RequirementController::class, 'close']);
         Route::post('/requirements/{requirement}/interest', [RequirementInterestController::class, 'store']);

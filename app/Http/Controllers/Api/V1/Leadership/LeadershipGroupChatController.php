@@ -76,7 +76,7 @@ class LeadershipGroupChatController extends BaseApiController
     public function sendMessage(SendLeadershipMessageRequest $request, Circle $circle): JsonResponse
     {
         try {
-            $message = $this->leadershipGroupChatService->sendMessage($circle, $request->user(), $request->validated());
+            $message = $this->leadershipGroupChatService->sendMessage($circle, $request->user(), $request->validated(), $request->file('attachment'));
 
             if (! $message) {
                 return $this->error('Forbidden.', 403);

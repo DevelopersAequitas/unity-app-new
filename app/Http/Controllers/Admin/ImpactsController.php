@@ -158,7 +158,7 @@ class ImpactsController extends Controller
             ]);
         }
 
-        $this->impactService->submitImpact($submittedBy, array_merge($data, ['life_impacted' => 1]));
+        $this->impactService->submitImpact($submittedBy, $data);
 
         return redirect()
             ->route('admin.impacts.index')
@@ -171,12 +171,14 @@ class ImpactsController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'impact_score' => ['required', 'integer', 'min:1'],
         ], [
             'name.required' => 'Action name is required.',
+            'impact_score.required' => 'Impact score is required.',
         ]);
 
         try {
-            $this->impactActionService->createAction((string) $validated['name']);
+            $this->impactActionService->createAction((string) $validated['name'], (int) $validated['impact_score']);
         } catch (\InvalidArgumentException $exception) {
             throw ValidationException::withMessages(['name' => $exception->getMessage()]);
         } catch (\RuntimeException $exception) {
@@ -186,6 +188,40 @@ class ImpactsController extends Controller
         }
 
         return redirect()->route('admin.impacts.index')->with('success', 'Impact action added successfully.');
+    }
+
+
+    public function updateAction(Request $request, string $id): RedirectResponse
+    {
+        $this->ensureGlobalAdmin();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'impact_score' => ['required', 'integer', 'min:1'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        try {
+            $this->impactActionService->updateAction(
+                $id,
+                (string) $validated['name'],
+                (int) $validated['impact_score'],
+                array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : null
+            );
+        } catch (\InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['name' => $exception->getMessage()]);
+        }
+
+        return redirect()->route('admin.impacts.index')->with('success', 'Impact action updated successfully.');
+    }
+
+    public function destroyAction(string $id): RedirectResponse
+    {
+        $this->ensureGlobalAdmin();
+
+        $this->impactActionService->deleteOrDeactivateAction($id);
+
+        return redirect()->route('admin.impacts.index')->with('success', 'Impact action deleted successfully.');
     }
 
     public function pending(): View

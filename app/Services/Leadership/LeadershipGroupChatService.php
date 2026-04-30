@@ -7,10 +7,12 @@ use App\Models\CircleMember;
 use App\Models\LeadershipGroupMessage;
 use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -180,7 +182,7 @@ class LeadershipGroupChatService
         return $paginator;
     }
 
-    public function sendMessage(Circle $circle, User $user, array $data): ?LeadershipGroupMessage
+    public function sendMessage(Circle $circle, User $user, array $data, ?UploadedFile $attachment): ?LeadershipGroupMessage
     {
         if (! $this->ensureUserCanAccessCircleLeadershipChat($user, $circle)) {
             return null;
@@ -198,18 +200,39 @@ class LeadershipGroupChatService
             }
         }
 
-        $message = DB::transaction(function () use ($circle, $user, $data): LeadershipGroupMessage {
+        $message = DB::transaction(function () use ($circle, $user, $data, $attachment): LeadershipGroupMessage {
+            $attachmentPayload = null;
+
+            if ($attachment) {
+                $attachmentPayload = $this->storeAttachment($attachment);
+            }
+
+            $messageType = (string) ($data['message_type'] ?? $this->resolveMessageType($attachment));
+
             return LeadershipGroupMessage::query()->create([
                 'circle_id' => $circle->id,
                 'sender_user_id' => $user->id,
-                'message_type' => $data['message_type'],
-                'message_text' => $data['message_text'],
+                'message_type' => $messageType,
+                'message_text' => $data['message_text'] ?? null,
                 'reply_to_message_id' => $data['reply_to_message_id'] ?? null,
-                'meta' => null,
+                'meta' => [
+                    'attachment' => $attachmentPayload,
+                ],
             ]);
         });
 
         $message->load('sender');
+
+        if (! empty($message->reply_to_message_id)) {
+            $replyMessage = LeadershipGroupMessage::query()
+                ->where('circle_id', $circle->id)
+                ->whereNull('deleted_at')
+                ->where('id', $message->reply_to_message_id)
+                ->with('sender')
+                ->first();
+
+            $message->setRelation('replyTo', $replyMessage);
+        }
         $this->notifyLeadershipParticipants($circle, $user, $message);
 
         return $message;
@@ -347,6 +370,48 @@ class LeadershipGroupChatService
             })
             ->filter()
             ->values();
+    }
+
+
+    private function storeAttachment(UploadedFile $file): array
+    {
+        $disk = config('filesystems.default', 'public');
+        $folder = 'uploads/circle-chat/' . now()->format('Y/m/d');
+        $safeName = preg_replace('/[^A-Za-z0-9\.\-_]/', '_', $file->getClientOriginalName()) ?: 'attachment';
+        $storedPath = $file->storeAs($folder, (string) Str::uuid() . '_' . $safeName, $disk);
+
+        return [
+            'id' => null,
+            'type' => $this->resolveMessageType($file),
+            'url' => Storage::disk($disk)->url($storedPath),
+            'mime' => $file->getMimeType() ?: $file->getClientMimeType(),
+            'size' => $file->getSize(),
+            'name' => $file->getClientOriginalName(),
+            'path' => $storedPath,
+        ];
+    }
+
+    private function resolveMessageType(?UploadedFile $attachment): string
+    {
+        if (! $attachment) {
+            return 'text';
+        }
+
+        $mime = (string) ($attachment->getMimeType() ?: $attachment->getClientMimeType());
+
+        if (str_starts_with($mime, 'image/')) {
+            return 'image';
+        }
+
+        if (str_starts_with($mime, 'audio/')) {
+            return 'audio';
+        }
+
+        if (str_starts_with($mime, 'video/')) {
+            return 'video';
+        }
+
+        return 'file';
     }
 
     private function ensureUserCanAccessCircleLeadershipChat(User $user, Circle $circle): bool

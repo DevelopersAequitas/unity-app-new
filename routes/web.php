@@ -191,6 +191,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/impacts/export/csv', [ImpactsController::class, 'exportCsv'])->name('impacts.export.csv');
         Route::post('/impacts', [ImpactsController::class, 'store'])->name('impacts.store');
         Route::post('/impacts/actions', [ImpactsController::class, 'storeAction'])->name('impacts.actions.store');
+        Route::put('/impacts/actions/{id}', [ImpactsController::class, 'updateAction'])->whereUuid('id')->name('impacts.actions.update');
+        Route::delete('/impacts/actions/{id}', [ImpactsController::class, 'destroyAction'])->whereUuid('id')->name('impacts.actions.destroy');
         Route::get('/impacts/pending', [ImpactsController::class, 'pending'])->name('impacts.pending');
         Route::get('/impacts/posts', [ImpactsController::class, 'posts'])->name('impacts.posts');
         Route::get('/impacts/{id}', [ImpactsController::class, 'show'])->whereUuid('id')->name('impacts.show');

@@ -59,6 +59,10 @@
                     <input type="text" name="name" class="form-control" value="{{ old('name') }}" required maxlength="255" placeholder="Enter action name">
                 </div>
                 <div class="col-md-3">
+                    <label class="form-label">Impact Score <span class="text-danger">*</span></label>
+                    <input type="number" name="impact_score" class="form-control" min="1" value="{{ old('impact_score', 1) }}" required>
+                </div>
+                <div class="col-md-3">
                     <button type="submit" class="btn btn-primary">Add Action</button>
                 </div>
             </form>
@@ -68,22 +72,63 @@
                     <thead class="table-light">
                     <tr>
                         <th>Action Name</th>
+                        <th>Impact Score</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
                     @forelse($impactActionItems as $actionItem)
                         <tr class="impact-action-row" data-action-index="{{ $loop->index }}">
                             <td>{{ $actionItem->name }}</td>
+                            <td>{{ max(1, (int) ($actionItem->impact_score ?? 1)) }}</td>
                             <td>
                                 <span class="badge {{ $actionItem->is_active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' }}">
                                     {{ $actionItem->is_active ? 'Active' : 'Inactive' }}
                                 </span>
                             </td>
+                            <td>
+                                @if(!empty($actionItem->id))
+                                    <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#editImpactAction{{ $actionItem->id }}">Edit</button>
+                                    <form method="POST" action="{{ route('admin.impacts.actions.destroy', $actionItem->id) }}" class="d-inline" onsubmit="return confirm('Delete this impact action?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                    </form>
+                                @endif
+                            </td>
                         </tr>
+                        @if(!empty($actionItem->id))
+                            <tr class="collapse" id="editImpactAction{{ $actionItem->id }}">
+                                <td colspan="4">
+                                    <form method="POST" action="{{ route('admin.impacts.actions.update', $actionItem->id) }}" class="row g-2 align-items-end">
+                                        @csrf
+                                        @method('PUT')
+                                        <div class="col-md-5">
+                                            <label class="form-label">Action Name</label>
+                                            <input type="text" name="name" class="form-control" value="{{ $actionItem->name }}" required maxlength="255">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Impact Score</label>
+                                            <input type="number" name="impact_score" min="1" class="form-control" value="{{ max(1, (int) ($actionItem->impact_score ?? 1)) }}" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Status</label>
+                                            <select name="is_active" class="form-select">
+                                                <option value="1" @selected($actionItem->is_active)>Active</option>
+                                                <option value="0" @selected(! $actionItem->is_active)>Inactive</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endif
                     @empty
                         <tr>
-                            <td colspan="2" class="text-center text-muted py-2">No actions found.</td>
+                            <td colspan="4" class="text-center text-muted py-2">No actions found.</td>
                         </tr>
                     @endforelse
                     </tbody>
