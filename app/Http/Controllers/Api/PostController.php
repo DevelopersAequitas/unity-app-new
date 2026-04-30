@@ -417,7 +417,7 @@ class PostController extends BaseApiController
         return $this->success(['like_count' => $likeCount], 'Post unliked');
     }
 
-    public function storeComment(StorePostCommentRequest $request, string $id)
+    public function storeComment(StorePostCommentRequest $request, string $id, NotifyUserService $notifyUserService)
     {
         $authUser = $request->user();
 
@@ -438,6 +438,41 @@ class PostController extends BaseApiController
         $comment->content = $data['content'];
         $comment->parent_id = $data['parent_id'] ?? null;
         $comment->save();
+
+        if ((string) $post->user_id !== (string) $authUser->id) {
+            try {
+                $postOwner = User::find($post->user_id);
+
+                if ($postOwner) {
+                    $commenterName = $authUser->display_name ?: trim(($authUser->first_name ?? '').' '.($authUser->last_name ?? ''));
+
+                    $notifyUserService->notifyUser(
+                        $postOwner,
+                        $authUser,
+                        'timeline_post_comment',
+                        [
+                            'title' => 'New Comment on Your Post',
+                            'body' => sprintf('%s commented on your post.', $commenterName),
+                            'post_id' => (string) $post->id,
+                            'comment_id' => (string) $comment->id,
+                            'commenter_user_id' => (string) $authUser->id,
+                            'commenter_name' => $commenterName,
+                            'action' => 'comment',
+                            'target_type' => 'timeline_post',
+                        ],
+                        $comment
+                    );
+                }
+            } catch (Throwable $e) {
+                Log::warning('Post comment notification failed', [
+                    'post_id' => (string) $post->id,
+                    'comment_id' => (string) $comment->id,
+                    'post_owner_id' => (string) $post->user_id,
+                    'commenter_user_id' => (string) $authUser->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $comment->load('user');
 
