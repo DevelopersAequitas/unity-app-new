@@ -14,10 +14,13 @@ use App\Models\PostComment;
 use App\Models\PostLike;
 use App\Models\User;
 use App\Services\AdFeedService;
+use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class PostController extends BaseApiController
 {
@@ -334,7 +337,7 @@ class PostController extends BaseApiController
         return $this->success(null, 'Post deleted successfully');
     }
 
-    public function like(Request $request, string $id)
+    public function like(Request $request, string $id, NotifyUserService $notifyUserService)
     {
         $authUser = $request->user();
 
@@ -347,10 +350,45 @@ class PostController extends BaseApiController
             return $this->error('Post not found', 404);
         }
 
-        PostLike::firstOrCreate([
+        $like = PostLike::firstOrCreate([
             'post_id' => $post->id,
             'user_id' => $authUser->id,
         ]);
+
+        if ($like->wasRecentlyCreated && (string) $post->user_id !== (string) $authUser->id) {
+            try {
+                $postOwner = User::find($post->user_id);
+
+                if ($postOwner) {
+                    $notifyUserService->notifyUser(
+                        $postOwner,
+                        $authUser,
+                        'timeline_post_like',
+                        [
+                            'title' => 'New Like on Your Post',
+                            'body' => sprintf('%s liked your post.', $authUser->display_name ?: trim(($authUser->first_name ?? '').' '.($authUser->last_name ?? ''))),
+                            'post_id' => (string) $post->id,
+                            'liker_user_id' => (string) $authUser->id,
+                            'liker_name' => $authUser->display_name ?: trim(($authUser->first_name ?? '').' '.($authUser->last_name ?? '')),
+                            'liker_profile_photo_id' => $authUser->profile_photo_file_id,
+                            'liker_profile_photo_url' => $authUser->profile_photo_file_id
+                                ? url('/api/v1/files/' . $authUser->profile_photo_file_id)
+                                : null,
+                            'action' => 'like',
+                            'target_type' => 'timeline_post',
+                        ],
+                        $post
+                    );
+                }
+            } catch (Throwable $e) {
+                Log::warning('Post like notification failed', [
+                    'post_id' => (string) $post->id,
+                    'post_owner_id' => (string) $post->user_id,
+                    'liker_user_id' => (string) $authUser->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $likeCount = PostLike::where('post_id', $post->id)->count();
 
@@ -379,7 +417,7 @@ class PostController extends BaseApiController
         return $this->success(['like_count' => $likeCount], 'Post unliked');
     }
 
-    public function storeComment(StorePostCommentRequest $request, string $id)
+    public function storeComment(StorePostCommentRequest $request, string $id, NotifyUserService $notifyUserService)
     {
         $authUser = $request->user();
 
@@ -400,6 +438,41 @@ class PostController extends BaseApiController
         $comment->content = $data['content'];
         $comment->parent_id = $data['parent_id'] ?? null;
         $comment->save();
+
+        if ((string) $post->user_id !== (string) $authUser->id) {
+            try {
+                $postOwner = User::find($post->user_id);
+
+                if ($postOwner) {
+                    $commenterName = $authUser->display_name ?: trim(($authUser->first_name ?? '').' '.($authUser->last_name ?? ''));
+
+                    $notifyUserService->notifyUser(
+                        $postOwner,
+                        $authUser,
+                        'timeline_post_comment',
+                        [
+                            'title' => 'New Comment on Your Post',
+                            'body' => sprintf('%s commented on your post.', $commenterName),
+                            'post_id' => (string) $post->id,
+                            'comment_id' => (string) $comment->id,
+                            'commenter_user_id' => (string) $authUser->id,
+                            'commenter_name' => $commenterName,
+                            'action' => 'comment',
+                            'target_type' => 'timeline_post',
+                        ],
+                        $comment
+                    );
+                }
+            } catch (Throwable $e) {
+                Log::warning('Post comment notification failed', [
+                    'post_id' => (string) $post->id,
+                    'comment_id' => (string) $comment->id,
+                    'post_owner_id' => (string) $post->user_id,
+                    'commenter_user_id' => (string) $authUser->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $comment->load('user');
 
