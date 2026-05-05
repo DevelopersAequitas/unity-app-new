@@ -9,7 +9,7 @@ class OnlineStatusController extends BaseApiController
 {
     public function heartbeat(Request $request, OnlineStatusService $onlineStatusService)
     {
-        $payload = $onlineStatusService->heartbeat($request->user());
+        $payload = $onlineStatusService->markOnline($request->user());
 
         return $this->success($payload, 'Online status updated');
     }

@@ -5,8 +5,6 @@ namespace App\Services;
 use App\Events\MemberOnlineStatusUpdated;
 use App\Models\User;
 use Carbon\CarbonInterface;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 class OnlineStatusService
@@ -15,16 +13,22 @@ class OnlineStatusService
 
     public function heartbeat(User $user, bool $broadcast = true): array
     {
+        return $this->markOnline($user, $broadcast);
+    }
+
+    public function markOnline(User $user, bool $broadcast = true): array
+    {
         $now = now()->utc();
+        $userId = (string) $user->id;
 
         $user->forceFill([
             'is_online' => true,
             'last_seen_at' => $now,
         ])->save();
 
-        $this->putCacheStatus((string) $user->id, true, $now);
+        $this->putCacheStatus($userId, true, $now);
 
-        $payload = $this->formatUserStatus($user->fresh(['id', 'is_online', 'last_seen_at']));
+        $payload = $this->formatUserStatus($user->fresh());
 
         if ($broadcast) {
             broadcast(new MemberOnlineStatusUpdated($payload))->toOthers();
@@ -36,15 +40,16 @@ class OnlineStatusService
     public function markOffline(User $user, bool $broadcast = true): array
     {
         $now = now()->utc();
+        $userId = (string) $user->id;
 
         $user->forceFill([
             'is_online' => false,
             'last_seen_at' => $now,
         ])->save();
 
-        $this->forgetCacheStatus((string) $user->id);
+        $this->forgetCacheStatus($userId);
 
-        $payload = $this->formatUserStatus($user->fresh(['id', 'is_online', 'last_seen_at']));
+        $payload = $this->formatUserStatus($user->fresh());
 
         if ($broadcast) {
             broadcast(new MemberOnlineStatusUpdated($payload))->toOthers();
