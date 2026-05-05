@@ -142,6 +142,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/members/update-online-status', [OnlineStatusController::class, 'updateStatus']);
         Route::post('/members/online-offline', [OnlineStatusController::class, 'offline']);
         Route::get('/members/online-status', [OnlineStatusController::class, 'index']);
+        Route::get('/members/my-connections-online-status', [OnlineStatusController::class, 'myConnectionsOnlineStatus']);
         Route::get('/members/{id}/online-status', [OnlineStatusController::class, 'show']);
 
         Route::post('/members/{id}/connections', [MemberController::class, 'sendConnectionRequest']);

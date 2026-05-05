@@ -46,4 +46,11 @@ class OnlineStatusController extends BaseApiController
 
         return $this->success($payload, 'Online status updated successfully');
     }
+
+    public function myConnectionsOnlineStatus(Request $request, OnlineStatusService $onlineStatusService)
+    {
+        $data = $onlineStatusService->getConnectionStatusesFor($request->user());
+
+        return $this->success($data);
+    }
 }

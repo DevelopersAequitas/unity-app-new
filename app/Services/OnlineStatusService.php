@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\MemberOnlineStatusUpdated;
+use App\Models\Connection;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
@@ -66,6 +67,40 @@ class OnlineStatusService
         return User::query()->whereIn('id', $userIds)->get(['id', 'is_online', 'last_seen_at'])
             ->map(fn (User $user) => $this->formatUserStatus($user))
             ->all();
+    }
+
+    public function getConnectionStatusesFor(User $authUser): array
+    {
+        $connections = Connection::query()
+            ->with([
+                'requester:id,display_name,company_name,profile_photo_url,profile_photo_id,profile_photo_file_id,is_online,last_seen_at',
+                'addressee:id,display_name,company_name,profile_photo_url,profile_photo_id,profile_photo_file_id,is_online,last_seen_at',
+            ])
+            ->where('is_approved', true)
+            ->where(function ($query) use ($authUser) {
+                $query->where('requester_id', $authUser->id)
+                    ->orWhere('addressee_id', $authUser->id);
+            })
+            ->get();
+
+        return $connections->map(function (Connection $connection) use ($authUser) {
+            $otherUser = (string) $connection->requester_id === (string) $authUser->id
+                ? $connection->addressee
+                : $connection->requester;
+
+            if (! $otherUser) {
+                return null;
+            }
+
+            $status = $this->formatUserStatus($otherUser);
+            $fileId = $otherUser->profile_photo_file_id ?? $otherUser->profile_photo_id ?? null;
+
+            return array_merge($status, [
+                'display_name' => $otherUser->display_name,
+                'company_name' => $otherUser->company_name,
+                'profile_photo_url' => $fileId ? url('/api/v1/files/' . $fileId) : $otherUser->profile_photo_url,
+            ]);
+        })->filter()->values()->all();
     }
 
     public function markStaleUsersOffline(): int
