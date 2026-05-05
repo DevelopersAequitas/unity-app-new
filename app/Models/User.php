@@ -83,6 +83,8 @@ class User extends Authenticatable
         'anonymized_at',
         'is_gdpr_exported',
         'last_login_at',
+        'last_seen_at',
+        'is_online',
         'profile_photo_file_id',
         'cover_photo_file_id',
         'zoho_customer_id',
@@ -121,6 +123,7 @@ class User extends Authenticatable
         'gdpr_deleted_at' => 'datetime',
         'anonymized_at' => 'datetime',
         'last_login_at' => 'datetime',
+        'last_seen_at' => 'datetime',
         'membership_starts_at' => 'datetime',
         'membership_ends_at' => 'datetime',
         'last_payment_at' => 'datetime',
@@ -134,6 +137,7 @@ class User extends Authenticatable
         'coins_balance' => 'integer',
         'is_sponsored_member' => 'boolean',
         'life_impacted_count' => 'integer',
+        'is_online' => 'boolean',
     ];
 
     public function getAuthPassword()

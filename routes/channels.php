@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
+use App\Services\OnlineStatusService;
 
 Broadcast::channel('chat.{chatId}', function ($user, string $chatId) {
     return DB::table('chats')
@@ -69,5 +70,24 @@ Broadcast::channel('presence-circle-chat.{circleId}', function ($user, string $c
         'id' => (string) $user->id,
         'name' => $user->display_name
             ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+    ];
+});
+
+Broadcast::channel('presence-member-status', function ($user) {
+    app(OnlineStatusService::class)->heartbeat($user, false);
+
+    return [
+        'id' => (string) $user->id,
+        'name' => $user->display_name
+            ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+    ];
+});
+
+Broadcast::channel('online-members', function ($user) {
+    app(OnlineStatusService::class)->markOnline($user);
+
+    return [
+        'id' => (string) $user->id,
+        'name' => $user->display_name,
     ];
 });
