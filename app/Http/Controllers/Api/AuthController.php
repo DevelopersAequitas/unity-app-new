@@ -20,6 +20,7 @@ use App\Models\ReferralData;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\OnlineStatusService;
 use App\Services\Referrals\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -956,6 +957,7 @@ class AuthController extends BaseApiController
         $user = Auth::guard('sanctum')->user();
 
         if ($user && $user->currentAccessToken()) {
+            app(OnlineStatusService::class)->markOffline($user, true, 'Last seen just now');
             $user->currentAccessToken()->delete();
         }
 
