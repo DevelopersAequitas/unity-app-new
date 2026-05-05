@@ -20,5 +20,6 @@ class Kernel extends ConsoleKernel
         $schedule->command('memberships:expire-users')->hourly();
         $schedule->command('users:expire-trial')->hourly();
         $schedule->command('connections:send-pending-reminders')->dailyAt('09:00');
+        $schedule->command('members:mark-offline-stale')->everyMinute();
     }
 }

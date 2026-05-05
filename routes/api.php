@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\MemberWithCircleController;
 use App\Http\Controllers\Api\MasterPositionController;
 use App\Http\Controllers\Api\MyCircleController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OnlineStatusController;
 use App\Http\Controllers\Api\P2pMeetingController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PostSaveController;
@@ -137,6 +138,9 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('members', MemberController::class)
             ->only(['index', 'show']);
+        Route::post('/members/online-heartbeat', [OnlineStatusController::class, 'heartbeat']);
+        Route::get('/members/online-status', [OnlineStatusController::class, 'index']);
+        Route::get('/members/{id}/online-status', [OnlineStatusController::class, 'show']);
 
         Route::post('/members/{id}/connections', [MemberController::class, 'sendConnectionRequest']);
         Route::post('/members/{id}/connections/accept', [MemberController::class, 'acceptConnection']);
