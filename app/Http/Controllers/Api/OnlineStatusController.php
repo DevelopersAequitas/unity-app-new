@@ -28,9 +28,22 @@ class OnlineStatusController extends BaseApiController
 
     public function index(Request $request, OnlineStatusService $onlineStatusService)
     {
-        $ids = $request->input('ids', []);
-        $ids = is_array($ids) ? array_values(array_filter($ids)) : [];
+        $validated = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['required', 'uuid'],
+        ]);
 
-        return $this->success($onlineStatusService->getStatuses($ids));
+        return $this->success($onlineStatusService->getStatuses($validated['ids']));
+    }
+
+    public function updateStatus(Request $request, OnlineStatusService $onlineStatusService)
+    {
+        $validated = $request->validate([
+            'is_online' => ['required', 'boolean'],
+        ]);
+
+        $payload = $onlineStatusService->updateOnlineStatus($request->user(), (bool) $validated['is_online']);
+
+        return $this->success($payload, 'Online status updated successfully');
     }
 }

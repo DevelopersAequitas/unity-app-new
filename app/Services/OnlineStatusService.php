@@ -9,8 +9,6 @@ use Illuminate\Support\Facades\Cache;
 
 class OnlineStatusService
 {
-    private const STALE_SECONDS = 120;
-
     public function heartbeat(User $user, bool $broadcast = true): array
     {
         return $this->markOnline($user, $broadcast);
@@ -72,7 +70,7 @@ class OnlineStatusService
 
     public function markStaleUsersOffline(): int
     {
-        $threshold = now()->subSeconds(self::STALE_SECONDS);
+        $threshold = now()->subSeconds(120);
 
         $count = User::query()
             ->where('is_online', true)
@@ -88,14 +86,17 @@ class OnlineStatusService
         return User::query()->findOrFail($userId, ['id', 'is_online', 'last_seen_at']);
     }
 
+    public function updateOnlineStatus(User $user, bool $isOnline, bool $broadcast = true): array
+    {
+        return $isOnline
+            ? $this->markOnline($user, $broadcast)
+            : $this->markOffline($user, $broadcast, 'Last seen just now');
+    }
+
     private function formatUserStatus(User $user, ?string $lastSeenTextOverride = null): array
     {
         $lastSeenAt = $user->last_seen_at;
         $isOnline = (bool) $user->is_online;
-
-        if ($isOnline && $lastSeenAt instanceof CarbonInterface && $lastSeenAt->lt(now()->subSeconds(self::STALE_SECONDS))) {
-            $isOnline = false;
-        }
 
         return [
             'user_id' => (string) $user->id,
@@ -112,7 +113,7 @@ class OnlineStatusService
         }
 
         if (! $lastSeenAt) {
-            return 'Last seen recently';
+            return 'Offline';
         }
 
         return 'Last seen ' . $lastSeenAt->diffForHumans(now(), [
