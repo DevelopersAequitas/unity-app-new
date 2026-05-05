@@ -72,10 +72,7 @@ class OnlineStatusService
     public function getConnectionStatusesFor(User $authUser): array
     {
         $connections = Connection::query()
-            ->with([
-                'requester:id,display_name,is_online',
-                'addressee:id,display_name,is_online',
-            ])
+            ->select(['requester_id', 'addressee_id'])
             ->where('is_approved', true)
             ->where(function ($query) use ($authUser) {
                 $query->where('requester_id', $authUser->id)
@@ -83,18 +80,33 @@ class OnlineStatusService
             })
             ->get();
 
-        return $connections->map(function (Connection $connection) use ($authUser) {
-            $otherUser = (string) $connection->requester_id === (string) $authUser->id
-                ? $connection->addressee
-                : $connection->requester;
+        $connectedUserIds = $connections->map(function (Connection $connection) use ($authUser) {
+            return (string) $connection->requester_id === (string) $authUser->id
+                ? (string) $connection->addressee_id
+                : (string) $connection->requester_id;
+        })->filter()->unique()->values();
 
+        if ($connectedUserIds->isEmpty()) {
+            return [];
+        }
+
+        $users = User::query()
+            ->whereIn('id', $connectedUserIds->all())
+            ->select(['id', 'display_name', 'first_name', 'last_name', 'is_online'])
+            ->get()
+            ->keyBy(fn (User $user) => (string) $user->id);
+
+        return $connectedUserIds->map(function (string $connectedUserId) use ($users) {
+            $otherUser = $users->get($connectedUserId);
             if (! $otherUser) {
                 return null;
             }
 
+            $displayName = $otherUser->display_name
+                ?: trim(($otherUser->first_name ?? '') . ' ' . ($otherUser->last_name ?? ''));
             return [
                 'user_id' => (string) $otherUser->id,
-                'display_name' => $otherUser->display_name,
+                'display_name' => $displayName !== '' ? $displayName : null,
                 'is_online' => (bool) $otherUser->is_online,
             ];
         })->filter()->values()->all();
