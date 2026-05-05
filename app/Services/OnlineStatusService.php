@@ -73,8 +73,8 @@ class OnlineStatusService
     {
         $connections = Connection::query()
             ->with([
-                'requester:id,display_name,company_name,profile_photo_url,profile_photo_id,profile_photo_file_id,is_online,last_seen_at',
-                'addressee:id,display_name,company_name,profile_photo_url,profile_photo_id,profile_photo_file_id,is_online,last_seen_at',
+                'requester:id,display_name,is_online',
+                'addressee:id,display_name,is_online',
             ])
             ->where('is_approved', true)
             ->where(function ($query) use ($authUser) {
@@ -92,14 +92,11 @@ class OnlineStatusService
                 return null;
             }
 
-            $status = $this->formatUserStatus($otherUser);
-            $fileId = $otherUser->profile_photo_file_id ?? $otherUser->profile_photo_id ?? null;
-
-            return array_merge($status, [
+            return [
+                'user_id' => (string) $otherUser->id,
                 'display_name' => $otherUser->display_name,
-                'company_name' => $otherUser->company_name,
-                'profile_photo_url' => $fileId ? url('/api/v1/files/' . $fileId) : $otherUser->profile_photo_url,
-            ]);
+                'is_online' => (bool) $otherUser->is_online,
+            ];
         })->filter()->values()->all();
     }
 
