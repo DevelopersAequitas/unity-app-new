@@ -957,7 +957,7 @@ class AuthController extends BaseApiController
         $user = Auth::guard('sanctum')->user();
 
         if ($user && $user->currentAccessToken()) {
-            app(OnlineStatusService::class)->markOffline($user);
+            app(OnlineStatusService::class)->markOffline($user, true, 'Last seen just now');
             $user->currentAccessToken()->delete();
         }
 

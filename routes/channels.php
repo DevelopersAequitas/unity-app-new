@@ -82,3 +82,12 @@ Broadcast::channel('presence-member-status', function ($user) {
             ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
     ];
 });
+
+Broadcast::channel('online-members', function ($user) {
+    app(OnlineStatusService::class)->markOnline($user);
+
+    return [
+        'id' => (string) $user->id,
+        'name' => $user->display_name,
+    ];
+});

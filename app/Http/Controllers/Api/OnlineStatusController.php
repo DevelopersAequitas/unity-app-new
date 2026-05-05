@@ -14,6 +14,13 @@ class OnlineStatusController extends BaseApiController
         return $this->success($payload, 'Online status updated');
     }
 
+    public function offline(Request $request, OnlineStatusService $onlineStatusService)
+    {
+        $payload = $onlineStatusService->markOffline($request->user(), true, 'Last seen just now');
+
+        return $this->success($payload, 'Online status updated');
+    }
+
     public function show(string $id, OnlineStatusService $onlineStatusService)
     {
         return $this->success($onlineStatusService->getStatus($id));

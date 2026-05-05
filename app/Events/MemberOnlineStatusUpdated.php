@@ -16,9 +16,12 @@ class MemberOnlineStatusUpdated implements ShouldBroadcast
     {
     }
 
-    public function broadcastOn(): PresenceChannel
+    public function broadcastOn(): array
     {
-        return new PresenceChannel('presence-member-status');
+        return [
+            new PresenceChannel('presence-member-status'),
+            new PresenceChannel('presence-online-members'),
+        ];
     }
 
     public function broadcastAs(): string

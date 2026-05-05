@@ -37,7 +37,7 @@ class OnlineStatusService
         return $payload;
     }
 
-    public function markOffline(User $user, bool $broadcast = true): array
+    public function markOffline(User $user, bool $broadcast = true, ?string $lastSeenTextOverride = null): array
     {
         $now = now()->utc();
         $userId = (string) $user->id;
@@ -49,7 +49,7 @@ class OnlineStatusService
 
         $this->forgetCacheStatus($userId);
 
-        $payload = $this->formatUserStatus($user->fresh());
+        $payload = $this->formatUserStatus($user->fresh(), $lastSeenTextOverride);
 
         if ($broadcast) {
             broadcast(new MemberOnlineStatusUpdated($payload))->toOthers();
@@ -88,7 +88,7 @@ class OnlineStatusService
         return User::query()->findOrFail($userId, ['id', 'is_online', 'last_seen_at']);
     }
 
-    private function formatUserStatus(User $user): array
+    private function formatUserStatus(User $user, ?string $lastSeenTextOverride = null): array
     {
         $lastSeenAt = $user->last_seen_at;
         $isOnline = (bool) $user->is_online;
@@ -101,7 +101,7 @@ class OnlineStatusService
             'user_id' => (string) $user->id,
             'is_online' => $isOnline,
             'last_seen_at' => $lastSeenAt?->copy()->utc()->toIso8601String(),
-            'last_seen_text' => $this->lastSeenText($isOnline, $lastSeenAt),
+            'last_seen_text' => $lastSeenTextOverride ?? $this->lastSeenText($isOnline, $lastSeenAt),
         ];
     }
 
