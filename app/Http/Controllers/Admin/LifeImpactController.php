@@ -36,7 +36,7 @@ class LifeImpactController extends Controller
         $perPage = (int) ($filters['per_page'] ?? 20);
 
         $members = $this->membersQuery($filters)
-            ->orderByDesc('total_life_impacted_sort')
+            ->orderByRaw('COALESCE(users.life_impacted_count, 0) DESC')
             ->orderBy('users.display_name')
             ->paginate($perPage)
             ->appends($request->query());
@@ -55,7 +55,7 @@ class LifeImpactController extends Controller
         $filters = $this->indexFilters($request);
 
         $query = $this->membersQuery($filters)
-            ->orderByDesc('total_life_impacted_sort')
+            ->orderByRaw('COALESCE(users.life_impacted_count, 0) DESC')
             ->orderBy('users.display_name');
 
         $filename = 'life_impact_' . now()->format('Ymd_His') . '.csv';
@@ -86,6 +86,32 @@ class LifeImpactController extends Controller
         }, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ]);
+    }
+
+    public function history(User $member, Request $request, ?string $category = null): View
+    {
+        $this->ensureMemberInScope((string) $member->id, auth('admin')->user());
+
+        $activeCategory = $category && array_key_exists($category, self::CATEGORIES) ? $category : null;
+        $filters = $this->historyFilters($request);
+        $items = $this->historyQuery($member, $filters, $activeCategory)
+            ->orderByDesc('created_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('admin.life-impact.history', [
+            'member' => $member->loadMissing(['circleMembers' => function ($circleMembersQuery) {
+                $circleMembersQuery->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }]),
+            'items' => $items,
+            'filters' => $filters,
+            'activeCategory' => $activeCategory,
+            'activeCategoryLabel' => $activeCategory ? self::CATEGORIES[$activeCategory]['label'] : null,
+            'categories' => self::CATEGORIES,
         ]);
     }
 
@@ -234,6 +260,134 @@ class LifeImpactController extends Controller
     private function normalizeCategoryToken(string $value): string
     {
         return trim((string) preg_replace('/[^a-z0-9]+/', '_', strtolower($value)), '_');
+    }
+
+    private function historyQuery(User $member, array $filters, ?string $category = null)
+    {
+        $query = DB::table('life_impact_histories')
+            ->where('user_id', $member->id)
+            ->select([
+                'id',
+                'user_id',
+                'triggered_by_user_id',
+                'activity_type',
+                'activity_id',
+                'impact_value',
+                'title',
+                'description',
+                'life_impacted',
+                'counted_in_total',
+                'impact_category',
+                'action_key',
+                'action_label',
+                'remarks',
+                'created_at',
+            ]);
+
+        $from = trim((string) ($filters['from'] ?? ''));
+        $to = trim((string) ($filters['to'] ?? ''));
+        $date = trim((string) ($filters['date'] ?? ''));
+        $search = trim((string) ($filters['q'] ?? ''));
+
+        if ($category !== null) {
+            $query->where(function ($q): void {
+                $q->whereNull('counted_in_total')
+                    ->orWhere('counted_in_total', true);
+            })
+                ->where(function ($q): void {
+                    $q->whereNull('activity_type')->orWhere('activity_type', '!=', 'admin_adjustment');
+                })
+                ->where(function ($q): void {
+                    $q->whereNull('impact_category')->orWhere('impact_category', '!=', 'admin_adjustment');
+                })
+                ->where(function ($q): void {
+                    $q->whereNull('action_key')->orWhere('action_key', '!=', 'admin_adjustment');
+                });
+
+            if (Schema::hasColumn('life_impact_histories', 'status')) {
+                $query->where(function ($q): void {
+                    $q->whereNull('status')->orWhere('status', 'approved');
+                });
+            }
+
+            $this->applyHistoryCategoryFilter($query, $category);
+        }
+
+        if ($from !== '') {
+            $query->whereDate('created_at', '>=', $from);
+        }
+
+        if ($to !== '') {
+            $query->whereDate('created_at', '<=', $to);
+        }
+
+        if ($date !== '') {
+            $query->whereDate('created_at', '=', $date);
+        }
+
+        if ($search !== '') {
+            $like = "%{$search}%";
+            $query->where(function ($searchQuery) use ($like): void {
+                $searchQuery->where('title', 'ILIKE', $like)
+                    ->orWhere('description', 'ILIKE', $like)
+                    ->orWhere('remarks', 'ILIKE', $like)
+                    ->orWhere('action_label', 'ILIKE', $like)
+                    ->orWhere('action_key', 'ILIKE', $like)
+                    ->orWhere('impact_category', 'ILIKE', $like)
+                    ->orWhere('activity_type', 'ILIKE', $like);
+            });
+        }
+
+        return $query;
+    }
+
+    private function applyHistoryCategoryFilter($query, string $category): void
+    {
+        $aliases = self::CATEGORIES[$category]['aliases'] ?? [];
+        $aliases[] = $category;
+        $aliases = collect($aliases)
+            ->map(fn ($alias) => $this->normalizeCategoryToken((string) $alias))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $columns = ['action_key', 'impact_category', 'activity_type', 'action_label', 'title'];
+
+        $query->where(function ($categoryQuery) use ($aliases, $columns): void {
+            foreach ($columns as $column) {
+                foreach ($aliases as $alias) {
+                    $categoryQuery->orWhereRaw(
+                        "TRIM(BOTH '_' FROM REGEXP_REPLACE(LOWER(COALESCE({$column}, '')), '[^a-z0-9]+', '_', 'g')) = ?",
+                        [$alias]
+                    );
+
+                    if (mb_strlen($alias) > 2) {
+                        $categoryQuery->orWhereRaw(
+                            "TRIM(BOTH '_' FROM REGEXP_REPLACE(LOWER(COALESCE({$column}, '')), '[^a-z0-9]+', '_', 'g')) LIKE ?",
+                            ['%' . $alias . '%']
+                        );
+                    }
+                }
+            }
+        });
+    }
+
+    private function historyFilters(Request $request): array
+    {
+        return [
+            'from' => trim((string) $request->query('from', '')),
+            'to' => trim((string) $request->query('to', '')),
+            'date' => trim((string) $request->query('date', '')),
+            'q' => trim((string) $request->query('q', '')),
+        ];
+    }
+
+    private function ensureMemberInScope(string $userId, $admin): void
+    {
+        if (! AdminCircleScope::userInScope($admin, $userId)) {
+            abort(403);
+        }
     }
 
     private function indexFilters(Request $request): array

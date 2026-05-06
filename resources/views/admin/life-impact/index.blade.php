@@ -88,7 +88,7 @@
                                         placeholder="Peer/Company/City"
                                         value="{{ $filters['q'] }}"
                                     >
-                                    <select id="lifeImpactCircle" name="circle_id" form="lifeImpactFiltersForm" class="form-select form-select-sm">
+                                    <select id="lifeImpactCircle" name="circle_id" form="lifeImpactFiltersForm" class="form-select form-select-sm js-searchable-select" data-placeholder="All Circles">
                                         <option value="all">All Circles</option>
                                         @foreach ($circles as $circle)
                                             <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
@@ -121,11 +121,11 @@
                                     @include('admin.shared.peer_card', ['user' => $member])
                                 </td>
                                 <td class="text-center">
-                                    <span class="btn btn-sm btn-outline-primary pe-none">{{ number_format($totalLifeImpacted) }}</span>
+                                    <a href="{{ route('admin.life-impact.history', $member) }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ number_format($totalLifeImpacted) }}</a>
                                 </td>
                                 @foreach (array_keys($categories) as $key)
                                     <td class="text-center">
-                                        <span class="btn btn-sm btn-outline-secondary pe-none">{{ number_format((int) ($stats[$key] ?? 0)) }}</span>
+                                        <a href="{{ route('admin.life-impact.history.category', [$member, $key]) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">{{ number_format((int) ($stats[$key] ?? 0)) }}</a>
                                     </td>
                                 @endforeach
                             </tr>
