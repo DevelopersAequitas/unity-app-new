@@ -35,8 +35,10 @@ class LifeImpactController extends Controller
         $filters = $this->indexFilters($request);
         $perPage = (int) ($filters['per_page'] ?? 20);
 
+        $dateFilterActive = $this->hasDateFilter($filters);
+
         $members = $this->membersQuery($filters)
-            ->orderByRaw('COALESCE(users.life_impacted_count, 0) DESC')
+            ->orderByDesc('total_life_impacted_sort')
             ->orderBy('users.display_name')
             ->paginate($perPage)
             ->appends($request->query());
@@ -46,7 +48,10 @@ class LifeImpactController extends Controller
             'filters' => $filters,
             'circles' => Circle::query()->orderBy('name')->get(['id', 'name']),
             'categories' => self::CATEGORIES,
-            'impactStats' => $this->impactStatsByUserId($members->pluck('id')->all()),
+            'impactStats' => $this->impactStatsByUserId($members->pluck('id')->all(), $filters),
+            'summary' => $this->summaryStats($filters),
+            'dateFilterActive' => $dateFilterActive,
+            'quickDateRanges' => $this->quickDateRanges(),
         ]);
     }
 
@@ -55,23 +60,27 @@ class LifeImpactController extends Controller
         $filters = $this->indexFilters($request);
 
         $query = $this->membersQuery($filters)
-            ->orderByRaw('COALESCE(users.life_impacted_count, 0) DESC')
+            ->orderByDesc('total_life_impacted_sort')
             ->orderBy('users.display_name');
 
         $filename = 'life_impact_' . now()->format('Ymd_His') . '.csv';
 
-        return response()->streamDownload(function () use ($query): void {
+        return response()->streamDownload(function () use ($query, $filters): void {
             $handle = fopen('php://output', 'w');
             fputcsv($handle, array_merge(['Peer Name', 'Total Life Impacted'], array_column(self::CATEGORIES, 'label')));
 
-            $query->chunk(500, function ($members) use ($handle): void {
-                $stats = $this->impactStatsByUserId($members->pluck('id')->all());
+            $dateFilterActive = $this->hasDateFilter($filters);
+
+            $query->chunk(500, function ($members) use ($handle, $filters, $dateFilterActive): void {
+                $stats = $this->impactStatsByUserId($members->pluck('id')->all(), $filters);
 
                 foreach ($members as $member) {
                     $rowStats = $stats[(string) $member->id] ?? [];
                     $row = [
                         $member->adminName(),
-                        (int) ($member->life_impacted_count ?? 0),
+                        $dateFilterActive
+                            ? (int) ($rowStats['total_life_impacted'] ?? 0)
+                            : (int) ($member->life_impacted_count ?? 0),
                     ];
 
                     foreach (array_keys(self::CATEGORIES) as $key) {
@@ -93,7 +102,8 @@ class LifeImpactController extends Controller
     {
         $this->ensureMemberInScope((string) $member->id, auth('admin')->user());
 
-        $activeCategory = $category && array_key_exists($category, self::CATEGORIES) ? $category : null;
+        $requestedCategory = $category ?: (string) $request->query('category', '');
+        $activeCategory = $requestedCategory && array_key_exists($requestedCategory, self::CATEGORIES) ? $requestedCategory : null;
         $filters = $this->historyFilters($request);
         $items = $this->historyQuery($member, $filters, $activeCategory)
             ->orderByDesc('created_at')
@@ -132,13 +142,28 @@ class LifeImpactController extends Controller
                 'users.city',
                 'users.life_impacted_count',
             ])
-            ->addSelect(DB::raw('COALESCE(users.life_impacted_count, 0) as total_life_impacted_sort'))
             ->with(['circleMembers' => function ($circleMembersQuery) {
                 $circleMembersQuery->where('status', 'approved')
                     ->whereNull('deleted_at')
                     ->orderByDesc('joined_at')
                     ->with(['circle:id,name']);
             }]);
+
+        if ($this->hasDateFilter($filters)) {
+            $query->addSelect([
+                'total_life_impacted_sort' => DB::table('life_impact_histories')
+                    ->selectRaw('COALESCE(SUM(COALESCE(impact_value, life_impacted, 0)), 0)')
+                    ->whereColumn('life_impact_histories.user_id', 'users.id')
+                    ->when(trim((string) ($filters['from'] ?? '')) !== '', function ($historyQuery) use ($filters): void {
+                        $historyQuery->whereDate('created_at', '>=', $filters['from']);
+                    })
+                    ->when(trim((string) ($filters['to'] ?? '')) !== '', function ($historyQuery) use ($filters): void {
+                        $historyQuery->whereDate('created_at', '<=', $filters['to']);
+                    }),
+            ]);
+        } else {
+            $query->addSelect(DB::raw('COALESCE(users.life_impacted_count, 0) as total_life_impacted_sort'));
+        }
 
         AdminCircleScope::applyToUsersQuery($query, auth('admin')->user());
 
@@ -180,7 +205,7 @@ class LifeImpactController extends Controller
         return $query;
     }
 
-    private function impactStatsByUserId(array $memberIds): array
+    private function impactStatsByUserId(array $memberIds, array $filters = []): array
     {
         if ($memberIds === []) {
             return [];
@@ -192,16 +217,9 @@ class LifeImpactController extends Controller
                 $q->whereNull('counted_in_total')
                     ->orWhere('counted_in_total', true);
             })
-            ->where(function ($q): void {
-                $q->whereNull('activity_type')->orWhere('activity_type', '!=', 'admin_adjustment');
-            })
-            ->where(function ($q): void {
-                $q->whereNull('impact_category')->orWhere('impact_category', '!=', 'admin_adjustment');
-            })
-            ->where(function ($q): void {
-                $q->whereNull('action_key')->orWhere('action_key', '!=', 'admin_adjustment');
-            })
-            ->select(['user_id', 'activity_type', 'impact_category', 'action_key', 'action_label', 'title']);
+            ->select(['user_id', 'activity_type', 'impact_category', 'action_key', 'action_label', 'title', 'impact_value', 'life_impacted']);
+
+        $this->applyDateFiltersToHistoryQuery($query, $filters);
 
         if (Schema::hasColumn('life_impact_histories', 'status')) {
             $query->where(function ($q): void {
@@ -211,15 +229,108 @@ class LifeImpactController extends Controller
 
         return $query->get()
             ->reduce(function (array $stats, $history): array {
+                $userId = (string) $history->user_id;
+                $stats[$userId]['total_life_impacted'] = (int) ($stats[$userId]['total_life_impacted'] ?? 0)
+                    + $this->historyImpactValue($history);
+
+                if ($this->isAdminAdjustment($history)) {
+                    return $stats;
+                }
+
                 $category = $this->resolveCategoryKey($history);
 
                 if ($category !== null) {
-                    $userId = (string) $history->user_id;
                     $stats[$userId][$category] = (int) ($stats[$userId][$category] ?? 0) + self::CATEGORIES[$category]['points'];
                 }
 
                 return $stats;
             }, []);
+    }
+
+    private function summaryStats(array $filters): array
+    {
+        $memberIds = $this->membersQuery($filters)->pluck('users.id')->all();
+        $summary = [
+            'total_life_impacted' => 0,
+            'business_deals' => 0,
+            'referrals' => 0,
+            'testimonials' => 0,
+            'other_impact_activities' => 0,
+        ];
+
+        if ($memberIds === []) {
+            return $summary;
+        }
+
+        if ($this->hasDateFilter($filters)) {
+            foreach ($this->impactStatsByUserId($memberIds, $filters) as $stats) {
+                $summary['total_life_impacted'] += (int) ($stats['total_life_impacted'] ?? 0);
+                $summary['business_deals'] += (int) ($stats['business_deals'] ?? 0);
+                $summary['referrals'] += (int) ($stats['referrals'] ?? 0);
+                $summary['testimonials'] += (int) ($stats['testimonials'] ?? 0);
+                $summary['other_impact_activities'] += $this->otherImpactActivitiesTotal($stats);
+            }
+
+            return $summary;
+        }
+
+        $summary['total_life_impacted'] = (int) $this->membersQuery($filters)->sum(DB::raw('COALESCE(users.life_impacted_count, 0)'));
+
+        foreach ($this->impactStatsByUserId($memberIds, $filters) as $stats) {
+            $summary['business_deals'] += (int) ($stats['business_deals'] ?? 0);
+            $summary['referrals'] += (int) ($stats['referrals'] ?? 0);
+            $summary['testimonials'] += (int) ($stats['testimonials'] ?? 0);
+            $summary['other_impact_activities'] += $this->otherImpactActivitiesTotal($stats);
+        }
+
+        return $summary;
+    }
+
+    private function otherImpactActivitiesTotal(array $stats): int
+    {
+        return collect(array_keys(self::CATEGORIES))
+            ->reject(fn (string $key) => in_array($key, ['business_deals', 'referrals', 'testimonials'], true))
+            ->sum(fn (string $key) => (int) ($stats[$key] ?? 0));
+    }
+
+    private function historyImpactValue(object $history): int
+    {
+        if (isset($history->impact_value) && is_numeric($history->impact_value)) {
+            return (int) $history->impact_value;
+        }
+
+        if (isset($history->life_impacted) && is_numeric($history->life_impacted)) {
+            return (int) $history->life_impacted;
+        }
+
+        return 0;
+    }
+
+    private function isAdminAdjustment(object $history): bool
+    {
+        return ($history->activity_type ?? null) === 'admin_adjustment'
+            || ($history->impact_category ?? null) === 'admin_adjustment'
+            || ($history->action_key ?? null) === 'admin_adjustment';
+    }
+
+    private function hasDateFilter(array $filters): bool
+    {
+        return trim((string) ($filters['from'] ?? '')) !== ''
+            || trim((string) ($filters['to'] ?? '')) !== '';
+    }
+
+    private function applyDateFiltersToHistoryQuery($query, array $filters): void
+    {
+        $from = trim((string) ($filters['from'] ?? ''));
+        $to = trim((string) ($filters['to'] ?? ''));
+
+        if ($from !== '') {
+            $query->whereDate('created_at', '>=', $from);
+        }
+
+        if ($to !== '') {
+            $query->whereDate('created_at', '<=', $to);
+        }
     }
 
     private function resolveCategoryKey(object $history): ?string
@@ -395,11 +506,45 @@ class LifeImpactController extends Controller
         $perPage = $request->integer('per_page') ?: 20;
         $perPage = in_array($perPage, [10, 20, 25, 50, 100], true) ? $perPage : 20;
 
+        $quick = (string) $request->query('quick_date', '');
+        $quickRanges = $this->quickDateRanges();
+        $from = trim((string) $request->query('from', ''));
+        $to = trim((string) $request->query('to', ''));
+
+        if ($quick !== '' && isset($quickRanges[$quick])) {
+            $from = $quickRanges[$quick]['from'];
+            $to = $quickRanges[$quick]['to'];
+        }
+
         return [
             'q' => trim((string) $request->query('q', $request->query('search', ''))),
             'search' => trim((string) $request->query('q', $request->query('search', ''))),
             'circle_id' => (string) $request->query('circle_id', 'all'),
+            'from' => $from,
+            'to' => $to,
+            'quick_date' => isset($quickRanges[$quick]) ? $quick : '',
             'per_page' => $perPage,
+        ];
+    }
+
+    private function quickDateRanges(): array
+    {
+        return [
+            'this_month' => [
+                'label' => 'This Month',
+                'from' => now()->startOfMonth()->toDateString(),
+                'to' => now()->endOfMonth()->toDateString(),
+            ],
+            'last_month' => [
+                'label' => 'Last Month',
+                'from' => now()->subMonthNoOverflow()->startOfMonth()->toDateString(),
+                'to' => now()->subMonthNoOverflow()->endOfMonth()->toDateString(),
+            ],
+            'this_year' => [
+                'label' => 'This Year',
+                'from' => now()->startOfYear()->toDateString(),
+                'to' => now()->endOfYear()->toDateString(),
+            ],
         ];
     }
 }

@@ -43,21 +43,75 @@
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
 
+    @php
+        $historyDateParams = array_filter([
+            'from' => $filters['from'] ?? '',
+            'to' => $filters['to'] ?? '',
+        ], fn ($value) => filled($value));
+        $historyQueryString = $historyDateParams ? '?' . http_build_query($historyDateParams) : '';
+        $summaryCards = [
+            ['label' => 'Total Life Impacted', 'value' => $summary['total_life_impacted'] ?? 0, 'class' => 'text-primary'],
+            ['label' => 'Business Deals', 'value' => $summary['business_deals'] ?? 0, 'class' => 'text-success'],
+            ['label' => 'Referrals', 'value' => $summary['referrals'] ?? 0, 'class' => 'text-info'],
+            ['label' => 'Testimonials', 'value' => $summary['testimonials'] ?? 0, 'class' => 'text-warning'],
+            ['label' => 'Other Impact Activities', 'value' => $summary['other_impact_activities'] ?? 0, 'class' => 'text-secondary'],
+        ];
+    @endphp
+
+    <div class="row g-3 mb-3">
+        @foreach ($summaryCards as $card)
+            <div class="col-12 col-sm-6 col-lg">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body py-3">
+                        <div class="small text-muted">{{ $card['label'] }}</div>
+                        <div class="h4 mb-0 {{ $card['class'] }}">{{ number_format((int) $card['value']) }}</div>
+                    </div>
+                </div>
+            </div>
+        @endforeach
+    </div>
+
     <div class="card shadow-sm">
-        <div class="d-flex flex-wrap justify-content-between align-items-center p-3 gap-2 border-bottom">
-            <div class="d-flex align-items-center gap-2">
-                <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
-                <select id="perPage" name="per_page" form="lifeImpactFiltersForm" class="form-select form-select-sm" style="width: 90px;">
-                    @foreach ([10, 20, 25, 50, 100] as $size)
-                        <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
+        <div class="d-flex flex-wrap justify-content-between align-items-end p-3 gap-3 border-bottom">
+            <div class="d-flex flex-wrap align-items-end gap-2">
+                <div>
+                    <label for="perPage" class="form-label mb-1 small text-muted">Rows per page</label>
+                    <select id="perPage" name="per_page" form="lifeImpactFiltersForm" class="form-select form-select-sm" style="width: 90px;">
+                        @foreach ([10, 20, 25, 50, 100] as $size)
+                            <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label mb-1 small text-muted">From Date</label>
+                    <input type="date" id="lifeImpactFrom" name="from" form="lifeImpactFiltersForm" value="{{ $filters['from'] ?? '' }}" class="form-control form-control-sm">
+                </div>
+                <div>
+                    <label class="form-label mb-1 small text-muted">To Date</label>
+                    <input type="date" id="lifeImpactTo" name="to" form="lifeImpactFiltersForm" value="{{ $filters['to'] ?? '' }}" class="form-control form-control-sm">
+                </div>
+                <div class="d-flex flex-wrap gap-1">
+                    @foreach ($quickDateRanges as $key => $range)
+                        <a
+                            href="{{ route('admin.life-impact.index', array_filter(['q' => $filters['q'] ?? '', 'circle_id' => $filters['circle_id'] ?? 'all', 'per_page' => $filters['per_page'] ?? 20, 'quick_date' => $key])) }}"
+                            class="btn btn-sm {{ ($filters['quick_date'] ?? '') === $key ? 'btn-primary' : 'btn-outline-primary' }}"
+                        >{{ $range['label'] }}</a>
                     @endforeach
-                </select>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" form="lifeImpactFiltersForm" class="btn btn-sm btn-primary">Apply</button>
+                    <a href="{{ route('admin.life-impact.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                    <button type="button" class="btn btn-sm btn-outline-primary js-life-impact-export">Export</button>
+                </div>
             </div>
             <div class="small text-muted">
                 @if($members->total() > 0)
                     Records {{ $members->firstItem() }} to {{ $members->lastItem() }} of {{ $members->total() }}
                 @else
                     No records found
+                @endif
+                @if($dateFilterActive)
+                    <span class="badge bg-light text-dark border ms-2">Date filtered</span>
                 @endif
             </div>
         </div>
@@ -103,7 +157,7 @@
                                 <form id="lifeImpactFiltersForm" method="GET" class="life-impact-filter-actions justify-content-end">
                                     <button type="submit" class="btn btn-sm btn-primary">Apply</button>
                                     <a href="{{ route('admin.life-impact.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-                                    <button type="button" id="lifeImpactExportBtn" class="btn btn-sm btn-outline-primary">Export</button>
+                                    <button type="button" id="lifeImpactExportBtn" class="btn btn-sm btn-outline-primary js-life-impact-export">Export</button>
                                 </form>
                                 <form id="lifeImpactExportForm" method="GET" action="{{ route('admin.life-impact.export') }}" class="d-none"></form>
                             </th>
@@ -114,18 +168,20 @@
                         @forelse ($members as $member)
                             @php
                                 $stats = $impactStats[(string) $member->id] ?? [];
-                                $totalLifeImpacted = (int) ($member->life_impacted_count ?? 0);
+                                $totalLifeImpacted = $dateFilterActive
+                                    ? (int) ($stats['total_life_impacted'] ?? 0)
+                                    : (int) ($member->life_impacted_count ?? 0);
                             @endphp
                             <tr>
                                 <td>
                                     @include('admin.shared.peer_card', ['user' => $member])
                                 </td>
                                 <td class="text-center">
-                                    <a href="{{ route('admin.life-impact.history', $member) }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ number_format($totalLifeImpacted) }}</a>
+                                    <a href="{{ route('admin.life-impact.history', $member) . $historyQueryString }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ number_format($totalLifeImpacted) }}</a>
                                 </td>
                                 @foreach (array_keys($categories) as $key)
                                     <td class="text-center">
-                                        <a href="{{ route('admin.life-impact.history.category', [$member, $key]) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">{{ number_format((int) ($stats[$key] ?? 0)) }}</a>
+                                        <a href="{{ route('admin.life-impact.history.category', [$member, $key]) . $historyQueryString }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">{{ number_format((int) ($stats[$key] ?? 0)) }}</a>
                                     </td>
                                 @endforeach
                             </tr>
@@ -150,7 +206,7 @@
                 const perPage = document.getElementById('perPage');
                 const form = document.getElementById('lifeImpactFiltersForm');
                 const exportForm = document.getElementById('lifeImpactExportForm');
-                const exportBtn = document.getElementById('lifeImpactExportBtn');
+                const exportBtns = document.querySelectorAll('.js-life-impact-export');
 
                 if (perPage && form) {
                     perPage.addEventListener('change', function () {
@@ -183,16 +239,19 @@
                     targetForm.appendChild(input);
                 };
 
-                if (exportBtn && exportForm) {
-                    exportBtn.addEventListener('click', function (event) {
+                if (exportBtns.length && exportForm) {
+                    exportBtns.forEach(function (exportBtn) {
+                        exportBtn.addEventListener('click', function (event) {
                         event.preventDefault();
                         exportForm.innerHTML = '';
 
                         appendHiddenInput(exportForm, 'q', document.getElementById('lifeImpactQ')?.value ?? '');
                         appendHiddenInput(exportForm, 'circle_id', document.getElementById('lifeImpactCircle')?.value ?? 'all');
-                        appendHiddenInput(exportForm, 'per_page', document.getElementById('perPage')?.value ?? '20');
+                        appendHiddenInput(exportForm, 'from', document.getElementById('lifeImpactFrom')?.value ?? '');
+                        appendHiddenInput(exportForm, 'to', document.getElementById('lifeImpactTo')?.value ?? '');
 
                         exportForm.submit();
+                        });
                     });
                 }
             });
