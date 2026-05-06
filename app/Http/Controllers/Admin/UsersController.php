@@ -545,10 +545,12 @@ class UsersController extends Controller
                 $difference = $newLifeImpactedCount - $originalLifeImpactedCount;
 
                 if ($difference !== 0) {
+                    $admin = Auth::guard('admin')->user();
+
                     DB::table('life_impact_histories')->insert([
                         'id' => (string) Str::uuid(),
                         'user_id' => $user->id,
-                        'triggered_by_user_id' => optional(Auth::guard('admin')->user())->id,
+                        'triggered_by_user_id' => null,
                         'activity_type' => 'admin_adjustment',
                         'activity_id' => null,
                         'impact_value' => $difference,
@@ -559,6 +561,8 @@ class UsersController extends Controller
                             'new_value' => $newLifeImpactedCount,
                             'difference' => $difference,
                             'source' => 'admin_panel',
+                            'admin_user_id' => $admin?->id,
+                            'admin_email' => $admin?->email ?? $admin?->name,
                         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                         'created_at' => now(),
                         'updated_at' => now(),
