@@ -33,6 +33,7 @@ use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\EmailLogController;
 use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
+use App\Http\Controllers\Admin\AdminExecutionController;
 
 Route::get('/', function () {
     return view('landing');
@@ -198,5 +199,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/impacts/{id}/approve', [ImpactsController::class, 'approve'])->whereUuid('id')->name('impacts.approve');
         Route::post('/impacts/{id}/reject', [ImpactsController::class, 'reject'])->whereUuid('id')->name('impacts.reject');
         Route::get('/email-logs/{id}', [EmailLogController::class, 'show'])->name('email-logs.show');
+
+        Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
+        Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');
+        Route::get('/execution/events', [AdminExecutionController::class, 'events'])->name('execution.events');
+        Route::get('/execution/finance', [AdminExecutionController::class, 'finance'])->name('execution.finance');
+        Route::get('/execution/communications', [AdminExecutionController::class, 'communications'])->name('execution.communications');
+        Route::post('/execution/communications/broadcast', [AdminExecutionController::class, 'sendBroadcast'])->name('execution.broadcast.send');
+        Route::get('/execution/meetings', [AdminExecutionController::class, 'meetings'])->name('execution.meetings');
+        Route::get('/execution/reports', [AdminExecutionController::class, 'reports'])->name('execution.reports');
     });
 });

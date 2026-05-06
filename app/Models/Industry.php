@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 class Industry extends Model
 {
@@ -42,5 +43,25 @@ class Industry extends Model
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
+    }
+
+    public function circles(): HasMany
+    {
+        $relation = $this->hasMany(Circle::class, 'id', 'id');
+
+        if (! Schema::hasColumn('circles', 'industry_tags')) {
+            return $relation->whereRaw('1 = 0');
+        }
+
+        $industryId = (string) $this->getKey();
+        $industryName = trim((string) $this->name);
+
+        return $relation->where(function ($query) use ($industryId, $industryName): void {
+            $query->whereJsonContains('industry_tags', $industryId);
+
+            if ($industryName !== '') {
+                $query->orWhereJsonContains('industry_tags', $industryName);
+            }
+        });
     }
 }

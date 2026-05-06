@@ -23,6 +23,8 @@
         ]
         : [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
+            ['icon' => 'bi-person-badge', 'label' => 'Leadership', 'route' => 'admin.execution.leadership'],
+            ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
             ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
@@ -34,13 +36,14 @@
                 ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
                 ['icon' => 'bi-lightning-charge', 'label' => 'Impact', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
             ] : []),
-            ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => '#'],
+            ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => 'admin.execution.finance'],
             ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],
-            ['icon' => 'bi-calendar-event', 'label' => 'Events', 'route' => '#'],
+            ['icon' => 'bi-calendar-event', 'label' => 'Events', 'route' => 'admin.execution.events'],
             ['icon' => 'bi-people-fill', 'label' => 'Referrals & Visitors', 'route' => '#'],
             ['icon' => 'bi-life-preserver', 'label' => 'Support & Feedback', 'route' => '#'],
-            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => '#'],
-            ['icon' => 'bi-shield-lock', 'label' => 'Audit & Compliance', 'route' => '#'],
+            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.execution.communications'],
+            ['icon' => 'bi-calendar2-week', 'label' => 'Meetings & Warnings', 'route' => 'admin.execution.meetings'],
+            ['icon' => 'bi-shield-lock', 'label' => 'Audit & Compliance', 'route' => 'admin.execution.reports'],
             ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
         ];
 
