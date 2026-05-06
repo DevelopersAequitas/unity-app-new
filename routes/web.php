@@ -93,8 +93,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/activities/{member}/requirements', [ActivitiesController::class, 'requirements'])->name('activities.requirements');
         Route::get('/coins', [CoinsController::class, 'index'])->name('coins.index');
         Route::get('/coins/export', [CoinsController::class, 'exportIndex'])->name('coins.export');
-        Route::get('/life-impact', [LifeImpactController::class, 'index'])->name('life-impact.index');
-        Route::get('/life-impact/export', [LifeImpactController::class, 'export'])->name('life-impact.export');
+        Route::get('/life-impact', [LifeImpactController::class, 'index'])
+            ->name('life-impact.index');
+        Route::get('/life-impact/export', [LifeImpactController::class, 'export'])
+            ->name('life-impact.export');
         Route::get('/coins/add', [CoinsController::class, 'create'])->name('coins.create');
         Route::post('/coins/add', [CoinsController::class, 'store'])->name('coins.store');
         Route::get('/coins/{member}/ledger', [CoinsController::class, 'ledger'])->name('coins.ledger');
