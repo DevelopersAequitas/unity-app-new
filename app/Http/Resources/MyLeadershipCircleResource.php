@@ -12,11 +12,9 @@ class MyLeadershipCircleResource extends JsonResource
     {
         $circle = $this->relationLoaded('circle') ? $this->circle : null;
         $role = $this->relationLoaded('roleModel') ? $this->roleModel : null;
-        $roleSlug = $this->normalizeRoleSlug(
+        $roleSlug = $this->resolved_role_slug ?? $this->normalizeRoleSlug(
             $role?->slug
-            ?? $role?->key
             ?? $role?->name
-            ?? $role?->display_name
             ?? $this->role
         );
         $roleName = $role?->name ?? $this->roleNameFromSlug($roleSlug);
@@ -54,12 +52,15 @@ class MyLeadershipCircleResource extends JsonResource
             return null;
         }
 
-        return Str::of($value)
+        $slug = Str::of($value)
             ->lower()
+            ->trim()
             ->replace(['-', ' '], '_')
             ->replaceMatches('/_+/', '_')
             ->trim('_')
             ->toString();
+
+        return $slug === 'circle_member' ? 'member' : $slug;
     }
 
     private function roleNameFromSlug(?string $slug): ?string

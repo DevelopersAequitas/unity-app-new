@@ -7,7 +7,7 @@ use App\Models\CircleMember;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class CircleLeadershipController extends BaseApiController
 {
@@ -24,25 +24,16 @@ class CircleLeadershipController extends BaseApiController
                     ->orWhereIn(DB::raw('LOWER(circle_members.status::text)'), ['approved', 'active', 'member']);
             })
             ->whereHas('circle')
-            ->where(function ($query) use ($allowedRoles): void {
-                $query->whereIn($this->normalizedColumn('circle_members.role'), $allowedRoles);
-
-                if (Schema::hasColumn('circle_members', 'role_id')) {
-                    $query->orWhereHas('roleModel', function ($roleQuery) use ($allowedRoles): void {
-                        $roleColumns = array_values(array_filter(
-                            ['slug', 'key', 'name', 'display_name'],
-                            fn (string $column): bool => Schema::hasColumn('roles', $column)
-                        ));
-
-                        foreach ($roleColumns as $column) {
-                            $roleQuery->orWhereIn($this->normalizedColumn('roles.' . $column), $allowedRoles);
-                        }
-                    });
-                }
-            })
             ->orderBy('joined_at')
             ->orderBy('created_at')
-            ->get();
+            ->get()
+            ->map(function (CircleMember $member): CircleMember {
+                $member->setAttribute('resolved_role_slug', $this->resolveRoleSlug($member));
+
+                return $member;
+            })
+            ->filter(fn (CircleMember $member): bool => in_array($member->getAttribute('resolved_role_slug'), $allowedRoles, true))
+            ->values();
 
         return $this->success([
             'total' => $members->count(),
@@ -50,10 +41,43 @@ class CircleLeadershipController extends BaseApiController
         ], 'My leadership circles fetched successfully.');
     }
 
-    private function normalizedColumn(string $column): \Illuminate\Contracts\Database\Query\Expression
+    private function resolveRoleSlug(CircleMember $member): ?string
     {
-        $normalizedColumn = "LOWER(REPLACE(REPLACE({$column}::text, ' ', '_'), '-', '_'))";
+        $role = $member->relationLoaded('roleModel') ? $member->roleModel : null;
 
-        return DB::raw("CASE WHEN {$normalizedColumn} = 'circle_member' THEN 'member' ELSE {$normalizedColumn} END");
+        return $this->normalizeRoleSlug(
+            $role?->slug
+            ?? $role?->name
+            ?? $member->role
+        );
+    }
+
+    private function normalizeRoleSlug(?string $value): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        $slug = Str::of($value)
+            ->lower()
+            ->trim()
+            ->replace(['-', ' '], '_')
+            ->replaceMatches('/_+/', '_')
+            ->trim('_')
+            ->toString();
+
+        if ($slug === 'circle_member') {
+            return 'member';
+        }
+
+        if (str_starts_with($slug, 'circle_')) {
+            $withoutPrefix = Str::after($slug, 'circle_');
+
+            return in_array($withoutPrefix, CircleMember::LEADERSHIP_ROLE_OPTIONS, true)
+                ? $withoutPrefix
+                : $slug;
+        }
+
+        return $slug;
     }
 }
