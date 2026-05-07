@@ -18,6 +18,15 @@ class CircleMember extends Model
     use HasFactory;
     use SoftDeletes;
 
+    public const LEADERSHIP_ROLE_OPTIONS = [
+        'founder',
+        'director',
+        'chair',
+        'vice_chair',
+        'secretary',
+        'committee_leader',
+    ];
+
     public const ROLE_OPTIONS = [
         'member',
         'founder',
