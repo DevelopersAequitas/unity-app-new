@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\CircleJoinRequestController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\FeedbackController;
+use App\Http\Controllers\Api\GeoLocationController;
 use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MembershipSummaryController;
@@ -130,6 +131,10 @@ Route::prefix('v1')->group(function () {
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
 
+
+        Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
+        Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
+        Route::get('/geo/nearby-peers', [GeoLocationController::class, 'nearbyPeers']);
 
         Route::get('/blocked-peers', [PeerBlockController::class, 'index']);
         Route::post('/peers/{user}/block', [PeerBlockController::class, 'store'])->whereUuid('user');
