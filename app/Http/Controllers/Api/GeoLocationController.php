@@ -108,6 +108,7 @@ class GeoLocationController extends BaseApiController
             ->where('users.id', '!=', (string) $authUser->id)
             ->select('users.*')
             ->selectRaw('user_geo_locations.last_seen_at as geo_last_seen_at')
+            ->selectRaw('user_geo_locations.latitude as geo_latitude, user_geo_locations.longitude as geo_longitude')
             ->selectRaw($distanceExpression . ' as distance_km', $distanceBindings)
             ->whereRaw($distanceExpression . ' <= ?', [...$distanceBindings, $radiusKm])
             ->orderBy('distance_km')

@@ -18,6 +18,7 @@ class GeoNearbyPeerResource extends JsonResource
             'business_type' => $this->business_type,
             'profile_photo_url' => $this->resolveProfilePhotoUrl(),
             'city' => $this->resolveCity(),
+            'location' => $this->resolveLocation(),
             'distance_km' => round((float) $this->distance_km, 2),
             'last_seen_at' => $this->geo_last_seen_at,
             'connection_status' => $this->connection_status,
@@ -32,6 +33,14 @@ class GeoNearbyPeerResource extends JsonResource
         }
 
         return $this->getRawOriginal('profile_photo_url');
+    }
+
+    private function resolveLocation(): array
+    {
+        return [
+            'latitude' => (float) $this->geo_latitude,
+            'longitude' => (float) $this->geo_longitude,
+        ];
     }
 
     private function resolveCity(): ?array
