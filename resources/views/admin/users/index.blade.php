@@ -219,6 +219,7 @@
                                             ['label' => 'Membership Starts At', 'value' => $user->membership_starts_at, 'type' => 'membership_date'],
                                             ['label' => 'Last Payment At', 'value' => $user->last_payment_at, 'type' => 'membership_date'],
                                             ['label' => 'Coins Balance', 'value' => $user->coins_balance],
+                                            ['label' => 'Total Life Impacted', 'value' => $user->life_impacted_count],
                                             ['label' => 'Medal Rank', 'value' => $user->coin_medal_rank],
                                             ['label' => 'Title', 'value' => $user->coin_milestone_title],
                                             ['label' => 'Meaning & Vibe', 'value' => $user->coin_milestone_meaning],

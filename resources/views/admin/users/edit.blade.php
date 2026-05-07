@@ -268,6 +268,41 @@
 
         <div class="col-12">
             <div class="card">
+                <div class="card-header fw-semibold">Life Impact</div>
+                <div class="card-body row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Total Life Impacted</label>
+                        <input
+                            type="number"
+                            name="life_impacted_count"
+                            class="form-control @error('life_impacted_count') is-invalid @enderror"
+                            min="0"
+                            value="{{ old('life_impacted_count', $user->life_impacted_count ?? 0) }}"
+                        >
+                        @error('life_impacted_count')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Life Impact Remark</label>
+                        <input
+                            type="text"
+                            name="life_impact_remark"
+                            class="form-control @error('life_impact_remark') is-invalid @enderror"
+                            maxlength="1000"
+                            value="{{ old('life_impact_remark') }}"
+                            placeholder="Required when total life impacted is changed"
+                        >
+                        @error('life_impact_remark')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
                 <div class="card-header fw-semibold">Membership & Circle Details</div>
                 <div class="card-body row g-3">
                     <div class="col-12">

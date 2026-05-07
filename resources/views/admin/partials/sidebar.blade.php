@@ -13,12 +13,13 @@
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
+            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
             ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
-                ['icon' => 'bi-lightning-charge', 'label' => 'Impact', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
+                ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
             ] : []),
         ]
         : [
@@ -29,12 +30,13 @@
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
+            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
             ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
-                ['icon' => 'bi-lightning-charge', 'label' => 'Impact', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
+                ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
             ] : []),
             ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => 'admin.execution.finance'],
             ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],

@@ -346,6 +346,10 @@ class UsersController extends Controller
         $submittedCoinsBalance = (int) $request->input('coins_balance', $originalCoinsBalance);
         $coinsBalanceChanged = $submittedCoinsBalance !== $originalCoinsBalance;
         $coinsRemark = trim((string) $request->input('coins_remark', ''));
+        $originalLifeImpactedCount = (int) ($user->life_impacted_count ?? 0);
+        $submittedLifeImpactedCount = (int) $request->input('life_impacted_count', $originalLifeImpactedCount);
+        $lifeImpactedCountChanged = $submittedLifeImpactedCount !== $originalLifeImpactedCount;
+        $lifeImpactRemark = trim((string) $request->input('life_impact_remark', ''));
 
         $membershipStatuses = $this->membershipStatuses();
 
@@ -402,6 +406,7 @@ class UsersController extends Controller
             'circle_joined_at' => [Rule::requiredIf($request->has('add_circle_membership')), 'nullable', 'date'],
             'circle_expires_at' => [Rule::requiredIf($request->has('add_circle_membership')), 'nullable', 'date', 'after_or_equal:circle_joined_at'],
             'coins_balance' => ['required', 'integer', 'min:0'],
+            'life_impacted_count' => ['required', 'integer', 'min:0'],
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
             'city_id' => ['nullable', 'exists:cities,id'],
@@ -432,12 +437,15 @@ class UsersController extends Controller
 
         $request->merge([
             'coins_remark' => $coinsRemark,
+            'life_impact_remark' => $lifeImpactRemark,
         ]);
 
         $request->validate([
             'coins_remark' => [Rule::requiredIf($coinsBalanceChanged), 'nullable', 'string', 'max:1000'],
+            'life_impact_remark' => [Rule::requiredIf($lifeImpactedCountChanged), 'nullable', 'string', 'max:1000'],
         ], [
             'coins_remark.required' => 'Coins remark is required when coins balance is changed.',
+            'life_impact_remark.required' => 'Life Impact remark is required when total life impacted is changed.',
         ]);
 
         if (Schema::hasColumn('users', 'coins_remark')) {
@@ -489,7 +497,7 @@ class UsersController extends Controller
         $this->applyCircleAddonFields($validated, $selectedCircleId);
         $ledgerHasRemarkColumn = Schema::hasColumn('coins_ledger', 'remark');
 
-        DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn) {
+        DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark) {
             $user->fill($updatable);
             $user->status = $validated['status'];
             $user->active_circle_id = $selectedCircleId;
@@ -529,6 +537,42 @@ class UsersController extends Controller
                     }
 
                     DB::table('coins_ledger')->insert($ledgerPayload);
+                }
+            }
+
+            if ($lifeImpactedCountChanged) {
+                $newLifeImpactedCount = (int) ($user->life_impacted_count ?? 0);
+                $difference = $newLifeImpactedCount - $originalLifeImpactedCount;
+
+                if ($difference !== 0) {
+                    $admin = Auth::guard('admin')->user();
+
+                    DB::table('life_impact_histories')->insert([
+                        'id' => (string) Str::uuid(),
+                        'user_id' => $user->id,
+                        'triggered_by_user_id' => null,
+                        'activity_type' => 'admin_adjustment',
+                        'activity_id' => null,
+                        'impact_value' => $difference,
+                        'title' => 'Life impact manually updated by admin',
+                        'description' => $lifeImpactRemark,
+                        'meta' => json_encode([
+                            'old_value' => $originalLifeImpactedCount,
+                            'new_value' => $newLifeImpactedCount,
+                            'difference' => $difference,
+                            'source' => 'admin_panel',
+                            'admin_user_id' => $admin?->id,
+                            'admin_email' => $admin?->email ?? $admin?->name,
+                        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                        'life_impacted' => $newLifeImpactedCount,
+                        'counted_in_total' => true,
+                        'impact_category' => 'admin_adjustment',
+                        'action_key' => 'admin_adjustment',
+                        'action_label' => 'Admin Adjustment',
+                        'remarks' => $lifeImpactRemark,
+                    ]);
                 }
             }
 
@@ -1145,6 +1189,7 @@ class UsersController extends Controller
                 'anonymized_at',
                 'is_gdpr_exported',
                 'coins_balance',
+                'life_impacted_count',
                 'coin_medal_rank',
                 'coin_milestone_title',
                 'coin_milestone_meaning',
