@@ -13,12 +13,7 @@ class CircleLeadershipController extends BaseApiController
 {
     public function myLeadershipCircles(Request $request): JsonResponse
     {
-        $includeMember = filter_var($request->query('include_member', false), FILTER_VALIDATE_BOOLEAN);
         $allowedRoles = CircleMember::LEADERSHIP_ROLE_OPTIONS;
-
-        if ($includeMember) {
-            $allowedRoles[] = 'member';
-        }
 
         $members = CircleMember::query()
             ->with(['circle.coverFile', 'roleModel'])
@@ -57,6 +52,8 @@ class CircleLeadershipController extends BaseApiController
 
     private function normalizedColumn(string $column): \Illuminate\Contracts\Database\Query\Expression
     {
-        return DB::raw("LOWER(REPLACE(REPLACE({$column}::text, ' ', '_'), '-', '_'))");
+        $normalizedColumn = "LOWER(REPLACE(REPLACE({$column}::text, ' ', '_'), '-', '_'))";
+
+        return DB::raw("CASE WHEN {$normalizedColumn} = 'circle_member' THEN 'member' ELSE {$normalizedColumn} END");
     }
 }
