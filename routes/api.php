@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\CircleJoinRequestController;
+use App\Http\Controllers\Api\CircleLeadershipController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\GeoLocationController;
@@ -184,6 +185,7 @@ Route::prefix('v1')->group(function () {
 
         // Circles
         Route::get('/circles', [CircleController::class, 'index']);
+        Route::get('/circles/my-leadership-circles', [CircleLeadershipController::class, 'myLeadershipCircles']);
         Route::get('/circles/{id}', [CircleController::class, 'show']);
         Route::post('/circles', [CircleController::class, 'store']);
         Route::put('/circles/{id}', [CircleController::class, 'update']);
