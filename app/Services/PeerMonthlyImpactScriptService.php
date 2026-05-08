@@ -86,7 +86,10 @@ class PeerMonthlyImpactScriptService
         $displayName = $this->displayName($user);
         $companyName = $this->stringOrNull($user->company_name ?? null);
         $industryTags = $this->normalizeArray($user->industry_tags ?? []);
-        $category = $this->stringOrNull($user->business_type ?? null) ?? ($industryTags[0] ?? null);
+        $category = $this->stringOrNull($user->getAttribute('category'))
+            ?? $this->stringOrNull($user->business_type ?? null)
+            ?? ($industryTags[0] ?? null)
+            ?? 'your category';
 
         return [
             'user_id' => (string) $user->id,
@@ -220,7 +223,7 @@ class PeerMonthlyImpactScriptService
             'referral_date' => $this->formatDate($referral->referral_date ?? null),
         ])->values()->all();
 
-        return $this->checklistItem('qualified_referrals_given', $label, $referrals->count(), $relatedItems, true);
+        return $this->checklistItem('qualified_referrals_given', $label, $referrals->count(), $relatedItems);
     }
 
     private function collaborationChecklistItem(string $userId, Carbon $start, Carbon $end, array $default): array
@@ -248,7 +251,7 @@ class PeerMonthlyImpactScriptService
             'meeting_date' => $this->formatDate($meeting->meeting_date ?? null),
         ])->values()->all();
 
-        return $this->checklistItem('collaboration_connections', self::CHECKLIST_DEFINITIONS['collaboration_connections'], $meetings->count(), $relatedItems, true);
+        return $this->checklistItem('collaboration_connections', self::CHECKLIST_DEFINITIONS['collaboration_connections'], $meetings->count(), $relatedItems);
     }
 
     private function mergeHistoryChecklistItems(array $items, string $userId, Carbon $start, Carbon $end): array
@@ -290,8 +293,7 @@ class PeerMonthlyImpactScriptService
                 $checklistKey,
                 self::CHECKLIST_DEFINITIONS[$checklistKey],
                 $count,
-                $existingRelatedItems->merge($historyRelatedItems)->values()->all(),
-                true
+                $existingRelatedItems->merge($historyRelatedItems)->values()->all()
             );
         }
 
@@ -332,16 +334,20 @@ class PeerMonthlyImpactScriptService
     {
         $displayName = $userInfo['display_name'] ?: 'Peer';
         $companyName = $userInfo['company_name'] ?: 'my business';
-        $category = $userInfo['category'] ?: 'business';
+        $category = $userInfo['category'] ?: 'your category';
+
+        $categoryPhrase = $category === 'your category'
+            ? 'your category'
+            : 'the ' . $category . ' category';
 
         return [
             'greeting_text' => 'Hello Peers,',
-            'introduction_text' => "My name is {$displayName}. I run {$companyName} in the {$category} category.",
+            'introduction_text' => "My name is {$displayName}. I run {$companyName} in {$categoryPhrase}.",
             'monthly_lives_impacted_text' => 'This month I impacted ' . (int) $summary['total_lives_impacted_this_month'] . ' lives through Peers activities.',
-            'monthly_business_done_text' => 'This month I did business worth ' . $this->formatAmount((float) $summary['total_business_done_with_peers_this_month']) . ' with Peers.',
+            'monthly_business_done_text' => 'This month I did business worth ' . $this->formatCurrencyAmount((float) $summary['total_business_done_with_peers_this_month']) . ' with Peers.',
             'checklist_items' => $checklistItems,
             'lifetime_impact_text' => 'My lifetime lives impacted count is ' . (int) $summary['lifetime_total_lives_impacted'] . '.',
-            'business_deals_text' => 'I recorded ' . (int) $businessDeals['deals_count'] . ' business deal(s) this month totalling ' . $this->formatAmount((float) $businessDeals['total_amount']) . '.',
+            'business_deals_text' => 'I recorded ' . (int) $businessDeals['deals_count'] . ' business deal(s) this month totalling ' . $this->formatCurrencyAmount((float) $businessDeals['total_amount']) . '.',
             'meaningful_progress_label' => 'Meaningful progress I made this month',
             'next_month_goal_label' => 'My goal for next month',
             'story_label' => 'Experience or story I would like to share (optional)',
@@ -351,18 +357,20 @@ class PeerMonthlyImpactScriptService
 
     private function emptyChecklistItem(string $key, string $label): array
     {
-        return $this->checklistItem($key, $label, 0, [], false);
+        return $this->checklistItem($key, $label, 0, []);
     }
 
-    private function checklistItem(string $key, string $label, int $count, array $relatedItems, bool $available): array
+    private function checklistItem(string $key, string $label, int $count, array $relatedItems): array
     {
+        $isAvailable = $count > 0 || ! empty($relatedItems);
+
         return [
             'key' => $key,
             'label' => $label,
             'count' => $count,
             'related_items' => $relatedItems,
             'display_text' => $count > 0 ? $label . ': ' . $count : $label,
-            'is_available' => $available,
+            'is_available' => $isAvailable,
         ];
     }
 
@@ -520,9 +528,9 @@ class PeerMonthlyImpactScriptService
         }
     }
 
-    private function formatAmount(float $amount): string
+    private function formatCurrencyAmount(float $amount): string
     {
-        return number_format($amount, 2, '.', '');
+        return '₹ ' . number_format($amount, 2, '.', '');
     }
 
     private function normalizeKey(mixed $value): string
