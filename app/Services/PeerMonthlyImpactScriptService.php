@@ -10,6 +10,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -26,6 +27,17 @@ class PeerMonthlyImpactScriptService
         'media_or_recognition_help' => 'Media or recognition help',
         'personal_or_business_support' => 'Personal or business support',
         'helped_get_things_done' => 'Helped get things done',
+    ];
+
+    private const REFERRAL_ACTION_ALIASES = [
+        'qualified_referrals_given',
+        'qualified_referral',
+        'referral',
+        'referrals',
+        'pass_referral',
+        'passed_referral',
+        'gave_referral',
+        'vendor_referrals',
     ];
 
     private const HISTORY_ACTION_ALIASES = [
@@ -47,10 +59,24 @@ class PeerMonthlyImpactScriptService
         $monthEnd = $now->copy()->endOfMonth();
 
         $userId = (string) $user->id;
+
+        Log::info('peer_monthly_script.build_started', [
+            'user_id' => $userId,
+            'month_start' => $monthStart->toDateString(),
+            'month_end' => $monthEnd->toDateString(),
+        ]);
         $monthlyLivesImpacted = $this->totalLivesImpacted($userId, $monthStart, $monthEnd);
         $lifetimeLivesImpacted = $this->lifetimeLivesImpacted($user, $userId);
         $businessDeals = $this->businessDealsThisMonth($userId, $monthStart, $monthEnd);
         $checklistItems = $this->checklistItems($userId, $monthStart, $monthEnd);
+
+        Log::info('peer_monthly_script.final_checklist_counts', [
+            'user_id' => $userId,
+            'counts' => collect($checklistItems)->mapWithKeys(fn (array $item): array => [
+                (string) $item['key'] => (int) $item['count'],
+            ])->all(),
+        ]);
+
         $userInfo = $this->userInfo($user);
         $summary = [
             'total_lives_impacted_this_month' => $monthlyLivesImpacted,
@@ -169,6 +195,12 @@ class PeerMonthlyImpactScriptService
             ->orderByDesc('created_at')
             ->get();
 
+        Log::info('peer_monthly_script.business_deals_found', [
+            'user_id' => $userId,
+            'count' => $deals->count(),
+            'total_amount' => round((float) $deals->sum(fn (BusinessDeal $deal): float => (float) ($deal->deal_amount ?? 0)), 2),
+        ]);
+
         $peers = $deals->map(fn (BusinessDeal $deal): array => $this->businessDealPeer($deal, $userId))->values()->all();
 
         return [
@@ -198,6 +230,7 @@ class PeerMonthlyImpactScriptService
         $items['qualified_referrals_given'] = $this->referralChecklistItem($userId, $start, $end);
         $items['collaboration_connections'] = $this->collaborationChecklistItem($userId, $start, $end, $items['collaboration_connections']);
         $items = $this->mergeHistoryChecklistItems($items, $userId, $start, $end);
+        $items = $this->mergeActivityChecklistItems($items, $userId, $start, $end);
 
         return array_values($items);
     }
@@ -205,23 +238,37 @@ class PeerMonthlyImpactScriptService
     private function referralChecklistItem(string $userId, Carbon $start, Carbon $end): array
     {
         $label = self::CHECKLIST_DEFINITIONS['qualified_referrals_given'];
-        if (! Schema::hasTable('referrals')) {
-            return $this->emptyChecklistItem('qualified_referrals_given', $label);
-        }
+        $relatedItems = collect();
 
-        $query = Referral::query()
-            ->with('toUser:id,display_name,first_name,last_name,company_name')
-            ->where('from_user_id', $userId);
-        $this->applySoftDeleteFilters($query, 'referrals');
-        $this->applyDateRange($query, 'referrals', ['referral_date', 'created_at'], $start, $end);
+        $referralItems = $this->referralTableRelatedItems($userId, $start, $end);
+        Log::info('peer_monthly_script.referral_source_count', [
+            'user_id' => $userId,
+            'source' => 'referrals',
+            'count' => $referralItems->count(),
+        ]);
+        $relatedItems = $relatedItems->merge($referralItems);
 
-        $referrals = $query->orderByDesc('referral_date')->orderByDesc('created_at')->get();
-        $relatedItems = $referrals
-            ->map(fn (Referral $referral): array => $this->referralRelatedItem($referral))
-            ->values()
-            ->all();
+        $historyItems = $this->referralHistoryRelatedItems($userId, $start, $end);
+        Log::info('peer_monthly_script.referral_source_count', [
+            'user_id' => $userId,
+            'source' => 'life_impact_histories',
+            'count' => $historyItems->count(),
+        ]);
+        $relatedItems = $relatedItems->merge($historyItems);
 
-        return $this->checklistItem('qualified_referrals_given', $label, $relatedItems);
+        $activityItems = $this->referralActivityRelatedItems($userId, $start, $end);
+        Log::info('peer_monthly_script.referral_source_count', [
+            'user_id' => $userId,
+            'source' => 'activities',
+            'count' => $activityItems->count(),
+        ]);
+        $relatedItems = $relatedItems->merge($activityItems);
+
+        return $this->checklistItem(
+            'qualified_referrals_given',
+            $label,
+            $this->uniqueRelatedItems($relatedItems)->values()->all()
+        );
     }
 
     private function collaborationChecklistItem(string $userId, Carbon $start, Carbon $end, array $default): array
@@ -266,6 +313,12 @@ class PeerMonthlyImpactScriptService
         $histories = $query->orderByDesc('created_at')->get();
         $relatedUsers = $this->historyRelatedUsers($histories);
 
+        Log::info('peer_monthly_script.impact_history_source_count', [
+            'user_id' => $userId,
+            'source' => 'life_impact_histories',
+            'count' => $histories->count(),
+        ]);
+
         foreach (self::HISTORY_ACTION_ALIASES as $checklistKey => $aliases) {
             $matches = $histories->filter(fn (LifeImpactHistory $history): bool => $this->historyMatches($history, $aliases));
             if ($matches->isEmpty()) {
@@ -285,6 +338,297 @@ class PeerMonthlyImpactScriptService
         }
 
         return $items;
+    }
+
+    private function referralTableRelatedItems(string $userId, Carbon $start, Carbon $end): Collection
+    {
+        if (! Schema::hasTable('referrals')) {
+            return collect();
+        }
+
+        $actorColumn = $this->firstExistingColumn('referrals', [
+            'from_user_id',
+            'user_id',
+            'referrer_user_id',
+            'given_by_user_id',
+            'created_by',
+            'created_by_user_id',
+        ]);
+
+        if ($actorColumn === null) {
+            return collect();
+        }
+
+        $query = DB::table('referrals')->where($actorColumn, $userId);
+        $this->applySoftDeleteFilters($query, 'referrals');
+        $this->applyStatusFilter($query, 'referrals');
+        $this->applyDateRange($query, 'referrals', ['referral_date', 'date', 'created_at'], $start, $end);
+
+        $rows = $query
+            ->orderByDesc($this->firstExistingColumn('referrals', ['referral_date', 'date', 'created_at']) ?? 'id')
+            ->get();
+
+        $peerIdColumn = $this->firstExistingColumn('referrals', [
+            'to_user_id',
+            'peer_user_id',
+            'referred_user_id',
+            'related_user_id',
+            'impacted_peer_id',
+            'member_user_id',
+        ]);
+        $peerIds = $rows
+            ->map(fn ($row): ?string => $peerIdColumn ? $this->stringOrNull($row->{$peerIdColumn} ?? null) : null)
+            ->filter()
+            ->unique()
+            ->values();
+        $peers = $this->usersByIds($peerIds);
+
+        return $rows->map(fn ($row): array => $this->referralRowRelatedItem($row, $peerIdColumn, $peers));
+    }
+
+    private function referralHistoryRelatedItems(string $userId, Carbon $start, Carbon $end): Collection
+    {
+        if (! Schema::hasTable('life_impact_histories')) {
+            return collect();
+        }
+
+        $table = (new LifeImpactHistory())->getTable();
+        $query = LifeImpactHistory::query()->where('user_id', $userId);
+        $this->applyHistoryCountableFilters($query, $table);
+        $this->applyDateRange($query, $table, ['created_at'], $start, $end);
+
+        $histories = $query->orderByDesc('created_at')->get()
+            ->filter(fn (LifeImpactHistory $history): bool => $this->historyMatches($history, self::REFERRAL_ACTION_ALIASES));
+        $relatedUsers = $this->historyRelatedUsers($histories);
+
+        return $histories
+            ->map(fn (LifeImpactHistory $history): array => $this->referralHistoryRelatedItem($history, $relatedUsers))
+            ->values();
+    }
+
+    private function referralActivityRelatedItems(string $userId, Carbon $start, Carbon $end): Collection
+    {
+        return $this->activityRelatedItemsForKey('qualified_referrals_given', self::REFERRAL_ACTION_ALIASES, $userId, $start, $end);
+    }
+
+    private function mergeActivityChecklistItems(array $items, string $userId, Carbon $start, Carbon $end): array
+    {
+        if (! Schema::hasTable('activities')) {
+            Log::info('peer_monthly_script.activity_source_count', [
+                'user_id' => $userId,
+                'source' => 'activities',
+                'count' => 0,
+                'reason' => 'missing_table',
+            ]);
+
+            return $items;
+        }
+
+        $totalActivityMatches = 0;
+
+        foreach (self::HISTORY_ACTION_ALIASES as $checklistKey => $aliases) {
+            $activityItems = $this->activityRelatedItemsForKey($checklistKey, $aliases, $userId, $start, $end);
+            $totalActivityMatches += $activityItems->count();
+
+            if ($activityItems->isEmpty()) {
+                continue;
+            }
+
+            $existingRelatedItems = collect($items[$checklistKey]['related_items'] ?? []);
+            $items[$checklistKey] = $this->checklistItem(
+                $checklistKey,
+                self::CHECKLIST_DEFINITIONS[$checklistKey],
+                $this->uniqueRelatedItems($existingRelatedItems->merge($activityItems))->values()->all()
+            );
+        }
+
+        Log::info('peer_monthly_script.activity_source_count', [
+            'user_id' => $userId,
+            'source' => 'activities',
+            'count' => $totalActivityMatches,
+        ]);
+
+        return $items;
+    }
+
+    private function activityRelatedItemsForKey(string $checklistKey, array $aliases, string $userId, Carbon $start, Carbon $end): Collection
+    {
+        if (! Schema::hasTable('activities')) {
+            return collect();
+        }
+
+        $actorColumn = $this->firstExistingColumn('activities', ['user_id', 'created_by', 'created_by_user_id']);
+        if ($actorColumn === null) {
+            return collect();
+        }
+
+        $query = DB::table('activities')->where($actorColumn, $userId);
+        $this->applyStatusFilter($query, 'activities');
+        $this->applyDateRange($query, 'activities', ['activity_date', 'verified_at', 'created_at'], $start, $end);
+
+        $rows = $query->orderByDesc($this->firstExistingColumn('activities', ['activity_date', 'verified_at', 'created_at']) ?? 'id')->get();
+        $matches = $rows->filter(fn ($row): bool => $this->activityRowMatchesAliases($row, $aliases));
+
+        if ($matches->isEmpty()) {
+            return collect();
+        }
+
+        $relatedUserColumn = $this->firstExistingColumn('activities', ['related_user_id', 'to_user_id', 'peer_user_id']);
+        $peerIds = $matches
+            ->map(fn ($row): ?string => $relatedUserColumn ? $this->stringOrNull($row->{$relatedUserColumn} ?? null) : null)
+            ->filter()
+            ->unique()
+            ->values();
+        $peers = $this->usersByIds($peerIds);
+
+        return $matches
+            ->map(fn ($row): array => $this->activityRowRelatedItem($checklistKey, $row, $relatedUserColumn, $peers))
+            ->values();
+    }
+
+    private function referralRowRelatedItem(object $row, ?string $peerIdColumn, Collection $peers): array
+    {
+        $peerId = $peerIdColumn ? $this->stringOrNull($row->{$peerIdColumn} ?? null) : null;
+        $peer = $peerId ? $peers->get($peerId) : null;
+        $peerName = $this->firstFilled([
+            $row->peer_name ?? null,
+            $row->to_user_name ?? null,
+            $row->referred_user_name ?? null,
+            $this->displayName($peer),
+            'Peer',
+        ]);
+        $connectedWithName = $this->firstFilled([
+            $row->referral_of ?? null,
+            $row->connected_with_name ?? null,
+            $row->connected_with_business_name ?? null,
+            $row->business_name ?? null,
+            $row->company_name ?? null,
+            $row->remarks ?? null,
+            'a business opportunity',
+        ]);
+        $date = $this->formatDate($row->referral_date ?? $row->date ?? $row->created_at ?? null);
+
+        return [
+            'source' => 'referrals',
+            'id' => (string) ($row->id ?? ''),
+            'date' => $date,
+            'peer_id' => $peerId,
+            'peer_name' => $peerName,
+            'peer_company_name' => $this->stringOrNull($peer?->company_name),
+            'connected_with_name' => $connectedWithName,
+            'connected_with_business_name' => $connectedWithName,
+            'display_text' => "I gave a qualified referral to {$peerName} — connecting them with {$connectedWithName}",
+        ];
+    }
+
+    private function referralHistoryRelatedItem(LifeImpactHistory $history, Collection $relatedUsers): array
+    {
+        $meta = $this->historyMeta($history);
+        $peerId = $this->historyRelatedUserId($meta, ['peer_id', 'to_user_id', 'affected_user_id', 'referred_user_id']);
+        $peer = $peerId ? $relatedUsers->get($peerId) : null;
+        $peerName = $this->historyPersonName($meta, $relatedUsers, ['peer_name', 'to_user_name', 'affected_user_name', 'referred_user_name'], ['peer_id', 'to_user_id', 'affected_user_id', 'referred_user_id']) ?? 'Peer';
+        $connectedWithName = $this->firstFilled([
+            $meta['connected_with_name'] ?? null,
+            $meta['connected_with_business_name'] ?? null,
+            $meta['referral_of'] ?? null,
+            $meta['business_name'] ?? null,
+            $history->description ?? null,
+            $history->title ?? null,
+            'a business opportunity',
+        ]);
+
+        return [
+            'source' => 'life_impact_histories',
+            'id' => (string) $history->id,
+            'date' => $this->formatDate($history->created_at ?? null),
+            'peer_id' => $peerId,
+            'peer_name' => $peerName,
+            'peer_company_name' => $this->stringOrNull($peer?->company_name),
+            'connected_with_name' => $connectedWithName,
+            'connected_with_business_name' => $connectedWithName,
+            'display_text' => "I gave a qualified referral to {$peerName} — connecting them with {$connectedWithName}",
+        ];
+    }
+
+    private function activityRowRelatedItem(string $checklistKey, object $row, ?string $relatedUserColumn, Collection $peers): array
+    {
+        $peerId = $relatedUserColumn ? $this->stringOrNull($row->{$relatedUserColumn} ?? null) : null;
+        $peer = $peerId ? $peers->get($peerId) : null;
+        $peerName = $this->displayName($peer) ?? 'Peer';
+        $description = $this->firstFilled([$row->description ?? null, $row->type ?? null, 'a Peers activity']);
+        $base = [
+            'source' => 'activities',
+            'id' => (string) ($row->id ?? ''),
+            'date' => $this->formatDate($row->activity_date ?? $row->verified_at ?? $row->created_at ?? null),
+        ];
+
+        if ($checklistKey === 'qualified_referrals_given') {
+            return $base + [
+                'peer_id' => $peerId,
+                'peer_name' => $peerName,
+                'peer_company_name' => $this->stringOrNull($peer?->company_name),
+                'connected_with_name' => $description,
+                'connected_with_business_name' => $description,
+                'display_text' => "I gave a qualified referral to {$peerName} — connecting them with {$description}",
+            ];
+        }
+
+        return $base + $this->activityDetailsForChecklistKey($checklistKey, $peerName, $description);
+    }
+
+    private function activityDetailsForChecklistKey(string $checklistKey, string $peerName, string $description): array
+    {
+        return match ($checklistKey) {
+            'mentoring_given' => [
+                'peer_name' => $peerName,
+                'subject_or_area' => $description,
+                'display_text' => "I mentored {$peerName} with guidance on {$description}",
+            ],
+            'collaboration_connections' => [
+                'peer_one_name' => 'Me',
+                'peer_two_name' => $peerName,
+                'area' => $description,
+                'display_text' => "I connected Me and {$peerName} for a collaboration opportunity in {$description}",
+            ],
+            'knowledge_shared' => [
+                'peer_name' => $peerName,
+                'subject' => $description,
+                'display_text' => "I shared knowledge with {$peerName} on the topic of {$description}",
+            ],
+            'business_challenge_help' => [
+                'peer_name' => $peerName,
+                'description' => $description,
+                'display_text' => "I helped {$peerName} overcome a business challenge related to {$description}",
+            ],
+            'vendor_or_service_help' => [
+                'peer_name' => $peerName,
+                'need' => $description,
+                'display_text' => "I helped {$peerName} find the right vendor or service for {$description}",
+            ],
+            'funding_or_capital_help' => [
+                'peer_name' => $peerName,
+                'source_or_connection' => $description,
+                'display_text' => "I helped {$peerName} access funding or capital through {$description}",
+            ],
+            'media_or_recognition_help' => [
+                'peer_name' => $peerName,
+                'media_name' => $description,
+                'display_text' => "I helped {$peerName} get featured or recognised on {$description}",
+            ],
+            'personal_or_business_support' => [
+                'peer_name' => $peerName,
+                'situation' => $description,
+                'display_text' => "I supported {$peerName} through a personal or business challenge during {$description}",
+            ],
+            'helped_get_things_done' => [
+                'peer_name' => $peerName,
+                'what_you_did' => $description,
+                'display_text' => "I helped {$peerName} get the right things done by {$description}",
+            ],
+            default => [
+                'display_text' => $description,
+            ],
+        };
     }
 
     private function referralRelatedItem(Referral $referral): array
@@ -631,6 +975,93 @@ class PeerMonthlyImpactScriptService
             'display_text' => $count > 0 ? $label . ': ' . $count : $label,
             'is_available' => $isAvailable,
         ];
+    }
+
+    private function firstExistingColumn(string $table, array $columns): ?string
+    {
+        foreach ($columns as $column) {
+            if (Schema::hasColumn($table, $column)) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    private function applyStatusFilter($query, string $table): void
+    {
+        if (! Schema::hasColumn($table, 'status')) {
+            return;
+        }
+
+        $query->whereIn('status', [
+            'approved',
+            'completed',
+            'complete',
+            'active',
+            'accepted',
+            'converted',
+            'success',
+            'successful',
+        ]);
+    }
+
+    private function usersByIds(Collection $ids): Collection
+    {
+        if ($ids->isEmpty() || ! Schema::hasTable('users')) {
+            return collect();
+        }
+
+        return User::query()
+            ->select(['id', 'display_name', 'first_name', 'last_name', 'company_name'])
+            ->whereIn('id', $ids->all())
+            ->get()
+            ->keyBy(fn (User $user): string => (string) $user->id);
+    }
+
+    private function activityRowMatchesAliases(object $row, array $aliases): bool
+    {
+        $values = [
+            $row->type ?? null,
+            $row->activity_type ?? null,
+            $row->action_key ?? null,
+            $row->action ?? null,
+            $row->name ?? null,
+            $row->description ?? null,
+        ];
+        $normalizedAliases = collect($aliases)->map(fn (string $alias): string => $this->normalizeKey($alias))->all();
+
+        foreach ($values as $value) {
+            $normalizedValue = $this->normalizeKey($value);
+            if ($normalizedValue === '') {
+                continue;
+            }
+
+            foreach ($normalizedAliases as $alias) {
+                if ($normalizedValue === $alias || Str::contains($normalizedValue, $alias)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function uniqueRelatedItems(Collection $items): Collection
+    {
+        return $items
+            ->filter(fn ($item): bool => is_array($item))
+            ->unique(function (array $item): string {
+                $source = (string) ($item['source'] ?? '');
+                $id = (string) ($item['id'] ?? '');
+
+                if ($id !== '') {
+                    return $source . ':' . $id;
+                }
+
+                return md5((string) ($item['display_text'] ?? json_encode($item)));
+            })
+            ->values();
     }
 
     private function historyMatches(LifeImpactHistory $history, array $aliases): bool

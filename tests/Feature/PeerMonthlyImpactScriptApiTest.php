@@ -157,6 +157,37 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
         $this->assertSame('Jay Industries', $businessDeals['peers'][0]['company_name']);
     }
 
+    public function test_referral_activity_source_populates_qualified_referral_history(): void
+    {
+        Carbon::setTestNow('2026-05-09 10:00:00');
+        $this->createActivitiesTable();
+
+        $user = $this->createUser(['display_name' => 'Demo User']);
+        $rahul = $this->createUser([
+            'display_name' => 'Rahul Shah',
+            'company_name' => 'ABC Pvt Ltd',
+        ]);
+
+        $this->createActivity($user, $rahul, 'pass_referral', 'Vijay Traders', 'approved', '2026-05-09');
+        $this->createActivity($user, $rahul, 'pass_referral', 'Pending Referral', 'pending', '2026-05-09');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/peer-monthly-impact-script');
+
+        $response->assertOk()->assertJsonPath('success', true);
+
+        $qualifiedReferrals = collect($response->json('data.checklist_items'))
+            ->firstWhere('key', 'qualified_referrals_given');
+
+        $this->assertSame(1, $qualifiedReferrals['count']);
+        $this->assertCount(1, $qualifiedReferrals['related_items']);
+        $this->assertTrue($qualifiedReferrals['is_available']);
+        $this->assertSame(
+            'I gave a qualified referral to Rahul Shah — connecting them with Vijay Traders',
+            $qualifiedReferrals['related_items'][0]['display_text']
+        );
+    }
+
     public function test_profile_photo_file_url_is_clean_unescaped_and_browser_usable(): void
     {
         $fileId = (string) Str::uuid();
@@ -245,6 +276,20 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
         });
     }
 
+    private function createActivitiesTable(): void
+    {
+        Schema::create('activities', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('related_user_id')->nullable();
+            $table->string('type');
+            $table->string('status')->default('pending');
+            $table->text('description')->nullable();
+            $table->timestamp('verified_at')->nullable();
+            $table->timestamps();
+        });
+    }
+
     private function createUser(array $attributes = []): User
     {
         $id = (string) Str::uuid();
@@ -298,6 +343,21 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
             'is_deleted' => false,
             'created_at' => Carbon::parse($dealDate)->setTime(10, 0),
             'updated_at' => Carbon::parse($dealDate)->setTime(10, 0),
+        ]);
+    }
+
+    private function createActivity(User $user, User $relatedUser, string $type, string $description, string $status, string $date): void
+    {
+        DB::table('activities')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => (string) $user->id,
+            'related_user_id' => (string) $relatedUser->id,
+            'type' => $type,
+            'status' => $status,
+            'description' => $description,
+            'verified_at' => $status === 'approved' ? Carbon::parse($date)->setTime(12, 0) : null,
+            'created_at' => Carbon::parse($date)->setTime(12, 0),
+            'updated_at' => Carbon::parse($date)->setTime(12, 0),
         ]);
     }
 }
