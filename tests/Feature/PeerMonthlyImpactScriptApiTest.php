@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -18,18 +21,27 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
         Schema::dropIfExists('business_deals');
         Schema::dropIfExists('life_impact_histories');
         Schema::dropIfExists('impacts');
+        Schema::dropIfExists('users');
+
+        $this->createUsersTable();
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     public function test_user_without_referrals_returns_safe_defaults_and_successful_script(): void
     {
-        $user = new User([
-            'id' => (string) Str::uuid(),
+        $user = $this->createUser([
             'first_name' => 'Demo1',
             'last_name' => 'Demo1',
             'display_name' => 'Demo1 Demo1',
             'company_name' => 'Aequitas Information Technology Pvt Ltd',
             'business_type' => null,
-            'industry_tags' => [],
+            'industry_tags' => json_encode([]),
             'life_impacted_count' => 0,
         ]);
         $user->setAttribute('category', null);
@@ -53,5 +65,148 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
         $this->assertSame(0, $qualifiedReferrals['count']);
         $this->assertSame([], $qualifiedReferrals['related_items']);
         $this->assertFalse($qualifiedReferrals['is_available']);
+    }
+
+    public function test_multiple_monthly_referrals_return_detailed_related_items(): void
+    {
+        Carbon::setTestNow('2026-05-09 10:00:00');
+        $this->createReferralsTable();
+
+        $user = $this->createUser([
+            'display_name' => 'Demo User',
+            'company_name' => 'Demo Co',
+        ]);
+        $rahul = $this->createUser([
+            'display_name' => 'Rahul Shah',
+            'company_name' => 'ABC Pvt Ltd',
+        ]);
+        $jay = $this->createUser([
+            'display_name' => 'Jay Patel',
+            'company_name' => 'Jay Industries',
+        ]);
+        $oldPeer = $this->createUser([
+            'display_name' => 'Old Peer',
+            'company_name' => 'Old Co',
+        ]);
+
+        $this->createReferral($user, $rahul, 'Vijay Traders', '2026-05-03');
+        $this->createReferral($user, $jay, 'Patel Packaging', '2026-05-08');
+        $this->createReferral($user, $oldPeer, 'Old Lead', '2026-04-30');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/peer-monthly-impact-script');
+
+        $response->assertOk()->assertJsonPath('success', true);
+
+        $qualifiedReferrals = collect($response->json('data.checklist_items'))
+            ->firstWhere('key', 'qualified_referrals_given');
+
+        $this->assertCount(2, $qualifiedReferrals['related_items']);
+        $this->assertSame(2, $qualifiedReferrals['count']);
+        $this->assertTrue($qualifiedReferrals['is_available']);
+        $this->assertSame(
+            'I gave a qualified referral to Jay Patel — connecting them with Patel Packaging',
+            $qualifiedReferrals['related_items'][0]['display_text']
+        );
+        $this->assertSame('Jay Industries', $qualifiedReferrals['related_items'][0]['peer_company_name']);
+        $this->assertSame('Patel Packaging', $qualifiedReferrals['related_items'][0]['connected_with_business_name']);
+
+        $emptyChecklistItem = collect($response->json('data.checklist_items'))
+            ->firstWhere('key', 'vendor_or_service_help');
+
+        $this->assertSame([], $emptyChecklistItem['related_items']);
+        $this->assertSame(0, $emptyChecklistItem['count']);
+        $this->assertFalse($emptyChecklistItem['is_available']);
+    }
+
+    private function createUsersTable(): void
+    {
+        Schema::create('users', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('first_name')->nullable();
+            $table->string('last_name')->nullable();
+            $table->string('display_name')->nullable();
+            $table->string('email')->nullable();
+            $table->string('password_hash')->nullable();
+            $table->string('company_name')->nullable();
+            $table->string('business_type')->nullable();
+            $table->json('industry_tags')->nullable();
+            $table->string('profile_photo_url')->nullable();
+            $table->uuid('profile_photo_file_id')->nullable();
+            $table->integer('life_impacted_count')->default(0);
+            $table->integer('coins_balance')->default(0);
+            $table->integer('members_introduced_count')->default(0);
+            $table->string('membership_status')->nullable();
+            $table->timestamp('membership_ends_at')->nullable();
+            $table->timestamp('membership_expiry')->nullable();
+            $table->string('coin_medal_rank')->nullable();
+            $table->string('coin_milestone_title')->nullable();
+            $table->text('coin_milestone_meaning')->nullable();
+            $table->string('contribution_award_name')->nullable();
+            $table->text('contribution_award_recognition')->nullable();
+            $table->string('public_profile_slug')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+        });
+    }
+
+    private function createReferralsTable(): void
+    {
+        Schema::create('referrals', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('from_user_id');
+            $table->uuid('to_user_id')->nullable();
+            $table->string('referral_type')->nullable();
+            $table->date('referral_date')->nullable();
+            $table->string('referral_of')->nullable();
+            $table->string('phone')->nullable();
+            $table->string('email')->nullable();
+            $table->text('address')->nullable();
+            $table->string('hot_value')->nullable();
+            $table->text('remarks')->nullable();
+            $table->boolean('is_deleted')->default(false);
+            $table->timestamps();
+            $table->softDeletes();
+        });
+    }
+
+    private function createUser(array $attributes = []): User
+    {
+        $id = (string) Str::uuid();
+        $now = now();
+
+        DB::table('users')->insert(array_merge([
+            'id' => $id,
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'display_name' => 'Test User',
+            'email' => $id . '@example.com',
+            'password_hash' => 'password',
+            'company_name' => 'Test Co',
+            'business_type' => null,
+            'industry_tags' => json_encode([]),
+            'life_impacted_count' => 0,
+            'coins_balance' => 0,
+            'members_introduced_count' => 0,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $attributes));
+
+        return User::query()->findOrFail($id);
+    }
+
+    private function createReferral(User $fromUser, User $toUser, string $referralOf, string $referralDate): void
+    {
+        DB::table('referrals')->insert([
+            'id' => (string) Str::uuid(),
+            'from_user_id' => (string) $fromUser->id,
+            'to_user_id' => (string) $toUser->id,
+            'referral_type' => 'business',
+            'referral_date' => $referralDate,
+            'referral_of' => $referralOf,
+            'is_deleted' => false,
+            'created_at' => Carbon::parse($referralDate)->setTime(9, 0),
+            'updated_at' => Carbon::parse($referralDate)->setTime(9, 0),
+        ]);
     }
 }

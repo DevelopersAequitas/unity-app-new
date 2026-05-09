@@ -214,16 +214,12 @@ class PeerMonthlyImpactScriptService
         $this->applyDateRange($query, 'referrals', ['referral_date', 'created_at'], $start, $end);
 
         $referrals = $query->orderByDesc('referral_date')->orderByDesc('created_at')->get();
-        $relatedItems = $referrals->map(fn (Referral $referral): array => [
-            'id' => (string) $referral->id,
-            'peer_id' => $referral->to_user_id ? (string) $referral->to_user_id : null,
-            'peer_name' => $this->displayName($referral->toUser),
-            'company_name' => $this->stringOrNull($referral->toUser?->company_name),
-            'referral_of' => $this->stringOrNull($referral->referral_of ?? null),
-            'referral_date' => $this->formatDate($referral->referral_date ?? null),
-        ])->values()->all();
+        $relatedItems = $referrals
+            ->map(fn (Referral $referral): array => $this->referralRelatedItem($referral))
+            ->values()
+            ->all();
 
-        return $this->checklistItem('qualified_referrals_given', $label, $referrals->count(), $relatedItems);
+        return $this->checklistItem('qualified_referrals_given', $label, $relatedItems);
     }
 
     private function collaborationChecklistItem(string $userId, Carbon $start, Carbon $end, array $default): array
@@ -233,7 +229,10 @@ class PeerMonthlyImpactScriptService
         }
 
         $query = P2pMeeting::query()
-            ->with('peer:id,display_name,first_name,last_name,company_name')
+            ->with([
+                'initiator:id,display_name,first_name,last_name,company_name',
+                'peer:id,display_name,first_name,last_name,company_name',
+            ])
             ->where('initiator_user_id', $userId);
         $this->applySoftDeleteFilters($query, 'p2p_meetings');
         $this->applyDateRange($query, 'p2p_meetings', ['meeting_date', 'created_at'], $start, $end);
@@ -243,15 +242,12 @@ class PeerMonthlyImpactScriptService
             return $default;
         }
 
-        $relatedItems = $meetings->map(fn (P2pMeeting $meeting): array => [
-            'id' => (string) $meeting->id,
-            'peer_id' => $meeting->peer_user_id ? (string) $meeting->peer_user_id : null,
-            'peer_name' => $this->displayName($meeting->peer),
-            'company_name' => $this->stringOrNull($meeting->peer?->company_name),
-            'meeting_date' => $this->formatDate($meeting->meeting_date ?? null),
-        ])->values()->all();
+        $relatedItems = $meetings
+            ->map(fn (P2pMeeting $meeting): array => $this->collaborationMeetingRelatedItem($meeting))
+            ->values()
+            ->all();
 
-        return $this->checklistItem('collaboration_connections', self::CHECKLIST_DEFINITIONS['collaboration_connections'], $meetings->count(), $relatedItems);
+        return $this->checklistItem('collaboration_connections', self::CHECKLIST_DEFINITIONS['collaboration_connections'], $relatedItems);
     }
 
     private function mergeHistoryChecklistItems(array $items, string $userId, Carbon $start, Carbon $end): array
@@ -266,6 +262,7 @@ class PeerMonthlyImpactScriptService
         $this->applyDateRange($query, $table, ['created_at'], $start, $end);
 
         $histories = $query->orderByDesc('created_at')->get();
+        $relatedUsers = $this->historyRelatedUsers($histories);
 
         foreach (self::HISTORY_ACTION_ALIASES as $checklistKey => $aliases) {
             $matches = $histories->filter(fn (LifeImpactHistory $history): bool => $this->historyMatches($history, $aliases));
@@ -274,30 +271,284 @@ class PeerMonthlyImpactScriptService
             }
 
             $existingRelatedItems = collect($items[$checklistKey]['related_items'] ?? []);
-            $historyRelatedItems = $matches->map(fn (LifeImpactHistory $history): array => [
-                'id' => (string) $history->id,
-                'activity_type' => $this->stringOrNull($history->activity_type ?? null),
-                'activity_id' => $this->stringOrNull($history->activity_id ?? null),
-                'title' => $this->stringOrNull($history->title ?? null),
-                'description' => $this->stringOrNull($history->description ?? null),
-                'impact_value' => $history->resolveImpactValue(),
-                'created_at' => $this->formatDate($history->created_at ?? null),
-            ]);
-
-            $count = max((int) ($items[$checklistKey]['count'] ?? 0), $matches->count());
-            if ($checklistKey === 'collaboration_connections') {
-                $count = max((int) ($items[$checklistKey]['count'] ?? 0), $matches->count());
-            }
+            $historyRelatedItems = $matches
+                ->map(fn (LifeImpactHistory $history): array => $this->historyRelatedItem($checklistKey, $history, $relatedUsers))
+                ->values();
 
             $items[$checklistKey] = $this->checklistItem(
                 $checklistKey,
                 self::CHECKLIST_DEFINITIONS[$checklistKey],
-                $count,
                 $existingRelatedItems->merge($historyRelatedItems)->values()->all()
             );
         }
 
         return $items;
+    }
+
+    private function referralRelatedItem(Referral $referral): array
+    {
+        $peerName = $this->displayName($referral->toUser) ?? 'Peer';
+        $connectedWithName = $this->stringOrNull($referral->referral_of ?? null) ?? 'a business opportunity';
+
+        return [
+            'id' => (string) $referral->id,
+            'peer_id' => $referral->to_user_id ? (string) $referral->to_user_id : null,
+            'peer_name' => $peerName,
+            'company_name' => $this->stringOrNull($referral->toUser?->company_name),
+            'peer_company_name' => $this->stringOrNull($referral->toUser?->company_name),
+            'connected_with_name' => $connectedWithName,
+            'connected_with_business_name' => $connectedWithName,
+            'referral_of' => $this->stringOrNull($referral->referral_of ?? null),
+            'referral_date' => $this->formatDate($referral->referral_date ?? null),
+            'display_text' => "I gave a qualified referral to {$peerName} — connecting them with {$connectedWithName}",
+        ];
+    }
+
+    private function collaborationMeetingRelatedItem(P2pMeeting $meeting): array
+    {
+        $peerOneName = $this->displayName($meeting->initiator) ?? 'one peer';
+        $peerTwoName = $this->displayName($meeting->peer) ?? 'another peer';
+        $area = $this->firstFilled([
+            $meeting->remarks ?? null,
+            $meeting->meeting_place ?? null,
+            'a collaboration opportunity',
+        ]);
+
+        return [
+            'id' => (string) $meeting->id,
+            'peer_id' => $meeting->peer_user_id ? (string) $meeting->peer_user_id : null,
+            'peer_name' => $this->displayName($meeting->peer),
+            'company_name' => $this->stringOrNull($meeting->peer?->company_name),
+            'meeting_date' => $this->formatDate($meeting->meeting_date ?? null),
+            'peer_one_name' => $peerOneName,
+            'peer_two_name' => $peerTwoName,
+            'area' => $area,
+            'display_text' => "I connected {$peerOneName} and {$peerTwoName} for a collaboration opportunity in {$area}",
+        ];
+    }
+
+    private function historyRelatedUsers(Collection $histories): Collection
+    {
+        if (! Schema::hasTable('users')) {
+            return collect();
+        }
+
+        $ids = $histories
+            ->flatMap(function (LifeImpactHistory $history): array {
+                $meta = $this->historyMeta($history);
+
+                return [
+                    $meta['peer_id'] ?? null,
+                    $meta['to_user_id'] ?? null,
+                    $meta['affected_user_id'] ?? null,
+                    $meta['peer_one_id'] ?? null,
+                    $meta['peer_two_id'] ?? null,
+                    $meta['connected_user_id'] ?? null,
+                ];
+            })
+            ->map(fn ($id): ?string => $this->stringOrNull($id))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return User::query()
+            ->select(['id', 'display_name', 'first_name', 'last_name', 'company_name'])
+            ->whereIn('id', $ids->all())
+            ->get()
+            ->keyBy(fn (User $user): string => (string) $user->id);
+    }
+
+    private function historyRelatedItem(string $checklistKey, LifeImpactHistory $history, Collection $relatedUsers): array
+    {
+        $meta = $this->historyMeta($history);
+        $base = [
+            'id' => (string) $history->id,
+            'activity_type' => $this->stringOrNull($history->activity_type ?? null),
+            'activity_id' => $this->stringOrNull($history->activity_id ?? null),
+            'title' => $this->stringOrNull($history->title ?? null),
+            'description' => $this->stringOrNull($history->description ?? null),
+            'impact_value' => $history->resolveImpactValue(),
+            'created_at' => $this->formatDate($history->created_at ?? null),
+        ];
+
+        $details = match ($checklistKey) {
+            'mentoring_given' => $this->mentoringHistoryDetails($history, $meta, $relatedUsers),
+            'collaboration_connections' => $this->collaborationHistoryDetails($history, $meta, $relatedUsers),
+            'knowledge_shared' => $this->knowledgeHistoryDetails($history, $meta, $relatedUsers),
+            'business_challenge_help' => $this->businessChallengeHistoryDetails($history, $meta, $relatedUsers),
+            'vendor_or_service_help' => $this->vendorHelpHistoryDetails($history, $meta, $relatedUsers),
+            'funding_or_capital_help' => $this->fundingHelpHistoryDetails($history, $meta, $relatedUsers),
+            'media_or_recognition_help' => $this->mediaHelpHistoryDetails($history, $meta, $relatedUsers),
+            'personal_or_business_support' => $this->supportHistoryDetails($history, $meta, $relatedUsers),
+            'helped_get_things_done' => $this->thingsDoneHistoryDetails($history, $meta, $relatedUsers),
+            default => [
+                'display_text' => $this->firstFilled([$history->description ?? null, $history->title ?? null, 'I helped a peer through Peers.']),
+            ],
+        };
+
+        return array_merge($base, $details);
+    }
+
+    private function mentoringHistoryDetails(LifeImpactHistory $history, array $meta, Collection $relatedUsers): array
+    {
+        $peerId = $this->historyRelatedUserId($meta, ['peer_id', 'to_user_id', 'affected_user_id']);
+        $peerName = $this->historyPersonName($meta, $relatedUsers, ['peer_name', 'to_user_name', 'affected_user_name'], ['peer_id', 'to_user_id', 'affected_user_id']) ?? 'a peer';
+        $subject = $this->firstFilled([$meta['subject_or_area'] ?? null, $meta['subject'] ?? null, $meta['area'] ?? null, $history->title ?? null, $history->description ?? null, 'a key area']);
+
+        return [
+            'peer_id' => $peerId,
+            'peer_name' => $peerName,
+            'subject_or_area' => $subject,
+            'display_text' => "I mentored {$peerName} with guidance on {$subject}",
+        ];
+    }
+
+    private function collaborationHistoryDetails(LifeImpactHistory $history, array $meta, Collection $relatedUsers): array
+    {
+        $peerOneName = $this->historyPersonName($meta, $relatedUsers, ['peer_one_name', 'from_peer_name', 'peer_name'], ['peer_one_id', 'from_user_id', 'peer_id']) ?? 'one peer';
+        $peerTwoName = $this->historyPersonName($meta, $relatedUsers, ['peer_two_name', 'to_peer_name', 'connected_peer_name'], ['peer_two_id', 'to_user_id', 'connected_user_id']) ?? 'another peer';
+        $area = $this->firstFilled([$meta['area'] ?? null, $meta['subject_or_area'] ?? null, $meta['collaboration_area'] ?? null, $history->title ?? null, $history->description ?? null, 'a collaboration opportunity']);
+
+        return [
+            'peer_one_name' => $peerOneName,
+            'peer_two_name' => $peerTwoName,
+            'area' => $area,
+            'display_text' => "I connected {$peerOneName} and {$peerTwoName} for a collaboration opportunity in {$area}",
+        ];
+    }
+
+    private function knowledgeHistoryDetails(LifeImpactHistory $history, array $meta, Collection $relatedUsers): array
+    {
+        $peerName = $this->historyPersonName($meta, $relatedUsers, ['peer_name', 'to_user_name', 'affected_user_name'], ['peer_id', 'to_user_id', 'affected_user_id']) ?? 'a peer';
+        $subject = $this->firstFilled([$meta['subject'] ?? null, $meta['topic'] ?? null, $meta['subject_or_area'] ?? null, $history->title ?? null, $history->description ?? null, 'a useful topic']);
+
+        return [
+            'peer_name' => $peerName,
+            'subject' => $subject,
+            'display_text' => "I shared knowledge with {$peerName} on the topic of {$subject}",
+        ];
+    }
+
+    private function businessChallengeHistoryDetails(LifeImpactHistory $history, array $meta, Collection $relatedUsers): array
+    {
+        $peerName = $this->historyPersonName($meta, $relatedUsers, ['peer_name', 'to_user_name', 'affected_user_name'], ['peer_id', 'to_user_id', 'affected_user_id']) ?? 'a peer';
+        $description = $this->firstFilled([$meta['description'] ?? null, $meta['challenge'] ?? null, $meta['business_challenge'] ?? null, $history->description ?? null, $history->title ?? null, 'a business challenge']);
+
+        return [
+            'peer_name' => $peerName,
+            'description' => $description,
+            'display_text' => "I helped {$peerName} overcome a business challenge related to {$description}",
+        ];
+    }
+
+    private function vendorHelpHistoryDetails(LifeImpactHistory $history, array $meta, Collection $relatedUsers): array
+    {
+        $peerName = $this->historyPersonName($meta, $relatedUsers, ['peer_name', 'to_user_name', 'affected_user_name'], ['peer_id', 'to_user_id', 'affected_user_id']) ?? 'a peer';
+        $need = $this->firstFilled([$meta['need'] ?? null, $meta['vendor_need'] ?? null, $meta['service_need'] ?? null, $history->description ?? null, $history->title ?? null, 'their need']);
+
+        return [
+            'peer_name' => $peerName,
+            'need' => $need,
+            'display_text' => "I helped {$peerName} find the right vendor or service for {$need}",
+        ];
+    }
+
+    private function fundingHelpHistoryDetails(LifeImpactHistory $history, array $meta, Collection $relatedUsers): array
+    {
+        $peerName = $this->historyPersonName($meta, $relatedUsers, ['peer_name', 'to_user_name', 'affected_user_name'], ['peer_id', 'to_user_id', 'affected_user_id']) ?? 'a peer';
+        $source = $this->firstFilled([$meta['source_or_connection'] ?? null, $meta['source'] ?? null, $meta['connection'] ?? null, $meta['funding_source'] ?? null, $history->description ?? null, $history->title ?? null, 'a funding connection']);
+
+        return [
+            'peer_name' => $peerName,
+            'source_or_connection' => $source,
+            'display_text' => "I helped {$peerName} access funding or capital through {$source}",
+        ];
+    }
+
+    private function mediaHelpHistoryDetails(LifeImpactHistory $history, array $meta, Collection $relatedUsers): array
+    {
+        $peerName = $this->historyPersonName($meta, $relatedUsers, ['peer_name', 'to_user_name', 'affected_user_name'], ['peer_id', 'to_user_id', 'affected_user_id']) ?? 'a peer';
+        $mediaName = $this->firstFilled([$meta['media_name'] ?? null, $meta['publication'] ?? null, $meta['platform'] ?? null, $history->description ?? null, $history->title ?? null, 'a media or recognition platform']);
+
+        return [
+            'peer_name' => $peerName,
+            'media_name' => $mediaName,
+            'display_text' => "I helped {$peerName} get featured or recognised on {$mediaName}",
+        ];
+    }
+
+    private function supportHistoryDetails(LifeImpactHistory $history, array $meta, Collection $relatedUsers): array
+    {
+        $peerName = $this->historyPersonName($meta, $relatedUsers, ['peer_name', 'to_user_name', 'affected_user_name'], ['peer_id', 'to_user_id', 'affected_user_id']) ?? 'a peer';
+        $situation = $this->firstFilled([$meta['situation'] ?? null, $meta['support_situation'] ?? null, $history->description ?? null, $history->title ?? null, 'a challenging situation']);
+
+        return [
+            'peer_name' => $peerName,
+            'situation' => $situation,
+            'display_text' => "I supported {$peerName} through a personal or business challenge during {$situation}",
+        ];
+    }
+
+    private function thingsDoneHistoryDetails(LifeImpactHistory $history, array $meta, Collection $relatedUsers): array
+    {
+        $peerName = $this->historyPersonName($meta, $relatedUsers, ['peer_name', 'to_user_name', 'affected_user_name'], ['peer_id', 'to_user_id', 'affected_user_id']) ?? 'a peer';
+        $whatYouDid = $this->firstFilled([$meta['what_you_did'] ?? null, $meta['action_taken'] ?? null, $meta['help_provided'] ?? null, $history->description ?? null, $history->title ?? null, 'helping with execution']);
+
+        return [
+            'peer_name' => $peerName,
+            'what_you_did' => $whatYouDid,
+            'display_text' => "I helped {$peerName} get the right things done by {$whatYouDid}",
+        ];
+    }
+
+    private function historyMeta(LifeImpactHistory $history): array
+    {
+        return is_array($history->meta) ? $history->meta : [];
+    }
+
+    private function historyRelatedUserId(array $meta, array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            $id = $this->stringOrNull($meta[$key] ?? null);
+            if ($id !== null) {
+                return $id;
+            }
+        }
+
+        return null;
+    }
+
+    private function historyPersonName(array $meta, Collection $relatedUsers, array $nameKeys, array $idKeys): ?string
+    {
+        foreach ($nameKeys as $key) {
+            $name = $this->stringOrNull($meta[$key] ?? null);
+            if ($name !== null) {
+                return $name;
+            }
+        }
+
+        $id = $this->historyRelatedUserId($meta, $idKeys);
+        if ($id !== null && $relatedUsers->has($id)) {
+            return $this->displayName($relatedUsers->get($id));
+        }
+
+        return null;
+    }
+
+    private function firstFilled(array $values): string
+    {
+        foreach ($values as $value) {
+            $string = $this->stringOrNull($value);
+            if ($string !== null) {
+                return $string;
+            }
+        }
+
+        return '';
     }
 
     private function businessDealBaseQuery(string $userId)
@@ -357,12 +608,13 @@ class PeerMonthlyImpactScriptService
 
     private function emptyChecklistItem(string $key, string $label): array
     {
-        return $this->checklistItem($key, $label, 0, []);
+        return $this->checklistItem($key, $label, []);
     }
 
-    private function checklistItem(string $key, string $label, int $count, array $relatedItems): array
+    private function checklistItem(string $key, string $label, array $relatedItems): array
     {
-        $isAvailable = $count > 0 || ! empty($relatedItems);
+        $count = count($relatedItems);
+        $isAvailable = $count > 0;
 
         return [
             'key' => $key,
