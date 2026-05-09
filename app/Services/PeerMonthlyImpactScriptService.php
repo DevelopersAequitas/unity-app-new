@@ -169,10 +169,12 @@ class PeerMonthlyImpactScriptService
             ->orderByDesc('created_at')
             ->get();
 
+        $peers = $deals->map(fn (BusinessDeal $deal): array => $this->businessDealPeer($deal, $userId))->values()->all();
+
         return [
             'total_amount' => round((float) $deals->sum(fn (BusinessDeal $deal): float => (float) ($deal->deal_amount ?? 0)), 2),
-            'deals_count' => $deals->count(),
-            'peers' => $deals->map(fn (BusinessDeal $deal): array => $this->businessDealPeer($deal, $userId))->values()->all(),
+            'deals_count' => count($peers),
+            'peers' => $peers,
         ];
     }
 
@@ -299,6 +301,7 @@ class PeerMonthlyImpactScriptService
             'connected_with_name' => $connectedWithName,
             'connected_with_business_name' => $connectedWithName,
             'referral_of' => $this->stringOrNull($referral->referral_of ?? null),
+            'date' => $this->formatDate($referral->referral_date ?? $referral->created_at ?? null),
             'referral_date' => $this->formatDate($referral->referral_date ?? null),
             'display_text' => "I gave a qualified referral to {$peerName} — connecting them with {$connectedWithName}",
         ];
@@ -572,12 +575,16 @@ class PeerMonthlyImpactScriptService
     {
         $peer = (string) ($deal->from_user_id ?? '') === $userId ? $deal->toUser : $deal->fromUser;
 
+        $peerName = $this->displayName($peer) ?? 'Peer';
+        $amount = $deal->deal_amount !== null ? (float) $deal->deal_amount : null;
+
         return [
             'peer_id' => $peer?->id ? (string) $peer->id : null,
-            'peer_name' => $this->displayName($peer),
+            'peer_name' => $peerName,
             'company_name' => $this->stringOrNull($peer?->company_name),
-            'amount' => $deal->deal_amount !== null ? (float) $deal->deal_amount : null,
+            'amount' => $amount,
             'deal_date' => $this->formatDate($deal->deal_date ?? null),
+            'display_text' => 'I completed business worth ' . $this->formatCurrencyAmount((float) ($amount ?? 0)) . ' with ' . $peerName,
         ];
     }
 
@@ -682,14 +689,28 @@ class PeerMonthlyImpactScriptService
 
     private function applyDateRange($query, string $table, array $columns, Carbon $start, Carbon $end): void
     {
-        $dateColumn = collect($columns)->first(fn (string $column): bool => Schema::hasColumn($table, $column));
+        $dateColumns = collect($columns)
+            ->filter(fn (string $column): bool => Schema::hasColumn($table, $column))
+            ->values();
 
-        if (! $dateColumn) {
+        if ($dateColumns->isEmpty()) {
             return;
         }
 
-        $query->whereDate($dateColumn, '>=', $start->toDateString())
-            ->whereDate($dateColumn, '<=', $end->toDateString());
+        $query->where(function ($dateQuery) use ($dateColumns, $start, $end): void {
+            foreach ($dateColumns as $index => $column) {
+                $fallbackColumns = $dateColumns->take($index)->all();
+
+                $dateQuery->orWhere(function ($columnQuery) use ($column, $fallbackColumns, $start, $end): void {
+                    foreach ($fallbackColumns as $fallbackColumn) {
+                        $columnQuery->whereNull($fallbackColumn);
+                    }
+
+                    $columnQuery->whereDate($column, '>=', $start->toDateString())
+                        ->whereDate($column, '<=', $end->toDateString());
+                });
+            }
+        });
     }
 
     private function lifeImpactSumExpression(string $table): string
@@ -711,11 +732,23 @@ class PeerMonthlyImpactScriptService
 
     private function profilePhotoUrl(User $user): ?string
     {
-        if (! empty($user->profile_photo_file_id)) {
-            return url('/api/v1/files/' . $user->profile_photo_file_id);
+        $fileId = $this->stringOrNull($user->getAttribute('profile_photo_file_id'))
+            ?? $this->stringOrNull($user->getAttribute('profile_photo_id'));
+
+        if ($fileId !== null) {
+            return url('/api/v1/files/' . $fileId);
         }
 
-        return $this->stringOrNull($user->profile_photo_url ?? null);
+        $photoUrl = $this->stringOrNull($user->profile_photo_url ?? null);
+        if ($photoUrl === null) {
+            return null;
+        }
+
+        if (Str::startsWith($photoUrl, ['http://', 'https://'])) {
+            return $photoUrl;
+        }
+
+        return url('/' . ltrim($photoUrl, '/'));
     }
 
     private function displayName(?User $user): ?string

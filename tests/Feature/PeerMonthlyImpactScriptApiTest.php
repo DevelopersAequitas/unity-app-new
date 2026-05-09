@@ -119,6 +119,64 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
         $this->assertFalse($emptyChecklistItem['is_available']);
     }
 
+    public function test_monthly_business_deals_return_totals_peer_history_and_display_text(): void
+    {
+        Carbon::setTestNow('2026-05-09 10:00:00');
+        $this->createBusinessDealsTable();
+
+        $user = $this->createUser(['display_name' => 'Demo User']);
+        $rahul = $this->createUser([
+            'display_name' => 'Rahul Shah',
+            'company_name' => 'ABC Pvt Ltd',
+        ]);
+        $jay = $this->createUser([
+            'display_name' => 'Jay Patel',
+            'company_name' => 'Jay Industries',
+        ]);
+        $pendingPeer = $this->createUser(['display_name' => 'Pending Peer']);
+
+        $this->createBusinessDeal($user, $rahul, 5000, '2026-05-04', 'completed');
+        $this->createBusinessDeal($jay, $user, 2500, '2026-05-07', 'approved');
+        $this->createBusinessDeal($user, $pendingPeer, 9000, '2026-05-08', 'pending');
+        $this->createBusinessDeal($user, $rahul, 1000, '2026-04-28', 'completed');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/peer-monthly-impact-script');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.business_deals_this_month.total_amount', 7500)
+            ->assertJsonPath('data.summary.total_business_done_with_peers_this_month', 7500)
+            ->assertJsonPath('data.period.total_business_done_with_peers_this_month', 7500);
+
+        $businessDeals = $response->json('data.business_deals_this_month');
+
+        $this->assertCount(2, $businessDeals['peers']);
+        $this->assertSame(count($businessDeals['peers']), $businessDeals['deals_count']);
+        $this->assertSame('I completed business worth ₹ 2,500.00 with Jay Patel', $businessDeals['peers'][0]['display_text']);
+        $this->assertSame('Jay Industries', $businessDeals['peers'][0]['company_name']);
+    }
+
+    public function test_profile_photo_file_url_is_clean_unescaped_and_browser_usable(): void
+    {
+        $fileId = (string) Str::uuid();
+        $user = $this->createUser([
+            'profile_photo_file_id' => $fileId,
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/peer-monthly-impact-script');
+
+        $expectedUrl = url('/api/v1/files/' . $fileId);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.user.profile_photo_url', $expectedUrl);
+
+        $this->assertStringContainsString('"profile_photo_url":"' . $expectedUrl . '"', $response->getContent());
+        $this->assertStringNotContainsString('http:\/\/', $response->getContent());
+    }
+
     private function createUsersTable(): void
     {
         Schema::create('users', function (Blueprint $table): void {
@@ -170,6 +228,23 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
         });
     }
 
+    private function createBusinessDealsTable(): void
+    {
+        Schema::create('business_deals', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('from_user_id');
+            $table->uuid('to_user_id')->nullable();
+            $table->date('deal_date')->nullable();
+            $table->decimal('deal_amount', 12, 2)->nullable();
+            $table->string('business_type')->nullable();
+            $table->string('status')->nullable();
+            $table->text('comment')->nullable();
+            $table->boolean('is_deleted')->default(false);
+            $table->timestamps();
+            $table->softDeletes();
+        });
+    }
+
     private function createUser(array $attributes = []): User
     {
         $id = (string) Str::uuid();
@@ -207,6 +282,22 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
             'is_deleted' => false,
             'created_at' => Carbon::parse($referralDate)->setTime(9, 0),
             'updated_at' => Carbon::parse($referralDate)->setTime(9, 0),
+        ]);
+    }
+
+    private function createBusinessDeal(User $fromUser, User $toUser, float $amount, string $dealDate, string $status): void
+    {
+        DB::table('business_deals')->insert([
+            'id' => (string) Str::uuid(),
+            'from_user_id' => (string) $fromUser->id,
+            'to_user_id' => (string) $toUser->id,
+            'deal_date' => $dealDate,
+            'deal_amount' => $amount,
+            'business_type' => 'new',
+            'status' => $status,
+            'is_deleted' => false,
+            'created_at' => Carbon::parse($dealDate)->setTime(10, 0),
+            'updated_at' => Carbon::parse($dealDate)->setTime(10, 0),
         ]);
     }
 }
