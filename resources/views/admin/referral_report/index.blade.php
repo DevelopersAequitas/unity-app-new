@@ -136,8 +136,9 @@
                                     @foreach($referredUsers as $referredUser)
                                         <div class="border rounded-3 p-2 bg-light-subtle">
                                             <div class="fw-semibold text-dark">{{ $referredUser->referred_name ?: 'Deleted / Unknown User' }}</div>
-                                            <div class="text-muted small">{{ $referredUser->referred_email ?: 'No email' }}</div>
                                             <div class="text-muted small">{{ $referredUser->referred_phone ?: 'No phone' }}</div>
+                                            <div class="text-muted small">{{ $referredUser->company_name ?: '—' }}</div>
+                                            <div class="text-muted small">{{ $referredUser->city ?: '—' }}</div>
                                             <div class="d-flex flex-wrap gap-2 mt-1 small">
                                                 <span class="badge bg-light text-dark border">{{ $referredUser->used_at ? \Illuminate\Support\Carbon::parse($referredUser->used_at)->format('d-m-Y h:i A') : 'No date' }}</span>
                                                 <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">{{ number_format((int) $referredUser->coins) }} coins</span>
