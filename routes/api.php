@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\InvoiceController;
 use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
+use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
@@ -87,6 +88,7 @@ use App\Http\Controllers\Api\V1\RazorpayWebhookController;
 use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController;
 use App\Http\Controllers\Api\V1\RequirementInterestController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
+use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
@@ -110,7 +112,11 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
+    Route::get('/referrals/search', [ReferralController::class, 'search']);
     Route::get('/referrals/validate/{code}', [ReferralController::class, 'validateCode']);
+
+    Route::get('/business-categories/main', [BusinessCategoryController::class, 'main']);
+    Route::get('/business-categories/{parent_id}/children', [BusinessCategoryController::class, 'children']);
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
     Route::get('/master/positions', [MasterPositionController::class, 'index']);
@@ -126,6 +132,7 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
+        Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
 
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 
