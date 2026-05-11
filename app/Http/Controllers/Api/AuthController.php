@@ -57,7 +57,8 @@ class AuthController extends BaseApiController
             'referral_code' => (string) ($normalizedReferralCode ?? ''),
         ]);
 
-        $referralService->validateReferralCodeOrFail($normalizedReferralCode);
+        $referralPreview = $referralService->validateReferralCodeOrFail($normalizedReferralCode);
+        $data['resolved_referred_by_user_id'] = $this->resolveRegisterReferrerUserId($data, $referralPreview);
 
         $transactionUser = $this->createRegisteredUser($data);
 
@@ -105,7 +106,12 @@ class AuthController extends BaseApiController
             ]);
 
             $this->ensureReferralDataPersisted($persistedUser, $normalizedReferralCode, $referralMeta);
+            $this->persistRegisterReferrer($persistedUser, (string) ($referralMeta['referrer_user_id'] ?? ''));
+        } elseif (! blank($data['resolved_referred_by_user_id'] ?? null)) {
+            $this->persistRegisterReferrer($persistedUser, (string) $data['resolved_referred_by_user_id']);
         }
+
+        $persistedUser->refresh();
 
         Log::info('auth.register.before_token_creation', [
             'user_id' => (string) $persistedUser->id,
@@ -127,7 +133,7 @@ class AuthController extends BaseApiController
             'message' => 'Registration successful.',
             'data'    => [
                 'token' => $token,
-                'user'  => $persistedUser,
+                'user'  => $this->buildRegisterUserPayload($persistedUser),
                 'referral' => $referralMeta,
                 'categories' => $this->buildJoinedCategoriesPayload($persistedUser),
             ],
@@ -478,6 +484,75 @@ class AuthController extends BaseApiController
     }
 
 
+    private function resolveRegisterReferrerUserId(array $data, ?array $referralPreview): ?string
+    {
+        $referrerUserId = (string) ($referralPreview['referrer_user_id'] ?? '');
+        if ($referrerUserId !== '') {
+            return $referrerUserId;
+        }
+
+        $explicitUserId = (string) ($data['referred_by_user_id'] ?? '');
+
+        return $explicitUserId !== '' ? $explicitUserId : null;
+    }
+
+    private function persistRegisterReferrer(User $user, ?string $referrerUserId): void
+    {
+        $referrerUserId = trim((string) $referrerUserId);
+
+        if ($referrerUserId === '' || $referrerUserId === (string) $user->id) {
+            return;
+        }
+
+        $dirty = false;
+
+        if (Schema::hasColumn('users', 'introduced_by') && blank($user->introduced_by)) {
+            $user->introduced_by = $referrerUserId;
+            $dirty = true;
+        }
+
+        if (Schema::hasColumn('users', 'referred_by_user_id') && blank($user->referred_by_user_id)) {
+            $user->referred_by_user_id = $referrerUserId;
+            $dirty = true;
+        }
+
+        if ($dirty) {
+            $user->save();
+        }
+    }
+
+    private function buildRegisterUserPayload(User $user): array
+    {
+        $user->loadMissing(['businessCategory:id,name', 'introducedBy:id,first_name,last_name,display_name']);
+
+        if (Schema::hasColumn('users', 'referred_by_user_id') && method_exists($user, 'referredByUser')) {
+            $user->loadMissing(['referredByUser:id,first_name,last_name,display_name']);
+        }
+
+        $payload = $user->toArray();
+        $businessCategory = $user->businessCategory;
+        $referrer = $user->referredByUser ?? $user->introducedBy;
+
+        $payload['business_category'] = $businessCategory
+            ? [
+                'id' => (string) $businessCategory->id,
+                'name' => (string) $businessCategory->name,
+            ]
+            : null;
+        $payload['city_of_residence'] = Schema::hasColumn('users', 'city_of_residence')
+            ? ($user->city_of_residence ?? null)
+            : null;
+        $payload['referred_by'] = $referrer
+            ? [
+                'id' => (string) $referrer->id,
+                'display_name' => trim((string) (($referrer->display_name ?: '') ?: (($referrer->first_name ?? '') . ' ' . ($referrer->last_name ?? '')))),
+            ]
+            : null;
+
+        return $payload;
+    }
+
+
     private function sendWelcomePeerEmail(User $user): void
     {
         if (EmailLog::query()
@@ -530,8 +605,11 @@ class AuthController extends BaseApiController
 
     private function createRegisteredUser(array $data): User
     {
-        // Build a display name from first + last name
-        $displayName = trim($data['first_name'] . ' ' . ($data['last_name'] ?? ''));
+        // Build a display name from first + last name unless the client sent one explicitly.
+        $displayName = trim((string) ($data['display_name'] ?? ''));
+        if ($displayName === '') {
+            $displayName = trim($data['first_name'] . ' ' . ($data['last_name'] ?? ''));
+        }
 
         $user = new User();
         $user->id = (string) Str::uuid();
@@ -542,7 +620,25 @@ class AuthController extends BaseApiController
         $user->phone = $data['phone'] ?? null;
         $user->company_name = $data['company_name'] ?? null;
         $user->designation = $data['designation'] ?? null;
-        $user->city_id = $user->city_id ?? null;
+        $user->city_id = $data['city_id'] ?? null;
+
+        if (Schema::hasColumn('users', 'city_of_residence')) {
+            $user->city_of_residence = $data['city_of_residence'] ?? null;
+        }
+
+        if (Schema::hasColumn('users', 'business_category_id')) {
+            $user->business_category_id = $data['business_category_id'] ?? null;
+        }
+
+        if (! blank($data['resolved_referred_by_user_id'] ?? null)) {
+            if (Schema::hasColumn('users', 'introduced_by')) {
+                $user->introduced_by = (string) $data['resolved_referred_by_user_id'];
+            }
+
+            if (Schema::hasColumn('users', 'referred_by_user_id')) {
+                $user->referred_by_user_id = (string) $data['resolved_referred_by_user_id'];
+            }
+        }
 
         $trialEndsAt = now()->addDays(3);
 
