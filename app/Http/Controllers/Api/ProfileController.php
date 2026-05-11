@@ -27,18 +27,19 @@ class ProfileController extends BaseApiController
     public function update(UpdateProfileRequest $request, PublicProfileSlugService $publicProfileSlugService)
     {
         $user = $request->user();
-        $data = $request->validated();
+        $validated = $request->validated();
+        $data = collect($validated)
+            ->only($this->profileUpdateFields())
+            ->toArray();
 
-        if (array_key_exists('skills', $data)) {
-            $data['skills'] = $data['skills'] ?? [];
+        foreach ($this->arrayProfileFields() as $field) {
+            if (array_key_exists($field, $data)) {
+                $data[$field] = $data[$field] ?? [];
+            }
         }
 
-        if (array_key_exists('interests', $data)) {
-            $data['interests'] = $data['interests'] ?? [];
-        }
-
-        if (array_key_exists('social_links', $data)) {
-            $data['social_links'] = $data['social_links'] ?? [];
+        if (array_key_exists('social_links', $validated) && is_array($validated['social_links'])) {
+            $data['social_links'] = $validated['social_links'];
 
             $socialLinkColumnMap = [
                 'linkedin' => 'linkedin_profile',
@@ -48,8 +49,8 @@ class ProfileController extends BaseApiController
             ];
 
             foreach ($socialLinkColumnMap as $legacyKey => $column) {
-                if (array_key_exists($legacyKey, $data['social_links']) && ! array_key_exists($column, $data)) {
-                    $data[$column] = $data['social_links'][$legacyKey];
+                if (! empty($validated['social_links'][$legacyKey]) && empty($data[$column])) {
+                    $data[$column] = $validated['social_links'][$legacyKey];
                 }
             }
         }
@@ -79,20 +80,103 @@ class ProfileController extends BaseApiController
 
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
             $displayName = trim(($data['first_name'] ?? $user->first_name ?? '') . ' ' . ($data['last_name'] ?? $user->last_name ?? ''));
-            $user->display_name = $displayName !== '' ? $displayName : $user->email;
+            $data['display_name'] = $displayName !== '' ? $displayName : $user->email;
         }
 
-        $user->fill($data);
+        $user->forceFill($data);
 
         if (empty($user->public_profile_slug)) {
             $user->public_profile_slug = $publicProfileSlugService->generateUniqueForUser($user);
         }
 
         $user->save();
-
+        $user->refresh();
         $user->load(['profilePhotoFile', 'coverPhotoFile', 'userLinks']);
 
         return $this->success(new UserProfileResource($user), 'Profile updated successfully');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function profileUpdateFields(): array
+    {
+        return [
+            'first_name',
+            'last_name',
+            'phone',
+            'company_name',
+            'designation',
+            'business_type',
+            'about',
+            'gender',
+            'dob',
+            'experience_years',
+            'experience_summary',
+            'city_id',
+            'city',
+            'city_of_residence',
+            'state',
+            'country',
+            'preferred_language',
+            'skills',
+            'interests',
+            'social_links',
+            'profile_photo_id',
+            'cover_photo_id',
+            'business_logo_id',
+            'business_category_id',
+            'business_sub_category',
+            'company_type',
+            'year_of_establishment',
+            'annual_revenue_range',
+            'number_of_employees',
+            'gst_number',
+            'business_website',
+            'superpower',
+            'i_can_help_with',
+            'i_am_looking_for',
+            'business_keywords',
+            'products_services_offered',
+            'secondary_mobile',
+            'linkedin_profile',
+            'instagram_handle',
+            'twitter_handle',
+            'facebook_profile',
+            'youtube_channel',
+            'other_website',
+            'contact_visibility',
+            'business_address',
+            'business_city',
+            'business_state',
+            'business_pincode',
+            'business_country',
+            'google_maps_latitude',
+            'google_maps_longitude',
+            'industries_of_interest',
+            'collaboration_goals',
+            'preferred_meeting_format',
+            'willing_to_mentor',
+            'open_to_cross_city_collaboration',
+            'open_to_speaking_at_events',
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function arrayProfileFields(): array
+    {
+        return [
+            'skills',
+            'interests',
+            'social_links',
+            'i_can_help_with',
+            'i_am_looking_for',
+            'business_keywords',
+            'industries_of_interest',
+            'collaboration_goals',
+        ];
     }
 
     public function links(Request $request)
