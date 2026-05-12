@@ -158,6 +158,10 @@ class UserResource extends JsonResource
                 ->whereNull('left_at')
                 ->where(function ($query): void {
                     $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+
+                    if (Schema::hasColumn('circle_members', 'expires_at')) {
+                        $query->orWhere('expires_at', '>=', now());
+                    }
                 })
                 ->orderByDesc('joined_at')
                 ->with('circle:id,name,slug')
@@ -230,13 +234,13 @@ class UserResource extends JsonResource
                 'member_status' => $membership->status,
                 'member_role' => $membership->role,
                 'joined_at' => $membership->joined_at,
-                'expires_at' => $membership->paid_ends_at,
+                'expires_at' => $this->resolveCircleMembershipExpiry($membership),
                 'joined_via' => $membership->joined_via,
                 'payment_status' => $membership->payment_status,
                 'zoho_addon_code' => $membership->zoho_addon_code ?: optional($subscription)->zoho_addon_code,
-                'addon_name' => optional($subscription)->zoho_addon_name,
-                'circle_subscription_id' => optional($subscription)->id,
-                'subscription_status' => optional($subscription)->status,
+                'addon_name' => $membership->addon_name ?: optional($subscription)->zoho_addon_name,
+                'circle_subscription_id' => $membership->circle_subscription_id ?: optional($subscription)->id,
+                'subscription_status' => $membership->subscription_status ?: optional($subscription)->status,
                 'selected_category_path' => [
                     'level1' => $level1 ? ['id' => $level1->id, 'name' => $level1->name] : null,
                     'level2' => $level2 ? ['id' => $level2->id, 'name' => $level2->name] : null,
@@ -245,6 +249,15 @@ class UserResource extends JsonResource
                 ],
             ];
         })->values()->all();
+    }
+
+    private function resolveCircleMembershipExpiry($membership): mixed
+    {
+        return $membership->expires_at
+            ?? $membership->paid_ends_at
+            ?? $this->membership_ends_at
+            ?? $this->membership_expiry
+            ?? null;
     }
 
     private function resolvePrimaryCircleContext(): array
@@ -256,6 +269,10 @@ class UserResource extends JsonResource
             ->whereNull('left_at')
             ->where(function ($query): void {
                 $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+
+                if (Schema::hasColumn('circle_members', 'expires_at')) {
+                    $query->orWhere('expires_at', '>=', now());
+                }
             })
             // Selection rule for legacy single-circle fields:
             // prefer paid memberships, then latest join.
@@ -287,7 +304,7 @@ class UserResource extends JsonResource
                 ?? $membership->joined_at
                 ?? optional($subscription)->started_at
                 ?? $this->circle_joined_at,
-            'expires_at' => $membership->paid_ends_at
+            'expires_at' => $this->resolveCircleMembershipExpiry($membership)
                 ?? optional($subscription)->expires_at
                 ?? $this->circle_expires_at,
             'addon_code' => $membership->zoho_addon_code
