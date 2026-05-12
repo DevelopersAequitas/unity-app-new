@@ -416,6 +416,14 @@
                                     @forelse ($circleMemberships as $membership)
                                         @php
                                             $latestSubscription = $latestCircleSubscriptions->get((string) $membership->circle_id);
+                                            $membershipExpiresAt = collect([
+                                                $membership->getAttribute('expires_at'),
+                                                $membership->getAttribute('membership_ends_at'),
+                                                $membership->getAttribute('ends_at'),
+                                                $membership->getAttribute('subscription_ends_at'),
+                                                $membership->getAttribute('expired_at'),
+                                                $membership->getAttribute('paid_ends_at'),
+                                            ])->first(fn ($value) => filled($value));
                                         @endphp
                                         <tr>
                                             <td>
@@ -428,7 +436,7 @@
                                             <td>{{ $membership->zoho_addon_code ?: ($latestSubscription->zoho_addon_code ?? '—') }}</td>
                                             <td>{{ $latestSubscription->zoho_addon_name ?? '—' }}</td>
                                             <td>{{ optional($membership->joined_at)->format('Y-m-d') ?: '—' }}</td>
-                                            <td>{{ optional($membership->paid_ends_at)->format('Y-m-d') ?: optional($latestSubscription?->expires_at)->format('Y-m-d') ?: '—' }}</td>
+                                            <td>{{ $membershipExpiresAt ? \Illuminate\Support\Carbon::parse($membershipExpiresAt)->format('Y-m-d') : (optional($latestSubscription?->expires_at)->format('Y-m-d') ?: '—') }}</td>
                                             <td>{{ $membership->status ?: '—' }}</td>
                                             <td>{{ $membership->payment_status ?: ($latestSubscription->status ?? '—') }}</td>
                                             <td>
