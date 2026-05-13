@@ -191,7 +191,7 @@ class MemberController extends BaseApiController
         $followersQuery = UserFollow::query()
             ->where('following_id', $member->id)
             ->with([
-                'follower:id,display_name,first_name,last_name,company_name,designation,email,phone,city_id,city,country,profile_photo_id,profile_photo_file_id',
+                'follower:id,display_name,first_name,last_name,company_name,designation,email,phone,city_id,city,country,profile_photo_file_id',
                 'follower.city:id,name',
             ]);
 
@@ -225,7 +225,7 @@ class MemberController extends BaseApiController
 
     private function formatFollowerUser(User $follower): array
     {
-        $profilePhotoId = $follower->profile_photo_file_id ?? $follower->profile_photo_id;
+        $profilePhotoId = $follower->profile_photo_file_id;
 
         return [
             'id' => (string) $follower->id,
