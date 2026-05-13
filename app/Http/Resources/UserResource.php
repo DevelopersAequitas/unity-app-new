@@ -16,6 +16,10 @@ class UserResource extends JsonResource
 {
     public function toArray($request): array
     {
+        $profilePhotoId = $this->profile_photo_file_id ?? $this->profile_photo_id;
+        $profilePhotoUrl = $profilePhotoId
+            ? url('/api/v1/files/' . $profilePhotoId)
+            : null;
         $coverPhotoId = $this->cover_photo_file_id;
         $coverPhotoUrl = $coverPhotoId
             ? url('/api/v1/files/' . $coverPhotoId)
@@ -39,7 +43,7 @@ class UserResource extends JsonResource
         return [
             'id'                  => $this->id,
             'public_profile_slug' => $this->public_profile_slug,
-            'profile_photo_id'    => $this->profile_photo_file_id,
+            'profile_photo_id'    => $profilePhotoId,
             'cover_photo_id'      => $coverPhotoId,
             'profile_video_id'    => $profileVideoId,
             'profile_video'       => $profileVideoId ? [
@@ -121,7 +125,7 @@ class UserResource extends JsonResource
             'special_recognitions'=> $this->special_recognitions ?? [],
             'social_links'        => $this->resolveSocialLinks(),
             'media'               => $this->mediaValue(),
-            'profile_photo_url'   => $this->profile_photo_url,
+            'profile_photo_url'   => $profilePhotoUrl,
             'cover_photo_url'     => $coverPhotoUrl,
             'address'             => $this->address ?? null,
             'state'               => $this->state ?? null,

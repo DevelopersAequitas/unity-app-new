@@ -37,6 +37,25 @@ Notes:
 - Posts are ordered newest first.
 - Invalid or unknown users return `404`.
 
+## Confirm member profile photo URL
+
+```http
+GET /api/v1/members
+Authorization: Bearer {token}
+Accept: application/json
+```
+
+Each member item keeps `profile_photo_id` and also includes `profile_photo_url` built with `/api/v1/files/{id}`:
+
+```json
+{
+  "profile_photo_id": "019d6783-7042-7111-aa4e-a197248ec0ec",
+  "profile_photo_url": "https://peersunity.com/api/v1/files/019d6783-7042-7111-aa4e-a197248ec0ec"
+}
+```
+
+If the member has no profile photo, `profile_photo_url` is `null`.
+
 ## Manual database note
 
 No migration file is included for `users.profile_video_id`. If the production database does not already have the column, add it manually before relying on the profile video response fields:
