@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class MemberController extends BaseApiController
 {
@@ -35,7 +36,10 @@ class MemberController extends BaseApiController
                 'city',
                 'business_type',
             ])
-            ->with('city:id,name');
+            ->with([
+                'city:id,name',
+                'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+            ]);
 
         // Manual test: inactive members should be excluded from the members list API.
         $query->where(function ($statusQuery) {
@@ -122,12 +126,7 @@ class MemberController extends BaseApiController
 
     public function show(Request $request, string $id, PeerBlockService $peerBlockService)
     {
-        $user = User::with([
-            'city',
-            'activeCircle.cityRef',
-            'mainBusinessCategory',
-            'businessCategory',
-        ])->find($id);
+        $user = User::with($this->memberDetailRelations())->find($id);
 
         if (! $user) {
             return $this->error('Member not found', 404);
@@ -143,12 +142,7 @@ class MemberController extends BaseApiController
 
     public function publicProfileBySlug(Request $request, string $slug, PeerBlockService $peerBlockService)
     {
-        $user = User::with([
-                'city',
-                'activeCircle.cityRef',
-                'mainBusinessCategory',
-                'businessCategory',
-            ])
+        $user = User::with($this->memberDetailRelations())
             ->where('public_profile_slug', $slug)
             ->first();
 
@@ -162,6 +156,34 @@ class MemberController extends BaseApiController
         }
 
         return $this->success(new MemberDetailResource($user));
+    }
+
+    private function memberDetailRelations(): array
+    {
+        return [
+            'city',
+            'activeCircle.cityRef',
+            'mainBusinessCategory',
+            'businessCategory',
+            'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+        ];
+    }
+
+    private function joinedCircleMembershipsQuery($query): void
+    {
+        $query
+            ->where('status', (string) config('circle.member_joined_status', 'approved'))
+            ->whereNull('deleted_at')
+            ->whereNull('left_at')
+            ->where(function ($nested): void {
+                $nested->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+
+                if (Schema::hasColumn('circle_members', 'expires_at')) {
+                    $nested->orWhere('expires_at', '>=', now());
+                }
+            })
+            ->orderByDesc('joined_at')
+            ->with('circle:id,name,slug');
     }
 
     public function sendConnectionRequest(Request $request, string $id, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
