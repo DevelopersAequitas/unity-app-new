@@ -2,7 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Models\JoinedCircleCategory;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Schema;
 
 class CircleMemberResource extends JsonResource
 {
@@ -21,7 +23,10 @@ class CircleMemberResource extends JsonResource
             'user' => $this->whenLoaded('user', function () {
                 $user = $this->user;
                 $cityName = $this->resolveCityName($user);
-                $categoryName = $this->resolveBusinessCategoryName($user);
+                $categories = $this->resolveJoinedCircleCategories($user);
+                $primaryCategory = $categories[0]['level1_category'] ?? null;
+                $categoryId = $primaryCategory['id'] ?? null;
+                $categoryName = $primaryCategory['name'] ?? null;
                 $photoFileId = data_get($user, 'profile_photo_file_id')
                     ?: data_get($user, 'image_file_id')
                     ?: data_get($user, 'avatar_file_id')
@@ -43,10 +48,11 @@ class CircleMemberResource extends JsonResource
                     'city_id' => $user?->city_id,
                     'city_name' => $cityName,
                     'city' => $cityName,
-                    'business_category_id' => $user?->business_category_id,
+                    'business_category_id' => $categoryId,
                     'business_category_name' => $categoryName,
                     'business_category' => $categoryName,
                     'business_sub_category' => $user?->business_sub_category,
+                    'categories' => $categories,
                     'membership_status' => $user?->membership_status ?? null,
                     'is_active' => $user?->is_active ?? null,
                     'profile_photo_file_id' => $photoFileId,
@@ -98,32 +104,51 @@ class CircleMemberResource extends JsonResource
         return is_string($cityName) && $cityName !== '' ? $cityName : null;
     }
 
-    private function resolveBusinessCategoryName($user): ?string
+    private function resolveJoinedCircleCategories($user): array
     {
         if (! $user) {
-            return null;
+            return [];
         }
 
-        $businessCategoryRelation = $user->relationLoaded('businessCategory')
-            ? $user->getRelationValue('businessCategory')
-            : null;
-
-        if (is_object($businessCategoryRelation)) {
-            return $businessCategoryRelation->name ?? null;
+        if ($user->relationLoaded('joinedCircleCategories')) {
+            $rows = $user->getRelationValue('joinedCircleCategories');
+        } elseif (Schema::hasTable('joined_circle_categories')) {
+            $rows = JoinedCircleCategory::query()
+                ->where('user_id', $user->id)
+                ->with([
+                    'circle:id,name',
+                    'level1Category:id,name',
+                    'level2Category:id,name',
+                    'level3Category:id,name',
+                    'level4Category:id,name',
+                ])
+                ->orderByDesc('updated_at')
+                ->get();
+        } else {
+            return [];
         }
 
-        $businessCategory = $user->getAttribute('business_category');
-
-        if (is_object($businessCategory)) {
-            return $businessCategory->name ?? null;
-        }
-
-        if (is_string($businessCategory) && $businessCategory !== '') {
-            return $businessCategory;
-        }
-
-        $businessCategoryName = $user->getAttribute('business_category_name');
-
-        return is_string($businessCategoryName) && $businessCategoryName !== '' ? $businessCategoryName : null;
+        return $rows
+            ->map(function (JoinedCircleCategory $row): array {
+                return [
+                    'circle_id' => $row->circle_id,
+                    'circle_name' => $row->circle?->name,
+                    'level1_category' => $row->level1Category
+                        ? ['id' => $row->level1Category->id, 'name' => $row->level1Category->name]
+                        : null,
+                    'level2_category' => $row->level2Category
+                        ? ['id' => $row->level2Category->id, 'name' => $row->level2Category->name]
+                        : null,
+                    'level3_category' => $row->level3Category
+                        ? ['id' => $row->level3Category->id, 'name' => $row->level3Category->name]
+                        : null,
+                    'level4_category' => $row->level4Category
+                        ? ['id' => $row->level4Category->id, 'name' => $row->level4Category->name]
+                        : null,
+                ];
+            })
+            ->values()
+            ->all();
     }
+
 }
