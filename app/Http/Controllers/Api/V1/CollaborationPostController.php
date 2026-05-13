@@ -82,7 +82,41 @@ class CollaborationPostController extends Controller
 
     public function accept(Request $request, string $id): JsonResponse
     {
-        return $this->markCompleted($request, $id, 'Collaboration accepted successfully.');
+        $post = CollaborationPost::query()->where('id', $id)->first();
+
+        if (! $post) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Collaboration post not found.',
+                'data' => null,
+            ], 404);
+        }
+
+        if ($post->completion_status === CollaborationPost::COMPLETION_COMPLETED) {
+            return $this->collaborationResponse($post, 'Collaboration accepted successfully.');
+        }
+
+        if ((string) $post->user_id === (string) $request->user()->id) {
+            return response()->json([
+                'status' => false,
+                'message' => 'You cannot accept your own collaboration.',
+                'data' => null,
+            ], 422);
+        }
+
+        $acceptedAt = now();
+
+        $post->update([
+            'completion_status' => CollaborationPost::COMPLETION_COMPLETED,
+            'completed_at' => $acceptedAt,
+            'accepted_by_user_id' => $request->user()->id,
+            'accepted_at' => $acceptedAt,
+        ]);
+
+        $this->collaborationTimelinePostService->createCompletedPost($post);
+        $this->collaborationNotificationService->sendCompletedNotificationsAndEmails($post);
+
+        return $this->collaborationResponse($post, 'Collaboration accepted successfully.');
     }
 
     private function markCompleted(Request $request, string $id, string $successMessage): JsonResponse
@@ -130,6 +164,11 @@ class CollaborationPostController extends Controller
             $this->collaborationNotificationService->sendCompletedNotificationsAndEmails($post);
         }
 
+        return $this->collaborationResponse($post, $successMessage);
+    }
+
+    private function collaborationResponse(CollaborationPost $post, string $message): JsonResponse
+    {
         $post->load([
             'user:id,first_name,last_name,display_name,city,membership_status,profile_photo_file_id',
             'industry:id,name,parent_id',
@@ -139,7 +178,7 @@ class CollaborationPostController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => $successMessage,
+            'message' => $message,
             'data' => new CollaborationPostResource($post),
         ]);
     }
