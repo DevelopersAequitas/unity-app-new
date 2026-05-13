@@ -42,6 +42,8 @@ class CollaborationPost extends Model
         'status',
         'completion_status',
         'completed_at',
+        'accepted_by_user_id',
+        'accepted_at',
         'posted_at',
         'expires_at',
     ];
@@ -51,6 +53,7 @@ class CollaborationPost extends Model
         'posted_at' => 'datetime',
         'expires_at' => 'datetime',
         'completed_at' => 'datetime',
+        'accepted_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -74,6 +77,11 @@ class CollaborationPost extends Model
     public function industry(): BelongsTo
     {
         return $this->belongsTo(Industry::class);
+    }
+
+    public function acceptedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'accepted_by_user_id');
     }
 
     public function collaborationType(): BelongsTo

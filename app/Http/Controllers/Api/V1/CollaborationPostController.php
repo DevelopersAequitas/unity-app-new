@@ -33,6 +33,7 @@ class CollaborationPostController extends Controller
             'user:id,first_name,last_name,display_name,city,membership_status,profile_photo_file_id',
             'industry:id,name,parent_id',
             'collaborationType:id,name,slug',
+            'acceptedByUser:id,first_name,last_name,display_name,email,phone,company_name,designation,city,profile_photo_file_id,profile_photo_url',
         ];
 
         $baseQuery = CollaborationPost::query()
@@ -106,11 +107,21 @@ class CollaborationPostController extends Controller
 
         $wasAlreadyCompleted = $post->completion_status === CollaborationPost::COMPLETION_COMPLETED;
 
+        $acceptedAt = now();
+        $updates = [];
+
         if (! $wasAlreadyCompleted) {
-            $post->update([
-                'completion_status' => CollaborationPost::COMPLETION_COMPLETED,
-                'completed_at' => now(),
-            ]);
+            $updates['completion_status'] = CollaborationPost::COMPLETION_COMPLETED;
+            $updates['completed_at'] = $acceptedAt;
+        }
+
+        if (blank($post->accepted_by_user_id) || blank($post->accepted_at)) {
+            $updates['accepted_by_user_id'] = $request->user()->id;
+            $updates['accepted_at'] = $acceptedAt;
+        }
+
+        if ($updates !== []) {
+            $post->update($updates);
         }
 
         $this->collaborationTimelinePostService->createCompletedPost($post);
@@ -123,6 +134,7 @@ class CollaborationPostController extends Controller
             'user:id,first_name,last_name,display_name,city,membership_status,profile_photo_file_id',
             'industry:id,name,parent_id',
             'collaborationType:id,name,slug',
+            'acceptedByUser:id,first_name,last_name,display_name,email,phone,company_name,designation,city,profile_photo_file_id,profile_photo_url',
         ]);
 
         return response()->json([
