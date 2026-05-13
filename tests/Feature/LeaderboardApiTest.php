@@ -53,7 +53,10 @@ class LeaderboardApiTest extends TestCase
         $member = collect($response->json('data.members'))->firstWhere('id', $leader->id);
 
         $this->assertSame('Founder', $member['designation']);
-        $this->assertSame('Ahmedabad', $member['city']);
+        $this->assertSame([
+            'id' => $city->id,
+            'name' => 'Ahmedabad',
+        ], $member['city']);
         $this->assertArrayHasKey('coins_balance', $member);
         $this->assertArrayHasKey('life_impacted_count', $member);
     }
@@ -86,9 +89,39 @@ class LeaderboardApiTest extends TestCase
         $member = collect($response->json('data.members'))->firstWhere('id', $leader->id);
 
         $this->assertSame('Director', $member['designation']);
-        $this->assertSame('Surat', $member['city']);
+        $this->assertSame([
+            'id' => null,
+            'name' => 'Surat',
+        ], $member['city']);
         $this->assertArrayHasKey('coin_medal_rank', $member);
         $this->assertArrayHasKey('profile_photo', $member);
+    }
+
+    public function test_coin_leaderboard_returns_null_city_object_when_no_city_exists(): void
+    {
+        $authUser = $this->createUser([
+            'display_name' => 'Auth User',
+            'coins_balance' => 1,
+        ]);
+        Sanctum::actingAs($authUser);
+
+        $leader = $this->createUser([
+            'display_name' => 'No City Leader',
+            'city_id' => null,
+            'city' => null,
+            'coins_balance' => 151000,
+        ]);
+
+        $response = $this->getJson('/api/v1/leaderboards/coins');
+
+        $response->assertOk();
+
+        $member = collect($response->json('data.members'))->firstWhere('id', $leader->id);
+
+        $this->assertSame([
+            'id' => null,
+            'name' => null,
+        ], $member['city']);
     }
 
     private function createLeaderboardSchema(): void

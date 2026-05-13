@@ -107,7 +107,7 @@ class LeaderboardController extends Controller
                 'last_name' => $member->last_name,
                 'company_name' => $member->company_name,
                 'designation' => $member->designation,
-                'city' => $this->resolveCityName($member),
+                'city' => $this->resolveCity($member),
                 'category' => $member->business_type,
                 'profile_photo' => [
                     'file_id' => $profilePhotoFileId,
@@ -124,30 +124,42 @@ class LeaderboardController extends Controller
         });
     }
 
-    private function resolveCityName(User $member): ?string
+    private function resolveCity(User $member): array
     {
         if ($member->relationLoaded('city')) {
             $city = $member->getRelation('city');
 
-            if ($city && filled($city->name)) {
-                return $city->name;
+            if ($city) {
+                return [
+                    'id' => $city->id,
+                    'name' => filled($city->name) ? $city->name : null,
+                ];
             }
         }
 
         $attributes = $member->getAttributes();
 
         if (! array_key_exists('city', $attributes)) {
-            return null;
+            return [
+                'id' => null,
+                'name' => null,
+            ];
         }
 
         $city = $attributes['city'];
 
         if (! is_string($city)) {
-            return $city ?: null;
+            return [
+                'id' => null,
+                'name' => null,
+            ];
         }
 
         $city = trim($city);
 
-        return $city !== '' ? $city : null;
+        return [
+            'id' => null,
+            'name' => $city !== '' ? $city : null,
+        ];
     }
 }
