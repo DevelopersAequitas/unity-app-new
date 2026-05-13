@@ -7,6 +7,7 @@ use App\Http\Requests\Api\V1\StoreCollaborationPostRequest;
 use App\Http\Resources\CollaborationPostResource;
 use App\Models\CollaborationPost;
 use App\Services\Collaboration\CollaborationPostService;
+use App\Services\Collaboration\CollaborationTimelinePostService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -14,8 +15,10 @@ use Illuminate\Validation\ValidationException;
 
 class CollaborationPostController extends Controller
 {
-    public function __construct(private readonly CollaborationPostService $collaborationPostService)
-    {
+    public function __construct(
+        private readonly CollaborationPostService $collaborationPostService,
+        private readonly CollaborationTimelinePostService $collaborationTimelinePostService
+    ) {
     }
 
     public function history(Request $request): JsonResponse
@@ -94,6 +97,8 @@ class CollaborationPostController extends Controller
                 'completion_status' => CollaborationPost::COMPLETION_COMPLETED,
                 'completed_at' => now(),
             ]);
+
+            $this->collaborationTimelinePostService->createCompletedPost($post);
         }
 
         $post->load([
@@ -143,6 +148,8 @@ class CollaborationPostController extends Controller
 
             throw $exception;
         }
+
+        $this->collaborationTimelinePostService->createCreatedPost($post);
 
         $post->load([
             'user:id,first_name,last_name,display_name,city,membership_status,profile_photo_file_id',

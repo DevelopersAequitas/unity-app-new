@@ -30,6 +30,9 @@ class Post extends Model
         'moderation_status',
         'sponsored',
         'is_deleted',
+        'source_type',
+        'source_id',
+        'source_event',
     ];
 
     protected $casts = [
