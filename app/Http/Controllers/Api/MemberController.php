@@ -32,6 +32,7 @@ class MemberController extends BaseApiController
                 'created_at',
                 'updated_at',
                 'profile_photo_file_id',
+                'profile_video_id',
                 'city_id',
                 'city',
                 'business_type',

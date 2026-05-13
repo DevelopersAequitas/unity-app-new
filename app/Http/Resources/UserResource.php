@@ -20,6 +20,10 @@ class UserResource extends JsonResource
         $coverPhotoUrl = $coverPhotoId
             ? url('/api/v1/files/' . $coverPhotoId)
             : null;
+        $profileVideoId = $this->profile_video_id;
+        $profileVideoUrl = $profileVideoId
+            ? url('/api/v1/files/' . $profileVideoId)
+            : null;
 
         $membershipStatus = $this->effective_membership_status ?? $this->membership_status;
         $resolvedCircle = $this->resolvePrimaryCircleContext();
@@ -37,6 +41,12 @@ class UserResource extends JsonResource
             'public_profile_slug' => $this->public_profile_slug,
             'profile_photo_id'    => $this->profile_photo_file_id,
             'cover_photo_id'      => $coverPhotoId,
+            'profile_video_id'    => $profileVideoId,
+            'profile_video'       => $profileVideoId ? [
+                'id' => (string) $profileVideoId,
+                'url' => $profileVideoUrl,
+            ] : null,
+            'profile_video_url'   => $profileVideoUrl,
             'first_name'          => $this->first_name,
             'last_name'           => $this->last_name,
             'display_name'        => $this->display_name,
