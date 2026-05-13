@@ -65,6 +65,7 @@ use App\Http\Controllers\Api\V1\CircleCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\FollowController;
+use App\Http\Controllers\Api\V1\FollowerController;
 use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
 use App\Http\Controllers\Api\V1\Forms\BecomeMentorController;
 use App\Http\Controllers\Api\V1\Forms\PeerRecommendationController;
@@ -183,6 +184,7 @@ Route::prefix('v1')->group(function () {
         Route::get('me/follow-requests', [FollowController::class, 'incomingRequests']);
         Route::get('me/following', [FollowController::class, 'myFollowing']);
         Route::get('me/followers', [FollowController::class, 'myFollowers']);
+        Route::get('/followers', [FollowerController::class, 'index']);
 
         Route::post('follows/{follow}/accept', [FollowController::class, 'accept'])->whereUuid('follow');
         Route::post('follows/{follow}/reject', [FollowController::class, 'reject'])->whereUuid('follow');
