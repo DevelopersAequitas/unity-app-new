@@ -32,6 +32,7 @@ class ProfileMatchService
         'interests' => 5,
         'collaboration_goals' => 8,
         'help_looking_for' => 15,
+        'superpower' => 5,
         'preferred_language' => 3,
         'preferred_meeting_format' => 3,
         'willing_to_mentor' => 2,
@@ -56,78 +57,87 @@ class ProfileMatchService
         }
 
         $rawScore = 0;
+        $possibleScore = 0;
         $matchedFields = [];
         $matchedDetails = [];
 
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'city', $this->sameCity($authUser, $member));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'state', $this->textEquals($this->attribute($authUser, 'state'), $this->attribute($member, 'state')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'country', $this->textEquals($this->attribute($authUser, 'country'), $this->attribute($member, 'country')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'city', $this->sameCity($authUser, $member), $this->hasComparableCity($authUser, $member));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'state', $this->textEquals($this->attribute($authUser, 'state'), $this->attribute($member, 'state')), $this->hasComparableText($this->attribute($authUser, 'state'), $this->attribute($member, 'state')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'country', $this->textEquals($this->attribute($authUser, 'country'), $this->attribute($member, 'country')), $this->hasComparableText($this->attribute($authUser, 'country'), $this->attribute($member, 'country')));
 
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'business_city', $this->textEquals($this->attribute($authUser, 'business_city'), $this->attribute($member, 'business_city')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'business_state', $this->textEquals($this->attribute($authUser, 'business_state'), $this->attribute($member, 'business_state')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'business_country', $this->textEquals($this->attribute($authUser, 'business_country'), $this->attribute($member, 'business_country')));
-        $matchedDetails['business_pincode'] = $this->textEquals($this->attribute($authUser, 'business_pincode'), $this->attribute($member, 'business_pincode'));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'business_city', $this->textEquals($this->attribute($authUser, 'business_city'), $this->attribute($member, 'business_city')), $this->hasComparableText($this->attribute($authUser, 'business_city'), $this->attribute($member, 'business_city')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'business_state', $this->textEquals($this->attribute($authUser, 'business_state'), $this->attribute($member, 'business_state')), $this->hasComparableText($this->attribute($authUser, 'business_state'), $this->attribute($member, 'business_state')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'business_country', $this->textEquals($this->attribute($authUser, 'business_country'), $this->attribute($member, 'business_country')), $this->hasComparableText($this->attribute($authUser, 'business_country'), $this->attribute($member, 'business_country')));
+        $matchedDetails['business_pincode'] = $this->hasComparableText($this->attribute($authUser, 'business_pincode'), $this->attribute($member, 'business_pincode'))
+            ? $this->textEquals($this->attribute($authUser, 'business_pincode'), $this->attribute($member, 'business_pincode'))
+            : null;
 
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'main_business_category', $this->sameScalar($this->attribute($authUser, 'main_business_category_id'), $this->attribute($member, 'main_business_category_id')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'business_category', $this->sameScalar($this->attribute($authUser, 'business_category_id'), $this->attribute($member, 'business_category_id')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'business_sub_category', $this->textEquals($this->attribute($authUser, 'business_sub_category'), $this->attribute($member, 'business_sub_category')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'business_type', $this->textSimilarity($this->attribute($authUser, 'business_type'), $this->attribute($member, 'business_type')) >= self::SIMILARITY_THRESHOLD);
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'main_business_category', $this->sameScalar($this->attribute($authUser, 'main_business_category_id'), $this->attribute($member, 'main_business_category_id')), $this->hasComparableScalar($this->attribute($authUser, 'main_business_category_id'), $this->attribute($member, 'main_business_category_id')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'business_category', $this->sameScalar($this->attribute($authUser, 'business_category_id'), $this->attribute($member, 'business_category_id')), $this->hasComparableScalar($this->attribute($authUser, 'business_category_id'), $this->attribute($member, 'business_category_id')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'business_sub_category', $this->textEquals($this->attribute($authUser, 'business_sub_category'), $this->attribute($member, 'business_sub_category')), $this->hasComparableText($this->attribute($authUser, 'business_sub_category'), $this->attribute($member, 'business_sub_category')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'business_type', $this->textSimilarity($this->attribute($authUser, 'business_type'), $this->attribute($member, 'business_type')) >= self::SIMILARITY_THRESHOLD, $this->hasComparableText($this->attribute($authUser, 'business_type'), $this->attribute($member, 'business_type')));
 
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'company_type', $this->textEquals($this->attribute($authUser, 'company_type'), $this->attribute($member, 'company_type')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'establishment_year', $this->yearsWithin($this->attribute($authUser, 'year_of_establishment'), $this->attribute($member, 'year_of_establishment'), 5));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'annual_revenue_range', $this->textEquals($this->attribute($authUser, 'annual_revenue_range'), $this->attribute($member, 'annual_revenue_range')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'number_of_employees', $this->textEquals($this->attribute($authUser, 'number_of_employees'), $this->attribute($member, 'number_of_employees')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'company_type', $this->textEquals($this->attribute($authUser, 'company_type'), $this->attribute($member, 'company_type')), $this->hasComparableText($this->attribute($authUser, 'company_type'), $this->attribute($member, 'company_type')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'establishment_year', $this->yearsWithin($this->attribute($authUser, 'year_of_establishment'), $this->attribute($member, 'year_of_establishment'), 5), $this->hasComparableNumeric($this->attribute($authUser, 'year_of_establishment'), $this->attribute($member, 'year_of_establishment')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'annual_revenue_range', $this->textEquals($this->attribute($authUser, 'annual_revenue_range'), $this->attribute($member, 'annual_revenue_range')), $this->hasComparableText($this->attribute($authUser, 'annual_revenue_range'), $this->attribute($member, 'annual_revenue_range')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'number_of_employees', $this->textEquals($this->attribute($authUser, 'number_of_employees'), $this->attribute($member, 'number_of_employees')), $this->hasComparableText($this->attribute($authUser, 'number_of_employees'), $this->attribute($member, 'number_of_employees')));
 
         $commonProductsServices = $this->getCommonValues($this->attribute($authUser, 'products_services_offered'), $this->attribute($member, 'products_services_offered'));
         $productsServicesMatch = $commonProductsServices !== []
             || $this->textSimilarity($this->attribute($authUser, 'products_services_offered'), $this->attribute($member, 'products_services_offered')) >= self::PRODUCTS_SERVICES_SIMILARITY_THRESHOLD;
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'products_services', $productsServicesMatch);
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'products_services', $productsServicesMatch, $this->hasComparableText($this->attribute($authUser, 'products_services_offered'), $this->attribute($member, 'products_services_offered')));
         $matchedDetails['common_products_services'] = $commonProductsServices;
 
         $commonBusinessKeywords = $this->getCommonValues($this->attribute($authUser, 'business_keywords'), $this->attribute($member, 'business_keywords'));
-        $this->addCommonMatch($rawScore, $matchedFields, $matchedDetails, 'business_keywords', 'common_business_keywords', $commonBusinessKeywords);
+        $this->addCommonMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'business_keywords', 'common_business_keywords', $commonBusinessKeywords, $this->hasComparableList($this->attribute($authUser, 'business_keywords'), $this->attribute($member, 'business_keywords')));
 
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'designation', $this->textSimilarity($this->attribute($authUser, 'designation'), $this->attribute($member, 'designation')) >= self::SIMILARITY_THRESHOLD);
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'experience_years', $this->yearsWithin($this->attribute($authUser, 'experience_years'), $this->attribute($member, 'experience_years'), 3));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'designation', $this->textSimilarity($this->attribute($authUser, 'designation'), $this->attribute($member, 'designation')) >= self::SIMILARITY_THRESHOLD, $this->hasComparableText($this->attribute($authUser, 'designation'), $this->attribute($member, 'designation')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'experience_years', $this->yearsWithin($this->attribute($authUser, 'experience_years'), $this->attribute($member, 'experience_years'), 3), $this->hasComparableNumeric($this->attribute($authUser, 'experience_years'), $this->attribute($member, 'experience_years')));
         $matchedDetails['experience_summary_similarity'] = $this->textSimilarity($this->attribute($authUser, 'experience_summary'), $this->attribute($member, 'experience_summary'));
 
         $commonSkills = $this->getCommonValues($this->attribute($authUser, 'skills'), $this->attribute($member, 'skills'));
-        $this->addCommonMatch($rawScore, $matchedFields, $matchedDetails, 'skills', 'common_skills', $commonSkills);
+        $this->addCommonMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'skills', 'common_skills', $commonSkills, $this->hasComparableList($this->attribute($authUser, 'skills'), $this->attribute($member, 'skills')));
 
         $commonIndustries = $this->getCommonValues($this->attribute($authUser, 'industries_of_interest'), $this->attribute($member, 'industries_of_interest'));
-        $this->addCommonMatch($rawScore, $matchedFields, $matchedDetails, 'industries_of_interest', 'common_industries_of_interest', $commonIndustries);
+        $this->addCommonMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'industries_of_interest', 'common_industries_of_interest', $commonIndustries, $this->hasComparableList($this->attribute($authUser, 'industries_of_interest'), $this->attribute($member, 'industries_of_interest')));
 
         $commonInterests = $this->getCommonValues($this->attribute($authUser, 'interests'), $this->attribute($member, 'interests'));
-        $this->addCommonMatch($rawScore, $matchedFields, $matchedDetails, 'interests', 'common_interests', $commonInterests);
+        $this->addCommonMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'interests', 'common_interests', $commonInterests, $this->hasComparableList($this->attribute($authUser, 'interests'), $this->attribute($member, 'interests')));
 
         $commonCollaborationGoals = $this->getCommonValues($this->attribute($authUser, 'collaboration_goals'), $this->attribute($member, 'collaboration_goals'));
-        $this->addCommonMatch($rawScore, $matchedFields, $matchedDetails, 'collaboration_goals', 'common_collaboration_goals', $commonCollaborationGoals);
+        $this->addCommonMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'collaboration_goals', 'common_collaboration_goals', $commonCollaborationGoals, $this->hasComparableList($this->attribute($authUser, 'collaboration_goals'), $this->attribute($member, 'collaboration_goals')));
 
         $lookingForHelpMatch = $this->getCommonValues($this->attribute($authUser, 'i_am_looking_for'), $this->attribute($member, 'i_can_help_with'));
         $helpLookingForMatch = $this->getCommonValues($this->attribute($authUser, 'i_can_help_with'), $this->attribute($member, 'i_am_looking_for'));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'help_looking_for', $lookingForHelpMatch !== [] || $helpLookingForMatch !== []);
+        $helpMatchApplicable = $this->hasComparableList($this->attribute($authUser, 'i_am_looking_for'), $this->attribute($member, 'i_can_help_with'))
+            || $this->hasComparableList($this->attribute($authUser, 'i_can_help_with'), $this->attribute($member, 'i_am_looking_for'));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'help_looking_for', $lookingForHelpMatch !== [] || $helpLookingForMatch !== [], $helpMatchApplicable);
         $matchedDetails['my_looking_for_member_can_help'] = $lookingForHelpMatch;
         $matchedDetails['my_can_help_member_looking_for'] = $helpLookingForMatch;
-        $matchedDetails['superpower_similarity'] = $this->textSimilarity($this->attribute($authUser, 'superpower'), $this->attribute($member, 'superpower'));
+        $superpowerSimilarity = $this->textSimilarity($this->attribute($authUser, 'superpower'), $this->attribute($member, 'superpower'));
+        $matchedDetails['superpower_similarity'] = $superpowerSimilarity;
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'superpower', $superpowerSimilarity >= self::SIMILARITY_THRESHOLD, $this->hasComparableText($this->attribute($authUser, 'superpower'), $this->attribute($member, 'superpower')));
 
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'preferred_language', $this->textEquals($this->attribute($authUser, 'preferred_language'), $this->attribute($member, 'preferred_language')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'preferred_meeting_format', $this->textEquals($this->attribute($authUser, 'preferred_meeting_format'), $this->attribute($member, 'preferred_meeting_format')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'willing_to_mentor', $this->bothTruthy($this->attribute($authUser, 'willing_to_mentor'), $this->attribute($member, 'willing_to_mentor')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'open_to_cross_city_collaboration', $this->bothTruthy($this->attribute($authUser, 'open_to_cross_city_collaboration'), $this->attribute($member, 'open_to_cross_city_collaboration')));
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'open_to_speaking_at_events', $this->bothTruthy($this->attribute($authUser, 'open_to_speaking_at_events'), $this->attribute($member, 'open_to_speaking_at_events')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'preferred_language', $this->textEquals($this->attribute($authUser, 'preferred_language'), $this->attribute($member, 'preferred_language')), $this->hasComparableText($this->attribute($authUser, 'preferred_language'), $this->attribute($member, 'preferred_language')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'preferred_meeting_format', $this->textEquals($this->attribute($authUser, 'preferred_meeting_format'), $this->attribute($member, 'preferred_meeting_format')), $this->hasComparableText($this->attribute($authUser, 'preferred_meeting_format'), $this->attribute($member, 'preferred_meeting_format')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'willing_to_mentor', $this->bothTruthy($this->attribute($authUser, 'willing_to_mentor'), $this->attribute($member, 'willing_to_mentor')), $this->hasComparableBool($this->attribute($authUser, 'willing_to_mentor'), $this->attribute($member, 'willing_to_mentor')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'open_to_cross_city_collaboration', $this->bothTruthy($this->attribute($authUser, 'open_to_cross_city_collaboration'), $this->attribute($member, 'open_to_cross_city_collaboration')), $this->hasComparableBool($this->attribute($authUser, 'open_to_cross_city_collaboration'), $this->attribute($member, 'open_to_cross_city_collaboration')));
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'open_to_speaking_at_events', $this->bothTruthy($this->attribute($authUser, 'open_to_speaking_at_events'), $this->attribute($member, 'open_to_speaking_at_events')), $this->hasComparableBool($this->attribute($authUser, 'open_to_speaking_at_events'), $this->attribute($member, 'open_to_speaking_at_events')));
 
         $commonCircles = $this->commonCircleIds($authUser, $member);
-        $this->addBooleanMatch($rawScore, $matchedFields, $matchedDetails, 'same_circle', $commonCircles !== []);
+        $circleMatchApplicable = $this->circleIdsFor($authUser) !== [] && $this->circleIdsFor($member) !== [];
+        $this->addBooleanMatch($rawScore, $possibleScore, $matchedFields, $matchedDetails, 'same_circle', $commonCircles !== [], $circleMatchApplicable, min(self::WEIGHTS['same_circle'], count($commonCircles) * 8));
         $matchedDetails['common_circles_count'] = count($commonCircles);
 
         $profileCompleteness = $this->calculateProfileCompleteness($member);
+        $possibleScore += self::WEIGHTS['profile_completeness'];
         if ($profileCompleteness > 0) {
             $rawScore += $profileCompleteness;
             $matchedFields[] = 'profile_completeness';
         }
         $matchedDetails['profile_completeness'] = $profileCompleteness;
 
-        $percentage = $this->normalizeScore($rawScore);
+        $percentage = $this->normalizeScore($rawScore, $possibleScore);
 
         return [
             'score' => $percentage,
@@ -279,24 +289,53 @@ class ProfileMatchService
         return $attributes[$field];
     }
 
-    private function addBooleanMatch(int &$score, array &$matchedFields, array &$matchedDetails, string $field, bool $matched): void
-    {
-        $matchedDetails[$field] = $matched;
+    private function addBooleanMatch(
+        int &$score,
+        int &$possibleScore,
+        array &$matchedFields,
+        array &$matchedDetails,
+        string $field,
+        bool $matched,
+        bool $applicable,
+        ?int $matchedWeight = null
+    ): void {
+        $matchedDetails[$field] = $applicable ? $matched : null;
+
+        if (! $applicable) {
+            return;
+        }
+
+        $weight = self::WEIGHTS[$field] ?? 0;
+        $possibleScore += $weight;
 
         if (! $matched) {
             return;
         }
 
-        $score += self::WEIGHTS[$field] ?? 0;
+        $score += $matchedWeight ?? $weight;
         $matchedFields[] = $field;
     }
 
     /**
      * @param array<int, string> $commonValues
      */
-    private function addCommonMatch(int &$score, array &$matchedFields, array &$matchedDetails, string $field, string $detailKey, array $commonValues): void
-    {
+    private function addCommonMatch(
+        int &$score,
+        int &$possibleScore,
+        array &$matchedFields,
+        array &$matchedDetails,
+        string $field,
+        string $detailKey,
+        array $commonValues,
+        bool $applicable
+    ): void {
         $matchedDetails[$detailKey] = $commonValues;
+
+        if (! $applicable) {
+            return;
+        }
+
+        $possibleScore += self::WEIGHTS[$field] ?? 0;
 
         if ($commonValues === []) {
             return;
@@ -333,11 +372,44 @@ class ProfileMatchService
 
     private function sameScalar($a, $b): bool
     {
-        if (blank($a) || blank($b)) {
+        if (! $this->hasComparableScalar($a, $b)) {
             return false;
         }
 
         return (string) $a === (string) $b;
+    }
+
+    private function hasComparableCity(User $authUser, User $member): bool
+    {
+        return $this->hasComparableScalar($this->attribute($authUser, 'city_id'), $this->attribute($member, 'city_id'))
+            || $this->hasComparableText($this->cityName($authUser), $this->cityName($member))
+            || $this->hasComparableText($this->attribute($authUser, 'city_of_residence'), $this->attribute($member, 'city_of_residence'));
+    }
+
+    private function hasComparableScalar($a, $b): bool
+    {
+        return filled($a) && filled($b);
+    }
+
+    private function hasComparableText($a, $b): bool
+    {
+        return $this->normalizeText($this->stringifyValue($a)) !== ''
+            && $this->normalizeText($this->stringifyValue($b)) !== '';
+    }
+
+    private function hasComparableNumeric($a, $b): bool
+    {
+        return is_numeric($a) && is_numeric($b);
+    }
+
+    private function hasComparableBool($a, $b): bool
+    {
+        return $a !== null && $b !== null && $a !== '' && $b !== '';
+    }
+
+    private function hasComparableList($a, $b): bool
+    {
+        return $this->normalizeArrayField($a) !== [] && $this->normalizeArrayField($b) !== [];
     }
 
     private function yearsWithin($a, $b, int $years): bool
@@ -422,15 +494,13 @@ class ProfileMatchService
         return [$value];
     }
 
-    private function normalizeScore(int $rawScore): int
+    private function normalizeScore(int $rawScore, int $possibleScore): int
     {
-        $maxScore = array_sum(self::WEIGHTS);
-
-        if ($maxScore <= 0) {
+        if ($possibleScore <= 0) {
             return 0;
         }
 
-        return max(0, min(100, (int) round(($rawScore / $maxScore) * 100)));
+        return max(0, min(100, (int) round(($rawScore / $possibleScore) * 100)));
     }
 
     private function stringifyValue($value): string

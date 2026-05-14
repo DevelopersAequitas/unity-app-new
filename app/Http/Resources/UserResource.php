@@ -137,7 +137,10 @@ class UserResource extends JsonResource
             'last_login_at'       => $this->last_login_at,
             'created_at'          => $this->created_at,
             'updated_at'          => $this->updated_at,
-            'profile_match'       => $this->resolveProfileMatch($request),
+            'profile_match'       => $this->when(
+                $request->attributes->get('profile_match_enabled', false),
+                fn () => $this->resolveProfileMatch($request)
+            ),
         ];
     }
 
