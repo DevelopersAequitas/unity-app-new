@@ -37,18 +37,57 @@ class MemberController extends BaseApiController
             'media',
             'city_id',
             'city',
-            'business_category_id',
-            'business_sub_category',
             'business_type',
-            'company_type',
-            'target_business_categories',
-            'target_regions',
-            'experience_years',
         ];
 
-        if (Schema::hasColumn('users', 'profile_video_id')) {
-            $selectColumns[] = 'profile_video_id';
+        $profileMatchColumns = [
+            'city_of_residence',
+            'state',
+            'country',
+            'business_city',
+            'business_state',
+            'business_country',
+            'business_pincode',
+            'main_business_category_id',
+            'business_category_id',
+            'business_sub_category',
+            'company_type',
+            'year_of_establishment',
+            'annual_revenue_range',
+            'number_of_employees',
+            'products_services_offered',
+            'business_keywords',
+            'designation',
+            'experience_years',
+            'experience_summary',
+            'skills',
+            'industries_of_interest',
+            'interests',
+            'collaboration_goals',
+            'i_can_help_with',
+            'i_am_looking_for',
+            'superpower',
+            'preferred_language',
+            'preferred_meeting_format',
+            'willing_to_mentor',
+            'open_to_cross_city_collaboration',
+            'open_to_speaking_at_events',
+            'business_website',
+            'linkedin_profile',
+            'instagram_handle',
+            'facebook_profile',
+            'youtube_channel',
+            'cover_photo_file_id',
+            'profile_video_id',
+        ];
+
+        foreach ($profileMatchColumns as $column) {
+            if (Schema::hasColumn('users', $column)) {
+                $selectColumns[] = $column;
+            }
         }
+
+        $selectColumns = array_values(array_unique($selectColumns));
 
         $query = User::query()
             ->select($selectColumns)
