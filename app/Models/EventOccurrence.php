@@ -27,6 +27,7 @@ class EventOccurrence extends Model
         'status',
         'sequence',
         'registration_limit',
+        'registered_count',
         'metadata',
     ];
 
@@ -36,6 +37,7 @@ class EventOccurrence extends Model
         'end_at' => 'datetime',
         'sequence' => 'integer',
         'registration_limit' => 'integer',
+        'registered_count' => 'integer',
         'metadata' => 'array',
     ];
 

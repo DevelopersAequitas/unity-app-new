@@ -41,6 +41,7 @@ class EventOccurrenceGeneratorService
                     'end_at' => $occurrenceEnd,
                     'status' => 'scheduled',
                     'registration_limit' => $event->registration_limit,
+                    'registered_count' => 0,
                 ]));
             }
 

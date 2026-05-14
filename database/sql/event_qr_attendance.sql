@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS event_occurrences (
     status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
     sequence INTEGER NOT NULL DEFAULT 1,
     registration_limit INTEGER,
+    registered_count INTEGER NOT NULL DEFAULT 0,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -31,6 +32,7 @@ ALTER TABLE event_occurrences ADD COLUMN IF NOT EXISTS occurrence_date DATE;
 UPDATE event_occurrences SET occurrence_date = start_at::date WHERE occurrence_date IS NULL;
 ALTER TABLE event_occurrences ALTER COLUMN occurrence_date SET NOT NULL;
 ALTER TABLE event_occurrences ADD COLUMN IF NOT EXISTS registration_limit INTEGER;
+ALTER TABLE event_occurrences ADD COLUMN IF NOT EXISTS registered_count INTEGER NOT NULL DEFAULT 0;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_event_occurrences_event_date ON event_occurrences(event_id, occurrence_date) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_event_occurrences_event_id ON event_occurrences(event_id);

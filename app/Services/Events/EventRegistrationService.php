@@ -59,9 +59,23 @@ class EventRegistrationService
     private function createRegistration(Event $event, EventOccurrence $occurrence, array $data): EventRegistration
     {
         return DB::transaction(function () use ($event, $occurrence, $data): EventRegistration {
-            $this->assertCapacity($event, $occurrence);
+            $lockedOccurrence = EventOccurrence::query()
+                ->where('id', $occurrence->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-            $query = EventRegistration::query()->where('occurrence_id', $occurrence->id)->where('status', '!=', 'cancelled');
+            $registeredCount = EventRegistration::query()
+                ->where('occurrence_id', $lockedOccurrence->id)
+                ->where('status', '!=', 'cancelled')
+                ->whereNull('deleted_at')
+                ->count();
+
+            $this->assertCapacity($event, $lockedOccurrence, $registeredCount);
+
+            $query = EventRegistration::query()
+                ->where('occurrence_id', $lockedOccurrence->id)
+                ->where('status', '!=', 'cancelled')
+                ->whereNull('deleted_at');
             if (isset($data['user_id'])) {
                 $query->where('user_id', $data['user_id']);
             } else {
@@ -91,7 +105,7 @@ class EventRegistrationService
 
             $registration = EventRegistration::query()->create(array_merge($data, [
                 'event_id' => $event->id,
-                'occurrence_id' => $occurrence->id,
+                'occurrence_id' => $lockedOccurrence->id,
                 'qr_token' => $this->uniqueToken(),
                 'status' => 'registered',
                 'checkin_status' => 'pending',
@@ -101,25 +115,23 @@ class EventRegistrationService
             $qr = $this->qr->generateAndStore($registration);
             $registration->forceFill(['qr_code_path' => $qr['path'], 'qr_code_svg' => $qr['svg']])->save();
 
+            $lockedOccurrence->forceFill(['registered_count' => $registeredCount + 1])->save();
+
             $this->notifySafely($registration);
 
             return $registration->fresh(['event.circle', 'occurrence', 'user']);
         });
     }
 
-    private function assertCapacity(Event $event, EventOccurrence $occurrence): void
+    private function assertCapacity(Event $event, EventOccurrence $occurrence, int $registeredCount): void
     {
-        if (! $event->registration_limit) {
+        $registrationLimit = $occurrence->registration_limit ?? $event->registration_limit;
+
+        if (! $registrationLimit) {
             return;
         }
 
-        $registered = EventRegistration::query()
-            ->where('occurrence_id', $occurrence->id)
-            ->where('status', '!=', 'cancelled')
-            ->lockForUpdate()
-            ->count();
-
-        if ($registered >= $event->registration_limit) {
+        if ($registeredCount >= $registrationLimit) {
             throw ValidationException::withMessages(['registration_limit' => 'Registration limit has been reached.']);
         }
     }
