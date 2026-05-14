@@ -22,18 +22,18 @@ class EventQrService
     {
         $payload = $this->payload($registration->qr_token);
         $svg = $this->makeSvg($payload, $registration->qr_token);
-        $path = 'event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.svg';
+        $relativePath = 'event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.svg';
 
-        Storage::disk(config('filesystems.default', 'public'))->put($path, $svg);
+        Storage::disk('public')->put($relativePath, $svg);
 
-        $url = $this->url($path);
-        $qrData = ['path' => $path, 'url' => $url, 'svg' => $svg];
+        $url = $this->url($relativePath);
+        $qrData = ['path' => $relativePath, 'url' => $url, 'svg' => $svg];
 
-        $registration->forceFill([
-            'qr_code_path' => $qrData['path'],
-            'qr_code_url' => $qrData['url'],
-            'qr_code_svg' => $qrData['svg'],
-        ])->save();
+        $registration->update([
+            'qr_code_path' => $relativePath,
+            'qr_code_url' => $url,
+            'qr_code_svg' => $svg,
+        ]);
 
         return $qrData;
     }
@@ -44,7 +44,7 @@ class EventQrService
             return null;
         }
 
-        return Storage::disk(config('filesystems.default', 'public'))->url($path);
+        return url(Storage::disk('public')->url($path));
     }
 
     private function makeSvg(string $payload, string $token): string
