@@ -49,7 +49,7 @@ class EventRegistrationService
             'occurrence_id' => $registration->occurrence_id,
             'qr_token' => $registration->qr_token,
             'qr_payload' => $this->qr->payload($registration->qr_token),
-            'qr_code_url' => $this->qr->url($registration->qr_code_path),
+            'qr_code_url' => $registration->qr_code_url ?: $this->qr->url($registration->qr_code_path),
             'qr_code_svg' => $registration->qr_code_svg,
             'status' => $registration->status,
             'checkin_status' => $registration->checkin_status,
@@ -112,8 +112,7 @@ class EventRegistrationService
                 'registered_at' => now(),
             ]));
 
-            $qr = $this->qr->generateAndStore($registration);
-            $registration->forceFill(['qr_code_path' => $qr['path'], 'qr_code_svg' => $qr['svg']])->save();
+            $this->qr->generateAndStore($registration);
 
             $lockedOccurrence->forceFill(['registered_count' => $registeredCount + 1])->save();
 

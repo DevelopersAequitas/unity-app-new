@@ -39,7 +39,7 @@ class EventOccurrenceListResource extends JsonResource
                 'registration_id' => $registration?->id,
                 'status' => $registration?->status,
                 'checkin_status' => $registration?->checkin_status,
-                'qr_code_url' => $registration ? $qr->url($registration->qr_code_path) : null,
+                'qr_code_url' => $registration ? $registration->qr_code_url ?: $qr->url($registration->qr_code_path) : null,
             ],
         ];
     }

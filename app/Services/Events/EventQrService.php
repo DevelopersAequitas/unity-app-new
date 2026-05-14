@@ -26,7 +26,16 @@ class EventQrService
 
         Storage::disk(config('filesystems.default', 'public'))->put($path, $svg);
 
-        return ['path' => $path, 'svg' => $svg, 'url' => $this->url($path)];
+        $url = $this->url($path);
+        $qrData = ['path' => $path, 'url' => $url, 'svg' => $svg];
+
+        $registration->forceFill([
+            'qr_code_path' => $qrData['path'],
+            'qr_code_url' => $qrData['url'],
+            'qr_code_svg' => $qrData['svg'],
+        ])->save();
+
+        return $qrData;
     }
 
     public function url(?string $path): ?string

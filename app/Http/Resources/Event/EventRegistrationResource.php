@@ -21,7 +21,7 @@ class EventRegistrationResource extends JsonResource
             'registered_at' => optional($this->registered_at)->toISOString(),
             'checked_in_at' => optional($this->checked_in_at)->toISOString(),
             'source' => $this->source,
-            'qr_code_url' => $qr->url($this->qr_code_path),
+            'qr_code_url' => $this->qr_code_url ?: $qr->url($this->qr_code_path),
             'event' => $this->whenLoaded('event', fn () => [
                 'id' => $this->event->id,
                 'title' => $this->event->title,

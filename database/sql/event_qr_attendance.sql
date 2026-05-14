@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS event_registrations (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     qr_token TEXT NOT NULL UNIQUE,
     qr_code_path TEXT,
+    qr_code_url TEXT,
     qr_code_svg TEXT,
     status VARCHAR(30) NOT NULL DEFAULT 'registered',
     checkin_status VARCHAR(30) NOT NULL DEFAULT 'pending',
@@ -66,6 +67,8 @@ CREATE TABLE IF NOT EXISTS event_registrations (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
+
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS qr_code_url TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_member_occurrence
     ON event_registrations(occurrence_id, user_id)
