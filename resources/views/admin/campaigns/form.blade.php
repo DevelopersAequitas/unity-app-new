@@ -8,6 +8,8 @@
         $filters = old('filters', $campaign->filters ?: []);
         $campaignType = old('campaign_type', $campaign->campaign_type ?: 'email_only');
         $audienceType = old('audience_type', $campaign->audience_type ?: 'all_members');
+        $showEmailFields = in_array($campaignType, ['email_only', 'email_and_notification'], true);
+        $showNotificationFields = in_array($campaignType, ['notification_only', 'email_and_notification'], true);
     @endphp
 
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -35,24 +37,24 @@
                             <option value="email_and_notification" @selected($campaignType === 'email_and_notification')>Email + Notification</option>
                         </select>
                     </div>
-                    <div class="email-fields">
+                    <div id="emailFields" class="email-fields {{ $showEmailFields ? '' : 'd-none' }}">
                         <div class="mb-3">
-                            <label class="form-label">Subject</label>
-                            <input type="text" name="subject" class="form-control" value="{{ old('subject', $campaign->subject) }}">
+                            <label class="form-label" for="campaignSubject">Subject</label>
+                            <input type="text" id="campaignSubject" name="subject" class="form-control" value="{{ old('subject', $campaign->subject ?? '') }}" @required($showEmailFields)>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Email Body</label>
-                            <textarea name="email_body" rows="10" class="form-control" placeholder="HTML content is supported">{{ old('email_body', $campaign->email_body) }}</textarea>
+                            <label class="form-label" for="campaignEmailBody">Email Body</label>
+                            <textarea id="campaignEmailBody" name="email_body" rows="10" class="form-control" placeholder="HTML content is supported" @required($showEmailFields)>{{ old('email_body', $campaign->email_body ?? '') }}</textarea>
                         </div>
                     </div>
-                    <div class="notification-fields">
+                    <div id="notificationFields" class="notification-fields {{ $showNotificationFields ? '' : 'd-none' }}">
                         <div class="mb-3">
-                            <label class="form-label">Notification Title</label>
-                            <input type="text" name="notification_title" class="form-control" value="{{ old('notification_title', $campaign->notification_title) }}">
+                            <label class="form-label" for="campaignNotificationTitle">Notification Title</label>
+                            <input type="text" id="campaignNotificationTitle" name="notification_title" class="form-control" value="{{ old('notification_title', $campaign->notification_title ?? '') }}" @required($showNotificationFields)>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Notification Message</label>
-                            <textarea name="notification_message" rows="4" class="form-control">{{ old('notification_message', $campaign->notification_message) }}</textarea>
+                            <label class="form-label" for="campaignNotificationMessage">Notification Message</label>
+                            <textarea id="campaignNotificationMessage" name="notification_message" rows="4" class="form-control" @required($showNotificationFields)>{{ old('notification_message', $campaign->notification_message ?? '') }}</textarea>
                         </div>
                     </div>
                 </div></div>
@@ -148,10 +150,20 @@
         }
     });
 
+    function setSectionVisibility(section, visible, requiredFieldNames) {
+        section.classList.toggle('d-none', !visible);
+        section.querySelectorAll('input, textarea, select').forEach((field) => {
+            field.required = visible && requiredFieldNames.includes(field.name);
+        });
+    }
+
     function syncTypeFields() {
         const type = campaignType.value;
-        document.querySelectorAll('.email-fields').forEach(el => el.style.display = (type === 'email_only' || type === 'email_and_notification') ? '' : 'none');
-        document.querySelectorAll('.notification-fields').forEach(el => el.style.display = (type === 'notification_only' || type === 'email_and_notification') ? '' : 'none');
+        const emailVisible = type === 'email_only' || type === 'email_and_notification';
+        const notificationVisible = type === 'notification_only' || type === 'email_and_notification';
+
+        setSectionVisibility(document.getElementById('emailFields'), emailVisible, ['subject', 'email_body']);
+        setSectionVisibility(document.getElementById('notificationFields'), notificationVisible, ['notification_title', 'notification_message']);
     }
     function syncFilterFields() {
         const type = audienceType.value;
