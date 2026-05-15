@@ -13,17 +13,13 @@ class CampaignRecipientResolverService
 {
     public function query(string $audienceType, ?array $filters = [], bool $requiresEmail = false): Builder
     {
-        $filters = $filters ?: [];
-        $query = User::query()->select('users.*')->distinct('users.id');
+        $recipientIds = $this->recipientIdQuery($audienceType, $filters, $requiresEmail);
 
-        $this->applyActiveUserScope($query);
-        $this->applyAudienceFilter($query, $audienceType, $filters);
-
-        if ($requiresEmail) {
-            $query->whereNotNull('users.email')->where('users.email', '!=', '');
-        }
-
-        return $query->with(['circleMembers.circle:id,name'])->orderBy('users.created_at');
+        return User::query()
+            ->select('users.*')
+            ->whereIn('users.id', $recipientIds)
+            ->with(['circleMembers.circle:id,name'])
+            ->orderBy('users.created_at');
     }
 
     public function preview(string $audienceType, ?array $filters = [], bool $requiresEmail = false, int $limit = 500): array
@@ -35,7 +31,24 @@ class CampaignRecipientResolverService
 
     public function count(string $audienceType, ?array $filters = [], bool $requiresEmail = false): int
     {
-        return (clone $this->query($audienceType, $filters, $requiresEmail))->toBase()->getCountForPagination();
+        return User::query()
+            ->whereIn('users.id', $this->recipientIdQuery($audienceType, $filters, $requiresEmail))
+            ->count();
+    }
+
+    private function recipientIdQuery(string $audienceType, ?array $filters = [], bool $requiresEmail = false): Builder
+    {
+        $filters = $filters ?: [];
+        $query = User::query()->select('users.id')->distinct();
+
+        $this->applyActiveUserScope($query);
+        $this->applyAudienceFilter($query, $audienceType, $filters);
+
+        if ($requiresEmail) {
+            $query->whereNotNull('users.email')->where('users.email', '!=', '');
+        }
+
+        return $query;
     }
 
     public function filterOptions(): array
