@@ -83,6 +83,20 @@ ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS qr_generated_at TIMESTA
 ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS last_qr_scan_at TIMESTAMPTZ;
 ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS scan_device_info TEXT;
 ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS attendance_source VARCHAR(50);
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS payment_required BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS payment_status VARCHAR(30) NOT NULL DEFAULT 'not_required';
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS currency VARCHAR(10) NOT NULL DEFAULT 'INR';
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS zoho_customer_id VARCHAR(255);
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS zoho_hosted_page_id VARCHAR(255);
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS zoho_checkout_url TEXT;
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS zoho_invoice_id VARCHAR(255);
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS zoho_invoice_number VARCHAR(255);
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS payment_completed_at TIMESTAMPTZ;
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS registration_type VARCHAR(30);
+CREATE INDEX IF NOT EXISTS idx_event_registrations_payment_status ON event_registrations(payment_status);
+CREATE INDEX IF NOT EXISTS idx_event_registrations_zoho_hosted_page_id ON event_registrations(zoho_hosted_page_id);
+CREATE INDEX IF NOT EXISTS idx_event_registrations_zoho_invoice_id ON event_registrations(zoho_invoice_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_member_occurrence
     ON event_registrations(occurrence_id, user_id)

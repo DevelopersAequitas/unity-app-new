@@ -13,6 +13,7 @@ use App\Services\EmailLogs\EmailLogService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Circles\PaidCircleMembershipFinalizer;
+use App\Services\Events\EventRegistrationPaymentSyncService;
 use App\Support\Zoho\ZohoBillingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ class ZohoBillingWebhookController extends Controller
         private readonly CircleJoinRequestPaymentSyncService $circleJoinRequestPaymentSyncService,
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
         private readonly PaidCircleMembershipFinalizer $paidCircleMembershipFinalizer,
+        private readonly EventRegistrationPaymentSyncService $eventRegistrationPaymentSyncService,
     ) {
     }
 
@@ -40,6 +42,20 @@ class ZohoBillingWebhookController extends Controller
         }
 
         $payload = $request->all();
+
+        try {
+            $eventRegistration = $this->eventRegistrationPaymentSyncService->syncFromZohoWebhook($payload);
+            if ($eventRegistration) {
+                return response()->json(['success' => true, 'message' => 'Event registration payment synced']);
+            }
+        } catch (Throwable $throwable) {
+            Log::error('Zoho event registration webhook sync failed', [
+                'error' => $throwable->getMessage(),
+            ]);
+
+            return response()->json(['success' => false, 'message' => 'Event registration webhook sync failed'], 500);
+        }
+
         $subscriptionId = data_get($payload, 'subscription.subscription_id')
             ?? data_get($payload, 'data.subscription.subscription_id')
             ?? data_get($payload, 'subscription_id');

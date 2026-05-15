@@ -237,7 +237,14 @@ class EventService
             'registered_at' => optional($registration->registered_at)->toISOString(),
             'checked_in_at' => optional($registration->checked_in_at)->toISOString(),
             'source' => $registration->source,
-            'qr_code_url' => $registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path),
+            'payment_status' => $registration->payment_status ?? null,
+            'payment_required' => (bool) ($registration->payment_required ?? false),
+            'amount' => $registration->amount !== null ? (string) $registration->amount : null,
+            'currency' => $registration->currency ?? null,
+            'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
+            'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
+            'qr_status' => empty($registration->qr_code_path) && empty($registration->qr_code_url) ? 'not_generated' : 'generated',
+            'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
         ];
     }
 

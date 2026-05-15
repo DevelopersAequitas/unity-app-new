@@ -92,7 +92,7 @@
             <div class="card-header fw-semibold">E. Registration & QR Settings</div>
             <div class="card-body row g-3">
                 <div class="col-md-4"><label class="form-label">Registration Limit</label><input class="form-control" type="number" name="registration_limit" value="{{ old('registration_limit') }}" placeholder="Leave blank for unlimited"></div>
-                <div class="col-md-4"><label class="form-label">Ticket Price</label><input class="form-control" type="number" step="0.01" name="ticket_price" value="{{ old('ticket_price') }}"></div>
+                <div class="col-md-4"><label class="form-label">Ticket Price</label><input class="form-control" type="number" step="0.01" name="ticket_price" value="{{ old('ticket_price') }}"><div class="form-text">Paid events will use Zoho checkout. QR will be generated only after successful payment.</div></div>
                 <div class="col-md-4"><label class="form-label">Zoho Form URL</label><input class="form-control" name="zoho_form_url" value="{{ old('zoho_form_url') }}"></div>
                 @foreach([
                     'qr_checkin_enabled' => ['QR Check-in', 'Members will get a QR code after registration. Scan it at the event entry.'],

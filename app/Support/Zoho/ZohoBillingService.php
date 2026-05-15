@@ -351,6 +351,142 @@ class ZohoBillingService
         return $customerId;
     }
 
+
+    public function ensureCustomerForContact(array $contact): string
+    {
+        $email = trim((string) ($contact['email'] ?? ''));
+        $phone = trim((string) ($contact['phone'] ?? ''));
+        $name = trim((string) ($contact['name'] ?? ''));
+        $company = trim((string) ($contact['company'] ?? ''));
+        $city = trim((string) ($contact['city'] ?? ''));
+
+        if ($email === '') {
+            throw ValidationException::withMessages(['visitor_email' => 'Email is required for Zoho checkout.']);
+        }
+
+        if ($phone === '') {
+            throw ValidationException::withMessages(['visitor_phone' => 'Phone is required for Zoho checkout.']);
+        }
+
+        $existingCustomerId = $this->findCustomerByEmail($email);
+        if ($existingCustomerId !== null) {
+            return (string) $existingCustomerId;
+        }
+
+        $payload = [
+            'display_name' => $name !== '' ? $name : ($company !== '' ? $company : $email),
+            'company_name' => $company,
+            'email' => $email,
+            'mobile' => $phone,
+            'phone' => $phone,
+            'is_portal_enabled' => true,
+            'contact_persons' => [[
+                'first_name' => $name !== '' ? $name : 'Unity',
+                'last_name' => '',
+                'email' => $email,
+                'phone' => $phone,
+                'mobile' => $phone,
+                'is_primary_contact' => true,
+            ]],
+            'billing_address' => [
+                'city' => $city,
+                'state' => '',
+            ],
+        ];
+
+        $response = $this->client->request('POST', '/customers', $payload);
+        $customerId = (string) ($response['customer']['customer_id'] ?? '');
+
+        if ($customerId === '') {
+            throw new RuntimeException('Unable to create Zoho customer.');
+        }
+
+        return $customerId;
+    }
+
+    public function createHostedInvoicePaymentForEventRegistration(array $customer, array $eventPayment): array
+    {
+        $user = $customer['user'] ?? null;
+        $customerId = $user instanceof User
+            ? $this->ensureCustomerForUser($user)
+            : $this->ensureCustomerForContact($customer);
+
+        $registrationId = (string) ($eventPayment['registration_id'] ?? '');
+        $amount = round((float) ($eventPayment['amount'] ?? 0), 2);
+        $currency = strtoupper((string) ($eventPayment['currency'] ?? 'INR'));
+        $eventTitle = trim((string) ($eventPayment['event_title'] ?? 'Unity Event'));
+        $description = trim((string) ($eventPayment['event_description'] ?? ''));
+        $occurrenceStartAt = trim((string) ($eventPayment['occurrence_start_at'] ?? ''));
+        $metadata = (array) ($eventPayment['metadata'] ?? []);
+
+        if ($registrationId === '' || $amount <= 0) {
+            throw new RuntimeException('Invalid event registration checkout payload.');
+        }
+
+        $invoicePayload = [
+            'customer_id' => $customerId,
+            'date' => now()->toDateString(),
+            'due_date' => now()->toDateString(),
+            'payment_terms' => 0,
+            'currency_code' => $currency,
+            'reference_number' => $registrationId,
+            'invoice_items' => [[
+                'name' => 'Event Registration - '.$eventTitle,
+                'description' => trim($description.' '.($occurrenceStartAt !== '' ? 'Event date: '.$occurrenceStartAt : '')),
+                'price' => $amount,
+                'quantity' => 1,
+            ]],
+            'notes' => 'Unity event registration. event_registration:'.$registrationId,
+            'custom_fields' => [
+                ['label' => 'type', 'value' => 'event_registration'],
+                ['label' => 'registration_id', 'value' => $registrationId],
+                ['label' => 'event_id', 'value' => (string) ($metadata['event_id'] ?? '')],
+                ['label' => 'occurrence_id', 'value' => (string) ($metadata['occurrence_id'] ?? '')],
+            ],
+        ];
+
+        Log::info('event invoice request payload', [
+            'event_registration_id' => $registrationId,
+            'customer_id' => $customerId,
+            'amount' => $amount,
+            'currency' => $currency,
+        ]);
+
+        $invoiceResponse = $this->client->request('POST', '/invoices', $invoicePayload);
+        $invoice = is_array($invoiceResponse['invoice'] ?? null) ? $invoiceResponse['invoice'] : $invoiceResponse;
+        $invoiceId = (string) ($invoice['invoice_id'] ?? '');
+
+        if ($invoiceId === '') {
+            throw new RuntimeException('Unable to create Zoho invoice for event registration.');
+        }
+
+        $hostedPayload = [
+            'invoice_id' => $invoiceId,
+            'redirect_url' => (string) ($eventPayment['redirect_url'] ?? rtrim((string) config('app.url'), '/')),
+        ];
+
+        $hostedResponse = $this->client->request('POST', '/hostedpages/invoicepayment', $hostedPayload);
+        $hostedPage = is_array($hostedResponse['hostedpage'] ?? null) ? $hostedResponse['hostedpage'] : $hostedResponse;
+        $hostedPageId = (string) ($hostedPage['hostedpage_id'] ?? $hostedResponse['hostedpage_id'] ?? '');
+        $checkoutUrl = (string) ($hostedPage['url'] ?? $hostedResponse['url'] ?? '');
+
+        if ($hostedPageId === '' || $checkoutUrl === '') {
+            throw new RuntimeException('Unable to create Zoho hosted payment page for event registration.');
+        }
+
+        return [
+            'customer_id' => $customerId,
+            'invoice_id' => $invoiceId,
+            'invoice_number' => (string) ($invoice['invoice_number'] ?? $invoice['number'] ?? ''),
+            'hostedpage_id' => $hostedPageId,
+            'checkout_url' => $checkoutUrl,
+            'raw' => [
+                'invoice' => $invoiceResponse,
+                'hostedpage' => $hostedResponse,
+            ],
+        ];
+    }
+
     public function createHostedPageForSubscription(User $user, string $planCode): array
     {
         $customerId = $this->ensureCustomerForUser($user);

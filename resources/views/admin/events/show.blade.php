@@ -26,5 +26,29 @@
         @endforelse
         </tbody></table></div>
     </div>
+
+    <div class="card mt-3">
+        <div class="card-header">Registrations</div>
+        <div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>Attendee</th><th>Type</th><th>Payment</th><th>Amount</th><th>Invoice</th><th>QR</th><th>Check-in</th></tr></thead><tbody>
+        @forelse($event->registrations as $registration)
+            @php
+                $attendeeName = $registration->user ? ($registration->user->display_name ?? trim(($registration->user->first_name ?? '').' '.($registration->user->last_name ?? ''))) : $registration->visitor_name;
+                $attendeeEmail = $registration->user?->email ?? $registration->visitor_email;
+                $hasQr = !empty($registration->qr_code_url) || !empty($registration->qr_code_path);
+            @endphp
+            <tr>
+                <td>{{ $attendeeName ?: '—' }}<br><small class="text-muted">{{ $attendeeEmail ?: '—' }}</small></td>
+                <td>{{ $registration->registration_type ?: ($registration->user_id ? 'member' : 'visitor') }}</td>
+                <td>{{ $registration->payment_status ?? '—' }}</td>
+                <td>{{ $registration->amount !== null ? trim(($registration->currency ?? 'INR').' '.$registration->amount) : '—' }}</td>
+                <td>{{ $registration->zoho_invoice_number ?? $registration->zoho_invoice_id ?? '—' }}</td>
+                <td><span class="badge bg-{{ $hasQr ? 'success' : 'secondary' }}">{{ $hasQr ? 'Generated' : 'Pending' }}</span></td>
+                <td>{{ $registration->checkin_status }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="7" class="text-center text-muted py-4">No registrations found.</td></tr>
+        @endforelse
+        </tbody></table></div>
+    </div>
 </div>
 @endsection

@@ -16,6 +16,7 @@ class EventRegistrationService
     public function __construct(
         private readonly EventService $events,
         private readonly EventQrService $qr,
+        private readonly EventPaymentService $payments,
     ) {}
 
     public function registerMember(Event $event, EventOccurrence $occurrence, User $user, string $source = 'app'): EventRegistration
@@ -28,7 +29,7 @@ class EventRegistrationService
             throw ValidationException::withMessages(['event_id' => $canRegister['reason']]);
         }
 
-        return $this->createRegistration($event, $occurrence, ['user_id' => $user->id, 'source' => $source]);
+        return $this->createRegistration($event, $occurrence, ['user_id' => $user->id, 'source' => $source, 'registration_type' => 'member']);
     }
 
     public function registerVisitor(Event $event, EventOccurrence $occurrence, array $data): EventRegistration
@@ -43,7 +44,7 @@ class EventRegistrationService
         $source = $this->normalizeVisitorSource($data['source'] ?? 'visitor_app');
         unset($data['source']);
 
-        return $this->createRegistration($event, $occurrence, $data + ['source' => $source]);
+        return $this->createRegistration($event, $occurrence, $data + ['source' => $source, 'registration_type' => 'visitor']);
     }
 
     public function syncZohoVisitor(Event $event, EventOccurrence $occurrence, array $data): EventRegistration
@@ -78,28 +79,31 @@ class EventRegistrationService
                 return $existing->fresh(['event.circle', 'occurrence', 'user']);
             }
 
-            return $this->createRegistration($event, $occurrence, $data + ['source' => 'zoho_form']);
+            return $this->createRegistration($event, $occurrence, $data + ['source' => 'zoho_form', 'registration_type' => 'visitor'], false);
         });
     }
 
     public function qrDetails(EventRegistration $registration): array
     {
+        $hasGeneratedQr = ! empty($registration->qr_code_path) || ! empty($registration->qr_code_url) || ! empty($registration->qr_code_svg);
+
         return [
             'registration_id' => $registration->id,
             'event_id' => $registration->event_id,
             'occurrence_id' => $registration->occurrence_id,
-            'qr_token' => $registration->qr_token,
-            'qr_payload' => $this->qr->payload($registration->qr_token),
-            'qr_code_url' => $registration->qr_code_url ?: $this->qr->url($registration->qr_code_path),
-            'qr_code_svg' => $registration->qr_code_svg,
+            'qr_token' => $hasGeneratedQr ? $registration->qr_token : null,
+            'qr_payload' => $hasGeneratedQr ? $this->qr->payload($registration->qr_token) : null,
+            'qr_code_url' => $hasGeneratedQr ? ($registration->qr_code_url ?: $this->qr->url($registration->qr_code_path)) : null,
+            'qr_code_svg' => $hasGeneratedQr ? $registration->qr_code_svg : null,
             'status' => $registration->status,
             'checkin_status' => $registration->checkin_status,
+            'payment_status' => $registration->payment_status ?? null,
         ];
     }
 
-    private function createRegistration(Event $event, EventOccurrence $occurrence, array $data): EventRegistration
+    private function createRegistration(Event $event, EventOccurrence $occurrence, array $data, bool $applyPayment = true): EventRegistration
     {
-        return DB::transaction(function () use ($event, $occurrence, $data): EventRegistration {
+        $registration = DB::transaction(function () use ($event, $occurrence, $data, $applyPayment): EventRegistration {
             $lockedOccurrence = EventOccurrence::query()
                 ->where('id', $occurrence->id)
                 ->lockForUpdate()
@@ -121,23 +125,40 @@ class EventRegistrationService
                 throw ValidationException::withMessages(['registration' => 'Already registered for this event occurrence.']);
             }
 
+            $registrationType = $data['registration_type'] ?? (isset($data['user_id']) ? 'member' : 'visitor');
+            unset($data['registration_type']);
+
+            $paymentRequired = $applyPayment && $this->payments->paymentRequired($event);
             $registration = EventRegistration::query()->create($this->filterRegistrationColumns(array_merge($data, [
                 'event_id' => $event->id,
                 'occurrence_id' => $lockedOccurrence->id,
                 'qr_token' => $this->uniqueToken(),
-                'status' => 'registered',
+                'status' => $paymentRequired ? 'pending_payment' : 'registered',
                 'checkin_status' => 'pending',
                 'registered_at' => now(),
+                'payment_required' => $paymentRequired,
+                'payment_status' => $paymentRequired ? 'pending' : 'not_required',
+                'amount' => $paymentRequired ? $this->payments->amount($event) : 0,
+                'currency' => $this->payments->currency($event),
+                'registration_type' => $registrationType,
             ])));
 
-            $this->qr->generateAndStore($registration);
+            if (! $paymentRequired) {
+                $this->qr->generateAndStore($registration);
+                $registration = $registration->fresh(['event.circle', 'occurrence', 'user']);
+                $this->notifySafely($registration);
+            }
 
             $lockedOccurrence->forceFill(['registered_count' => $registeredCount + 1])->save();
 
-            $this->notifySafely($registration);
-
             return $registration->fresh(['event.circle', 'occurrence', 'user']);
         });
+
+        if ((bool) ($registration->payment_required ?? false)) {
+            return $this->payments->attachCheckout($registration);
+        }
+
+        return $registration;
     }
 
     private function duplicateVisitorQuery(string $occurrenceId, array $data)
@@ -187,6 +208,8 @@ class EventRegistrationService
         return match ($source) {
             'zoho_form' => 'zoho_form',
             'admin' => 'admin',
+            'app' => 'app',
+            'web', 'public', 'visitor_web' => 'visitor_web',
             default => 'visitor_app',
         };
     }

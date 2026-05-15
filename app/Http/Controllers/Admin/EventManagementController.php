@@ -60,7 +60,7 @@ class EventManagementController extends Controller
 
     public function show(string $id): View
     {
-        $event = Event::query()->with(['circle', 'occurrences' => fn ($q) => $q->orderBy('start_at')])->findOrFail($id);
+        $event = Event::query()->with(['circle', 'occurrences' => fn ($q) => $q->orderBy('start_at'), 'registrations.user', 'registrations.occurrence'])->findOrFail($id);
 
         return view('admin.events.show', compact('event'));
     }

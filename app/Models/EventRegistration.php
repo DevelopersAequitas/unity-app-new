@@ -45,6 +45,17 @@ class EventRegistration extends Model
         'scan_device_info',
         'attendance_source',
         'metadata',
+        'registration_type',
+        'payment_completed_at',
+        'zoho_invoice_number',
+        'zoho_invoice_id',
+        'zoho_checkout_url',
+        'zoho_hosted_page_id',
+        'zoho_customer_id',
+        'currency',
+        'amount',
+        'payment_status',
+        'payment_required',
     ];
 
     protected $casts = [
@@ -53,6 +64,9 @@ class EventRegistration extends Model
         'last_qr_scan_at' => 'datetime',
         'qr_generated_at' => 'datetime',
         'metadata' => 'array',
+        'payment_completed_at' => 'datetime',
+        'amount' => 'decimal:2',
+        'payment_required' => 'boolean',
     ];
 
     public function event(): BelongsTo

@@ -19,6 +19,7 @@ use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\EventRsvp;
 use App\Services\Events\EventCheckinService;
+use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventQrService;
@@ -30,6 +31,7 @@ class EventController extends BaseApiController
         private readonly EventService $events,
         private readonly EventRegistrationService $registrations,
         private readonly EventCheckinService $checkins,
+        private readonly EventPaymentService $payments,
     ) {}
 
     public function index(Request $request)
@@ -71,7 +73,13 @@ class EventController extends BaseApiController
             $request->input('source', 'app')
         );
 
-        return $this->success(new EventRegistrationResource($registration), 'Event registration successful.', 201);
+        $requiresPayment = (bool) ($registration->payment_required ?? false);
+
+        return $this->success(
+            $this->payments->responsePayload($registration),
+            $requiresPayment ? 'Payment required. Please complete checkout.' : 'Event registration successful.',
+            201
+        );
     }
 
     public function visitorRegister(VisitorEventRegistrationRequest $request, string $eventId, string $occurrenceId)
@@ -87,7 +95,78 @@ class EventController extends BaseApiController
             $request->validated() + ['source' => $request->input('source', 'visitor_app')]
         );
 
-        return $this->success(new EventRegistrationResource($registration), 'Visitor registered successfully.', 201);
+        $requiresPayment = (bool) ($registration->payment_required ?? false);
+
+        return $this->success(
+            $this->payments->responsePayload($registration),
+            $requiresPayment ? 'Payment required. Please complete checkout.' : 'Visitor registered successfully.',
+            201
+        );
+    }
+
+
+    public function paymentStatus(string $registrationId)
+    {
+        $registration = EventRegistration::query()->findOrFail($registrationId);
+
+        return $this->success([
+            'registration_id' => $registration->id,
+            'payment_status' => $registration->payment_status ?? ((bool) ($registration->payment_required ?? false) ? 'pending' : 'not_required'),
+            'status' => $registration->status,
+            'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid'
+                ? null
+                : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
+        ], 'Payment status fetched successfully.');
+    }
+
+    public function publicOccurrence(string $eventId, string $occurrenceId)
+    {
+        $occurrence = EventOccurrence::query()
+            ->with(['event.circle'])
+            ->where('event_id', $eventId)
+            ->findOrFail($occurrenceId);
+        $event = $occurrence->event;
+
+        if (! ($event->is_public || $event->visibility === 'public' || $this->events->visitorRegistrationEnabled($event))) {
+            return $this->error('Event is not available for public registration.', 403);
+        }
+
+        return $this->success([
+            'event_id' => $event->id,
+            'occurrence_id' => $occurrence->id,
+            'title' => $event->title,
+            'description' => $event->description,
+            'start_at' => optional($occurrence->start_at)->toISOString(),
+            'end_at' => optional($occurrence->end_at)->toISOString(),
+            'location_text' => $event->location_text,
+            'mode' => $event->mode,
+            'online_meeting_url' => $event->online_meeting_url,
+            'is_paid' => (bool) $event->is_paid,
+            'ticket_price' => (string) ($event->ticket_price ?? '0.00'),
+            'currency' => $this->payments->currency($event),
+            'visitor_registration_enabled' => $this->events->visitorRegistrationEnabled($event),
+        ], 'Public event fetched successfully.');
+    }
+
+    public function publicRegister(VisitorEventRegistrationRequest $request, string $eventId, string $occurrenceId)
+    {
+        $event = Event::query()->findOrFail($eventId);
+        if (! $this->events->visitorRegistrationEnabled($event)) {
+            return $this->error('Visitor registration is not enabled for this event.', 403);
+        }
+
+        $registration = $this->registrations->registerVisitor(
+            $event,
+            EventOccurrence::query()->findOrFail($occurrenceId),
+            $request->validated() + ['source' => 'visitor_web']
+        );
+        $requiresPayment = (bool) ($registration->payment_required ?? false);
+
+        return $this->success(
+            $this->payments->responsePayload($registration),
+            $requiresPayment ? 'Payment required. Please complete checkout.' : 'Visitor registered successfully.',
+            201
+        );
     }
 
     public function myRegistrations(Request $request)
@@ -113,7 +192,9 @@ class EventController extends BaseApiController
                 'mode' => $registration->event?->mode,
                 'status' => $registration->status,
                 'checkin_status' => $registration->checkin_status,
-                'qr_code_url' => $registration->qr_code_url ?: $qr->url($registration->qr_code_path),
+                'payment_status' => $registration->payment_status ?? null,
+                'checkout_url' => ($registration->payment_status ?? null) === 'pending' ? ($registration->zoho_checkout_url ?? null) : null,
+                'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_url ?: $qr->url($registration->qr_code_path)),
                 'attendee_type' => $registration->user_id ? 'member' : 'visitor',
             ])->values(),
         ], 'My registrations fetched successfully.');

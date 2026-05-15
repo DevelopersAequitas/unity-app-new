@@ -62,7 +62,9 @@ class EventOccurrenceListResource extends JsonResource
                 'registration_id' => $registration?->id,
                 'status' => $registration?->status,
                 'checkin_status' => $registration?->checkin_status,
-                'qr_code_url' => $registration ? $registration->qr_code_url ?: $qr->url($registration->qr_code_path) : null,
+                'payment_status' => $registration?->payment_status,
+                'checkout_url' => ($registration?->payment_status === 'pending') ? ($registration->zoho_checkout_url ?? null) : null,
+                'qr_code_url' => $registration ? ((($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid') ? null : ($registration->qr_code_url ?: $qr->url($registration->qr_code_path))) : null,
             ],
         ];
     }

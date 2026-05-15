@@ -132,6 +132,11 @@ Route::prefix('v1')->group(function () {
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 
     Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register', [EventController::class, 'visitorRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
+    Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::get('/public/events/{event_id}/occurrences/{occurrence_id}', [EventController::class, 'publicOccurrence'])->whereUuid('event_id')->whereUuid('occurrence_id');
+        Route::post('/public/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'publicRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
+    });
     Route::post('/zoho/events/form-webhook', ZohoEventFormWebhookController::class);
 
     Route::middleware('auth:sanctum')->group(function () {
@@ -441,6 +446,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
         Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
+        Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
         Route::get('/events/{event_id}/attendance', [EventController::class, 'attendance'])->whereUuid('event_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'register'])->whereUuid('event_id')->whereUuid('occurrence_id');
         Route::get('/events/{id}', [EventController::class, 'show'])->whereUuid('id');

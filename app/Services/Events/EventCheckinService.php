@@ -28,6 +28,12 @@ class EventCheckinService
             if ($registration->status === 'cancelled') {
                 throw ValidationException::withMessages(['registration' => 'Registration is cancelled.']);
             }
+            if ($registration->status === 'pending_payment' || (($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid')) {
+                throw ValidationException::withMessages(['registration' => 'Payment is required before QR check-in.']);
+            }
+            if (empty($registration->qr_code_path) && empty($registration->qr_code_url)) {
+                throw ValidationException::withMessages(['registration' => 'QR code has not been generated for this registration.']);
+            }
             if (! $registration->occurrence) {
                 throw ValidationException::withMessages(['occurrence' => 'Event occurrence not found.']);
             }
