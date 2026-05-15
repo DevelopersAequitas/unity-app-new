@@ -23,11 +23,10 @@ class AdminCampaignMailable extends Mailable
     public function build(): self
     {
         return $this->subject($this->subjectLine)
-            ->view('emails.admin_campaigns.campaign')
+            ->view('emails.admin.campaign')
             ->with([
                 'campaign' => $this->campaign,
-                'recipient' => $this->recipient,
-                'bodyHtml' => $this->campaign->email_body,
+                'user' => $this->recipient,
             ]);
     }
 }
