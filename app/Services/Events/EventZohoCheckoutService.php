@@ -6,7 +6,6 @@ use App\Models\EventRegistration;
 use App\Models\User;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class EventZohoCheckoutService
@@ -23,13 +22,6 @@ class EventZohoCheckoutService
         }
 
         $customer = $this->customerPayload($registration);
-        $metadata = [
-            'type' => 'event_registration',
-            'registration_id' => (string) $registration->id,
-            'event_id' => (string) $registration->event_id,
-            'occurrence_id' => (string) $registration->occurrence_id,
-        ];
-
         Log::info('Creating Zoho checkout for event registration.', [
             'event_registration_id' => (string) $registration->id,
             'event_id' => (string) $registration->event_id,
@@ -37,7 +29,7 @@ class EventZohoCheckoutService
             'amount' => $amount,
         ]);
 
-        return $this->zohoBillingService->createHostedInvoicePaymentForEventRegistration(
+        return $this->zohoBillingService->createHostedPageForEventRegistration(
             $customer,
             [
                 'registration_id' => (string) $registration->id,
@@ -47,26 +39,10 @@ class EventZohoCheckoutService
                 'amount' => $amount,
                 'currency' => (string) ($registration->currency ?? 'INR'),
                 'redirect_url' => $this->redirectUrl($registration),
-                'metadata' => $metadata,
-            ],
-            fn (array $invoiceMapping) => $this->storeInvoiceMapping($registration, $invoiceMapping)
+            ]
         );
     }
 
-
-    private function storeInvoiceMapping(EventRegistration $registration, array $invoiceMapping): void
-    {
-        $registration->forceFill($this->filterRegistrationColumns([
-            'zoho_customer_id' => $invoiceMapping['customer_id'] ?? null,
-            'zoho_invoice_id' => $invoiceMapping['invoice_id'] ?? null,
-            'zoho_invoice_number' => $invoiceMapping['invoice_number'] ?? null,
-        ]))->save();
-    }
-
-    private function filterRegistrationColumns(array $data): array
-    {
-        return array_filter($data, fn ($value, $key) => Schema::hasColumn('event_registrations', $key), ARRAY_FILTER_USE_BOTH);
-    }
 
     private function customerPayload(EventRegistration $registration): array
     {

@@ -404,7 +404,7 @@ class ZohoBillingService
         return $customerId;
     }
 
-    public function createHostedInvoicePaymentForEventRegistration(array $customer, array $eventPayment, ?callable $afterInvoiceCreated = null): array
+    public function createHostedPageForEventRegistration(array $customer, array $eventPayment): array
     {
         $user = $customer['user'] ?? null;
         $customerId = $user instanceof User
@@ -415,80 +415,62 @@ class ZohoBillingService
         $amount = round((float) ($eventPayment['amount'] ?? 0), 2);
         $currency = strtoupper((string) ($eventPayment['currency'] ?? 'INR'));
         $eventTitle = trim((string) ($eventPayment['event_title'] ?? 'Unity Event'));
-        $description = trim((string) ($eventPayment['event_description'] ?? ''));
-        $occurrenceStartAt = trim((string) ($eventPayment['occurrence_start_at'] ?? ''));
+        $planCode = trim((string) config('zoho_billing.event_registration_plan_code'));
+        $itemId = trim((string) config('zoho_billing.event_registration_item_id'));
+
         if ($registrationId === '' || $amount <= 0) {
             throw new RuntimeException('Invalid event registration checkout payload.');
         }
 
-        $invoicePayload = [
-            'customer_id' => $customerId,
-            'date' => now()->toDateString(),
-            'due_date' => now()->toDateString(),
-            'payment_terms' => 0,
-            'currency_code' => $currency,
-            'invoice_items' => [[
-                'name' => 'Event Registration - '.$eventTitle,
-                'description' => trim($description.' '.($occurrenceStartAt !== '' ? 'Event date: '.$occurrenceStartAt : '')),
-                'price' => $amount,
-                'quantity' => 1,
-            ]],
-            'notes' => 'Unity event registration checkout.',
-        ];
-
-        Log::info('event invoice request payload', [
-            'event_registration_id' => $registrationId,
-            'customer_id' => $customerId,
-            'amount' => $amount,
-            'currency' => $currency,
-        ]);
-
-        $invoiceResponse = $this->client->request('POST', '/invoices', $invoicePayload);
-        $invoice = is_array($invoiceResponse['invoice'] ?? null) ? $invoiceResponse['invoice'] : $invoiceResponse;
-        $invoiceId = (string) ($invoice['invoice_id'] ?? '');
-
-        if ($invoiceId === '') {
-            throw new RuntimeException('Unable to create Zoho invoice for event registration.');
+        if ($planCode === '' && $itemId === '') {
+            throw ValidationException::withMessages([
+                'zoho_event_payment' => 'Zoho event payment item/plan is not configured.',
+            ]);
         }
 
-        $invoiceMapping = [
+        $plan = array_filter([
+            'plan_code' => $planCode !== '' ? $planCode : null,
+            'item_id' => $itemId !== '' ? $itemId : null,
+            'price' => $amount,
+            'quantity' => 1,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $payload = [
             'customer_id' => $customerId,
-            'invoice_id' => $invoiceId,
-            'invoice_number' => (string) ($invoice['invoice_number'] ?? $invoice['number'] ?? ''),
-            'raw_invoice' => $invoiceResponse,
-        ];
-
-        if ($afterInvoiceCreated !== null) {
-            $afterInvoiceCreated($invoiceMapping);
-        }
-
-        $hostedPayload = [
-            'invoice_id' => $invoiceId,
+            'plan' => $plan,
             'redirect_url' => (string) ($eventPayment['redirect_url'] ?? rtrim((string) config('app.url'), '/')),
         ];
 
-        $hostedResponse = $this->client->request('POST', '/hostedpages/invoicepayment', $hostedPayload);
-        $hostedPage = is_array($hostedResponse['hostedpage'] ?? null) ? $hostedResponse['hostedpage'] : $hostedResponse;
-        $hostedPageId = (string) ($hostedPage['hostedpage_id'] ?? $hostedResponse['hostedpage_id'] ?? '');
-        $checkoutUrl = (string) ($hostedPage['url'] ?? $hostedResponse['url'] ?? '');
+        Log::info('event hosted page request payload', [
+            'event_registration_id' => $registrationId,
+            'customer_id' => $customerId,
+            'event_title' => $eventTitle,
+            'amount' => $amount,
+            'currency' => $currency,
+            'plan_code_configured' => $planCode !== '',
+            'item_id_configured' => $itemId !== '',
+        ]);
+
+        $response = $this->client->request('POST', '/hostedpages/newsubscription', $payload);
+        $hostedPage = is_array($response['hostedpage'] ?? null) ? $response['hostedpage'] : $response;
+        $hostedPageId = (string) ($hostedPage['hostedpage_id'] ?? '');
+        $checkoutUrl = (string) ($hostedPage['url'] ?? '');
 
         if ($hostedPageId === '' || $checkoutUrl === '') {
-            throw new RuntimeException('Unable to create Zoho hosted payment page for event registration.');
+            throw new RuntimeException('Unable to create Zoho hosted page for event registration.');
         }
 
         return [
             'customer_id' => $customerId,
-            'invoice_id' => $invoiceId,
-            'invoice_number' => (string) ($invoice['invoice_number'] ?? $invoice['number'] ?? ''),
             'hostedpage_id' => $hostedPageId,
             'checkout_url' => $checkoutUrl,
+            'invoice_id' => data_get($hostedPage, 'invoice.invoice_id') ?? data_get($hostedPage, 'invoice_id'),
+            'invoice_number' => data_get($hostedPage, 'invoice.invoice_number') ?? data_get($hostedPage, 'invoice_number'),
             'raw' => [
-                'invoice' => $invoiceResponse,
-                'hostedpage' => $hostedResponse,
+                'hostedpage' => $response,
             ],
         ];
     }
-
 
     public function createHostedPageForSubscription(User $user, string $planCode): array
     {
