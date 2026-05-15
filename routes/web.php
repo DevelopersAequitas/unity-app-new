@@ -147,6 +147,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/events', [EventManagementController::class, 'store'])->name('events.store');
         Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
         Route::get('/events/{id}/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
+        Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
 
         Route::get('/event-gallery', [EventGalleryController::class, 'index'])->name('event-gallery.index');
         Route::post('/event-gallery/events', [EventGalleryController::class, 'storeEvent'])->name('event-gallery.events.store');

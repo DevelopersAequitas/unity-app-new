@@ -8,6 +8,7 @@ use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventService;
+use App\Services\Events\EventZohoInvoiceSyncService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,7 @@ class EventManagementController extends Controller
     public function __construct(
         private readonly EventOccurrenceGeneratorService $occurrences,
         private readonly EventService $events,
+        private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
     ) {}
 
     public function index(Request $request): View
@@ -71,6 +73,15 @@ class EventManagementController extends Controller
         $report = $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search']));
 
         return view('admin.events.attendance', compact('event', 'report'));
+    }
+
+
+    public function syncZohoInvoice(string $registrationId): RedirectResponse
+    {
+        $registration = EventRegistration::query()->with(['event', 'occurrence', 'user'])->findOrFail($registrationId);
+        $this->zohoInvoiceSync->sync($registration);
+
+        return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
     }
 
     private function validated(Request $request): array

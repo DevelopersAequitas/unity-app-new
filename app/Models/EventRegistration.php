@@ -56,6 +56,15 @@ class EventRegistration extends Model
         'amount',
         'payment_status',
         'payment_required',
+        'zoho_invoice_sync_error',
+        'zoho_invoice_synced_at',
+        'zoho_invoice_pdf_url',
+        'zoho_invoice_url',
+        'razorpay_paid_at',
+        'razorpay_payment_status',
+        'razorpay_signature',
+        'razorpay_payment_id',
+        'razorpay_order_id',
     ];
 
     protected $casts = [
@@ -67,6 +76,8 @@ class EventRegistration extends Model
         'payment_completed_at' => 'datetime',
         'amount' => 'decimal:2',
         'payment_required' => 'boolean',
+        'zoho_invoice_synced_at' => 'datetime',
+        'razorpay_paid_at' => 'datetime',
     ];
 
     public function event(): BelongsTo

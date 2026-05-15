@@ -23,6 +23,9 @@ use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventQrService;
+use App\Services\Events\EventRazorpayPaymentFinalizer;
+use App\Services\Events\EventRazorpayPaymentService;
+use App\Services\Events\EventZohoInvoiceSyncService;
 use Illuminate\Http\Request;
 
 class EventController extends BaseApiController
@@ -32,6 +35,9 @@ class EventController extends BaseApiController
         private readonly EventRegistrationService $registrations,
         private readonly EventCheckinService $checkins,
         private readonly EventPaymentService $payments,
+        private readonly EventRazorpayPaymentService $razorpayPayments,
+        private readonly EventRazorpayPaymentFinalizer $paymentFinalizer,
+        private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
     ) {}
 
     public function index(Request $request)
@@ -77,7 +83,7 @@ class EventController extends BaseApiController
 
         return $this->success(
             $this->payments->responsePayload($registration),
-            $requiresPayment ? 'Payment required. Please complete checkout.' : 'Event registration successful.',
+            $requiresPayment ? 'Payment required. Please complete Razorpay checkout.' : 'Event registration successful.',
             201
         );
     }
@@ -99,7 +105,7 @@ class EventController extends BaseApiController
 
         return $this->success(
             $this->payments->responsePayload($registration),
-            $requiresPayment ? 'Payment required. Please complete checkout.' : 'Visitor registered successfully.',
+            $requiresPayment ? 'Payment required. Please complete Razorpay checkout.' : 'Visitor registered successfully.',
             201
         );
     }
@@ -111,12 +117,54 @@ class EventController extends BaseApiController
 
         return $this->success([
             'registration_id' => $registration->id,
+            'payment_gateway' => ($registration->payment_required ?? false) ? 'razorpay' : null,
             'payment_status' => $registration->payment_status ?? ((bool) ($registration->payment_required ?? false) ? 'pending' : 'not_required'),
             'status' => $registration->status,
             'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid'
                 ? null
                 : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
+            'invoice' => $this->invoicePayload($registration),
         ], 'Payment status fetched successfully.');
+    }
+
+    public function verifyRazorpay(Request $request, string $registrationId)
+    {
+        $data = $request->validate([
+            'razorpay_order_id' => ['required', 'string'],
+            'razorpay_payment_id' => ['required', 'string'],
+            'razorpay_signature' => ['required', 'string'],
+        ]);
+
+        $registration = EventRegistration::query()->with(['event.circle', 'occurrence', 'user'])->findOrFail($registrationId);
+        if ((string) ($registration->razorpay_order_id ?? '') !== (string) $data['razorpay_order_id']) {
+            return $this->error('Payment order does not match this registration.', 422);
+        }
+
+        if (! $this->razorpayPayments->verifySignature($data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'])) {
+            return $this->error('Invalid payment signature.', 422);
+        }
+
+        $registration = $this->paymentFinalizer->markPaid($registration, [
+            'razorpay_payment_id' => $data['razorpay_payment_id'],
+            'razorpay_signature' => $data['razorpay_signature'],
+            'razorpay_payment_status' => 'captured',
+        ]);
+
+        return $this->success(new EventRegistrationResource($registration), 'Payment verified successfully.');
+    }
+
+    public function invoice(Request $request, string $registrationId)
+    {
+        $registration = EventRegistration::query()->with(['event', 'user'])->findOrFail($registrationId);
+
+        if ($registration->user_id && $request->user() && $registration->user_id !== $request->user()->id && ! $this->events->canViewAttendance($registration->event, $request->user())) {
+            return $this->error('You are not authorized to view this invoice.', 403);
+        }
+        if ($registration->user_id && ! $request->user()) {
+            return $this->error('Authentication is required to view this invoice.', 401);
+        }
+
+        return $this->success($this->invoicePayload($registration), 'Invoice fetched successfully.');
     }
 
     public function publicOccurrence(string $eventId, string $occurrenceId)
@@ -164,7 +212,7 @@ class EventController extends BaseApiController
 
         return $this->success(
             $this->payments->responsePayload($registration),
-            $requiresPayment ? 'Payment required. Please complete checkout.' : 'Visitor registered successfully.',
+            $requiresPayment ? 'Payment required. Please complete Razorpay checkout.' : 'Visitor registered successfully.',
             201
         );
     }
@@ -192,8 +240,10 @@ class EventController extends BaseApiController
                 'mode' => $registration->event?->mode,
                 'status' => $registration->status,
                 'checkin_status' => $registration->checkin_status,
+                'payment_gateway' => ($registration->payment_required ?? false) ? 'razorpay' : null,
                 'payment_status' => $registration->payment_status ?? null,
-                'checkout_url' => ($registration->payment_status ?? null) === 'pending' ? ($registration->zoho_checkout_url ?? null) : null,
+                'razorpay_order_id' => $registration->razorpay_order_id ?? null,
+                'checkout_url' => null,
                 'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_url ?: $qr->url($registration->qr_code_path)),
                 'attendee_type' => $registration->user_id ? 'member' : 'visitor',
             ])->values(),
@@ -225,6 +275,17 @@ class EventController extends BaseApiController
             $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search'])),
             'Attendance fetched successfully.'
         );
+    }
+
+    private function invoicePayload(EventRegistration $registration): array
+    {
+        return [
+            'registration_id' => $registration->id,
+            'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
+            'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
+            'invoice_url' => $registration->zoho_invoice_url ?? null,
+            'invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
+        ];
     }
 
     public function checkinQr(string $qrToken)

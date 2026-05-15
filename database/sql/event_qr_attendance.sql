@@ -97,6 +97,17 @@ ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS registration_type VARCH
 CREATE INDEX IF NOT EXISTS idx_event_registrations_payment_status ON event_registrations(payment_status);
 CREATE INDEX IF NOT EXISTS idx_event_registrations_zoho_hosted_page_id ON event_registrations(zoho_hosted_page_id);
 CREATE INDEX IF NOT EXISTS idx_event_registrations_zoho_invoice_id ON event_registrations(zoho_invoice_id);
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(255);
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(255);
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS razorpay_signature TEXT;
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS razorpay_payment_status VARCHAR(50);
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS razorpay_paid_at TIMESTAMPTZ;
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS zoho_invoice_url TEXT;
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS zoho_invoice_pdf_url TEXT;
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS zoho_invoice_synced_at TIMESTAMPTZ;
+ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS zoho_invoice_sync_error TEXT;
+CREATE INDEX IF NOT EXISTS idx_event_registrations_razorpay_order_id ON event_registrations(razorpay_order_id);
+CREATE INDEX IF NOT EXISTS idx_event_registrations_razorpay_payment_id ON event_registrations(razorpay_payment_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registration_member_occurrence
     ON event_registrations(occurrence_id, user_id)
