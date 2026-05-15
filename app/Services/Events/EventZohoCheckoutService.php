@@ -94,6 +94,6 @@ class EventZohoCheckoutService
 
     private function redirectUrl(EventRegistration $registration): string
     {
-        return rtrim((string) config('app.url'), '/').'/events/registrations/'.$registration->id.'/payment-return';
+        return rtrim((string) config('app.url'), '/').'/event-payment/success?registration_id='.$registration->id;
     }
 }

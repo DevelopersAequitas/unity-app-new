@@ -462,8 +462,6 @@ class ZohoBillingService
             $afterInvoiceCreated($invoiceMapping);
         }
 
-        $markSentResponse = $this->markInvoiceAsSentForEventRegistration($invoiceId, $registrationId);
-
         $hostedPayload = [
             'invoice_id' => $invoiceId,
             'redirect_url' => (string) ($eventPayment['redirect_url'] ?? rtrim((string) config('app.url'), '/')),
@@ -486,77 +484,11 @@ class ZohoBillingService
             'checkout_url' => $checkoutUrl,
             'raw' => [
                 'invoice' => $invoiceResponse,
-                'mark_sent' => $markSentResponse,
                 'hostedpage' => $hostedResponse,
             ],
         ];
     }
 
-
-    private function markInvoiceAsSentForEventRegistration(string $invoiceId, string $registrationId): array
-    {
-        $organizationId = trim((string) config('zoho_billing.org_id'));
-        $query = $organizationId !== '' ? '?organization_id='.rawurlencode($organizationId) : '';
-        $sentPath = '/invoices/'.$invoiceId.'/status/sent'.$query;
-        $sentError = null;
-
-        try {
-            $response = $this->client->request('POST', $sentPath);
-
-            Log::info('event invoice marked as sent before hosted payment', [
-                'event_registration_id' => $registrationId,
-                'invoice_id' => $invoiceId,
-                'organization_id_present' => $organizationId !== '',
-                'response' => $response,
-            ]);
-
-            return [
-                'method' => 'status_sent',
-                'response' => $response,
-            ];
-        } catch (Throwable $sentException) {
-            $sentError = $sentException->getMessage();
-
-            Log::warning('event invoice status/sent failed before hosted payment; trying invoice email fallback', [
-                'event_registration_id' => $registrationId,
-                'invoice_id' => $invoiceId,
-                'organization_id_present' => $organizationId !== '',
-                'error' => $sentException->getMessage(),
-            ]);
-        }
-
-        $emailPath = '/invoices/'.$invoiceId.'/email'.$query;
-
-        try {
-            $response = $this->client->request('POST', $emailPath, []);
-
-            Log::info('event invoice email fallback sent before hosted payment', [
-                'event_registration_id' => $registrationId,
-                'invoice_id' => $invoiceId,
-                'organization_id_present' => $organizationId !== '',
-                'response' => $response,
-            ]);
-
-            return [
-                'method' => 'email',
-                'response' => $response,
-            ];
-        } catch (Throwable $emailException) {
-            Log::error('event invoice could not be opened before hosted payment', [
-                'event_registration_id' => $registrationId,
-                'invoice_id' => $invoiceId,
-                'organization_id_present' => $organizationId !== '',
-                'status_sent_error' => $sentError,
-                'email_error' => $emailException->getMessage(),
-            ]);
-
-            throw new RuntimeException(
-                'Unable to mark Zoho event invoice as sent/open before checkout. status/sent error: '.($sentError ?? 'unknown').'; email fallback error: '.$emailException->getMessage(),
-                (int) $emailException->getCode(),
-                $emailException
-            );
-        }
-    }
 
     public function createHostedPageForSubscription(User $user, string $planCode): array
     {
