@@ -8,6 +8,7 @@ use App\Models\AdminCampaignRecipient;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -16,6 +17,8 @@ use Throwable;
 
 class CampaignSendService
 {
+    private ?string $notificationType = null;
+
     public function __construct(
         private readonly CampaignRecipientResolverService $resolver,
         private readonly EmailLogService $emailLogService,
@@ -72,15 +75,20 @@ class CampaignSendService
         ]);
 
         $errors = [];
-        $emailSent = false;
-        $notificationSent = false;
-        $emailStatus = $campaign->includesEmail() ? 'pending' : 'skipped';
-        $notificationStatus = $campaign->includesNotification() ? 'pending' : 'skipped';
+        $emailSent = (bool) $recipient->email_sent;
+        $notificationSent = (bool) $recipient->notification_sent;
+        $emailStatus = $campaign->includesEmail() ? (string) ($recipient->email_status ?: 'pending') : 'skipped';
+        $notificationStatus = $campaign->includesNotification() ? (string) ($recipient->notification_status ?: 'pending') : 'skipped';
 
         if ($campaign->includesEmail()) {
             $email = trim((string) $user->email);
             if ($email === '') {
                 $emailStatus = 'skipped';
+                $emailSent = false;
+            } elseif ($emailSent || $emailStatus === 'sent') {
+                $emailSent = true;
+                $emailStatus = 'sent';
+                $stats['email_sent']++;
             } else {
                 try {
                     $mailable = new AdminCampaignMailable($campaign, $user);
@@ -98,14 +106,20 @@ class CampaignSendService
         }
 
         if ($campaign->includesNotification()) {
-            try {
-                Notification::query()->create($this->notificationRow($campaign, $user));
+            if ($notificationSent || $notificationStatus === 'sent') {
                 $notificationSent = true;
                 $notificationStatus = 'sent';
                 $stats['notification_sent']++;
-            } catch (Throwable $exception) {
-                $notificationStatus = 'failed';
-                $errors[] = $exception->getMessage();
+            } else {
+                try {
+                    Notification::query()->create($this->notificationRow($campaign, $user));
+                    $notificationSent = true;
+                    $notificationStatus = 'sent';
+                    $stats['notification_sent']++;
+                } catch (Throwable $exception) {
+                    $notificationStatus = 'failed';
+                    $errors[] = $exception->getMessage();
+                }
             }
         }
 
@@ -142,11 +156,37 @@ class CampaignSendService
         ];
     }
 
+    private function resolveNotificationType(): string
+    {
+        if ($this->notificationType !== null) {
+            return $this->notificationType;
+        }
+
+        try {
+            $allowedTypes = DB::table('pg_enum')
+                ->join('pg_type', 'pg_type.oid', '=', 'pg_enum.enumtypid')
+                ->where('pg_type.typname', 'notification_type_enum')
+                ->pluck('pg_enum.enumlabel')
+                ->map(fn ($type) => (string) $type)
+                ->all();
+
+            foreach (['general', 'system', 'activity_update'] as $type) {
+                if (in_array($type, $allowedTypes, true)) {
+                    return $this->notificationType = $type;
+                }
+            }
+        } catch (Throwable) {
+            // Fall back to the base schema's enum-safe system type when enum introspection is unavailable.
+        }
+
+        return $this->notificationType = 'system';
+    }
+
     private function notificationRow(AdminCampaign $campaign, User $user): array
     {
         $row = [
             'user_id' => $user->id,
-            'type' => 'admin_campaign',
+            'type' => $this->resolveNotificationType(),
             'payload' => [
                 'notification_type' => 'admin_campaign',
                 'title' => $campaign->notification_title,

@@ -53,7 +53,7 @@
         <div class="card-header"><strong>Recipient Logs</strong></div>
         <div class="table-responsive">
             <table class="table align-middle mb-0">
-                <thead class="table-light"><tr><th>Member Name</th><th>Email</th><th>Email Status</th><th>Notification Status</th><th>Error Message</th><th>Sent At</th></tr></thead>
+                <thead class="table-light"><tr><th>Member Name</th><th>Email</th><th>Email Status</th><th>Notification Status</th><th class="campaign-error-column">Error Message</th><th>Sent At</th></tr></thead>
                 <tbody>
                 @forelse ($recipients as $recipient)
                     <tr>
@@ -61,7 +61,7 @@
                         <td>{{ $recipient->email ?? '-' }}</td>
                         <td><span class="badge bg-{{ $badge($recipient->email_status) }}">{{ Str::headline($recipient->email_status) }}</span></td>
                         <td><span class="badge bg-{{ $badge($recipient->notification_status) }}">{{ Str::headline($recipient->notification_status) }}</span></td>
-                        <td class="text-danger small">{{ $recipient->error_message ?? '-' }}</td>
+                        <td class="text-danger small campaign-error-column">{{ $recipient->error_message ?? '-' }}</td>
                         <td>{{ optional($recipient->sent_at)->format('d M Y H:i') ?? '-' }}</td>
                     </tr>
                 @empty
@@ -73,3 +73,14 @@
     </div>
     <div class="mt-3">{{ $recipients->links() }}</div>
 @endsection
+
+
+@push('styles')
+    <style>
+        .campaign-error-column {
+            max-width: 360px;
+            white-space: normal;
+            word-break: break-word;
+        }
+    </style>
+@endpush
