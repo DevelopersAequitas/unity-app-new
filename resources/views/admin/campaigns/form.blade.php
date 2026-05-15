@@ -10,6 +10,7 @@
         $audienceType = old('audience_type', $campaign->audience_type ?: 'all_members');
         $showEmailFields = in_array($campaignType, ['email_only', 'email_and_notification'], true);
         $showNotificationFields = in_array($campaignType, ['notification_only', 'email_and_notification'], true);
+        $selectedBusinessCategoryIds = collect($filters['business_category_ids'] ?? $filters['category_ids'] ?? [])->map(fn ($id) => (string) $id)->all();
     @endphp
 
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -97,11 +98,11 @@
                         </select>
                     </div>
 
-                    <div class="filter-block" data-filter="category_ids">
+                    <div class="filter-block" data-filter="business_category_ids">
                         <label class="form-label">Business Category Wise</label>
-                        <select name="filters[category_ids][]" class="form-select select2" multiple>
+                        <select name="filters[business_category_ids][]" class="form-select select2" multiple>
                             @foreach ($filterOptions['categories'] as $category)
-                                <option value="{{ $category['id'] }}" @selected(in_array($category['id'], $filters['category_ids'] ?? [], true))>{{ $category['name'] }}</option>
+                                <option value="{{ $category['id'] }}" @selected(in_array((string) $category['id'], $selectedBusinessCategoryIds, true))>{{ $category['name'] }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -127,6 +128,7 @@
 
     <div class="card shadow-sm mt-4" id="previewCard" style="display:none;">
         <div class="card-header d-flex justify-content-between"><strong>Preview Recipients</strong><span>Total: <span id="previewTotal">0</span></span></div>
+        <div id="previewDebug" class="small text-muted px-3 py-2 border-bottom" style="display:none;"></div>
         <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>City</th><th>Company</th><th>Membership</th><th>Circle</th></tr></thead><tbody id="previewBody"></tbody></table></div>
     </div>
 @endsection
@@ -168,8 +170,8 @@
     function syncFilterFields() {
         const type = audienceType.value;
         const visible = {
-            city: ['cities'], circle: ['circle_ids'], company: ['companies'], category: ['category_ids'], membership_status: ['membership_statuses'], specific_members: ['user_ids'],
-            custom_filter: ['cities','circle_ids','companies','category_ids','membership_statuses']
+            city: ['cities'], circle: ['circle_ids'], company: ['companies'], category: ['business_category_ids'], membership_status: ['membership_statuses'], specific_members: ['user_ids'],
+            custom_filter: ['cities','circle_ids','companies','business_category_ids','membership_statuses']
         }[type] || [];
         document.querySelectorAll('.filter-block').forEach(el => el.style.display = visible.includes(el.dataset.filter) ? 'block' : 'none');
     }
@@ -183,6 +185,16 @@
         const data = await response.json();
         if (!response.ok) { alert(data.message || 'Preview failed.'); return; }
         document.getElementById('previewTotal').textContent = data.total;
+        const debug = data.debug || {};
+        const selectedCategoryIds = debug.selected_business_category_ids || [];
+        const debugEl = document.getElementById('previewDebug');
+        if (selectedCategoryIds.length) {
+            debugEl.textContent = `Selected category id(s): ${selectedCategoryIds.join(', ')} | Matched users: ${debug.matched_users_count ?? data.total}`;
+            debugEl.style.display = 'block';
+        } else {
+            debugEl.textContent = '';
+            debugEl.style.display = 'none';
+        }
         document.getElementById('previewBody').innerHTML = (data.recipients || []).map(row => `<tr><td>${row.display_name || '-'}</td><td>${row.email || '-'}</td><td>${row.phone || '-'}</td><td>${row.city || '-'}</td><td>${row.company_name || '-'}</td><td>${row.membership_status || '-'}</td><td>${row.circle_name || '-'}</td></tr>`).join('') || '<tr><td colspan="7" class="text-center text-muted">No recipients found.</td></tr>';
         document.getElementById('previewCard').style.display = 'block';
     });

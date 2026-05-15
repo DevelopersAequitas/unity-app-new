@@ -45,6 +45,14 @@
         </div></div></div>
         <div class="col-lg-4"><div class="card shadow-sm h-100"><div class="card-body">
             <h2 class="h6">Selected Filters</h2>
+            @if (! empty($filterSummary['business_categories']))
+                <div class="mb-2">
+                    <span class="text-muted small d-block">Business Categories</span>
+                    @foreach ($filterSummary['business_categories'] as $categoryName)
+                        <span class="badge bg-light text-dark border me-1 mb-1">{{ $categoryName }}</span>
+                    @endforeach
+                </div>
+            @endif
             <pre class="bg-light border rounded p-2 small mb-0" style="white-space:pre-wrap;">{{ json_encode($campaign->filters ?: [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre>
         </div></div></div>
     </div>

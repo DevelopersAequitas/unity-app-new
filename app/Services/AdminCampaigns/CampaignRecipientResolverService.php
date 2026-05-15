@@ -91,7 +91,7 @@ class CampaignRecipientResolverService
             'city' => $this->whereInFilter($query, $this->cityColumn(), $filters['cities'] ?? $filters['city'] ?? []),
             'circle' => $this->applyCircleFilter($query, $filters['circle_ids'] ?? $filters['circles'] ?? []),
             'company' => $this->applyCompanyFilter($query, $filters['companies'] ?? $filters['company_names'] ?? []),
-            'category' => $this->whereInFilter($query, 'business_category_id', $filters['category_ids'] ?? $filters['categories'] ?? []),
+            'category' => $this->applyBusinessCategoryFilter($query, $filters),
             'membership_status' => $this->whereInFilter($query, 'membership_status', $filters['membership_statuses'] ?? $filters['statuses'] ?? []),
             'specific_members' => $this->whereInFilter($query, 'id', $filters['user_ids'] ?? $filters['members'] ?? []),
             'custom_filter' => $this->applyCustomFilter($query, $filters),
@@ -110,8 +110,8 @@ class CampaignRecipientResolverService
         if (! empty($filters['companies'])) {
             $this->applyCompanyFilter($query, $filters['companies']);
         }
-        if (! empty($filters['category_ids'])) {
-            $this->whereInFilter($query, 'business_category_id', $filters['category_ids']);
+        if (! empty($filters['business_category_ids']) || ! empty($filters['category_ids'])) {
+            $this->applyBusinessCategoryFilter($query, $filters);
         }
         if (! empty($filters['membership_statuses'])) {
             $this->whereInFilter($query, 'membership_status', $filters['membership_statuses']);
@@ -146,6 +146,85 @@ class CampaignRecipientResolverService
         $query->where(function (Builder $builder) use ($companies): void {
             foreach ($companies as $company) {
                 $builder->orWhereRaw('users.company_name ILIKE ?', [$company]);
+            }
+        });
+    }
+
+    public function businessCategoryIdsFromFilters(array $filters): array
+    {
+        return $this->cleanArray($filters['business_category_ids'] ?? $filters['category_ids'] ?? $filters['categories'] ?? []);
+    }
+
+    public function businessCategoryNames(array $ids): array
+    {
+        $ids = $this->cleanArray($ids);
+        if ($ids === []) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($this->categoryOptionSources() as $source) {
+            if (! Schema::hasTable($source['table']) || ! Schema::hasColumn($source['table'], $source['name_column'])) {
+                continue;
+            }
+
+            $rows = DB::table($source['table'])
+                ->whereIn('id', $this->valuesCompatibleWithColumn($source['table'], 'id', $ids))
+                ->pluck($source['name_column'], 'id');
+
+            foreach ($rows as $id => $name) {
+                $names[(string) $id] = (string) $name;
+            }
+        }
+
+        return collect($ids)->map(fn (string $id): string => $names[$id] ?? $id)->values()->all();
+    }
+
+    public function describeFilters(?array $filters): array
+    {
+        $filters = $filters ?: [];
+        $businessCategoryIds = $this->businessCategoryIdsFromFilters($filters);
+
+        return [
+            'business_categories' => $this->businessCategoryNames($businessCategoryIds),
+            'business_category_ids' => $businessCategoryIds,
+        ];
+    }
+
+    private function applyBusinessCategoryFilter(Builder $query, array $filters): void
+    {
+        $categoryIds = $this->businessCategoryIdsFromFilters($filters);
+        if ($categoryIds === []) {
+            return;
+        }
+
+        $query->where(function (Builder $builder) use ($categoryIds): void {
+            $applied = false;
+
+            foreach (['business_category_id', 'main_business_category_id'] as $column) {
+                if (! Schema::hasColumn('users', $column)) {
+                    continue;
+                }
+
+                $values = $this->valuesCompatibleWithColumn('users', $column, $categoryIds);
+                if ($values === []) {
+                    continue;
+                }
+
+                $applied = true;
+                $builder->orWhereIn('users.' . $column, $values);
+            }
+
+            if (Schema::hasColumn('users', 'business_category')) {
+                $categoryNames = $this->businessCategoryNames($categoryIds);
+                if ($categoryNames !== []) {
+                    $applied = true;
+                    $builder->orWhereIn('users.business_category', $categoryNames);
+                }
+            }
+
+            if (! $applied) {
+                $builder->whereRaw('1 = 0');
             }
         });
     }
@@ -192,22 +271,71 @@ class CampaignRecipientResolverService
 
     private function categories(): array
     {
-        foreach (['circle_categories', 'categories'] as $table) {
-            if (! Schema::hasTable($table)) {
-                continue;
-            }
-            $nameColumn = Schema::hasColumn($table, 'name') ? 'name' : (Schema::hasColumn($table, 'category_name') ? 'category_name' : null);
-            if (! $nameColumn) {
+        $categories = collect();
+
+        foreach ($this->categoryOptionSources() as $source) {
+            if (! Schema::hasTable($source['table']) || ! Schema::hasColumn($source['table'], $source['name_column'])) {
                 continue;
             }
 
-            return DB::table($table)->select(['id', DB::raw("{$nameColumn} as name")])->orderBy($nameColumn)->get()->map(fn ($row) => [
+            $query = DB::table($source['table'])->select(['id', DB::raw("{$source['name_column']} as name")]);
+            if (Schema::hasColumn($source['table'], 'is_active')) {
+                $query->where('is_active', true);
+            }
+
+            $categories = $categories->merge($query->orderBy($source['name_column'])->get()->map(fn ($row) => [
                 'id' => (string) $row->id,
-                'name' => $row->name,
-            ])->values()->all();
+                'name' => (string) $row->name,
+            ]));
         }
 
-        return [];
+        return $categories
+            ->unique(fn (array $category): string => $category['id'] . '|' . $category['name'])
+            ->sortBy('name')
+            ->values()
+            ->all();
+    }
+
+    private function categoryOptionSources(): array
+    {
+        return collect([
+            ['table' => 'circle_categories', 'name_column' => 'name'],
+            ['table' => 'level4_categories', 'name_column' => 'name'],
+            ['table' => 'circle_category_level4', 'name_column' => 'name'],
+            ['table' => 'business_categories', 'name_column' => 'name'],
+            ['table' => 'categories', 'name_column' => 'category_name'],
+        ])->filter(fn (array $source): bool => Schema::hasTable($source['table']))->values()->all();
+    }
+
+    private function valuesCompatibleWithColumn(string $table, string $column, array $values): array
+    {
+        $type = $this->columnDataType($table, $column);
+        if ($type === null) {
+            return $values;
+        }
+
+        if (in_array($type, ['uuid'], true)) {
+            return collect($values)->filter(fn (string $value): bool => Str::isUuid($value))->values()->all();
+        }
+
+        if (str_contains($type, 'int') || in_array($type, ['bigint', 'integer', 'smallint'], true)) {
+            return collect($values)->filter(fn (string $value): bool => preg_match('/^-?\d+$/', $value) === 1)->values()->all();
+        }
+
+        return $values;
+    }
+
+    private function columnDataType(string $table, string $column): ?string
+    {
+        try {
+            return DB::table('information_schema.columns')
+                ->where('table_schema', 'public')
+                ->where('table_name', $table)
+                ->where('column_name', $column)
+                ->value('data_type');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function formatUser(User $user): array

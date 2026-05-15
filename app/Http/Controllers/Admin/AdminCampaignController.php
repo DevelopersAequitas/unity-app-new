@@ -70,7 +70,9 @@ class AdminCampaignController extends Controller
         $campaign->load(['recipients.user']);
         $recipients = $campaign->recipients()->with('user')->latest('created_at')->paginate(50);
 
-        return view('admin.campaigns.show', compact('campaign', 'recipients'));
+        $filterSummary = $this->recipientResolver->describeFilters($campaign->filters);
+
+        return view('admin.campaigns.show', compact('campaign', 'recipients', 'filterSummary'));
     }
 
     public function edit(AdminCampaign $campaign): View|RedirectResponse
@@ -116,7 +118,14 @@ class AdminCampaignController extends Controller
         $recipients = $this->recipientResolver->preview($data['audience_type'], $filters, $requiresEmail);
         $total = $this->recipientResolver->count($data['audience_type'], $filters, $requiresEmail);
 
-        return response()->json(['total' => $total, 'recipients' => $recipients]);
+        return response()->json([
+            'total' => $total,
+            'recipients' => $recipients,
+            'debug' => [
+                'selected_business_category_ids' => $this->recipientResolver->businessCategoryIdsFromFilters($filters),
+                'matched_users_count' => $total,
+            ],
+        ]);
     }
 
     public function send(AdminCampaign $campaign): RedirectResponse
@@ -177,12 +186,24 @@ class AdminCampaignController extends Controller
             $filters = [];
         }
 
-        return collect($filters)->map(function ($value) {
+        $normalized = collect($filters)->map(function ($value) {
             if (is_array($value)) {
                 return collect($value)->filter(fn ($item) => filled($item))->values()->all();
             }
 
             return $value;
         })->all();
+
+        if (isset($normalized['category_ids'])) {
+            $normalized['business_category_ids'] = collect($normalized['business_category_ids'] ?? [])
+                ->merge($normalized['category_ids'])
+                ->filter(fn ($item) => filled($item))
+                ->unique()
+                ->values()
+                ->all();
+            unset($normalized['category_ids']);
+        }
+
+        return $normalized;
     }
 }

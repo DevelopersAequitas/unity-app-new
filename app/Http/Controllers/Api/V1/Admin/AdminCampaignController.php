@@ -53,9 +53,15 @@ class AdminCampaignController extends BaseApiController
         $filters = $this->normalizeFilters($request);
         $requiresEmail = in_array($data['campaign_type'], ['email_only', 'email_and_notification'], true);
 
+        $total = $this->recipientResolver->count($data['audience_type'], $filters, $requiresEmail);
+
         return $this->success([
-            'total' => $this->recipientResolver->count($data['audience_type'], $filters, $requiresEmail),
+            'total' => $total,
             'recipients' => $this->recipientResolver->preview($data['audience_type'], $filters, $requiresEmail),
+            'debug' => [
+                'selected_business_category_ids' => $this->recipientResolver->businessCategoryIdsFromFilters($filters),
+                'matched_users_count' => $total,
+            ],
         ]);
     }
 
@@ -103,6 +109,20 @@ class AdminCampaignController extends BaseApiController
             $filters = is_array($decoded) ? $decoded : [];
         }
 
-        return is_array($filters) ? $filters : [];
+        if (! is_array($filters)) {
+            return [];
+        }
+
+        if (isset($filters['category_ids'])) {
+            $filters['business_category_ids'] = collect($filters['business_category_ids'] ?? [])
+                ->merge($filters['category_ids'])
+                ->filter(fn ($item) => filled($item))
+                ->unique()
+                ->values()
+                ->all();
+            unset($filters['category_ids']);
+        }
+
+        return $filters;
     }
 }
