@@ -129,7 +129,7 @@ class CampaignRecipientResolverService
             ->whereIn('campaign_cm.circle_id', $circleIds);
 
         if (Schema::hasColumn('circle_members', 'status')) {
-            $query->whereIn('campaign_cm.status', ['approved', 'active']);
+            $query->whereIn('campaign_cm.status', ['approved']);
         }
         if (Schema::hasColumn('circle_members', 'deleted_at')) {
             $query->whereNull('campaign_cm.deleted_at');
