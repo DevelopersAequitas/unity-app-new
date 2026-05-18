@@ -48,32 +48,6 @@
                             <input type="text" id="campaignSubject" name="subject" class="form-control" value="{{ old('subject', $campaign->subject ?? '') }}" @required($showEmailFields)>
                         </div>
                         <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div>
-                                    <label class="form-label mb-0">Choose Email Template</label>
-                                    <div class="text-muted small">Basic templates inspired by Zoho Campaigns. Existing email body editing still works.</div>
-                                </div>
-                                <a href="{{ route('admin.campaign-email-templates.index') }}" class="btn btn-sm btn-outline-secondary">View Templates</a>
-                            </div>
-                            <div class="row g-3" id="emailTemplateGrid">
-                                @foreach ($emailTemplates as $template)
-                                    <div class="col-sm-6 col-xl-4">
-                                        <div class="card h-100 campaign-email-template-card @if ((string) $selectedEmailTemplateId === (string) $template['id']) selected @endif" role="button" tabindex="0" data-template-id="{{ $template['id'] }}">
-                                            <div class="card-body p-3">
-                                                <div class="campaign-template-thumb campaign-template-thumb-{{ $template['template_type'] }} mb-3">
-                                                    <span></span><span></span><span></span><span></span>
-                                                </div>
-                                                <h3 class="h6 mb-2">{{ $template['name'] }}</h3>
-                                                <button type="button" class="btn btn-sm @if ((string) $selectedEmailTemplateId === (string) $template['id']) btn-primary @else btn-outline-primary @endif w-100 template-select-label">
-                                                    @if ((string) $selectedEmailTemplateId === (string) $template['id']) Selected @else Select Template @endif
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        </div>
-                        <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <label class="form-label mb-0" for="campaignEmailBody">Email Body</label>
                                 <button type="button" class="btn btn-sm btn-outline-primary select-pamphlet-btn" data-target="email">Select Pamphlet</button>
