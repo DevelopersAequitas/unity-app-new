@@ -99,7 +99,6 @@
     $campaignsMenu = [
         ['label' => 'Campaign Dashboard', 'route' => 'admin.campaigns.index'],
         ['label' => 'Create Campaign', 'route' => 'admin.campaigns.create'],
-        ['label' => 'Campaign History', 'route' => 'admin.campaigns.index'],
     ];
     $campaignsActive = request()->routeIs('admin.campaigns.*') || request()->routeIs('admin.execution.communications');
 @endphp
