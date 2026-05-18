@@ -147,10 +147,30 @@
         <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
             <div class="modal-header"><h5 class="modal-title">Import Audience Values</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body">
-                <div class="mb-2"><input type="search" id="audienceImportSearch" class="form-control" placeholder="Search values"></div>
-                <div id="audienceImportList" class="list-group"></div>
+                <div id="audienceImportAlert" class="alert d-none" role="alert"></div>
+                <p class="text-muted small mb-3">Upload a CSV/XLSX/XLS file. Columns are detected automatically based on the selected audience type and imported values fill the current audience fields only.</p>
+                <div class="mb-3">
+                    <label class="form-label" for="audienceImportFile">Audience File</label>
+                    <input type="file" id="audienceImportFile" class="form-control" accept=".csv,.xlsx,.xls" required>
+                    <div class="form-text">Maximum file size: 10 MB.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Detected Columns</label>
+                    <div id="audienceImportColumns" class="border rounded p-2 text-muted small">Upload a file to preview detected columns.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Download Sample CSVs</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{{ route('admin.campaigns.audience-samples', 'city') }}" class="btn btn-sm btn-outline-secondary">Download City Sample</a>
+                        <a href="{{ route('admin.campaigns.audience-samples', 'company') }}" class="btn btn-sm btn-outline-secondary">Download Company Sample</a>
+                        <a href="{{ route('admin.campaigns.audience-samples', 'membership_status') }}" class="btn btn-sm btn-outline-secondary">Download Membership Status Sample</a>
+                    </div>
+                </div>
             </div>
-            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" id="audienceImportSubmit" class="btn btn-primary">Import</button>
+            </div>
         </div></div>
     </div>
 
@@ -205,7 +225,7 @@
         const type = audienceType.value;
         const visible = {
             city: ['cities'], circle: ['circle_ids'], company: ['companies'], category: ['business_category_ids'], membership_status: ['membership_statuses'], specific_members: ['user_ids'],
-            custom_filter: ['cities','circle_ids','companies','business_category_ids','membership_statuses']
+            custom_filter: ['cities','circle_ids','companies','business_category_ids','membership_statuses','user_ids']
         }[type] || [];
         document.querySelectorAll('.filter-block').forEach(el => el.style.display = visible.includes(el.dataset.filter) ? 'block' : 'none');
     }
@@ -229,50 +249,74 @@
         $(select).val(current).trigger('change');
     }
 
-    function audienceImportItems(type) {
-        if (type === 'all_members') return [{ value: 'all_members', label: 'Import all members', filter: null }];
-        if (type === 'city') return (filterOptions.cities || []).map(value => ({ value, label: value, filter: 'cities' }));
-        if (type === 'circle') return (filterOptions.circles || []).map(item => ({ value: item.id, label: item.name, filter: 'circle_ids' }));
-        if (type === 'company') return (filterOptions.companies || []).map(value => ({ value, label: value, filter: 'companies' }));
-        if (type === 'category') return (filterOptions.categories || []).map(item => ({ value: item.id, label: item.name, filter: 'business_category_ids' }));
-        if (type === 'membership_status') return (filterOptions.membership_statuses || []).map(value => ({ value, label: value, filter: 'membership_statuses' }));
-        return [];
+    function showAudienceImportAlert(message, type = 'success') {
+        const alert = document.getElementById('audienceImportAlert');
+        alert.className = `alert alert-${type}`;
+        alert.textContent = message;
     }
 
-    async function renderAudienceImportList(search = '') {
-        const list = document.getElementById('audienceImportList');
-        const type = audienceType.value;
-        let items = audienceImportItems(type);
-        if (type === 'specific_members') {
-            const response = await fetch(`{{ route('admin.campaigns.member-search') }}?search=${encodeURIComponent(search)}`, { headers: { 'Accept': 'application/json' } });
-            const data = await response.json();
-            items = (data.items || []).map(item => ({ value: item.id, label: `${item.display_name} (${item.email || item.phone || 'No contact'})`, filter: 'user_ids' }));
-        } else if (search) {
-            const needle = search.toLowerCase();
-            items = items.filter(item => String(item.label).toLowerCase().includes(needle));
-        }
-
-        list.innerHTML = items.map(item => `<button type="button" class="list-group-item list-group-item-action audience-import-item" data-filter="${escapeHtml(item.filter || '')}" data-value="${escapeHtml(item.value)}" data-label="${escapeHtml(item.label)}">${escapeHtml(item.label)}</button>`).join('') || '<div class="text-muted p-3">No values found.</div>';
+    function resetAudienceImportModal() {
+        document.getElementById('audienceImportFile').value = '';
+        document.getElementById('audienceImportColumns').innerHTML = '<span class="text-muted">Upload a file to preview detected columns.</span>';
+        document.getElementById('audienceImportAlert').className = 'alert d-none';
+        document.getElementById('audienceImportAlert').textContent = '';
     }
 
-    document.getElementById('importAudienceBtn').addEventListener('click', async () => {
-        document.getElementById('audienceImportSearch').value = '';
-        await renderAudienceImportList();
+    function fillImportedFilters(filters) {
+        Object.entries(filters || {}).forEach(([filterKey, payload]) => {
+            const select = selectForFilter(filterKey);
+            (payload.options || []).forEach(option => addSelectValue(select, option.value, option.label));
+        });
+    }
+
+    function renderDetectedColumns(columns, matchedColumns = {}) {
+        const container = document.getElementById('audienceImportColumns');
+        const badges = (columns || []).map(column => `<span class="badge bg-light text-dark border me-1 mb-1">${escapeHtml(column)}</span>`).join('');
+        const matched = Object.entries(matchedColumns || {}).map(([filter, cols]) => `<div class="small mt-1"><strong>${escapeHtml(filter)}:</strong> ${cols.map(escapeHtml).join(', ')}</div>`).join('');
+        container.innerHTML = badges || '<span class="text-muted">No columns detected.</span>';
+        if (matched) container.innerHTML += `<div class="mt-2">${matched}</div>`;
+    }
+
+    document.getElementById('importAudienceBtn').addEventListener('click', () => {
+        resetAudienceImportModal();
         bootstrap.Modal.getOrCreateInstance(document.getElementById('audienceImportModal')).show();
     });
 
-    document.getElementById('audienceImportSearch').addEventListener('input', async (event) => {
-        await renderAudienceImportList(event.target.value || '');
-    });
-
-    document.getElementById('audienceImportList').addEventListener('click', (event) => {
-        const item = event.target.closest('.audience-import-item');
-        if (!item) return;
-        if (!item.dataset.filter) {
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('audienceImportModal')).hide();
+    document.getElementById('audienceImportSubmit').addEventListener('click', async () => {
+        const fileInput = document.getElementById('audienceImportFile');
+        if (!fileInput.files.length) {
+            showAudienceImportAlert('Please choose a CSV, XLSX, or XLS file to import.', 'warning');
             return;
         }
-        addSelectValue(selectForFilter(item.dataset.filter), item.dataset.value, item.dataset.label);
+
+        const button = document.getElementById('audienceImportSubmit');
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('audience_type', audienceType.value);
+
+        button.disabled = true;
+        button.textContent = 'Importing...';
+        try {
+            const response = await fetch('{{ route('admin.campaigns.import-audience') }}', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                body: formData
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                showAudienceImportAlert(data.message || 'Audience import failed.', 'danger');
+                return;
+            }
+
+            renderDetectedColumns(data.data.columns || [], data.data.matched_columns || {});
+            fillImportedFilters(data.data.filters || { [data.data.filter]: { options: (data.data.values || []).map(value => ({ value, label: (data.data.labels || {})[value] || value })) } });
+            showAudienceImportAlert(data.message || `${data.data.count || 0} values imported successfully.`, 'success');
+        } catch (error) {
+            showAudienceImportAlert('Audience import failed. Please check the file and try again.', 'danger');
+        } finally {
+            button.disabled = false;
+            button.textContent = 'Import';
+        }
     });
 
     function pamphletImageHtml(url) {

@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AdminCampaign;
 use App\Models\CampaignPamphlet;
+use App\Services\AdminCampaigns\CampaignAudienceImportService;
 use App\Services\AdminCampaigns\CampaignRecipientResolverService;
 use App\Services\AdminCampaigns\CampaignSendService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
@@ -22,6 +24,7 @@ class AdminCampaignController extends Controller
     public function __construct(
         private readonly CampaignRecipientResolverService $recipientResolver,
         private readonly CampaignSendService $sendService,
+        private readonly CampaignAudienceImportService $audienceImportService,
     ) {
     }
 
@@ -147,6 +150,93 @@ class AdminCampaignController extends Controller
     public function memberSearch(Request $request): JsonResponse
     {
         return response()->json(['items' => $this->recipientResolver->searchMembers((string) $request->query('search', ''))]);
+    }
+
+    public function importAudience(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'file' => ['required', 'file', 'max:10240', 'mimes:csv,txt,xlsx,xls'],
+            'audience_type' => ['required', Rule::in(self::AUDIENCE_TYPES)],
+        ]);
+
+        try {
+            $import = $this->audienceImportService->import($data['file'], $data['audience_type']);
+        } catch (RuntimeException|\InvalidArgumentException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $this->importMessage($data['audience_type'], $import['count']),
+            'data' => $import,
+        ]);
+    }
+
+    public function downloadAudienceSample(string $audienceType): Response
+    {
+        abort_unless(array_key_exists($audienceType, $this->sampleColumns()), 404);
+
+        $columns = $this->sampleColumns()[$audienceType];
+        $rows = [
+            $columns,
+            $this->sampleValues($audienceType, $columns, 0),
+            $this->sampleValues($audienceType, $columns, 1),
+            $this->sampleValues($audienceType, $columns, 2),
+        ];
+
+        $csv = collect($rows)->map(fn (array $row): string => collect($row)->map(fn (string $value): string => '"' . str_replace('"', '""', $value) . '"')->implode(','))->implode("\n");
+
+        return response($csv . "\n", 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="campaign-' . str_replace('_', '-', $audienceType) . '-sample.csv"',
+        ]);
+    }
+
+    private function importMessage(string $audienceType, int $count): string
+    {
+        $label = match ($audienceType) {
+            'city' => 'cities',
+            'company' => 'companies',
+            'membership_status' => 'membership statuses',
+            'specific_members' => 'members',
+            'category' => 'business categories',
+            'circle' => 'circles',
+            'custom_filter' => 'audience values',
+            default => 'audience values',
+        };
+
+        return $count . ' ' . $label . ' imported successfully.';
+    }
+
+    private function sampleColumns(): array
+    {
+        return [
+            'city' => ['city'],
+            'company' => ['company_name'],
+            'membership_status' => ['membership_status'],
+            'specific_members' => ['email', 'phone', 'id'],
+            'category' => ['business_category'],
+            'circle' => ['circle_name'],
+            'custom_filter' => ['city', 'company_name', 'membership_status', 'email', 'business_category', 'circle_name'],
+        ];
+    }
+
+    private function sampleValues(string $audienceType, array $columns, int $index): array
+    {
+        $samples = [
+            'city' => [['Ahmedabad'], ['Pune'], ['Mumbai']],
+            'company' => [['Acme Industries'], ['Unity Ventures'], ['Growth Labs']],
+            'membership_status' => [['active'], ['trial'], ['expired']],
+            'specific_members' => [['member1@example.com', '9876543210', ''], ['member2@example.com', '', ''], ['', '9876500000', '']],
+            'category' => [['Manufacturing'], ['Technology'], ['Consulting']],
+            'circle' => [['Ahmedabad Circle'], ['Pune Circle'], ['Mumbai Circle']],
+            'custom_filter' => [['Ahmedabad', 'Acme Industries', 'active', 'member1@example.com', 'Manufacturing', 'Ahmedabad Circle'], ['Pune', 'Unity Ventures', 'trial', 'member2@example.com', 'Technology', 'Pune Circle'], ['Mumbai', 'Growth Labs', 'expired', '', 'Consulting', 'Mumbai Circle']],
+        ];
+
+        return array_pad($samples[$audienceType][$index] ?? [], count($columns), '');
     }
 
     private function validatedCampaignData(Request $request): array

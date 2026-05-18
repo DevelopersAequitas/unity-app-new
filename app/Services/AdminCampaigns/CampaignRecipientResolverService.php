@@ -155,6 +155,45 @@ class CampaignRecipientResolverService
         return $this->cleanArray($filters['business_category_ids'] ?? $filters['category_ids'] ?? $filters['categories'] ?? []);
     }
 
+
+    public function resolveBusinessCategoryValues(array $values): array
+    {
+        $values = $this->cleanArray($values);
+        if ($values === []) {
+            return [];
+        }
+
+        $categories = collect();
+        foreach ($this->categoryOptionSources() as $source) {
+            if (! Schema::hasTable($source['table']) || ! Schema::hasColumn($source['table'], $source['name_column'])) {
+                continue;
+            }
+
+            $query = DB::table($source['table'])
+                ->select(['id', DB::raw("{$source['name_column']} as name")])
+                ->where(function ($builder) use ($source, $values): void {
+                    $compatibleIds = $this->valuesCompatibleWithColumn($source['table'], 'id', $values);
+                    if ($compatibleIds !== []) {
+                        $builder->orWhereIn('id', $compatibleIds);
+                    }
+
+                    foreach ($values as $value) {
+                        $builder->orWhereRaw("LOWER({$source['name_column']}) = ?", [Str::lower($value)]);
+                    }
+                });
+
+            $categories = $categories->merge($query->get()->map(fn ($row) => [
+                'id' => (string) $row->id,
+                'name' => (string) $row->name,
+            ]));
+        }
+
+        return $categories
+            ->unique(fn (array $category): string => $category['id'])
+            ->values()
+            ->all();
+    }
+
     public function businessCategoryNames(array $ids): array
     {
         $ids = $this->cleanArray($ids);

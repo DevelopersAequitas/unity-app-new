@@ -204,6 +204,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/campaigns/create', [AdminCampaignController::class, 'create'])->name('campaigns.create');
         Route::post('/campaigns', [AdminCampaignController::class, 'store'])->name('campaigns.store');
         Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients'])->name('campaigns.preview-recipients');
+        Route::post('/campaigns/import-audience', [AdminCampaignController::class, 'importAudience'])->name('campaigns.import-audience');
+        Route::get('/campaigns/audience-samples/{audienceType}', [AdminCampaignController::class, 'downloadAudienceSample'])->name('campaigns.audience-samples');
         Route::get('/campaigns/filter-options', [AdminCampaignController::class, 'filterOptions'])->name('campaigns.filter-options');
         Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch'])->name('campaigns.member-search');
         Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->name('campaigns.show');
