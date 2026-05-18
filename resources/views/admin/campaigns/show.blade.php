@@ -45,6 +45,15 @@
         </div></div></div>
         <div class="col-lg-4"><div class="card shadow-sm h-100"><div class="card-body">
             <h2 class="h6">Selected Filters</h2>
+            @if (! empty($campaign->pamphlet_snapshot))
+                <div class="mb-2">
+                    <span class="text-muted small d-block">Selected Pamphlet</span>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ $campaign->pamphlet_snapshot['title'] ?? $campaign->pamphlet_id }}</span>
+                    @if (! empty($campaign->pamphlet_snapshot['image_url']))
+                        <div class="small mt-1 text-break">Image: {{ $campaign->pamphlet_snapshot['image_url'] }}</div>
+                    @endif
+                </div>
+            @endif
             @if (! empty($filterSummary['business_categories']))
                 <div class="mb-2">
                     <span class="text-muted small d-block">Business Categories</span>

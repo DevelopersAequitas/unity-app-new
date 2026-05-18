@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminCampaign;
+use App\Models\CampaignPamphlet;
 use App\Services\AdminCampaigns\CampaignRecipientResolverService;
 use App\Services\AdminCampaigns\CampaignSendService;
 use Illuminate\Http\JsonResponse;
@@ -159,9 +160,14 @@ class AdminCampaignController extends Controller
             'notification_message' => ['nullable', 'string', 'required_if:campaign_type,notification_only,email_and_notification'],
             'audience_type' => ['required', Rule::in(self::AUDIENCE_TYPES)],
             'filters' => ['nullable'],
+            'pamphlet_id' => ['nullable', 'uuid', 'exists:campaign_pamphlets,id'],
         ]);
 
         $data['filters'] = $this->normalizeFilters($request);
+        $pamphlet = filled($data['pamphlet_id'] ?? null)
+            ? CampaignPamphlet::query()->where('id', $data['pamphlet_id'])->first()
+            : null;
+        $data['pamphlet_snapshot'] = $pamphlet?->snapshot();
 
         if (! in_array($data['campaign_type'], ['email_only', 'email_and_notification'], true)) {
             $data['subject'] = null;

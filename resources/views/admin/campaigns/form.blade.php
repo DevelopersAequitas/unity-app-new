@@ -11,6 +11,7 @@
         $showEmailFields = in_array($campaignType, ['email_only', 'email_and_notification'], true);
         $showNotificationFields = in_array($campaignType, ['notification_only', 'email_and_notification'], true);
         $selectedBusinessCategoryIds = collect($filters['business_category_ids'] ?? $filters['category_ids'] ?? [])->map(fn ($id) => (string) $id)->all();
+        $selectedPamphletId = old('pamphlet_id', $campaign->pamphlet_id ?? '');
     @endphp
 
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -22,6 +23,7 @@
         @csrf
         @if ($mode === 'edit') @method('PUT') @endif
         <input type="hidden" name="action" id="campaignAction" value="draft">
+        <input type="hidden" name="pamphlet_id" id="pamphletId" value="{{ $selectedPamphletId }}">
 
         <div class="row g-3">
             <div class="col-lg-8">
@@ -44,7 +46,10 @@
                             <input type="text" id="campaignSubject" name="subject" class="form-control" value="{{ old('subject', $campaign->subject ?? '') }}" @required($showEmailFields)>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="campaignEmailBody">Email Body</label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0" for="campaignEmailBody">Email Body</label>
+                                <button type="button" class="btn btn-sm btn-outline-primary select-pamphlet-btn" data-target="email">Select Pamphlet</button>
+                            </div>
                             <textarea id="campaignEmailBody" name="email_body" rows="10" class="form-control" placeholder="HTML content is supported" @required($showEmailFields)>{{ old('email_body', $campaign->email_body ?? '') }}</textarea>
                         </div>
                     </div>
@@ -54,7 +59,10 @@
                             <input type="text" id="campaignNotificationTitle" name="notification_title" class="form-control" value="{{ old('notification_title', $campaign->notification_title ?? '') }}" @required($showNotificationFields)>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="campaignNotificationMessage">Notification Message</label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0" for="campaignNotificationMessage">Notification Message</label>
+                                <button type="button" class="btn btn-sm btn-outline-primary select-pamphlet-btn" data-target="notification">Select Pamphlet</button>
+                            </div>
                             <textarea id="campaignNotificationMessage" name="notification_message" rows="4" class="form-control" @required($showNotificationFields)>{{ old('notification_message', $campaign->notification_message ?? '') }}</textarea>
                         </div>
                     </div>
@@ -63,7 +71,10 @@
 
             <div class="col-lg-4">
                 <div class="card shadow-sm mb-3"><div class="card-body">
-                    <h2 class="h6">Audience Selection</h2>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h2 class="h6 mb-0">Audience Selection</h2>
+                        <button type="button" id="importAudienceBtn" class="btn btn-sm btn-outline-primary">Import</button>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Audience</label>
                         <select name="audience_type" id="audienceType" class="form-select" required>
@@ -131,6 +142,25 @@
         <div id="previewDebug" class="small text-muted px-3 py-2 border-bottom" style="display:none;"></div>
         <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>City</th><th>Company</th><th>Membership</th><th>Circle</th></tr></thead><tbody id="previewBody"></tbody></table></div>
     </div>
+
+    <div class="modal fade" id="audienceImportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Import Audience Values</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2"><input type="search" id="audienceImportSearch" class="form-control" placeholder="Search values"></div>
+                <div id="audienceImportList" class="list-group"></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+        </div></div>
+    </div>
+
+    <div class="modal fade" id="pamphletSelectModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Select Pamphlet</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><div id="pamphletList" class="row g-3"></div></div>
+            <div class="modal-footer"><a href="{{ route('admin.campaign-pamphlets.create') }}" class="btn btn-outline-primary">Add Pamphlet</a><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+        </div></div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -139,6 +169,9 @@
     const campaignType = document.getElementById('campaignType');
     const audienceType = document.getElementById('audienceType');
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
+    const filterOptions = @json($filterOptions);
+    let pamphlets = [];
+    let pamphletTarget = 'both';
 
     $('.select2').select2({ width: '100%' });
     $('#memberSelect').select2({
@@ -167,6 +200,7 @@
         setSectionVisibility(document.getElementById('emailFields'), emailVisible, ['subject', 'email_body']);
         setSectionVisibility(document.getElementById('notificationFields'), notificationVisible, ['notification_title', 'notification_message']);
     }
+
     function syncFilterFields() {
         const type = audienceType.value;
         const visible = {
@@ -175,6 +209,127 @@
         }[type] || [];
         document.querySelectorAll('.filter-block').forEach(el => el.style.display = visible.includes(el.dataset.filter) ? 'block' : 'none');
     }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+    }
+
+    function selectForFilter(filterKey) {
+        return document.querySelector(`.filter-block[data-filter="${filterKey}"] select`);
+    }
+
+    function addSelectValue(select, value, label) {
+        if (!select) return;
+        const stringValue = String(value);
+        if (!Array.from(select.options).some(option => option.value === stringValue)) {
+            select.add(new Option(label || stringValue, stringValue, true, true));
+        }
+        const current = $(select).val() || [];
+        if (!current.includes(stringValue)) current.push(stringValue);
+        $(select).val(current).trigger('change');
+    }
+
+    function audienceImportItems(type) {
+        if (type === 'all_members') return [{ value: 'all_members', label: 'Import all members', filter: null }];
+        if (type === 'city') return (filterOptions.cities || []).map(value => ({ value, label: value, filter: 'cities' }));
+        if (type === 'circle') return (filterOptions.circles || []).map(item => ({ value: item.id, label: item.name, filter: 'circle_ids' }));
+        if (type === 'company') return (filterOptions.companies || []).map(value => ({ value, label: value, filter: 'companies' }));
+        if (type === 'category') return (filterOptions.categories || []).map(item => ({ value: item.id, label: item.name, filter: 'business_category_ids' }));
+        if (type === 'membership_status') return (filterOptions.membership_statuses || []).map(value => ({ value, label: value, filter: 'membership_statuses' }));
+        return [];
+    }
+
+    async function renderAudienceImportList(search = '') {
+        const list = document.getElementById('audienceImportList');
+        const type = audienceType.value;
+        let items = audienceImportItems(type);
+        if (type === 'specific_members') {
+            const response = await fetch(`{{ route('admin.campaigns.member-search') }}?search=${encodeURIComponent(search)}`, { headers: { 'Accept': 'application/json' } });
+            const data = await response.json();
+            items = (data.items || []).map(item => ({ value: item.id, label: `${item.display_name} (${item.email || item.phone || 'No contact'})`, filter: 'user_ids' }));
+        } else if (search) {
+            const needle = search.toLowerCase();
+            items = items.filter(item => String(item.label).toLowerCase().includes(needle));
+        }
+
+        list.innerHTML = items.map(item => `<button type="button" class="list-group-item list-group-item-action audience-import-item" data-filter="${escapeHtml(item.filter || '')}" data-value="${escapeHtml(item.value)}" data-label="${escapeHtml(item.label)}">${escapeHtml(item.label)}</button>`).join('') || '<div class="text-muted p-3">No values found.</div>';
+    }
+
+    document.getElementById('importAudienceBtn').addEventListener('click', async () => {
+        document.getElementById('audienceImportSearch').value = '';
+        await renderAudienceImportList();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('audienceImportModal')).show();
+    });
+
+    document.getElementById('audienceImportSearch').addEventListener('input', async (event) => {
+        await renderAudienceImportList(event.target.value || '');
+    });
+
+    document.getElementById('audienceImportList').addEventListener('click', (event) => {
+        const item = event.target.closest('.audience-import-item');
+        if (!item) return;
+        if (!item.dataset.filter) {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('audienceImportModal')).hide();
+            return;
+        }
+        addSelectValue(selectForFilter(item.dataset.filter), item.dataset.value, item.dataset.label);
+    });
+
+    function pamphletImageHtml(url) {
+        return url ? `<p><img src="${url}" style="max-width:100%;height:auto;"></p>` : '';
+    }
+
+    function applyPamphlet(pamphlet, target = 'both') {
+        const type = campaignType.value;
+        document.getElementById('pamphletId').value = pamphlet.id;
+        if ((target === 'email' || target === 'both') && (type === 'email_only' || type === 'email_and_notification')) {
+            document.getElementById('campaignEmailBody').value = `${pamphlet.content || ''}${pamphletImageHtml(pamphlet.image_url || '')}`;
+        }
+        if ((target === 'notification' || target === 'both') && (type === 'notification_only' || type === 'email_and_notification')) {
+            document.getElementById('campaignNotificationMessage').value = pamphlet.short_message || pamphlet.title || '';
+        }
+    }
+
+    async function loadPamphlets() {
+        if (pamphlets.length) return pamphlets;
+        const response = await fetch('{{ route('admin.campaign-pamphlets.select-list') }}', { headers: { 'Accept': 'application/json' } });
+        pamphlets = await response.json();
+        return pamphlets;
+    }
+
+    async function renderPamphlets() {
+        const items = await loadPamphlets();
+        const list = document.getElementById('pamphletList');
+        list.innerHTML = items.map(item => `
+            <div class="col-md-6">
+                <div class="card h-100">
+                    ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" class="card-img-top" style="height:140px;object-fit:cover;" alt="${escapeHtml(item.title)}">` : ''}
+                    <div class="card-body">
+                        <h6 class="card-title">${escapeHtml(item.title)}</h6>
+                        <p class="small text-muted">${escapeHtml(item.short_message || '')}</p>
+                        <button type="button" class="btn btn-sm btn-primary pamphlet-choose" data-id="${item.id}">Select</button>
+                    </div>
+                </div>
+            </div>`).join('') || '<div class="col-12 text-muted">No active pamphlets found.</div>';
+    }
+
+    document.querySelectorAll('.select-pamphlet-btn').forEach(button => {
+        button.addEventListener('click', async () => {
+            pamphletTarget = button.dataset.target || 'both';
+            await renderPamphlets();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('pamphletSelectModal')).show();
+        });
+    });
+
+    document.getElementById('pamphletList').addEventListener('click', (event) => {
+        const button = event.target.closest('.pamphlet-choose');
+        if (!button) return;
+        const pamphlet = pamphlets.find(item => item.id === button.dataset.id);
+        if (!pamphlet) return;
+        applyPamphlet(pamphlet, campaignType.value === 'email_and_notification' ? 'both' : pamphletTarget);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('pamphletSelectModal')).hide();
+    });
+
     campaignType.addEventListener('change', syncTypeFields);
     audienceType.addEventListener('change', syncFilterFields);
     syncTypeFields(); syncFilterFields();

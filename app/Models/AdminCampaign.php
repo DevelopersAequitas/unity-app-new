@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -27,11 +28,12 @@ class AdminCampaign extends Model
     protected $fillable = [
         'title', 'campaign_type', 'subject', 'email_body', 'notification_title', 'notification_message',
         'audience_type', 'filters', 'total_recipients', 'total_email_sent', 'total_notification_sent',
-        'total_failed', 'status', 'sent_at', 'created_by', 'updated_by',
+        'total_failed', 'status', 'sent_at', 'pamphlet_id', 'pamphlet_snapshot', 'created_by', 'updated_by',
     ];
 
     protected $casts = [
         'filters' => 'array',
+        'pamphlet_snapshot' => 'array',
         'sent_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -49,6 +51,11 @@ class AdminCampaign extends Model
     public function recipients(): HasMany
     {
         return $this->hasMany(AdminCampaignRecipient::class, 'campaign_id');
+    }
+
+    public function pamphlet(): BelongsTo
+    {
+        return $this->belongsTo(CampaignPamphlet::class, 'pamphlet_id');
     }
 
     public function includesEmail(): bool

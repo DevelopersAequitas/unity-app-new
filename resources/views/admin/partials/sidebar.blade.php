@@ -99,8 +99,9 @@
     $campaignsMenu = [
         ['label' => 'Campaign Dashboard', 'route' => 'admin.campaigns.index'],
         ['label' => 'Create Campaign', 'route' => 'admin.campaigns.create'],
+        ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index'],
     ];
-    $campaignsActive = request()->routeIs('admin.campaigns.*') || request()->routeIs('admin.execution.communications');
+    $campaignsActive = request()->routeIs('admin.campaigns.*') || request()->routeIs('admin.campaign-pamphlets.*') || request()->routeIs('admin.execution.communications');
 @endphp
 
 <aside class="admin-sidebar d-flex flex-column">
