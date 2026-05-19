@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class EventService
@@ -52,14 +53,42 @@ class EventService
 
     public function listOccurrences(array $filters, ?User $user = null, int $perPage = 20): LengthAwarePaginator
     {
+        $baseQuery = EventOccurrence::query()
+            ->whereHas('event');
+
         $query = EventOccurrence::query()
             ->with(['event.circle', 'registrations' => fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0')])
             ->withCount(['registrations as registered_count' => fn ($q) => $q->where('status', '!=', 'cancelled')->whereNull('deleted_at')])
+            ->withCount(['registrations as checked_in_count' => fn ($q) => $q->where('checkin_status', 'checked_in')->whereNull('deleted_at')])
             ->whereHas('event', function (Builder $eventQuery) use ($filters): void {
                 $eventQuery->when($filters['event_type'] ?? null, fn ($q, $v) => $q->where('event_type', $v))
                     ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where('circle_id', $v))
                     ->when($filters['mode'] ?? null, fn ($q, $v) => $q->where('mode', $v));
             });
+
+        if (! $this->isAdmin($user)) {
+            $query->whereHas('event', function (Builder $eventQuery) use ($user): void {
+                $eventQuery->where(function (Builder $visibilityQuery) use ($user): void {
+                    $visibilityQuery->where('visibility', 'public')
+                        ->orWhere('is_public', true)
+                        ->orWhere('event_type', 'public_event')
+                        ->orWhere('member_registration_enabled', true)
+                        ->orWhere('visitor_registration_enabled', true);
+
+                    if ($user) {
+                        $joinedCircleIds = CircleMember::query()
+                            ->where('user_id', $user->id)
+                            ->whereIn('status', ['approved', 'active'])
+                            ->whereNull('deleted_at')
+                            ->pluck('circle_id');
+
+                        if ($joinedCircleIds->isNotEmpty()) {
+                            $visibilityQuery->orWhereIn('circle_id', $joinedCircleIds);
+                        }
+                    }
+                });
+            });
+        }
 
         if (($filters['upcoming'] ?? 'true') !== 'false') {
             $query->where('start_at', '>=', now());
@@ -67,6 +96,16 @@ class EventService
 
         $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', $v))
             ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', $v));
+
+        Log::debug('events.list_occurrences', [
+            'auth_user_id' => $user?->id,
+            'is_admin' => $this->isAdmin($user),
+            'base_events_count' => $baseQuery->count(),
+            'filtered_events_count' => (clone $query)->count(),
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+            'filters' => $filters,
+        ]);
 
         return $query->orderBy('start_at')->paginate($perPage);
     }

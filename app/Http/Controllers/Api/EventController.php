@@ -27,6 +27,7 @@ use App\Services\Events\EventRazorpayPaymentFinalizer;
 use App\Services\Events\EventRazorpayPaymentService;
 use App\Services\Events\EventZohoInvoiceSyncService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class EventController extends BaseApiController
 {
@@ -43,6 +44,12 @@ class EventController extends BaseApiController
     public function index(Request $request)
     {
         $perPage = max(1, min((int) $request->input('per_page', 20), 100));
+        Log::debug('events.index.request', [
+            'auth_user_id' => $request->user()?->id,
+            'roles' => $request->user()?->roles()->pluck('key')->all() ?? [],
+            'filters' => $request->only(['event_type', 'circle_id', 'mode', 'from_date', 'to_date', 'upcoming']),
+            'per_page' => $perPage,
+        ]);
         $paginator = $this->events->listOccurrences($request->only(['event_type', 'circle_id', 'mode', 'from_date', 'to_date', 'upcoming']), $request->user(), $perPage);
 
         return $this->success([
