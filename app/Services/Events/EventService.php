@@ -107,6 +107,55 @@ class EventService
         return $query->orderBy('start_at')->paginate($perPage);
     }
 
+    public function listEvents(array $filters, ?User $user = null, int $perPage = 20): LengthAwarePaginator
+    {
+        $query = Event::query()
+            ->with(['circle', 'occurrences' => fn ($q) => $q->orderBy('start_at')])
+            ->withCount(['registrations as registered_count' => fn ($q) => $q->where('status', '!=', 'cancelled')->whereNull('deleted_at')])
+            ->withCount(['registrations as checked_in_count' => fn ($q) => $q->where('checkin_status', 'checked_in')->whereNull('deleted_at')])
+            ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where('circle_id', $v))
+            ->when($filters['mode'] ?? null, fn ($q, $v) => $q->where('mode', $v));
+
+        if (! $this->isAdmin($user)) {
+            $query->where(function (Builder $visibilityQuery) use ($user): void {
+                $visibilityQuery->where('visibility', 'public');
+
+                $memberRegistrationColumn = $this->memberRegistrationColumn();
+                if ($memberRegistrationColumn) {
+                    $visibilityQuery->orWhere($memberRegistrationColumn, true);
+                }
+
+                $visitorRegistrationColumn = $this->visitorRegistrationColumn();
+                if ($visitorRegistrationColumn) {
+                    $visibilityQuery->orWhere($visitorRegistrationColumn, true);
+                }
+
+                if ($user) {
+                    $joinedCircleIds = CircleMember::query()
+                        ->where('user_id', $user->id)
+                        ->where('status', 'approved')
+                        ->whereNull('deleted_at')
+                        ->pluck('circle_id');
+                    if ($joinedCircleIds->isNotEmpty()) {
+                        $visibilityQuery->orWhereIn('circle_id', $joinedCircleIds);
+                    }
+                }
+            });
+        }
+
+        if (($filters['upcoming'] ?? 'true') !== 'false') {
+            $query->where(function (Builder $dateQuery): void {
+                $dateQuery->where('start_at', '>=', now())
+                    ->orWhereHas('occurrences', fn (Builder $q) => $q->where('start_at', '>=', now()));
+            });
+        }
+
+        $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', $v))
+            ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', $v));
+
+        return $query->latest('start_at')->paginate($perPage);
+    }
+
     public function isEligible(Event $event, ?User $user): bool
     {
         if (! $user) {
@@ -144,12 +193,47 @@ class EventService
 
     public function visitorRegistrationEnabled(Event $event): bool
     {
-        return (bool) ($event->visitor_registration_enabled ?? false) || $event->event_type === 'public_event' || (bool) ($event->is_public ?? false);
+        $legacy = (bool) ($event->visitor_registration_enabled ?? false);
+        $new = (bool) ($event->enable_visitor_registration ?? false);
+
+        return $legacy || $new || (bool) ($event->is_public ?? false) || $event->visibility === 'public';
     }
 
     public function memberRegistrationEnabled(Event $event): bool
     {
-        return $event->member_registration_enabled === null ? true : (bool) $event->member_registration_enabled;
+        if (isset($event->member_registration_enabled)) {
+            return $event->member_registration_enabled === null ? true : (bool) $event->member_registration_enabled;
+        }
+
+        if (isset($event->enable_member_registration)) {
+            return $event->enable_member_registration === null ? true : (bool) $event->enable_member_registration;
+        }
+
+        return true;
+    }
+
+    private function memberRegistrationColumn(): ?string
+    {
+        if (Schema::hasColumn('events', 'member_registration_enabled')) {
+            return 'member_registration_enabled';
+        }
+        if (Schema::hasColumn('events', 'enable_member_registration')) {
+            return 'enable_member_registration';
+        }
+
+        return null;
+    }
+
+    private function visitorRegistrationColumn(): ?string
+    {
+        if (Schema::hasColumn('events', 'visitor_registration_enabled')) {
+            return 'visitor_registration_enabled';
+        }
+        if (Schema::hasColumn('events', 'enable_visitor_registration')) {
+            return 'enable_visitor_registration';
+        }
+
+        return null;
     }
 
     public function isAdmin(?User $user): bool

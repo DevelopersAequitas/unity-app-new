@@ -9,6 +9,7 @@ use App\Http\Requests\Event\ScanEventQrRequest;
 use App\Http\Requests\Event\StoreEventRequest;
 use App\Http\Requests\Event\VisitorEventRegistrationRequest;
 use App\Http\Resources\Event\EventDetailResource;
+use App\Http\Resources\Event\EventListResource;
 use App\Http\Resources\Event\EventOccurrenceListResource;
 use App\Http\Resources\Event\EventRegistrationResource;
 use App\Http\Resources\EventResource;
@@ -50,11 +51,11 @@ class EventController extends BaseApiController
             'filters' => $request->only(['circle_id', 'mode', 'from_date', 'to_date', 'upcoming']),
             'per_page' => $perPage,
         ]);
-        $paginator = $this->events->listOccurrences($request->only(['circle_id', 'mode', 'from_date', 'to_date', 'upcoming']), $request->user(), $perPage);
+        $paginator = $this->events->listEvents($request->only(['circle_id', 'mode', 'from_date', 'to_date', 'upcoming']), $request->user(), $perPage);
 
         return $this->success([
             'total' => $paginator->total(),
-            'items' => EventOccurrenceListResource::collection($paginator->getCollection()),
+            'items' => EventListResource::collection($paginator->getCollection()),
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
