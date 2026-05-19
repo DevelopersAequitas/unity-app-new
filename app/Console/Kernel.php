@@ -3,6 +3,7 @@
 namespace App\Console;
 
 use App\Console\Commands\LifeImpactBackfillCommand;
+use App\Console\Commands\GenerateRecurringEventOccurrences;
 use App\Console\Commands\LifeImpactRecalculateUsersCommand;
 use App\Console\Commands\SendAppUpdateReminderNotifications;
 use Illuminate\Console\Scheduling\Schedule;
@@ -12,6 +13,7 @@ class Kernel extends ConsoleKernel
 {
     protected $commands = [
         LifeImpactBackfillCommand::class,
+        GenerateRecurringEventOccurrences::class,
         LifeImpactRecalculateUsersCommand::class,
         SendAppUpdateReminderNotifications::class,
     ];
@@ -23,5 +25,6 @@ class Kernel extends ConsoleKernel
         $schedule->command('users:expire-trial')->hourly();
         $schedule->command('connections:send-pending-reminders')->dailyAt('09:00');
         $schedule->command('members:mark-offline-stale')->everyMinute();
+        $schedule->command('events:recurring:generate')->hourly();
     }
 }
