@@ -52,8 +52,9 @@ class RazorpayWebhookController extends Controller
         }
 
         $event = $data['event'] ?? '';
+        Log::info('razorpay.webhook.received', ['event' => $event]);
 
-        if ($event === 'payment.captured') {
+        if ($event === 'payment.captured' || $event === 'order.paid') {
             $this->handlePaymentCaptured($data);
         }
 
@@ -73,7 +74,8 @@ class RazorpayWebhookController extends Controller
     private function handlePaymentCaptured(array $payload): void
     {
         $paymentEntity = $payload['payload']['payment']['entity'] ?? [];
-        $orderId = $paymentEntity['order_id'] ?? null;
+        $orderEntity = $payload['payload']['order']['entity'] ?? [];
+        $orderId = $paymentEntity['order_id'] ?? ($orderEntity['id'] ?? null);
 
         if (! $orderId) {
             Log::warning('Razorpay webhook missing order id');
@@ -83,9 +85,14 @@ class RazorpayWebhookController extends Controller
 
         $eventRegistration = EventRegistration::query()->where('razorpay_order_id', $orderId)->first();
         if ($eventRegistration) {
+            Log::info('razorpay.webhook.registration_found', [
+                'registration_id' => $eventRegistration->id,
+                'order_id' => $orderId,
+                'already_paid' => ($eventRegistration->payment_status ?? null) === 'paid',
+            ]);
             $this->eventPaymentFinalizer->markPaid($eventRegistration, [
                 'razorpay_payment_id' => $paymentEntity['id'] ?? null,
-                'razorpay_payment_status' => $paymentEntity['status'] ?? 'captured',
+                'razorpay_payment_status' => $paymentEntity['status'] ?? 'paid',
             ]);
 
             return;

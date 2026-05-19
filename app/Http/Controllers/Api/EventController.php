@@ -137,6 +137,11 @@ class EventController extends BaseApiController
 
     public function verifyRazorpay(Request $request, string $registrationId)
     {
+        Log::info('razorpay.verify.started', [
+            'registration_id' => $registrationId,
+            'auth_user_id' => $request->user()?->id,
+        ]);
+
         $data = $request->validate([
             'razorpay_order_id' => ['required', 'string'],
             'razorpay_payment_id' => ['required', 'string'],
@@ -155,10 +160,20 @@ class EventController extends BaseApiController
         $registration = $this->paymentFinalizer->markPaid($registration, [
             'razorpay_payment_id' => $data['razorpay_payment_id'],
             'razorpay_signature' => $data['razorpay_signature'],
-            'razorpay_payment_status' => 'captured',
+            'razorpay_payment_status' => 'paid',
         ]);
 
-        return $this->success(new EventRegistrationResource($registration), 'Payment verified successfully.');
+        Log::info('razorpay.verify.success', [
+            'registration_id' => $registration->id,
+            'payment_status' => $registration->payment_status,
+            'status' => $registration->status,
+        ]);
+
+        return $this->success([
+            'registration' => new EventRegistrationResource($registration),
+            'qr_code_url' => $registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path),
+            'invoice' => $this->invoicePayload($registration),
+        ], 'Payment verified successfully.');
     }
 
     public function invoice(Request $request, string $registrationId)
