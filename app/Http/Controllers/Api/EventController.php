@@ -47,10 +47,10 @@ class EventController extends BaseApiController
         Log::debug('events.index.request', [
             'auth_user_id' => $request->user()?->id,
             'roles' => $request->user()?->roles()->pluck('key')->all() ?? [],
-            'filters' => $request->only(['event_type', 'circle_id', 'mode', 'from_date', 'to_date', 'upcoming']),
+            'filters' => $request->only(['circle_id', 'mode', 'from_date', 'to_date', 'upcoming']),
             'per_page' => $perPage,
         ]);
-        $paginator = $this->events->listOccurrences($request->only(['event_type', 'circle_id', 'mode', 'from_date', 'to_date', 'upcoming']), $request->user(), $perPage);
+        $paginator = $this->events->listOccurrences($request->only(['circle_id', 'mode', 'from_date', 'to_date', 'upcoming']), $request->user(), $perPage);
 
         return $this->success([
             'total' => $paginator->total(),

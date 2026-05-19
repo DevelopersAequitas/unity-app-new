@@ -61,8 +61,7 @@ class EventService
             ->withCount(['registrations as registered_count' => fn ($q) => $q->where('status', '!=', 'cancelled')->whereNull('deleted_at')])
             ->withCount(['registrations as checked_in_count' => fn ($q) => $q->where('checkin_status', 'checked_in')->whereNull('deleted_at')])
             ->whereHas('event', function (Builder $eventQuery) use ($filters): void {
-                $eventQuery->when($filters['event_type'] ?? null, fn ($q, $v) => $q->where('event_type', $v))
-                    ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where('circle_id', $v))
+                $eventQuery->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where('circle_id', $v))
                     ->when($filters['mode'] ?? null, fn ($q, $v) => $q->where('mode', $v));
             });
 
@@ -70,10 +69,8 @@ class EventService
             $query->whereHas('event', function (Builder $eventQuery) use ($user): void {
                 $eventQuery->where(function (Builder $visibilityQuery) use ($user): void {
                     $visibilityQuery->where('visibility', 'public')
-                        ->orWhere('is_public', true)
-                        ->orWhere('event_type', 'public_event')
-                        ->orWhere('member_registration_enabled', true)
-                        ->orWhere('visitor_registration_enabled', true);
+                        ->orWhere('enable_member_registration', true)
+                        ->orWhere('enable_visitor_registration', true);
 
                     if ($user) {
                         $joinedCircleIds = CircleMember::query()
