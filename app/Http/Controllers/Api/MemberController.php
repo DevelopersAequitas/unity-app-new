@@ -169,38 +169,22 @@ class MemberController extends BaseApiController
         $request->attributes->set('profile_match_auth_user', $authUser);
         $request->attributes->set('profile_match_service', $profileMatchService);
 
-        $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
-
-        $members = $query->paginate($perPage);
-        $members->appends($request->query());
+        $members = $query->get();
 
         if ($authUser) {
-            $members->setCollection(
-                $this->applyProfileMatchOrdering(
-                    $members->getCollection(),
-                    $authUser,
-                    $profileMatchService,
-                    $selectColumns,
-                    false
-                )
+            $members = $this->applyProfileMatchOrdering(
+                $members,
+                $authUser,
+                $profileMatchService,
+                $selectColumns,
+                false
             );
         }
 
         return response()->json([
             'success' => true,
             'message' => 'Members fetched successfully.',
-            'data' => UserResource::collection($members->items()),
-            'pagination' => [
-                'current_page' => $members->currentPage(),
-                'per_page' => $members->perPage(),
-                'total' => $members->total(),
-                'last_page' => $members->lastPage(),
-                'from' => $members->firstItem(),
-                'to' => $members->lastItem(),
-                'has_more_pages' => $members->hasMorePages(),
-                'next_page_url' => $members->nextPageUrl(),
-                'prev_page_url' => $members->previousPageUrl(),
-            ],
+            'data' => UserResource::collection($members),
         ]);
     }
 
