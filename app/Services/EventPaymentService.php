@@ -6,6 +6,7 @@ use App\Models\EventRegistration;
 use App\Services\Events\EventQrService;
 use App\Services\Zoho\ZohoBooksService;
 use App\Services\Zoho\ZohoPaymentService;
+use App\Exceptions\ZohoAuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -19,7 +20,24 @@ class EventPaymentService
 
     public function startZohoPayment(EventRegistration $registration): array
     {
-        $result = $this->zohoPayments->createPaymentForEventRegistration($registration);
+        try {
+            $result = $this->zohoPayments->createPaymentForEventRegistration($registration);
+        } catch (ZohoAuthorizationException $e) {
+            $registration->forceFill([
+                'payment_status' => 'pending',
+                'payment_failed_reason' => $e->getMessage(),
+            ])->save();
+            Log::error('Zoho API errors', ['registration_id' => $registration->id, 'message' => $e->getMessage()]);
+            throw $e;
+        } catch (\Throwable $e) {
+            $registration->forceFill([
+                'payment_status' => 'pending',
+                'payment_failed_reason' => 'Unable to create Zoho payment URL.',
+            ])->save();
+            Log::error('Zoho API errors', ['registration_id' => $registration->id, 'message' => $e->getMessage()]);
+            throw $e;
+        }
+
         $registration->forceFill([
             'payment_gateway' => 'zoho',
             'payment_url' => $result['payment_url'] ?? null,

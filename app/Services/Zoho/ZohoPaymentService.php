@@ -2,8 +2,11 @@
 
 namespace App\Services\Zoho;
 
+use App\Exceptions\ZohoAuthorizationException;
 use App\Models\EventRegistration;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class ZohoPaymentService
 {
@@ -24,25 +27,66 @@ class ZohoPaymentService
             ],
         ];
 
-        $response = $this->client()->post('/payment_links', $payload)->throw()->json();
+        $response = $this->sendWithAuthRetry('post', '/payment_links', $payload);
+        $body = $response->json();
 
         return [
-            'payment_url' => data_get($response, 'payment_link.url') ?? data_get($response, 'url'),
-            'payment_link_id' => data_get($response, 'payment_link.payment_link_id') ?? data_get($response, 'payment_link_id'),
-            'session_id' => data_get($response, 'payment_link.session_id') ?? data_get($response, 'session_id'),
-            'raw' => $response,
+            'payment_url' => data_get($body, 'payment_link.url') ?? data_get($body, 'url'),
+            'payment_link_id' => data_get($body, 'payment_link.payment_link_id') ?? data_get($body, 'payment_link_id'),
+            'session_id' => data_get($body, 'payment_link.session_id') ?? data_get($body, 'session_id'),
+            'raw' => $body,
         ];
     }
 
     public function verifyPaymentSession(string $sessionId): array
     {
-        return $this->client()->get('/payment_sessions/'.$sessionId)->throw()->json();
+        $response = $this->sendWithAuthRetry('get', '/payment_sessions/'.$sessionId);
+
+        return $response->json();
     }
 
-    private function client()
+    private function sendWithAuthRetry(string $method, string $uri, array $payload = []): Response
     {
-        return Http::withToken($this->tokenService->accessToken())
-            ->acceptJson()
-            ->baseUrl((string) config('services.zoho_payments.api_base_url'));
+        $response = $this->send($method, $uri, $payload, false);
+        if ($response->status() === 401) {
+            Log::warning('Zoho payment API 401; retrying with fresh token', ['uri' => $uri]);
+            $this->tokenService->forgetCachedToken();
+            $response = $this->send($method, $uri, $payload, true);
+        }
+
+        if ($response->status() === 401) {
+            throw new ZohoAuthorizationException('Zoho authorization failed. Please verify Zoho credentials, refresh token, scopes, and organization ID.');
+        }
+
+        $response->throw();
+
+        return $response;
+    }
+
+    private function send(string $method, string $uri, array $payload = [], bool $forceRefresh = false): Response
+    {
+        $endpoint = rtrim((string) config('services.zoho_payments.api_base_url', 'https://payments.zoho.in/api/v1'), '/').$uri;
+        $token = $this->tokenService->accessToken($forceRefresh);
+
+        Log::info('Zoho payment request', [
+            'endpoint' => $endpoint,
+            'organization_id' => config('services.zoho_books.organization_id'),
+            'token_exists' => $token !== '',
+        ]);
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Zoho-oauthtoken '.$token,
+            'Accept' => 'application/json',
+        ])->send(strtoupper($method), $endpoint, [
+            'json' => $payload,
+        ]);
+
+        Log::info('Zoho payment response', [
+            'endpoint' => $endpoint,
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ]);
+
+        return $response;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\ZohoAuthorizationException;
 use App\Http\Requests\Event\EventCheckinRequest;
 use App\Http\Requests\Event\EventRsvpRequest;
 use App\Http\Requests\Event\RegisterEventOccurrenceRequest;
@@ -83,8 +84,14 @@ class EventController extends BaseApiController
 
         $requiresPayment = (bool) ($registration->payment_required ?? false);
 
+        try {
+            $zohoPayload = $this->zohoPayload($registration);
+        } catch (ZohoAuthorizationException $e) {
+            return $this->zohoAuthorizationErrorResponse();
+        }
+
         return $this->success(
-            array_merge($this->payments->responsePayload($registration), $this->zohoPayload($registration)),
+            array_merge($this->payments->responsePayload($registration), $zohoPayload),
             $requiresPayment ? 'Payment required. Please complete Razorpay checkout.' : 'Event registration successful.',
             201
         );
@@ -105,8 +112,14 @@ class EventController extends BaseApiController
 
         $requiresPayment = (bool) ($registration->payment_required ?? false);
 
+        try {
+            $zohoPayload = $this->zohoPayload($registration);
+        } catch (ZohoAuthorizationException $e) {
+            return $this->zohoAuthorizationErrorResponse();
+        }
+
         return $this->success(
-            array_merge($this->payments->responsePayload($registration), $this->zohoPayload($registration)),
+            array_merge($this->payments->responsePayload($registration), $zohoPayload),
             $requiresPayment ? 'Payment required. Please complete Razorpay checkout.' : 'Visitor registered successfully.',
             201
         );
@@ -217,8 +230,14 @@ class EventController extends BaseApiController
         );
         $requiresPayment = (bool) ($registration->payment_required ?? false);
 
+        try {
+            $zohoPayload = $this->zohoPayload($registration);
+        } catch (ZohoAuthorizationException $e) {
+            return $this->zohoAuthorizationErrorResponse();
+        }
+
         return $this->success(
-            array_merge($this->payments->responsePayload($registration), $this->zohoPayload($registration)),
+            array_merge($this->payments->responsePayload($registration), $zohoPayload),
             $requiresPayment ? 'Payment required. Please complete Razorpay checkout.' : 'Visitor registered successfully.',
             201
         );
@@ -301,7 +320,15 @@ class EventController extends BaseApiController
 
         return ['payment_gateway' => 'zoho', 'payment_url' => $registration->payment_url, 'checkout_url' => $registration->payment_url];
     }
-private function invoicePayload(EventRegistration $registration): array
+private function zohoAuthorizationErrorResponse()
+    {
+        return response()->json([
+            'status' => false,
+            'message' => 'Zoho authorization failed. Please verify Zoho credentials, refresh token, scopes, and organization ID.',
+        ], 422);
+    }
+
+    private function invoicePayload(EventRegistration $registration): array
     {
         return [
             'registration_id' => $registration->id,
