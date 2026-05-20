@@ -88,6 +88,8 @@ class EventController extends BaseApiController
             $zohoPayload = $this->zohoPayload($registration);
         } catch (ZohoAuthorizationException $e) {
             return $this->zohoAuthorizationErrorResponse();
+        } catch (\Throwable $e) {
+            return $this->zohoPaymentUrlErrorResponse();
         }
 
         return $this->success(
@@ -116,6 +118,8 @@ class EventController extends BaseApiController
             $zohoPayload = $this->zohoPayload($registration);
         } catch (ZohoAuthorizationException $e) {
             return $this->zohoAuthorizationErrorResponse();
+        } catch (\Throwable $e) {
+            return $this->zohoPaymentUrlErrorResponse();
         }
 
         return $this->success(
@@ -234,6 +238,8 @@ class EventController extends BaseApiController
             $zohoPayload = $this->zohoPayload($registration);
         } catch (ZohoAuthorizationException $e) {
             return $this->zohoAuthorizationErrorResponse();
+        } catch (\Throwable $e) {
+            return $this->zohoPaymentUrlErrorResponse();
         }
 
         return $this->success(

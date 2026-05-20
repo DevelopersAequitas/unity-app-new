@@ -27,7 +27,7 @@ class ZohoPaymentService
             ],
         ];
 
-        $response = $this->sendWithAuthRetry('post', '/payment_links', $payload);
+        $response = $this->sendWithAuthRetry('post', (string) config('services.zoho_payments.payment_link_endpoint', '/api/v1/payment_links'), $payload);
         $body = $response->json();
 
         return [
@@ -40,7 +40,8 @@ class ZohoPaymentService
 
     public function verifyPaymentSession(string $sessionId): array
     {
-        $response = $this->sendWithAuthRetry('get', '/payment_sessions/'.$sessionId);
+        $sessionPath = rtrim((string) config('services.zoho_payments.payment_session_endpoint', '/api/v1/payment_sessions'), '/').'/'.$sessionId;
+        $response = $this->sendWithAuthRetry('get', $sessionPath);
 
         return $response->json();
     }
@@ -48,13 +49,13 @@ class ZohoPaymentService
     private function sendWithAuthRetry(string $method, string $uri, array $payload = []): Response
     {
         $response = $this->send($method, $uri, $payload, false);
-        if ($response->status() === 401) {
+        if (in_array($response->status(), [401, 404], true)) {
             Log::warning('Zoho payment API 401; retrying with fresh token', ['uri' => $uri]);
             $this->tokenService->forgetCachedToken();
             $response = $this->send($method, $uri, $payload, true);
         }
 
-        if ($response->status() === 401) {
+        if (in_array($response->status(), [401, 404], true)) {
             throw new ZohoAuthorizationException('Zoho authorization failed. Please verify Zoho credentials, refresh token, scopes, and organization ID.');
         }
 
@@ -65,7 +66,8 @@ class ZohoPaymentService
 
     private function send(string $method, string $uri, array $payload = [], bool $forceRefresh = false): Response
     {
-        $endpoint = rtrim((string) config('services.zoho_payments.api_base_url', 'https://payments.zoho.in/api/v1'), '/').$uri;
+        $uri = str_starts_with($uri, 'http') ? $uri : '/'.ltrim($uri, '/');
+        $endpoint = str_starts_with($uri, 'http') ? $uri : rtrim((string) config('services.zoho_payments.base_url', 'https://payments.zoho.in'), '/').$uri;
         $token = $this->tokenService->accessToken($forceRefresh);
 
         Log::info('Zoho payment request', [

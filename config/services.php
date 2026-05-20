@@ -42,6 +42,8 @@ return [
     'zoho_payments' => [
         'base_url' => env('ZOHO_PAYMENTS_BASE_URL', 'https://payments.zoho.in'),
         'api_base_url' => env('ZOHO_PAYMENTS_API_BASE_URL', 'https://payments.zoho.in/api/v1'),
+        'payment_link_endpoint' => env('ZOHO_PAYMENTS_PAYMENT_LINK_ENDPOINT', '/api/v1/payment_links'),
+        'payment_session_endpoint' => env('ZOHO_PAYMENTS_PAYMENT_SESSION_ENDPOINT', '/api/v1/payment_sessions'),
         'accounts_base_url' => env('ZOHO_ACCOUNTS_BASE_URL', 'https://accounts.zoho.in'),
         'client_id' => env('ZOHO_CLIENT_ID'),
         'client_secret' => env('ZOHO_CLIENT_SECRET'),
