@@ -19,7 +19,8 @@ use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\EventRsvp;
 use App\Services\Events\EventCheckinService;
-use App\Services\Events\EventPaymentService;
+use App\Services\Events\EventPaymentService as LegacyEventPaymentService;
+use App\Services\EventPaymentService as ZohoEventPaymentService;
 use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventQrService;
@@ -34,7 +35,8 @@ class EventController extends BaseApiController
         private readonly EventService $events,
         private readonly EventRegistrationService $registrations,
         private readonly EventCheckinService $checkins,
-        private readonly EventPaymentService $payments,
+        private readonly LegacyEventPaymentService $payments,
+        private readonly ZohoEventPaymentService $zohoEventPayments,
         private readonly EventRazorpayPaymentService $razorpayPayments,
         private readonly EventRazorpayPaymentFinalizer $paymentFinalizer,
         private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
@@ -82,7 +84,7 @@ class EventController extends BaseApiController
         $requiresPayment = (bool) ($registration->payment_required ?? false);
 
         return $this->success(
-            $this->payments->responsePayload($registration),
+            array_merge($this->payments->responsePayload($registration), $this->zohoPayload($registration)),
             $requiresPayment ? 'Payment required. Please complete Razorpay checkout.' : 'Event registration successful.',
             201
         );
@@ -104,7 +106,7 @@ class EventController extends BaseApiController
         $requiresPayment = (bool) ($registration->payment_required ?? false);
 
         return $this->success(
-            $this->payments->responsePayload($registration),
+            array_merge($this->payments->responsePayload($registration), $this->zohoPayload($registration)),
             $requiresPayment ? 'Payment required. Please complete Razorpay checkout.' : 'Visitor registered successfully.',
             201
         );
@@ -117,12 +119,17 @@ class EventController extends BaseApiController
 
         return $this->success([
             'registration_id' => $registration->id,
-            'payment_gateway' => ($registration->payment_required ?? false) ? 'razorpay' : null,
+            'payment_gateway' => ($registration->payment_required ?? false) ? ($registration->payment_gateway ?? 'zoho') : null,
             'payment_status' => $registration->payment_status ?? ((bool) ($registration->payment_required ?? false) ? 'pending' : 'not_required'),
             'status' => $registration->status,
             'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid'
                 ? null
                 : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
+            'payment_amount' => $registration->payment_amount ?? $registration->amount,
+            'payment_currency' => $registration->payment_currency ?? $registration->currency,
+            'zoho_invoice_id' => $registration->zoho_invoice_id,
+            'invoice_url' => $registration->zoho_invoice_url,
+            'payment_completed_at' => optional($registration->payment_completed_at)->toISOString(),
             'invoice' => $this->invoicePayload($registration),
         ], 'Payment status fetched successfully.');
     }
@@ -211,7 +218,7 @@ class EventController extends BaseApiController
         $requiresPayment = (bool) ($registration->payment_required ?? false);
 
         return $this->success(
-            $this->payments->responsePayload($registration),
+            array_merge($this->payments->responsePayload($registration), $this->zohoPayload($registration)),
             $requiresPayment ? 'Payment required. Please complete Razorpay checkout.' : 'Visitor registered successfully.',
             201
         );
@@ -240,7 +247,7 @@ class EventController extends BaseApiController
                 'mode' => $registration->event?->mode,
                 'status' => $registration->status,
                 'checkin_status' => $registration->checkin_status,
-                'payment_gateway' => ($registration->payment_required ?? false) ? 'razorpay' : null,
+                'payment_gateway' => ($registration->payment_required ?? false) ? ($registration->payment_gateway ?? 'zoho') : null,
                 'payment_status' => $registration->payment_status ?? null,
                 'razorpay_order_id' => $registration->razorpay_order_id ?? null,
                 'checkout_url' => null,
@@ -277,7 +284,24 @@ class EventController extends BaseApiController
         );
     }
 
-    private function invoicePayload(EventRegistration $registration): array
+    
+    private function zohoPayload(EventRegistration $registration): array
+    {
+        if (! (bool) ($registration->payment_required ?? false)) {
+            $this->zohoEventPayments->markZohoPaymentPaid($registration, ['source' => 'free_event_auto_paid']);
+            $registration->refresh();
+
+            return ['payment_gateway' => 'zoho'];
+        }
+
+        if (! $registration->payment_url) {
+            $this->zohoEventPayments->startZohoPayment($registration);
+            $registration->refresh();
+        }
+
+        return ['payment_gateway' => 'zoho', 'payment_url' => $registration->payment_url, 'checkout_url' => $registration->payment_url];
+    }
+private function invoicePayload(EventRegistration $registration): array
     {
         return [
             'registration_id' => $registration->id,

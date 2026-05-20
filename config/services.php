@@ -39,6 +39,24 @@ return [
         'webhook_token' => env('ZOHO_WEBHOOK_TOKEN'),
     ],
 
+    'zoho_payments' => [
+        'base_url' => env('ZOHO_PAYMENTS_BASE_URL', 'https://payments.zoho.in'),
+        'api_base_url' => env('ZOHO_PAYMENTS_API_BASE_URL', 'https://payments.zoho.in/api/v1'),
+        'accounts_base_url' => env('ZOHO_ACCOUNTS_BASE_URL', 'https://accounts.zoho.in'),
+        'client_id' => env('ZOHO_CLIENT_ID'),
+        'client_secret' => env('ZOHO_CLIENT_SECRET'),
+        'refresh_token' => env('ZOHO_REFRESH_TOKEN'),
+        'webhook_secret' => env('ZOHO_PAYMENTS_WEBHOOK_SECRET'),
+        'success_url' => env('ZOHO_PAYMENTS_SUCCESS_URL'),
+        'failure_url' => env('ZOHO_PAYMENTS_FAILURE_URL'),
+        'currency' => env('ZOHO_PAYMENTS_CURRENCY', 'INR'),
+    ],
+
+    'zoho_books' => [
+        'base_url' => env('ZOHO_BOOKS_BASE_URL', 'https://www.zohoapis.in/books/v3'),
+        'organization_id' => env('ZOHO_BOOKS_ORGANIZATION_ID'),
+    ],
+
     'members_with_circles' => [
         // Fixed token for GET /api/v1/members-with-circles and /api/v1/members-with-circles/{identifier}
         'fixed_token' => env('MEMBERS_WITH_CIRCLES_FIXED_TOKEN', env('MEMBERS_LIST_FIXED_TOKEN', '302|cO0VMR2dmr9j8c3JtIU9dfkuZfSfvzaCCF1GVxJAdc6fdd2d')),
