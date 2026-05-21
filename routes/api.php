@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Activities\RequirementHistoryController;
 use App\Http\Controllers\Api\Activities\TestimonialHistoryController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\V1\ActivityCreativeController;
+use App\Http\Controllers\Api\V1\ActivityCreativeListController;
 use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\AdminActivityController;
@@ -477,6 +478,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/coins', [CoinsController::class, 'balance']);
         Route::get('/me/coins/ledger', [CoinsController::class, 'ledger']);
         Route::get('/coins/history', [CoinHistoryController::class, 'index']);
+        Route::get('/activity-creatives', [ActivityCreativeListController::class, 'index']);
+        Route::get('/activity-creatives/my', [ActivityCreativeListController::class, 'my']);
+        Route::get('/users/{userId}/activity-creatives', [ActivityCreativeListController::class, 'byUser']);
 
         // Impact system
         Route::get('/impacts/actions', [ImpactController::class, 'actions']);
