@@ -39,7 +39,7 @@ return [
         'webhook_token' => env('ZOHO_WEBHOOK_TOKEN'),
     ],
 
-    'event_payment_gateway' => env('EVENT_PAYMENT_GATEWAY', 'zoho'),
+    'event_payment_gateway' => env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'),
     'zoho_event_ticket_item_id' => env('ZOHO_EVENT_TICKET_ITEM_ID'),
 
     'members_with_circles' => [
