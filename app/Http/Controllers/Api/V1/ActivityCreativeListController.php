@@ -125,15 +125,7 @@ class ActivityCreativeListController extends BaseApiController
             return false;
         }
 
-        $allowedAdminRoleKeys = [
-            'global_admin',
-            'super_admin',
-            'district_executive_director',
-            'industry_director',
-            'circle_founder',
-            'circle_director',
-        ];
-        $roleIds = Role::query()->whereIn('key', $allowedAdminRoleKeys)->pluck('id');
+        $roleIds = Role::query()->where('key', 'global_admin')->pluck('id');
 
         return $user->roles()->whereIn('roles.id', $roleIds)->exists();
     }
