@@ -14,6 +14,90 @@ use Illuminate\Support\Facades\Mail;
 
 class FeedbackController extends BaseApiController
 {
+    public function adminIndex(Request $request): JsonResponse
+    {
+        $perPage = (int) $request->input('per_page', 20);
+
+        $query = FeedbackForm::query()
+            ->with([
+                'user:id,display_name,first_name,last_name,email,phone',
+                'media',
+            ])
+            ->orderByDesc('created_at');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status')->toString());
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->string('category_id')->toString());
+        }
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('created_at', '>=', $request->string('from_date')->toString());
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('created_at', '<=', $request->string('to_date')->toString());
+        }
+
+        if ($request->filled('search')) {
+            $search = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $request->string('search')->toString()) . '%';
+
+            $query->where(function ($q) use ($search): void {
+                $q->where('subject', 'ILIKE', $search)
+                    ->orWhere('question', 'ILIKE', $search)
+                    ->orWhere('category', 'ILIKE', $search)
+                    ->orWhereHas('user', function ($userQuery) use ($search): void {
+                        $userQuery->where('display_name', 'ILIKE', $search)
+                            ->orWhere('email', 'ILIKE', $search);
+                    });
+            });
+        }
+
+        $feedbacks = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Feedback list fetched successfully.',
+            'data' => [
+                'total' => $feedbacks->total(),
+                'current_page' => $feedbacks->currentPage(),
+                'per_page' => $feedbacks->perPage(),
+                'last_page' => $feedbacks->lastPage(),
+                'items' => $feedbacks->getCollection()->map(function (FeedbackForm $feedback): array {
+                    $displayName = $feedback->user?->display_name
+                        ?: trim(($feedback->user?->first_name ?? '') . ' ' . ($feedback->user?->last_name ?? ''));
+
+                    return [
+                        'id' => $feedback->id,
+                        'user' => $feedback->user ? [
+                            'id' => $feedback->user->id,
+                            'name' => $displayName !== '' ? $displayName : null,
+                            'email' => $feedback->user->email,
+                            'phone' => $feedback->user->phone,
+                        ] : null,
+                        'subject' => $feedback->subject,
+                        'category_id' => $feedback->category_id,
+                        'category' => $feedback->category,
+                        'question' => $feedback->question,
+                        'status' => $feedback->status,
+                        'media' => $feedback->media->map(function (FeedbackMedia $media): array {
+                            return [
+                                'id' => $media->id,
+                                'url' => $media->file_url,
+                                'type' => $media->file_type,
+                                'mime_type' => $media->mime_type,
+                                'original_name' => $media->original_name,
+                            ];
+                        })->values()->all(),
+                        'created_at' => $feedback->created_at,
+                    ];
+                })->values()->all(),
+            ],
+        ]);
+    }
+
     public function categories(): JsonResponse
     {
         $categories = FeedbackCategory::query()

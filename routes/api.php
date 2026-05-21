@@ -547,6 +547,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/admin/support-tickets', [SupportTicketController::class, 'adminIndex']);
         Route::get('/admin/support-tickets/{id}', [SupportTicketController::class, 'adminShow'])->whereUuid('id');
         Route::patch('/admin/support-tickets/{id}', [SupportTicketController::class, 'adminUpdate'])->whereUuid('id');
+        Route::get('/admin/feedback', [FeedbackController::class, 'adminIndex']);
 
         // Chats & Messages
         Route::get('/chats', [ChatController::class, 'index']);
