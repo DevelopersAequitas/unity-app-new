@@ -19,7 +19,7 @@ class ActivityCreativeListController extends BaseApiController
     public function index(Request $request): JsonResponse
     {
         if (! $this->isAdmin($request->user())) {
-            return $this->error('Forbidden', 403);
+            return $this->error('Unauthorized.', 403);
         }
 
         return $this->fetchCreatives($request);
@@ -34,7 +34,7 @@ class ActivityCreativeListController extends BaseApiController
     {
         $authId = (string) $request->user()->id;
         if ($authId !== $userId && ! $this->isAdmin($request->user())) {
-            return $this->error('Forbidden', 403);
+            return $this->error('Unauthorized.', 403);
         }
 
         return $this->fetchCreatives($request, $userId);
@@ -125,7 +125,15 @@ class ActivityCreativeListController extends BaseApiController
             return false;
         }
 
-        $roleIds = Role::query()->whereIn('key', ['global_admin', 'admin'])->pluck('id');
+        $allowedAdminRoleKeys = [
+            'global_admin',
+            'super_admin',
+            'district_executive_director',
+            'industry_director',
+            'circle_founder',
+            'circle_director',
+        ];
+        $roleIds = Role::query()->whereIn('key', $allowedAdminRoleKeys)->pluck('id');
 
         return $user->roles()->whereIn('roles.id', $roleIds)->exists();
     }
