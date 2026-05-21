@@ -26,6 +26,7 @@ use App\Services\Events\EventQrService;
 use App\Services\Events\EventRazorpayPaymentFinalizer;
 use App\Services\Events\EventRazorpayPaymentService;
 use App\Services\Events\EventZohoInvoiceSyncService;
+use App\Services\Zoho\ZohoBillingPaymentLinkService;
 use Illuminate\Http\Request;
 
 class EventController extends BaseApiController
@@ -38,6 +39,7 @@ class EventController extends BaseApiController
         private readonly EventRazorpayPaymentService $razorpayPayments,
         private readonly EventRazorpayPaymentFinalizer $paymentFinalizer,
         private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
+        private readonly ZohoBillingPaymentLinkService $zohoBillingPaymentLinkService,
     ) {}
 
     public function index(Request $request)
@@ -113,12 +115,20 @@ class EventController extends BaseApiController
 
     public function paymentStatus(string $registrationId)
     {
-        $registration = EventRegistration::query()->findOrFail($registrationId);
+        $registration = EventRegistration::query()->with(['event', 'occurrence', 'user'])->findOrFail($registrationId);
+
+        if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link' && ! empty($registration->zoho_payment_link_id)) {
+            try {
+                $registration = $this->zohoBillingPaymentLinkService->syncPaymentStatus($registration);
+            } catch (\Throwable) {
+                // non-fatal fallback
+            }
+        }
 
         return $this->success([
             'registration_id' => $registration->id,
             'payment_required' => (bool) ($registration->payment_required ?? false),
-            'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho') : null,
+            'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho_billing_payment_link') : null,
             'payment_status' => $registration->payment_status ?? ((bool) ($registration->payment_required ?? false) ? 'pending' : 'not_required'),
             'status' => $registration->status,
             'payment_completed_at' => optional($registration->payment_completed_at)->toISOString(),
@@ -129,6 +139,8 @@ class EventController extends BaseApiController
             'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
             'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,
             'zoho_invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
+            'zoho_payment_status' => $registration->zoho_payment_status ?? null,
+            'zoho_payment_id' => $registration->zoho_payment_id ?? null,
             'invoice' => $this->invoicePayload($registration),
         ], 'Payment status fetched successfully.');
     }
@@ -246,11 +258,11 @@ class EventController extends BaseApiController
                 'mode' => $registration->event?->mode,
                 'status' => $registration->status,
                 'checkin_status' => $registration->checkin_status,
-                'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho') : null,
+                'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho_billing_payment_link') : null,
                 'payment_status' => $registration->payment_status ?? null,
                 'razorpay_order_id' => $registration->razorpay_order_id ?? null,
-                'payment_url' => $registration->payment_url ?? $registration->zoho_hosted_page_url ?? null,
-                'checkout_url' => $registration->payment_url ?? $registration->zoho_hosted_page_url ?? null,
+                'payment_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
+                'checkout_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
                 'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_url ?: $qr->url($registration->qr_code_path)),
                 'attendee_type' => $registration->user_id ? 'member' : 'visitor',
             ])->values(),
