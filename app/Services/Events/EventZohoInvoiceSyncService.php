@@ -25,6 +25,10 @@ class EventZohoInvoiceSyncService
                 $this->customerPayload($registration),
                 $this->invoicePayload($registration)
             );
+            Log::info('zoho_customer_matched_or_created', [
+                'event_registration_id' => (string) $registration->id,
+                'zoho_customer_id' => $invoice['customer_id'] ?? null,
+            ]);
 
             $registration->forceFill($this->filterRegistrationColumns([
                 'zoho_customer_id' => $invoice['customer_id'] ?? $registration->zoho_customer_id,
@@ -35,8 +39,12 @@ class EventZohoInvoiceSyncService
                 'zoho_invoice_synced_at' => now(),
                 'zoho_invoice_sync_error' => null,
             ]))->save();
+            Log::info('zoho_invoice_created', [
+                'event_registration_id' => (string) $registration->id,
+                'zoho_invoice_id' => $invoice['invoice_id'] ?? null,
+            ]);
         } catch (\Throwable $exception) {
-            Log::error('Event Zoho invoice sync failed', [
+            Log::error('zoho_invoice_failed', [
                 'event_registration_id' => (string) $registration->id,
                 'error' => $exception->getMessage(),
             ]);

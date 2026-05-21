@@ -117,12 +117,18 @@ class EventController extends BaseApiController
 
         return $this->success([
             'registration_id' => $registration->id,
+            'payment_required' => (bool) ($registration->payment_required ?? false),
             'payment_gateway' => ($registration->payment_required ?? false) ? 'razorpay' : null,
             'payment_status' => $registration->payment_status ?? ((bool) ($registration->payment_required ?? false) ? 'pending' : 'not_required'),
             'status' => $registration->status,
+            'payment_completed_at' => optional($registration->payment_completed_at)->toISOString(),
             'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid'
                 ? null
                 : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
+            'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
+            'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
+            'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,
+            'zoho_invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
             'invoice' => $this->invoicePayload($registration),
         ], 'Payment status fetched successfully.');
     }

@@ -54,7 +54,15 @@ class EventService
     {
         $query = EventOccurrence::query()
             ->with(['event.circle', 'registrations' => fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0')])
-            ->withCount(['registrations as registered_count' => fn ($q) => $q->where('status', '!=', 'cancelled')->whereNull('deleted_at')])
+            ->withCount(['registrations as registered_count' => fn ($q) => $q
+                ->whereNull('deleted_at')
+                ->where(function ($countQuery): void {
+                    $countQuery->where('status', 'registered')
+                        ->orWhere('payment_status', 'paid')
+                        ->orWhere(function ($inner): void {
+                            $inner->where('payment_required', false)->where('status', '!=', 'cancelled');
+                        });
+                })])
             ->whereHas('event', function (Builder $eventQuery) use ($filters): void {
                 $eventQuery->when($filters['event_type'] ?? null, fn ($q, $v) => $q->where('event_type', $v))
                     ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where('circle_id', $v))
@@ -199,7 +207,7 @@ class EventService
                 'circle_id' => $event->circle_id,
             ],
             'summary' => [
-                'total_registered' => $registrations->where('status', '!=', 'cancelled')->count(),
+                'total_registered' => $registrations->filter(fn ($row) => $row->status === 'registered' || $row->payment_status === 'paid' || (! $row->payment_required && $row->status !== 'cancelled'))->count(),
                 'total_checked_in' => $registrations->where('checkin_status', 'checked_in')->count(),
                 'total_pending' => $registrations->where('checkin_status', 'pending')->where('status', '!=', 'cancelled')->count(),
                 'total_cancelled' => $registrations->where('status', 'cancelled')->count(),

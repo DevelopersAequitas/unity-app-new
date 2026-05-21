@@ -85,15 +85,26 @@ class EventPaymentService
 
         $payload = [
             'registration_id' => $registration->id,
+            'status' => true,
+            'success' => true,
+            'payment_required' => $requiresPayment,
             'requires_payment' => $requiresPayment,
             'payment_status' => $registration->payment_status ?? ($requiresPayment ? 'pending' : 'not_required'),
             'amount' => $registration->amount !== null ? (string) $registration->amount : null,
             'currency' => $registration->currency ?? 'INR',
             'payment_gateway' => $requiresPayment ? 'razorpay' : null,
+            'payment_url' => null,
             'checkout_url' => null,
             'qr_code_url' => $requiresPayment && ($registration->payment_status ?? null) !== 'paid'
                 ? null
                 : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
+            'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
+            'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
+            'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,
+            'zoho_invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
+            'message' => $requiresPayment
+                ? 'Payment required. Please complete Razorpay checkout.'
+                : 'Event registration successful.',
         ];
 
         if ($requiresPayment) {
