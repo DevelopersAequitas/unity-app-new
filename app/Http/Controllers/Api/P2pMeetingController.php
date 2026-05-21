@@ -11,6 +11,7 @@ use App\Events\ActivityCreated;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
+use App\Services\ActivityCreativeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -84,7 +85,7 @@ class P2pMeetingController extends BaseApiController
         ]);
     }
 
-    public function store(StoreP2pMeetingRequest $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
+    public function store(StoreP2pMeetingRequest $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService, ActivityCreativeService $activityCreativeService)
     {
         $authUser = $request->user();
         $targetUserId = (string) $request->input('peer_user_id');
@@ -153,6 +154,12 @@ class P2pMeetingController extends BaseApiController
             // }
             // Verify SQL:
             // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
+
+            $activityCreativeService->createOrUpdateCreative('p2p_meeting', (string) $meeting->id, (string) $authUser->id, $activityCreativeService->buildCreativePayload('p2p_meeting', $meeting));
+            $meeting->setAttribute('creative', [
+                'available' => true,
+                'download_url' => $activityCreativeService->buildDownloadUrl('p2p-meeting', (string) $meeting->id),
+            ]);
 
             return $this->success($meeting, 'P2P meeting saved successfully', 201);
         } catch (Throwable $e) {

@@ -6,6 +6,7 @@ use App\Models\ActivityCreative;
 use App\Models\BusinessDeal;
 use App\Models\CollaborationPost;
 use App\Models\P2PMeetingRequest;
+use App\Models\P2pMeeting;
 use App\Models\Referral;
 use App\Models\Requirement;
 use App\Models\RequirementInterest;
@@ -40,6 +41,7 @@ class ActivityCreativeService
         $type = str_replace('-', '_', strtolower(trim($activityType)));
 
         return match ($type) {
+            'p2p_meeting', 'p2p_meetings' => 'p2p_meeting',
             'p2p_meeting_request', 'p2p_meeting_requests' => 'p2p_meeting_request',
             'referral', 'referrals' => 'referral',
             'collaboration', 'collaborations' => 'collaboration',
@@ -58,6 +60,7 @@ class ActivityCreativeService
 
         return match ($type) {
             'p2p_meeting_request' => $this->payloadP2pMeetingRequest($activityModel),
+            'p2p_meeting' => $this->payloadP2pMeeting($activityModel),
             'referral' => $this->payloadReferral($activityModel),
             'collaboration' => $this->payloadCollaboration($activityModel),
             'collaboration_accept' => $this->payloadCollaborationAccept($activityModel),
@@ -70,6 +73,7 @@ class ActivityCreativeService
     }
 
     private function payloadP2pMeetingRequest(P2PMeetingRequest $m): array { $m->loadMissing(['requester','invitee']); return ['creative_title'=>'P2P Meeting Request','creative_text'=>"Requester: {$this->name($m->requester)}\nReceiver: {$this->name($m->invitee)}\nMeeting: ".optional($m->scheduled_at)->format('d M Y h:i A')."\nPlace: ".($m->place??'N/A')."\nMessage: ".($m->message??'N/A'),'creative_image_path'=>null,'creative_image_url'=>null];}
+    private function payloadP2pMeeting(P2pMeeting $m): array { $m->loadMissing(['initiator','peer']); return ['creative_title'=>'P2P Meeting Completed','creative_text'=>"Peer: {$this->name($m->peer)} ({$this->company($m->peer)})\nMeeting Date: ".($m->meeting_date ?? 'N/A')."\nPlace: ".($m->meeting_place ?? 'N/A')."\nNotes: ".($m->remarks ?? 'N/A'),'creative_image_path'=>null,'creative_image_url'=>null];}
     private function payloadReferral(Referral $r): array { $r->loadMissing(['toUser']); return ['creative_title'=>'Referral Shared','creative_text'=>"To: {$this->name($r->toUser)} ({$this->company($r->toUser)})\nReferral Of: ".($r->referral_of??'N/A')."\nType: ".($r->referral_type??'N/A')."\nPhone: ".($r->phone??'N/A')."\nEmail: ".($r->email??'N/A')."\nRemarks: ".($r->remarks??'N/A'),'creative_image_path'=>null,'creative_image_url'=>null];}
     private function payloadCollaboration(CollaborationPost $c): array { $c->loadMissing(['user']); return ['creative_title'=>'Collaboration Opportunity','creative_text'=>"Title: ".($c->title??'N/A')."\nContent: ".($c->description??'N/A')."\nCreator: {$this->name($c->user)} ({$this->company($c->user)})\nCity: {$this->city($c->user)}",'creative_image_path'=>null,'creative_image_url'=>null];}
     private function payloadCollaborationAccept(CollaborationPost $c): array { $c->loadMissing(['acceptedByUser']); return ['creative_title'=>'Collaboration Accepted','creative_text'=>"Accepted By: {$this->name($c->acceptedByUser)} ({$this->company($c->acceptedByUser)})\nCity: {$this->city($c->acceptedByUser)}\nTitle: ".($c->title??'N/A')."\nContent: ".($c->description??'N/A'),'creative_image_path'=>null,'creative_image_url'=>null];}

@@ -7,6 +7,7 @@ use App\Models\ActivityCreative;
 use App\Models\BusinessDeal;
 use App\Models\CollaborationPost;
 use App\Models\P2PMeetingRequest;
+use App\Models\P2pMeeting;
 use App\Models\Referral;
 use App\Models\Requirement;
 use App\Models\RequirementInterest;
@@ -26,6 +27,10 @@ class ActivityCreativeController extends BaseApiController
             $creative = ActivityCreative::where('activity_type', $type)->where('activity_id', $activityId)->first();
 
             if (! $creative) {
+                if ($type === 'p2p_meeting_request') {
+                    return $this->error('Creative not found', 404);
+                }
+
                 $model = $this->resolveActivityModel($type, $activityId);
                 if (! $model) {
                     return $this->error('Creative not found', 404);
@@ -57,6 +62,7 @@ class ActivityCreativeController extends BaseApiController
     {
         return match ($type) {
             'p2p_meeting_request' => P2PMeetingRequest::find($id),
+            'p2p_meeting' => P2pMeeting::find($id),
             'referral' => Referral::find($id),
             'collaboration', 'collaboration_accept' => CollaborationPost::find($id),
             'requirement' => Requirement::find($id),
