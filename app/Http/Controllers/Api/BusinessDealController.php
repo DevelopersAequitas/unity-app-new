@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Activity\StoreBusinessDealRequest;
 use App\Events\ActivityCreated;
 use App\Models\Post;
+use App\Models\ActivityCreative;
 use App\Models\BusinessDeal;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
@@ -152,6 +153,16 @@ class BusinessDealController extends BaseApiController
 
             $this->createPostForBusinessDeal($businessDeal);
 
+
+            ActivityCreative::updateOrCreate(
+                [
+                    'activity_type' => 'business_deal',
+                    'activity_id' => (string) $businessDeal->id,
+                    'user_id' => (string) $authUser->id,
+                ],
+                ActivityCreativeController::buildCreativePayload('business_deal', $businessDeal, $authUser)
+            );
+
             event(new ActivityCreated(
                 'Business Deal',
                 $businessDeal,
@@ -204,6 +215,11 @@ class BusinessDealController extends BaseApiController
             // }
             // Verify SQL:
             // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
+
+            $businessDeal->setAttribute('creative', [
+                'available' => true,
+                'download_url' => url('/api/v1/activities/business-deal/' . $businessDeal->id . '/creative/download'),
+            ]);
 
             return $this->success($businessDeal, 'Business deal saved successfully', 201);
         } catch (Throwable $e) {

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Activity\StoreTestimonialRequest;
 use App\Events\ActivityCreated;
 use App\Models\Post;
+use App\Models\ActivityCreative;
 use App\Models\Testimonial;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
@@ -14,6 +15,7 @@ use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
+use App\Http\Controllers\Api\ActivityCreativeController;
 
 class TestimonialController extends BaseApiController
 {
@@ -150,6 +152,15 @@ class TestimonialController extends BaseApiController
 
             $this->createPostForTestimonial($testimonial);
 
+            ActivityCreative::updateOrCreate(
+                [
+                    'activity_type' => 'testimonial',
+                    'activity_id' => (string) $testimonial->id,
+                    'user_id' => (string) $authUser->id,
+                ],
+                ActivityCreativeController::buildCreativePayload('testimonial', $testimonial, $authUser)
+            );
+
             event(new ActivityCreated(
                 'Testimonial',
                 $testimonial,
@@ -212,6 +223,11 @@ class TestimonialController extends BaseApiController
             }
 
             $data['life_impacted_count'] = $updatedLifeImpact;
+
+            $data['creative'] = [
+                'available' => true,
+                'download_url' => url('/api/v1/activities/testimonial/' . $testimonial->id . '/creative/download'),
+            ];
 
             return $this->success($data, 'Testimonial saved successfully', 201);
         } catch (Throwable $e) {
