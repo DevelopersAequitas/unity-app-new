@@ -56,7 +56,7 @@ class P2pMeetingHistoryController extends BaseApiController
                 $attributes = $meeting->getAttributes();
                 $otherUserId = $this->resolveOtherUserId($meeting, $authUserId);
                 $attributes['other_user_name'] = $otherUserId ? ($nameMap[$otherUserId] ?? null) : null;
-                $attributes['media'] = $this->expandMedia($meeting->media);
+                $attributes['media'] = $this->expandP2pMedia($meeting->media);
 
                 return $attributes;
             })
@@ -90,7 +90,7 @@ class P2pMeetingHistoryController extends BaseApiController
      * @param  mixed  $rawMedia
      * @return array<int, array<string, mixed>>
      */
-    private function expandMedia(mixed $rawMedia): array
+    private function expandP2pMedia(mixed $rawMedia): array
     {
         if (! is_array($rawMedia) || $rawMedia === []) {
             return [];
@@ -106,43 +106,24 @@ class P2pMeetingHistoryController extends BaseApiController
             return [];
         }
 
-        $files = FileModel::query()
-            ->whereIn('id', $fileIds)
-            ->get(['id', 'mime_type', 'size_bytes'])
-            ->keyBy('id');
+        $files = FileModel::query()->whereIn('id', $fileIds)->get()->keyBy('id');
 
-        return collect($rawMedia)->map(function ($item) use ($files): ?array {
-            if (! is_array($item)) {
-                return null;
-            }
+        return collect($rawMedia)
+            ->map(function ($item) use ($files): array {
+                $fileId = is_array($item) ? ($item['file_id'] ?? null) : null;
+                $mediaType = is_array($item) ? ($item['media_type'] ?? null) : null;
+                $file = is_string($fileId) && $fileId !== '' ? $files->get($fileId) : null;
 
-            $fileId = $item['file_id'] ?? null;
-            if (! is_string($fileId) || $fileId === '') {
-                return null;
-            }
-
-            $file = $files->get($fileId);
-            if (! $file) {
-                return null;
-            }
-
-            $mimeType = (string) ($file->mime_type ?? '');
-            $mediaType = $item['media_type'] ?? null;
-            if (! is_string($mediaType) || $mediaType === '') {
-                $normalizedMimeType = strtolower($mimeType);
-                $mediaType = str_starts_with($normalizedMimeType, 'image/')
-                    ? 'image'
-                    : (str_starts_with($normalizedMimeType, 'video/') ? 'video' : 'file');
-            }
-
-            return [
-                'file_id' => $fileId,
-                'media_type' => $mediaType,
-                'url' => url('/api/v1/files/' . $fileId),
-                'mime_type' => $mimeType !== '' ? $mimeType : null,
-                'original_name' => null,
-                'size' => $file->size_bytes !== null ? (int) $file->size_bytes : null,
-            ];
-        })->filter()->values()->all();
+                return [
+                    'file_id' => $fileId,
+                    'media_type' => $mediaType,
+                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/' . $fileId) : null,
+                    'mime_type' => $file->mime_type ?? $file->mime ?? $file->type ?? null,
+                    'original_name' => $file->original_name ?? $file->original_filename ?? $file->name ?? null,
+                    'size' => $file->size ?? $file->size_bytes ?? null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

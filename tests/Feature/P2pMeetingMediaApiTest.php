@@ -114,7 +114,13 @@ class P2pMeetingMediaApiTest extends TestCase
 
         $createResponse->assertCreated()
             ->assertJsonPath('data.media.0.media_type', 'image')
-            ->assertJsonPath('data.media.1.media_type', 'video');
+            ->assertJsonPath('data.media.0.url', url('/api/v1/files/' . $image->id))
+            ->assertJsonPath('data.media.0.mime_type', 'image/png')
+            ->assertJsonPath('data.media.0.size', 125478)
+            ->assertJsonPath('data.media.1.media_type', 'video')
+            ->assertJsonPath('data.media.1.url', url('/api/v1/files/' . $video->id))
+            ->assertJsonPath('data.media.1.mime_type', 'video/mp4')
+            ->assertJsonPath('data.media.1.size', 455111);
 
         $given = $this->actingAs($authUser, 'sanctum')->getJson('/api/v1/activities/p2p-meetings?filter=given');
         $given->assertOk()
