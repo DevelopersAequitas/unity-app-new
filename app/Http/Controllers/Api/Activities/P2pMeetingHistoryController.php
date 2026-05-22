@@ -7,6 +7,7 @@ use App\Http\Resources\TableRowResource;
 use App\Models\FileModel;
 use App\Models\P2pMeeting;
 use App\Support\ActivityHistory\OtherUserNameResolver;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
@@ -53,12 +54,12 @@ class P2pMeetingHistoryController extends BaseApiController
 
         $items = TableRowResource::collection(
             $items->map(function (P2pMeeting $meeting) use ($nameMap, $authUserId) {
-                $attributes = $meeting->getAttributes();
+$attributes = $meeting->toArray();
                 $otherUserId = $this->resolveOtherUserId($meeting, $authUserId);
                 $attributes['other_user_name'] = $otherUserId ? ($nameMap[$otherUserId] ?? null) : null;
                 $attributes['media'] = $this->expandP2pMedia($meeting->media);
 
-                return $attributes;
+                return $this->formatP2pMeetingTimestamps($attributes);
             })
         );
 
@@ -77,6 +78,24 @@ class P2pMeetingHistoryController extends BaseApiController
         return $this->success($response);
     }
 
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function formatP2pMeetingTimestamps(array $attributes): array
+    {
+        foreach (['created_at', 'updated_at'] as $field) {
+            if (! empty($attributes[$field])) {
+                $attributes[$field] = Carbon::parse((string) $attributes[$field])
+                    ->timezone('Asia/Kolkata')
+                    ->format('Y-m-d H:i:s');
+            }
+        }
+
+        return $attributes;
+    }
+
     private function resolveOtherUserId(P2pMeeting $meeting, string $authUserId): ?string
     {
         if ($meeting->initiator_user_id === $authUserId) {
@@ -92,11 +111,13 @@ class P2pMeetingHistoryController extends BaseApiController
      */
     private function expandP2pMedia(mixed $rawMedia): array
     {
-        if (! is_array($rawMedia) || $rawMedia === []) {
+        $media = $this->normalizeMediaPayload($rawMedia);
+
+        if ($media === []) {
             return [];
         }
 
-        $fileIds = collect($rawMedia)
+        $fileIds = collect($media)
             ->map(fn ($item): ?string => is_array($item) ? ($item['file_id'] ?? null) : null)
             ->filter()
             ->values()
@@ -108,7 +129,7 @@ class P2pMeetingHistoryController extends BaseApiController
 
         $files = FileModel::query()->whereIn('id', $fileIds)->get()->keyBy('id');
 
-        return collect($rawMedia)
+        return collect($media)
             ->map(function ($item) use ($files): array {
                 $fileId = is_array($item) ? ($item['file_id'] ?? null) : null;
                 $mediaType = is_array($item) ? ($item['media_type'] ?? null) : null;
@@ -125,5 +146,18 @@ class P2pMeetingHistoryController extends BaseApiController
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeMediaPayload(mixed $rawMedia): array
+    {
+        if (is_string($rawMedia)) {
+            $decoded = json_decode($rawMedia, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($rawMedia) ? $rawMedia : [];
     }
 }

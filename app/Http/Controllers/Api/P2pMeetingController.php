@@ -12,6 +12,7 @@ use App\Models\FileModel;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -33,6 +34,9 @@ class P2pMeetingController extends BaseApiController
                 'content_text'      => $contentText,
                 'media'             => [],
                 'tags'              => ['p2p_meeting'],
+                'source_type'       => 'p2p_meeting',
+                'source_id'         => $meeting->id,
+                'source_event'      => 'p2p_meeting_created',
                 'visibility'        => 'public',
                 'moderation_status' => 'pending',
                 'sponsored'         => false,
@@ -75,7 +79,10 @@ class P2pMeetingController extends BaseApiController
             ->paginate($perPage);
 
         return $this->success([
-            'items' => $paginator->items(),
+            'items' => collect($paginator->items())
+                ->map(fn (P2pMeeting $meeting): array => $this->buildP2pMeetingResponse($meeting))
+                ->values()
+                ->all(),
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
@@ -160,7 +167,7 @@ class P2pMeetingController extends BaseApiController
             // Verify SQL:
             // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
 
-            return $this->success($meeting, 'P2P meeting saved successfully', 201);
+            return $this->success($this->buildP2pMeetingResponse($meeting), 'P2P meeting saved successfully', 201);
         } catch (Throwable $e) {
             return $this->error('Something went wrong', 500);
         }
@@ -183,7 +190,40 @@ class P2pMeetingController extends BaseApiController
             return $this->error('P2P meeting not found', 404);
         }
 
-        return $this->success($meeting);
+        return $this->success($this->buildP2pMeetingResponse($meeting));
+    }
+
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildP2pMeetingResponse(P2pMeeting $meeting): array
+    {
+        $attributes = $meeting->toArray();
+        $attributes['media'] = $this->expandP2pMedia($attributes['media'] ?? null);
+
+        if ($meeting->getAttribute('coins') !== null) {
+            $attributes['coins'] = $meeting->getAttribute('coins');
+        }
+
+        return $this->formatP2pMeetingTimestamps($attributes);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function formatP2pMeetingTimestamps(array $attributes): array
+    {
+        foreach (['created_at', 'updated_at'] as $field) {
+            if (! empty($attributes[$field])) {
+                $attributes[$field] = Carbon::parse((string) $attributes[$field])
+                    ->timezone('Asia/Kolkata')
+                    ->format('Y-m-d H:i:s');
+            }
+        }
+
+        return $attributes;
     }
 
     /**
@@ -227,11 +267,13 @@ class P2pMeetingController extends BaseApiController
      */
     private function expandP2pMedia(mixed $rawMedia): array
     {
-        if (! is_array($rawMedia) || $rawMedia === []) {
+        $media = $this->normalizeMediaPayload($rawMedia);
+
+        if ($media === []) {
             return [];
         }
 
-        $fileIds = collect($rawMedia)
+        $fileIds = collect($media)
             ->map(fn ($item): ?string => is_array($item) ? ($item['file_id'] ?? null) : null)
             ->filter()
             ->unique()
@@ -243,7 +285,7 @@ class P2pMeetingController extends BaseApiController
             ->get()
             ->keyBy('id');
 
-        return collect($rawMedia)
+        return collect($media)
             ->map(function ($item) use ($files): array {
                 $fileId = is_array($item) ? ($item['file_id'] ?? null) : null;
                 $mediaType = is_array($item) ? ($item['media_type'] ?? null) : null;
@@ -260,5 +302,18 @@ class P2pMeetingController extends BaseApiController
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeMediaPayload(mixed $rawMedia): array
+    {
+        if (is_string($rawMedia)) {
+            $decoded = json_decode($rawMedia, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($rawMedia) ? $rawMedia : [];
     }
 }
