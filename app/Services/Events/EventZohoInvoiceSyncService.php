@@ -6,6 +6,8 @@ use App\Models\EventRegistration;
 use App\Models\User;
 use App\Support\Zoho\ZohoBillingClient;
 use App\Support\Zoho\ZohoBillingService;
+use App\Support\Zoho\ZohoBillingTokenService;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -14,6 +16,7 @@ class EventZohoInvoiceSyncService
     public function __construct(
         private readonly ZohoBillingService $zohoBillingService,
         private readonly ZohoBillingClient $zohoBillingClient,
+        private readonly ZohoBillingTokenService $zohoBillingTokenService,
     ) {}
 
     public function sync(EventRegistration $registration): EventRegistration
@@ -51,25 +54,25 @@ class EventZohoInvoiceSyncService
             try {
                 if (! empty($registration->zoho_invoice_id)) {
                     Log::info('zoho_invoice_mark_sent_start', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
-                    $this->zohoBillingClient->request('POST', '/invoices/'.$registration->zoho_invoice_id.'/status/sent');
+                    $this->markInvoiceAsSent((string) $registration->zoho_invoice_id);
                     Log::info('zoho_invoice_mark_sent_success', [
                         'event_registration_id' => (string) $registration->id,
                         'zoho_invoice_id' => $registration->zoho_invoice_id,
                     ]);
 
-                    if (! empty($registration->zoho_payment_id)) {
+                    if (! empty($registration->zoho_invoice_id)) {
                         try {
                             Log::info('zoho_invoice_payment_record_start', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
                             $paymentResponse = $this->zohoBillingClient->request('POST', '/customerpayments', [
                                 'customer_id' => $registration->zoho_customer_id,
-                                'payment_mode' => 'upi',
-                                'amount' => (float) ($registration->amount ?? 0),
+                                'payment_mode' => 'UPI',
+                                'amount' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
                                 'date' => now()->toDateString(),
                                 'reference_number' => (string) ($registration->zoho_payment_link_id ?? $registration->zoho_payment_id ?? $registration->id),
                                 'description' => 'Payment received via Zoho Payment Link for Event Registration',
                                 'invoices' => [[
                                     'invoice_id' => $registration->zoho_invoice_id,
-                                    'amount_applied' => (float) ($registration->amount ?? 0),
+                                    'amount_applied' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
                                 ]],
                             ]);
                             $registration->forceFill($this->filterRegistrationColumns([
@@ -162,7 +165,7 @@ class EventZohoInvoiceSyncService
             'registration_id' => (string) $registration->id,
             'event_title' => $eventTitle,
             'description' => $details,
-            'amount' => (float) ($registration->amount ?? 0),
+            'amount' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
             'currency' => (string) ($registration->currency ?? 'INR'),
             'invoice_payload' => [
                 'customer_id' => $registration->zoho_customer_id,
@@ -202,6 +205,48 @@ class EventZohoInvoiceSyncService
             'invoice_pdf_url' => data_get($invoice, 'invoice_pdf_url') ?? data_get($invoice, 'pdf_url'),
             'raw' => $response,
         ];
+    }
+
+
+    private function markInvoiceAsSent(string $invoiceId): void
+    {
+        $token = $this->zohoBillingTokenService->getAccessToken();
+        $orgId = (string) (config('services.zoho.billing_org_id') ?: config('zoho_billing.org_id') ?: env('ZOHO_BILLING_ORG_ID'));
+
+        $candidates = [
+            [
+                'url' => 'https://www.zohoapis.in/invoice/v3/invoices/'.$invoiceId.'/status/sent',
+                'headers' => ['X-com-zoho-invoice-organizationid' => $orgId],
+                'query' => [],
+            ],
+            [
+                'url' => 'https://www.zohoapis.in/books/v3/invoices/'.$invoiceId.'/status/sent',
+                'headers' => [],
+                'query' => ['organization_id' => $orgId],
+            ],
+        ];
+
+        $lastError = null;
+        foreach ($candidates as $candidate) {
+            $resp = Http::acceptJson()->asJson()->withHeaders(array_merge([
+                'Authorization' => 'Zoho-oauthtoken '.$token,
+                'Content-Type' => 'application/json',
+            ], $candidate['headers']))->post($candidate['url'], $candidate['query']);
+
+            if ($resp->successful()) {
+                return;
+            }
+
+            $lastError = [
+                'url' => $candidate['url'],
+                'headers' => array_keys($candidate['headers']),
+                'query' => $candidate['query'],
+                'status' => $resp->status(),
+                'body' => $resp->json() ?? $resp->body(),
+            ];
+        }
+
+        throw new \RuntimeException('Unable to mark invoice as sent: '.json_encode($lastError));
     }
 
     private function filterRegistrationColumns(array $data): array
