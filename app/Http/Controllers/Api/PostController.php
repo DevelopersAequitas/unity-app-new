@@ -138,6 +138,8 @@ class PostController extends BaseApiController
             ->get(['id', 'display_name', 'first_name', 'last_name'])
             ->keyBy(fn (User $peer) => (string) $peer->id);
 
+        $p2pMeetingsById = collect();
+
         $p2pMeetingSourceIds = $pageRows
             ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && (string) ($row->post_source_type ?? '') === 'p2p_meeting')
             ->pluck('post_source_id')
@@ -147,12 +149,14 @@ class PostController extends BaseApiController
             ->values()
             ->all();
 
-        $p2pMeetingsById = P2pMeeting::query()
-            ->whereIn('id', $p2pMeetingSourceIds)
-            ->get(['id', 'media'])
-            ->keyBy('id');
+        if ($p2pMeetingSourceIds !== []) {
+            $p2pMeetingsById = P2pMeeting::query()
+                ->whereIn('id', $p2pMeetingSourceIds)
+                ->get(['id', 'media'])
+                ->keyBy('id');
+        }
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers) {
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
 
