@@ -300,7 +300,7 @@ class EventController extends BaseApiController
 
     public function invoices(Request $request)
     {
-        $q = EventRegistration::query()->with(['event', 'occurrence', 'user'])->latest('created_at');
+        $q = EventRegistration::query()->with(['event', 'occurrence', 'user'])->where('payment_status', 'paid')->latest('created_at');
         if ($request->filled('payment_status')) $q->where('payment_status', $request->input('payment_status'));
         if ($request->filled('event_id')) $q->where('event_id', $request->input('event_id'));
         if ($request->filled('occurrence_id')) $q->where('occurrence_id', $request->input('occurrence_id'));
@@ -357,6 +357,7 @@ class EventController extends BaseApiController
             'phone' => $phone,
             'payment_status' => $registration->payment_status,
             'payment_gateway' => $registration->payment_gateway,
+            'zoho_payment_link_id' => $registration->zoho_payment_link_id,
             'amount' => $registration->amount !== null ? (string) $registration->amount : null,
             'currency' => $registration->currency ?? 'INR',
             'zoho_invoice_id' => $registration->zoho_invoice_id,
@@ -364,8 +365,10 @@ class EventController extends BaseApiController
             'zoho_invoice_status' => $registration->zoho_invoice_status,
             'zoho_invoice_url' => $registration->zoho_invoice_url,
             'zoho_invoice_pdf_url' => $registration->zoho_invoice_pdf_url,
+            'zoho_invoice_sync_error' => $registration->zoho_invoice_sync_error,
             'zoho_payment_id' => $registration->zoho_payment_id,
             'paid_at' => optional($registration->payment_completed_at)->toISOString(),
+            'qr_code_url' => $registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path),
             'created_at' => optional($registration->created_at)->toISOString(),
         ];
     }

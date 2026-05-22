@@ -51,7 +51,7 @@ class EventZohoInvoiceSyncService
             try {
                 if (! empty($registration->zoho_invoice_id)) {
                     $this->zohoBillingClient->request('POST', '/invoices/'.$registration->zoho_invoice_id.'/status/sent');
-                    Log::info('zoho_invoice_mark_sent', [
+                    Log::info('zoho_invoice_mark_sent_success', [
                         'event_registration_id' => (string) $registration->id,
                         'zoho_invoice_id' => $registration->zoho_invoice_id,
                     ]);
@@ -69,7 +69,7 @@ class EventZohoInvoiceSyncService
                                     'amount_applied' => (float) ($registration->amount ?? 0),
                                 ]],
                             ]);
-                            Log::info('zoho_invoice_payment_attached', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
+                            Log::info('zoho_invoice_payment_attach_success', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
                         } catch (\Throwable) {
                             // non-fatal
                         }
@@ -91,7 +91,7 @@ class EventZohoInvoiceSyncService
                 ]);
             }
         } catch (\Throwable $exception) {
-            Log::error('zoho_invoice_sync_failed', [
+            Log::error('zoho_invoice_create_failed', [
                 'event_registration_id' => (string) $registration->id,
                 'error' => $exception->getMessage(),
             ]);
