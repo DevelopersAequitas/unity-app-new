@@ -59,22 +59,64 @@ class GeoNearbyPeerResource extends JsonResource
         if (is_array($rawCity)) {
             return [
                 'id' => $rawCity['id'] ?? null,
-                'name' => $rawCity['name'] ?? null,
+                'name' => $this->normalizeCityName($rawCity['name'] ?? $rawCity),
             ];
         }
 
         if (is_object($rawCity)) {
             return [
                 'id' => $rawCity->id ?? null,
-                'name' => $rawCity->name ?? null,
+                'name' => $this->normalizeCityName($rawCity->name ?? $rawCity),
             ];
         }
 
-        if (is_string($rawCity) && trim($rawCity) !== '') {
+        $normalizedCityName = $this->normalizeCityName($rawCity);
+
+        if ($normalizedCityName !== null) {
             return [
                 'id' => null,
-                'name' => $rawCity,
+                'name' => $normalizedCityName,
             ];
+        }
+
+        return null;
+    }
+
+    private function normalizeCityName(mixed $cityValue): ?string
+    {
+        if (is_string($cityValue)) {
+            $cityValue = trim($cityValue);
+
+            if ($cityValue === '') {
+                return null;
+            }
+
+            $decodedJson = json_decode($cityValue, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decodedJson)) {
+                $name = trim((string) ($decodedJson['name'] ?? ''));
+
+                return $name !== '' ? $name : null;
+            }
+
+            if (preg_match('/name\\s*:\\s*"?([^",}]+)"?/i', $cityValue, $matches)) {
+                $name = trim($matches[1]);
+
+                return $name !== '' ? $name : null;
+            }
+
+            return $cityValue;
+        }
+
+        if (is_array($cityValue)) {
+            $name = trim((string) ($cityValue['name'] ?? ''));
+
+            return $name !== '' ? $name : null;
+        }
+
+        if (is_object($cityValue)) {
+            $name = trim((string) ($cityValue->name ?? ''));
+
+            return $name !== '' ? $name : null;
         }
 
         return null;
