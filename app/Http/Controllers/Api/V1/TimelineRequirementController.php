@@ -19,18 +19,19 @@ class TimelineRequirementController extends Controller
             ->with('user')
             ->leftJoinSub(
                 DB::table('posts')
-                    ->selectRaw('source_id, MAX(id) as post_id')
-                    ->where('source_type', 'requirement')
-                    ->where('is_deleted', false)
-                    ->groupBy('source_id'),
+                    ->selectRaw('DISTINCT ON (source_id) source_id, id as post_id')
+                    ->where('source_type', '=', 'requirement')
+                    ->where('is_deleted', '=', false)
+                    ->orderBy('source_id')
+                    ->orderByDesc('created_at'),
                 'rp',
                 'rp.source_id',
                 '=',
                 'requirements.id'
             )
-            ->where('status', 'open')
-            ->whereNull('deleted_at')
-            ->orderByDesc('created_at');
+            ->where('requirements.status', '=', 'open')
+            ->whereNull('requirements.deleted_at')
+            ->orderByDesc('requirements.created_at');
 
         $perPage = max(1, min((int) $request->query('per_page', 20), 100));
         $paginated = $query->paginate($perPage);
