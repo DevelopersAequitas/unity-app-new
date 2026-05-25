@@ -45,6 +45,9 @@
         <input type="hidden" name="membership_status" value="{{ $filters['membership_status'] ?? '' }}">
         <input type="hidden" name="circle_id" value="{{ $filters['circle_id'] ?? 'all' }}">
         <input type="hidden" name="phone" value="{{ $filters['phone'] ?? '' }}">
+        <input type="hidden" name="joined_filter" value="{{ $filters['joined_filter'] ?? 'all' }}">
+        <input type="hidden" name="joined_from" value="{{ $filters['joined_from'] ?? '' }}">
+        <input type="hidden" name="joined_to" value="{{ $filters['joined_to'] ?? '' }}">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
@@ -112,7 +115,19 @@
                         <input type="text" name="coins_balance" class="form-control form-control-sm" placeholder="—" disabled>
                     </th>
                     <th>
-                        <input type="text" name="last_login_at" class="form-control form-control-sm" placeholder="—" disabled>
+                        <div class="d-flex flex-column gap-2" style="min-width:180px;">
+                            <select name="joined_filter" id="joinedFilter" form="usersFiltersForm" class="form-select form-select-sm">
+                                <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All</option>
+                                <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
+                                <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
+                                <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
+                                <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
+                            </select>
+                            <div id="joinedCustomRange" class="d-flex flex-column gap-2">
+                                <input type="date" name="joined_from" form="usersFiltersForm" class="form-control form-control-sm" value="{{ $filters['joined_from'] ?? '' }}" placeholder="From Date">
+                                <input type="date" name="joined_to" form="usersFiltersForm" class="form-control form-control-sm" value="{{ $filters['joined_to'] ?? '' }}" placeholder="To Date">
+                            </div>
+                        </div>
                     </th>
                     <th>
                         <select class="form-select form-select-sm" disabled><option>Any</option></select>
@@ -458,6 +473,8 @@
         const filterForm = document.getElementById('usersFiltersForm');
         const exportBtn = document.getElementById('exportCsvBtn');
         const exportForm = document.getElementById('exportCsvForm');
+        const joinedFilter = document.getElementById('joinedFilter');
+        const joinedCustomRange = document.getElementById('joinedCustomRange');
         const submitFilters = (form) => {
             const params = new URLSearchParams(window.location.search);
             const formData = new FormData(form);
@@ -486,6 +503,18 @@
             e.preventDefault();
             submitFilters(filterForm);
         });
+
+        const toggleJoinedDateRange = () => {
+            if (!joinedCustomRange || !joinedFilter) return;
+            const isCustom = joinedFilter.value === 'custom';
+            joinedCustomRange.classList.toggle('d-none', !isCustom);
+            joinedCustomRange.querySelectorAll('input').forEach((input) => {
+                input.disabled = !isCustom;
+            });
+        };
+
+        joinedFilter?.addEventListener('change', toggleJoinedDateRange);
+        toggleJoinedDateRange();
 
         exportBtn?.addEventListener('click', () => {
             if (!exportForm) return;
