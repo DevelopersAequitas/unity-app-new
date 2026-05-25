@@ -609,6 +609,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/referrals/visitors', [ReferralController::class, 'listVisitors']);
         Route::patch('/referrals/visitors/{id}', [ReferralController::class, 'updateVisitor']);
 
+
+        Route::get('/activity-creatives', [ActivityCreativeController::class, 'index']);
+        Route::post('/activity-creatives', [ActivityCreativeController::class, 'store']);
+        Route::get('/activity-creatives/{id}', [ActivityCreativeController::class, 'show'])->whereUuid('id');
+        Route::delete('/activity-creatives/{id}', [ActivityCreativeController::class, 'destroy'])->whereUuid('id');
+
         // Files
         Route::post('/files/upload', [FileController::class, 'upload']);
 
