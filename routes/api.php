@@ -143,6 +143,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/public/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'publicRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     });
     Route::post('/zoho/events/form-webhook', ZohoEventFormWebhookController::class);
+    Route::get('/activities/{activityType}/{activityId}/creative/download', [ActivityCreativeController::class, 'download']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
@@ -514,7 +515,6 @@ Route::prefix('v1')->group(function () {
             Route::get('testimonials', [TestimonialHistoryController::class, 'index']);
             Route::post('testimonials', [TestimonialController::class, 'store']);
             Route::get('testimonials/{id}', [TestimonialHistoryController::class, 'show']);
-            Route::get('{activityType}/{activityId}/creative/download', [ActivityCreativeController::class, 'download']);
         });
 
         // P2P Meeting Requests

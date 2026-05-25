@@ -25,18 +25,21 @@ class ActivityCreativeController extends BaseApiController
     {
         try {
             $type = $this->creativeService->normalizeActivityType($activityType);
+            if ($type === '' || $activityId === '') {
+                return $this->error('Creative not found.', 404);
+            }
             $creative = ActivityCreative::where('activity_type', $type)->where('activity_id', $activityId)->first();
 
             if (! $creative) {
                 if ($type === 'p2p_meeting_request') {
-                    return $this->error('Creative not found', 404);
+                    return $this->error('Creative not found.', 404);
                 }
 
                 $model = $this->resolveActivityModel($type, $activityId);
                 if (! $model) {
-                    return $this->error('Creative not found', 404);
+                    return $this->error('Creative not found.', 404);
                 }
-                $creative = $this->creativeService->createOrUpdateCreative($type, $activityId, (string) $request->user()->id, $this->creativeService->buildCreativePayload($type, $model));
+                $creative = $this->creativeService->createOrUpdateCreative($type, $activityId, (string) data_get($model, 'id', $activityId), $this->creativeService->buildCreativePayload($type, $model));
             }
 
             $creative->increment('downloaded_count');
@@ -49,7 +52,7 @@ class ActivityCreativeController extends BaseApiController
                 'activityType' => $type,
                 'title' => $creative->creative_title,
                 'creativeText' => $creative->creative_text,
-                'userName' => $creativeUser?->display_name ?? $request->user()->display_name ?? $request->user()->name,
+                'userName' => $creativeUser?->display_name ?? 'Peer',
                 'profilePhotoUrl' => $creativeUser?->profile_photo_url,
                 'companyName' => $creativeUser?->company_name,
                 'designation' => $creativeUser?->designation,
@@ -59,7 +62,7 @@ class ActivityCreativeController extends BaseApiController
 
             return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8', 'Content-Disposition' => 'attachment; filename="'.$type.'-'.$activityId.'-creative.html"']);
         } catch (Throwable $e) {
-            return $this->error('Creative not found', 404);
+            return $this->error('Creative not found.', 404);
         }
     }
 
