@@ -5,12 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\ActivityCreative;
 use App\Models\FileModel;
-use App\Models\Post;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ActivityCreativeController extends BaseApiController
@@ -64,14 +62,12 @@ class ActivityCreativeController extends BaseApiController
             'description' => ['nullable', 'string'],
             'creative_image' => ['required', 'image', 'max:51200'],
             'meta' => ['nullable'],
-            'publish_to_timeline' => ['nullable', 'boolean'],
         ]);
 
         $user = $request->user();
-        $publishToTimeline = filter_var($request->input('publish_to_timeline', true), FILTER_VALIDATE_BOOL);
         $meta = $this->parseMeta($request->input('meta'));
 
-        $creative = DB::transaction(function () use ($validated, $request, $user, $publishToTimeline, $meta) {
+        $creative = DB::transaction(function () use ($validated, $request, $user, $meta) {
             $existing = null;
             if (! empty($validated['activity_id'])) {
                 $existing = ActivityCreative::query()
@@ -86,26 +82,6 @@ class ActivityCreativeController extends BaseApiController
 
             $postId = $validated['post_id'] ?? ($existing?->post_id);
 
-            if ($publishToTimeline && ! $postId) {
-                $post = Post::create([
-                    'id' => (string) Str::uuid(),
-                    'user_id' => $user->id,
-                    'content_text' => trim((string) (($validated['title'] ?? '') . "\n" . ($validated['description'] ?? ''))),
-                    'media' => [[
-                        'id' => $fileModel->id,
-                        'type' => 'image',
-                        'url' => $fileUrl,
-                    ]],
-                    'tags' => [$validated['activity_type'], 'creative'],
-                    'visibility' => 'public',
-                    'moderation_status' => 'approved',
-                    'source_type' => $validated['activity_type'],
-                    'source_id' => $validated['activity_id'] ?? null,
-                    'active' => true,
-                    'is_deleted' => false,
-                ]);
-                $postId = $post->id;
-            }
 
             $payload = [
                 'user_id' => $user->id,
