@@ -54,7 +54,7 @@ class ActivityCreativeListController extends BaseApiController
             ]);
 
             $perPage = (int) ($validated['per_page'] ?? 20);
-            $query = ActivityCreative::query()->with(['user:id,display_name,company_name,city,profile_photo_url']);
+            $query = ActivityCreative::query()->with(['user:id,display_name,company_name,designation,city,profile_photo_url']);
 
             $filterUserId = $forcedUserId ?? ($validated['user_id'] ?? null);
             if ($filterUserId) {
@@ -93,6 +93,7 @@ class ActivityCreativeListController extends BaseApiController
                         'id' => (string) data_get($creative, 'user.id'),
                         'display_name' => data_get($creative, 'user.display_name'),
                         'company_name' => data_get($creative, 'user.company_name'),
+                        'designation' => data_get($creative, 'user.designation'),
                         'city' => data_get($creative, 'user.city'),
                         'profile_photo_url' => data_get($creative, 'user.profile_photo_url'),
                     ],

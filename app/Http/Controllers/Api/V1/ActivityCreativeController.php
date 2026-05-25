@@ -12,6 +12,7 @@ use App\Models\Referral;
 use App\Models\Requirement;
 use App\Models\RequirementInterest;
 use App\Models\Testimonial;
+use App\Models\User;
 use App\Services\ActivityCreativeService;
 use Illuminate\Http\Request;
 use Throwable;
@@ -42,14 +43,18 @@ class ActivityCreativeController extends BaseApiController
             $creative->last_downloaded_at = now();
             $creative->save();
 
+            $creativeUser = $this->resolveUser($type, $activityId, $creative?->user_id);
+
             $html = view('creatives.activity', [
-                'brand' => 'Peers Global Unity',
-                'activityTypeTitle' => $creative->creative_title,
+                'activityType' => $type,
+                'title' => $creative->creative_title,
                 'creativeText' => $creative->creative_text,
-                'activityDate' => now()->format('d M Y'),
-                'userName' => $request->user()->display_name ?? $request->user()->name,
-                'userCompany' => $request->user()->company_name,
-                'userCity' => $request->user()->city,
+                'userName' => $creativeUser?->display_name ?? $request->user()->display_name ?? $request->user()->name,
+                'profilePhotoUrl' => $creativeUser?->profile_photo_url,
+                'companyName' => $creativeUser?->company_name,
+                'designation' => $creativeUser?->designation,
+                'city' => $creativeUser?->city,
+                'date' => $type === 'birthday_celebration' ? optional($creativeUser?->dob)->format('d M') : now()->format('d M Y'),
             ])->render();
 
             return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8', 'Content-Disposition' => 'attachment; filename="'.$type.'-'.$activityId.'-creative.html"']);
@@ -69,7 +74,17 @@ class ActivityCreativeController extends BaseApiController
             'requirement_interest' => RequirementInterest::find($id) ?? RequirementInterest::where('requirement_id', $id)->latest('created_at')->first(),
             'business_deal' => BusinessDeal::find($id),
             'testimonial' => Testimonial::find($id),
+            'birthday_celebration' => User::find($id),
             default => null,
         };
+    }
+
+    private function resolveUser(string $type, string $activityId, ?string $creativeUserId = null): ?User
+    {
+        if ($type === 'birthday_celebration') {
+            return User::find($activityId);
+        }
+
+        return $creativeUserId ? User::find($creativeUserId) : ActivityCreative::query()->where('activity_type', $type)->where('activity_id', $activityId)->first()?->user;
     }
 }

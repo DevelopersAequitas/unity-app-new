@@ -13,7 +13,6 @@ use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use App\Services\Referrals\ReferralService;
-use App\Services\ActivityCreativeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -234,7 +233,7 @@ class ReferralController extends BaseApiController
         ]);
     }
 
-    public function store(StoreReferralRequest $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService, ActivityCreativeService $activityCreativeService)
+    public function store(StoreReferralRequest $request, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
         $targetUserId = (string) $request->input('to_user_id');
@@ -333,12 +332,6 @@ class ReferralController extends BaseApiController
             // }
             // Verify SQL:
             // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
-
-            $activityCreativeService->createOrUpdateCreative('referral', (string) $referral->id, (string) $authUser->id, $activityCreativeService->buildCreativePayload('referral', $referral));
-            $referral->setAttribute('creative', [
-                'available' => true,
-                'download_url' => $activityCreativeService->buildDownloadUrl('referral', (string) $referral->id),
-            ]);
 
             return $this->success($referral, 'Referral saved successfully', 201);
         } catch (Throwable $e) {

@@ -4,6 +4,7 @@ namespace App\Console;
 
 use App\Console\Commands\LifeImpactBackfillCommand;
 use App\Console\Commands\LifeImpactRecalculateUsersCommand;
+use App\Console\Commands\PostBirthdayCreativesCommand;
 use App\Console\Commands\SendAppUpdateReminderNotifications;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
@@ -13,6 +14,7 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         LifeImpactBackfillCommand::class,
         LifeImpactRecalculateUsersCommand::class,
+        PostBirthdayCreativesCommand::class,
         SendAppUpdateReminderNotifications::class,
     ];
 
@@ -22,6 +24,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('memberships:expire-users')->hourly();
         $schedule->command('users:expire-trial')->hourly();
         $schedule->command('connections:send-pending-reminders')->dailyAt('09:00');
+        $schedule->command('birthdays:post-creatives')->dailyAt('08:00');
         $schedule->command('members:mark-offline-stale')->everyMinute();
     }
 }
