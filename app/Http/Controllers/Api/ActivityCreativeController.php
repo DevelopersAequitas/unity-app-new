@@ -52,20 +52,32 @@ class ActivityCreativeController extends BaseApiController
         return $this->success($items, 'Activity creatives fetched successfully.');
     }
 
+    /**
+     * Store a creative image and metadata.
+     * Both activity_id and post_id are optional.
+     * Duplicate prevention applies only when activity_id is present.
+     */
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'activity_type' => ['required', 'string', 'max:255'],
             'activity_id' => ['nullable', 'uuid'],
-            'post_id' => ['nullable', 'uuid', 'exists:posts,id'],
+            'post_id' => ['nullable', 'uuid'],
             'title' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'creative_image' => ['required', 'image', 'max:51200'],
-            'meta' => ['nullable'],
+            'meta' => ['nullable', 'array'],
         ]);
 
         $user = $request->user();
-        $meta = $this->parseMeta($request->input('meta'));
+        $metaInput = $request->input('meta');
+        if (is_string($metaInput) && $metaInput !== '') {
+            $decodedMetaInput = json_decode($metaInput, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $metaInput = $decodedMetaInput;
+            }
+        }
+        $meta = $this->parseMeta($metaInput);
 
         $creative = DB::transaction(function () use ($validated, $request, $user, $meta) {
             $existing = null;
