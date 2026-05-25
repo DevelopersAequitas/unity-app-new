@@ -7,11 +7,13 @@ use App\Models\User;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
 class EmailLogService
 {
+    private ?array $emailLogColumns = null;
     private const SENSITIVE_KEYS = [
         'password',
         'token',
@@ -109,7 +111,7 @@ class EmailLogService
                 'created_at' => Arr::get($data, 'created_at', now()),
             ];
 
-            return EmailLog::query()->create($record);
+            return EmailLog::query()->create($this->filterSupportedColumns($record));
         } catch (Throwable $exception) {
             Log::warning('Email logging failed', [
                 'message' => $exception->getMessage(),
@@ -195,5 +197,32 @@ class EmailLogService
         $stringValue = trim((string) $value);
 
         return $stringValue === '' ? null : $stringValue;
+    }
+
+    private function filterSupportedColumns(array $record): array
+    {
+        try {
+            if ($this->emailLogColumns === null) {
+                $this->emailLogColumns = Schema::hasTable('email_logs')
+                    ? Schema::getColumnListing('email_logs')
+                    : [];
+            }
+
+            if ($this->emailLogColumns === []) {
+                return $record;
+            }
+
+            return array_filter(
+                $record,
+                fn (string $key): bool => in_array($key, $this->emailLogColumns, true),
+                ARRAY_FILTER_USE_KEY
+            );
+        } catch (Throwable $exception) {
+            Log::warning('Unable to inspect email_logs schema; proceeding with unfiltered payload.', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return $record;
+        }
     }
 }
