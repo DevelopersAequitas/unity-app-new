@@ -248,7 +248,7 @@ class EventZohoInvoiceSyncService
 
     private function convertInvoiceToOpen(string $invoiceId): void
     {
-        $this->zohoBillingClient->postWithoutBody('/invoices/'.$invoiceId.'/converttoopen');
+        $this->zohoBillingClient->postZohoAction('/invoices/'.$invoiceId.'/converttoopen', []);
     }
 
     public function getPayment(string $paymentId): array
@@ -272,7 +272,7 @@ class EventZohoInvoiceSyncService
 
         $amount = (float) (data_get($payment, 'amount') ?? $registration->payment_amount ?? $registration->amount ?? 0);
         $balance = (float) (data_get($invoice, 'balance') ?? data_get($invoice, 'balance_due') ?? $amount);
-        $payload = [
+        $payload = array_filter([
             'customer_id' => (string) ($registration->zoho_customer_id ?? data_get($payment, 'customer_id')),
             'payment_mode' => (string) (data_get($payment, 'payment_mode') ?: 'UPI'),
             'amount' => $amount,
@@ -283,9 +283,9 @@ class EventZohoInvoiceSyncService
                 'invoice_id' => (string) $registration->zoho_invoice_id,
                 'amount_applied' => $balance > 0 ? min($amount, $balance) : $amount,
             ]],
-        ];
+        ], fn ($v) => $v !== null && $v !== '');
         Log::info('zoho_payment_apply_payload', ['payment_id' => $paymentId, 'payload' => $payload]);
-        $response = $this->zohoBillingClient->request('PUT', '/payments/'.$paymentId, $payload);
+        $response = $this->zohoBillingClient->putZohoJsonString('/payments/'.$paymentId, $payload);
         Log::info('zoho_payment_apply_success', ['payment_id' => $paymentId, 'response' => $response]);
         return ['payment_applied' => true, 'payment' => is_array($response['payment'] ?? null) ? $response['payment'] : $response];
     }

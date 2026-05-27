@@ -157,11 +157,20 @@ class ZohoBillingPaymentLinkService
             return $registration;
         }
 
+        $paymentId = data_get($paymentLinkData, 'customer_payments.0.payment_id')
+            ?? data_get($paymentLinkData, 'payments.0.payment_id')
+            ?? data_get($paymentLinkData, 'payment_id')
+            ?? data_get($paymentLinkData, 'transaction_id');
+        if (! empty($paymentId) && empty($registration->zoho_payment_id)) {
+            $registration->forceFill($this->filter([
+                'zoho_payment_id' => $paymentId,
+                'zoho_payment_status' => 'paid',
+            ]))->save();
+            Log::info('zoho_payment_id_saved_from_payment_link', ['registration_id' => (string) $registration->id, 'payment_id' => $paymentId]);
+            $registration->refresh();
+        }
+
         if (! $alreadyPaid) {
-            $paymentId = data_get($paymentLinkData, 'customer_payments.0.payment_id')
-                ?? data_get($paymentLinkData, 'payments.0.payment_id')
-                ?? data_get($paymentLinkData, 'payment_id')
-                ?? data_get($paymentLinkData, 'transaction_id');
             $paymentDate = data_get($paymentLinkData, 'customer_payments.0.payment_date')
                 ?? data_get($paymentLinkData, 'payments.0.payment_date')
                 ?? data_get($paymentLinkData, 'payment_date');
