@@ -91,6 +91,34 @@ class ZohoBillingClient
         }
     }
 
+    public function postWithoutBody(string $path): array
+    {
+        $url = rtrim((string) config('zoho_billing.base_url'), '/') . '/' . ltrim($path, '/');
+        $token = $this->tokenService->getAccessToken();
+
+        $request = Http::timeout(config('zoho_billing.http_timeout', 20))
+            ->retry(config('zoho_billing.http_retry_times', 2), config('zoho_billing.http_retry_sleep_ms', 200))
+            ->acceptJson()
+            ->withHeaders([
+                'Authorization' => 'Zoho-oauthtoken ' . $token,
+                'X-com-zoho-subscriptions-organizationid' => (string) (config('services.zoho.billing_org_id') ?: config('zoho_billing.org_id') ?: env('ZOHO_BILLING_ORG_ID')),
+            ]);
+
+        Log::info('Zoho Billing request', [
+            'method' => 'POST',
+            'path' => $path,
+            'final_url' => $url,
+            'body_less' => true,
+        ]);
+
+        $response = $request->post($url);
+        if (! $response->successful()) {
+            $this->throwZohoException($response->status(), $response->json(), $response->body());
+        }
+
+        return $response->json() ?? [];
+    }
+
     public function requestPdf(string $path, array $query = []): array
     {
         $url = rtrim((string) config('zoho_billing.base_url'), '/') . '/' . ltrim($path, '/');
