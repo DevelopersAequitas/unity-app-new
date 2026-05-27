@@ -35,6 +35,7 @@ class FileUploadTest extends TestCase
             ->postJson('/api/v1/files/upload', ['file' => $image]);
 
         $response->assertCreated()->assertJsonPath('success', true);
+        $response->assertJsonPath('data.url', route('api.v1.files.show', ['id' => FileModel::firstOrFail()->id]));
 
         $file = FileModel::firstOrFail();
 
@@ -47,6 +48,66 @@ class FileUploadTest extends TestCase
         $files = Storage::disk('public')->allFiles('uploads');
         $this->assertCount(1, $files);
         $this->assertEquals($file->s3_key, $files[0]);
+    }
+
+    public function test_uploaded_file_can_be_fetched_via_api_route(): void
+    {
+        config([
+            'filesystems.default' => 'public',
+            'media.processing.mode' => 'sync',
+        ]);
+
+        Storage::fake('public');
+
+        $user = $this->makeUser();
+        $image = UploadedFile::fake()->image('photo.jpg', 1000, 800)->size(500);
+
+        $uploadResponse = $this
+            ->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/files/upload', ['file' => $image]);
+
+        $uploadResponse->assertCreated();
+
+        $file = FileModel::firstOrFail();
+
+        $fetchResponse = $this->get('/api/v1/files/' . $file->id);
+        $fetchResponse->assertOk();
+        $fetchResponse->assertHeader('Content-Type', $file->mime_type);
+    }
+
+    public function test_file_show_returns_json_404_when_record_or_file_missing(): void
+    {
+        config([
+            'filesystems.default' => 'public',
+        ]);
+
+        Storage::fake('public');
+
+        $this->getJson('/api/v1/files/' . (string) Str::uuid())
+            ->assertNotFound()
+            ->assertJson([
+                'success' => false,
+                'message' => 'File not found.',
+                'data' => null,
+            ]);
+
+        $file = FileModel::create([
+            'uploader_user_id' => null,
+            's3_key' => 'uploads/does-not-exist.webp',
+            'mime_type' => 'image/webp',
+            'size_bytes' => 100,
+            'width' => 10,
+            'height' => 10,
+            'duration' => null,
+        ]);
+
+        $this->getJson('/api/v1/files/' . $file->id)
+            ->assertNotFound()
+            ->assertJson([
+                'success' => false,
+                'message' => 'File not found.',
+                'data' => null,
+            ]);
     }
 
     public function test_video_is_transcoded_and_poster_generated_when_ffmpeg_exists(): void

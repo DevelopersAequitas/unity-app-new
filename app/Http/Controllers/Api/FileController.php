@@ -28,12 +28,24 @@ class FileController extends BaseApiController
      */
     public function show(string $id)
     {
-        $file = File::findOrFail($id);
+        $file = File::find($id);
+
+        if (! $file) {
+            return response()->json([
+                'success' => false,
+                'message' => 'File not found.',
+                'data' => null,
+            ], 404);
+        }
 
         $disk = config('filesystems.default', 'public');
 
         if (! $file->s3_key || ! Storage::disk($disk)->exists($file->s3_key)) {
-            abort(404, 'File not found');
+            return response()->json([
+                'success' => false,
+                'message' => 'File not found.',
+                'data' => null,
+            ], 404);
         }
 
         $mime = $file->mime_type
