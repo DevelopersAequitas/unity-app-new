@@ -5,26 +5,22 @@ namespace App\Http\Controllers\Api\V1\Zoho;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessZohoWebhookJob;
 use App\Models\ZohoWebhookLog;
+use App\Services\Zoho\ZohoWebhookAuthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class ZohoWebhookController extends Controller
 {
+    public function __construct(private readonly ZohoWebhookAuthService $zohoWebhookAuthService) {}
 
     public function handle(Request $request)
     {
-        $token = $request->header('X-Webhook-Token') ?? $request->header('x-webhook-token');
-        $configuredSecret = (string) (config('services.zoho.webhook_token', '') ?: config('zoho_billing.webhook_secret', ''));
-
-        if ($configuredSecret === '' || ! is_string($token) || ! hash_equals($configuredSecret, $token)) {
-            Log::warning('Zoho webhook unauthorized token mismatch', [
-                'ip' => $request->ip(),
-                'headers' => [
-                    'x-webhook-token' => $request->header('X-Webhook-Token') ?? $request->header('x-webhook-token'),
-                    'user-agent' => $request->userAgent(),
-                    'content-type' => $request->header('Content-Type'),
-                ],
+        if (! $this->zohoWebhookAuthService->isAuthorized($request)) {
+            Log::warning('Zoho webhook unauthorized', [
+                'path' => $request->path(),
+                'headers' => $request->headers->all(),
+                'has_payload' => ! empty($request->all()),
             ]);
 
             return response()->json([
@@ -53,7 +49,8 @@ class ZohoWebhookController extends Controller
             ], 200);
         }
 
-        Log::info('Zoho webhook received', [
+        Log::info('Zoho webhook authorized and received', [
+            'path' => $request->path(),
             'headers' => $request->headers->all(),
             'payload' => $event,
         ]);

@@ -12,6 +12,7 @@ use App\Services\Billing\MembershipSyncService;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Membership\MembershipWelcomeEmailService;
+use App\Services\Zoho\ZohoWebhookAuthService;
 use App\Services\Circles\PaidCircleMembershipFinalizer;
 use App\Support\Zoho\ZohoBillingService;
 use Carbon\Carbon;
@@ -30,14 +31,26 @@ class ZohoBillingWebhookController extends Controller
         private readonly CircleJoinRequestPaymentSyncService $circleJoinRequestPaymentSyncService,
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
         private readonly PaidCircleMembershipFinalizer $paidCircleMembershipFinalizer,
+        private readonly ZohoWebhookAuthService $zohoWebhookAuthService,
     ) {
     }
 
     public function handle(Request $request)
     {
         if (! $this->isValidWebhook($request)) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            Log::warning('Zoho webhook unauthorized', [
+                'path' => $request->path(),
+                'headers' => $request->headers->all(),
+                'has_payload' => ! empty($request->all()),
+            ]);
+
+            return response()->json(['success' => false, 'message' => 'Unauthorized webhook request.'], Response::HTTP_UNAUTHORIZED);
         }
+
+        Log::info('Zoho webhook authorized and received', [
+            'path' => $request->path(),
+            'payload' => $request->all(),
+        ]);
 
         $payload = $request->all();
 
@@ -165,8 +178,19 @@ class ZohoBillingWebhookController extends Controller
     public function handleCircleSubscription(Request $request)
     {
         if (! $this->isValidWebhook($request)) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            Log::warning('Zoho webhook unauthorized', [
+                'path' => $request->path(),
+                'headers' => $request->headers->all(),
+                'has_payload' => ! empty($request->all()),
+            ]);
+
+            return response()->json(['success' => false, 'message' => 'Unauthorized webhook request.'], Response::HTTP_UNAUTHORIZED);
         }
+
+        Log::info('Zoho webhook authorized and received', [
+            'path' => $request->path(),
+            'payload' => $request->all(),
+        ]);
 
         $payload = $request->all();
 
@@ -572,25 +596,12 @@ class ZohoBillingWebhookController extends Controller
 
     private function isValidWebhook(Request $request): bool
     {
-        $expected = (string) config('services.zoho.webhook_token', env('ZOHO_WEBHOOK_TOKEN', ''));
-
-        if ($expected === '') {
-            Log::warning('Zoho webhook token missing from configuration');
-
-            return false;
-        }
-
-        $incoming = (string) ($request->header('X-Webhook-Token')
-            ?? $request->header('X-Zoho-Webhook-Signature')
-            ?? $request->bearerToken()
-            ?? $request->query('token')
-            ?? $request->input('token')
-            ?? '');
-
-        $isValid = $incoming !== '' && hash_equals($expected, $incoming);
+        $isValid = $this->zohoWebhookAuthService->isAuthorized($request);
 
         Log::info('Zoho webhook authentication evaluated', [
-            'token_present' => $incoming !== '',
+            'path' => $request->path(),
+            'secret_configured' => $this->zohoWebhookAuthService->expectedSecret() !== '',
+            'token_present' => $this->zohoWebhookAuthService->extractIncomingSecret($request) !== '',
             'valid' => $isValid,
         ]);
 
