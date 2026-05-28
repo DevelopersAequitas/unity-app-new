@@ -28,6 +28,7 @@ use App\Services\Events\EventRazorpayPaymentService;
 use App\Services\Events\EventZohoInvoiceSyncService;
 use App\Services\Zoho\ZohoBillingPaymentLinkService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class EventController extends BaseApiController
 {
@@ -74,20 +75,54 @@ class EventController extends BaseApiController
 
     public function register(RegisterEventOccurrenceRequest $request, string $eventId, string $occurrenceId)
     {
-        $registration = $this->registrations->registerMember(
-            Event::query()->findOrFail($eventId),
-            EventOccurrence::query()->findOrFail($occurrenceId),
-            $request->user(),
+        $user = $request->user();
+        $event = Event::query()->findOrFail($eventId);
+        $occurrence = EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
+        $eventCircleId = $event->circle_id;
+        Log::info('member_event_registration_start', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
+        Log::info('member_event_circle_check_start', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
+
+        $memberQuery = CircleMember::query()
+            ->where('circle_id', $eventCircleId)
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at');
+        if (\Illuminate\Support\Facades\Schema::hasColumn('circle_members', 'status')) {
+            $memberQuery->whereIn('status', ['approved', 'active']);
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('circle_members', 'expires_at')) {
+            $memberQuery->where(function ($q): void {
+                $q->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()->toDateString());
+            });
+        }
+        $membership = $memberQuery->first();
+        if (! $membership) {
+            Log::warning('member_event_circle_check_failed', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
+            return $this->error('You are not allowed to register for this event because you are not a member of this circle.', 403);
+        }
+        Log::info('member_event_circle_check_passed', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
+
+        $existing = EventRegistration::query()
+            ->where('occurrence_id', $occurrence->id)
+            ->where('user_id', $user->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereNull('deleted_at')
+            ->first();
+        if ($existing) {
+            Log::info('member_event_registration_existing_found', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId, 'registration_id' => (string) $existing->id]);
+        }
+
+        $registration = $this->registrations->registerMemberDirectNoPayment(
+            $event,
+            $occurrence,
+            $user,
             $request->input('source', 'app')
         );
+        if ((! empty($registration->qr_code_url) || ! empty($registration->qr_code_path)) && ! $existing) {
+            Log::info('member_event_registration_qr_generated', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId, 'registration_id' => (string) $registration->id]);
+        }
+        Log::info('member_event_registration_success', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId, 'registration_id' => (string) $registration->id]);
 
-        $requiresPayment = (bool) ($registration->payment_required ?? false);
-
-        return $this->success(
-            $this->payments->responsePayload($registration),
-            $requiresPayment ? 'Payment required. Please complete payment.' : 'Event registration successful.',
-            201
-        );
+        return $this->success($this->payments->responsePayload($registration), 'Event registration successful.', 201);
     }
 
     public function visitorRegister(VisitorEventRegistrationRequest $request, string $eventId, string $occurrenceId)

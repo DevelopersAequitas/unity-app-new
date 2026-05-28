@@ -32,6 +32,35 @@ class EventRegistrationService
         return $this->createRegistration($event, $occurrence, ['user_id' => $user->id, 'source' => $source, 'registration_type' => 'member']);
     }
 
+    public function registerMemberDirectNoPayment(Event $event, EventOccurrence $occurrence, User $user, string $source = 'app'): EventRegistration
+    {
+        if ($occurrence->event_id !== $event->id) {
+            throw ValidationException::withMessages(['occurrence_id' => 'Occurrence does not belong to this event.']);
+        }
+
+        $existing = EventRegistration::query()
+            ->where('occurrence_id', $occurrence->id)
+            ->where('user_id', $user->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereNull('deleted_at')
+            ->first();
+
+        if ($existing) {
+            if (empty($existing->qr_code_path) && empty($existing->qr_code_url)) {
+                $this->qr->generateAndStore($existing);
+            }
+
+            return $existing->fresh(['event.circle', 'occurrence', 'user']);
+        }
+
+        return $this->createRegistration(
+            $event,
+            $occurrence,
+            ['user_id' => $user->id, 'source' => $source, 'registration_type' => 'member'],
+            false
+        );
+    }
+
     public function registerVisitor(Event $event, EventOccurrence $occurrence, array $data): EventRegistration
     {
         if ($occurrence->event_id !== $event->id) {
