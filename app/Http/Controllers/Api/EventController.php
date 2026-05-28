@@ -272,6 +272,7 @@ class EventController extends BaseApiController
             EventOccurrence::query()->findOrFail($occurrenceId),
             $request->validated() + ['source' => $request->input('source', 'visitor_app')]
         );
+        Log::info('public_event_registration_payment_link_created', ['event_id' => $event->id, 'occurrence_id' => $occurrenceId, 'registration_id' => (string) $registration->id]);
 
         $requiresPayment = (bool) ($registration->payment_required ?? false);
 
@@ -282,6 +283,55 @@ class EventController extends BaseApiController
         );
     }
 
+
+    public function visitorRegisterAsUser(Request $request, string $eventId, string $occurrenceId)
+    {
+        $user = $request->user();
+        $event = Event::query()->findOrFail($eventId);
+        $occurrence = EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
+        $context = ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $event->circle_id];
+        Log::info('app_user_visitor_registration_start', $context);
+
+        try {
+            if ($this->isActiveCircleMember($event->circle_id, $user->id)) {
+                return $this->success([
+                    'direct_registration_available' => true,
+                    'registration_api' => '/api/v1/events/'.$event->id.'/occurrences/'.$occurrence->id.'/register',
+                ], 'You are already a member of this circle. Please use direct member registration.');
+            }
+
+            $existing = EventRegistration::query()
+                ->where('occurrence_id', $occurrence->id)
+                ->where('user_id', $user->id)
+                ->where('status', '!=', 'cancelled')
+                ->whereNull('deleted_at')
+                ->latest('created_at')
+                ->first();
+            if ($existing) {
+                Log::info('app_user_visitor_existing_registration_found', $context + ['registration_id' => (string) $existing->id]);
+            }
+
+            $registration = $this->registrations->registerAppUserVisitor(
+                $event,
+                $occurrence,
+                $user,
+                $request->input('source', 'app')
+            );
+            if (! empty($registration->payment_url) || ! empty($registration->zoho_payment_link_url)) {
+                Log::info('app_user_visitor_payment_link_created', $context + ['registration_id' => (string) $registration->id]);
+            }
+            Log::info('app_user_visitor_registration_success', $context + ['registration_id' => (string) $registration->id]);
+
+            return $this->success(
+                $this->payments->responsePayload($registration),
+                'Payment is required to complete your event registration.',
+                $existing ? 200 : 201
+            );
+        } catch (\Throwable $e) {
+            Log::error('app_user_visitor_registration_failed', $context + ['error' => $e->getMessage()]);
+            throw $e;
+        }
+    }
 
     public function paymentStatus(string $registrationId)
     {
@@ -399,6 +449,7 @@ class EventController extends BaseApiController
             EventOccurrence::query()->findOrFail($occurrenceId),
             $request->validated() + ['source' => 'visitor_web']
         );
+        Log::info('public_event_registration_payment_link_created', ['event_id' => $event->id, 'occurrence_id' => $occurrenceId, 'registration_id' => (string) $registration->id]);
         $requiresPayment = (bool) ($registration->payment_required ?? false);
 
         return $this->success(
@@ -406,6 +457,58 @@ class EventController extends BaseApiController
             $requiresPayment ? 'Payment required. Please complete payment.' : 'Visitor registered successfully.',
             201
         );
+    }
+
+    public function myEventRegistrations(Request $request)
+    {
+        $user = $request->user();
+        Log::info('my_event_registrations_fetch_start', ['user_id' => $user->id]);
+
+        if ($user->email) {
+            EventRegistration::query()
+                ->whereNull('user_id')
+                ->whereRaw('LOWER(visitor_email) = ?', [strtolower($user->email)])
+                ->update(['user_id' => $user->id]);
+        }
+
+        $query = EventRegistration::query()
+            ->with(['event.circle', 'occurrence', 'user'])
+            ->where(function ($q) use ($user): void {
+                $q->where('user_id', $user->id);
+                if ($user->email) {
+                    $q->orWhereRaw('LOWER(visitor_email) = ?', [strtolower($user->email)]);
+                }
+                if ($user->phone) {
+                    $q->orWhere('visitor_phone', $user->phone);
+                }
+            });
+
+        foreach (['status', 'payment_status', 'registration_type', 'event_id'] as $field) {
+            if ($request->filled($field)) {
+                $query->where($field, $request->input($field));
+            }
+        }
+        if ($request->boolean('upcoming')) {
+            $query->whereHas('occurrence', fn ($q) => $q->where('start_at', '>=', now()));
+        }
+        if ($request->boolean('past')) {
+            $query->whereHas('occurrence', fn ($q) => $q->where('end_at', '<', now())->orWhere(fn ($inner) => $inner->whereNull('end_at')->where('start_at', '<', now())));
+        }
+
+        $items = $query->latest('registered_at')->paginate(max(1, min((int) $request->input('per_page', 20), 100)));
+        $qr = app(EventQrService::class);
+        $mapped = $items->getCollection()->map(fn (EventRegistration $registration) => $this->myEventRegistrationPayload($registration, $qr))->values();
+        Log::info('my_event_registrations_fetch_success', ['user_id' => $user->id, 'total' => $items->total()]);
+
+        return $this->success([
+            'items' => $mapped,
+            'pagination' => [
+                'current_page' => $items->currentPage(),
+                'per_page' => $items->perPage(),
+                'total' => $items->total(),
+                'last_page' => $items->lastPage(),
+            ],
+        ], 'My event registrations fetched successfully.');
     }
 
     public function myRegistrations(Request $request)
@@ -542,6 +645,69 @@ class EventController extends BaseApiController
             'paid_at' => optional($registration->payment_completed_at)->toISOString(),
             'qr_code_url' => $registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path),
             'created_at' => optional($registration->created_at)->toISOString(),
+        ];
+    }
+
+    private function isActiveCircleMember(?string $circleId, string $userId): bool
+    {
+        if (! $circleId) {
+            return false;
+        }
+
+        $query = CircleMember::query()
+            ->where('circle_id', $circleId)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at');
+        if (\Illuminate\Support\Facades\Schema::hasColumn('circle_members', 'status')) {
+            $query->whereIn('status', ['approved', 'active']);
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('circle_members', 'expires_at')) {
+            $query->where(function ($q): void {
+                $q->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()->toDateString());
+            });
+        }
+
+        return $query->exists();
+    }
+
+    private function myEventRegistrationPayload(EventRegistration $registration, EventQrService $qr): array
+    {
+        $qrUrl = ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid'
+            ? null
+            : ($registration->qr_code_url ?: $qr->url($registration->qr_code_path));
+
+        return [
+            'registration_id' => $registration->id,
+            'registration_type' => $registration->registration_type ?? null,
+            'status' => $registration->status,
+            'checkin_status' => $registration->checkin_status,
+            'payment_required' => (bool) ($registration->payment_required ?? false),
+            'payment_status' => $registration->payment_status,
+            'amount' => $registration->amount !== null ? (string) $registration->amount : null,
+            'currency' => $registration->currency ?? 'INR',
+            'payment_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
+            'qr_code_url' => $qrUrl,
+            'zoho_invoice_id' => $registration->zoho_invoice_id,
+            'zoho_invoice_number' => $registration->zoho_invoice_number,
+            'zoho_invoice_status' => $registration->zoho_invoice_status,
+            'invoice_url' => $registration->zoho_invoice_url,
+            'invoice_pdf_url' => $registration->zoho_invoice_pdf_url,
+            'registered_at' => optional($registration->registered_at)->toISOString(),
+            'checked_in_at' => optional($registration->checked_in_at)->toISOString(),
+            'event' => [
+                'id' => $registration->event?->id,
+                'title' => $registration->event?->title,
+                'event_type' => $registration->event?->event_type,
+                'mode' => $registration->event?->mode,
+                'location_text' => $registration->event?->location_text,
+                'circle_id' => $registration->event?->circle_id,
+                'circle_name' => $registration->event?->circle?->name,
+            ],
+            'occurrence' => [
+                'id' => $registration->occurrence?->id,
+                'start_at' => optional($registration->occurrence?->start_at)->toISOString(),
+                'end_at' => optional($registration->occurrence?->end_at)->toISOString(),
+            ],
         ];
     }
 
