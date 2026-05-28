@@ -3,6 +3,7 @@
 namespace App\Console;
 
 use App\Console\Commands\LifeImpactBackfillCommand;
+use App\Console\Commands\RetryIgnoredZohoWebhooks;
 use App\Console\Commands\RetryZohoWebhooks;
 use App\Console\Commands\LifeImpactRecalculateUsersCommand;
 use App\Console\Commands\SyncPaidEventInvoices;
@@ -23,6 +24,7 @@ class Kernel extends ConsoleKernel
         TestZohoConvertInvoice::class,
         TestZohoCustomerPaymentWebhook::class,
         RetryZohoWebhooks::class,
+        RetryIgnoredZohoWebhooks::class,
         TestZohoPaidWebhook::class,
     ];
 

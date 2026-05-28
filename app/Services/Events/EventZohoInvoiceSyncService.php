@@ -304,7 +304,7 @@ class EventZohoInvoiceSyncService
             'amount' => $applyAmount,
             'date' => (string) (data_get($payment, 'date') ?: optional($registration->payment_completed_at)->toDateString() ?: now()->toDateString()),
             'reference_number' => (string) (data_get($payment, 'reference_number') ?: data_get($payment, 'online_transaction_id') ?: $registration->zoho_payment_link_id),
-            'description' => 'Event registration payment via Zoho Payment Link '.((string) ($registration->zoho_payment_link_id ?? '')).' / original payment '.((string) $paymentId),
+            'description' => 'Event registration payment | registration_id='.(string) $registration->id.' | payment_link_id='.((string) ($registration->zoho_payment_link_id ?? '')).' | original_payment_id='.((string) $paymentId),
             'invoices' => [[
                 'invoice_id' => (string) $registration->zoho_invoice_id,
                 'amount_applied' => (float) $applyAmount,

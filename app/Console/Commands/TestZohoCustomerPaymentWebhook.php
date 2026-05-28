@@ -20,7 +20,7 @@ class TestZohoCustomerPaymentWebhook extends Command
                 'payment_id' => $registration->zoho_payment_id,
                 'payment_link_id' => $registration->zoho_payment_link_id,
                 'reference_number' => $registration->zoho_payment_id ?: $registration->zoho_payment_link_id,
-                'description' => 'Event registration payment via Zoho Payment Link '.$registration->zoho_payment_link_id.' / original payment '.$registration->zoho_payment_id,
+                'description' => 'Event registration payment | registration_id='.$registration->id.' | payment_link_id='.$registration->zoho_payment_link_id.' | original_payment_id='.$registration->zoho_payment_id,
                 'amount' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
                 'customer_id' => $registration->zoho_customer_id,
                 'date' => optional($registration->payment_completed_at)->toDateString() ?: now()->toDateString(),
