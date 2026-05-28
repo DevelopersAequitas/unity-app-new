@@ -518,6 +518,10 @@ Route::prefix('v1')->group(function () {
             Route::get('testimonials/{id}', [TestimonialHistoryController::class, 'show']);
         });
 
+        // Explicit alias kept for compatibility with local/route-cache scenarios.
+        // Must resolve to: POST /api/v1/activities/business-deals
+        Route::post('/activities/business-deals', [BusinessDealController::class, 'store']);
+
         // P2P Meeting Requests
         Route::post('/p2p-meeting-requests', [P2PMeetingRequestController::class, 'store']);
         Route::get('/p2p-meeting-requests/inbox', [P2PMeetingRequestController::class, 'inbox']);
