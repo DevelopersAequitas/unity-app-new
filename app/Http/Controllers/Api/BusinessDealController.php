@@ -7,12 +7,16 @@ use App\Http\Requests\Activity\StoreBusinessDealRequest;
 use App\Events\ActivityCreated;
 use App\Models\Post;
 use App\Models\BusinessDeal;
+use App\Models\BusinessDealMedia;
+use App\Models\FileModel;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class BusinessDealController extends BaseApiController
@@ -33,6 +37,79 @@ class BusinessDealController extends BaseApiController
                 'url'  => $id ? url('/api/v1/files/' . $id) : null,
             ];
         })->all();
+    }
+
+    private function normalizeCreativeMediaInput(Request $request): array
+    {
+        $files = $request->file('creative_media');
+
+        if ($files === null && $request->hasFile('creative_media.0')) {
+            $files = $request->file('creative_media', []);
+        }
+
+        if ($files === null) {
+            return [];
+        }
+
+        return is_array($files) ? array_values($files) : [$files];
+    }
+
+    private function mediaTypeFromMime(?string $mimeType): string
+    {
+        $mime = strtolower((string) $mimeType);
+
+        if (str_starts_with($mime, 'image/')) {
+            return 'image';
+        }
+
+        if (str_starts_with($mime, 'video/')) {
+            return 'video';
+        }
+
+        return 'document';
+    }
+
+    private function uploadCreativeMedia(array $files, BusinessDeal $businessDeal, string $uploaderUserId): array
+    {
+        $disk = config('filesystems.default', 'public');
+
+        return collect($files)->map(function ($file) use ($businessDeal, $uploaderUserId, $disk) {
+            $extension = $file->getClientOriginalExtension() ?: 'bin';
+            $path = $file->storeAs('business-deals/' . $businessDeal->id, Str::uuid() . '.' . $extension, $disk);
+
+            $fileModel = FileModel::create([
+                'uploader_user_id' => $uploaderUserId,
+                's3_key' => $path,
+                'mime_type' => $file->getMimeType(),
+                'size_bytes' => $file->getSize(),
+            ]);
+
+            return BusinessDealMedia::create([
+                'business_deal_id' => $businessDeal->id,
+                'file_id' => $fileModel->id,
+                'media_path' => $path,
+                'media_url' => url('/api/v1/files/' . $fileModel->id),
+                'media_type' => $this->mediaTypeFromMime($file->getMimeType()),
+                'mime_type' => $file->getMimeType(),
+                'original_name' => $file->getClientOriginalName(),
+                'size_bytes' => $file->getSize(),
+            ]);
+        })->all();
+    }
+
+    private function formatCreativeMedia(BusinessDeal $businessDeal): array
+    {
+        return $businessDeal->creativeMedia->map(function (BusinessDealMedia $media) {
+            return [
+                'id' => (string) $media->id,
+                'file_id' => $media->file_id,
+                'media_type' => $media->media_type,
+                'mime_type' => $media->mime_type,
+                'original_name' => $media->original_name,
+                'size_bytes' => $media->size_bytes,
+                'url' => $media->file_id ? url('/api/v1/files/' . $media->file_id) : $media->media_url,
+            ];
+        })->values()->all();
     }
 
     /**
@@ -80,6 +157,7 @@ class BusinessDealController extends BaseApiController
         $businessType = $request->input('business_type');
 
         $query = BusinessDeal::query()
+            ->with('creativeMedia')
             ->where('is_deleted', false)
             ->whereNull('deleted_at');
 
@@ -107,7 +185,11 @@ class BusinessDealController extends BaseApiController
             ->paginate($perPage);
 
         return $this->success([
-            'items' => $paginator->items(),
+            'items' => collect($paginator->items())->map(function (BusinessDeal $deal) {
+                $deal->setAttribute('creative_media', $this->formatCreativeMedia($deal));
+
+                return $deal;
+            })->values()->all(),
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
@@ -127,7 +209,10 @@ class BusinessDealController extends BaseApiController
         }
 
         try {
-            $businessDeal = BusinessDeal::create([
+            $creativeFiles = $this->normalizeCreativeMediaInput($request);
+
+            $businessDeal = DB::transaction(function () use ($authUser, $request, $notifyUserService, $creativeFiles) {
+                $businessDeal = BusinessDeal::create([
                 'from_user_id' => $authUser->id,
                 'to_user_id' => $request->input('to_user_id'),
                 'deal_date' => $request->input('deal_date'),
@@ -208,9 +293,19 @@ class BusinessDealController extends BaseApiController
             // Verify SQL:
             // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
 
+            if (! empty($creativeFiles)) {
+                $this->uploadCreativeMedia($creativeFiles, $businessDeal, (string) $authUser->id);
+                $businessDeal->load('creativeMedia');
+            }
+
+            $businessDeal->setAttribute('creative_media', $this->formatCreativeMedia($businessDeal));
+
             if ($businessDeal->getAttribute('post_id') === null) {
                 $businessDeal->setAttribute('post_id', $this->resolveTimelinePostId('business_deal', (string) $businessDeal->id));
             }
+
+                return $businessDeal;
+            });
 
             return $this->success($businessDeal, 'Business deal saved successfully', 201);
         } catch (Throwable $e) {
@@ -232,7 +327,7 @@ class BusinessDealController extends BaseApiController
     {
         $authUser = $request->user();
 
-        $businessDeal = BusinessDeal::where('id', $id)
+        $businessDeal = BusinessDeal::with('creativeMedia')->where('id', $id)
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
             ->where(function ($q) use ($authUser) {
@@ -244,6 +339,8 @@ class BusinessDealController extends BaseApiController
         if (! $businessDeal) {
             return $this->error('Business deal not found', 404);
         }
+
+        $businessDeal->setAttribute('creative_media', $this->formatCreativeMedia($businessDeal));
 
         return $this->success($businessDeal);
     }

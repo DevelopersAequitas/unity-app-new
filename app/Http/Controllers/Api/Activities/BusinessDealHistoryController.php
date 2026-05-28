@@ -5,19 +5,37 @@ namespace App\Http\Controllers\Api\Activities;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\TableRowResource;
 use App\Models\BusinessDeal;
+use App\Models\BusinessDealMedia;
 use App\Support\ActivityHistory\OtherUserNameResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 class BusinessDealHistoryController extends BaseApiController
 {
+
+    private function formatCreativeMedia(BusinessDeal $deal): array
+    {
+        return $deal->creativeMedia->map(function (BusinessDealMedia $media) {
+            return [
+                'id' => (string) $media->id,
+                'file_id' => $media->file_id,
+                'media_type' => $media->media_type,
+                'mime_type' => $media->mime_type,
+                'original_name' => $media->original_name,
+                'size_bytes' => $media->size_bytes,
+                'url' => $media->file_id ? url('/api/v1/files/' . $media->file_id) : $media->media_url,
+            ];
+        })->values()->all();
+    }
+
+
     public function index(Request $request)
     {
         $authUserId = $request->user()->id;
         $filter = $request->query('filter', 'given');
         $debugMode = $request->boolean('debug');
 
-        $query = BusinessDeal::query();
+        $query = BusinessDeal::query()->with('creativeMedia');
         $whereParts = [];
 
         $query->where(function ($q) use (&$whereParts) {
@@ -54,6 +72,7 @@ class BusinessDealHistoryController extends BaseApiController
                 $attributes = $deal->getAttributes();
                 $otherUserId = $this->resolveOtherUserId($deal, $authUserId);
                 $attributes['other_user_name'] = $otherUserId ? ($nameMap[$otherUserId] ?? null) : null;
+                $attributes['creative_media'] = $this->formatCreativeMedia($deal);
 
                 return $attributes;
             })
@@ -81,7 +100,7 @@ class BusinessDealHistoryController extends BaseApiController
         $filterUsed = 'all';
         $whereParts = [];
 
-        $query = BusinessDeal::query();
+        $query = BusinessDeal::query()->with('creativeMedia');
 
         $query->where('id', $id);
         $whereParts[] = 'id = "' . $id . '"';
@@ -115,6 +134,7 @@ class BusinessDealHistoryController extends BaseApiController
 
         $response = $businessDeal->getAttributes();
         $response['other_user_name'] = $otherUserId ? ($nameMap[$otherUserId] ?? null) : null;
+        $response['creative_media'] = $this->formatCreativeMedia($businessDeal);
 
         if ($debugMode) {
             $response = [

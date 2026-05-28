@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -52,4 +53,10 @@ class BusinessDeal extends Model
     {
         return $this->belongsTo(User::class, 'to_user_id');
     }
+
+    public function creativeMedia(): HasMany
+    {
+        return $this->hasMany(BusinessDealMedia::class, 'business_deal_id');
+    }
 }
+
