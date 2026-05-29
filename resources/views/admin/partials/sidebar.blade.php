@@ -4,6 +4,8 @@
     $isSuper = \App\Support\AdminAccess::isSuper($adminUser);
     $isCircleScoped = \App\Support\AdminAccess::isCircleScoped($adminUser);
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
+    $canAccessLeads = ! $isCircleScoped;
+    $canAccessEmailLogs = ! $isCircleScoped;
 
     $dashboardItem = $isCircleScoped
         ? null
@@ -13,7 +15,7 @@
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+            ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'disabled' => ! $canAccessEmailLogs],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
@@ -31,7 +33,7 @@
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+            ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'disabled' => ! $canAccessEmailLogs],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
@@ -207,7 +209,7 @@
                 </div>
             </li>
 
-            @if ($leadsMenu)
+            @if ($canAccessLeads && $leadsMenu)
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
                 <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
                     <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
@@ -225,6 +227,12 @@
                     </ul>
                 </div>
             </li>
+            @else
+                <li class="nav-item">
+                    <span class="nav-link disabled opacity-50 pe-none" aria-disabled="true" title="Access restricted" style="cursor: not-allowed;">
+                        <i class="bi bi-person-lines-fill me-2"></i>Leads
+                    </span>
+                </li>
             @endif
 
             @if ($isGlobalAdmin)
@@ -264,7 +272,11 @@
                     </li>
                 @else
                     <li class="nav-item">
-                        @if ($item['route'] === '#')
+                        @if (($item['disabled'] ?? false) === true)
+                            <span class="nav-link disabled opacity-50 pe-none" aria-disabled="true" title="Access restricted" style="cursor: not-allowed;">
+                                <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                            </span>
+                        @elseif ($item['route'] === '#')
                             <span class="nav-link disabled">
                                 <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                             </span>
