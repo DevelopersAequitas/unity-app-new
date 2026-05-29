@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Event;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class VisitorEventRegistrationRequest extends FormRequest
@@ -29,7 +30,7 @@ class VisitorEventRegistrationRequest extends FormRequest
             'visitor_company' => ['nullable', 'string', 'max:120'],
             'visitor_city' => ['nullable', 'string', 'max:120'],
             'visitor_designation' => ['nullable', 'string', 'max:150'],
-            'visitor_business_category_id' => ['nullable', 'uuid'],
+            'visitor_business_category_id' => $this->visitorBusinessCategoryIdRules(),
             'visitor_business_category' => ['nullable', 'string', 'max:150'],
             'visitor_business_website' => ['nullable', 'url', 'max:255'],
             'visitor_business_brief' => ['nullable', 'string', 'max:2000'],
@@ -52,5 +53,28 @@ class VisitorEventRegistrationRequest extends FormRequest
             'source' => ['sometimes', 'string', 'in:app,visitor_app,visitor_web,admin,zoho_form'],
             'metadata' => ['nullable', 'array'],
         ];
+    }
+
+    private function visitorBusinessCategoryIdRules(): array
+    {
+        $rules = ['nullable', 'integer'];
+
+        $table = $this->level4CategoriesTable();
+        if ($table) {
+            $rules[] = Rule::exists($table, 'id');
+        }
+
+        return $rules;
+    }
+
+    private function level4CategoriesTable(): ?string
+    {
+        foreach (['level4_categories', 'circle_category_level4'] as $table) {
+            if (Schema::hasTable($table)) {
+                return $table;
+            }
+        }
+
+        return null;
     }
 }

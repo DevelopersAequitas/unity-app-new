@@ -217,6 +217,9 @@ class EventRegistrationService
         $data['visitor_phone'] = $data['visitor_phone'] ?? $user->phone;
         $data['visitor_company'] = $data['visitor_company'] ?? $user->company_name;
         $data['visitor_city'] = $data['visitor_city'] ?? ($user->city ?? $user->city_of_residence);
+        if (array_key_exists('visitor_business_category_id', $data) && $data['visitor_business_category_id'] !== null && $data['visitor_business_category_id'] !== '') {
+            $data['visitor_business_category_id'] = (int) $data['visitor_business_category_id'];
+        }
         $invitedByType = $data['invited_by_type'] ?? null;
         $data['invited_by_user_id'] = in_array($invitedByType, ['circle_member_peer', 'other'], true)
             ? ($data['invited_by_user_id'] ?? null)

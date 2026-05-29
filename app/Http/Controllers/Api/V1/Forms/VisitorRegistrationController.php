@@ -18,6 +18,9 @@ class VisitorRegistrationController extends BaseApiController
         $invitedByUserId = in_array($invitedByType, ['circle_member_peer', 'other'], true)
             ? ($data['invited_by_user_id'] ?? null)
             : null;
+        $visitorBusinessCategoryId = array_key_exists('visitor_business_category_id', $data) && $data['visitor_business_category_id'] !== null && $data['visitor_business_category_id'] !== ''
+            ? (int) $data['visitor_business_category_id']
+            : null;
 
         $registration = VisitorRegistration::create([
             'user_id' => $authUser->id,
@@ -30,7 +33,7 @@ class VisitorRegistrationController extends BaseApiController
             'visitor_city' => $data['visitor_city'],
             'visitor_business' => $data['visitor_business'],
             'visitor_designation' => $data['visitor_designation'] ?? null,
-            'visitor_business_category_id' => $data['visitor_business_category_id'] ?? null,
+            'visitor_business_category_id' => $visitorBusinessCategoryId,
             'visitor_business_category' => $data['visitor_business_category'] ?? null,
             'visitor_business_website' => $data['visitor_business_website'] ?? null,
             'visitor_business_brief' => $data['visitor_business_brief'] ?? null,

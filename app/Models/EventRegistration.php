@@ -79,6 +79,7 @@ class EventRegistration extends Model
     ];
 
     protected $casts = [
+        'visitor_business_category_id' => 'integer',
         'registered_at' => 'datetime',
         'checked_in_at' => 'datetime',
         'last_qr_scan_at' => 'datetime',

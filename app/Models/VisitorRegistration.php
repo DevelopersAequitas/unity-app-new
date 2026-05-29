@@ -40,6 +40,7 @@ class VisitorRegistration extends Model
     ];
 
     protected $casts = [
+        'visitor_business_category_id' => 'integer',
         'event_date' => 'datetime',
         'reviewed_at' => 'datetime',
         'coins_awarded' => 'boolean',
