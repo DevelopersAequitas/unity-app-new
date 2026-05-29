@@ -49,7 +49,7 @@ class EventPaymentService
 
         $registration->forceFill($this->filterRegistrationColumns($updates))->save();
 
-        return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser']);
+        return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
     }
 
     public function attachCheckout(EventRegistration $registration): EventRegistration
@@ -61,9 +61,9 @@ class EventPaymentService
         $gateway = (string) config('services.event_payment_gateway', env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'));
         if ($gateway === 'zoho_billing_payment_link') {
             $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
-                ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user']));
+                ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
         } else {
-            $registration = $this->razorpay->createOrder($registration->fresh(['event', 'occurrence', 'user']));
+            $registration = $this->razorpay->createOrder($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
         }
 
         return DB::transaction(function () use ($registration, $gateway): EventRegistration {
@@ -82,7 +82,7 @@ class EventPaymentService
                 'metadata' => $metadata,
             ]))->save();
 
-            return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser']);
+            return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         });
     }
 
@@ -135,17 +135,9 @@ class EventPaymentService
             'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
             'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
             'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
-            'visitor_business_category_main' => $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main'),
             'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
-            'visitor_business_category_sub' => $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub') ?? $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
-            'business_category_main' => $this->businessCategoryPayload(
-                $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
-                $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main')
-            ),
-            'business_category_sub' => $this->businessCategoryPayload(
-                $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
-                $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub') ?? $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category')
-            ),
+            'business_category_main' => $registration->businessCategoryMainPayload(),
+            'business_category_sub' => $registration->businessCategorySubPayload(),
             'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
             'visitor_business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
             'invited_by_type' => $registration->invited_by_type ?? data_get($registration->metadata, 'invited_by_type'),
@@ -154,17 +146,6 @@ class EventPaymentService
         ];
     }
 
-    private function businessCategoryPayload(mixed $id, ?string $name): ?array
-    {
-        if ($id === null && ($name === null || $name === '')) {
-            return null;
-        }
-
-        return [
-            'id' => $id !== null && $id !== '' ? (int) $id : null,
-            'name' => $name,
-        ];
-    }
 
     private function invitedByUserPayload(?User $user): ?array
     {

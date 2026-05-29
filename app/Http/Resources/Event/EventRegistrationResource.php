@@ -39,17 +39,9 @@ class EventRegistrationResource extends JsonResource
             'visitor_business_category_id' => $this->visitor_business_category_id ?? data_get($this->metadata, 'visitor_business_category_id'),
             'visitor_business_category' => $this->visitor_business_category ?? data_get($this->metadata, 'visitor_business_category'),
             'visitor_business_category_main_id' => $this->visitor_business_category_main_id ?? data_get($this->metadata, 'visitor_business_category_main_id'),
-            'visitor_business_category_main' => $this->visitor_business_category_main ?? data_get($this->metadata, 'visitor_business_category_main'),
             'visitor_business_category_sub_id' => $this->visitor_business_category_sub_id ?? data_get($this->metadata, 'visitor_business_category_sub_id') ?? $this->visitor_business_category_id ?? data_get($this->metadata, 'visitor_business_category_id'),
-            'visitor_business_category_sub' => $this->visitor_business_category_sub ?? data_get($this->metadata, 'visitor_business_category_sub') ?? $this->visitor_business_category ?? data_get($this->metadata, 'visitor_business_category'),
-            'business_category_main' => $this->businessCategoryPayload(
-                $this->visitor_business_category_main_id ?? data_get($this->metadata, 'visitor_business_category_main_id'),
-                $this->visitor_business_category_main ?? data_get($this->metadata, 'visitor_business_category_main')
-            ),
-            'business_category_sub' => $this->businessCategoryPayload(
-                $this->visitor_business_category_sub_id ?? data_get($this->metadata, 'visitor_business_category_sub_id') ?? $this->visitor_business_category_id ?? data_get($this->metadata, 'visitor_business_category_id'),
-                $this->visitor_business_category_sub ?? data_get($this->metadata, 'visitor_business_category_sub') ?? $this->visitor_business_category ?? data_get($this->metadata, 'visitor_business_category')
-            ),
+            'business_category_main' => $this->businessCategoryMainPayload(),
+            'business_category_sub' => $this->businessCategorySubPayload(),
             'visitor_business_website' => $this->visitor_business_website ?? data_get($this->metadata, 'visitor_business_website'),
             'visitor_business_brief' => $this->visitor_business_brief ?? data_get($this->metadata, 'visitor_business_brief'),
             'invited_by_type' => $this->invited_by_type ?? data_get($this->metadata, 'invited_by_type'),
@@ -94,28 +86,11 @@ class EventRegistrationResource extends JsonResource
                 'designation' => $this->visitor_designation ?? data_get($this->metadata, 'visitor_designation'),
                 'business_category_id' => $this->visitor_business_category_id ?? data_get($this->metadata, 'visitor_business_category_id'),
                 'business_category' => $this->visitor_business_category ?? data_get($this->metadata, 'visitor_business_category'),
-                'business_category_main' => $this->businessCategoryPayload(
-                    $this->visitor_business_category_main_id ?? data_get($this->metadata, 'visitor_business_category_main_id'),
-                    $this->visitor_business_category_main ?? data_get($this->metadata, 'visitor_business_category_main')
-                ),
-                'business_category_sub' => $this->businessCategoryPayload(
-                    $this->visitor_business_category_sub_id ?? data_get($this->metadata, 'visitor_business_category_sub_id') ?? $this->visitor_business_category_id ?? data_get($this->metadata, 'visitor_business_category_id'),
-                    $this->visitor_business_category_sub ?? data_get($this->metadata, 'visitor_business_category_sub') ?? $this->visitor_business_category ?? data_get($this->metadata, 'visitor_business_category')
-                ),
+                'business_category_main' => $this->businessCategoryMainPayload(),
+                'business_category_sub' => $this->businessCategorySubPayload(),
                 'business_website' => $this->visitor_business_website ?? data_get($this->metadata, 'visitor_business_website'),
                 'business_brief' => $this->visitor_business_brief ?? data_get($this->metadata, 'visitor_business_brief'),
             ],
-        ];
-    }
-    private function businessCategoryPayload(mixed $id, ?string $name): ?array
-    {
-        if ($id === null && ($name === null || $name === '')) {
-            return null;
-        }
-
-        return [
-            'id' => $id !== null && $id !== '' ? (int) $id : null,
-            'name' => $name,
         ];
     }
 }

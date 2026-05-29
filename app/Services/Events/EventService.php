@@ -174,7 +174,7 @@ class EventService
     public function attendanceReport(Event $event, array $filters = []): array
     {
         $query = EventRegistration::query()
-            ->with(['user', 'occurrence', 'invitedByUser'])
+            ->with(['user', 'occurrence', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])
             ->where('event_id', $event->id)
             ->when($filters['occurrence_id'] ?? null, fn ($q, $v) => $q->where('occurrence_id', $v))
             ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
@@ -242,14 +242,8 @@ class EventService
                 'designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
                 'business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
                 'business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
-                'business_category_main' => $this->businessCategoryPayload(
-                    $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
-                    $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main')
-                ),
-                'business_category_sub' => $this->businessCategoryPayload(
-                    $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
-                    $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub') ?? $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category')
-                ),
+                'business_category_main' => $registration->businessCategoryMainPayload(),
+                'business_category_sub' => $registration->businessCategorySubPayload(),
                 'business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
                 'business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
             ],
@@ -262,17 +256,9 @@ class EventService
             'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
             'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
             'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
-            'visitor_business_category_main' => $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main'),
             'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
-            'visitor_business_category_sub' => $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub') ?? $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
-            'business_category_main' => $this->businessCategoryPayload(
-                $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
-                $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main')
-            ),
-            'business_category_sub' => $this->businessCategoryPayload(
-                $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
-                $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub') ?? $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category')
-            ),
+            'business_category_main' => $registration->businessCategoryMainPayload(),
+            'business_category_sub' => $registration->businessCategorySubPayload(),
             'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
             'visitor_business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
             'invited_by_type' => $registration->invited_by_type ?? data_get($registration->metadata, 'invited_by_type'),
@@ -297,17 +283,6 @@ class EventService
         ];
     }
 
-    private function businessCategoryPayload(mixed $id, ?string $name): ?array
-    {
-        if ($id === null && ($name === null || $name === '')) {
-            return null;
-        }
-
-        return [
-            'id' => $id !== null && $id !== '' ? (int) $id : null,
-            'name' => $name,
-        ];
-    }
 
     private function invitedByUserPayload(?User $user): ?array
     {
