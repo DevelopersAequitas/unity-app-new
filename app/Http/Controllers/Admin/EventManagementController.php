@@ -136,6 +136,28 @@ class EventManagementController extends Controller
         return redirect()->route('admin.events.show', $event)->with('success', 'Event created successfully.');
     }
 
+
+    public function edit(string $id): View
+    {
+        $event = Event::query()->findOrFail($id);
+
+        return view('admin.events.edit', [
+            'event' => $event,
+            'circles' => Circle::query()->orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
+    public function update(Request $request, string $id): RedirectResponse
+    {
+        $event = Event::query()->findOrFail($id);
+        $data = $this->validated($request);
+
+        $event->fill($this->filterColumns($this->withDefaults($data)));
+        $event->save();
+
+        return redirect()->route('admin.events.show', $event)->with('success', 'Event updated successfully.');
+    }
+
     public function show(string $id): View
     {
         $event = Event::query()->with(['circle', 'occurrences' => fn ($q) => $q->orderBy('start_at'), 'registrations.user', 'registrations.occurrence'])->findOrFail($id);

@@ -45,7 +45,7 @@ class PostModerationController extends Controller
         $inlineModerationStatus = $request->query('inline_moderation_status', 'any');
         $inlineActive = $request->query('inline_active', 'any');
         $media = $request->query('media', 'any');
-        $query = Post::query()
+        $query = Post::withTrashed()
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
@@ -116,16 +116,30 @@ class PostModerationController extends Controller
             });
         }
 
-        if (($filters['active'] ?? 'active') === 'deactivated' || $inlineActive === 'no') {
+        $activeFilter = $inlineActive !== 'any'
+            ? ($inlineActive === 'yes' ? 'active' : 'deactivated')
+            : ($filters['active'] ?? 'active');
+
+        if ($activeFilter === 'deactivated') {
             $query->where(function ($subQuery) {
                 $subQuery->whereNotNull('posts.deleted_at')
                     ->orWhere('posts.is_deleted', true);
+
+                if (Schema::hasColumn('posts', 'active')) {
+                    $subQuery->orWhere('posts.active', false);
+                }
             });
-        } else {
+        } elseif ($activeFilter === 'active') {
             $query->whereNull('posts.deleted_at')
                 ->where(function ($subQuery) {
                     $subQuery->where('posts.is_deleted', false)
                         ->orWhereNull('posts.is_deleted');
+                })
+                ->when(Schema::hasColumn('posts', 'active'), function ($activeQuery) {
+                    $activeQuery->where(function ($subQuery) {
+                        $subQuery->where('posts.active', true)
+                            ->orWhereNull('posts.active');
+                    });
                 });
         }
 

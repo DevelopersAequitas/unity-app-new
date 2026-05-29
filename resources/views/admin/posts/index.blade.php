@@ -67,16 +67,23 @@
                     <tr>
                         <th>Created At</th>
                         <th>Peer Name</th>
+                        <th>Company</th>
+                        <th>City</th>
+                        <th>Circle</th>
                         <th>Visibility</th>
                         <th>Moderation Status</th>
                         <th>Active?</th>
                         <th>Content</th>
+                        <th>Tags</th>
                         <th>Media</th>
                         <th>Actions</th>
                     </tr>
                     <tr class="bg-light">
                         <th></th>
                         <th><input type="text" name="peer" form="postsFiltersForm" class="form-control form-control-sm" style="min-width:180px" value="{{ $peer ?? '' }}" placeholder="Peer/Company/City"></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
                         <th>
                             <select name="inline_visibility" form="postsFiltersForm" class="form-select form-select-sm">
                                 <option value="any">Any</option>
@@ -120,10 +127,23 @@
                         @php
                             $isImpact = ($post->timeline_item_type ?? $post->source_type ?? 'post') === 'impact';
                             $owner = $post->user;
-                            $circleName = optional($post->circle)->name;
+                            $ownerName = $owner?->name
+                                ?? trim(($owner->first_name ?? '') . ' ' . ($owner->last_name ?? ''))
+                                ?: ($owner?->display_name ?? '—');
+                            $company = $owner?->company_name
+                                ?? $owner?->company
+                                ?? $owner?->business_name
+                                ?? $owner?->organization
+                                ?? 'No Company';
+                            $city = $owner?->city
+                                ?? $owner?->current_city
+                                ?? $owner?->location_city
+                                ?? 'No City';
+                            $circleName = optional($post->circle)->name ?: 'No Circle';
                             $isActive = $isImpact
                                 ? ! is_null($post->timeline_posted_at ?? null)
-                                : $post->deleted_at === null;
+                                : $post->deleted_at === null && ! (bool) ($post->is_deleted ?? false) && (bool) ($post->active ?? true);
+                            $tags = collect($post->tags ?? [])->filter()->values();
                             $mediaUrl = (function ($media) {
                                 if (empty($media)) {
                                     return null;
@@ -170,7 +190,10 @@
                         @endphp
                         <tr>
                             <td>{{ $post->created_at?->format('Y-m-d H:i') }}</td>
-                            <td>@include('admin.partials.peer_identity', ['user' => $owner, 'circleName' => $circleName])</td>
+                            <td>{{ $ownerName !== '' ? $ownerName : '—' }}</td>
+                            <td>{{ $company !== '' ? $company : 'No Company' }}</td>
+                            <td>{{ $city !== '' ? $city : 'No City' }}</td>
+                            <td>{{ $circleName }}</td>
                             <td>{{ ucfirst($post->visibility) }}</td>
                             <td>{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</td>
                             <td>{{ $isActive ? 'Yes' : 'No' }}</td>
@@ -190,6 +213,13 @@
                                         @endif
                                     </div>
                                 @endif
+                            </td>
+                            <td>
+                                @forelse($tags as $tag)
+                                    <span class="badge bg-light text-dark border me-1">{{ $tag }}</span>
+                                @empty
+                                    <span class="text-muted">—</span>
+                                @endforelse
                             </td>
                             <td style="white-space:nowrap;">
                                 @if ($mediaUrl)
@@ -228,7 +258,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="text-center text-muted">No posts found.</td></tr>
+                        <tr><td colspan="11" class="text-center text-muted">No posts found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
