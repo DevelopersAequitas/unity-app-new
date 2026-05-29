@@ -23,6 +23,13 @@ class VisitorRegistration extends Model
         'visitor_email',
         'visitor_city',
         'visitor_business',
+        'visitor_designation',
+        'visitor_business_category_id',
+        'visitor_business_category',
+        'visitor_business_website',
+        'visitor_business_brief',
+        'invited_by_type',
+        'invited_by_user_id',
         'how_known',
         'note',
         'status',
@@ -47,5 +54,10 @@ class VisitorRegistration extends Model
     public function reviewedBy(): BelongsTo
     {
         return $this->belongsTo(AdminUser::class, 'reviewed_by_admin_user_id');
+    }
+
+    public function invitedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'invited_by_user_id');
     }
 }

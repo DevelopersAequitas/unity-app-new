@@ -37,6 +37,14 @@ class EventRegistration extends Model
         'visitor_phone',
         'visitor_company',
         'visitor_city',
+        'visitor_designation',
+        'visitor_business_category_id',
+        'visitor_business_category',
+        'visitor_business_website',
+        'visitor_business_brief',
+        'invited_by_type',
+        'invited_by_user_id',
+        'how_known',
         'zoho_form_entry_id',
         'zoho_payment_id',
         'zoho_payment_status',
@@ -102,5 +110,10 @@ class EventRegistration extends Model
     public function checkedInBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'checked_in_by_user_id');
+    }
+
+    public function invitedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'invited_by_user_id');
     }
 }
