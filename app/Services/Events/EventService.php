@@ -242,6 +242,14 @@ class EventService
                 'designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
                 'business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
                 'business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+                'business_category_main' => $this->businessCategoryPayload(
+                    $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
+                    $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main')
+                ),
+                'business_category_sub' => $this->businessCategoryPayload(
+                    $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+                    $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub') ?? $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category')
+                ),
                 'business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
                 'business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
             ],
@@ -253,6 +261,18 @@ class EventService
             'visitor_designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
             'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
             'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+            'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
+            'visitor_business_category_main' => $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main'),
+            'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'visitor_business_category_sub' => $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub') ?? $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+            'business_category_main' => $this->businessCategoryPayload(
+                $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
+                $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main')
+            ),
+            'business_category_sub' => $this->businessCategoryPayload(
+                $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+                $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub') ?? $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category')
+            ),
             'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
             'visitor_business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
             'invited_by_type' => $registration->invited_by_type ?? data_get($registration->metadata, 'invited_by_type'),
@@ -274,6 +294,18 @@ class EventService
             'zoho_invoice_sync_error' => $registration->zoho_invoice_sync_error ?? null,
             'qr_status' => empty($registration->qr_code_path) && empty($registration->qr_code_url) ? 'not_generated' : 'generated',
             'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
+        ];
+    }
+
+    private function businessCategoryPayload(mixed $id, ?string $name): ?array
+    {
+        if ($id === null && ($name === null || $name === '')) {
+            return null;
+        }
+
+        return [
+            'id' => $id !== null && $id !== '' ? (int) $id : null,
+            'name' => $name,
         ];
     }
 

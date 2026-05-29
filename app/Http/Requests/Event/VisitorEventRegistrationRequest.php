@@ -30,8 +30,12 @@ class VisitorEventRegistrationRequest extends FormRequest
             'visitor_company' => ['nullable', 'string', 'max:120'],
             'visitor_city' => ['nullable', 'string', 'max:120'],
             'visitor_designation' => ['nullable', 'string', 'max:150'],
-            'visitor_business_category_id' => $this->visitorBusinessCategoryIdRules(),
+            'visitor_business_category_id' => $this->visitorBusinessCategorySubIdRules(),
             'visitor_business_category' => ['nullable', 'string', 'max:150'],
+            'visitor_business_category_main_id' => ['nullable', 'integer', Rule::exists('circle_categories', 'id')],
+            'visitor_business_category_main' => ['nullable', 'string', 'max:150'],
+            'visitor_business_category_sub_id' => $this->visitorBusinessCategorySubIdRules(),
+            'visitor_business_category_sub' => ['nullable', 'string', 'max:150'],
             'visitor_business_website' => ['nullable', 'url', 'max:255'],
             'visitor_business_brief' => ['nullable', 'string', 'max:2000'],
             'invited_by_type' => ['nullable', 'string', Rule::in(['peers_global_team', 'circle_member_peer', 'other'])],
@@ -55,7 +59,7 @@ class VisitorEventRegistrationRequest extends FormRequest
         ];
     }
 
-    private function visitorBusinessCategoryIdRules(): array
+    private function visitorBusinessCategorySubIdRules(): array
     {
         $rules = ['nullable', 'integer'];
 

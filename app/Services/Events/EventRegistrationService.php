@@ -217,9 +217,7 @@ class EventRegistrationService
         $data['visitor_phone'] = $data['visitor_phone'] ?? $user->phone;
         $data['visitor_company'] = $data['visitor_company'] ?? $user->company_name;
         $data['visitor_city'] = $data['visitor_city'] ?? ($user->city ?? $user->city_of_residence);
-        if (array_key_exists('visitor_business_category_id', $data) && $data['visitor_business_category_id'] !== null && $data['visitor_business_category_id'] !== '') {
-            $data['visitor_business_category_id'] = (int) $data['visitor_business_category_id'];
-        }
+        $data = $this->normalizeVisitorBusinessCategories($data);
         $invitedByType = $data['invited_by_type'] ?? null;
         $data['invited_by_user_id'] = in_array($invitedByType, ['circle_member_peer', 'other'], true)
             ? ($data['invited_by_user_id'] ?? null)
@@ -238,6 +236,10 @@ class EventRegistrationService
             'visitor_designation' => $data['visitor_designation'] ?? null,
             'visitor_business_category_id' => $data['visitor_business_category_id'] ?? null,
             'visitor_business_category' => $data['visitor_business_category'] ?? null,
+            'visitor_business_category_main_id' => $data['visitor_business_category_main_id'] ?? null,
+            'visitor_business_category_main' => $data['visitor_business_category_main'] ?? null,
+            'visitor_business_category_sub_id' => $data['visitor_business_category_sub_id'] ?? null,
+            'visitor_business_category_sub' => $data['visitor_business_category_sub'] ?? null,
             'visitor_business_website' => $data['visitor_business_website'] ?? null,
             'visitor_business_brief' => $data['visitor_business_brief'] ?? null,
             'invited_by_type' => $data['invited_by_type'] ?? null,
@@ -247,6 +249,25 @@ class EventRegistrationService
 
         foreach (['full_name', 'email', 'phone', 'city', 'company_name', 'designation', 'business_category_id', 'business_sub_category', 'referral_code', 'referred_by', 'notes'] as $key) {
             unset($data[$key]);
+        }
+
+        return $data;
+    }
+
+    private function normalizeVisitorBusinessCategories(array $data): array
+    {
+        foreach (['visitor_business_category_id', 'visitor_business_category_main_id', 'visitor_business_category_sub_id'] as $key) {
+            if (array_key_exists($key, $data) && $data[$key] !== null && $data[$key] !== '') {
+                $data[$key] = (int) $data[$key];
+            }
+        }
+
+        if (! array_key_exists('visitor_business_category_sub_id', $data) && array_key_exists('visitor_business_category_id', $data)) {
+            $data['visitor_business_category_sub_id'] = $data['visitor_business_category_id'];
+        }
+
+        if (! array_key_exists('visitor_business_category_sub', $data) && array_key_exists('visitor_business_category', $data)) {
+            $data['visitor_business_category_sub'] = $data['visitor_business_category'];
         }
 
         return $data;
@@ -358,6 +379,10 @@ class EventRegistrationService
                     'visitor_designation' => $data['visitor_designation'] ?? $existing->visitor_designation,
                     'visitor_business_category_id' => $data['visitor_business_category_id'] ?? $existing->visitor_business_category_id,
                     'visitor_business_category' => $data['visitor_business_category'] ?? $existing->visitor_business_category,
+                    'visitor_business_category_main_id' => $data['visitor_business_category_main_id'] ?? $existing->visitor_business_category_main_id,
+                    'visitor_business_category_main' => $data['visitor_business_category_main'] ?? $existing->visitor_business_category_main,
+                    'visitor_business_category_sub_id' => $data['visitor_business_category_sub_id'] ?? $existing->visitor_business_category_sub_id,
+                    'visitor_business_category_sub' => $data['visitor_business_category_sub'] ?? $existing->visitor_business_category_sub,
                     'visitor_business_website' => $data['visitor_business_website'] ?? $existing->visitor_business_website,
                     'visitor_business_brief' => $data['visitor_business_brief'] ?? $existing->visitor_business_brief,
                     'invited_by_type' => $data['invited_by_type'] ?? $existing->invited_by_type,

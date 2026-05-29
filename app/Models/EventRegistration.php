@@ -40,6 +40,10 @@ class EventRegistration extends Model
         'visitor_designation',
         'visitor_business_category_id',
         'visitor_business_category',
+        'visitor_business_category_main_id',
+        'visitor_business_category_main',
+        'visitor_business_category_sub_id',
+        'visitor_business_category_sub',
         'visitor_business_website',
         'visitor_business_brief',
         'invited_by_type',
@@ -80,6 +84,8 @@ class EventRegistration extends Model
 
     protected $casts = [
         'visitor_business_category_id' => 'integer',
+        'visitor_business_category_main_id' => 'integer',
+        'visitor_business_category_sub_id' => 'integer',
         'registered_at' => 'datetime',
         'checked_in_at' => 'datetime',
         'last_qr_scan_at' => 'datetime',
