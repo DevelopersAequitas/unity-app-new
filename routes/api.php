@@ -96,6 +96,7 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
@@ -146,6 +147,8 @@ Route::prefix('v1')->group(function () {
     });
     Route::post('/zoho/events/form-webhook', ZohoEventFormWebhookController::class);
     Route::post('/payments/zoho-billing/payment-link/webhook', [ZohoPaymentLinkWebhookController::class, 'handle']);
+    Route::post('/webhooks/zoho/payments', [ZohoPaymentWebhookController::class, 'handle']);
+    Route::post('/zoho/payments/webhook', [ZohoPaymentWebhookController::class, 'handle']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
@@ -460,6 +463,7 @@ Route::prefix('v1')->group(function () {
         // Events
         Route::get('/events', [EventController::class, 'index']);
         Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
+        Route::get('/my/event-registrations', [EventController::class, 'myEventRegistrations']);
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
         Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
@@ -470,6 +474,13 @@ Route::prefix('v1')->group(function () {
     Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
         Route::get('/events/{event_id}/attendance', [EventController::class, 'attendance'])->whereUuid('event_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'register'])->whereUuid('event_id')->whereUuid('occurrence_id');
+        Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register-as-user', [EventController::class, 'visitorRegisterAsUser'])->whereUuid('event_id')->whereUuid('occurrence_id');
+        Route::post('/events/{event_id}/occurrences/{occurrence_id}/registration-request', [EventController::class, 'createRegistrationRequest'])->whereUuid('event_id')->whereUuid('occurrence_id');
+        Route::get('/events/registration-requests/my', [EventController::class, 'myRegistrationRequests']);
+        Route::post('/events/registration-requests/{request_id}/cancel', [EventController::class, 'cancelRegistrationRequest'])->whereUuid('request_id');
+        Route::get('/admin/event-registration-requests', [EventController::class, 'adminRegistrationRequests']);
+        Route::post('/admin/event-registration-requests/{request_id}/approve', [EventController::class, 'approveRegistrationRequest'])->whereUuid('request_id');
+        Route::post('/admin/event-registration-requests/{request_id}/reject', [EventController::class, 'rejectRegistrationRequest'])->whereUuid('request_id');
         Route::get('/events/{id}', [EventController::class, 'show'])->whereUuid('id');
         Route::post('/events', [EventController::class, 'store']);
         Route::post('/events/{id}/rsvp', [EventController::class, 'rsvp'])->whereUuid('id');

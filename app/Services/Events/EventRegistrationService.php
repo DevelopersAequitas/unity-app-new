@@ -7,8 +7,10 @@ use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class EventRegistrationService
@@ -32,6 +34,115 @@ class EventRegistrationService
         return $this->createRegistration($event, $occurrence, ['user_id' => $user->id, 'source' => $source, 'registration_type' => 'member']);
     }
 
+    public function registerMemberDirectNoPayment(Event $event, EventOccurrence $occurrence, User $user, string $source = 'app'): EventRegistration
+    {
+        if ($occurrence->event_id !== $event->id) {
+            throw ValidationException::withMessages(['occurrence_id' => 'Occurrence does not belong to this event.']);
+        }
+
+        $existing = EventRegistration::query()
+            ->where('occurrence_id', $occurrence->id)
+            ->where('user_id', $user->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereNull('deleted_at')
+            ->first();
+
+        if ($existing) {
+            if (empty($existing->qr_code_path) && empty($existing->qr_code_url)) {
+                $this->qr->generateAndStore($existing);
+            }
+
+            return $existing->fresh(['event.circle', 'occurrence', 'user']);
+        }
+
+        return $this->createRegistration(
+            $event,
+            $occurrence,
+            ['user_id' => $user->id, 'source' => $source, 'registration_type' => 'member'],
+            false
+        );
+    }
+
+
+    public function registerApprovedCrossCircleMember(Event $event, EventOccurrence $occurrence, User $user, string $requestId, string $source = 'app'): EventRegistration
+    {
+        if ($occurrence->event_id !== $event->id) {
+            throw ValidationException::withMessages(['occurrence_id' => 'Occurrence does not belong to this event.']);
+        }
+
+        $existing = EventRegistration::query()
+            ->where('occurrence_id', $occurrence->id)
+            ->where('user_id', $user->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereNull('deleted_at')
+            ->first();
+
+        if ($existing) {
+            $updates = $this->filterRegistrationColumns([
+                'registration_type' => 'cross_circle_member',
+                'registration_request_id' => $requestId,
+            ]);
+            if (! empty($updates)) {
+                $existing->forceFill($updates)->save();
+            }
+
+            if ((bool) ($existing->payment_required ?? false) && ($existing->payment_status ?? null) === 'pending') {
+                return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user']));
+            }
+
+            return $existing->fresh(['event.circle', 'occurrence', 'user']);
+        }
+
+        return $this->createRegistration(
+            $event,
+            $occurrence,
+            [
+                'user_id' => $user->id,
+                'source' => $source,
+                'registration_type' => 'cross_circle_member',
+                'registration_request_id' => $requestId,
+            ],
+            true
+        );
+    }
+
+    public function registerAppUserVisitor(Event $event, EventOccurrence $occurrence, User $user, string $source = 'app'): EventRegistration
+    {
+        if ($occurrence->event_id !== $event->id) {
+            throw ValidationException::withMessages(['occurrence_id' => 'Occurrence does not belong to this event.']);
+        }
+        if (! $this->events->visitorRegistrationEnabled($event)) {
+            throw ValidationException::withMessages(['event_id' => 'Visitor registration is not enabled for this event.']);
+        }
+
+        $existing = EventRegistration::query()
+            ->where('occurrence_id', $occurrence->id)
+            ->where('user_id', $user->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereNull('deleted_at')
+            ->latest('created_at')
+            ->first();
+
+        if ($existing) {
+            if ((bool) ($existing->payment_required ?? false) && in_array((string) ($existing->payment_status ?? ''), ['pending', 'failed', 'expired'], true)) {
+                return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user']));
+            }
+
+            return $existing->fresh(['event.circle', 'occurrence', 'user']);
+        }
+
+        return $this->createRegistration($event, $occurrence, [
+            'user_id' => $user->id,
+            'source' => $source,
+            'registration_type' => 'app_user_visitor',
+            'visitor_name' => $this->userDisplayName($user),
+            'visitor_email' => $user->email,
+            'visitor_phone' => $user->phone,
+            'visitor_company' => $user->company_name,
+            'visitor_city' => $user->city ?? $user->city_of_residence,
+        ], true);
+    }
+
     public function registerVisitor(Event $event, EventOccurrence $occurrence, array $data): EventRegistration
     {
         if ($occurrence->event_id !== $event->id) {
@@ -43,6 +154,8 @@ class EventRegistrationService
 
         $source = $this->normalizeVisitorSource($data['source'] ?? 'visitor_app');
         unset($data['source']);
+
+        $data = $this->preparePublicVisitorData($data);
 
         return $this->createRegistration($event, $occurrence, $data + ['source' => $source, 'registration_type' => 'visitor']);
     }
@@ -83,6 +196,87 @@ class EventRegistrationService
         });
     }
 
+    private function preparePublicVisitorData(array $data): array
+    {
+        Log::info('public_event_registration_user_lookup_start', [
+            'visitor_email' => $data['visitor_email'] ?? null,
+            'visitor_phone' => $data['visitor_phone'] ?? null,
+        ]);
+
+        $user = $this->findUserByEmailOrPhone($data['visitor_email'] ?? null, $data['visitor_phone'] ?? null);
+        if (! $user) {
+            $user = $this->createVisitorUser($data);
+            Log::info('public_event_registration_new_user_created', ['user_id' => (string) $user->id]);
+        } else {
+            Log::info('public_event_registration_existing_user_linked', ['user_id' => (string) $user->id]);
+        }
+
+        $data['user_id'] = $user->id;
+        $data['visitor_name'] = $data['visitor_name'] ?? $this->userDisplayName($user);
+        $data['visitor_email'] = $data['visitor_email'] ?? $user->email;
+        $data['visitor_phone'] = $data['visitor_phone'] ?? $user->phone;
+        $data['visitor_company'] = $data['visitor_company'] ?? $user->company_name;
+        $data['visitor_city'] = $data['visitor_city'] ?? ($user->city ?? $user->city_of_residence);
+        $data['metadata'] = array_merge((array) ($data['metadata'] ?? []), array_filter([
+            'designation' => $data['designation'] ?? null,
+            'business_category_id' => $data['business_category_id'] ?? null,
+            'business_sub_category' => $data['business_sub_category'] ?? null,
+            'referral_code' => $data['referral_code'] ?? null,
+            'referred_by' => $data['referred_by'] ?? null,
+            'notes' => $data['notes'] ?? null,
+            'linked_user_id' => (string) $user->id,
+        ], fn ($value) => $value !== null && $value !== ''));
+
+        foreach (['full_name', 'email', 'phone', 'city', 'company_name', 'designation', 'business_category_id', 'business_sub_category', 'referral_code', 'referred_by', 'notes'] as $key) {
+            unset($data[$key]);
+        }
+
+        return $data;
+    }
+
+    private function findUserByEmailOrPhone(?string $email, ?string $phone): ?User
+    {
+        return User::query()
+            ->where(function ($query) use ($email, $phone): void {
+                if ($email) {
+                    $query->orWhereRaw('LOWER(email) = ?', [strtolower($email)]);
+                }
+                if ($phone) {
+                    $query->orWhere('phone', $phone);
+                }
+            })
+            ->first();
+    }
+
+    private function createVisitorUser(array $data): User
+    {
+        $name = trim((string) ($data['visitor_name'] ?? 'Event Visitor')) ?: 'Event Visitor';
+        [$firstName, $lastName] = array_pad(preg_split('/\s+/', $name, 2), 2, null);
+        $attributes = [
+            'first_name' => $firstName ?: $name,
+            'last_name' => $lastName,
+            'display_name' => $name,
+            'email' => $data['visitor_email'] ?? null,
+            'phone' => $data['visitor_phone'] ?? null,
+            'company_name' => $data['visitor_company'] ?? ($data['company_name'] ?? null),
+            'designation' => $data['designation'] ?? null,
+            'city' => $data['visitor_city'] ?? ($data['city'] ?? null),
+            'city_of_residence' => $data['visitor_city'] ?? ($data['city'] ?? null),
+            'business_category_id' => $data['business_category_id'] ?? null,
+            'business_sub_category' => $data['business_sub_category'] ?? null,
+            'membership_status' => 'visitor',
+            'password_hash' => Hash::make(Str::random(32)),
+            'password' => Hash::make(Str::random(32)),
+        ];
+
+        return User::query()->create(array_filter($attributes, fn ($value, $key) => $value !== null && Schema::hasColumn('users', $key), ARRAY_FILTER_USE_BOTH));
+    }
+
+    private function userDisplayName(User $user): string
+    {
+        return trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: $user->email ?: $user->phone ?: 'Event Attendee'));
+    }
+
     public function qrDetails(EventRegistration $registration): array
     {
         $hasGeneratedQr = ! empty($registration->qr_code_path) || ! empty($registration->qr_code_url) || ! empty($registration->qr_code_svg);
@@ -121,17 +315,35 @@ class EventRegistrationService
 
             $this->assertCapacity($event, $lockedOccurrence, $registeredCount);
 
-            $query = isset($data['user_id'])
-                ? EventRegistration::query()->where('occurrence_id', $lockedOccurrence->id)->where('user_id', $data['user_id'])->where('status', '!=', 'cancelled')->whereNull('deleted_at')
-                : $this->duplicateVisitorQuery($lockedOccurrence->id, $data);
+            $registrationTypeForDuplicate = $data['registration_type'] ?? (isset($data['user_id']) ? 'member' : 'visitor');
+            $query = in_array($registrationTypeForDuplicate, ['visitor', 'app_user_visitor'], true)
+                ? $this->duplicateVisitorQuery($lockedOccurrence->id, $data)
+                : (isset($data['user_id'])
+                    ? EventRegistration::query()->where('occurrence_id', $lockedOccurrence->id)->where('user_id', $data['user_id'])->where('status', '!=', 'cancelled')->whereNull('deleted_at')
+                    : $this->duplicateVisitorQuery($lockedOccurrence->id, $data));
 
             $existing = $query->lockForUpdate()->first();
             if ($existing) {
-                if (($existing->payment_required ?? false) && ($existing->payment_status ?? null) === 'pending' && $existing->status === 'pending_payment') {
-                    return $existing->fresh(['event.circle', 'occurrence', 'user']);
+                Log::info('public_event_registration_existing_registration_found', [
+                    'registration_id' => (string) $existing->id,
+                    'event_id' => (string) $event->id,
+                    'occurrence_id' => (string) $lockedOccurrence->id,
+                    'user_id' => $data['user_id'] ?? $existing->user_id,
+                ]);
+                $updates = $this->filterRegistrationColumns(array_filter([
+                    'user_id' => $existing->user_id ?: ($data['user_id'] ?? null),
+                    'visitor_name' => $data['visitor_name'] ?? $existing->visitor_name,
+                    'visitor_email' => $data['visitor_email'] ?? $existing->visitor_email,
+                    'visitor_phone' => $data['visitor_phone'] ?? $existing->visitor_phone,
+                    'visitor_company' => $data['visitor_company'] ?? $existing->visitor_company,
+                    'visitor_city' => $data['visitor_city'] ?? $existing->visitor_city,
+                    'metadata' => array_merge((array) ($existing->metadata ?? []), (array) ($data['metadata'] ?? [])),
+                ], fn ($value) => $value !== null));
+                if (! empty($updates)) {
+                    $existing->forceFill($updates)->save();
                 }
 
-                throw ValidationException::withMessages(['registration' => 'Already registered for this event occurrence.']);
+                return $existing->fresh(['event.circle', 'occurrence', 'user']);
             }
 
             $registrationType = $data['registration_type'] ?? (isset($data['user_id']) ? 'member' : 'visitor');
@@ -163,7 +375,7 @@ class EventRegistrationService
             return $registration->fresh(['event.circle', 'occurrence', 'user']);
         });
 
-        if ((bool) ($registration->payment_required ?? false)) {
+        if ((bool) ($registration->payment_required ?? false) && in_array((string) ($registration->payment_status ?? ''), ['pending', 'failed', 'expired'], true)) {
             return $this->payments->attachCheckout($registration);
         }
 
