@@ -19,8 +19,10 @@ class ContactPostController extends Controller
 
         $query = ContactPost::query()->latest('created_at');
 
-        if ($request->user()) {
-            $query->where('user_id', $request->user()->id);
+        $user = $this->authenticatedUser($request);
+
+        if ($user) {
+            $query->where('user_id', $user->id);
         }
 
         $contactPosts = $query->paginate($perPage);
@@ -47,7 +49,7 @@ class ContactPostController extends Controller
         $validated = $request->validate($this->rules());
 
         try {
-            $validated['user_id'] = optional($request->user())->id;
+            $validated['user_id'] = optional($this->authenticatedUser($request))->id;
 
             $contactPost = ContactPost::create($validated);
 
@@ -58,7 +60,7 @@ class ContactPostController extends Controller
             ], 201);
         } catch (Throwable $exception) {
             Log::error('Contact post creation failed.', [
-                'user_id' => optional($request->user())->id,
+                'user_id' => optional($this->authenticatedUser($request))->id,
                 'exception' => $exception,
             ]);
 
@@ -110,7 +112,7 @@ class ContactPostController extends Controller
         } catch (Throwable $exception) {
             Log::error('Contact post update failed.', [
                 'contact_post_id' => $id,
-                'user_id' => optional($request->user())->id,
+                'user_id' => optional($this->authenticatedUser($request))->id,
                 'exception' => $exception,
             ]);
 
@@ -141,7 +143,7 @@ class ContactPostController extends Controller
         } catch (Throwable $exception) {
             Log::error('Contact post deletion failed.', [
                 'contact_post_id' => $id,
-                'user_id' => optional($request->user())->id,
+                'user_id' => optional($this->authenticatedUser($request))->id,
                 'exception' => $exception,
             ]);
 
@@ -190,12 +192,19 @@ class ContactPostController extends Controller
             ->first();
     }
 
+    private function authenticatedUser(Request $request)
+    {
+        return $request->user('sanctum') ?: $request->user();
+    }
+
     private function queryForUser(Request $request)
     {
         $query = ContactPost::query();
 
-        if ($request->user()) {
-            $query->where('user_id', $request->user()->id);
+        $user = $this->authenticatedUser($request);
+
+        if ($user) {
+            $query->where('user_id', $user->id);
         }
 
         return $query;

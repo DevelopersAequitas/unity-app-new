@@ -151,6 +151,14 @@ Route::prefix('v1')->group(function () {
     Route::post('/webhooks/zoho/payments', [ZohoPaymentWebhookController::class, 'handle']);
     Route::post('/zoho/payments/webhook', [ZohoPaymentWebhookController::class, 'handle']);
 
+    // Contact Posts (public; stores user_id when a valid Sanctum bearer token is present)
+    Route::get('/contact-posts', [ContactPostController::class, 'index']);
+    Route::post('/contact-posts', [ContactPostController::class, 'store']);
+    Route::get('/contact-posts/{id}', [ContactPostController::class, 'show'])->whereUuid('id');
+    Route::put('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
+    Route::patch('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
+    Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
@@ -210,14 +218,6 @@ Route::prefix('v1')->group(function () {
         Route::post('follows/{follow}/accept', [FollowController::class, 'accept'])->whereUuid('follow');
         Route::post('follows/{follow}/reject', [FollowController::class, 'reject'])->whereUuid('follow');
         Route::delete('follows/{follow}/cancel', [FollowController::class, 'cancel'])->whereUuid('follow');
-
-        // Contact Posts
-        Route::get('/contact-posts', [ContactPostController::class, 'index']);
-        Route::post('/contact-posts', [ContactPostController::class, 'store']);
-        Route::get('/contact-posts/{id}', [ContactPostController::class, 'show'])->whereUuid('id');
-        Route::put('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
-        Route::patch('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
-        Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
         // Collaborations
         Route::get('/collaborations/history', [CollaborationPostController::class, 'history']);
