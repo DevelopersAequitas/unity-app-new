@@ -38,7 +38,6 @@
             return ['has' => true, 'count' => 1];
         };
 
-        $firstMediaUrl = fn ($media): ?string => \App\Support\MediaFileUrl::first($media);
 
     @endphp
 
@@ -138,7 +137,7 @@
                             $actorName = $displayName($testimonial->actor_display_name ?? null, $testimonial->actor_first_name ?? null, $testimonial->actor_last_name ?? null);
                             $peerName = $displayName($testimonial->peer_display_name ?? null, $testimonial->peer_first_name ?? null, $testimonial->peer_last_name ?? null);
                             $mediaInfo = $mediaSummary($testimonial->media ?? null);
-                            $mediaUrl = $firstMediaUrl($testimonial->media ?? null);
+                            $mediaUrls = \App\Support\MediaFileUrl::all($testimonial->media ?? null);
                         @endphp
                         <tr>
                             <td>
@@ -159,11 +158,8 @@
                             <td>
                                 @if ($mediaInfo['has'])
                                     <span class="badge bg-success">Yes ({{ $mediaInfo['count'] }})</span>
-                                    @if ($mediaUrl)
-                                        <a href="{{ $mediaUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary ms-2">View</a>
-                                    @else
-                                        <span class="text-warning small ms-2">Missing file</span>
-                                    @endif
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#testimonialMediaViewerModal" data-media-modal="testimonialMediaViewerModal" data-media-source="testimonial-media-json-{{ $testimonial->id }}">View</button>
+                                    <script type="application/json" id="testimonial-media-json-{{ $testimonial->id }}">{{ e(json_encode($mediaUrls)) }}</script>
                                 @else
                                     <span class="text-muted">No</span>
                                 @endif
@@ -185,5 +181,7 @@
     <div class="mt-3">
         {{ $items->links() }}
     </div>
+
+    @include('admin.components.media-viewer-modal', ['modalId' => 'testimonialMediaViewerModal'])
 
 @endsection

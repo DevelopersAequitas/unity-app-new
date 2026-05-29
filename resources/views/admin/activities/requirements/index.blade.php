@@ -188,7 +188,7 @@
                         @php
                             $actorName = $displayName($requirement->actor_display_name ?? null, $requirement->actor_first_name ?? null, $requirement->actor_last_name ?? null);
                             $mediaInfo = $mediaSummary($requirement->media ?? null);
-                            $mediaUrl = \App\Support\MediaFileUrl::first($requirement->media ?? null);
+                            $mediaUrls = \App\Support\MediaFileUrl::all($requirement->media ?? null);
                             $regionFilter = $decodeFilter($requirement->region_filter ?? null);
                             $categoryFilter = $decodeFilter($requirement->category_filter ?? null);
                             $regionLabel = $regionFilter['region_label'] ?? $regionFilter['region_name'] ?? $regionFilter['city_name'] ?? null;
@@ -210,11 +210,8 @@
                             <td>
                                 @if ($mediaInfo['has'])
                                     <span class="badge bg-success">Yes ({{ $mediaInfo['count'] }})</span>
-                                    @if ($mediaUrl)
-                                        <a href="{{ $mediaUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary ms-2">View</a>
-                                    @else
-                                        <span class="text-warning small ms-2">Missing file</span>
-                                    @endif
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#requirementMediaViewerModal" data-media-modal="requirementMediaViewerModal" data-media-source="requirement-media-json-{{ $requirement->id }}">View</button>
+                                    <script type="application/json" id="requirement-media-json-{{ $requirement->id }}">{{ e(json_encode($mediaUrls)) }}</script>
                                 @else
                                     <span class="text-muted">No</span>
                                 @endif
@@ -235,5 +232,7 @@
     <div class="mt-3">
         {{ $items->links() }}
     </div>
+
+    @include('admin.components.media-viewer-modal', ['modalId' => 'requirementMediaViewerModal'])
 
 @endsection

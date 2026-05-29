@@ -3,10 +3,6 @@
 @section('title', 'Testimonials')
 
 @section('content')
-    @php
-        $extractMediaUrl = fn ($media): ?string => \App\Support\MediaFileUrl::first($media);
-    @endphp
-
     <div class="d-flex justify-content-end mb-3">
         <a href="{{ route('admin.activities.index') }}" class="btn btn-outline-secondary">Back to Activities</a>
     </div>
@@ -41,7 +37,7 @@
                 <tbody>
                     @forelse ($items as $testimonial)
                         @php
-                            $attachmentUrl = $extractMediaUrl($testimonial->media ?? null);
+                            $mediaUrls = \App\Support\MediaFileUrl::all($testimonial->media ?? null);
                             $hasAttachment = count(\App\Support\MediaFileUrl::normalize($testimonial->media ?? null)) > 0;
                         @endphp
                         <tr>
@@ -51,10 +47,9 @@
                             </td>
                             <td class="text-muted">{{ $testimonial->content ?? '—' }}</td>
                             <td>
-                                @if ($attachmentUrl)
-                                    <a href="{{ $attachmentUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">View</a>
-                                @elseif ($hasAttachment)
-                                    <span class="text-warning small">Missing file</span>
+                                @if ($hasAttachment)
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#memberTestimonialsMediaViewerModal" data-media-modal="memberTestimonialsMediaViewerModal" data-media-source="member-testimonial-media-json-{{ $testimonial->id }}">View</button>
+                                    <script type="application/json" id="member-testimonial-media-json-{{ $testimonial->id }}">{{ e(json_encode($mediaUrls)) }}</script>
                                 @else
                                     —
                                 @endif
@@ -74,4 +69,6 @@
     <div class="mt-3">
         {{ $items->links() }}
     </div>
+
+    @include('admin.components.media-viewer-modal', ['modalId' => 'memberTestimonialsMediaViewerModal'])
 @endsection

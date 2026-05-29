@@ -166,17 +166,12 @@
                             <td class="text-muted">{{ $referral->remarks ?? '—' }}</td>
                             <td>
                                 @if ((int) ($referral->has_media ?? 0) === 1)
+                                    @php
+                                        $mediaUrls = \App\Support\MediaFileUrl::all($referral->media_reference ?? null);
+                                    @endphp
                                     <span class="badge bg-success">Yes</span>
-                                    @if (!empty($referral->media_reference))
-                                        @php
-                                            $mediaUrl = \App\Support\MediaFileUrl::resolve($referral->media_reference);
-                                        @endphp
-                                        @if ($mediaUrl)
-                                            <a href="{{ $mediaUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary ms-2">View</a>
-                                        @else
-                                            <span class="text-warning small ms-2">Missing file</span>
-                                        @endif
-                                    @endif
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#referralMediaViewerModal" data-media-modal="referralMediaViewerModal" data-media-source="referral-media-json-{{ $referral->id }}">View</button>
+                                    <script type="application/json" id="referral-media-json-{{ $referral->id }}">{{ e(json_encode($mediaUrls)) }}</script>
                                 @else
                                     <span class="text-muted">No</span>
                                 @endif
@@ -198,4 +193,6 @@
     <div class="mt-3">
         {{ $items->links() }}
     </div>
+
+    @include('admin.components.media-viewer-modal', ['modalId' => 'referralMediaViewerModal'])
 @endsection
