@@ -117,7 +117,7 @@
             </div>
         </div>
 
-
+        {{-- Sections F-J must stay after E. Registration & QR Settings and before the final action buttons. --}}
         <div class="card mb-3">
             <div class="card-header fw-semibold">F. Event Image</div>
             <div class="card-body row g-3">
