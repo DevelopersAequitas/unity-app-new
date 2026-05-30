@@ -40,6 +40,7 @@ use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\EventManagementController;
+use App\Http\Controllers\Admin\AdminEventScannerController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 
 Route::get('/', function () {
@@ -155,9 +156,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/events', [EventManagementController::class, 'store'])->name('events.store');
         Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->name('events.edit');
         Route::put('/events/{id}', [EventManagementController::class, 'update'])->name('events.update');
+        Route::get('/events/{event}/scanners', [AdminEventScannerController::class, 'index'])->whereUuid('event')->name('events.scanners.index');
+        Route::post('/events/{event}/scanners', [AdminEventScannerController::class, 'store'])->whereUuid('event')->name('events.scanners.store');
+        Route::delete('/events/{event}/scanners/{scannerUserId}', [AdminEventScannerController::class, 'destroy'])->whereUuid('event')->whereUuid('scannerUserId')->name('events.scanners.destroy');
         Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
-        Route::post('/events/{id}/scanners', [EventManagementController::class, 'storeScanner'])->whereUuid('id')->name('events.scanners.store');
-        Route::delete('/events/{id}/scanners/{scannerUserId}', [EventManagementController::class, 'revokeScanner'])->whereUuid('id')->whereUuid('scannerUserId')->name('events.scanners.destroy');
         Route::get('/events/{id}/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
 
