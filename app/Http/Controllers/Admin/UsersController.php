@@ -252,18 +252,16 @@ class UsersController extends Controller
         $assignedDedMapping = ($adminUserForRoles && Schema::hasTable('admin_ded_districts'))
             ? AdminDedDistrict::query()->where('admin_user_id', $adminUserForRoles->id)->first()
             : null;
-        $assignedDedStateId = $assignedDedMapping?->state_id ?: ($assignedDedMapping?->state_name ? 'name:' . $dedLocationService->normalizeDistrictName($assignedDedMapping->state_name) : 'all');
-        $assignedDedDistrictId = $assignedDedMapping?->district_id ?: $assignedDedMapping?->district_name;
-        $assignedDedDistricts = $assignedDedDistrictId
+        $assignedDedStateId = $assignedDedMapping?->state_id;
+        $assignedDedDistrictId = $assignedDedMapping?->district_id;
+
+        if (! $assignedDedStateId && $assignedDedDistrictId && Schema::hasTable('districts')) {
+            $assignedDedStateId = DB::table('districts')->where('id', $assignedDedDistrictId)->value('state_id');
+        }
+
+        $assignedDedDistricts = $assignedDedStateId
             ? $dedLocationService->getAvailableDistrictsByState($assignedDedStateId)
             : collect();
-        if ($assignedDedDistrictId && ! $assignedDedDistricts->contains(fn ($district) => (string) $district->id === (string) $assignedDedDistrictId || (string) $district->name === (string) $assignedDedDistrictId)) {
-            $assignedDedDistricts->push((object) [
-                'id' => $assignedDedDistrictId,
-                'name' => $assignedDedMapping?->district_name ?: (Schema::hasTable('districts') && $assignedDedMapping?->district_id ? (string) DB::table('districts')->where('id', $assignedDedMapping->district_id)->value('name') : (string) $assignedDedDistrictId),
-                'district_name' => $assignedDedMapping?->district_name ?: (string) $assignedDedDistrictId,
-            ]);
-        }
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
@@ -462,8 +460,8 @@ class UsersController extends Controller
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
-            'ded_state_id' => ['nullable', 'string', 'max:150'],
-            'ded_district_id' => ['nullable', 'string', 'max:150'],
+            'ded_state_id' => ['nullable', 'uuid'],
+            'ded_district_id' => ['nullable', 'uuid'],
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
@@ -545,6 +543,12 @@ class UsersController extends Controller
                 ->withInput();
         }
 
+        if ($isAssigningDedRole && (! Schema::hasTable('states') || ! Schema::hasTable('districts'))) {
+            return back()
+                ->withErrors(['ded_district_id' => 'DED state and district tables are missing. Please run the provided manual SQL first.'])
+                ->withInput();
+        }
+
         $dedDistrictAssignment = null;
         if ($isAssigningDedRole) {
             $dedDistrictAssignment = app(DedLocationService::class)->resolveDistrictSelection(
@@ -554,7 +558,7 @@ class UsersController extends Controller
 
             if (! $dedDistrictAssignment) {
                 return back()
-                    ->withErrors(['ded_district_id' => 'Please select a valid district from existing application data.'])
+                    ->withErrors(['ded_district_id' => 'Please select a valid district for the selected state.'])
                     ->withInput();
             }
         }

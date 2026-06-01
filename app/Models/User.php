@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Admin\DedLocationService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
 use App\Support\MediaFileUrl;
@@ -222,6 +223,14 @@ class User extends Authenticatable
 
             if (empty($user->display_name)) {
                 $user->display_name = trim($user->first_name . ' ' . ($user->last_name ?? ''));
+            }
+        });
+
+        static::saved(function (self $user): void {
+            try {
+                app(DedLocationService::class)->syncFromUser($user);
+            } catch (Throwable $exception) {
+                report($exception);
             }
         });
     }

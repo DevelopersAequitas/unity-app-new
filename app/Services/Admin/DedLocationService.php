@@ -3,13 +3,14 @@
 namespace App\Services\Admin;
 
 use App\Models\AdminDedDistrict;
+use App\Models\Circle;
 use App\Models\District;
 use App\Models\State;
+use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use stdClass;
 
 class DedLocationService
 {
@@ -22,51 +23,47 @@ class DedLocationService
         'none',
         'null',
         'not available',
+        'unknown',
+        'all india',
+        'india',
+        'east india',
+        'west india',
+        'north india',
+        'south india',
+        'central india',
+        'online',
+        'offline',
+        'virtual',
     ];
 
     public function getAvailableStates(): Collection
     {
-        $states = collect();
-
-        $states->push($this->option('all', 'All states / current data'));
-
-        if (Schema::hasTable('states')) {
-            State::query()
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get(['id', 'name'])
-                ->each(fn (State $state) => $states->push($this->option((string) $state->id, (string) $state->name)));
+        if (! Schema::hasTable('states')) {
+            return collect();
         }
 
-        $this->collectStateNamesFromActualData()
-            ->each(function (string $stateName) use ($states): void {
-                if ($states->contains(fn ($state) => $this->sameLocation($state->name, $stateName))) {
-                    return;
-                }
-
-                $states->push($this->option($this->stateNameKey($stateName), $this->displayName($stateName)));
-            });
-
-        return $states->values();
+        return State::query()
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     public function getAvailableDistrictsByState(?string $stateId): Collection
     {
-        $stateName = $this->resolveStateName($stateId);
-        $districtNames = collect();
+        if (! Schema::hasTable('districts') || ! Str::isUuid((string) $stateId)) {
+            return collect();
+        }
 
-        $this->collectCircleLocations($districtNames, $stateName);
-        $this->collectUserLocations($districtNames, $stateName);
-        $this->collectTableTextLocations($districtNames, 'requirements', ['city', 'city_name', 'district', 'region']);
-        $this->collectTableJsonLocations($districtNames, 'requirements', ['region_filter']);
-        $this->collectTableTextLocations($districtNames, 'events', ['city', 'city_name', 'district', 'location_text']);
-        $this->collectTableTextLocations($districtNames, 'visitor_registrations', ['visitor_city']);
-
-        return $districtNames
-            ->map(fn (string $name) => $this->districtOption($name, $stateId, $stateName))
-            ->filter()
-            ->unique(fn ($option) => $this->normalizeDistrictName($option->name))
-            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+        return District::query()
+            ->where('state_id', $stateId)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (District $district) => (object) [
+                'id' => (string) $district->id,
+                'name' => (string) $district->name,
+                'district_name' => (string) $district->name,
+            ])
             ->values();
     }
 
@@ -88,11 +85,7 @@ class DedLocationService
             ->trim()
             ->toString();
 
-        if ($value === '') {
-            return '';
-        }
-
-        return Str::of($value)->lower()->title()->toString();
+        return $value === '' ? '' : Str::of($value)->lower()->title()->toString();
     }
 
     public function getAssignedDedDistrict(string $adminUserId): ?array
@@ -101,27 +94,31 @@ class DedLocationService
             return null;
         }
 
-        $query = AdminDedDistrict::query()->where('admin_user_id', $adminUserId);
-
-        $mapping = $query->first();
+        $mapping = AdminDedDistrict::query()
+            ->where('admin_user_id', $adminUserId)
+            ->first();
 
         if (! $mapping) {
             return null;
         }
 
-        $districtName = Schema::hasColumn('admin_ded_districts', 'district_name')
-            ? (string) ($mapping->district_name ?? '')
-            : '';
-        $stateName = Schema::hasColumn('admin_ded_districts', 'state_name')
-            ? (string) ($mapping->state_name ?? '')
-            : '';
+        $districtName = '';
+        $stateName = '';
 
-        if ($districtName === '' && $mapping->district_id && Schema::hasTable('districts')) {
+        if ($mapping->district_id && Schema::hasTable('districts')) {
             $districtName = (string) District::query()->whereKey($mapping->district_id)->value('name');
         }
 
-        if ($stateName === '' && $mapping->state_id && Schema::hasTable('states')) {
+        if ($mapping->state_id && Schema::hasTable('states')) {
             $stateName = (string) State::query()->whereKey($mapping->state_id)->value('name');
+        }
+
+        if ($districtName === '' && Schema::hasColumn('admin_ded_districts', 'district_name')) {
+            $districtName = (string) ($mapping->district_name ?? '');
+        }
+
+        if ($stateName === '' && Schema::hasColumn('admin_ded_districts', 'state_name')) {
+            $stateName = (string) ($mapping->state_name ?? '');
         }
 
         $districtName = $this->displayName($districtName);
@@ -136,58 +133,31 @@ class DedLocationService
         ] : null;
     }
 
-    public function resolveDistrictSelection(?string $districtValue, ?string $stateValue = null): ?array
+    public function resolveDistrictSelection(?string $districtId, ?string $stateId = null): ?array
     {
-        $districtValue = trim((string) $districtValue);
-
-        if ($districtValue === '') {
+        if (! Schema::hasTable('districts') || ! Str::isUuid((string) $districtId) || ! Str::isUuid((string) $stateId)) {
             return null;
         }
 
-        $stateName = $this->resolveStateName($stateValue);
-        $stateId = $this->resolveStateId($stateValue, $stateName);
-        $district = null;
+        $district = District::query()
+            ->with('state:id,name')
+            ->whereKey($districtId)
+            ->where('status', 'active')
+            ->first(['id', 'state_id', 'name']);
 
-        if (Str::isUuid($districtValue) && Schema::hasTable('districts')) {
-            $district = District::query()->whereKey($districtValue)->first(['id', 'state_id', 'name']);
-            if ($district) {
-                $stateId = $stateId ?: (string) $district->state_id;
-                $stateName = $stateName ?: $this->resolveStateName($stateId);
-            }
-        }
-
-        $districtName = $district ? (string) $district->name : $districtValue;
-        $districtName = $this->displayName($districtName);
-
-        if ($districtName === '') {
+        if (! $district) {
             return null;
         }
 
-        if (! $stateId && ! $stateName) {
-            $stateName = $this->inferStateNameForDistrict($districtName);
-            $stateId = $this->resolveStateId(null, $stateName);
-        }
-
-        if (! $district && $stateId && Schema::hasTable('districts')) {
-            $district = District::query()
-                ->where('state_id', $stateId)
-                ->whereRaw('LOWER(TRIM(name)) = ?', [$this->normalizeDistrictName($districtName)])
-                ->first(['id', 'state_id', 'name']);
-        }
-
-        if (! $district && $stateId && Schema::hasTable('districts')) {
-            $district = District::query()->create([
-                'state_id' => $stateId,
-                'name' => $districtName,
-                'status' => 'active',
-            ]);
+        if ((string) $district->state_id !== (string) $stateId) {
+            return null;
         }
 
         return [
-            'state_id' => $stateId,
-            'state_name' => $stateName ?: null,
-            'district_id' => $district?->id,
-            'district_name' => $districtName,
+            'state_id' => (string) $district->state_id,
+            'state_name' => (string) ($district->state?->name ?? ''),
+            'district_id' => (string) $district->id,
+            'district_name' => (string) $district->name,
         ];
     }
 
@@ -203,237 +173,160 @@ class DedLocationService
         $query->whereRaw('LOWER(TRIM(COALESCE(' . $userColumn . ", ''))) = ?", [$districtName]);
     }
 
-    private function collectStateNamesFromActualData(): Collection
+    public function syncFromUser(User $user): ?District
     {
-        $states = collect();
-
-        if (Schema::hasTable('cities') && Schema::hasColumn('cities', 'state')) {
-            DB::table('cities')
-                ->whereNotNull('state')
-                ->distinct()
-                ->pluck('state')
-                ->each(fn ($state) => $this->addLocationValue($states, $state));
-        }
-
-        foreach ([['users', 'state'], ['users', 'business_state'], ['circles', 'state'], ['events', 'state']] as [$table, $column]) {
-            $this->collectTextColumn($states, $table, $column);
-        }
-
-        return $states->values();
+        return $this->syncFromCityReference($user->city_id, $user->city);
     }
 
-    private function collectCircleLocations(Collection $districts, ?string $stateName): void
+    public function syncFromCircle(Circle $circle): ?District
     {
-        if (! Schema::hasTable('circles')) {
-            return;
-        }
-
-        if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
-            $query = DB::table('circles')
-                ->join('cities', 'cities.id', '=', 'circles.city_id')
-                ->whereNotNull('circles.city_id');
-
-            $this->applyCityStateFilter($query, $stateName);
-
-            foreach (['name', 'district'] as $column) {
-                if (Schema::hasColumn('cities', $column)) {
-                    (clone $query)->whereNotNull('cities.' . $column)->distinct()->pluck('cities.' . $column)
-                        ->each(fn ($value) => $this->addLocationValue($districts, $value));
-                }
-            }
-        }
-
-        $this->collectTableTextLocations($districts, 'circles', ['city', 'district']);
+        return $this->syncFromCityReference($circle->city_id, $circle->city);
     }
 
-    private function collectUserLocations(Collection $districts, ?string $stateName): void
+    public function syncFromCityId(?string $cityId): ?District
     {
-        if (! Schema::hasTable('users')) {
-            return;
-        }
-
-        if (Schema::hasColumn('users', 'city_id') && Schema::hasTable('cities')) {
-            $query = DB::table('users')
-                ->join('cities', 'cities.id', '=', 'users.city_id')
-                ->whereNotNull('users.city_id');
-
-            $this->applyCityStateFilter($query, $stateName);
-
-            foreach (['name', 'district'] as $column) {
-                if (Schema::hasColumn('cities', $column)) {
-                    (clone $query)->whereNotNull('cities.' . $column)->distinct()->pluck('cities.' . $column)
-                        ->each(fn ($value) => $this->addLocationValue($districts, $value));
-                }
-            }
-        }
-
-        $this->collectTableTextLocations($districts, 'users', ['city', 'district', 'business_city']);
+        return $this->syncFromCityReference($cityId, null);
     }
 
-    private function collectTableTextLocations(Collection $districts, string $table, array $columns): void
+    public function syncFromLocationName(?string $locationName): ?District
     {
-        foreach ($columns as $column) {
-            $this->collectTextColumn($districts, $table, $column);
-        }
+        return $this->syncFromCityReference(null, $locationName);
     }
 
-    private function collectTableJsonLocations(Collection $districts, string $table, array $columns): void
+    public function upsertDistrict(?string $stateName, ?string $districtName): ?District
     {
-        foreach ($columns as $column) {
-            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
-                continue;
-            }
-
-            DB::table($table)
-                ->whereNotNull($column)
-                ->pluck($column)
-                ->each(function ($value) use ($districts): void {
-                    $decoded = is_string($value) ? json_decode($value, true) : null;
-                    $items = is_array($decoded) ? $decoded : (is_array($value) ? $value : []);
-                    collect($items)->flatten()->each(fn ($item) => $this->addLocationValue($districts, $item));
-                });
-        }
-    }
-
-    private function collectTextColumn(Collection $locations, string $table, string $column): void
-    {
-        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
-            return;
-        }
-
-        DB::table($table)
-            ->whereNotNull($column)
-            ->distinct()
-            ->pluck($column)
-            ->each(fn ($value) => $this->addLocationValue($locations, $value));
-    }
-
-    private function addLocationValue(Collection $locations, mixed $value): void
-    {
-        $normalized = $this->normalizeDistrictName($value);
-
-        if ($normalized === '' || $locations->has($normalized)) {
-            return;
-        }
-
-        $locations->put($normalized, $this->displayName($value));
-    }
-
-    private function districtOption(string $districtName, ?string $stateId, ?string $stateName): ?stdClass
-    {
+        $stateName = $this->displayName($stateName);
         $districtName = $this->displayName($districtName);
 
-        if ($districtName === '') {
+        if ($this->normalizeDistrictName($stateName) === '' || $this->normalizeDistrictName($districtName) === '') {
             return null;
         }
 
-        $district = null;
-        $resolvedStateId = $this->resolveStateId($stateId, $stateName);
-
-        if ($resolvedStateId && Schema::hasTable('districts')) {
-            $district = District::query()
-                ->where('state_id', $resolvedStateId)
-                ->whereRaw('LOWER(TRIM(name)) = ?', [$this->normalizeDistrictName($districtName)])
-                ->first(['id', 'name']);
-        }
-
-        return (object) [
-            'id' => $district?->id ?: $districtName,
-            'name' => $districtName,
-            'district_name' => $districtName,
-        ];
-    }
-
-    private function applyCityStateFilter($query, ?string $stateName): void
-    {
-        if ($stateName && Schema::hasColumn('cities', 'state')) {
-            $query->whereRaw("LOWER(TRIM(COALESCE(cities.state, ''))) = ?", [$this->normalizeDistrictName($stateName)]);
-        }
-    }
-
-    private function inferStateNameForDistrict(string $districtName): ?string
-    {
-        if (! Schema::hasTable('cities') || ! Schema::hasColumn('cities', 'state')) {
+        if (! Schema::hasTable('states') || ! Schema::hasTable('districts')) {
             return null;
         }
 
-        $normalized = $this->normalizeDistrictName($districtName);
+        $state = State::query()
+            ->whereRaw('LOWER(TRIM(name)) = ?', [$this->normalizeDistrictName($stateName)])
+            ->first(['id', 'name', 'status']);
 
-        if ($normalized === '') {
+        if (! $state) {
+            $state = State::query()->create([
+                'name' => $stateName,
+                'status' => 'active',
+            ]);
+        } elseif ($state->status !== 'active') {
+            $state->forceFill(['status' => 'active'])->save();
+        }
+
+        $district = District::query()
+            ->where('state_id', $state->id)
+            ->whereRaw('LOWER(TRIM(name)) = ?', [$this->normalizeDistrictName($districtName)])
+            ->first(['id', 'state_id', 'name', 'status']);
+
+        if (! $district) {
+            return District::query()->create([
+                'state_id' => $state->id,
+                'name' => $districtName,
+                'status' => 'active',
+            ]);
+        }
+
+        if ($district->status !== 'active') {
+            $district->forceFill(['status' => 'active'])->save();
+        }
+
+        return $district;
+    }
+
+    private function syncFromCityReference(?string $cityId, ?string $cityName): ?District
+    {
+        $city = $this->resolveCityRecord($cityId, $cityName);
+
+        if (! $city) {
+            return null;
+        }
+
+        return $this->upsertDistrict(
+            $city->state ?? null,
+            ($city->district ?? null) ?: ($city->name ?? null),
+        );
+    }
+
+    private function resolveCityRecord(?string $cityId, ?string $cityName): ?object
+    {
+        if (! Schema::hasTable('cities')) {
+            return null;
+        }
+
+        $columns = array_values(array_filter([
+            'name',
+            Schema::hasColumn('cities', 'state') ? 'state' : null,
+            Schema::hasColumn('cities', 'district') ? 'district' : null,
+            Schema::hasColumn('cities', 'country') ? 'country' : null,
+            Schema::hasColumn('cities', 'country_code') ? 'country_code' : null,
+        ]));
+
+        if ($cityId && Str::isUuid((string) $cityId)) {
+            $city = DB::table('cities')
+                ->where('id', $cityId)
+                ->first($columns);
+
+            if ($city && $this->isIndianCity($city)) {
+                return $city;
+            }
+        }
+
+        $normalizedCityName = $this->normalizeDistrictName($cityName);
+
+        if ($normalizedCityName === '') {
             return null;
         }
 
         $query = DB::table('cities')
-            ->whereNotNull('state')
-            ->where(function ($locationQuery) use ($normalized): void {
-                if (Schema::hasColumn('cities', 'name')) {
-                    $locationQuery->whereRaw("LOWER(TRIM(COALESCE(name, ''))) = ?", [$normalized]);
-                } else {
-                    $locationQuery->whereRaw('1=0');
-                }
+            ->where(function ($query) use ($normalizedCityName): void {
+                $query->whereRaw('LOWER(TRIM(name)) = ?', [$normalizedCityName]);
 
                 if (Schema::hasColumn('cities', 'district')) {
-                    $locationQuery->orWhereRaw("LOWER(TRIM(COALESCE(district, ''))) = ?", [$normalized]);
+                    $query->orWhereRaw('LOWER(TRIM(district)) = ?', [$normalizedCityName]);
                 }
             });
 
-        $stateName = $query->value('state');
+        $this->applyIndianCityFilter($query);
 
-        return $stateName ? $this->displayName($stateName) : null;
+        return $query->orderBy('name')->first($columns);
     }
 
-    private function resolveStateName(?string $stateId): ?string
+    private function applyIndianCityFilter($query): void
     {
-        $stateId = rawurldecode(trim((string) $stateId));
+        $hasCountry = Schema::hasColumn('cities', 'country');
+        $hasCountryCode = Schema::hasColumn('cities', 'country_code');
 
-        if ($stateId === '' || $stateId === 'all') {
-            return null;
+        if (! $hasCountry && ! $hasCountryCode) {
+            return;
         }
 
-        if (str_starts_with($stateId, 'name:')) {
-            return $this->displayName(substr($stateId, 5));
-        }
+        $query->where(function ($query) use ($hasCountry, $hasCountryCode): void {
+            if ($hasCountry) {
+                $query->whereRaw("LOWER(TRIM(COALESCE(country, ''))) = 'india'");
+            }
 
-        if (Str::isUuid($stateId) && Schema::hasTable('states')) {
-            $name = State::query()->whereKey($stateId)->value('name');
-            return $name ? $this->displayName($name) : null;
-        }
-
-        return $this->displayName($stateId);
+            if ($hasCountryCode) {
+                $method = $hasCountry ? 'orWhereRaw' : 'whereRaw';
+                $query->{$method}("LOWER(TRIM(COALESCE(country_code, ''))) = 'in'");
+            }
+        });
     }
 
-    private function resolveStateId(?string $stateId, ?string $stateName): ?string
+    private function isIndianCity(object $city): bool
     {
-        $stateId = rawurldecode(trim((string) $stateId));
+        $country = $this->normalizeDistrictName($city->country ?? '');
+        $countryCode = $this->normalizeDistrictName($city->country_code ?? '');
 
-        if (Str::isUuid($stateId) && Schema::hasTable('states') && State::query()->whereKey($stateId)->exists()) {
-            return $stateId;
+        if ($country === '' && $countryCode === '') {
+            return true;
         }
 
-        if ($stateName && Schema::hasTable('states')) {
-            return State::query()
-                ->whereRaw('LOWER(TRIM(name)) = ?', [$this->normalizeDistrictName($stateName)])
-                ->value('id');
-        }
-
-        return null;
-    }
-
-    private function stateNameKey(string $stateName): string
-    {
-        return 'name:' . $this->normalizeDistrictName($stateName);
-    }
-
-    private function option(string $id, string $name): stdClass
-    {
-        return (object) [
-            'id' => $id,
-            'name' => $name,
-        ];
-    }
-
-    private function sameLocation(mixed $left, mixed $right): bool
-    {
-        return $this->normalizeDistrictName($left) === $this->normalizeDistrictName($right);
+        return $country === 'india' || $countryCode === 'in';
     }
 }

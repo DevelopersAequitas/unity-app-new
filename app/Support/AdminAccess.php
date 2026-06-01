@@ -146,19 +146,23 @@ class AdminAccess
                 return null;
             }
 
-            $districtName = Schema::hasColumn('admin_ded_districts', 'district_name')
-                ? trim((string) ($mapping->district_name ?? ''))
-                : '';
-            $stateName = Schema::hasColumn('admin_ded_districts', 'state_name')
-                ? trim((string) ($mapping->state_name ?? ''))
-                : '';
+            $districtName = '';
+            $stateName = '';
 
-            if ($districtName === '' && $mapping->district_id && Schema::hasTable('districts')) {
+            if ($mapping->district_id && Schema::hasTable('districts')) {
                 $districtName = (string) DB::table('districts')->where('id', $mapping->district_id)->value('name');
             }
 
-            if ($stateName === '' && $mapping->state_id && Schema::hasTable('states')) {
+            if ($mapping->state_id && Schema::hasTable('states')) {
                 $stateName = (string) DB::table('states')->where('id', $mapping->state_id)->value('name');
+            }
+
+            if ($districtName === '' && Schema::hasColumn('admin_ded_districts', 'district_name')) {
+                $districtName = trim((string) ($mapping->district_name ?? ''));
+            }
+
+            if ($stateName === '' && Schema::hasColumn('admin_ded_districts', 'state_name')) {
+                $stateName = trim((string) ($mapping->state_name ?? ''));
             }
 
             $districtName = trim($districtName);

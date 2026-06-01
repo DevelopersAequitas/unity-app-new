@@ -679,7 +679,7 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                                 @if ($states->isEmpty())
-                                    <div class="form-text text-danger">No state data is available yet; choose “All states / current data” to load districts discovered from peers and circles.</div>
+                                    <div class="form-text text-danger">No active states are available. Run the DED state/district setup or import command before assigning DED.</div>
                                 @else
                                     <div class="form-text">Required when the DED role is selected.</div>
                                 @endif

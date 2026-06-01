@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Admin\DedLocationService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -180,6 +181,14 @@ class Circle extends Model
 
             if (empty($circle->status)) {
                 $circle->status = 'pending';
+            }
+        });
+
+        static::saved(function (Circle $circle): void {
+            try {
+                app(DedLocationService::class)->syncFromCircle($circle);
+            } catch (\Throwable $exception) {
+                report($exception);
             }
         });
     }
