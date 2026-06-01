@@ -131,37 +131,46 @@ class AdminAccess
 
     public static function assignedDedDistrict(?AdminUser $admin): ?array
     {
-        if (! $admin
-            || ! Schema::hasTable('admin_ded_districts')
-            || ! Schema::hasTable('districts')
-            || ! Schema::hasTable('states')
-            || ! Schema::hasColumn('admin_ded_districts', 'state_id')
-            || ! Schema::hasColumn('districts', 'state_id')) {
+        if (! $admin || ! Schema::hasTable('admin_ded_districts')) {
             return null;
         }
 
         $cacheKey = 'admin-access:ded-district-details:' . $admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
-            $district = AdminDedDistrict::query()
-                ->join('districts', 'districts.id', '=', 'admin_ded_districts.district_id')
-                ->join('states', 'states.id', '=', 'admin_ded_districts.state_id')
-                ->whereColumn('districts.state_id', 'admin_ded_districts.state_id')
-                ->where('admin_ded_districts.admin_user_id', $admin->id)
-                ->first([
-                    'admin_ded_districts.state_id',
-                    'admin_ded_districts.district_id',
-                    'districts.name as district_name',
-                    'states.name as state_name',
-                ]);
+            $mapping = AdminDedDistrict::query()
+                ->where('admin_user_id', $admin->id)
+                ->first();
 
-            return $district ? [
-                'id' => (string) $district->district_id,
-                'district_id' => (string) $district->district_id,
-                'name' => (string) $district->district_name,
-                'state_id' => (string) $district->state_id,
-                'state' => (string) $district->state_name,
-                'state_name' => (string) $district->state_name,
+            if (! $mapping) {
+                return null;
+            }
+
+            $districtName = Schema::hasColumn('admin_ded_districts', 'district_name')
+                ? trim((string) ($mapping->district_name ?? ''))
+                : '';
+            $stateName = Schema::hasColumn('admin_ded_districts', 'state_name')
+                ? trim((string) ($mapping->state_name ?? ''))
+                : '';
+
+            if ($districtName === '' && $mapping->district_id && Schema::hasTable('districts')) {
+                $districtName = (string) DB::table('districts')->where('id', $mapping->district_id)->value('name');
+            }
+
+            if ($stateName === '' && $mapping->state_id && Schema::hasTable('states')) {
+                $stateName = (string) DB::table('states')->where('id', $mapping->state_id)->value('name');
+            }
+
+            $districtName = trim($districtName);
+
+            return $districtName !== '' ? [
+                'id' => (string) ($mapping->district_id ?: $districtName),
+                'district_id' => $mapping->district_id ? (string) $mapping->district_id : null,
+                'name' => $districtName,
+                'district_name' => $districtName,
+                'state_id' => $mapping->state_id ? (string) $mapping->state_id : null,
+                'state' => $stateName,
+                'state_name' => $stateName,
             ] : null;
         });
     }

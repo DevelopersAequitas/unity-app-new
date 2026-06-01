@@ -12,11 +12,10 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\City;
-use App\Models\District;
 use App\Models\JoinedCircleCategory;
 use App\Models\Role;
-use App\Models\State;
 use App\Models\User;
+use App\Services\Admin\DedLocationService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
@@ -248,21 +247,23 @@ class UsersController extends Controller
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
         $dedRoleId = optional($roles->firstWhere('key', 'ded'))->id;
-        $states = Schema::hasTable('states')
-            ? State::query()->where('status', 'active')->orderBy('name')->get(['id', 'name'])
-            : collect();
+        $dedLocationService = app(DedLocationService::class);
+        $states = $dedLocationService->getAvailableStates();
         $assignedDedMapping = ($adminUserForRoles && Schema::hasTable('admin_ded_districts'))
-            ? AdminDedDistrict::query()->where('admin_user_id', $adminUserForRoles->id)->first(['state_id', 'district_id'])
+            ? AdminDedDistrict::query()->where('admin_user_id', $adminUserForRoles->id)->first()
             : null;
-        $assignedDedStateId = $assignedDedMapping?->state_id;
-        $assignedDedDistrictId = $assignedDedMapping?->district_id;
-        $assignedDedDistricts = ($assignedDedStateId && Schema::hasTable('districts'))
-            ? District::query()
-                ->where('state_id', $assignedDedStateId)
-                ->where('status', 'active')
-                ->orderBy('name')
-                ->get(['id', 'name'])
+        $assignedDedStateId = $assignedDedMapping?->state_id ?: ($assignedDedMapping?->state_name ? 'name:' . $dedLocationService->normalizeDistrictName($assignedDedMapping->state_name) : 'all');
+        $assignedDedDistrictId = $assignedDedMapping?->district_id ?: $assignedDedMapping?->district_name;
+        $assignedDedDistricts = $assignedDedDistrictId
+            ? $dedLocationService->getAvailableDistrictsByState($assignedDedStateId)
             : collect();
+        if ($assignedDedDistrictId && ! $assignedDedDistricts->contains(fn ($district) => (string) $district->id === (string) $assignedDedDistrictId || (string) $district->name === (string) $assignedDedDistrictId)) {
+            $assignedDedDistricts->push((object) [
+                'id' => $assignedDedDistrictId,
+                'name' => $assignedDedMapping?->district_name ?: (Schema::hasTable('districts') && $assignedDedMapping?->district_id ? (string) DB::table('districts')->where('id', $assignedDedMapping->district_id)->value('name') : (string) $assignedDedDistrictId),
+                'district_name' => $assignedDedMapping?->district_name ?: (string) $assignedDedDistrictId,
+            ]);
+        }
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
@@ -461,12 +462,8 @@ class UsersController extends Controller
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
-            'ded_state_id' => array_filter(['nullable', 'uuid', Schema::hasTable('states') ? Rule::exists('states', 'id')->where('status', 'active') : null]),
-            'ded_district_id' => array_filter([
-                'nullable',
-                'uuid',
-                Schema::hasTable('districts') ? Rule::exists('districts', 'id')->where('status', 'active')->where(fn ($query) => $query->where('state_id', $request->input('ded_state_id'))) : null,
-            ]),
+            'ded_state_id' => ['nullable', 'string', 'max:150'],
+            'ded_district_id' => ['nullable', 'string', 'max:150'],
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
@@ -548,6 +545,20 @@ class UsersController extends Controller
                 ->withInput();
         }
 
+        $dedDistrictAssignment = null;
+        if ($isAssigningDedRole) {
+            $dedDistrictAssignment = app(DedLocationService::class)->resolveDistrictSelection(
+                $validated['ded_district_id'] ?? null,
+                $validated['ded_state_id'] ?? null,
+            );
+
+            if (! $dedDistrictAssignment) {
+                return back()
+                    ->withErrors(['ded_district_id' => 'Please select a valid district from existing application data.'])
+                    ->withInput();
+            }
+        }
+
         $validated = $this->syncMembershipExpiryInput($validated, $request, $user);
 
         $booleanFields = ['is_sponsored_member'];
@@ -600,7 +611,7 @@ class UsersController extends Controller
         $ledgerHasRemarkColumn = Schema::hasColumn('coins_ledger', 'remark');
 
         try {
-            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds, $dedRoleId) {
+            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds, $dedRoleId, $dedDistrictAssignment) {
                 $user->fill($updatable);
                 $user->status = $validated['status'];
                 $user->active_circle_id = $selectedCircleId;
@@ -825,8 +836,7 @@ class UsersController extends Controller
                             ['admin_user_id' => $adminUser->id],
                             [
                                 'user_id' => $user->id,
-                                'state_id' => $validated['ded_state_id'],
-                                'district_id' => $validated['ded_district_id'],
+                                ...$this->dedDistrictAssignmentPayload($dedDistrictAssignment),
                             ]
                         );
                     } else {
@@ -1442,6 +1452,28 @@ class UsersController extends Controller
             'joined_at' => $membership->joined_at?->toDateTimeString(),
             'expires_at' => $membership->expires_at?->toDateTimeString(),
         ]);
+    }
+
+    private function dedDistrictAssignmentPayload(?array $assignment): array
+    {
+        if (! $assignment) {
+            return [];
+        }
+
+        $payload = [
+            'state_id' => $assignment['state_id'] ?? null,
+            'district_id' => $assignment['district_id'] ?? null,
+        ];
+
+        if (Schema::hasColumn('admin_ded_districts', 'state_name')) {
+            $payload['state_name'] = $assignment['state_name'] ?? null;
+        }
+
+        if (Schema::hasColumn('admin_ded_districts', 'district_name')) {
+            $payload['district_name'] = $assignment['district_name'] ?? null;
+        }
+
+        return $payload;
     }
 
     private function activeCircleMemberStatus(): string

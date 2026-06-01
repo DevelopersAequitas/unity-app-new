@@ -86,3 +86,25 @@ ALTER TABLE admin_ded_districts ALTER COLUMN district_id SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_admin_ded_districts_state_id ON admin_ded_districts(state_id);
 CREATE INDEX IF NOT EXISTS idx_admin_ded_districts_district_id ON admin_ded_districts(district_id);
 CREATE INDEX IF NOT EXISTS idx_admin_ded_districts_user_id ON admin_ded_districts(user_id);
+
+-- Optional compatibility for dynamic DED locations discovered from existing users/circles.
+-- These columns allow assigning districts that come from live city text before/without
+-- manually maintaining a matching districts row.
+ALTER TABLE admin_ded_districts ADD COLUMN IF NOT EXISTS district_name VARCHAR(150);
+ALTER TABLE admin_ded_districts ADD COLUMN IF NOT EXISTS state_name VARCHAR(150);
+ALTER TABLE admin_ded_districts ALTER COLUMN state_id DROP NOT NULL;
+ALTER TABLE admin_ded_districts ALTER COLUMN district_id DROP NOT NULL;
+
+UPDATE admin_ded_districts
+SET district_name = districts.name,
+    state_name = states.name,
+    updated_at = NOW()
+FROM districts
+LEFT JOIN states ON states.id = districts.state_id
+WHERE admin_ded_districts.district_id = districts.id
+  AND NULLIF(TRIM(COALESCE(admin_ded_districts.district_name, '')), '') IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_admin_ded_districts_district_name
+    ON admin_ded_districts (LOWER(TRIM(district_name)));
+CREATE INDEX IF NOT EXISTS idx_admin_ded_districts_state_name
+    ON admin_ded_districts (LOWER(TRIM(state_name)));

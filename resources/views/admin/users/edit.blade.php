@@ -679,7 +679,7 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                                 @if ($states->isEmpty())
-                                    <div class="form-text text-danger">No active states are available. Please run the provided manual SQL.</div>
+                                    <div class="form-text text-danger">No state data is available yet; choose “All states / current data” to load districts discovered from peers and circles.</div>
                                 @else
                                     <div class="form-text">Required when the DED role is selected.</div>
                                 @endif
@@ -769,7 +769,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const option = document.createElement('option');
             option.value = String(item.id);
             option.textContent = item.name;
-            if (selectedValue && String(selectedValue) === String(item.id)) {
+            if (selectedValue && (String(selectedValue) === String(item.id) || String(selectedValue) === String(item.district_name || item.name))) {
                 option.selected = true;
             }
             dedDistrictSelect.appendChild(option);
@@ -784,7 +784,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const template = dedStateSelect.dataset.districtUrlTemplate || '';
-        const url = template.replace('__STATE__', dedStateSelect.value);
+        const url = template.replace('__STATE__', encodeURIComponent(dedStateSelect.value));
         setDistrictOptions([], '');
         dedDistrictSelect.disabled = true;
 

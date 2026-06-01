@@ -65,7 +65,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         })->name('home');
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/ded-dashboard', [DashboardController::class, 'ded'])->name('ded.dashboard');
-        Route::get('/location/states/{state}/districts', [LocationController::class, 'districts'])->whereUuid('state')->name('location.states.districts');
+        Route::get('/location/states/{state}/districts', [LocationController::class, 'districts'])->name('location.states.districts');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
