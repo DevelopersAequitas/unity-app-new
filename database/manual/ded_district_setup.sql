@@ -45,23 +45,28 @@ WHERE districts.state_id IS NULL
   );
 
 INSERT INTO districts (state_id, name, status, created_at, updated_at)
-SELECT DISTINCT states.id, trim(cities.district), 'active', NOW(), NOW()
+SELECT DISTINCT
+    states.id,
+    INITCAP(trim(REGEXP_REPLACE(REGEXP_REPLACE(split_part(cities.district, ',', 1), '\s+', ' ', 'g'), '\s+district$', '', 'i'))),
+    'active',
+    NOW(),
+    NOW()
 FROM cities
 JOIN states ON LOWER(states.name) = LOWER(trim(cities.state))
 WHERE NULLIF(trim(COALESCE(cities.state, '')), '') IS NOT NULL
   AND NULLIF(trim(COALESCE(cities.district, '')), '') IS NOT NULL
   AND (LOWER(trim(COALESCE(cities.country, ''))) = 'india' OR LOWER(trim(COALESCE(cities.country_code, ''))) = 'in')
   AND LOWER(trim(cities.state)) NOT IN ('-', 'n/a', 'na', 'none', 'unknown', 'india', 'all india')
-  AND LOWER(trim(cities.district)) NOT IN ('-', 'n/a', 'na', 'no city', 'none', 'unknown', 'india', 'all india', 'east india', 'west india', 'north india', 'south india', 'central india', 'online', 'offline', 'virtual')
+  AND LOWER(trim(REGEXP_REPLACE(REGEXP_REPLACE(split_part(cities.district, ',', 1), '\s+', ' ', 'g'), '\s+district$', '', 'i'))) NOT IN ('-', 'n/a', 'na', 'no city', 'none', 'unknown', 'india', 'all india', 'east india', 'west india', 'north india', 'south india', 'central india', 'online', 'offline', 'virtual')
   AND NOT EXISTS (
       SELECT 1
       FROM districts
       WHERE districts.state_id = states.id
-        AND LOWER(districts.name) = LOWER(trim(cities.district))
+        AND LOWER(trim(REGEXP_REPLACE(REGEXP_REPLACE(split_part(districts.name, ',', 1), '\s+', ' ', 'g'), '\s+district$', '', 'i'))) = LOWER(trim(REGEXP_REPLACE(REGEXP_REPLACE(split_part(cities.district, ',', 1), '\s+', ' ', 'g'), '\s+district$', '', 'i')))
   );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_districts_unique_state_name
-    ON districts (state_id, LOWER(TRIM(name)));
+CREATE INDEX IF NOT EXISTS idx_districts_state_name_normalized
+    ON districts (state_id, LOWER(TRIM(REGEXP_REPLACE(REGEXP_REPLACE(split_part(name, ',', 1), '\s+', ' ', 'g'), '\s+district$', '', 'i'))));
 CREATE INDEX IF NOT EXISTS idx_districts_state_id ON districts(state_id);
 
 CREATE TABLE IF NOT EXISTS admin_ded_districts (

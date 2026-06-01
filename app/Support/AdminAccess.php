@@ -165,7 +165,7 @@ class AdminAccess
                 $stateName = trim((string) ($mapping->state_name ?? ''));
             }
 
-            $districtName = trim($districtName);
+            $districtName = self::cleanDedDistrictName($districtName);
 
             return $districtName !== '' ? [
                 'id' => (string) ($mapping->district_id ?: $districtName),
@@ -182,6 +182,20 @@ class AdminAccess
     public static function assignedDedDistrictName(?AdminUser $admin): ?string
     {
         return self::assignedDedDistrict($admin)['name'] ?? null;
+    }
+
+    private static function cleanDedDistrictName(mixed $value): string
+    {
+        $value = trim(preg_replace('/\s+/', ' ', (string) $value) ?? '');
+
+        if ($value === '') {
+            return '';
+        }
+
+        $value = preg_split('/,/', $value, 2)[0] ?? $value;
+        $value = preg_replace('/\s+district$/i', '', trim($value)) ?? $value;
+
+        return trim($value);
     }
 
     public static function isCircleScoped(?AdminUser $admin): bool
