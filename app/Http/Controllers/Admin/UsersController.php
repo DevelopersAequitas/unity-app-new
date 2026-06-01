@@ -15,6 +15,7 @@ use App\Models\City;
 use App\Models\District;
 use App\Models\JoinedCircleCategory;
 use App\Models\Role;
+use App\Models\State;
 use App\Models\User;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Users\PublicProfileSlugService;
@@ -247,12 +248,21 @@ class UsersController extends Controller
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
         $dedRoleId = optional($roles->firstWhere('key', 'ded'))->id;
-        $districts = Schema::hasTable('districts')
-            ? District::query()->orderBy('name')->get(['id', 'name', 'state', 'country'])
+        $states = Schema::hasTable('states')
+            ? State::query()->where('status', 'active')->orderBy('name')->get(['id', 'name'])
             : collect();
-        $assignedDedDistrictId = ($adminUserForRoles && Schema::hasTable('admin_ded_districts'))
-            ? AdminDedDistrict::query()->where('admin_user_id', $adminUserForRoles->id)->value('district_id')
+        $assignedDedMapping = ($adminUserForRoles && Schema::hasTable('admin_ded_districts'))
+            ? AdminDedDistrict::query()->where('admin_user_id', $adminUserForRoles->id)->first(['state_id', 'district_id'])
             : null;
+        $assignedDedStateId = $assignedDedMapping?->state_id;
+        $assignedDedDistrictId = $assignedDedMapping?->district_id;
+        $assignedDedDistricts = ($assignedDedStateId && Schema::hasTable('districts'))
+            ? District::query()
+                ->where('state_id', $assignedDedStateId)
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get(['id', 'name'])
+            : collect();
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
@@ -349,8 +359,10 @@ class UsersController extends Controller
             'circleCategoryOptionsByCircle' => $circleCategoryOptionsByCircle,
             'hasCoinsRemarkColumn' => $hasCoinsRemarkColumn,
             'dedRoleId' => $dedRoleId,
-            'districts' => $districts,
+            'states' => $states,
+            'assignedDedStateId' => $assignedDedStateId,
             'assignedDedDistrictId' => $assignedDedDistrictId,
+            'assignedDedDistricts' => $assignedDedDistricts,
         ]);
     }
 
@@ -449,7 +461,12 @@ class UsersController extends Controller
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
-            'ded_district_id' => array_filter(['nullable', 'uuid', Schema::hasTable('districts') ? Rule::exists('districts', 'id') : null]),
+            'ded_state_id' => array_filter(['nullable', 'uuid', Schema::hasTable('states') ? Rule::exists('states', 'id')->where('status', 'active') : null]),
+            'ded_district_id' => array_filter([
+                'nullable',
+                'uuid',
+                Schema::hasTable('districts') ? Rule::exists('districts', 'id')->where('status', 'active')->where(fn ($query) => $query->where('state_id', $request->input('ded_state_id'))) : null,
+            ]),
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
@@ -513,6 +530,12 @@ class UsersController extends Controller
             && $dedRoleId
             && in_array($dedRoleId, $selectedRoleIdsForValidation, true);
 
+        if ($isAssigningDedRole && blank($validated['ded_state_id'] ?? null)) {
+            return back()
+                ->withErrors(['ded_state_id' => 'Please select a state when assigning the DED role.'])
+                ->withInput();
+        }
+
         if ($isAssigningDedRole && blank($validated['ded_district_id'] ?? null)) {
             return back()
                 ->withErrors(['ded_district_id' => 'Please select a district when assigning the DED role.'])
@@ -535,6 +558,7 @@ class UsersController extends Controller
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
         $updatableExclusions = [
             'role_ids',
+            'ded_state_id',
             'ded_district_id',
             'profile_photo_file_id',
             'cover_photo_file_id',
@@ -801,6 +825,7 @@ class UsersController extends Controller
                             ['admin_user_id' => $adminUser->id],
                             [
                                 'user_id' => $user->id,
+                                'state_id' => $validated['ded_state_id'],
                                 'district_id' => $validated['ded_district_id'],
                             ]
                         );

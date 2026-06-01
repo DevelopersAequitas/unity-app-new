@@ -131,7 +131,12 @@ class AdminAccess
 
     public static function assignedDedDistrict(?AdminUser $admin): ?array
     {
-        if (! $admin || ! Schema::hasTable('admin_ded_districts') || ! Schema::hasTable('districts')) {
+        if (! $admin
+            || ! Schema::hasTable('admin_ded_districts')
+            || ! Schema::hasTable('districts')
+            || ! Schema::hasTable('states')
+            || ! Schema::hasColumn('admin_ded_districts', 'state_id')
+            || ! Schema::hasColumn('districts', 'state_id')) {
             return null;
         }
 
@@ -140,14 +145,23 @@ class AdminAccess
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $district = AdminDedDistrict::query()
                 ->join('districts', 'districts.id', '=', 'admin_ded_districts.district_id')
+                ->join('states', 'states.id', '=', 'admin_ded_districts.state_id')
+                ->whereColumn('districts.state_id', 'admin_ded_districts.state_id')
                 ->where('admin_ded_districts.admin_user_id', $admin->id)
-                ->first(['districts.id', 'districts.name', 'districts.state', 'districts.country']);
+                ->first([
+                    'admin_ded_districts.state_id',
+                    'admin_ded_districts.district_id',
+                    'districts.name as district_name',
+                    'states.name as state_name',
+                ]);
 
             return $district ? [
-                'id' => (string) $district->id,
-                'name' => (string) $district->name,
-                'state' => $district->state ? (string) $district->state : null,
-                'country' => $district->country ? (string) $district->country : null,
+                'id' => (string) $district->district_id,
+                'district_id' => (string) $district->district_id,
+                'name' => (string) $district->district_name,
+                'state_id' => (string) $district->state_id,
+                'state' => (string) $district->state_name,
+                'state_name' => (string) $district->state_name,
             ] : null;
         });
     }
@@ -294,8 +308,7 @@ class AdminAccess
             'admin-access:roles:' . $admin->id,
             'admin-access:ded-district:' . $admin->id,
             'admin-access:ded-district-details:' . $admin->id,
-            'admin-access:ded-district-name:' . $admin->id,
-            'admin-access:circles:' . $admin->id,
+                        'admin-access:circles:' . $admin->id,
             'admin-access:allowed-users:' . $admin->id,
             'admin-access:primary-role:' . $admin->id,
         ] as $key) {

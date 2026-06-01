@@ -41,6 +41,7 @@ use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\LocationController;
 
 Route::get('/', function () {
     return view('landing');
@@ -64,6 +65,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         })->name('home');
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/ded-dashboard', [DashboardController::class, 'ded'])->name('ded.dashboard');
+        Route::get('/location/states/{state}/districts', [LocationController::class, 'districts'])->whereUuid('state')->name('location.states.districts');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');

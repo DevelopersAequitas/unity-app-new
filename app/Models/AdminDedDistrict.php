@@ -21,6 +21,7 @@ class AdminDedDistrict extends Model
     protected $fillable = [
         'admin_user_id',
         'user_id',
+        'state_id',
         'district_id',
     ];
 
@@ -32,6 +33,11 @@ class AdminDedDistrict extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function state(): BelongsTo
+    {
+        return $this->belongsTo(State::class, 'state_id');
     }
 
     public function district(): BelongsTo
