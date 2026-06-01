@@ -2,9 +2,11 @@
     $admin = auth('admin')->user();
     $isSuper = \App\Support\AdminAccess::isSuper($admin);
     $isCircleScoped = \App\Support\AdminAccess::isCircleScoped($admin);
+    $isIndustryScoped = \App\Support\AdminAccess::isIndustryScoped($admin);
+    $industryName = \App\Support\AdminAccess::primaryIndustryName($admin);
     $roleBadge = $isSuper
         ? 'Global Admin'
-        : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin');
+        : ($isIndustryScoped ? 'Industry Director' . ($industryName ? ' · ' . $industryName : '') : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin'));
 @endphp
 <header class="admin-topbar d-flex align-items-center justify-content-between px-4 py-3 border-bottom bg-white">
     <div class="d-flex align-items-center gap-3 flex-grow-1">
@@ -22,10 +24,10 @@
                     Quick Actions
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
-                    @if ($isSuper && ! $isCircleScoped)
+                    @if ($isSuper && ! $isCircleScoped && ! $isIndustryScoped)
                         <li><a class="dropdown-item" href="{{ route('admin.users.index') }}">View Peers</a></li>
                     @endif
-                    @if ($isCircleScoped)
+                    @if ($isCircleScoped || $isIndustryScoped)
                         <li><a class="dropdown-item" href="{{ route('admin.users.index') }}">View Peers</a></li>
                         <li><a class="dropdown-item" href="{{ route('admin.activities.index') }}">View Activities</a></li>
                         <li><a class="dropdown-item" href="{{ route('admin.coins.index') }}">View Coins</a></li>

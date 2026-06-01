@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\CircleMember;
 use App\Models\Impact;
+use App\Models\IndustryDirectorAssignment;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\User;
@@ -13,6 +14,7 @@ use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class UserManagementController extends BaseApiController
 {
@@ -83,10 +85,31 @@ class UserManagementController extends BaseApiController
 
     public function assignRole(Request $request, string $id): JsonResponse
     {
-        $validated = $request->validate(['role' => ['required', 'string']]);
+        $validated = $request->validate([
+            'role' => ['required', 'string'],
+            'industry_id' => ['nullable', 'uuid', 'exists:industries,id'],
+        ]);
         $target = User::query()->findOrFail($id);
         $role = Role::query()->where('key', $validated['role'])->firstOrFail();
+
+        if ($role->key === 'industry_director') {
+            if (empty($validated['industry_id'])) {
+                abort(422, 'Please select an industry before assigning the Industry Director role.');
+            }
+
+            if (! Schema::hasTable('industry_director_assignments')) {
+                abort(422, 'Industry Director assignment storage is not ready. Run database/sql/industry_director_assignments.sql first.');
+            }
+        }
+
         $target->roles()->syncWithoutDetaching([$role->id]);
+
+        if ($role->key === 'industry_director' && Schema::hasTable('industry_director_assignments')) {
+            IndustryDirectorAssignment::query()->updateOrCreate(
+                ['user_id' => $target->id],
+                ['industry_id' => $validated['industry_id']]
+            );
+        }
         $this->audit->log($request->user(), 'admin.user.assign_role', 'users', $target->id, [], ['role' => $validated['role']], $request);
 
         return $this->success($target->load('roles'));
@@ -94,10 +117,17 @@ class UserManagementController extends BaseApiController
 
     public function removeRole(Request $request, string $id): JsonResponse
     {
-        $validated = $request->validate(['role' => ['required', 'string']]);
+        $validated = $request->validate([
+            'role' => ['required', 'string'],
+            'industry_id' => ['nullable', 'uuid', 'exists:industries,id'],
+        ]);
         $target = User::query()->findOrFail($id);
         $role = Role::query()->where('key', $validated['role'])->firstOrFail();
         $target->roles()->detach($role->id);
+
+        if ($role->key === 'industry_director' && Schema::hasTable('industry_director_assignments')) {
+            IndustryDirectorAssignment::query()->where('user_id', $target->id)->delete();
+        }
         $this->audit->log($request->user(), 'admin.user.remove_role', 'users', $target->id, ['role' => $validated['role']], [], $request);
 
         return $this->success($target->load('roles'));

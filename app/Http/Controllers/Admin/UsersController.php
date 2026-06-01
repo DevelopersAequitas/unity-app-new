@@ -11,6 +11,8 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\City;
+use App\Models\Industry;
+use App\Models\IndustryDirectorAssignment;
 use App\Models\JoinedCircleCategory;
 use App\Models\Role;
 use App\Models\User;
@@ -234,11 +236,24 @@ class UsersController extends Controller
             ->orderBy('name')
             ->get();
         $membershipStatuses = $this->membershipStatuses();
+        $industryDirectorRoleId = optional($roles->firstWhere('key', 'industry_director'))->id;
+        $industryOptions = Industry::query()
+            ->when(Schema::hasColumn('industries', 'parent_id'), fn ($query) => $query->whereNull('parent_id'))
+            ->when(Schema::hasColumn('industries', 'is_active'), fn ($query) => $query->where('is_active', true))
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
         $adminRoleIds = $roles->pluck('id')->all();
         $adminUserForRoles = $this->findAdminUserForPeer($user);
         $assignedAdminRoles = $adminUserForRoles
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
+        $assignedIndustryDirectorIndustryId = Schema::hasTable('industry_director_assignments')
+            ? IndustryDirectorAssignment::query()
+                ->where('user_id', $user->id)
+                ->when($adminUserForRoles, fn ($query) => $query->orWhere('admin_user_id', $adminUserForRoles->id))
+                ->value('industry_id')
+            : null;
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
@@ -334,6 +349,9 @@ class UsersController extends Controller
             'membershipPlanOptions' => $this->membershipPlanOptions($user->zoho_plan_code),
             'circleCategoryOptionsByCircle' => $circleCategoryOptionsByCircle,
             'hasCoinsRemarkColumn' => $hasCoinsRemarkColumn,
+            'industryOptions' => $industryOptions,
+            'industryDirectorRoleId' => $industryDirectorRoleId,
+            'assignedIndustryDirectorIndustryId' => $assignedIndustryDirectorIndustryId,
         ]);
     }
 
@@ -432,9 +450,26 @@ class UsersController extends Controller
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
+            'industry_director_industry_id' => ['nullable', 'uuid', 'exists:industries,id'],
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
+
+        $industryDirectorRoleId = Role::query()->where('key', 'industry_director')->value('id');
+        $selectedRoleIdsForValidation = collect($validated['role_ids'] ?? [])->map(fn ($id) => (string) $id);
+        if ($industryDirectorRoleId && $selectedRoleIdsForValidation->contains((string) $industryDirectorRoleId)) {
+            if (empty($validated['industry_director_industry_id'])) {
+                throw ValidationException::withMessages([
+                    'industry_director_industry_id' => 'Please select an industry before assigning the Industry Director role.',
+                ]);
+            }
+
+            if (! Schema::hasTable('industry_director_assignments')) {
+                throw ValidationException::withMessages([
+                    'industry_director_industry_id' => 'Industry Director assignment storage is not ready. Run database/sql/industry_director_assignments.sql first.',
+                ]);
+            }
+        }
 
         if ($request->has('add_circle_membership') && filled($validated['additional_circle_id'] ?? null)) {
             $alreadyJoined = CircleMember::query()
@@ -495,6 +530,7 @@ class UsersController extends Controller
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
         $updatableExclusions = [
             'role_ids',
+            'industry_director_industry_id',
             'profile_photo_file_id',
             'cover_photo_file_id',
             'status',
@@ -535,7 +571,7 @@ class UsersController extends Controller
         $ledgerHasRemarkColumn = Schema::hasColumn('coins_ledger', 'remark');
 
         try {
-            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds) {
+            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds, $industryDirectorRoleId) {
                 $user->fill($updatable);
                 $user->status = $validated['status'];
                 $user->active_circle_id = $selectedCircleId;
@@ -754,6 +790,25 @@ class UsersController extends Controller
 
                     $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
                     $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+
+                    if (Schema::hasTable('industry_director_assignments')) {
+                        if ($industryDirectorRoleId && in_array((string) $industryDirectorRoleId, array_map('strval', $selectedRoleIds), true)) {
+                            IndustryDirectorAssignment::query()->updateOrCreate(
+                                ['user_id' => $user->id],
+                                [
+                                    'admin_user_id' => $adminUser->id,
+                                    'industry_id' => $validated['industry_director_industry_id'],
+                                ]
+                            );
+                        } else {
+                            IndustryDirectorAssignment::query()
+                                ->where('admin_user_id', $adminUser->id)
+                                ->orWhere('user_id', $user->id)
+                                ->delete();
+                        }
+                    }
+
+                    $this->flushAdminAccessCache($adminUser);
                 }
             });
         } catch (ValidationException $exception) {
@@ -835,6 +890,14 @@ class UsersController extends Controller
         );
     }
 
+
+    private function flushAdminAccessCache(AdminUser $adminUser): void
+    {
+        foreach (['user', 'roles', 'circles', 'allowed-users', 'primary-role', 'industries'] as $segment) {
+            Cache::forget('admin-access:' . $segment . ':' . $adminUser->id);
+        }
+    }
+
     private function normalizedAdminEmail(User $user): string
     {
         return strtolower(trim((string) $user->email));
@@ -893,6 +956,15 @@ class UsersController extends Controller
             ->all();
 
         $adminUser->roles()->detach($adminRoleIds);
+
+        if (Schema::hasTable('industry_director_assignments')) {
+            IndustryDirectorAssignment::query()
+                ->where('admin_user_id', $adminUser->id)
+                ->orWhere('user_id', $user->id)
+                ->delete();
+        }
+
+        $this->flushAdminAccessCache($adminUser);
 
         return back()->with('success', 'Role removed successfully.');
     }
@@ -1383,6 +1455,7 @@ class UsersController extends Controller
     {
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
         $isCircleScoped = (bool) $request->attributes->get('is_circle_scoped');
+        $isIndustryScoped = (bool) $request->attributes->get('is_industry_scoped');
 
         $joinedStatus = $this->activeCircleMemberStatus();
 
@@ -1479,7 +1552,7 @@ class UsersController extends Controller
                 },
             ]);
 
-        if ($isCircleScoped && is_array($allowedCircleIds)) {
+        if (($isCircleScoped || $isIndustryScoped) && is_array($allowedCircleIds)) {
             if ($allowedCircleIds === []) {
                 $query->whereRaw('1=0');
             } else {
@@ -1633,6 +1706,7 @@ class UsersController extends Controller
                 'joined_from' => $joinedFrom,
                 'joined_to' => $joinedTo,
                 'is_circle_scoped' => $isCircleScoped,
+                'is_industry_scoped' => $isIndustryScoped,
             ]);
         }
 

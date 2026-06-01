@@ -3,6 +3,7 @@
     $adminUser?->loadMissing('roles:key');
     $isSuper = \App\Support\AdminAccess::isSuper($adminUser);
     $isCircleScoped = \App\Support\AdminAccess::isCircleScoped($adminUser);
+    $isIndustryScoped = \App\Support\AdminAccess::isIndustryScoped($adminUser);
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
 
     $dashboardItem = $isCircleScoped
@@ -52,7 +53,7 @@
             ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
         ];
 
-    $activityMenu = ($isSuper || $isCircleScoped) ? [
+    $activityMenu = ($isSuper || $isCircleScoped || $isIndustryScoped) ? [
         ['label' => 'Summary', 'route' => 'admin.activities.index'],
         ['label' => 'Testimonials', 'route' => 'admin.activities.testimonials.index'],
         ['label' => 'Requirements', 'route' => 'admin.activities.requirements.index'],
@@ -66,7 +67,7 @@
     ] : [];
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
-    $referralReportItem = ($isSuper || $isCircleScoped)
+    $referralReportItem = ($isSuper || $isCircleScoped || $isIndustryScoped)
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
     $activityExpanded = $activityActive || ! $isGlobalAdmin;

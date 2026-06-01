@@ -3,6 +3,19 @@
 @section('title', 'Admin Dashboard')
 
 @section('content')
+@php
+    $admin = auth('admin')->user();
+    $isIndustryScopedDashboard = \App\Support\AdminAccess::isIndustryScoped($admin);
+    $industryDashboardName = \App\Support\AdminAccess::primaryIndustryName($admin);
+@endphp
+@if ($isIndustryScopedDashboard)
+    <div class="alert alert-primary d-flex align-items-center justify-content-between gap-3">
+        <div>
+            <strong>Industry Director Dashboard</strong>
+            <div class="small mb-0">Showing records for {{ $industryDashboardName ?: 'your assigned industry' }} only.</div>
+        </div>
+    </div>
+@endif
 <div class="row g-3 mb-4">
     <div class="col-12 col-xl-8">
         <div class="card p-4 h-100">

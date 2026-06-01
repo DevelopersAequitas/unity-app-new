@@ -21,6 +21,18 @@ class AdminCircleScope
 
         if (AdminAccess::isSuper($admin)) {
             $request->attributes->set('is_circle_scoped', false);
+            $request->attributes->set('is_industry_scoped', false);
+            return $next($request);
+        }
+
+        if (AdminAccess::isIndustryScoped($admin)) {
+            $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
+            $request->attributes->set('allowed_circle_ids', $allowedCircleIds);
+            $request->attributes->set('allowed_industry_ids', AdminAccess::allowedIndustryIds($admin));
+            $request->attributes->set('is_circle_scoped', false);
+            $request->attributes->set('is_industry_scoped', true);
+            $request->attributes->set('primary_industry_name', AdminAccess::primaryIndustryName($admin));
+
             return $next($request);
         }
 
@@ -46,7 +58,9 @@ class AdminCircleScope
         }
 
         $request->attributes->set('allowed_circle_ids', []);
+        $request->attributes->set('allowed_industry_ids', []);
         $request->attributes->set('is_circle_scoped', false);
+        $request->attributes->set('is_industry_scoped', false);
 
         return $next($request);
     }
