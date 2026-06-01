@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminLoginOtp;
-use App\Models\AdminUser;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
@@ -175,16 +174,8 @@ class AdminAuthController extends Controller
         return redirect()->route('admin.login');
     }
 
-    private function eligibleAdmin(string $email): ?AdminUser
+    private function eligibleAdmin(string $email): ?User
     {
-        $adminUser = AdminUser::query()
-            ->whereRaw('LOWER(email) = ?', [$email])
-            ->first();
-
-        if ($adminUser) {
-            return $adminUser;
-        }
-
         $user = User::query()
             ->whereRaw('LOWER(email) = ?', [$email])
             ->first();
@@ -193,47 +184,28 @@ class AdminAuthController extends Controller
             return null;
         }
 
-        $eligibleRoles = ['chair', 'vice_chair', 'secretary', 'founder', 'director'];
+        $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
+
+        if ($user->roles()->whereIn('key', $adminRoleKeys)->exists()) {
+            return $user;
+        }
+
+        $eligibleCircleRoles = ['chair', 'vice_chair', 'secretary', 'founder', 'director'];
 
         $isEligibleLeader = CircleMember::query()
             ->where('user_id', $user->id)
             ->where('status', 'approved')
-            ->whereIn(DB::raw('circle_members.role::text'), $eligibleRoles)
+            ->whereIn(DB::raw('circle_members.role::text'), $eligibleCircleRoles)
             ->exists();
 
         if (! $isEligibleLeader) {
             return null;
         }
 
-        return DB::transaction(function () use ($user): AdminUser {
-            $adminUser = AdminUser::query()
-                ->whereRaw('LOWER(email) = ?', [strtolower($user->email)])
-                ->first();
+        $circleLeaderRoleId = Role::mustIdByKey('circle_leader');
+        $user->roles()->syncWithoutDetaching([$circleLeaderRoleId]);
 
-            if (! $adminUser) {
-                $adminUser = AdminUser::create([
-                    'id' => (string) Str::uuid(),
-                    'name' => $this->resolveAdminName($user),
-                    'email' => strtolower($user->email),
-                ]);
-            }
-
-            $circleLeaderRoleId = Role::mustIdByKey('circle_leader');
-
-            $adminUser->roles()->syncWithoutDetaching([$circleLeaderRoleId]);
-
-            return $adminUser;
-        });
+        return $user;
     }
 
-    private function resolveAdminName(User $user): string
-    {
-        if (! empty($user->display_name)) {
-            return $user->display_name;
-        }
-
-        $fullName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-
-        return $fullName !== '' ? $fullName : $user->email;
-    }
 }
