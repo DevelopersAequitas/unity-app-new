@@ -788,8 +788,7 @@ class UsersController extends Controller
                         ->values()
                         ->all();
 
-                    $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
-                    $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+                    $this->replaceAdminUserRoles($adminUser, $selectedRoleIds);
 
                     if (Schema::hasTable('industry_director_assignments')) {
                         if ($industryDirectorRoleId && in_array((string) $industryDirectorRoleId, array_map('strval', $selectedRoleIds), true)) {
@@ -813,16 +812,18 @@ class UsersController extends Controller
             });
         } catch (ValidationException $exception) {
             throw $exception;
-        } catch (Throwable $exception) {
-            Log::error('admin.users.update_failed', [
-                'user_id' => $user->id,
-                'exception' => $exception,
+        } catch (Throwable $e) {
+            Log::error('Admin role update failed', [
+                'target_id' => $userId ?? null,
+                'request' => $request->all(),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
 
-            return redirect()
-                ->route('admin.users.edit', $user->id)
-                ->withInput()
-                ->withErrors(['roles' => 'Unable to update user roles right now. Please try again or contact support.']);
+            return back()->withInput()->withErrors([
+                'roles' => $e->getMessage(),
+            ]);
         }
 
         $statusMessage = $request->has('add_circle_membership')
@@ -891,6 +892,23 @@ class UsersController extends Controller
     }
 
 
+
+    private function replaceAdminUserRoles(AdminUser $adminUser, array $roleIds): void
+    {
+        DB::table('admin_user_roles')
+            ->where('user_id', $adminUser->id)
+            ->delete();
+
+        foreach (array_values(array_unique(array_filter($roleIds))) as $roleId) {
+            DB::table('admin_user_roles')->insert([
+                'id' => (string) Str::uuid(),
+                'user_id' => $adminUser->id,
+                'role_id' => $roleId,
+                'created_at' => now(),
+            ]);
+        }
+    }
+
     private function flushAdminAccessCache(AdminUser $adminUser): void
     {
         foreach (['user', 'roles', 'circles', 'allowed-users', 'primary-role', 'industries'] as $segment) {
@@ -949,20 +967,16 @@ class UsersController extends Controller
             return back()->withErrors(['roles' => 'Admin user record not found for this user.']);
         }
 
-        $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
-        $adminRoleIds = Role::query()
-            ->whereIn('key', $adminRoleKeys)
-            ->pluck('id')
-            ->all();
+        DB::transaction(function () use ($adminUser, $user): void {
+            $this->replaceAdminUserRoles($adminUser, []);
 
-        $adminUser->roles()->detach($adminRoleIds);
-
-        if (Schema::hasTable('industry_director_assignments')) {
-            IndustryDirectorAssignment::query()
-                ->where('admin_user_id', $adminUser->id)
-                ->orWhere('user_id', $user->id)
-                ->delete();
-        }
+            if (Schema::hasTable('industry_director_assignments')) {
+                IndustryDirectorAssignment::query()
+                    ->where('admin_user_id', $adminUser->id)
+                    ->orWhere('user_id', $user->id)
+                    ->delete();
+            }
+        });
 
         $this->flushAdminAccessCache($adminUser);
 

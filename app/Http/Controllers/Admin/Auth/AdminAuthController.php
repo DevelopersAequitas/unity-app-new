@@ -220,10 +220,30 @@ class AdminAuthController extends Controller
 
             $circleLeaderRoleId = Role::mustIdByKey('circle_leader');
 
-            $adminUser->roles()->syncWithoutDetaching([$circleLeaderRoleId]);
+            $this->insertAdminUserRoleIfMissing($adminUser, $circleLeaderRoleId);
 
             return $adminUser;
         });
+    }
+
+
+    private function insertAdminUserRoleIfMissing(AdminUser $adminUser, string $roleId): void
+    {
+        $exists = DB::table('admin_user_roles')
+            ->where('user_id', $adminUser->id)
+            ->where('role_id', $roleId)
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        DB::table('admin_user_roles')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => $adminUser->id,
+            'role_id' => $roleId,
+            'created_at' => now(),
+        ]);
     }
 
     private function resolveAdminName(User $user): string
