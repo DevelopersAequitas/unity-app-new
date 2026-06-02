@@ -9,4 +9,6 @@ class IndustryDirectorAssignment extends Model
     protected $table = 'industry_director_assignments';
 
     protected $guarded = [];
+
+    public $timestamps = true;
 }

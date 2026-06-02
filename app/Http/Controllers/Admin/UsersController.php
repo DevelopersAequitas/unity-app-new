@@ -251,10 +251,11 @@ class UsersController extends Controller
         $assignedIndustryDirectorIndustryId = null;
 
         if (
-            $adminUserForRoles &&
-            Schema::hasTable('industry_director_assignments')
+            class_exists(\App\Models\IndustryDirectorAssignment::class)
+            && Schema::hasTable('industry_director_assignments')
+            && $adminUserForRoles
         ) {
-            $assignedIndustryDirectorIndustryId = IndustryDirectorAssignment::query()
+            $assignedIndustryDirectorIndustryId = \App\Models\IndustryDirectorAssignment::query()
                 ->where('admin_user_id', $adminUserForRoles->id)
                 ->where('is_active', true)
                 ->value('industry_id');
