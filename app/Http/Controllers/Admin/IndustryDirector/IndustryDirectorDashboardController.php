@@ -7,6 +7,7 @@ use App\Services\IndustryDirector\IndustryScopeService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
@@ -26,6 +27,8 @@ class IndustryDirectorDashboardController extends Controller
         $industryName = $this->industryScope->industryName($industryId) ?: 'Assigned Industry';
         $circleIds = $this->industryScope->industryCircleIds($industryId);
         $memberIds = $this->industryScope->industryMemberIds($industryId);
+
+        Log::debug('industry_director.dashboard.scope', $this->industryScope->scopeDebugSnapshot($industryId));
 
         $stats = [
             'total_members' => $memberIds->count(),
@@ -65,24 +68,25 @@ class IndustryDirectorDashboardController extends Controller
     private function totalActivities(string $industryId): int
     {
         $tables = [
-            ['testimonials', 'from_user_id'],
-            ['referrals', 'from_user_id'],
-            ['business_deals', 'from_user_id'],
-            ['p2p_meetings', 'initiator_user_id'],
-            ['requirements', 'user_id'],
-            ['visitor_registrations', 'user_id'],
-            ['activities', 'user_id'],
+            ['testimonials', ['from_user_id', 'to_user_id']],
+            ['referrals', ['from_user_id', 'to_user_id']],
+            ['business_deals', ['from_user_id', 'to_user_id']],
+            ['p2p_meetings', ['initiator_user_id', 'peer_user_id']],
+            ['p2p_meeting_requests', ['requester_id', 'invitee_id']],
+            ['requirements', ['user_id']],
+            ['visitor_registrations', ['user_id', 'invited_by_user_id']],
+            ['activities', ['user_id', 'from_user_id', 'to_user_id']],
         ];
 
         return collect($tables)->sum(function (array $table) use ($industryId): int {
-            [$tableName, $userColumn] = $table;
+            [$tableName, $userColumns] = $table;
 
-            if (! Schema::hasTable($tableName) || ! Schema::hasColumn($tableName, $userColumn)) {
+            if (! Schema::hasTable($tableName)) {
                 return 0;
             }
 
             $query = DB::table($tableName);
-            $this->industryScope->applyUserColumnScope($query, $userColumn, $industryId);
+            $this->industryScope->applyAnyUserColumnScope($query, $userColumns, $industryId);
 
             return (int) $query->count();
         });
@@ -211,8 +215,17 @@ class IndustryDirectorDashboardController extends Controller
             return [$month->format('Y-m') => 0];
         });
 
-        foreach ([['activities', 'user_id'], ['testimonials', 'from_user_id'], ['referrals', 'from_user_id'], ['business_deals', 'from_user_id'], ['requirements', 'user_id'], ['visitor_registrations', 'user_id']] as [$table, $userColumn]) {
-            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'created_at') || ! Schema::hasColumn($table, $userColumn)) {
+        foreach ([
+            ['activities', ['user_id', 'from_user_id', 'to_user_id']],
+            ['testimonials', ['from_user_id', 'to_user_id']],
+            ['referrals', ['from_user_id', 'to_user_id']],
+            ['business_deals', ['from_user_id', 'to_user_id']],
+            ['p2p_meetings', ['initiator_user_id', 'peer_user_id']],
+            ['p2p_meeting_requests', ['requester_id', 'invitee_id']],
+            ['requirements', ['user_id']],
+            ['visitor_registrations', ['user_id', 'invited_by_user_id']],
+        ] as [$table, $userColumns]) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'created_at')) {
                 continue;
             }
 
@@ -223,7 +236,7 @@ class IndustryDirectorDashboardController extends Controller
                 ->groupBy('month_key')
                 ->orderBy('month_key');
 
-            $this->industryScope->applyUserColumnScope($query, $userColumn, $industryId);
+            $this->industryScope->applyAnyUserColumnScope($query, $userColumns, $industryId);
 
             foreach ($query->get() as $row) {
                 if ($months->has($row->month_key)) {
