@@ -108,7 +108,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('scan-app')->group(function () {
         Route::post('/login', [ScanAppAuthController::class, 'login']);
 
-        Route::middleware('auth:sanctum')->group(function () {
+        Route::middleware(['auth:sanctum', 'scan.app.user'])->group(function () {
             Route::get('/me', [ScanAppAuthController::class, 'me']);
             Route::post('/logout', [ScanAppAuthController::class, 'logout']);
             Route::get('/events', [ScanAppEventController::class, 'index']);
@@ -125,7 +125,7 @@ Route::prefix('v1')->group(function () {
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
-        Route::middleware('auth:sanctum')->group(function () {
+        Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
@@ -173,7 +173,7 @@ Route::prefix('v1')->group(function () {
     Route::patch('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
     Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
@@ -740,7 +740,7 @@ Route::prefix('v1')->group(function () {
     // Other module routes (members, circles, posts, etc.) will be added here later.
 });
 
-Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'unity.user'])->prefix('admin')->group(function () {
     Route::get('/campaigns', [AdminCampaignController::class, 'index']);
     Route::post('/campaigns', [AdminCampaignController::class, 'store']);
     Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
