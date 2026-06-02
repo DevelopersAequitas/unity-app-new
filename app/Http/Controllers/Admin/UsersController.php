@@ -250,7 +250,7 @@ class UsersController extends Controller
             : collect();
         $assignedIndustryDirectorIndustryId = Schema::hasTable('industry_director_assignments')
             ? IndustryDirectorAssignment::query()
-                ->where('user_id', $user->id)
+                ->where('admin_user_id', $adminUser->id)
                 ->when($adminUserForRoles, fn ($query) => $query->orWhere('admin_user_id', $adminUserForRoles->id))
                 ->value('industry_id')
             : null;
