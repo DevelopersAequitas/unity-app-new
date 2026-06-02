@@ -41,6 +41,7 @@ use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 
 Route::get('/', function () {
     return view('landing');
@@ -50,6 +51,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
     Route::post('/login/send-otp', [AdminAuthController::class, 'requestOtp'])->name('login.send-otp');
     Route::post('/login/verify', [AdminAuthController::class, 'verifyOtp'])->name('login.verify');
+
+
+    Route::middleware(['admin.auth', 'industry.director'])
+        ->prefix('industry-director')
+        ->name('industry-director.')
+        ->group(function () {
+            Route::get('/dashboard', [IndustryDirectorDashboardController::class, 'index'])->name('dashboard');
+        });
 
     Route::middleware(['admin.auth', 'admin.role', 'admin.circle'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
