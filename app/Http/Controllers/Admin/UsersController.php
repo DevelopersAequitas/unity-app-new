@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminDedDistrict;
 use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleCategory;
@@ -14,9 +15,11 @@ use App\Models\City;
 use App\Models\JoinedCircleCategory;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Admin\DedLocationService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -67,7 +70,7 @@ class UsersController extends Controller
             ->sort()
             ->values();
 
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $circles = AdminCircleScope::circleOptions(Auth::guard('admin')->user());
         $q = $filters['search'] ?? '';
         $circleId = $filters['circle_id'] ?? 'all';
 
@@ -85,6 +88,8 @@ class UsersController extends Controller
 
     public function create(): View
     {
+        abort_unless(AdminAccess::canEditUsers(Auth::guard('admin')->user()), 403);
+
         $user = new User();
         $cities = City::query()->orderBy('name')->get();
         $membershipStatuses = $this->membershipStatuses();
@@ -101,6 +106,8 @@ class UsersController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        abort_unless(AdminAccess::canEditUsers(Auth::guard('admin')->user()), 403);
+
         $membershipStatuses = $this->membershipStatuses();
 
         $request->merge([
@@ -239,6 +246,22 @@ class UsersController extends Controller
         $assignedAdminRoles = $adminUserForRoles
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
+        $dedRoleId = optional($roles->firstWhere('key', 'ded'))->id;
+        $dedLocationService = app(DedLocationService::class);
+        $states = $dedLocationService->getAvailableStates();
+        $assignedDedMapping = ($adminUserForRoles && Schema::hasTable('admin_ded_districts'))
+            ? AdminDedDistrict::query()->where('admin_user_id', $adminUserForRoles->id)->first()
+            : null;
+        $assignedDedStateId = $assignedDedMapping?->state_id;
+        $assignedDedDistrictId = $assignedDedMapping?->district_id;
+
+        if (! $assignedDedStateId && $assignedDedDistrictId && Schema::hasTable('districts')) {
+            $assignedDedStateId = DB::table('districts')->where('id', $assignedDedDistrictId)->value('state_id');
+        }
+
+        $assignedDedDistricts = $assignedDedStateId
+            ? $dedLocationService->getAvailableDistrictsByState($assignedDedStateId)
+            : collect();
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
@@ -334,6 +357,11 @@ class UsersController extends Controller
             'membershipPlanOptions' => $this->membershipPlanOptions($user->zoho_plan_code),
             'circleCategoryOptionsByCircle' => $circleCategoryOptionsByCircle,
             'hasCoinsRemarkColumn' => $hasCoinsRemarkColumn,
+            'dedRoleId' => $dedRoleId,
+            'states' => $states,
+            'assignedDedStateId' => $assignedDedStateId,
+            'assignedDedDistrictId' => $assignedDedDistrictId,
+            'assignedDedDistricts' => $assignedDedDistricts,
         ]);
     }
 
@@ -432,6 +460,8 @@ class UsersController extends Controller
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
+            'ded_state_id' => ['nullable', 'uuid'],
+            'ded_district_id' => ['nullable', 'uuid'],
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
@@ -485,6 +515,54 @@ class UsersController extends Controller
         }
 
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
+        $dedRoleId = Role::query()->where('key', 'ded')->value('id');
+        $selectedRoleIdsForValidation = collect($validated['role_ids'] ?? [])
+            ->intersect($adminRoleIds)
+            ->unique()
+            ->values()
+            ->all();
+        $isAssigningDedRole = $request->filled('role_ids')
+            && $dedRoleId
+            && in_array($dedRoleId, $selectedRoleIdsForValidation, true);
+
+        if ($isAssigningDedRole && blank($validated['ded_state_id'] ?? null)) {
+            return back()
+                ->withErrors(['ded_state_id' => 'Please select a state when assigning the DED role.'])
+                ->withInput();
+        }
+
+        if ($isAssigningDedRole && blank($validated['ded_district_id'] ?? null)) {
+            return back()
+                ->withErrors(['ded_district_id' => 'Please select a district when assigning the DED role.'])
+                ->withInput();
+        }
+
+        if ($isAssigningDedRole && ! Schema::hasTable('admin_ded_districts')) {
+            return back()
+                ->withErrors(['ded_district_id' => 'DED district assignment table is missing. Please run the provided manual SQL first.'])
+                ->withInput();
+        }
+
+        if ($isAssigningDedRole && (! Schema::hasTable('states') || ! Schema::hasTable('districts'))) {
+            return back()
+                ->withErrors(['ded_district_id' => 'DED state and district tables are missing. Please run the provided manual SQL first.'])
+                ->withInput();
+        }
+
+        $dedDistrictAssignment = null;
+        if ($isAssigningDedRole) {
+            $dedDistrictAssignment = app(DedLocationService::class)->resolveDistrictSelection(
+                $validated['ded_district_id'] ?? null,
+                $validated['ded_state_id'] ?? null,
+            );
+
+            if (! $dedDistrictAssignment) {
+                return back()
+                    ->withErrors(['ded_district_id' => 'Please select a valid district for the selected state.'])
+                    ->withInput();
+            }
+        }
+
         $validated = $this->syncMembershipExpiryInput($validated, $request, $user);
 
         $booleanFields = ['is_sponsored_member'];
@@ -495,6 +573,8 @@ class UsersController extends Controller
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
         $updatableExclusions = [
             'role_ids',
+            'ded_state_id',
+            'ded_district_id',
             'profile_photo_file_id',
             'cover_photo_file_id',
             'status',
@@ -535,7 +615,7 @@ class UsersController extends Controller
         $ledgerHasRemarkColumn = Schema::hasColumn('coins_ledger', 'remark');
 
         try {
-            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds) {
+            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds, $dedRoleId, $dedDistrictAssignment) {
                 $user->fill($updatable);
                 $user->status = $validated['status'];
                 $user->active_circle_id = $selectedCircleId;
@@ -754,6 +834,20 @@ class UsersController extends Controller
 
                     $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
                     $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+
+                    if ($dedRoleId && in_array($dedRoleId, $selectedRoleIds, true)) {
+                        AdminDedDistrict::query()->updateOrCreate(
+                            ['admin_user_id' => $adminUser->id],
+                            [
+                                'user_id' => $user->id,
+                                ...$this->dedDistrictAssignmentPayload($dedDistrictAssignment),
+                            ]
+                        );
+                    } else {
+                        AdminDedDistrict::query()->where('admin_user_id', $adminUser->id)->delete();
+                    }
+
+                    AdminAccess::clearCache($adminUser);
                 }
             });
         } catch (ValidationException $exception) {
@@ -893,6 +987,8 @@ class UsersController extends Controller
             ->all();
 
         $adminUser->roles()->detach($adminRoleIds);
+        AdminDedDistrict::query()->where('admin_user_id', $adminUser->id)->delete();
+        AdminAccess::clearCache($adminUser);
 
         return back()->with('success', 'Role removed successfully.');
     }
@@ -928,11 +1024,15 @@ class UsersController extends Controller
 
     public function importForm(): View
     {
+        abort_unless(AdminAccess::canEditUsers(Auth::guard('admin')->user()), 403);
+
         return view('admin.users.import');
     }
 
     public function import(Request $request): View
     {
+        abort_unless(AdminAccess::canEditUsers(Auth::guard('admin')->user()), 403);
+
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt'],
         ]);
@@ -1358,6 +1458,28 @@ class UsersController extends Controller
         ]);
     }
 
+    private function dedDistrictAssignmentPayload(?array $assignment): array
+    {
+        if (! $assignment) {
+            return [];
+        }
+
+        $payload = [
+            'state_id' => $assignment['state_id'] ?? null,
+            'district_id' => $assignment['district_id'] ?? null,
+        ];
+
+        if (Schema::hasColumn('admin_ded_districts', 'state_name')) {
+            $payload['state_name'] = $assignment['state_name'] ?? null;
+        }
+
+        if (Schema::hasColumn('admin_ded_districts', 'district_name')) {
+            $payload['district_name'] = $assignment['district_name'] ?? null;
+        }
+
+        return $payload;
+    }
+
     private function activeCircleMemberStatus(): string
     {
         return (string) config('circle.member_joined_status', 'approved');
@@ -1494,6 +1616,10 @@ class UsersController extends Controller
             }
         }
 
+        if (AdminAccess::isDed(Auth::guard('admin')->user())) {
+            AdminCircleScope::applyToUsersQuery($query, Auth::guard('admin')->user());
+        }
+
         $search = trim((string) $request->query('q', $request->input('search', '')));
         $circleId = (string) $request->query('circle_id', 'all');
         $membership = $request->input('membership_status');
@@ -1546,12 +1672,16 @@ class UsersController extends Controller
         }
 
         if ($circleId !== '' && $circleId !== 'all') {
-            $query->whereHas('circleMembers', function ($circleMembersQuery) use ($circleId, $joinedStatus) {
-                $circleMembersQuery
-                    ->where('circle_id', $circleId)
-                    ->where('status', $joinedStatus)
-                    ->whereNull('deleted_at');
-            });
+            if ($isCircleScoped && is_array($allowedCircleIds) && ! in_array($circleId, $allowedCircleIds, true)) {
+                $query->whereRaw('1=0');
+            } else {
+                $query->whereHas('circleMembers', function ($circleMembersQuery) use ($circleId, $joinedStatus) {
+                    $circleMembersQuery
+                        ->where('circle_id', $circleId)
+                        ->where('status', $joinedStatus)
+                        ->whereNull('deleted_at');
+                });
+            }
         }
 
         if ($membership && $membership !== 'all') {

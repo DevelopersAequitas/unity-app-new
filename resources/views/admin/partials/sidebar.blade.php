@@ -3,18 +3,24 @@
     $adminUser?->loadMissing('roles:key');
     $isSuper = \App\Support\AdminAccess::isSuper($adminUser);
     $isCircleScoped = \App\Support\AdminAccess::isCircleScoped($adminUser);
+    $isDed = \App\Support\AdminAccess::isDed($adminUser);
+    $isScopedAdmin = $isCircleScoped || $isDed;
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
+    $canAccessLeads = ! $isScopedAdmin;
+    $canAccessEmailLogs = ! $isScopedAdmin;
 
-    $dashboardItem = $isCircleScoped
-        ? null
-        : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard'];
+    $dashboardItem = $isDed
+        ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.ded.dashboard']
+        : ($isCircleScoped
+            ? null
+            : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard']);
 
-    $navItems = $isCircleScoped
+    $navItems = $isScopedAdmin
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
+            ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'disabled' => ! $canAccessEmailLogs],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-            ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
@@ -31,8 +37,8 @@
             ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
+            ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'disabled' => ! $canAccessEmailLogs],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-            ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
@@ -52,7 +58,7 @@
             ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
         ];
 
-    $activityMenu = ($isSuper || $isCircleScoped) ? [
+    $activityMenu = ($isSuper || $isScopedAdmin) ? [
         ['label' => 'Summary', 'route' => 'admin.activities.index'],
         ['label' => 'Testimonials', 'route' => 'admin.activities.testimonials.index'],
         ['label' => 'Requirements', 'route' => 'admin.activities.requirements.index'],
@@ -66,10 +72,10 @@
     ] : [];
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
-    $referralReportItem = ($isSuper || $isCircleScoped)
+    $referralReportItem = ($isSuper || $isScopedAdmin)
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
-    $activityExpanded = $activityActive || ! $isGlobalAdmin;
+    $activityExpanded = $activityActive || ($isCircleScoped && ! $isDed);
 
     $postsMenu = $isGlobalAdmin ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
@@ -85,13 +91,22 @@
         ['label' => 'Become Mentor', 'route' => 'admin.leads.become-mentor.index'],
     ];
 
-    $pendingRequestsMenu = [
+    $pendingRequestsMenu = $isDed ? [
         ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
         ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
         ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
         ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
         ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
-    ];
+    ] : ($isScopedAdmin ? [
+        ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
+        ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
+    ] : [
+        ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
+        ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
+        ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
+        ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
+        ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
+    ]);
 
     $leadsActive = request()->routeIs('admin.leads.*');
     $pendingRequestsActive =
@@ -106,6 +121,15 @@
         ['label' => 'Create Campaign', 'route' => 'admin.campaigns.create'],
         ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index'],
     ];
+    $disabledBottomItems = [];
+    if (! $canAccessLeads) {
+        $disabledBottomItems[] = ['icon' => 'bi-person-lines-fill', 'label' => 'Leads'];
+    }
+    if (! $canAccessEmailLogs) {
+        $disabledBottomItems[] = ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs'];
+        $navItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) !== 'Email Logs'));
+    }
+
     $campaignsActive = request()->routeIs('admin.campaigns.*') || request()->routeIs('admin.campaign-pamphlets.*') || request()->routeIs('admin.execution.communications');
     $eventsManagementMenu = [
         ['label' => 'Events', 'route' => 'admin.events.index'],
@@ -204,6 +228,7 @@
                 </div>
             </li>
 
+            @if ($canAccessLeads && $leadsMenu)
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
                 <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
                     <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
@@ -221,6 +246,7 @@
                     </ul>
                 </div>
             </li>
+            @endif
 
             @if ($isGlobalAdmin)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
@@ -259,7 +285,11 @@
                     </li>
                 @else
                     <li class="nav-item">
-                        @if ($item['route'] === '#')
+                        @if (($item['disabled'] ?? false) === true)
+                            <span class="nav-link disabled opacity-50 pe-none" aria-disabled="true" title="Access restricted" style="cursor: not-allowed;">
+                                <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                            </span>
+                        @elseif ($item['route'] === '#')
                             <span class="nav-link disabled">
                                 <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                             </span>
@@ -271,6 +301,17 @@
                     </li>
                 @endif
             @endforeach
+
+            @if ($disabledBottomItems)
+                <li class="nav-item mt-3 border-top pt-2"></li>
+                @foreach ($disabledBottomItems as $item)
+                    <li class="nav-item">
+                        <span class="nav-link disabled opacity-50 pe-none" aria-disabled="true" title="Access restricted" style="cursor: not-allowed;">
+                            <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                        </span>
+                    </li>
+                @endforeach
+            @endif
         </ul>
     </nav>
 

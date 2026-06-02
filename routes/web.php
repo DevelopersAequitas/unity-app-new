@@ -41,6 +41,7 @@ use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\LocationController;
 
 Route::get('/', function () {
     return view('landing');
@@ -54,9 +55,17 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware(['admin.auth', 'admin.role', 'admin.circle'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
         Route::get('/', function () {
+            $admin = auth('admin')->user();
+
+            if (\App\Support\AdminAccess::isDed($admin)) {
+                return redirect()->route('admin.ded.dashboard');
+            }
+
             return redirect()->route('admin.dashboard');
         })->name('home');
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/ded-dashboard', [DashboardController::class, 'ded'])->name('ded.dashboard');
+        Route::get('/location/states/{state}/districts', [LocationController::class, 'districts'])->name('location.states.districts')->whereUuid('state');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
@@ -203,6 +212,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-cd', [CircleJoinRequestsController::class, 'rejectCd'])->whereUuid('id')->name('circle-joining-requests.reject-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-id', [CircleJoinRequestsController::class, 'approveId'])->whereUuid('id')->name('circle-joining-requests.approve-id');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-id', [CircleJoinRequestsController::class, 'rejectId'])->whereUuid('id')->name('circle-joining-requests.reject-id');
+        Route::post('/pending-requests/circle-joining-requests/{id}/approve-ded', [CircleJoinRequestsController::class, 'approveDed'])->whereUuid('id')->name('circle-joining-requests.approve-ded');
 
         Route::get('/pending-requests/leads/entrepreneur-certification', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('leads.entrepreneur-certification.index');
         Route::get('/pending-requests/leads/entrepreneur-certification/{id}', [LeadSubmissionsController::class, 'entrepreneurCertificationShow'])->name('leads.entrepreneur-certification.show');

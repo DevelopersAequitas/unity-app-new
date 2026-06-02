@@ -15,9 +15,9 @@ use App\Models\Testimonial;
 use App\Models\User;
 use App\Models\VisitorRegistration;
 use App\Support\AdminCircleScope;
+use App\Support\MediaFileUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
 
@@ -42,11 +42,13 @@ class ActivitiesController extends Controller
             ->withQueryString();
 
         $circles = $this->buildCircleFilterOptions($admin);
+        $topDistrictPeers = $this->buildTopDistrictPeers($summaryQuery);
 
         return view('admin.activities.index', [
             'members' => $members,
             'filters' => $filters,
             'circles' => $circles,
+            'topDistrictPeers' => $topDistrictPeers,
         ]);
     }
 
@@ -164,6 +166,23 @@ class ActivitiesController extends Controller
         return $query;
     }
 
+    private function buildTopDistrictPeers($summaryQuery)
+    {
+        return DB::query()
+            ->fromSub($summaryQuery->toBase(), 'activity_summary')
+            ->select([
+                'id',
+                'peer_name',
+                'company_name',
+                'city_name',
+            ])
+            ->selectRaw('(COALESCE(testimonials_count, 0) + COALESCE(referrals_count, 0) + COALESCE(requirements_count, 0) + COALESCE(business_deals_count, 0) + COALESCE(p2p_completed_count, 0) + COALESCE(become_leader_count, 0) + COALESCE(recommend_peer_count, 0) + COALESCE(register_visitor_count, 0)) as performance_score')
+            ->orderByDesc('performance_score')
+            ->orderBy('peer_name')
+            ->limit(5)
+            ->get();
+    }
+
     private function applyDateRangeToSubQuery($subQuery, ?Carbon $from, ?Carbon $to, string $column = 'created_at'): void
     {
         if ($from) {
@@ -230,20 +249,7 @@ class ActivitiesController extends Controller
 
     private function buildCircleFilterOptions($admin)
     {
-        $query = DB::table('circles')
-            ->select('circles.id', 'circles.name')
-            ->orderBy('circles.name');
-
-        if (\App\Support\AdminAccess::isCircleScoped($admin)) {
-            $circleId = AdminCircleScope::resolveCircleId($admin);
-            if ($circleId) {
-                $query->where('circles.id', $circleId);
-            } else {
-                $query->whereRaw('1=0');
-            }
-        }
-
-        return $query->get();
+        return AdminCircleScope::circleOptions($admin);
     }
 
     public function testimonials(User $member, Request $request): View
@@ -949,7 +955,7 @@ class ActivitiesController extends Controller
             if (is_array($decoded)) {
                 $first = $decoded[0] ?? null;
                 if (is_array($first)) {
-                    return $this->formatAttachmentUrl($first['url'] ?? $first['id'] ?? null);
+                    return $this->formatAttachmentUrl($first);
                 }
             }
 
@@ -961,18 +967,6 @@ class ActivitiesController extends Controller
 
     private function formatAttachmentUrl($value): ?string
     {
-        if (! $value) {
-            return null;
-        }
-
-        if (is_string($value) && (str_starts_with($value, 'http://') || str_starts_with($value, 'https://'))) {
-            return $value;
-        }
-
-        if (is_string($value) && Str::isUuid($value)) {
-            return url('/api/v1/files/' . $value);
-        }
-
-        return null;
+        return MediaFileUrl::resolve($value);
     }
 }

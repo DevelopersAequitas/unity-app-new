@@ -4,38 +4,6 @@
 
 @section('content')
     @php
-        $resolveFileUrl = function ($value) {
-            if (! $value) {
-                return null;
-            }
-
-            if (is_string($value) && (str_starts_with($value, 'http://') || str_starts_with($value, 'https://'))) {
-                return $value;
-            }
-
-            if (is_string($value) && \Illuminate\Support\Str::isUuid($value)) {
-                return url('/api/v1/files/' . $value);
-            }
-
-            return null;
-        };
-
-        $extractMediaUrl = function ($media) use ($resolveFileUrl) {
-            if (! $media) {
-                return null;
-            }
-
-            if (is_array($media)) {
-                $first = $media[0] ?? null;
-                if (is_array($first)) {
-                    $id = $first['id'] ?? null;
-                    $url = $first['url'] ?? null;
-                    return $resolveFileUrl($url ?: $id);
-                }
-            }
-
-            return $resolveFileUrl($media);
-        };
 
         $decodeFilter = function ($value): array {
             if (is_array($value)) {
@@ -89,7 +57,8 @@
                 <tbody>
                     @forelse ($items as $requirement)
                         @php
-                            $attachmentUrl = $extractMediaUrl($requirement->media ?? null);
+                            $mediaUrls = \App\Support\MediaFileUrl::all($requirement->media ?? null);
+                            $hasAttachment = count(\App\Support\MediaFileUrl::normalize($requirement->media ?? null)) > 0;
                             $regionFilter = $decodeFilter($requirement->region_filter ?? null);
                             $categoryFilter = $decodeFilter($requirement->category_filter ?? null);
                             $regionLabel = $regionFilter['region_label'] ?? $regionFilter['region_name'] ?? $regionFilter['city_name'] ?? null;
@@ -112,8 +81,9 @@
                                 <span class="badge bg-secondary-subtle text-secondary text-uppercase">{{ $requirement->status ?? 'open' }}</span>
                             </td>
                             <td>
-                                @if ($attachmentUrl)
-                                    <a href="{{ $attachmentUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">View</a>
+                                @if ($hasAttachment)
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#memberRequirementsMediaViewerModal" data-media-modal="memberRequirementsMediaViewerModal" data-media-source="member-requirement-media-json-{{ $requirement->id }}">View</button>
+                                    <script type="application/json" id="member-requirement-media-json-{{ $requirement->id }}">{{ e(json_encode($mediaUrls)) }}</script>
                                 @else
                                     —
                                 @endif
@@ -133,4 +103,6 @@
     <div class="mt-3">
         {{ $items->links() }}
     </div>
+
+    @include('admin.components.media-viewer-modal', ['modalId' => 'memberRequirementsMediaViewerModal'])
 @endsection

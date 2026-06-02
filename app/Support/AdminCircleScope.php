@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\AdminUser;
+use App\Models\Circle;
 use App\Models\CircleMember;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -23,13 +24,18 @@ class AdminCircleScope
 
     public static function resolveCircleId(?AdminUser $admin): ?string
     {
+        return self::allowedCircleIds($admin)[0] ?? null;
+    }
+
+    public static function allowedCircleIds(?AdminUser $admin): array
+    {
         if (! $admin || ! AdminAccess::isCircleScoped($admin)) {
-            return null;
+            return [];
         }
 
         $user = AdminAccess::resolveAppUser($admin);
         if (! $user) {
-            return null;
+            return [];
         }
 
         $roles = array_keys(self::ROLE_PRIORITY);
@@ -49,79 +55,281 @@ class AdminCircleScope
                 ->orderByRaw("case when circles.status = 'active' then 0 else 1 end");
         }
 
-        $query->orderByRaw("case circle_members.role::text {$orderCases} else 999 end")
-            ->orderBy('circle_members.created_at');
-
-        return $query->value('circle_members.circle_id');
+        return $query->orderByRaw("case circle_members.role::text {$orderCases} else 999 end")
+            ->orderBy('circle_members.created_at')
+            ->pluck('circle_members.circle_id')
+            ->unique()
+            ->values()
+            ->all();
     }
 
-    public static function circleUserIdsSubquery(string $circleId): Builder
+    public static function circleOptions(?AdminUser $admin)
     {
+        $query = Circle::query()->select(['id', 'name'])->orderBy('name');
+
+        if (AdminAccess::isDed($admin)) {
+            $district = AdminAccess::assignedDedDistrict($admin);
+
+            if (! $district) {
+                return collect();
+            }
+
+            return self::applyDistrictCircleScope($query, $district)->get();
+        }
+
+        if (! AdminAccess::isCircleScoped($admin)) {
+            return $query->get();
+        }
+
+        $circleIds = self::allowedCircleIds($admin);
+
+        if ($circleIds === []) {
+            return collect();
+        }
+
+        return $query->whereIn('id', $circleIds)->get();
+    }
+
+    public static function circleUserIdsSubquery(string|array $circleIds): Builder
+    {
+        $circleIds = is_array($circleIds) ? $circleIds : [$circleIds];
+
         return CircleMember::query()
             ->select('user_id')
-            ->where('circle_id', $circleId)
+            ->whereIn('circle_id', $circleIds)
             ->where('status', 'approved')
             ->whereNull('deleted_at');
     }
 
     public static function applyToActivityQuery($query, ?AdminUser $admin, string $primaryColumn, ?string $peerColumn): void
     {
+        if (AdminAccess::isDed($admin)) {
+            if ($peerColumn) {
+                $query->where(function ($districtQuery) use ($admin, $primaryColumn, $peerColumn): void {
+                    self::applyDistrictUserScope($districtQuery, $admin, $primaryColumn);
+                    $districtQuery->orWhere(function ($peerQuery) use ($admin, $peerColumn): void {
+                        self::applyDistrictUserScope($peerQuery, $admin, $peerColumn);
+                    });
+                });
+
+                return;
+            }
+
+            self::applyDistrictUserScope($query, $admin, $primaryColumn);
+            return;
+        }
+
         if (! AdminAccess::isCircleScoped($admin)) {
             return;
         }
 
-        $circleId = self::resolveCircleId($admin);
+        $circleIds = self::allowedCircleIds($admin);
 
-        if (! $circleId) {
+        if ($circleIds === []) {
             $query->whereRaw('1=0');
             return;
         }
 
-        $circleUserIds = self::circleUserIdsSubquery($circleId);
+        $circleUserIds = self::circleUserIdsSubquery($circleIds);
 
         $query->whereIn($primaryColumn, $circleUserIds);
     }
 
     public static function applyToUsersQuery($query, ?AdminUser $admin): void
     {
+        if (AdminAccess::isDed($admin)) {
+            self::applyDistrictUserScope($query, $admin, 'users.id');
+            return;
+        }
+
         if (! AdminAccess::isCircleScoped($admin)) {
             return;
         }
 
-        $circleId = self::resolveCircleId($admin);
+        $circleIds = self::allowedCircleIds($admin);
 
-        if (! $circleId) {
+        if ($circleIds === []) {
             $query->whereRaw('1=0');
             return;
         }
 
-        $query->whereExists(function ($subQuery) use ($circleId) {
+        $query->whereExists(function ($subQuery) use ($circleIds) {
             $subQuery->selectRaw(1)
                 ->from('circle_members as cm')
                 ->whereColumn('cm.user_id', 'users.id')
                 ->where('cm.status', 'approved')
                 ->whereNull('cm.deleted_at')
-                ->where('cm.circle_id', $circleId);
+                ->whereIn('cm.circle_id', $circleIds);
+        });
+    }
+
+
+    public static function applyRequestedCircleFilter($query, ?AdminUser $admin, string $userColumn, ?string $circleId): void
+    {
+        $circleId = trim((string) $circleId);
+
+        if ($circleId === '' || $circleId === 'all') {
+            return;
+        }
+
+        if (AdminAccess::isDed($admin) && ! self::circleBelongsToDedDistrict($admin, $circleId)) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        if (! AdminAccess::isDed($admin) && AdminAccess::isCircleScoped($admin) && ! in_array($circleId, self::allowedCircleIds($admin), true)) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->whereExists(function ($subQuery) use ($userColumn, $circleId): void {
+            $subQuery->selectRaw('1')
+                ->from('circle_members as cm_filter')
+                ->whereColumn('cm_filter.user_id', $userColumn)
+                ->where('cm_filter.status', 'approved')
+                ->whereNull('cm_filter.deleted_at')
+                ->where('cm_filter.circle_id', $circleId);
         });
     }
 
     public static function userInScope(?AdminUser $admin, string $userId): bool
     {
+        if (AdminAccess::isDed($admin)) {
+            $district = AdminAccess::assignedDedDistrict($admin);
+
+            if (! $district) {
+                return false;
+            }
+
+            $query = DB::table('users')
+                ->leftJoin('cities', 'cities.id', '=', 'users.city_id')
+                ->where('users.id', $userId);
+
+            self::applyUserDistrictCriteria($query, 'users', 'cities', $district);
+
+            return $query->exists();
+        }
+
         if (! AdminAccess::isCircleScoped($admin)) {
             return true;
         }
 
-        $circleId = self::resolveCircleId($admin);
+        $circleIds = self::allowedCircleIds($admin);
 
-        if (! $circleId) {
+        if ($circleIds === []) {
             return false;
         }
 
         return CircleMember::query()
             ->where('user_id', $userId)
-            ->where('circle_id', $circleId)
+            ->whereIn('circle_id', $circleIds)
             ->where('status', 'approved')
             ->whereNull('deleted_at')
             ->exists();
+    }
+
+    public static function circleBelongsToDedDistrict(?AdminUser $admin, string $circleId): bool
+    {
+        $district = AdminAccess::assignedDedDistrict($admin);
+
+        if (! $district) {
+            return false;
+        }
+
+        return self::applyDistrictCircleScope(Circle::query()->where('circles.id', $circleId), $district)->exists();
+    }
+
+    public static function applyDedDistrictUserScope($query, ?AdminUser $admin, string $userColumn): void
+    {
+        self::applyDistrictUserScope($query, $admin, $userColumn);
+    }
+
+    public static function applyDedDistrictCircleScope($query, ?AdminUser $admin): void
+    {
+        $district = AdminAccess::assignedDedDistrict($admin);
+
+        if (! $district) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        self::applyDistrictCircleScope($query, $district);
+    }
+
+    private static function applyDistrictCircleScope($query, array $district)
+    {
+        return $query->whereExists(function ($subQuery) use ($district): void {
+            $subQuery->selectRaw('1')
+                ->from('cities as district_scope_circle_cities')
+                ->whereColumn('district_scope_circle_cities.id', 'circles.city_id');
+
+            self::applyCityDistrictCriteria($subQuery, 'district_scope_circle_cities', $district);
+        });
+    }
+
+    private static function applyCityDistrictCriteria($query, string $cityAlias, array $district): void
+    {
+        $districtName = self::normalizeLocationValue($district['name'] ?? null);
+
+        if ($districtName === '') {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->where(function ($locationQuery) use ($cityAlias, $districtName): void {
+            $locationQuery->whereRaw("LOWER(TRIM(COALESCE({$cityAlias}.district, ''))) = ?", [$districtName])
+                ->orWhereRaw("LOWER(TRIM(COALESCE({$cityAlias}.name, ''))) = ?", [$districtName]);
+        });
+    }
+
+    private static function applyUserDistrictCriteria($query, string $userAlias, string $cityAlias, array $district): void
+    {
+        $districtName = self::normalizeLocationValue($district['name'] ?? null);
+
+        if ($districtName === '') {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->where(function ($locationQuery) use ($userAlias, $cityAlias, $districtName): void {
+            self::appendUserCityStringMatch($locationQuery, $userAlias, $districtName);
+
+            $locationQuery->orWhereRaw("LOWER(TRIM(COALESCE({$cityAlias}.name, ''))) = ?", [$districtName])
+                ->orWhereRaw("LOWER(TRIM(COALESCE({$cityAlias}.district, ''))) = ?", [$districtName]);
+        });
+    }
+
+    private static function appendUserCityStringMatch($query, string $userAlias, string $districtName): void
+    {
+        if (Schema::hasColumn('users', 'city')) {
+            $query->whereRaw("LOWER(TRIM(COALESCE({$userAlias}.city, ''))) = ?", [$districtName]);
+            return;
+        }
+
+        $query->whereRaw('1=0');
+    }
+
+    private static function normalizeLocationValue(mixed $value): string
+    {
+        return mb_strtolower(trim((string) $value));
+    }
+
+    private static function applyDistrictUserScope($query, ?AdminUser $admin, string $userColumn): void
+    {
+        $district = AdminAccess::assignedDedDistrict($admin);
+
+        if (! $district) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->whereExists(function ($subQuery) use ($userColumn, $district): void {
+            $subQuery->selectRaw('1')
+                ->from('users as district_scope_users')
+                ->leftJoin('cities as district_scope_cities', 'district_scope_cities.id', '=', 'district_scope_users.city_id')
+                ->whereRaw('district_scope_users.id::text = ' . $userColumn . '::text');
+
+            self::applyUserDistrictCriteria($subQuery, 'district_scope_users', 'district_scope_cities', $district);
+        });
     }
 }

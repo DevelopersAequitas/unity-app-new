@@ -3,41 +3,6 @@
 @section('title', 'Testimonials')
 
 @section('content')
-    @php
-        $resolveFileUrl = function ($value) {
-            if (! $value) {
-                return null;
-            }
-
-            if (is_string($value) && (str_starts_with($value, 'http://') || str_starts_with($value, 'https://'))) {
-                return $value;
-            }
-
-            if (is_string($value) && \Illuminate\Support\Str::isUuid($value)) {
-                return url('/api/v1/files/' . $value);
-            }
-
-            return null;
-        };
-
-        $extractMediaUrl = function ($media) use ($resolveFileUrl) {
-            if (! $media) {
-                return null;
-            }
-
-            if (is_array($media)) {
-                $first = $media[0] ?? null;
-                if (is_array($first)) {
-                    $id = $first['id'] ?? null;
-                    $url = $first['url'] ?? null;
-                    return $resolveFileUrl($url ?: $id);
-                }
-            }
-
-            return $resolveFileUrl($media);
-        };
-    @endphp
-
     <div class="d-flex justify-content-end mb-3">
         <a href="{{ route('admin.activities.index') }}" class="btn btn-outline-secondary">Back to Activities</a>
     </div>
@@ -72,7 +37,8 @@
                 <tbody>
                     @forelse ($items as $testimonial)
                         @php
-                            $attachmentUrl = $extractMediaUrl($testimonial->media ?? null);
+                            $mediaUrls = \App\Support\MediaFileUrl::all($testimonial->media ?? null);
+                            $hasAttachment = count(\App\Support\MediaFileUrl::normalize($testimonial->media ?? null)) > 0;
                         @endphp
                         <tr>
                             <td>
@@ -81,8 +47,9 @@
                             </td>
                             <td class="text-muted">{{ $testimonial->content ?? '—' }}</td>
                             <td>
-                                @if ($attachmentUrl)
-                                    <a href="{{ $attachmentUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">View</a>
+                                @if ($hasAttachment)
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#memberTestimonialsMediaViewerModal" data-media-modal="memberTestimonialsMediaViewerModal" data-media-source="member-testimonial-media-json-{{ $testimonial->id }}">View</button>
+                                    <script type="application/json" id="member-testimonial-media-json-{{ $testimonial->id }}">{{ e(json_encode($mediaUrls)) }}</script>
                                 @else
                                     —
                                 @endif
@@ -102,4 +69,6 @@
     <div class="mt-3">
         {{ $items->links() }}
     </div>
+
+    @include('admin.components.media-viewer-modal', ['modalId' => 'memberTestimonialsMediaViewerModal'])
 @endsection

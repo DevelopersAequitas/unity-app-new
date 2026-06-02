@@ -49,6 +49,14 @@ use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
+use App\Http\Controllers\Api\V1\ContactPostController;
+use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
+use App\Http\Controllers\Api\V1\Ded\DedAuthController;
+use App\Http\Controllers\Api\V1\Ded\DedCoinsController;
+use App\Http\Controllers\Api\V1\Ded\DedDashboardController as DedDashboardController;
+use App\Http\Controllers\Api\V1\Ded\DedPeersController;
+use App\Http\Controllers\Api\V1\Ded\DedPendingRequestsController;
+use App\Http\Controllers\Api\V1\Ded\DedReportsController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\AdController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
@@ -101,6 +109,75 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
+
+Route::prefix('v1/ded/auth')->group(function () {
+    Route::post('/request-otp', [DedAuthController::class, 'requestOtp']);
+    Route::post('/verify-otp', [DedAuthController::class, 'verifyOtp']);
+});
+
+Route::middleware(['auth:sanctum', 'ensure.ded.api'])->prefix('v1/ded')->group(function () {
+    Route::get('/me', [DedDashboardController::class, 'me']);
+    Route::get('/dashboard', [DedDashboardController::class, 'dashboard']);
+    Route::get('/dashboard/circles', [DedDashboardController::class, 'circles']);
+    Route::get('/circles', [DedDashboardController::class, 'circles']);
+
+    Route::get('/peers', [DedPeersController::class, 'index']);
+    Route::get('/peers/{id}', [DedPeersController::class, 'show']);
+
+    Route::get('/activities/summary', [DedActivitiesController::class, 'summary']);
+    Route::get('/activities/testimonials', [DedActivitiesController::class, 'testimonials']);
+    Route::get('/activities/testimonials/{id}', [DedActivitiesController::class, 'testimonialShow']);
+    Route::get('/activities/requirements', [DedActivitiesController::class, 'requirements']);
+    Route::get('/activities/requirements/{id}', [DedActivitiesController::class, 'requirementShow']);
+    Route::get('/activities/referrals', [DedActivitiesController::class, 'referrals']);
+    Route::get('/activities/referrals/{id}', [DedActivitiesController::class, 'referralShow']);
+    Route::get('/activities/p2p-meetings', [DedActivitiesController::class, 'p2pMeetings']);
+    Route::get('/activities/p2p-meetings/{id}', [DedActivitiesController::class, 'p2pMeetingShow']);
+    Route::get('/activities/business-deals', [DedActivitiesController::class, 'businessDeals']);
+    Route::get('/activities/business-deals/{id}', [DedActivitiesController::class, 'businessDealShow']);
+    Route::get('/activities/become-a-leader', [DedActivitiesController::class, 'becomeALeader']);
+    Route::get('/activities/recommend-a-peer', [DedActivitiesController::class, 'recommendAPeer']);
+    Route::get('/activities/find-build-collaborations', [DedActivitiesController::class, 'findBuildCollaborations']);
+    Route::get('/activities/register-a-visitor', [DedActivitiesController::class, 'registerAVisitor']);
+
+    Route::get('/coins', [DedCoinsController::class, 'index']);
+    Route::get('/coins/history', [DedCoinsController::class, 'history']);
+
+    Route::get('/referral-report', [DedReportsController::class, 'referralReport']);
+    Route::get('/life-impact', [DedReportsController::class, 'lifeImpact']);
+
+    Route::get('/pending-requests/summary', [DedPendingRequestsController::class, 'summary']);
+    Route::get('/pending-requests/visitor-registrations', [DedPendingRequestsController::class, 'visitorRegistrations']);
+    Route::get('/pending-requests/visitor-registrations/{id}', [DedPendingRequestsController::class, 'visitorRegistrationShow']);
+    Route::post('/pending-requests/visitor-registrations/{id}/approve', [DedPendingRequestsController::class, 'approveVisitor']);
+    Route::post('/pending-requests/visitor-registrations/{id}/reject', [DedPendingRequestsController::class, 'rejectVisitor']);
+
+    Route::get('/pending-requests/event-joining-requests', [DedPendingRequestsController::class, 'eventJoiningRequests']);
+    Route::get('/pending-requests/event-joining-requests/{id}', [DedPendingRequestsController::class, 'eventJoiningRequestShow']);
+    Route::post('/pending-requests/event-joining-requests/{id}/approve', [DedPendingRequestsController::class, 'approveEventJoining']);
+    Route::post('/pending-requests/event-joining-requests/{id}/reject', [DedPendingRequestsController::class, 'rejectEventJoining']);
+
+    Route::get('/pending-requests/coin-claims', [DedPendingRequestsController::class, 'coinClaims']);
+    Route::get('/pending-requests/coin-claims/{id}', [DedPendingRequestsController::class, 'coinClaimShow']);
+    Route::post('/pending-requests/coin-claims/{id}/approve', [DedPendingRequestsController::class, 'approveCoinClaim']);
+    Route::post('/pending-requests/coin-claims/{id}/reject', [DedPendingRequestsController::class, 'rejectCoinClaim']);
+
+    Route::get('/pending-requests/circle-joining-requests', [DedPendingRequestsController::class, 'circleJoinRequests']);
+    Route::get('/pending-requests/circle-joining-requests/{id}', [DedPendingRequestsController::class, 'circleJoinRequestShow']);
+    Route::post('/pending-requests/circle-joining-requests/{id}/ded-approve', [DedPendingRequestsController::class, 'dedApproveCircleJoin']);
+    Route::post('/pending-requests/circle-joining-requests/{id}/reject', [DedPendingRequestsController::class, 'rejectCircleJoin']);
+
+    Route::get('/pending-requests/pending-impacts', [DedPendingRequestsController::class, 'pendingImpacts']);
+    Route::get('/pending-requests/pending-impacts/{id}', [DedPendingRequestsController::class, 'pendingImpactShow']);
+    Route::post('/pending-requests/pending-impacts/{id}/approve', [DedPendingRequestsController::class, 'approveImpact']);
+    Route::post('/pending-requests/pending-impacts/{id}/reject', [DedPendingRequestsController::class, 'rejectImpact']);
+
+    Route::get('/reports/referrals', [DedReportsController::class, 'referrals']);
+    Route::get('/reports/activities', [DedReportsController::class, 'activities']);
+    Route::get('/reports/coins', [DedReportsController::class, 'coins']);
+    Route::get('/reports/pending-requests', [DedReportsController::class, 'pendingRequests']);
+});
+
 Route::prefix('v1')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
@@ -149,6 +226,14 @@ Route::prefix('v1')->group(function () {
     Route::post('/payments/zoho-billing/payment-link/webhook', [ZohoPaymentLinkWebhookController::class, 'handle']);
     Route::post('/webhooks/zoho/payments', [ZohoPaymentWebhookController::class, 'handle']);
     Route::post('/zoho/payments/webhook', [ZohoPaymentWebhookController::class, 'handle']);
+
+    // Contact Posts (public; stores user_id when a valid Sanctum bearer token is present)
+    Route::get('/contact-posts', [ContactPostController::class, 'index']);
+    Route::post('/contact-posts', [ContactPostController::class, 'store']);
+    Route::get('/contact-posts/{id}', [ContactPostController::class, 'show'])->whereUuid('id');
+    Route::put('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
+    Route::patch('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
+    Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);

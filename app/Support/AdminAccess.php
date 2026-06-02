@@ -2,12 +2,14 @@
 
 namespace App\Support;
 
+use App\Models\AdminDedDistrict;
 use App\Models\AdminUser;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AdminAccess
 {
@@ -16,7 +18,6 @@ class AdminAccess
     private const SUPER_ROLE_KEYS = [
         'global_admin',
         'industry_director',
-        'ded',
     ];
 
     private const CIRCLE_SCOPED_KEYS = [
@@ -102,6 +103,99 @@ class AdminAccess
         }
 
         return in_array('global_admin', self::adminRoleKeys($admin), true);
+    }
+
+    public static function isDed(?AdminUser $admin): bool
+    {
+        if (! $admin || self::isSuper($admin)) {
+            return false;
+        }
+
+        return in_array('ded', self::adminRoleKeys($admin), true);
+    }
+
+    public static function assignedDedDistrictId(?AdminUser $admin): ?string
+    {
+        if (! $admin || ! Schema::hasTable('admin_ded_districts')) {
+            return null;
+        }
+
+        $cacheKey = 'admin-access:ded-district:' . $admin->id;
+
+        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
+            return AdminDedDistrict::query()
+                ->where('admin_user_id', $admin->id)
+                ->value('district_id');
+        });
+    }
+
+    public static function assignedDedDistrict(?AdminUser $admin): ?array
+    {
+        if (! $admin || ! Schema::hasTable('admin_ded_districts')) {
+            return null;
+        }
+
+        $cacheKey = 'admin-access:ded-district-details:' . $admin->id;
+
+        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
+            $mapping = AdminDedDistrict::query()
+                ->where('admin_user_id', $admin->id)
+                ->first();
+
+            if (! $mapping) {
+                return null;
+            }
+
+            $districtName = '';
+            $stateName = '';
+
+            if ($mapping->district_id && Schema::hasTable('districts')) {
+                $districtName = (string) DB::table('districts')->where('id', $mapping->district_id)->value('name');
+            }
+
+            if ($mapping->state_id && Schema::hasTable('states')) {
+                $stateName = (string) DB::table('states')->where('id', $mapping->state_id)->value('name');
+            }
+
+            if ($districtName === '' && Schema::hasColumn('admin_ded_districts', 'district_name')) {
+                $districtName = trim((string) ($mapping->district_name ?? ''));
+            }
+
+            if ($stateName === '' && Schema::hasColumn('admin_ded_districts', 'state_name')) {
+                $stateName = trim((string) ($mapping->state_name ?? ''));
+            }
+
+            $districtName = self::cleanDedDistrictName($districtName);
+
+            return $districtName !== '' ? [
+                'id' => (string) ($mapping->district_id ?: $districtName),
+                'district_id' => $mapping->district_id ? (string) $mapping->district_id : null,
+                'name' => $districtName,
+                'district_name' => $districtName,
+                'state_id' => $mapping->state_id ? (string) $mapping->state_id : null,
+                'state' => $stateName,
+                'state_name' => $stateName,
+            ] : null;
+        });
+    }
+
+    public static function assignedDedDistrictName(?AdminUser $admin): ?string
+    {
+        return self::assignedDedDistrict($admin)['name'] ?? null;
+    }
+
+    private static function cleanDedDistrictName(mixed $value): string
+    {
+        $value = trim(preg_replace('/\s+/', ' ', (string) $value) ?? '');
+
+        if ($value === '') {
+            return '';
+        }
+
+        $value = preg_split('/,/', $value, 2)[0] ?? $value;
+        $value = preg_replace('/\s+district$/i', '', trim($value)) ?? $value;
+
+        return trim($value);
     }
 
     public static function isCircleScoped(?AdminUser $admin): bool
@@ -228,6 +322,25 @@ class AdminAccess
         }
 
         return self::CIRCLE_ROLE_LABELS[$roleKey] ?? 'Circle Leader';
+    }
+
+    public static function clearCache(?AdminUser $admin): void
+    {
+        if (! $admin) {
+            return;
+        }
+
+        foreach ([
+            'admin-access:user:' . $admin->id,
+            'admin-access:roles:' . $admin->id,
+            'admin-access:ded-district:' . $admin->id,
+            'admin-access:ded-district-details:' . $admin->id,
+                        'admin-access:circles:' . $admin->id,
+            'admin-access:allowed-users:' . $admin->id,
+            'admin-access:primary-role:' . $admin->id,
+        ] as $key) {
+            Cache::forget($key);
+        }
     }
 
     public static function canEditUsers(?AdminUser $admin): bool

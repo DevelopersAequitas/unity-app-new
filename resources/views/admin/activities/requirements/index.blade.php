@@ -188,7 +188,7 @@
                         @php
                             $actorName = $displayName($requirement->actor_display_name ?? null, $requirement->actor_first_name ?? null, $requirement->actor_last_name ?? null);
                             $mediaInfo = $mediaSummary($requirement->media ?? null);
-                            $mediaId = $firstMediaId($requirement->media ?? null);
+                            $mediaUrls = \App\Support\MediaFileUrl::all($requirement->media ?? null);
                             $regionFilter = $decodeFilter($requirement->region_filter ?? null);
                             $categoryFilter = $decodeFilter($requirement->category_filter ?? null);
                             $regionLabel = $regionFilter['region_label'] ?? $regionFilter['region_name'] ?? $regionFilter['city_name'] ?? null;
@@ -208,9 +208,10 @@
                             <td>{{ $categoryLabel ?: '—' }}</td>
                             <td>{{ $requirement->status ?? '—' }}</td>
                             <td>
-                                @if ($mediaInfo['has'] && $mediaId)
+                                @if ($mediaInfo['has'])
                                     <span class="badge bg-success">Yes ({{ $mediaInfo['count'] }})</span>
-                                    <a href="{{ url('/api/v1/files/' . $mediaId) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary ms-2">View</a>
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#requirementMediaViewerModal" data-media-modal="requirementMediaViewerModal" data-media-source="requirement-media-json-{{ $requirement->id }}">View</button>
+                                    <script type="application/json" id="requirement-media-json-{{ $requirement->id }}">{{ e(json_encode($mediaUrls)) }}</script>
                                 @else
                                     <span class="text-muted">No</span>
                                 @endif
@@ -231,5 +232,7 @@
     <div class="mt-3">
         {{ $items->links() }}
     </div>
+
+    @include('admin.components.media-viewer-modal', ['modalId' => 'requirementMediaViewerModal'])
 
 @endsection

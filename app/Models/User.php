@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\Admin\DedLocationService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
+use App\Support\MediaFileUrl;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -221,6 +223,14 @@ class User extends Authenticatable
 
             if (empty($user->display_name)) {
                 $user->display_name = trim($user->first_name . ' ' . ($user->last_name ?? ''));
+            }
+        });
+
+        static::saved(function (self $user): void {
+            try {
+                app(DedLocationService::class)->syncFromUser($user);
+            } catch (Throwable $exception) {
+                report($exception);
             }
         });
     }
@@ -441,7 +451,17 @@ class User extends Authenticatable
     {
         $city = trim((string) ($this->city ?? ''));
 
-        return $city !== '' ? $city : 'No City';
+        if ($city !== '') {
+            return $city;
+        }
+
+        if ($this->relationLoaded('city')) {
+            $cityName = trim((string) optional($this->getRelation('city'))->name);
+
+            return $cityName !== '' ? $cityName : 'No City';
+        }
+
+        return 'No City';
     }
 
     public function adminCircleLabel(): string
@@ -794,7 +814,7 @@ class User extends Authenticatable
             return null;
         }
 
-        return url('/api/v1/files/' . $this->profile_photo_file_id);
+        return MediaFileUrl::fileUrl($this->profile_photo_file_id);
     }
 
     public function getProfileVideoUrlAttribute(): ?string
@@ -803,7 +823,7 @@ class User extends Authenticatable
             return null;
         }
 
-        return url('/api/v1/files/' . $this->profile_video_id);
+        return MediaFileUrl::fileUrl($this->profile_video_id);
     }
 
     public function isFreeMember(): bool

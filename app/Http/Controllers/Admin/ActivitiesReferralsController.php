@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\Referral;
 use App\Support\AdminCircleScope;
+use App\Support\MediaFileUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -306,14 +307,7 @@ class ActivitiesReferralsController extends Controller
         $query->when($from, fn ($inner) => $inner->where('activity.created_at', '>=', $from))
             ->when($to, fn ($inner) => $inner->where('activity.created_at', '<=', $to));
 
-        if (! empty($filters['circle_id'])) {
-            $query->whereExists(function ($sub) use ($filters) {
-                $sub->selectRaw('1')
-                    ->from('circle_members as cm_filter')
-                    ->whereColumn('cm_filter.user_id', 'actor.id')
-                    ->where('cm_filter.circle_id', $filters['circle_id']);
-            });
-        }
+        AdminCircleScope::applyRequestedCircleFilter($query, auth('admin')->user(), 'actor.id', $filters['circle_id']);
 
         $this->applyScopeToActivityQuery($query, 'activity.from_user_id', 'activity.to_user_id');
 
@@ -329,14 +323,7 @@ class ActivitiesReferralsController extends Controller
             ->whereNull('activity.deleted_at')
             ->where('activity.is_deleted', false);
 
-        if (! empty($filters['circle_id'])) {
-            $query->whereExists(function ($sub) use ($filters) {
-                $sub->selectRaw('1')
-                    ->from('circle_members as cm_filter')
-                    ->whereColumn('cm_filter.user_id', 'actor.id')
-                    ->where('cm_filter.circle_id', $filters['circle_id']);
-            });
-        }
+        AdminCircleScope::applyRequestedCircleFilter($query, auth('admin')->user(), 'actor.id', $filters['circle_id']);
 
         $this->applyScopeToActivityQuery($query, 'activity.from_user_id', 'activity.to_user_id');
 
@@ -370,10 +357,7 @@ class ActivitiesReferralsController extends Controller
 
     private function circleOptions()
     {
-        return DB::table('circles')
-            ->select(['id', 'name'])
-            ->orderBy('name')
-            ->get();
+        return AdminCircleScope::circleOptions(auth('admin')->user());
     }
 
     private function referralTypeOptions()
@@ -480,11 +464,7 @@ class ActivitiesReferralsController extends Controller
 
     private function mediaReferenceForExport($value): string
     {
-        if ($value === null) {
-            return '';
-        }
-
-        return (string) $value;
+        return MediaFileUrl::resolve($value) ?? ($value === null ? '' : (string) $value);
     }
 
     private function parseDayBoundary($value, bool $endOfDay): ?Carbon

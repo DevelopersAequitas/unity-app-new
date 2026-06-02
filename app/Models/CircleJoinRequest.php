@@ -7,6 +7,7 @@ use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -57,6 +58,10 @@ class CircleJoinRequest extends Model
         'id_rejected_by',
         'id_rejected_at',
         'id_rejection_reason',
+        'ded_approved_by',
+        'ded_approved_admin_user_id',
+        'ded_approved_at',
+        'ded_approval_status',
         'fee_marked_at',
         'fee_paid_at',
         'notes',
@@ -68,6 +73,7 @@ class CircleJoinRequest extends Model
         'cd_rejected_at' => 'datetime',
         'id_approved_at' => 'datetime',
         'id_rejected_at' => 'datetime',
+        'ded_approved_at' => 'datetime',
         'fee_marked_at' => 'datetime',
         'fee_paid_at' => 'datetime',
         'notes' => 'array',
@@ -110,6 +116,16 @@ class CircleJoinRequest extends Model
             return $query;
         }
 
+        if (AdminAccess::isDed($adminUser)) {
+            return $query->whereExists(function ($subQuery) use ($adminUser): void {
+                $subQuery->selectRaw('1')
+                    ->from('circles')
+                    ->whereColumn('circles.id', 'circle_join_requests.circle_id');
+
+                AdminCircleScope::applyDedDistrictCircleScope($subQuery, $adminUser);
+            });
+        }
+
         $allowedCircleIds = AdminAccess::allowedCircleIds($adminUser);
 
         if ($allowedCircleIds === []) {
@@ -147,6 +163,11 @@ class CircleJoinRequest extends Model
     public function idRejectedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'id_rejected_by');
+    }
+
+    public function dedApprovedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'ded_approved_by');
     }
 
 

@@ -7,11 +7,16 @@ use App\Models\Circle;
 use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
+use App\Models\User;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -46,38 +51,21 @@ class EventManagementController extends Controller
 
     public function joiningRequests(Request $request): View
     {
+        $admin = Auth::guard('admin')->user();
         $status = $request->input('status', 'pending');
-        $query = EventRegistrationRequest::query()
-            ->with([
-                'user.circleMemberships.circle',
-                'event.circle',
-                'occurrence',
-                'registration',
-                'approvedBy',
-                'rejectedBy',
-            ])
-            ->when($status !== 'all' && $status !== '', fn ($q) => $q->where('status', $status))
+        $query = $this->eventJoiningRequestQuery();
+
+        $this->applyEventJoiningRequestScope($query, $admin);
+
+        $query->when($status !== 'all' && $status !== '', fn ($q) => $q->where('status', $status))
             ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
             ->when($request->date_from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
             ->when($request->date_to, fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
-            ->when($request->search, function ($q, $term): void {
-                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
-                $q->where(function ($inner) use ($like): void {
-                    $inner->where('request_reason', 'ilike', $like)
-                        ->orWhereHas('user', function ($userQuery) use ($like): void {
-                            $userQuery->where('display_name', 'ilike', $like)
-                                ->orWhere('first_name', 'ilike', $like)
-                                ->orWhere('last_name', 'ilike', $like)
-                                ->orWhere('email', 'ilike', $like)
-                                ->orWhere('phone', 'ilike', $like)
-                                ->orWhere('company_name', 'ilike', $like);
-                        })
-                        ->orWhereHas('event', fn ($eventQuery) => $eventQuery->where('title', 'ilike', $like));
-                });
-            });
+            ->when($request->search, fn ($q, $term) => $this->applyEventJoiningRequestSearch($q, (string) $term));
 
-        $summaryBase = EventRegistrationRequest::query();
+        $summaryBase = $this->eventJoiningRequestQuery();
+        $this->applyEventJoiningRequestScope($summaryBase, $admin);
         $summary = [
             'pending' => (clone $summaryBase)->where('status', 'pending')->count(),
             'approved' => (clone $summaryBase)->where('status', 'approved')->count(),
@@ -86,36 +74,247 @@ class EventManagementController extends Controller
         ];
 
         $requests = $query->latest('created_at')->paginate((int) $request->input('per_page', 20))->withQueryString();
-        $events = Event::query()->orderBy('title')->get(['id', 'title']);
+        $this->hydrateFallbackEventJoiningRequests($requests->getCollection());
+
+        $events = Event::query();
+        $this->applyEventOptionsScope($events, $admin);
+        $events = $events->orderBy('title')->get(['id', 'title']);
 
         return view('admin.events.joining-requests', compact('requests', 'summary', 'events', 'status'));
     }
 
     public function approveJoiningRequest(Request $request, string $id): RedirectResponse
     {
-        $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
-        $joiningRequest->forceFill([
+        $admin = Auth::guard('admin')->user();
+        $joiningRequest = $this->eventJoiningRequestQuery()->findOrFail($id);
+        $this->ensureEventJoiningRequestInScope($joiningRequest, $admin);
+
+        $this->updateEventJoiningRequestReview($joiningRequest, [
             'status' => 'approved',
             'admin_note' => $request->input('admin_note', 'Approved for cross-circle event registration.'),
-            'approved_by_user_id' => auth('admin')->id(),
+            'approved_by_user_id' => Auth::guard('admin')->id(),
             'approved_at' => now(),
-        ])->save();
+        ]);
 
         return back()->with('success', 'Registration request approved successfully.');
     }
 
     public function rejectJoiningRequest(Request $request, string $id): RedirectResponse
     {
+        $admin = Auth::guard('admin')->user();
         $data = $request->validate(['admin_note' => ['required', 'string', 'max:2000']]);
-        $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
-        $joiningRequest->forceFill([
+        $joiningRequest = $this->eventJoiningRequestQuery()->findOrFail($id);
+        $this->ensureEventJoiningRequestInScope($joiningRequest, $admin);
+
+        $this->updateEventJoiningRequestReview($joiningRequest, [
             'status' => 'rejected',
             'admin_note' => $data['admin_note'],
-            'rejected_by_user_id' => auth('admin')->id(),
+            'rejected_by_user_id' => Auth::guard('admin')->id(),
             'rejected_at' => now(),
-        ])->save();
+        ]);
 
         return back()->with('success', 'Registration request rejected successfully.');
+    }
+
+    private function eventJoiningRequestQuery()
+    {
+        $modelClass = $this->eventJoiningRequestModelClass();
+        $query = $modelClass::query()->with([
+            'user.circleMemberships.circle',
+            'event.circle',
+            'occurrence',
+        ]);
+
+        if ($modelClass === EventRegistrationRequest::class) {
+            $query->with(['registration', 'approvedBy', 'rejectedBy']);
+        }
+
+        return $query;
+    }
+
+    private function eventJoiningRequestModelClass(): string
+    {
+        if (Schema::hasTable((new EventRegistrationRequest())->getTable())) {
+            return EventRegistrationRequest::class;
+        }
+
+        if (Schema::hasTable((new EventRegistration())->getTable())) {
+            return EventRegistration::class;
+        }
+
+        abort(500, 'Event joining request storage table is not available.');
+    }
+
+    private function applyEventJoiningRequestSearch($query, string $term): void
+    {
+        $table = $query->getModel()->getTable();
+        $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
+
+        $query->where(function ($inner) use ($like, $table): void {
+            if (Schema::hasColumn($table, 'request_reason')) {
+                $inner->where($table.'.request_reason', 'ilike', $like);
+            } else {
+                $inner->whereRaw('1=0');
+            }
+
+            foreach (['admin_note', 'source', 'registration_type', 'visitor_name', 'visitor_email', 'visitor_phone', 'visitor_company', 'visitor_city'] as $column) {
+                if (Schema::hasColumn($table, $column)) {
+                    $inner->orWhere($table.'.'.$column, 'ilike', $like);
+                }
+            }
+
+            if (Schema::hasColumn($table, 'metadata')) {
+                $inner->orWhereRaw("COALESCE({$table}.metadata::text, '') ILIKE ?", [$like]);
+            }
+
+            $inner->orWhereHas('user', function ($userQuery) use ($like): void {
+                $userQuery->where('display_name', 'ilike', $like)
+                    ->orWhere('first_name', 'ilike', $like)
+                    ->orWhere('last_name', 'ilike', $like)
+                    ->orWhere('email', 'ilike', $like)
+                    ->orWhere('phone', 'ilike', $like)
+                    ->orWhere('company_name', 'ilike', $like);
+            })->orWhereHas('event', fn ($eventQuery) => $eventQuery->where('title', 'ilike', $like));
+        });
+    }
+
+    private function applyEventJoiningRequestScope($query, $admin): void
+    {
+        if (AdminAccess::isGlobalAdmin($admin) || AdminAccess::isSuper($admin)) {
+            return;
+        }
+
+        if (! AdminAccess::isDed($admin)) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $table = $query->getModel()->getTable();
+        $userIds = $this->dedScopedUserIdsSubquery($admin);
+
+        $query->where(function ($districtQuery) use ($admin, $table, $userIds): void {
+            if (Schema::hasColumn($table, 'user_id')) {
+                $districtQuery->whereIn($table.'.user_id', clone $userIds);
+            } else {
+                $districtQuery->whereRaw('1=0');
+            }
+
+            if (Schema::hasColumn($table, 'event_id')) {
+                $districtQuery->orWhereExists(function ($subQuery) use ($admin, $table): void {
+                    $subQuery->selectRaw('1')
+                        ->from('events')
+                        ->join('circles', 'circles.id', '=', 'events.circle_id')
+                        ->whereColumn('events.id', $table.'.event_id');
+
+                    AdminCircleScope::applyDedDistrictCircleScope($subQuery, $admin);
+                });
+            }
+
+            if (Schema::hasColumn($table, 'event_circle_id')) {
+                $districtQuery->orWhereExists(function ($subQuery) use ($admin, $table): void {
+                    $subQuery->selectRaw('1')
+                        ->from('circles')
+                        ->whereColumn('circles.id', $table.'.event_circle_id');
+
+                    AdminCircleScope::applyDedDistrictCircleScope($subQuery, $admin);
+                });
+            }
+        });
+    }
+
+    private function applyEventOptionsScope($query, $admin): void
+    {
+        if (AdminAccess::isGlobalAdmin($admin) || AdminAccess::isSuper($admin)) {
+            return;
+        }
+
+        if (! AdminAccess::isDed($admin)) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $userIds = $this->dedScopedUserIdsSubquery($admin);
+
+        $query->where(function ($eventQuery) use ($admin, $userIds): void {
+            if (Schema::hasColumn('events', 'created_by_user_id')) {
+                $eventQuery->whereIn('events.created_by_user_id', clone $userIds);
+            } else {
+                $eventQuery->whereRaw('1=0');
+            }
+
+            $eventQuery->orWhereExists(function ($subQuery) use ($admin): void {
+                $subQuery->selectRaw('1')
+                    ->from('circles')
+                    ->whereColumn('circles.id', 'events.circle_id');
+
+                AdminCircleScope::applyDedDistrictCircleScope($subQuery, $admin);
+            });
+        });
+    }
+
+    private function ensureEventJoiningRequestInScope(Model $joiningRequest, $admin): void
+    {
+        $scopeCheck = $this->eventJoiningRequestQuery()->whereKey($joiningRequest->getKey());
+        $this->applyEventJoiningRequestScope($scopeCheck, $admin);
+
+        abort_unless($scopeCheck->exists(), 403);
+    }
+
+    private function hydrateFallbackEventJoiningRequests($requests): void
+    {
+        if ($this->eventJoiningRequestModelClass() === EventRegistrationRequest::class) {
+            return;
+        }
+
+        foreach ($requests as $request) {
+            $request->setRelation('registration', $request);
+        }
+    }
+
+    private function updateEventJoiningRequestReview(Model $joiningRequest, array $data): void
+    {
+        $table = $joiningRequest->getTable();
+        $updates = [];
+
+        foreach ($data as $column => $value) {
+            if (Schema::hasColumn($table, $column)) {
+                $updates[$column] = $value;
+            }
+        }
+
+        if (! Schema::hasColumn($table, 'admin_note') && Schema::hasColumn($table, 'metadata')) {
+            $metadata = (array) ($joiningRequest->metadata ?? []);
+            if (array_key_exists('admin_note', $data)) {
+                $metadata['admin_note'] = $data['admin_note'];
+            }
+            if (array_key_exists('approved_by_user_id', $data)) {
+                $metadata['approved_by_user_id'] = $data['approved_by_user_id'];
+            }
+            if (array_key_exists('approved_at', $data)) {
+                $metadata['approved_at'] = optional($data['approved_at'])->toISOString();
+            }
+            if (array_key_exists('rejected_by_user_id', $data)) {
+                $metadata['rejected_by_user_id'] = $data['rejected_by_user_id'];
+            }
+            if (array_key_exists('rejected_at', $data)) {
+                $metadata['rejected_at'] = optional($data['rejected_at'])->toISOString();
+            }
+            $updates['metadata'] = $metadata;
+        }
+
+        if ($updates === []) {
+            abort(500, 'Event joining request storage is missing review columns.');
+        }
+
+        $joiningRequest->forceFill($updates)->save();
+    }
+
+    private function dedScopedUserIdsSubquery($admin)
+    {
+        $query = User::query()->select('users.id');
+        AdminCircleScope::applyToUsersQuery($query, $admin);
+
+        return $query;
     }
 
     public function create(): View

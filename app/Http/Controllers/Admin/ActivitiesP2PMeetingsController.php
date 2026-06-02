@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Support\AdminCircleScope;
+use App\Support\MediaFileUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -201,14 +202,7 @@ class ActivitiesP2PMeetingsController extends Controller
             $query->where('activity.created_at', '<=', $filters['to_at']);
         }
 
-        if (! empty($filters['circle_id'])) {
-            $query->whereExists(function ($sub) use ($filters) {
-                $sub->selectRaw('1')
-                    ->from('circle_members as cm_filter')
-                    ->whereColumn('cm_filter.user_id', 'actor.id')
-                    ->where('cm_filter.circle_id', $filters['circle_id']);
-            });
-        }
+        AdminCircleScope::applyRequestedCircleFilter($query, auth('admin')->user(), 'actor.id', $filters['circle_id']);
 
         if ($filters['from_user'] !== '') {
             $like = $this->escapeLike($filters['from_user']);
@@ -263,14 +257,7 @@ class ActivitiesP2PMeetingsController extends Controller
             ->whereNull('activity.deleted_at')
             ->where('activity.is_deleted', false);
 
-        if (! empty($filters['circle_id'])) {
-            $query->whereExists(function ($sub) use ($filters) {
-                $sub->selectRaw('1')
-                    ->from('circle_members as cm_filter')
-                    ->whereColumn('cm_filter.user_id', 'actor.id')
-                    ->where('cm_filter.circle_id', $filters['circle_id']);
-            });
-        }
+        AdminCircleScope::applyRequestedCircleFilter($query, auth('admin')->user(), 'actor.id', $filters['circle_id']);
 
         $this->applyScopeToActivityQuery($query, 'activity.initiator_user_id', 'activity.peer_user_id');
 
@@ -304,10 +291,7 @@ class ActivitiesP2PMeetingsController extends Controller
 
     private function circleOptions()
     {
-        return DB::table('circles')
-            ->select(['id', 'name'])
-            ->orderBy('name')
-            ->get();
+        return AdminCircleScope::circleOptions(auth('admin')->user());
     }
 
     private function meetingMediaColumn(): ?string
@@ -370,7 +354,7 @@ class ActivitiesP2PMeetingsController extends Controller
 
     private function mediaReferenceForExport($value): string
     {
-        return $value === null ? '' : (string) $value;
+        return MediaFileUrl::resolve($value) ?? ($value === null ? '' : (string) $value);
     }
 
     private function parseInputDate(string $value): ?Carbon
