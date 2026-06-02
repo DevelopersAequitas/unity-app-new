@@ -12,6 +12,7 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\Industry;
+use App\Models\IndustryDirectorAssignment;
 use App\Models\JoinedCircleCategory;
 use App\Models\Role;
 use App\Models\User;
@@ -250,7 +251,7 @@ class UsersController extends Controller
         $assignedIndustryId = null;
 
         if ($adminUserForRoles && Schema::hasTable('industry_director_assignments')) {
-            $assignedIndustryId = DB::table('industry_director_assignments')
+            $assignedIndustryId = IndustryDirectorAssignment::query()
                 ->where('admin_user_id', $adminUserForRoles->id)
                 ->where('is_active', true)
                 ->value('industry_id');
