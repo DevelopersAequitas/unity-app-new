@@ -2,7 +2,9 @@
 
 Base URL: `{{base_url}}/api/v1/ded`
 
-Authentication headers for every endpoint:
+Use the DED OTP authentication endpoints to obtain `{{token}}`. These endpoints authenticate against `admin_users` and do not use `/api/v1/auth/login`, so existing user/password login remains unchanged.
+
+Authentication headers for protected endpoints:
 
 ```http
 Authorization: Bearer {{token}}
@@ -10,7 +12,7 @@ Accept: application/json
 Content-Type: application/json
 ```
 
-All endpoints require Sanctum authentication plus DED role validation. The API maps the authenticated user to `admin_users.email`, verifies the `ded` role, loads the assigned district, and returns `403` if the user is not DED or has no district assignment.
+All protected endpoints require Sanctum authentication plus DED role validation. The API maps the authenticated user to `admin_users.email`, verifies the `ded` role, loads the assigned district, and returns `403` if the user is not DED or has no district assignment.
 
 ## Response Envelope
 
@@ -27,6 +29,30 @@ Error:
 ```
 
 ## Endpoints
+
+
+### DED OTP Authentication
+- `POST /auth/request-otp` body: `{"email":"dhruv99h@gmail.com"}` — verifies the email belongs to a DED admin, stores an OTP in the existing admin OTP table, and sends it using the existing mail flow.
+- `POST /auth/verify-otp` body: `{"email":"dhruv99h@gmail.com","otp":"1234"}` — verifies the OTP, checks the DED role and assigned district, then returns a Sanctum token for the DED API.
+
+Successful verify response:
+
+```json
+{
+  "success": true,
+  "message": "DED login successful.",
+  "data": {
+    "token": "SANCTUM_TOKEN",
+    "admin": {
+      "id": "...",
+      "email": "dhruv99h@gmail.com",
+      "role": "ded",
+      "district": "Ahmedabad"
+    }
+  },
+  "meta": {}
+}
+```
 
 ### Context and Dashboard
 - `GET /me` — DED profile, assigned state/district, permissions, modules.

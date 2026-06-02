@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\ContactPostController;
 use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
+use App\Http\Controllers\Api\V1\Ded\DedAuthController;
 use App\Http\Controllers\Api\V1\Ded\DedCoinsController;
 use App\Http\Controllers\Api\V1\Ded\DedDashboardController as DedDashboardController;
 use App\Http\Controllers\Api\V1\Ded\DedPeersController;
@@ -108,6 +109,11 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
+
+Route::prefix('v1/ded/auth')->group(function () {
+    Route::post('/request-otp', [DedAuthController::class, 'requestOtp']);
+    Route::post('/verify-otp', [DedAuthController::class, 'verifyOtp']);
+});
 
 Route::middleware(['auth:sanctum', 'ensure.ded.api'])->prefix('v1/ded')->group(function () {
     Route::get('/me', [DedDashboardController::class, 'me']);
