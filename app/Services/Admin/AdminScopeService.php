@@ -4,13 +4,10 @@ namespace App\Services\Admin;
 
 use App\Models\Circle;
 use App\Models\CircleMember;
-use App\Models\Industry;
-use App\Models\IndustryDirectorAssignment;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
 
 class AdminScopeService
 {
@@ -24,77 +21,16 @@ class AdminScopeService
         return in_array('global_admin', $this->roleKeys($user), true);
     }
 
-
-    public function isIndustryDirector(User $user): bool
-    {
-        return in_array('industry_director', $this->roleKeys($user), true);
-    }
-
-    public function assignedIndustryIds(User $user): array
-    {
-        if (! $this->isIndustryDirector($user)) {
-            return [];
-        }
-
-        $ids = collect();
-
-        if (Schema::hasTable('industry_director_assignments')) {
-            $ids = $ids->merge(IndustryDirectorAssignment::query()
-                ->where('user_id', $user->id)
-                ->pluck('industry_id'));
-        }
-
-        if (Schema::hasColumn('circles', 'industry_id')) {
-            $ids = $ids->merge(Circle::query()
-                ->where('industry_director_user_id', $user->id)
-                ->whereNotNull('industry_id')
-                ->pluck('industry_id'));
-        }
-
-        if ($ids->isEmpty() && Schema::hasColumn('circles', 'industry_tags')) {
-            $tags = Circle::query()
-                ->where('industry_director_user_id', $user->id)
-                ->pluck('industry_tags')
-                ->flatten()
-                ->filter()
-                ->unique()
-                ->values();
-
-            if ($tags->isNotEmpty()) {
-                $uuidTags = $tags->filter(fn ($tag) => is_string($tag) && preg_match('/^[0-9a-fA-F-]{36}$/', $tag));
-                $nameTags = $tags->diff($uuidTags);
-
-                $ids = $ids->merge(Industry::query()
-                    ->where(function (Builder $query) use ($uuidTags, $nameTags): void {
-                        if ($uuidTags->isNotEmpty()) {
-                            $query->whereIn('id', $uuidTags);
-                        }
-
-                        if ($nameTags->isNotEmpty()) {
-                            $method = $uuidTags->isNotEmpty() ? 'orWhereIn' : 'whereIn';
-                            $query->{$method}('name', $nameTags);
-                        }
-                    })
-                    ->pluck('id'));
-            }
-        }
-
-        return $ids->map(fn ($id) => (string) $id)->unique()->values()->all();
-    }
-
     public function visibleCircleIds(User $user): array
     {
         if ($this->isGlobal($user)) {
             return Circle::query()->pluck('id')->all();
         }
 
-        if ($this->isIndustryDirector($user)) {
-            return $this->circleIdsForIndustries($this->assignedIndustryIds($user));
-        }
-
         $direct = Circle::query()
             ->where(fn ($q) => $q->where('founder_user_id', $user->id)
                 ->orWhere('director_user_id', $user->id)
+                ->orWhere('industry_director_user_id', $user->id)
                 ->orWhere('ded_user_id', $user->id))
             ->pluck('id');
 
@@ -111,14 +47,6 @@ class AdminScopeService
     {
         if ($this->isGlobal($user)) {
             return \App\Models\Industry::query()->pluck('id')->all();
-        }
-
-        if ($this->isIndustryDirector($user)) {
-            return $this->assignedIndustryIds($user);
-        }
-
-        if (! Schema::hasColumn('circles', 'industry_id')) {
-            return [];
         }
 
         return Circle::query()
@@ -194,42 +122,4 @@ class AdminScopeService
 
         abort_unless(in_array($circleId, $this->visibleCircleIds($actor), true), 403, 'Out of scope.');
     }
-
-    private function circleIdsForIndustries(array $industryIds): array
-    {
-        $industryIds = array_values(array_filter(array_map('strval', $industryIds)));
-
-        if ($industryIds === []) {
-            return [];
-        }
-
-        $query = Circle::query();
-
-        if (Schema::hasColumn('circles', 'industry_id')) {
-            $query->whereIn('industry_id', $industryIds);
-        } elseif (Schema::hasColumn('circles', 'industry_tags')) {
-            $industryNames = Industry::query()
-                ->whereIn('id', $industryIds)
-                ->pluck('name')
-                ->map(fn ($name) => trim((string) $name))
-                ->filter()
-                ->values()
-                ->all();
-
-            $query->where(function (Builder $tagQuery) use ($industryIds, $industryNames): void {
-                foreach ($industryIds as $industryId) {
-                    $tagQuery->orWhereJsonContains('industry_tags', $industryId);
-                }
-
-                foreach ($industryNames as $industryName) {
-                    $tagQuery->orWhereJsonContains('industry_tags', $industryName);
-                }
-            });
-        } else {
-            return [];
-        }
-
-        return $query->pluck('id')->map(fn ($id) => (string) $id)->unique()->values()->all();
-    }
-
 }

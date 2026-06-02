@@ -658,25 +658,23 @@
                         @endforeach
                     </div>
                     <div id="industry-director-industry-wrapper" class="mt-4 {{ in_array((string) $industryDirectorRoleId, array_map('strval', (array) $currentRoleIds), true) ? '' : 'd-none' }}">
-                        <label class="form-label" for="industry-director-industry-id">Industry for Industry Director <span class="text-danger">*</span></label>
+                        <label class="form-label" for="industry-id">Industry for Industry Director <span class="text-danger">*</span></label>
                         <select
-                            id="industry-director-industry-id"
-                            name="industry_director_industry_id"
-                            class="form-select @error('industry_director_industry_id') is-invalid @enderror"
+                            id="industry-id"
+                            name="industry_id"
+                            class="form-select @error('industry_id') is-invalid @enderror"
                             @disabled($hasAssignedAdminRole)
                             data-industry-director-select
                         >
                             <option value="">Select industry</option>
                             @foreach ($industryOptions as $industry)
-                                <option value="{{ $industry->id }}" @selected((string) old('industry_director_industry_id', $assignedIndustryDirectorIndustryId) === (string) $industry->id)>{{ $industry->name }}</option>
+                                <option value="{{ $industry->id }}" @selected((string) old('industry_id', $assignedIndustryId) === (string) $industry->id)>{{ $industry->name }}</option>
                             @endforeach
                         </select>
-                        @error('industry_director_industry_id')
+                        @error('industry_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
-                        <div class="form-text text-muted">
-                            Required when assigning the Industry Director role. The dashboard and records will be limited to this industry.
-                        </div>
+                        <div class="form-text text-muted">Required when assigning the Industry Director role.</div>
                     </div>
                     @if ($hasAssignedAdminRole)
                         <div class="form-text text-muted mt-2">

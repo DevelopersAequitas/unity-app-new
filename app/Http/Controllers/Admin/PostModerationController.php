@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\Impact;
 use App\Models\Post;
+use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\AdminAccess;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -18,18 +19,45 @@ use Illuminate\View\View;
 
 class PostModerationController extends Controller
 {
-    private function ensureGlobalAdmin(): void
+    public function __construct(private readonly IndustryScopeService $industryScope)
+    {
+    }
+
+    private function ensurePostTimelineAccess(): void
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isGlobalAdmin($admin)) {
+        if (! AdminAccess::isGlobalAdmin($admin) && ! AdminAccess::isIndustryScoped($admin)) {
+            abort(403);
+        }
+    }
+
+    private function assignedIndustryId(): ?string
+    {
+        $admin = Auth::guard('admin')->user();
+
+        return AdminAccess::isIndustryScoped($admin) ? AdminAccess::assignedIndustryId($admin) : null;
+    }
+
+    private function ensurePostInScope(Post $post): void
+    {
+        $industryId = $this->assignedIndustryId();
+
+        if (! $industryId) {
+            return;
+        }
+
+        $query = Post::query()->whereKey($post->id);
+        $this->industryScope->applyPostScope($query, $industryId);
+
+        if (! $query->exists()) {
             abort(403);
         }
     }
 
     public function index(Request $request): View
     {
-        $this->ensureGlobalAdmin();
+        $this->ensurePostTimelineAccess();
 
         $circleId = $request->query('circle_id', 'all');
 
@@ -49,6 +77,9 @@ class PostModerationController extends Controller
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
+        if ($industryId = $this->assignedIndustryId()) {
+            $this->industryScope->applyPostScope($query, $industryId);
+        }
 
         if (filled($filters['visibility']) && $filters['visibility'] !== 'any') {
             $query->where('posts.visibility', $filters['visibility']);
@@ -132,6 +163,10 @@ class PostModerationController extends Controller
         $impactQuery = Impact::query()
             ->with(['user'])
             ->where('status', 'approved');
+
+        if ($industryId = $this->assignedIndustryId()) {
+            $this->industryScope->applyLifeImpactScope($impactQuery, $industryId);
+        }
 
         if ($circleId !== 'all' && filled($circleId)) {
             $impactQuery->whereRaw('1 = 0');
@@ -244,7 +279,11 @@ class PostModerationController extends Controller
             'rejected' => 'Rejected',
         ];
 
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $circlesQuery = Circle::query()->orderBy('name');
+        if ($industryId = $this->assignedIndustryId()) {
+            $this->industryScope->applyCircleScope($circlesQuery, $industryId);
+        }
+        $circles = $circlesQuery->get(['id', 'name']);
 
         return view('admin.posts.index', [
             'posts' => $posts,
@@ -301,7 +340,7 @@ class PostModerationController extends Controller
 
     public function show(string $postId): View
     {
-        $this->ensureGlobalAdmin();
+        $this->ensurePostTimelineAccess();
 
         $post = Post::withTrashed()
             ->with([
@@ -309,6 +348,7 @@ class PostModerationController extends Controller
                 'circle:id,name',
             ])
             ->findOrFail($postId);
+        $this->ensurePostInScope($post);
 
         return view('admin.posts.show', [
             'post' => $post,
@@ -317,7 +357,8 @@ class PostModerationController extends Controller
 
     public function destroy(Post $post): RedirectResponse
     {
-        $this->ensureGlobalAdmin();
+        $this->ensurePostTimelineAccess();
+        $this->ensurePostInScope($post);
 
         DB::transaction(function () use ($post): void {
             if (array_key_exists('is_deleted', $post->getAttributes())) {
@@ -333,7 +374,8 @@ class PostModerationController extends Controller
 
     public function deactivate(Post $post): RedirectResponse
     {
-        $this->ensureGlobalAdmin();
+        $this->ensurePostTimelineAccess();
+        $this->ensurePostInScope($post);
 
         DB::transaction(function () use ($post): void {
             if (Schema::hasColumn('posts', 'is_active')) {
@@ -352,9 +394,17 @@ class PostModerationController extends Controller
 
     public function deactivateImpact(string $impactId): RedirectResponse
     {
-        $this->ensureGlobalAdmin();
+        $this->ensurePostTimelineAccess();
 
         $impact = Impact::query()->findOrFail($impactId);
+        if ($industryId = $this->assignedIndustryId()) {
+            $query = Impact::query()->whereKey($impact->id);
+            $this->industryScope->applyLifeImpactScope($query, $industryId);
+
+            if (! $query->exists()) {
+                abort(403);
+            }
+        }
 
         $impact->timeline_posted_at = null;
         $impact->save();
@@ -365,9 +415,10 @@ class PostModerationController extends Controller
 
     public function restore(string $postId): RedirectResponse
     {
-        $this->ensureGlobalAdmin();
+        $this->ensurePostTimelineAccess();
 
         $post = Post::withTrashed()->findOrFail($postId);
+        $this->ensurePostInScope($post);
 
         DB::transaction(function () use ($post): void {
             if (method_exists($post, 'restore')) {

@@ -234,7 +234,10 @@ class ActivitiesController extends Controller
             ->select('circles.id', 'circles.name')
             ->orderBy('circles.name');
 
-        if (\App\Support\AdminAccess::isCircleScoped($admin)) {
+        if (\App\Support\AdminAccess::isIndustryScoped($admin)) {
+            $circleIds = \App\Support\AdminAccess::allowedCircleIds($admin);
+            $circleIds === [] ? $query->whereRaw('1=0') : $query->whereIn('circles.id', $circleIds);
+        } elseif (\App\Support\AdminAccess::isCircleScoped($admin)) {
             $circleId = AdminCircleScope::resolveCircleId($admin);
             if ($circleId) {
                 $query->where('circles.id', $circleId);

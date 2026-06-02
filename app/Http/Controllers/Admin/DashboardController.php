@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\User;
-use App\Support\AdminAccess;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -16,22 +14,20 @@ class DashboardController extends Controller
     public function index(): View
     {
         $today = now();
-        $admin = Auth::guard('admin')->user();
-        $allowedCircleIds = AdminAccess::isIndustryScoped($admin) ? AdminAccess::allowedCircleIds($admin) : null;
 
-        $totalUsers = $this->scopedUsersCount($allowedCircleIds);
+        $totalUsers = $this->safeCountTable('users');
         $newSignups = ($this->hasTableColumn('users', 'created_at'))
-            ? $this->scopedUsersQuery($allowedCircleIds)->whereDate('users.created_at', $today->toDateString())->count()
+            ? DB::table('users')->whereDate('created_at', $today->toDateString())->count()
             : 0;
         $premiumUpgrades = ($this->hasTableColumn('users', 'membership_status'))
-            ? $this->scopedUsersQuery($allowedCircleIds)->where('users.membership_status', 'premium')->count()
+            ? DB::table('users')->where('membership_status', 'premium')->count()
             : 0;
 
         $activeCircles = ($this->hasTableColumn('circles', 'status'))
-            ? $this->scopedCirclesQuery($allowedCircleIds)->where('status', 'active')->count()
-            : $this->scopedCirclesCount($allowedCircleIds);
+            ? DB::table('circles')->where('status', 'active')->count()
+            : $this->safeCountTable('circles');
         $pendingApprovals = ($this->hasTableColumn('circles', 'status'))
-            ? $this->scopedCirclesQuery($allowedCircleIds)->where('status', 'pending')->count()
+            ? DB::table('circles')->where('status', 'pending')->count()
             : 0;
 
         $activitiesToday = ($this->hasTableColumn('activities', 'created_at'))
@@ -72,54 +68,6 @@ class DashboardController extends Controller
             'stats' => $stats,
             'pendingItems' => $pendingItems,
         ]);
-    }
-
-
-    private function scopedUsersQuery(?array $allowedCircleIds)
-    {
-        $query = DB::table('users');
-
-        if (is_array($allowedCircleIds)) {
-            if ($allowedCircleIds === []) {
-                return $query->whereRaw('1=0');
-            }
-
-            $query->whereExists(function ($subQuery) use ($allowedCircleIds): void {
-                $subQuery->selectRaw(1)
-                    ->from('circle_members as cm')
-                    ->whereColumn('cm.user_id', 'users.id')
-                    ->where('cm.status', config('circle.member_joined_status', 'approved'))
-                    ->whereNull('cm.deleted_at')
-                    ->whereIn('cm.circle_id', $allowedCircleIds);
-            });
-        }
-
-        return $query;
-    }
-
-    private function scopedUsersCount(?array $allowedCircleIds): int
-    {
-        return Schema::hasTable('users') ? (int) $this->scopedUsersQuery($allowedCircleIds)->count() : 0;
-    }
-
-    private function scopedCirclesQuery(?array $allowedCircleIds)
-    {
-        $query = DB::table('circles');
-
-        if (is_array($allowedCircleIds)) {
-            if ($allowedCircleIds === []) {
-                return $query->whereRaw('1=0');
-            }
-
-            $query->whereIn('id', $allowedCircleIds);
-        }
-
-        return $query;
-    }
-
-    private function scopedCirclesCount(?array $allowedCircleIds): int
-    {
-        return Schema::hasTable('circles') ? (int) $this->scopedCirclesQuery($allowedCircleIds)->count() : 0;
     }
 
     private function safeCountTable(string $table): int

@@ -3,10 +3,8 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
-use App\Models\AdminUser;
 use App\Models\CircleMember;
 use App\Models\Impact;
-use App\Models\IndustryDirectorAssignment;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\User;
@@ -15,8 +13,6 @@ use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 
 class UserManagementController extends BaseApiController
 {
@@ -87,132 +83,24 @@ class UserManagementController extends BaseApiController
 
     public function assignRole(Request $request, string $id): JsonResponse
     {
-        $validated = $request->validate([
-            'role' => ['required', 'string'],
-            'industry_id' => ['nullable', 'uuid', 'exists:industries,id'],
-        ]);
+        $validated = $request->validate(['role' => ['required', 'string']]);
         $target = User::query()->findOrFail($id);
         $role = Role::query()->where('key', $validated['role'])->firstOrFail();
-
-        if ($role->key === 'industry_director') {
-            if (empty($validated['industry_id'])) {
-                abort(422, 'Please select an industry before assigning the Industry Director role.');
-            }
-
-            if (! Schema::hasTable('industry_director_assignments')) {
-                abort(422, 'Industry Director assignment storage is not ready. Run database/sql/industry_director_assignments.sql first.');
-            }
-        }
-
-        $adminUser = $this->resolveAdminUserForPeer($target);
-
-        DB::transaction(function () use ($adminUser, $target, $role, $validated): void {
-            $this->replaceAdminUserRoles($adminUser, [$role->id]);
-
-            if ($role->key === 'industry_director' && Schema::hasTable('industry_director_assignments')) {
-                IndustryDirectorAssignment::query()->updateOrCreate(
-                    ['user_id' => $target->id],
-                    [
-                        'admin_user_id' => $adminUser->id,
-                        'industry_id' => $validated['industry_id'],
-                    ]
-                );
-            } elseif (Schema::hasTable('industry_director_assignments')) {
-                IndustryDirectorAssignment::query()
-                    ->where('admin_user_id', $adminUser->id)
-                    ->orWhere('user_id', $target->id)
-                    ->delete();
-            }
-        });
-
+        $target->roles()->syncWithoutDetaching([$role->id]);
         $this->audit->log($request->user(), 'admin.user.assign_role', 'users', $target->id, [], ['role' => $validated['role']], $request);
 
-        return $this->success($target);
+        return $this->success($target->load('roles'));
     }
 
     public function removeRole(Request $request, string $id): JsonResponse
     {
-        $validated = $request->validate([
-            'role' => ['required', 'string'],
-            'industry_id' => ['nullable', 'uuid', 'exists:industries,id'],
-        ]);
+        $validated = $request->validate(['role' => ['required', 'string']]);
         $target = User::query()->findOrFail($id);
         $role = Role::query()->where('key', $validated['role'])->firstOrFail();
-        $adminUser = $this->findAdminUserForPeer($target);
-
-        if ($adminUser) {
-            DB::transaction(function () use ($adminUser, $target, $role): void {
-                DB::table('admin_user_roles')
-                    ->where('user_id', $adminUser->id)
-                    ->where('role_id', $role->id)
-                    ->delete();
-
-                if ($role->key === 'industry_director' && Schema::hasTable('industry_director_assignments')) {
-                    IndustryDirectorAssignment::query()
-                        ->where('admin_user_id', $adminUser->id)
-                        ->orWhere('user_id', $target->id)
-                        ->delete();
-                }
-            });
-        }
-
+        $target->roles()->detach($role->id);
         $this->audit->log($request->user(), 'admin.user.remove_role', 'users', $target->id, ['role' => $validated['role']], [], $request);
 
-        return $this->success($target);
-    }
-
-
-    private function findAdminUserForPeer(User $user): ?AdminUser
-    {
-        $email = strtolower(trim((string) $user->email));
-
-        if ($email !== '') {
-            $adminUser = AdminUser::query()
-                ->whereRaw('LOWER(email) = ?', [$email])
-                ->first();
-
-            if ($adminUser) {
-                return $adminUser;
-            }
-        }
-
-        return AdminUser::query()->find($user->id);
-    }
-
-    private function resolveAdminUserForPeer(User $user): AdminUser
-    {
-        $adminUser = $this->findAdminUserForPeer($user);
-        $email = strtolower(trim((string) $user->email));
-        $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))));
-        $name = $name !== '' ? $name : $email;
-
-        if ($adminUser) {
-            $adminUser->forceFill(['name' => $name])->save();
-
-            return $adminUser;
-        }
-
-        return AdminUser::query()->create([
-            'id' => (string) Str::uuid(),
-            'name' => $name,
-            'email' => $email,
-        ]);
-    }
-
-    private function replaceAdminUserRoles(AdminUser $adminUser, array $roleIds): void
-    {
-        DB::table('admin_user_roles')
-            ->where('user_id', $adminUser->id)
-            ->delete();
-
-        foreach (array_values(array_unique(array_filter($roleIds))) as $roleId) {
-            DB::table('admin_user_roles')->insert([
-                'id' => (string) Str::uuid(),
-                'user_id' => $adminUser->id,
-                'role_id' => $roleId,
-                'created_at' => now(),
-            ]);
-        }
+        return $this->success($target->load('roles'));
     }
 
     public function activitySummary(string $id): JsonResponse

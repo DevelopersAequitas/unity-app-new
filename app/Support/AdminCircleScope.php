@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\AdminUser;
 use App\Models\CircleMember;
+use App\Services\IndustryDirector\IndustryScopeService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -64,7 +65,6 @@ class AdminCircleScope
             ->whereNull('deleted_at');
     }
 
-
     public static function circleUserIdsSubqueryForCircles(array $circleIds): Builder
     {
         return CircleMember::query()
@@ -76,19 +76,19 @@ class AdminCircleScope
 
     public static function applyToActivityQuery($query, ?AdminUser $admin, string $primaryColumn, ?string $peerColumn): void
     {
-        if (! AdminAccess::isCircleScoped($admin) && ! AdminAccess::isIndustryScoped($admin)) {
-            return;
-        }
-
         if (AdminAccess::isIndustryScoped($admin)) {
-            $circleIds = AdminAccess::allowedCircleIds($admin);
+            $industryId = AdminAccess::assignedIndustryId($admin);
 
-            if ($circleIds === []) {
+            if (! $industryId) {
                 $query->whereRaw('1=0');
                 return;
             }
 
-            $query->whereIn($primaryColumn, self::circleUserIdsSubqueryForCircles($circleIds));
+            app(IndustryScopeService::class)->applyUserColumnScope($query, $primaryColumn, $industryId);
+            return;
+        }
+
+        if (! AdminAccess::isCircleScoped($admin)) {
             return;
         }
 
@@ -106,46 +106,60 @@ class AdminCircleScope
 
     public static function applyToUsersQuery($query, ?AdminUser $admin): void
     {
-        if (! AdminAccess::isCircleScoped($admin) && ! AdminAccess::isIndustryScoped($admin)) {
+        if (AdminAccess::isIndustryScoped($admin)) {
+            $industryId = AdminAccess::assignedIndustryId($admin);
+
+            if (! $industryId) {
+                $query->whereRaw('1=0');
+                return;
+            }
+
+            app(IndustryScopeService::class)->applyMemberScope($query, $industryId);
             return;
         }
 
-        $circleIds = AdminAccess::isIndustryScoped($admin)
-            ? AdminAccess::allowedCircleIds($admin)
-            : array_filter([self::resolveCircleId($admin)]);
+        if (! AdminAccess::isCircleScoped($admin)) {
+            return;
+        }
 
-        if ($circleIds === []) {
+        $circleId = self::resolveCircleId($admin);
+
+        if (! $circleId) {
             $query->whereRaw('1=0');
             return;
         }
 
-        $query->whereExists(function ($subQuery) use ($circleIds) {
+        $query->whereExists(function ($subQuery) use ($circleId) {
             $subQuery->selectRaw(1)
                 ->from('circle_members as cm')
                 ->whereColumn('cm.user_id', 'users.id')
                 ->where('cm.status', 'approved')
                 ->whereNull('cm.deleted_at')
-                ->whereIn('cm.circle_id', $circleIds);
+                ->where('cm.circle_id', $circleId);
         });
     }
 
     public static function userInScope(?AdminUser $admin, string $userId): bool
     {
-        if (! AdminAccess::isCircleScoped($admin) && ! AdminAccess::isIndustryScoped($admin)) {
+        if (AdminAccess::isIndustryScoped($admin)) {
+            $industryId = AdminAccess::assignedIndustryId($admin);
+
+            return $industryId ? app(IndustryScopeService::class)->userInIndustry($userId, $industryId) : false;
+        }
+
+        if (! AdminAccess::isCircleScoped($admin)) {
             return true;
         }
 
-        $circleIds = AdminAccess::isIndustryScoped($admin)
-            ? AdminAccess::allowedCircleIds($admin)
-            : array_filter([self::resolveCircleId($admin)]);
+        $circleId = self::resolveCircleId($admin);
 
-        if ($circleIds === []) {
+        if (! $circleId) {
             return false;
         }
 
         return CircleMember::query()
             ->where('user_id', $userId)
-            ->whereIn('circle_id', $circleIds)
+            ->where('circle_id', $circleId)
             ->where('status', 'approved')
             ->whereNull('deleted_at')
             ->exists();

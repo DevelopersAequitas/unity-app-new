@@ -9,6 +9,7 @@ use App\Models\Impact;
 use App\Models\User;
 use App\Services\Impacts\ImpactActionService;
 use App\Services\Impacts\ImpactService;
+use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class ImpactsController extends Controller
     public function __construct(
         private readonly ImpactService $impactService,
         private readonly ImpactActionService $impactActionService,
+        private readonly IndustryScopeService $industryScope,
     ) {
     }
 
@@ -226,7 +228,7 @@ class ImpactsController extends Controller
 
     public function pending(): View
     {
-        $this->ensureGlobalAdmin();
+        $this->ensureGlobalOrIndustryDirector();
 
         $impacts = Impact::query()
             ->with([
@@ -234,6 +236,12 @@ class ImpactsController extends Controller
                 'impactedPeer:id,display_name,first_name,last_name,email',
             ])
             ->where('status', 'pending')
+            ->tap(function ($query): void {
+                $admin = Auth::guard('admin')->user();
+                if (AdminAccess::isIndustryScoped($admin) && ($industryId = AdminAccess::assignedIndustryId($admin))) {
+                    $this->industryScope->applyLifeImpactScope($query, $industryId);
+                }
+            })
             ->orderByDesc('created_at')
             ->paginate(25);
 
@@ -393,6 +401,15 @@ class ImpactsController extends Controller
     private function ensureGlobalAdmin(): void
     {
         if (! AdminAccess::isGlobalAdmin(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+    }
+
+    private function ensureGlobalOrIndustryDirector(): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (! AdminAccess::isGlobalAdmin($admin) && ! AdminAccess::isIndustryScoped($admin)) {
             abort(403);
         }
     }

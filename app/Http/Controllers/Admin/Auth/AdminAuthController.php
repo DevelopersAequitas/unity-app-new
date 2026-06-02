@@ -8,6 +8,7 @@ use App\Models\AdminUser;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Admin\AdminRedirectService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,10 +22,14 @@ use Illuminate\View\View;
 
 class AdminAuthController extends Controller
 {
+    public function __construct(private readonly AdminRedirectService $redirectService)
+    {
+    }
+
     public function showLogin(Request $request): RedirectResponse|View
     {
         if (Auth::guard('admin')->check()) {
-            return redirect()->route('admin.dashboard');
+            return $this->redirectService->redirectFor(Auth::guard('admin')->user());
         }
 
         return view('admin.auth.login');
@@ -162,7 +167,7 @@ class AdminAuthController extends Controller
         $request->session()->put('admin_login_email', $adminUser->email);
         $request->session()->regenerate();
 
-        return redirect()->route('admin.dashboard');
+        return $this->redirectService->redirectFor($adminUser);
     }
 
     public function logout(Request $request): RedirectResponse
