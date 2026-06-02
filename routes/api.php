@@ -125,10 +125,20 @@ Route::middleware(['auth:sanctum', 'ensure.ded.api'])->prefix('v1/ded')->group(f
     Route::get('/peers/{id}', [DedPeersController::class, 'show']);
 
     Route::get('/activities/summary', [DedActivitiesController::class, 'summary']);
-    foreach (['testimonials', 'requirements', 'referrals', 'p2p-meetings', 'business-deals', 'become-a-leader', 'recommend-a-peer', 'find-build-collaborations', 'register-a-visitor'] as $activityType) {
-        Route::get("/activities/{$activityType}", [DedActivitiesController::class, 'index'])->defaults('type', $activityType);
-        Route::get("/activities/{$activityType}/{id}", [DedActivitiesController::class, 'show'])->defaults('type', $activityType);
-    }
+    Route::get('/activities/testimonials', [DedActivitiesController::class, 'index'])->defaults('type', 'testimonials');
+    Route::get('/activities/testimonials/{id}', [DedActivitiesController::class, 'show'])->defaults('type', 'testimonials');
+    Route::get('/activities/requirements', [DedActivitiesController::class, 'index'])->defaults('type', 'requirements');
+    Route::get('/activities/requirements/{id}', [DedActivitiesController::class, 'show'])->defaults('type', 'requirements');
+    Route::get('/activities/referrals', [DedActivitiesController::class, 'index'])->defaults('type', 'referrals');
+    Route::get('/activities/referrals/{id}', [DedActivitiesController::class, 'show'])->defaults('type', 'referrals');
+    Route::get('/activities/p2p-meetings', [DedActivitiesController::class, 'index'])->defaults('type', 'p2p-meetings');
+    Route::get('/activities/p2p-meetings/{id}', [DedActivitiesController::class, 'show'])->defaults('type', 'p2p-meetings');
+    Route::get('/activities/business-deals', [DedActivitiesController::class, 'index'])->defaults('type', 'business-deals');
+    Route::get('/activities/business-deals/{id}', [DedActivitiesController::class, 'show'])->defaults('type', 'business-deals');
+    Route::get('/activities/become-a-leader', [DedActivitiesController::class, 'index'])->defaults('type', 'become-a-leader');
+    Route::get('/activities/recommend-a-peer', [DedActivitiesController::class, 'index'])->defaults('type', 'recommend-a-peer');
+    Route::get('/activities/find-build-collaborations', [DedActivitiesController::class, 'index'])->defaults('type', 'find-build-collaborations');
+    Route::get('/activities/register-a-visitor', [DedActivitiesController::class, 'index'])->defaults('type', 'register-a-visitor');
 
     Route::get('/coins', [DedCoinsController::class, 'index']);
     Route::get('/coins/history', [DedCoinsController::class, 'history']);
