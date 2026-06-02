@@ -247,12 +247,18 @@ class UsersController extends Controller
         $assignedAdminRoles = $adminUserForRoles
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
-        $assignedIndustryId = ($adminUserForRoles && Schema::hasTable('industry_director_assignments'))
-            ? DB::table('industry_director_assignments')
+        $assignedIndustryId = null;
+
+        if (
+            isset($adminUserForRoles)
+            && $adminUserForRoles
+            && Schema::hasTable('industry_director_assignments')
+        ) {
+            $assignedIndustryId = DB::table('industry_director_assignments')
                 ->where('admin_user_id', $adminUserForRoles->id)
                 ->where('is_active', true)
-                ->value('industry_id')
-            : null;
+                ->value('industry_id');
+        }
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
