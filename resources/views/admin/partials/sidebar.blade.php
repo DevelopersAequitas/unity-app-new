@@ -91,7 +91,13 @@
         ['label' => 'Become Mentor', 'route' => 'admin.leads.become-mentor.index'],
     ];
 
-    $pendingRequestsMenu = $isScopedAdmin ? [
+    $pendingRequestsMenu = $isDed ? [
+        ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
+        ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
+        ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
+        ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
+        ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
+    ] : ($isScopedAdmin ? [
         ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
         ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
     ] : [
@@ -100,7 +106,7 @@
         ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
         ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
         ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
-    ];
+    ]);
 
     $leadsActive = request()->routeIs('admin.leads.*');
     $pendingRequestsActive =

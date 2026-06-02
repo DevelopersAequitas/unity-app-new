@@ -32,7 +32,7 @@ class AdminCircleScope
             $request->attributes->set('ded_district_name', AdminAccess::assignedDedDistrictName($admin));
 
             $routeName = $request->route()?->getName() ?? '';
-            $allowedPrefixes = ['admin.ded.', 'admin.users.', 'admin.activities.', 'admin.collaborations.', 'admin.referral-report.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.'];
+            $allowedPrefixes = ['admin.ded.', 'admin.users.', 'admin.activities.', 'admin.collaborations.', 'admin.referral-report.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.event-joining-requests.', 'admin.coin-claims.', 'admin.circle-joining-requests.', 'admin.impacts.'];
             $allowedRoutes = ['admin.logout', 'admin.files.upload'];
 
             if (in_array($routeName, ['admin.dashboard', 'admin.home'], true) || Str::startsWith($routeName, 'admin.circles.')) {
