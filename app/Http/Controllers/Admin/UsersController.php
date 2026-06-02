@@ -248,10 +248,13 @@ class UsersController extends Controller
         $assignedAdminRoles = $adminUserForRoles
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
-        $assignedIndustryId = null;
+        $assignedIndustryDirectorIndustryId = null;
 
-        if ($adminUserForRoles && Schema::hasTable('industry_director_assignments')) {
-            $assignedIndustryId = IndustryDirectorAssignment::query()
+        if (
+            $adminUserForRoles &&
+            Schema::hasTable('industry_director_assignments')
+        ) {
+            $assignedIndustryDirectorIndustryId = IndustryDirectorAssignment::query()
                 ->where('admin_user_id', $adminUserForRoles->id)
                 ->where('is_active', true)
                 ->value('industry_id');
@@ -353,7 +356,7 @@ class UsersController extends Controller
             'hasCoinsRemarkColumn' => $hasCoinsRemarkColumn,
             'industryOptions' => $industryOptions,
             'industryDirectorRoleId' => $industryDirectorRoleId,
-            'assignedIndustryId' => $assignedIndustryId,
+            'assignedIndustryId' => $assignedIndustryDirectorIndustryId,
         ]);
     }
 
