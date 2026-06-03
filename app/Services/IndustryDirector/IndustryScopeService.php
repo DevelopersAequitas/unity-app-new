@@ -70,19 +70,21 @@ class IndustryScopeService
     public function memberIdsForAdminIndustry($adminUserId): array
     {
         $adminUserId = (string) $adminUserId;
+        $assignedIndustryId = $this->assignedIndustryIdForAdmin($adminUserId);
         $industryIds = $this->industryIdsForAdmin($adminUserId);
+        $scopedUsersQuery = $this->applyPeersScope(User::query()->select('users.id'), $adminUserId);
+        $matchedUserCount = (clone $scopedUsersQuery)->count();
 
-        $memberIds = $this->applyPeersScope(User::query()->select('users.id'), $adminUserId)
+        $memberIds = $scopedUsersQuery
             ->pluck('users.id')
             ->map(fn ($id) => (string) $id)
             ->values()
             ->all();
 
-        Log::info('IDE scope debug', [
-            'admin_user_id' => $adminUserId,
-            'assigned_industry_id' => $this->assignedIndustryIdForAdmin($adminUserId),
-            'industry_ids' => $industryIds,
-            'scoped_member_count' => count($memberIds),
+        Log::info('IDE member scope debug', [
+            'assigned_industry_id' => $assignedIndustryId,
+            'industry_ids_used_for_filter' => $industryIds,
+            'matched_user_count' => $matchedUserCount,
         ]);
 
         return $memberIds;
@@ -262,10 +264,6 @@ class IndustryScopeService
                 'business_category_sub_id',
                 'visitor_business_category_main_id',
                 'visitor_business_category_sub_id',
-                'active_circle_id',
-                'circle_id',
-                'main_business_category_id',
-                'business_category_id',
             ] as $column) {
                 $hasCondition = $this->orWhereColumnIn($scope, $table, $column, $industryIds) || $hasCondition;
             }
