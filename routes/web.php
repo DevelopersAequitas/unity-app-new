@@ -41,6 +41,7 @@ use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 
 Route::get('/', function () {
     return view('landing');
@@ -54,9 +55,19 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware(['admin.auth', 'admin.role', 'admin.circle'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
         Route::get('/', function () {
+            $admin = auth('admin')->user();
+            $isIndustryDirector = $admin?->roles()->where('key', 'industry_director')->exists() ?? false;
+
+            if ($isIndustryDirector) {
+                return redirect()->route('admin.industry-director.dashboard');
+            }
+
             return redirect()->route('admin.dashboard');
         })->name('home');
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/industry-director/dashboard', [IndustryDirectorDashboardController::class, 'index'])
+            ->middleware('admin.industry-director')
+            ->name('industry-director.dashboard');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');

@@ -1,15 +1,25 @@
 @php
     $adminUser = Auth::guard('admin')->user();
-    $adminUser?->loadMissing('roles:key');
+    $adminUser?->loadMissing('roles:id,key');
     $isSuper = \App\Support\AdminAccess::isSuper($adminUser);
     $isCircleScoped = \App\Support\AdminAccess::isCircleScoped($adminUser);
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
+    $isIndustryDirector = $adminUser?->roles?->pluck('key')->contains('industry_director') ?? false;
 
-    $dashboardItem = $isCircleScoped
+    $dashboardItem = $isIndustryDirector
+        ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.industry-director.dashboard']
+        : ($isCircleScoped
         ? null
-        : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard'];
+        : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard']);
 
-    $navItems = $isCircleScoped
+    $navItems = $isIndustryDirector
+        ? [
+            ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
+            ['icon' => 'bi-diagram-3', 'label' => 'Circle', 'route' => 'admin.circles.index'],
+            ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
+            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+        ]
+        : ($isCircleScoped
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
@@ -50,9 +60,13 @@
             ['icon' => 'bi-calendar2-week', 'label' => 'Meetings & Warnings', 'route' => 'admin.execution.meetings'],
             ['icon' => 'bi-shield-lock', 'label' => 'Audit & Compliance', 'route' => 'admin.execution.reports'],
             ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
-        ];
+        ]);
 
-    $activityMenu = ($isSuper || $isCircleScoped) ? [
+    $activityMenu = $isIndustryDirector
+        ? [
+            ['label' => 'Summary', 'route' => 'admin.activities.index'],
+        ]
+        : (($isSuper || $isCircleScoped) ? [
         ['label' => 'Summary', 'route' => 'admin.activities.index'],
         ['label' => 'Testimonials', 'route' => 'admin.activities.testimonials.index'],
         ['label' => 'Requirements', 'route' => 'admin.activities.requirements.index'],
@@ -63,17 +77,17 @@
         ['label' => 'Recommend A Peer', 'route' => 'admin.activities.recommend-peer.index'],
         ['label' => 'Find & Build Collaborations', 'route' => 'admin.collaborations.index'],
         ['label' => 'Register A Visitor', 'route' => 'admin.activities.register-visitor.index'],
-    ] : [];
+    ] : []);
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
-    $referralReportItem = ($isSuper || $isCircleScoped)
+    $referralReportItem = (! $isIndustryDirector && ($isSuper || $isCircleScoped))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
     $activityExpanded = $activityActive || ! $isGlobalAdmin;
 
-    $postsMenu = $isGlobalAdmin ? [
+    $postsMenu = ($isGlobalAdmin || $isIndustryDirector) ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
-        ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
+        ...($isIndustryDirector ? [] : [['label' => 'Post Reports', 'route' => 'admin.post-reports.index']]),
     ] : [];
     $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*');
 
@@ -85,13 +99,17 @@
         ['label' => 'Become Mentor', 'route' => 'admin.leads.become-mentor.index'],
     ];
 
-    $pendingRequestsMenu = [
-        ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
-        ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
-        ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
-        ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
-        ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
-    ];
+    $pendingRequestsMenu = $isIndustryDirector
+        ? [
+            ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
+        ]
+        : [
+            ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
+            ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
+            ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
+            ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
+            ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
+        ];
 
     $leadsActive = request()->routeIs('admin.leads.*');
     $pendingRequestsActive =
@@ -100,6 +118,8 @@
         request()->routeIs('admin.event-joining-requests.*') ||
         request()->routeIs('admin.circle-joining-requests.*') ||
         request()->routeIs('admin.impacts.pending');
+
+    $leadsMenu = $isIndustryDirector ? [] : $leadsMenu;
 
     $campaignsMenu = [
         ['label' => 'Campaign Dashboard', 'route' => 'admin.campaigns.index'],
@@ -113,11 +133,13 @@
     ];
     $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*');
     $navItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) !== 'Events Management'));
+    $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
+    $eventsManagementMenu = $isIndustryDirector ? [] : $eventsManagementMenu;
 @endphp
 
 <aside class="admin-sidebar d-flex flex-column">
     <div class="text-center mb-2">
-        <a href="{{ route('admin.users.index') }}" class="d-inline-block">
+        <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
                 src="/api/v1/files/019bd9d7-7e13-71fc-8395-0e1dd20a268b"
                 alt="Peers Global Unity"

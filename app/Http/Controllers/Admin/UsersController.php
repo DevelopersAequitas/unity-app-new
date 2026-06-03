@@ -11,6 +11,8 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\City;
+use App\Models\Industry;
+use App\Models\IndustryDirectorAssignment;
 use App\Models\JoinedCircleCategory;
 use App\Models\Role;
 use App\Models\User;
@@ -235,10 +237,22 @@ class UsersController extends Controller
             ->get();
         $membershipStatuses = $this->membershipStatuses();
         $adminRoleIds = $roles->pluck('id')->all();
+        $industryDirectorRoleId = optional($roles->firstWhere('key', 'industry_director'))->id;
+        $industries = Industry::query()
+            ->whereNull('parent_id')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
         $adminUserForRoles = $this->findAdminUserForPeer($user);
         $assignedAdminRoles = $adminUserForRoles
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
+        $industryDirectorAssignment = $adminUserForRoles
+            ? IndustryDirectorAssignment::query()
+                ->where('admin_user_id', $adminUserForRoles->id)
+                ->where('is_active', true)
+                ->first()
+            : null;
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
@@ -315,6 +329,9 @@ class UsersController extends Controller
             'user' => $user,
             'cities' => $cities,
             'roles' => $roles,
+            'industries' => $industries,
+            'industryDirectorRoleId' => $industryDirectorRoleId,
+            'selectedIndustryId' => $industryDirectorAssignment?->industry_id,
             'membershipStatuses' => $membershipStatuses,
             'circles' => $circles,
             'joinedCircleId' => $joinedCircleId,
@@ -363,10 +380,11 @@ class UsersController extends Controller
             'level_4_category_id' => $request->input('level_4_category_id', $request->input('level4_category_id')),
         ]);
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
-        $adminRoleIds = Role::query()
+        $adminRoles = Role::query()
             ->whereIn('key', $adminRoleKeys)
-            ->pluck('id')
-            ->all();
+            ->get(['id', 'key']);
+        $adminRoleIds = $adminRoles->pluck('id')->all();
+        $industryDirectorRoleId = optional($adminRoles->firstWhere('key', 'industry_director'))->id;
 
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
@@ -432,9 +450,17 @@ class UsersController extends Controller
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
+            'industry_id' => ['nullable', 'uuid', 'exists:industries,id'],
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
+
+        $selectedRoleIdsForValidation = collect($validated['role_ids'] ?? [])->map(fn ($id) => (string) $id);
+        if ($industryDirectorRoleId && $selectedRoleIdsForValidation->contains((string) $industryDirectorRoleId) && blank($validated['industry_id'] ?? null)) {
+            throw ValidationException::withMessages([
+                'industry_id' => 'Industry is required when assigning the Industry Director role.',
+            ]);
+        }
 
         if ($request->has('add_circle_membership') && filled($validated['additional_circle_id'] ?? null)) {
             $alreadyJoined = CircleMember::query()
@@ -495,6 +521,7 @@ class UsersController extends Controller
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
         $updatableExclusions = [
             'role_ids',
+            'industry_id',
             'profile_photo_file_id',
             'cover_photo_file_id',
             'status',
@@ -517,17 +544,6 @@ class UsersController extends Controller
             $updatable['membership_ends_at'] = null;
             $updatable['membership_expiry'] = null;
         }
-        $adminUserForRoles = $this->findAdminUserForPeer($user);
-        $currentAdminRoleIds = $adminUserForRoles
-            ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->pluck('roles.id')
-            : collect();
-
-        if ($request->filled('role_ids') && $currentAdminRoleIds->isNotEmpty()) {
-            return back()
-                ->withErrors(['role_ids' => 'Please remove existing role first.'])
-                ->withInput();
-        }
-
         $activeCircleMemberStatus = $this->activeCircleMemberStatus();
         $selectedCircleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
         $validated['active_circle_id'] = $selectedCircleId;
@@ -535,7 +551,7 @@ class UsersController extends Controller
         $ledgerHasRemarkColumn = Schema::hasColumn('coins_ledger', 'remark');
 
         try {
-            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds) {
+            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds, $industryDirectorRoleId) {
                 $user->fill($updatable);
                 $user->status = $validated['status'];
                 $user->active_circle_id = $selectedCircleId;
@@ -744,7 +760,7 @@ class UsersController extends Controller
                     $this->upsertCircleMemberCategorySelection($additionalMemberRecord, $user->id, $validated);
                 }
 
-                if ($request->filled('role_ids')) {
+                if ($request->has('role_ids')) {
                     $adminUser = $this->resolveAdminUserForRoleAssignment($user);
                     $selectedRoleIds = collect($validated['role_ids'] ?? [])
                         ->intersect($adminRoleIds)
@@ -752,8 +768,47 @@ class UsersController extends Controller
                         ->values()
                         ->all();
 
-                    $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
-                    $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+                    DB::table('admin_user_roles')
+                        ->where('user_id', $adminUser->id)
+                        ->whereIn('role_id', $adminRoleIds)
+                        ->delete();
+
+                    foreach ($selectedRoleIds as $roleId) {
+                        DB::table('admin_user_roles')->insert([
+                            'id' => (string) Str::uuid(),
+                            'user_id' => $adminUser->id,
+                            'role_id' => $roleId,
+                            'created_at' => now(),
+                        ]);
+                    }
+
+                    $industryDirectorSelected = $industryDirectorRoleId
+                        && in_array((string) $industryDirectorRoleId, array_map('strval', $selectedRoleIds), true);
+
+                    Cache::forget('admin-access:roles:' . $adminUser->id);
+
+                    if ($industryDirectorSelected) {
+                        $assignmentExists = DB::table('industry_director_assignments')
+                            ->where('admin_user_id', $adminUser->id)
+                            ->exists();
+
+                        DB::table('industry_director_assignments')->updateOrInsert(
+                            ['admin_user_id' => $adminUser->id],
+                            array_merge([
+                                'industry_id' => $validated['industry_id'],
+                                'assigned_by' => Auth::guard('admin')->id(),
+                                'is_active' => true,
+                                'updated_at' => now(),
+                            ], $assignmentExists ? [] : ['created_at' => now()]),
+                        );
+                    } else {
+                        DB::table('industry_director_assignments')
+                            ->where('admin_user_id', $adminUser->id)
+                            ->update([
+                                'is_active' => false,
+                                'updated_at' => now(),
+                            ]);
+                    }
                 }
             });
         } catch (ValidationException $exception) {
@@ -887,12 +942,26 @@ class UsersController extends Controller
         }
 
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
-        $adminRoleIds = Role::query()
+        $adminRoles = Role::query()
             ->whereIn('key', $adminRoleKeys)
-            ->pluck('id')
-            ->all();
+            ->get(['id', 'key']);
+        $adminRoleIds = $adminRoles->pluck('id')->all();
 
-        $adminUser->roles()->detach($adminRoleIds);
+        DB::transaction(function () use ($adminUser, $adminRoleIds): void {
+            DB::table('admin_user_roles')
+                ->where('user_id', $adminUser->id)
+                ->whereIn('role_id', $adminRoleIds)
+                ->delete();
+
+            Cache::forget('admin-access:roles:' . $adminUser->id);
+
+            DB::table('industry_director_assignments')
+                ->where('admin_user_id', $adminUser->id)
+                ->update([
+                    'is_active' => false,
+                    'updated_at' => now(),
+                ]);
+        });
 
         return back()->with('success', 'Role removed successfully.');
     }
