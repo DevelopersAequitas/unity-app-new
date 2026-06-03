@@ -3,6 +3,7 @@
 namespace App\Services\IndustryDirector;
 
 use App\Models\AdminUser;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -56,24 +57,35 @@ class IndustryScopeService
 
     public function memberIdsForIndustry($adminUserId): array
     {
+        return $this->memberIdsForAdminIndustry((string) $adminUserId);
+    }
+
+    public function applyPeersScope($query, $adminUserId)
+    {
+        $industryIds = $this->industryIdsForAdmin((string) $adminUserId);
+
+        return $this->applyUsersIndustryColumns($query, $industryIds, 'users');
+    }
+
+    public function memberIdsForAdminIndustry($adminUserId): array
+    {
+        $adminUserId = (string) $adminUserId;
         $industryIds = $this->industryIdsForAdmin($adminUserId);
-        $memberIds = $this->memberIdsForIndustryIds($industryIds);
+
+        $memberIds = $this->applyPeersScope(User::query()->select('users.id'), $adminUserId)
+            ->pluck('users.id')
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
 
         Log::info('IDE scope debug', [
-            'admin_user_id' => (string) $adminUserId,
+            'admin_user_id' => $adminUserId,
             'assigned_industry_id' => $this->assignedIndustryIdForAdmin($adminUserId),
             'industry_ids' => $industryIds,
             'scoped_member_count' => count($memberIds),
         ]);
 
         return $memberIds;
-    }
-
-    public function applyPeersScope($query, $adminUserId)
-    {
-        $industryIds = $this->industryIdsForAdmin($adminUserId);
-
-        return $this->applyUsersIndustryColumns($query, $industryIds, 'users');
     }
 
     public function applyPostsScope($query, $adminUserId)
@@ -226,10 +238,6 @@ class IndustryScopeService
         $query = DB::table('users')->select('users.id')->distinct();
         $this->applyUsersIndustryColumns($query, $industryIds, 'users');
 
-        if (Schema::hasColumn('users', 'deleted_at')) {
-            $query->whereNull('users.deleted_at');
-        }
-
         return $query->pluck('users.id')
             ->map(fn ($id) => (string) $id)
             ->values()
@@ -245,10 +253,7 @@ class IndustryScopeService
             return $query;
         }
 
-        $scopeValues = $this->industryScopeValues($industryIds);
-        $circleIds = $this->circleIdsForIndustryIds($industryIds);
-
-        $query->where(function ($scope) use ($table, $industryIds, $scopeValues, $circleIds): void {
+        $query->where(function ($scope) use ($table, $industryIds): void {
             $hasCondition = false;
 
             foreach ([
@@ -257,41 +262,15 @@ class IndustryScopeService
                 'business_category_sub_id',
                 'visitor_business_category_main_id',
                 'visitor_business_category_sub_id',
+                'active_circle_id',
+                'circle_id',
                 'main_business_category_id',
                 'business_category_id',
             ] as $column) {
                 $hasCondition = $this->orWhereColumnIn($scope, $table, $column, $industryIds) || $hasCondition;
             }
 
-            $hasCondition = $this->orWhereJsonContainsAny($scope, $table, 'industry_tags', $scopeValues) || $hasCondition;
-            $hasCondition = $this->orWhereJsonContainsAny($scope, $table, 'industries_of_interest', $scopeValues) || $hasCondition;
-
-            if ($circleIds !== []) {
-                $hasCondition = $this->orWhereColumnIn($scope, $table, 'circle_id', $circleIds) || $hasCondition;
-
-                if ($table === 'users' && Schema::hasTable('circle_members') && Schema::hasColumn('circle_members', 'user_id') && Schema::hasColumn('circle_members', 'circle_id')) {
-                    $scope->orWhereExists(function ($subQuery) use ($circleIds): void {
-                        $subQuery->selectRaw('1')
-                            ->from('circle_members as ide_cm')
-                            ->whereColumn('ide_cm.user_id', 'users.id')
-                            ->whereIn('ide_cm.circle_id', $circleIds);
-
-                        if (Schema::hasColumn('circle_members', 'status')) {
-                            $subQuery->where('ide_cm.status', config('circle.member_joined_status', 'approved'));
-                        }
-
-                        if (Schema::hasColumn('circle_members', 'left_at')) {
-                            $subQuery->whereNull('ide_cm.left_at');
-                        }
-
-                        if (Schema::hasColumn('circle_members', 'deleted_at')) {
-                            $subQuery->whereNull('ide_cm.deleted_at');
-                        }
-                    });
-
-                    $hasCondition = true;
-                }
-            }
+            $hasCondition = $this->orWhereJsonContainsAny($scope, $table, 'industry_tags', $industryIds) || $hasCondition;
 
             if (! $hasCondition) {
                 $scope->whereRaw('1 = 0');
@@ -392,8 +371,12 @@ class IndustryScopeService
         $hasCondition = false;
 
         foreach ($this->cleanIds($ids) as $id) {
-            $query->orWhereJsonContains("{$table}.{$column}", $id);
+            $query->orWhereJsonContains("{$table}.{$column}", (string) $id);
             $hasCondition = true;
+
+            if (ctype_digit((string) $id)) {
+                $query->orWhereJsonContains("{$table}.{$column}", (int) $id);
+            }
         }
 
         return $hasCondition;

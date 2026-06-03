@@ -23,45 +23,27 @@ class IndustryDirectorDashboardController extends Controller
     public function index(IndustryScopeService $industryScope): View
     {
         $admin = Auth::guard('admin')->user();
-        $assignedIndustryId = $industryScope->assignedIndustryIdForAdmin((string) $admin->id);
-        $industryIds = $industryScope->industryIdsForAdmin((string) $admin->id);
-        $memberIds = $industryScope->memberIdsForAdmin($admin);
+        $adminUserId = (string) $admin->id;
+        $assignedIndustryId = $industryScope->assignedIndustryIdForAdmin($adminUserId);
+        $industryIds = $industryScope->industryIdsForAdmin($adminUserId);
+        $memberIds = $industryScope->memberIdsForAdminIndustry($adminUserId);
         $circleIds = $industryScope->circleIdsForIndustryIds($industryIds);
         $industry = $assignedIndustryId ? Industry::query()->find($assignedIndustryId) : null;
 
-        Log::info('IDE Dashboard Scope', [
+        Log::info('IDE Industry Scope Debug', [
+            'admin_user_id' => Auth::guard('admin')->id(),
             'assigned_industry_id' => $assignedIndustryId,
             'industry_ids' => $industryIds,
-            'matched_users' => $memberIds,
+            'matched_member_count' => count($memberIds),
+            'matched_member_ids' => $memberIds,
         ]);
 
         $metrics = [
-            'total_industry_members' => count($memberIds),
-            'active_members' => $this->scopedUsersQuery($memberIds)
+            'total_industry_members' => $this->usersByMemberIdsQuery($memberIds)->count(),
+            'active_members' => $this->usersByMemberIdsQuery($memberIds)
                 ->when(Schema::hasColumn('users', 'deleted_at'), fn (Builder $query) => $query->whereNull('deleted_at'))
-                ->where(function (Builder $query): void {
-                    $hasActiveColumn = false;
-
-                    if (Schema::hasColumn('users', 'status')) {
-                        $query->orWhere('status', 'active');
-                        $hasActiveColumn = true;
-                    }
-
-                    if (Schema::hasColumn('users', 'membership_status')) {
-                        $query->orWhereIn('membership_status', [
-                            'visitor',
-                            'premium',
-                            'charter',
-                        ]);
-                        $hasActiveColumn = true;
-                    }
-
-                    if (! $hasActiveColumn) {
-                        $query->whereRaw('1 = 1');
-                    }
-                })
                 ->count(),
-            'new_registrations' => $this->scopedUsersQuery($memberIds)
+            'new_registrations' => $this->usersByMemberIdsQuery($memberIds)
                 ->where('created_at', '>=', now()->startOfMonth())
                 ->count(),
             'total_activities' => $this->totalScopedActivities($memberIds),
@@ -87,11 +69,10 @@ class IndustryDirectorDashboardController extends Controller
         ]);
     }
 
-    private function scopedUsersQuery(array $memberIds): Builder
+    private function usersByMemberIdsQuery(array $memberIds): Builder
     {
         return User::query()
-            ->when($memberIds !== [], fn (Builder $query) => $query->whereIn('id', $memberIds), fn (Builder $query) => $query->whereRaw('1 = 0'))
-            ->when(Schema::hasColumn('users', 'deleted_at'), fn (Builder $query) => $query->whereNull('deleted_at'));
+            ->when($memberIds !== [], fn (Builder $query) => $query->whereIn('id', $memberIds), fn (Builder $query) => $query->whereRaw('1 = 0'));
     }
 
     private function totalScopedActivities(array $memberIds): int
