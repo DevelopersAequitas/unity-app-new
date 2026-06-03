@@ -9,7 +9,7 @@ use App\Models\Industry;
 use App\Models\LifeImpactHistory;
 use App\Models\Post;
 use App\Models\User;
-use App\Services\Admin\IndustryScopeService;
+use App\Services\IndustryDirector\IndustryScopeService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Auth;
@@ -31,7 +31,25 @@ class IndustryDirectorDashboardController extends Controller
         $metrics = [
             'total_industry_members' => count($memberIds),
             'active_members' => $this->scopedUsersQuery($memberIds)
-                ->when(Schema::hasColumn('users', 'status'), fn (Builder $query) => $query->where('status', 'active'))
+                ->where(function (Builder $query): void {
+                    $hasActiveColumn = false;
+
+                    if (Schema::hasColumn('users', 'status')) {
+                        $query->where('status', 'active');
+                        $hasActiveColumn = true;
+                    }
+
+                    if (Schema::hasColumn('users', 'membership_status')) {
+                        $hasActiveColumn
+                            ? $query->orWhere('membership_status', 'active')
+                            : $query->where('membership_status', 'active');
+                        $hasActiveColumn = true;
+                    }
+
+                    if (! $hasActiveColumn) {
+                        $query->whereRaw('1 = 1');
+                    }
+                })
                 ->count(),
             'new_registrations' => $this->scopedUsersQuery($memberIds)
                 ->where('created_at', '>=', now()->startOfMonth())

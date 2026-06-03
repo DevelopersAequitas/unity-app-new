@@ -16,6 +16,7 @@ use App\Models\IndustryDirectorAssignment;
 use App\Models\JoinedCircleCategory;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
@@ -69,7 +70,14 @@ class UsersController extends Controller
             ->sort()
             ->values();
 
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $circlesQuery = Circle::query()->orderBy('name');
+        $industryScope = app(IndustryScopeService::class);
+        $adminUser = Auth::guard('admin')->user();
+        if ($industryScope->isIndustryDirector($adminUser)) {
+            $circleIds = $industryScope->circleIdsForAdmin($adminUser);
+            $circlesQuery->when($circleIds !== [], fn ($query) => $query->whereIn('id', $circleIds), fn ($query) => $query->whereRaw('1 = 0'));
+        }
+        $circles = $circlesQuery->get(['id', 'name']);
         $q = $filters['search'] ?? '';
         $circleId = $filters['circle_id'] ?? 'all';
 
@@ -1547,6 +1555,12 @@ class UsersController extends Controller
                         ->with(['circle:id,name']);
                 },
             ]);
+
+        $industryScope = app(IndustryScopeService::class);
+        $adminUser = Auth::guard('admin')->user();
+        if ($industryScope->isIndustryDirector($adminUser)) {
+            $industryScope->applyPeersScope($query, $adminUser->id);
+        }
 
         if ($isCircleScoped && is_array($allowedCircleIds)) {
             if ($allowedCircleIds === []) {
