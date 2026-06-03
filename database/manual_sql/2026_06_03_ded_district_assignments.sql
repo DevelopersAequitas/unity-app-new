@@ -1,6 +1,7 @@
 -- Manual PostgreSQL SQL for DED (District Executive Director) state/district assignments.
 -- Run this manually; do not run as a Laravel migration.
--- This script reuses existing cities.state/cities.district data to seed states and districts.
+-- This creates/updates storage only. Populate official Government of India LGD data with:
+-- php artisan import:india-districts storage/app/india_districts.csv
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -12,15 +13,6 @@ CREATE TABLE IF NOT EXISTS states (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO states (id, name, status, created_at, updated_at)
-SELECT gen_random_uuid(), src.name, 'active', NOW(), NOW()
-FROM (
-    SELECT DISTINCT TRIM(state) AS name
-    FROM cities
-    WHERE state IS NOT NULL AND TRIM(state) <> ''
-) src
-ON CONFLICT (name) DO NOTHING;
-
 CREATE TABLE IF NOT EXISTS districts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     state_id UUID NOT NULL REFERENCES states(id) ON DELETE RESTRICT,
@@ -31,34 +23,11 @@ CREATE TABLE IF NOT EXISTS districts (
     CONSTRAINT districts_state_name_unique UNIQUE (state_id, name)
 );
 
--- Rollback-safe upgrades for environments where an older districts table was created before state_id existed.
+-- Rollback-safe upgrades for environments where an older districts table was created before state_id/status existed.
 ALTER TABLE districts ADD COLUMN IF NOT EXISTS state_id UUID;
 ALTER TABLE districts ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'active';
 ALTER TABLE districts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE districts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-
-INSERT INTO districts (id, state_id, name, status, created_at, updated_at)
-SELECT gen_random_uuid(), s.id, src.district_name, 'active', NOW(), NOW()
-FROM (
-    SELECT DISTINCT TRIM(state) AS state_name, TRIM(district) AS district_name
-    FROM cities
-    WHERE state IS NOT NULL AND TRIM(state) <> ''
-      AND district IS NOT NULL AND TRIM(district) <> ''
-) src
-JOIN states s ON LOWER(s.name) = LOWER(src.state_name)
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM districts d
-    WHERE d.state_id = s.id AND LOWER(d.name) = LOWER(src.district_name)
-);
-
-UPDATE districts d
-SET state_id = s.id, updated_at = NOW()
-FROM cities c
-JOIN states s ON LOWER(s.name) = LOWER(TRIM(c.state))
-WHERE d.state_id IS NULL
-  AND c.district IS NOT NULL
-  AND LOWER(d.name) = LOWER(TRIM(c.district));
 
 DO $$
 BEGIN
@@ -74,6 +43,10 @@ BEGIN
     ) THEN
         ALTER TABLE districts
             ADD CONSTRAINT districts_state_name_unique UNIQUE (state_id, name);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM districts WHERE state_id IS NULL) THEN
+        ALTER TABLE districts ALTER COLUMN state_id SET NOT NULL;
     END IF;
 END $$;
 
@@ -92,6 +65,7 @@ CREATE TABLE IF NOT EXISTS admin_ded_districts (
     CONSTRAINT admin_ded_districts_district_fk FOREIGN KEY (district_id) REFERENCES districts(id) ON DELETE RESTRICT
 );
 
+-- Rollback-safe upgrade for environments where an older admin_ded_districts table existed without state_id.
 ALTER TABLE admin_ded_districts ADD COLUMN IF NOT EXISTS state_id UUID;
 
 UPDATE admin_ded_districts addd
@@ -108,8 +82,13 @@ BEGIN
         ALTER TABLE admin_ded_districts
             ADD CONSTRAINT admin_ded_districts_state_fk FOREIGN KEY (state_id) REFERENCES states(id) ON DELETE RESTRICT;
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM admin_ded_districts WHERE state_id IS NULL) THEN
+        ALTER TABLE admin_ded_districts ALTER COLUMN state_id SET NOT NULL;
+    END IF;
 END $$;
 
+CREATE INDEX IF NOT EXISTS states_status_idx ON states (status);
 CREATE INDEX IF NOT EXISTS districts_state_id_idx ON districts (state_id);
 CREATE INDEX IF NOT EXISTS districts_status_idx ON districts (status);
 CREATE INDEX IF NOT EXISTS admin_ded_districts_state_id_idx ON admin_ded_districts (state_id);
