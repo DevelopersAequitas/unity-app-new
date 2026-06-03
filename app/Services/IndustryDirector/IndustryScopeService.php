@@ -259,11 +259,12 @@ class IndustryScopeService
             $hasCondition = false;
 
             foreach ([
-                'industry_id',
                 'business_category_main_id',
                 'business_category_sub_id',
                 'visitor_business_category_main_id',
                 'visitor_business_category_sub_id',
+                'active_circle_id',
+                'circle_id',
             ] as $column) {
                 $hasCondition = $this->orWhereColumnIn($scope, $table, $column, $industryIds) || $hasCondition;
             }
