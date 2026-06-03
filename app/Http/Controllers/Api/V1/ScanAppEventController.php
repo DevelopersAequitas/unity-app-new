@@ -3,18 +3,21 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Http\Resources\Event\EventRegistrationResource;
 use App\Models\Event;
 use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
 use App\Models\ScanAppUser;
+use App\Services\Events\EventCheckinService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class ScanAppEventController extends BaseApiController
 {
+    public function __construct(private readonly EventCheckinService $checkins) {}
+
     public function index(Request $request)
     {
         $scanner = $this->activeScanner($request);
@@ -40,142 +43,57 @@ class ScanAppEventController extends BaseApiController
         }
 
         $data = $request->validate([
-            'qr_token' => ['required', 'string', 'max:2048'],
+            'qr_token' => ['required', 'string', 'max:512'],
             'device_info' => ['nullable', 'array'],
         ]);
 
-        $qrToken = $this->normalizeQrToken($data['qr_token']);
+        $qrToken = trim($data['qr_token']);
         $deviceInfo = $data['device_info'] ?? null;
-        $status = 'failed';
-        $message = 'Unable to scan QR.';
-        $registration = null;
-        $checkedInAt = null;
-        $meta = ['route_event_id' => $event->id];
-        $httpStatus = 400;
 
-        if ($scanner->event_id && $scanner->event_id !== $event->id) {
-            $status = 'wrong_event';
+        if ($scanner->event_id && (string) $scanner->event_id !== (string) $event->id) {
             $message = 'Scanner is not assigned to this event.';
-            $this->writeScanLog($event->id, null, $scanner->id, $qrToken, $status, $message, $deviceInfo, $meta + ['assigned_event_id' => $scanner->event_id]);
+            $this->writeScanLog($event->id, null, $scanner->id, $qrToken, 'wrong_event', $message, $deviceInfo, [
+                'route_event_id' => $event->id,
+                'assigned_event_id' => $scanner->event_id,
+            ]);
 
             return $this->error($message, 403);
         }
 
         try {
-            DB::transaction(function () use ($qrToken, $event, $scanner, $deviceInfo, &$status, &$message, &$registration, &$checkedInAt, &$meta, &$httpStatus): void {
-                $registration = EventRegistration::query()
-                    ->with(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])
-                    ->where('qr_token', $qrToken)
-                    ->lockForUpdate()
-                    ->first();
+            $registration = $this->checkins->scanForScannerApp($qrToken, $scanner, $event->id);
 
-                if (! $registration) {
-                    $status = 'invalid_qr';
-                    $message = 'QR token not found.';
-                    $httpStatus = 404;
-                    return;
-                }
+            $this->writeScanLog($event->id, $registration->user_id, $scanner->id, $qrToken, 'success', 'Attendance marked successfully.', $deviceInfo, [
+                'registration_id' => $registration->id,
+                'occurrence_id' => $registration->occurrence_id,
+                'checkin_status' => $registration->checkin_status,
+            ]);
 
-                $meta['registration_id'] = $registration->id;
-                $meta['registration_event_id'] = $registration->event_id;
-                $meta['registration_status'] = $registration->status;
-                $meta['checkin_status'] = $registration->checkin_status;
+            return $this->success(new EventRegistrationResource($registration), 'Attendance marked successfully.');
+        } catch (ValidationException $exception) {
+            $message = $this->validationMessage($exception);
+            $registration = $this->checkins->registrationForToken($qrToken);
+            $scanStatus = $this->scanStatusForValidationMessage($message);
+            $logEventId = $registration?->event_id ?: $event->id;
 
-                if ($registration->event_id !== $event->id) {
-                    $status = 'wrong_event';
-                    $message = 'QR code does not belong to this event.';
-                    $httpStatus = 403;
-                    return;
-                }
+            $this->writeScanLog($logEventId, $registration?->user_id, $scanner->id, $qrToken, $scanStatus, $message, $deviceInfo, [
+                'route_event_id' => $event->id,
+                'registration_id' => $registration?->id,
+                'registration_event_id' => $registration?->event_id,
+                'checkin_status' => $registration?->checkin_status,
+            ]);
 
-                if ($registration->status === 'cancelled') {
-                    $status = 'failed';
-                    $message = 'Registration is cancelled.';
-                    $httpStatus = 422;
-                    return;
-                }
-
-                if ($registration->status === 'pending_payment' || (($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid')) {
-                    $status = 'failed';
-                    $message = 'Payment is required before QR check-in.';
-                    $httpStatus = 422;
-                    return;
-                }
-
-                if (empty($registration->qr_code_path) && empty($registration->qr_code_url)) {
-                    $status = 'invalid_qr';
-                    $message = 'QR code has not been generated for this registration.';
-                    $httpStatus = 422;
-                    return;
-                }
-
-                if (! $registration->occurrence) {
-                    $status = 'failed';
-                    $message = 'Event occurrence not found.';
-                    $httpStatus = 422;
-                    return;
-                }
-
-                if (! $registration->event || ! $registration->event->qr_checkin_enabled) {
-                    $status = 'failed';
-                    $message = 'QR check-in is not enabled for this event.';
-                    $httpStatus = 422;
-                    return;
-                }
-
-                if ($registration->checkin_status === 'checked_in') {
-                    $status = 'already_checked_in';
-                    $message = 'User already checked in.';
-                    $checkedInAt = $registration->checked_in_at;
-                    $httpStatus = 200;
-                    return;
-                }
-
-                $updates = [
-                    'status' => 'attended',
-                    'checkin_status' => 'checked_in',
-                    'checked_in_at' => now(),
-                ];
-
-                if (Schema::hasColumn('event_registrations', 'last_qr_scan_at')) {
-                    $updates['last_qr_scan_at'] = now();
-                }
-                if (Schema::hasColumn('event_registrations', 'attendance_source')) {
-                    $updates['attendance_source'] = 'scan_app';
-                }
-                if (Schema::hasColumn('event_registrations', 'scan_device_info') && $deviceInfo) {
-                    $updates['scan_device_info'] = json_encode($deviceInfo);
-                }
-
-                $registration->forceFill($updates)->save();
-                $this->refreshOccurrenceCounts($registration);
-
-                $registration = $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
-                $checkedInAt = $registration->checked_in_at;
-                $status = 'success';
-                $message = 'Attendance marked successfully.';
-                $httpStatus = 200;
-            });
+            return $this->error($message, 422, ['scan_status' => $scanStatus]);
         } catch (Throwable $exception) {
             Log::error('scan_app_qr_scan_failed', ['error' => $exception->getMessage(), 'event_id' => $event->id, 'scanner_id' => $scanner->id]);
-            $status = 'failed';
-            $message = 'Unable to scan QR. Please try again.';
-            $httpStatus = 500;
-            $meta['exception'] = $exception->getMessage();
+
+            $this->writeScanLog($event->id, null, $scanner->id, $qrToken, 'failed', 'Unable to scan QR. Please try again.', $deviceInfo, [
+                'route_event_id' => $event->id,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return $this->error('Unable to scan QR. Please try again.', 500, ['scan_status' => 'failed']);
         }
-
-        $this->writeScanLog($event->id, $registration?->user_id, $scanner->id, $qrToken, $status, $message, $deviceInfo, $meta);
-
-        if (in_array($status, ['success', 'already_checked_in'], true) && $registration) {
-            return $this->success([
-                'event_id' => $event->id,
-                'checked_in_user' => $this->attendeePayload($registration),
-                'scanner' => $this->scannerPayload($scanner),
-                'checked_in_at' => optional($checkedInAt)->toISOString(),
-            ], $message, $httpStatus);
-        }
-
-        return $this->error($message, $httpStatus, ['scan_status' => $status]);
     }
 
     public function attendanceHistory(Request $request, Event $event)
@@ -279,37 +197,19 @@ class ScanAppEventController extends BaseApiController
         return $payload;
     }
 
-    private function normalizeQrToken(string $qrToken): string
+    private function validationMessage(ValidationException $exception): string
     {
-        $qrToken = trim($qrToken);
-        $path = parse_url($qrToken, PHP_URL_PATH);
-        if (is_string($path) && str_contains($path, '/events/checkin/qr/')) {
-            return basename($path);
-        }
-
-        return $qrToken;
+        return collect($exception->errors())->flatten()->first() ?: 'Unable to scan QR.';
     }
 
-    private function refreshOccurrenceCounts(EventRegistration $registration): void
+    private function scanStatusForValidationMessage(string $message): string
     {
-        $checkedInCount = EventRegistration::query()
-            ->where('occurrence_id', $registration->occurrence_id)
-            ->where('checkin_status', 'checked_in')
-            ->whereNull('deleted_at')
-            ->count();
-
-        $registeredCount = EventRegistration::query()
-            ->where('occurrence_id', $registration->occurrence_id)
-            ->where('status', '!=', 'cancelled')
-            ->whereNull('deleted_at')
-            ->count();
-
-        $updates = ['registered_count' => $registeredCount];
-        if (Schema::hasColumn('event_occurrences', 'checked_in_count')) {
-            $updates['checked_in_count'] = $checkedInCount;
-        }
-
-        DB::table('event_occurrences')->where('id', $registration->occurrence_id)->update($updates);
+        return match ($message) {
+            'QR token not found.', 'QR code has not been generated for this registration.' => 'invalid_qr',
+            'QR code does not belong to this event.' => 'wrong_event',
+            'Attendance already marked.' => 'already_checked_in',
+            default => 'failed',
+        };
     }
 
     private function writeScanLog(string $eventId, ?string $userId, string $scannerId, string $qrToken, string $status, string $message, ?array $deviceInfo, array $meta): void
