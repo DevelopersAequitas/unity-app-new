@@ -97,9 +97,6 @@ class DashboardController extends Controller
 
         $districtCirclesQuery = Circle::query();
         $this->applyDedCircleScope($districtCirclesQuery, $admin);
-        if (Schema::hasColumn('circles', 'status')) {
-            $districtCirclesQuery->where('status', 'active');
-        }
 
         $districtCircles = (clone $districtCirclesQuery)
             ->orderBy('name')
@@ -121,11 +118,11 @@ class DashboardController extends Controller
         $stats = [
             'total_users' => (int) (clone $districtPeersQuery)->count(),
             'active_circles' => $selectedCircleId !== '' ? 1 : (int) $districtCircles->count(),
-            'testimonials' => $this->scopedTableCount($admin, 'testimonials', 'from_user_id', true, 'to_user_id', $selectedCircleId ?: null),
+            'testimonials' => $this->scopedTableCount($admin, 'testimonials', 'from_user_id', true, null, $selectedCircleId ?: null),
             'requirements' => $this->scopedTableCount($admin, 'requirements', 'user_id', false, null, $selectedCircleId ?: null),
-            'referrals' => $this->scopedTableCount($admin, 'referrals', 'from_user_id', true, 'to_user_id', $selectedCircleId ?: null),
-            'business_deals' => $this->scopedTableCount($admin, 'business_deals', 'from_user_id', true, 'to_user_id', $selectedCircleId ?: null),
-            'p2p_meetings' => $this->scopedTableCount($admin, 'p2p_meetings', 'initiator_user_id', true, 'peer_user_id', $selectedCircleId ?: null),
+            'referrals' => $this->scopedTableCount($admin, 'referrals', 'from_user_id', true, null, $selectedCircleId ?: null),
+            'business_deals' => $this->scopedTableCount($admin, 'business_deals', 'from_user_id', true, null, $selectedCircleId ?: null),
+            'p2p_meetings' => $this->scopedTableCount($admin, 'p2p_meetings', 'initiator_user_id', true, null, $selectedCircleId ?: null),
             'coins_earned' => $this->scopedCoinsEarned($admin, $selectedCircleId ?: null),
             'pending_requests' => $this->scopedPendingRequestsCount($admin, $selectedCircleId ?: null),
         ];
@@ -185,52 +182,43 @@ class DashboardController extends Controller
 
     private function scopedCoinsEarned($admin, ?string $circleId = null): int
     {
-        if (! Schema::hasTable('coins_ledger') || ! Schema::hasColumn('coins_ledger', 'user_id')) {
+        if (! Schema::hasTable('users') || ! Schema::hasColumn('users', 'coins_balance')) {
             return 0;
         }
 
-        $query = DB::table('coins_ledger as activity')
-            ->where('activity.amount', '>', 0);
-
-        AdminCircleScope::applyToActivityQuery($query, $admin, 'activity.user_id', null);
+        $query = User::query();
+        AdminCircleScope::applyToUsersQuery($query, $admin);
 
         if ($circleId) {
-            $this->applyCircleFilterToActivityQuery($query, 'activity.user_id', null, $circleId);
+            $this->applyCircleFilterToUsersQuery($query, $circleId);
         }
 
-        return (int) $query->sum('activity.amount');
+        return (int) $query->sum('users.coins_balance');
     }
 
     private function scopedPendingRequestsCount($admin, ?string $circleId = null): int
     {
-        $total = 0;
-
-        foreach ([
-            ['table' => 'circle_join_requests', 'user_column' => 'user_id', 'status' => ['pending_cd_approval', 'pending_id_approval', 'pending_circle_fee']],
-            ['table' => 'coin_claim_requests', 'user_column' => 'user_id', 'status' => ['pending']],
-            ['table' => 'visitor_registrations', 'user_column' => 'user_id', 'status' => ['pending']],
-        ] as $config) {
-            if (! Schema::hasTable($config['table']) || ! Schema::hasColumn($config['table'], $config['user_column'])) {
-                continue;
-            }
-
-            $query = DB::table($config['table'] . ' as activity');
-            if (Schema::hasColumn($config['table'], 'status')) {
-                $query->whereIn('activity.status', $config['status']);
-            }
-
-            AdminCircleScope::applyToActivityQuery($query, $admin, 'activity.' . $config['user_column'], null);
-            if ($circleId) {
-                if (Schema::hasColumn($config['table'], 'circle_id')) {
-                    $query->where('activity.circle_id', $circleId);
-                } else {
-                    $this->applyCircleFilterToActivityQuery($query, 'activity.' . $config['user_column'], null, $circleId);
-                }
-            }
-            $total += (int) $query->count();
+        if (! Schema::hasTable('circle_join_requests') || ! Schema::hasColumn('circle_join_requests', 'user_id')) {
+            return 0;
         }
 
-        return $total;
+        $query = DB::table('circle_join_requests as activity');
+
+        if (Schema::hasColumn('circle_join_requests', 'status')) {
+            $query->whereIn('activity.status', ['pending_cd_approval', 'pending_id_approval', 'pending_circle_fee']);
+        }
+
+        AdminCircleScope::applyToActivityQuery($query, $admin, 'activity.user_id', null);
+
+        if ($circleId) {
+            if (Schema::hasColumn('circle_join_requests', 'circle_id')) {
+                $query->where('activity.circle_id', $circleId);
+            } else {
+                $this->applyCircleFilterToActivityQuery($query, 'activity.user_id', null, $circleId);
+            }
+        }
+
+        return (int) $query->count();
     }
 
 
