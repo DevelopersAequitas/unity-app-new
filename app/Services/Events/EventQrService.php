@@ -85,7 +85,14 @@ class EventQrService
             return null;
         }
 
-        return url(Storage::disk('public')->url($path));
+        $path = ltrim($path, '/');
+        $segments = explode('/', $path);
+
+        if (count($segments) === 3 && $segments[0] === 'event-qrcodes') {
+            return rtrim((string) config('app.url'), '/').'/api/v1/event-qrcodes/'.$segments[1].'/'.$segments[2];
+        }
+
+        return rtrim((string) config('app.url'), '/').'/api/v1/event-qrcodes/'.basename(dirname($path)).'/'.basename($path);
     }
 
     private function makePng(string $payload): string
