@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
-use App\Http\Resources\Event\EventRegistrationResource;
 use App\Models\Event;
 use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
 use App\Models\ScanAppUser;
 use App\Services\Events\EventCheckinService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -50,7 +50,7 @@ class ScanAppEventController extends BaseApiController
         $qrToken = trim($data['qr_token']);
         $deviceInfo = $data['device_info'] ?? null;
 
-        if ($scanner->event_id && (string) $scanner->event_id !== (string) $event->id) {
+        if ((string) ($scanner->event_id ?? '') !== (string) $event->id) {
             $message = 'Scanner is not assigned to this event.';
             $this->writeScanLog($event->id, null, $scanner->id, $qrToken, 'wrong_event', $message, $deviceInfo, [
                 'route_event_id' => $event->id,
@@ -67,9 +67,10 @@ class ScanAppEventController extends BaseApiController
                 'registration_id' => $registration->id,
                 'occurrence_id' => $registration->occurrence_id,
                 'checkin_status' => $registration->checkin_status,
+                'attendee_user_id' => $registration->user_id,
             ]);
 
-            return $this->success(new EventRegistrationResource($registration), 'Attendance marked successfully.');
+            return $this->success($this->scanSuccessPayload($event, $registration, $scanner), 'Attendance marked successfully.');
         } catch (ValidationException $exception) {
             $message = $this->validationMessage($exception);
             $registration = $this->checkins->registrationForToken($qrToken);
@@ -138,11 +139,14 @@ class ScanAppEventController extends BaseApiController
         ], 'Attendance history fetched successfully.');
     }
 
-    private function activeScanner(Request $request): ScanAppUser|\Illuminate\Http\JsonResponse
+    private function activeScanner(Request $request): ScanAppUser|JsonResponse
     {
-        $scanner = $request->user();
+        $scanner = auth()->user();
         if (! $scanner instanceof ScanAppUser) {
-            return $this->error('Scanner authentication required.', 401);
+            return response()->json([
+                'success' => false,
+                'message' => 'This API is only available for scanner app users.',
+            ], 403);
         }
 
         if (! $scanner->is_active) {
@@ -171,6 +175,16 @@ class ScanAppEventController extends BaseApiController
             'id' => $scanner->id,
             'name' => $scanner->name,
             'hotel_name' => $scanner->hotel_name,
+        ];
+    }
+
+    private function scanSuccessPayload(Event $event, EventRegistration $registration, ScanAppUser $scanner): array
+    {
+        return [
+            'event_id' => $event->id,
+            'checked_in_user' => $this->attendeePayload($registration),
+            'scanner' => $this->scannerPayload($scanner),
+            'checked_in_at' => optional($registration->checked_in_at)->toISOString(),
         ];
     }
 
