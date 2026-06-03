@@ -252,15 +252,6 @@ class UsersController extends Controller
         $assignedDedDistrictName = $assignedDedMapping->district_name ?? null;
         $assignedDedDistricts = $this->dedLocationService->getAvailableDistrictsByState($assignedDedStateId);
 
-        if ($assignedDedDistrictName && ! $assignedDedDistricts->contains(fn (object $district): bool => Str::lower($district->name) === Str::lower($assignedDedDistrictName))) {
-            $assignedDedDistricts->push((object) [
-                'id' => $assignedDedDistrictName,
-                'name' => $assignedDedDistrictName,
-                'district_name' => $assignedDedDistrictName,
-                'district_id' => $assignedDedDistrictId,
-            ]);
-        }
-
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
@@ -472,36 +463,50 @@ class UsersController extends Controller
         $isDedSelectedForValidation = $dedRoleId && in_array($dedRoleId, (array) $request->input('role_ids', []), true);
         if ($isDedSelectedForValidation) {
             $request->validate([
-                'ded_district_name' => [
+                'ded_state_id' => [
                     'required',
-                    'string',
-                    'max:150',
+                    'uuid',
+                    function (string $attribute, mixed $value, \Closure $fail): void {
+                        if (! Schema::hasTable('states')) {
+                            $fail('State data is not available. Please run the provided manual SQL before assigning DED.');
+                            return;
+                        }
+
+                        $exists = DB::table('states')
+                            ->where('id', $value)
+                            ->when(Schema::hasColumn('states', 'status'), fn ($query) => $query->where('status', 'active'))
+                            ->exists();
+
+                        if (! $exists) {
+                            $fail('Please select a valid active state when assigning the DED role.');
+                        }
+                    },
+                ],
+                'ded_district_id' => [
+                    'required',
+                    'uuid',
                     function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
-                        if (! Schema::hasTable('admin_ded_districts') || ! Schema::hasColumn('admin_ded_districts', 'district_name')) {
-                            $fail('DED assignment storage must include district_name. Please run the updated manual SQL before assigning DED.');
+                        if (! Schema::hasTable('districts') || ! Schema::hasColumn('districts', 'state_id')) {
+                            $fail('District data is not available. Please run the provided manual SQL before assigning DED.');
                             return;
                         }
 
-                        $districtName = $this->dedLocationService->normalizeDistrictName((string) $value);
-                        if (! $districtName) {
-                            $fail('Please select a valid district when assigning the DED role.');
-                            return;
-                        }
+                        $exists = DB::table('districts')
+                            ->where('id', $value)
+                            ->where('state_id', $request->input('ded_state_id'))
+                            ->when(Schema::hasColumn('districts', 'status'), fn ($query) => $query->where('status', 'active'))
+                            ->exists();
 
-                        $availableDistricts = $this->dedLocationService
-                            ->getAvailableDistrictsByState($request->input('ded_state_id'))
-                            ->map(fn (object $district): string => Str::lower($district->district_name ?? $district->name));
-
-                        if ($availableDistricts->isNotEmpty() && ! $availableDistricts->contains(Str::lower($districtName))) {
-                            $fail('Please select a district discovered from existing peer or circle data.');
+                        if (! $exists) {
+                            $fail('Please select a valid active district for the selected state.');
                         }
                     },
                 ],
             ], [
-                'ded_district_name.required' => 'Please select a district when assigning the DED role.',
+                'ded_state_id.required' => 'Please select a state when assigning the DED role.',
+                'ded_district_id.required' => 'Please select a district when assigning the DED role.',
             ]);
         }
-
 
         if ($request->has('add_circle_membership') && filled($validated['additional_circle_id'] ?? null)) {
             $alreadyJoined = CircleMember::query()
@@ -830,15 +835,11 @@ class UsersController extends Controller
 
                     if (Schema::hasTable('admin_ded_districts')) {
                         if ($isDedSelected) {
-                            $districtName = $this->dedLocationService->normalizeDistrictName($request->input('ded_district_name'));
-                            $selectedState = $request->filled('ded_state_id') ? (string) $request->input('ded_state_id') : null;
-                            $stateId = $selectedState && Str::isUuid($selectedState) ? $selectedState : null;
-                            $stateName = $request->filled('ded_state_name')
-                                ? $this->dedLocationService->normalizeDistrictName($request->input('ded_state_name'))
-                                : $this->dedLocationService->resolveStateName($selectedState);
-                            $districtId = $request->filled('ded_district_id')
-                                ? (string) $request->input('ded_district_id')
-                                : $this->dedLocationService->resolveDistrictId($districtName, $stateId);
+                            $stateId = (string) $request->input('ded_state_id');
+                            $districtId = (string) $request->input('ded_district_id');
+                            $stateName = $this->dedLocationService->resolveStateName($stateId);
+                            $districtName = DB::table('districts')->where('id', $districtId)->value('name');
+                            $districtName = $this->dedLocationService->normalizeDistrictName($districtName);
 
                             $payload = [
                                 'user_id' => $user->id,

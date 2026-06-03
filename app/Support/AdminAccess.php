@@ -188,9 +188,9 @@ class AdminAccess
 
             return [
                 'state_id' => $assignment->state_id ?? null,
-                'state_name' => ($assignment->assigned_state_name ?? null) ?: ($assignment->states_table_name ?? null),
+                'state_name' => ($assignment->states_table_name ?? null) ?: ($assignment->assigned_state_name ?? null),
                 'district_id' => $assignment->district_id ?? null,
-                'district_name' => ($assignment->assigned_district_name ?? null) ?: ($assignment->districts_table_name ?? null),
+                'district_name' => ($assignment->districts_table_name ?? null) ?: ($assignment->assigned_district_name ?? null),
             ];
         });
     }

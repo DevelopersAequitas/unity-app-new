@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Admin\DistrictSyncService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -222,6 +223,10 @@ class User extends Authenticatable
             if (empty($user->display_name)) {
                 $user->display_name = trim($user->first_name . ' ' . ($user->last_name ?? ''));
             }
+        });
+
+        static::saved(function (self $user): void {
+            app(DistrictSyncService::class)->syncFromUser($user);
         });
     }
 

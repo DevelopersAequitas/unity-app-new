@@ -692,8 +692,8 @@
                             <label class="form-label" for="dedDistrictId">DED District <span class="text-danger">*</span></label>
                             <select
                                 id="dedDistrictId"
-                                name="ded_district_name"
-                                class="form-select @error('ded_district_name') is-invalid @enderror"
+                                name="ded_district_id"
+                                class="form-select @error('ded_district_id') is-invalid @enderror"
                                 @disabled($hasAssignedAdminRole)
                             >
                                 <option value="">Select district</option>
@@ -703,21 +703,21 @@
                                         $districtId = $district->district_id ?? null;
                                     @endphp
                                     <option
-                                        value="{{ $districtName }}"
-                                        data-district-id="{{ $districtId }}"
+                                        value="{{ $districtId ?: $district->id }}"
+                                        data-district-name="{{ $districtName }}"
                                         @selected((string) $selectedDedDistrictName === (string) $districtName || (string) $selectedDedDistrictId === (string) $districtId)
                                     >
                                         {{ $district->name }}
                                     </option>
                                 @endforeach
                             </select>
-                            <input type="hidden" id="dedDistrictUuid" name="ded_district_id" value="{{ $selectedDedDistrictId }}">
-                            @error('ded_district_name')
+                            <input type="hidden" id="dedDistrictName" name="ded_district_name" value="{{ $selectedDedDistrictName }}">
+                            @error('ded_district_id')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-12">
-                            <div class="form-text">Districts are discovered automatically from existing peers, circles, and location data. State is used only to narrow the list when available.</div>
+                            <div class="form-text">Districts are loaded from the canonical districts table for the selected state. New user/circle locations sync into that table automatically.</div>
                         </div>
                     </div>
 
@@ -756,7 +756,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const dedDistrictField = document.getElementById('dedDistrictField');
     const dedStateSelect = document.getElementById('dedStateId');
     const dedDistrictSelect = document.getElementById('dedDistrictId');
-    const dedDistrictUuidInput = document.getElementById('dedDistrictUuid');
+    const dedDistrictNameInput = document.getElementById('dedDistrictName');
     const dedStateNameInput = document.getElementById('dedStateName');
     const selectedDedDistrictName = @json((string) old('ded_district_name', $assignedDedDistrictName));
     const dedRoleFieldsLocked = @json((bool) $hasAssignedAdminRole);
@@ -773,18 +773,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
         districts.forEach((district) => {
             const option = document.createElement('option');
-            const districtName = district.district_name || district.name || district.id;
-            option.value = districtName;
+            const districtName = district.district_name || district.name || '';
+            const districtId = district.district_id || district.id;
+            option.value = districtId;
             option.textContent = district.name || districtName;
-            if (district.district_id) option.dataset.districtId = district.district_id;
+            option.dataset.districtName = districtName;
             option.selected = String(districtName).toLowerCase() === String(selectedName).toLowerCase();
             dedDistrictSelect.appendChild(option);
         });
     }
 
     function syncDedHiddenFields() {
-        if (dedDistrictUuidInput && dedDistrictSelect) {
-            dedDistrictUuidInput.value = dedDistrictSelect.selectedOptions[0]?.dataset.districtId || '';
+        if (dedDistrictNameInput && dedDistrictSelect) {
+            dedDistrictNameInput.value = dedDistrictSelect.selectedOptions[0]?.dataset.districtName || '';
         }
 
         if (dedStateNameInput && dedStateSelect) {
@@ -795,13 +796,18 @@ document.addEventListener('DOMContentLoaded', function () {
     async function loadDistrictsForState(stateId, selectedName = '') {
         if (!dedDistrictSelect) return;
 
-        const stateKey = stateId || 'all';
+        if (!stateId) {
+            setDistrictOptions([]);
+            dedDistrictSelect.disabled = true;
+            syncDedHiddenFields();
+            return;
+        }
 
         dedDistrictSelect.disabled = true;
         dedDistrictSelect.innerHTML = '<option value="">Loading districts...</option>';
 
         try {
-            const response = await fetch(districtUrlTemplate.replace('__STATE__', encodeURIComponent(stateKey)), {
+            const response = await fetch(districtUrlTemplate.replace('__STATE__', encodeURIComponent(stateId)), {
                 headers: { 'Accept': 'application/json' },
             });
             const payload = await response.json();
@@ -824,7 +830,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (dedStateSelect) {
-            dedStateSelect.required = false;
+            dedStateSelect.required = dedSelected && !dedStateSelect.disabled;
             if (!dedSelected && !dedStateSelect.disabled) {
                 dedStateSelect.value = '';
             }
@@ -855,8 +861,8 @@ document.addEventListener('DOMContentLoaded', function () {
     roleCheckboxes.forEach((checkbox) => checkbox.addEventListener('change', updateDedDistrictVisibility));
     updateDedDistrictVisibility();
 
-    if (dedDistrictSelect && !dedDistrictSelect.disabled && dedDistrictSelect.options.length <= 1) {
-        loadDistrictsForState(dedStateSelect?.value || '', selectedDedDistrictName);
+    if (dedStateSelect?.value && dedDistrictSelect && !dedDistrictSelect.disabled && dedDistrictSelect.options.length <= 1) {
+        loadDistrictsForState(dedStateSelect.value, selectedDedDistrictName);
     }
     const joinedInput = document.querySelector('[name="circle_joined_date"]')
         || document.querySelector('[name="circle_joined_at"]');

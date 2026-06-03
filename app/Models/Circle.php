@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Admin\DistrictSyncService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -181,6 +182,10 @@ class Circle extends Model
             if (empty($circle->status)) {
                 $circle->status = 'pending';
             }
+        });
+
+        static::saved(function (Circle $circle): void {
+            app(DistrictSyncService::class)->syncFromCircle($circle);
         });
     }
 
