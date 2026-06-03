@@ -68,7 +68,15 @@ class AdminCircleScope
     public static function applyToActivityQuery($query, ?AdminUser $admin, string $primaryColumn, ?string $peerColumn): void
     {
         if (AdminAccess::isDed($admin)) {
-            self::applyDedDistrictScope($query, $admin, $primaryColumn);
+            $query->where(function ($districtQuery) use ($admin, $primaryColumn, $peerColumn) {
+                self::applyDedDistrictScope($districtQuery, $admin, $primaryColumn);
+
+                if ($peerColumn) {
+                    $districtQuery->orWhere(function ($peerDistrictQuery) use ($admin, $peerColumn) {
+                        self::applyDedDistrictScope($peerDistrictQuery, $admin, $peerColumn);
+                    });
+                }
+            });
             return;
         }
 
@@ -123,56 +131,105 @@ class AdminCircleScope
         }
 
         $location = AdminAccess::assignedDedLocation($admin);
-        $districtId = $location['district_id'] ?? null;
         $districtName = $location['district_name'] ?? null;
         $stateName = $location['state_name'] ?? null;
 
-        if (! $districtId || ! Schema::hasTable('cities')) {
+        if (! $districtName) {
             $query->whereRaw('1=0');
             return;
         }
 
         if ($userColumn) {
-            $query->whereExists(function ($subQuery) use ($userColumn, $districtId, $districtName, $stateName) {
+            $query->whereExists(function ($subQuery) use ($userColumn, $districtName, $stateName) {
                 $subQuery->selectRaw(1)
                     ->from('users as ded_scope_users')
-                    ->join('cities as ded_scope_cities', 'ded_scope_cities.id', '=', 'ded_scope_users.city_id')
+                    ->leftJoin('cities as ded_scope_cities', 'ded_scope_cities.id', '=', 'ded_scope_users.city_id')
                     ->whereColumn('ded_scope_users.id', $userColumn);
 
-                self::applyCityDistrictPredicate($subQuery, 'ded_scope_cities', $districtId, $districtName, $stateName);
+                self::applyUserLocationPredicate($subQuery, 'ded_scope_users', 'ded_scope_cities', $districtName, $stateName);
             });
 
             return;
         }
 
-        $query->whereExists(function ($subQuery) use ($districtId, $districtName, $stateName) {
-            $subQuery->selectRaw(1)
-                ->from('cities as ded_scope_cities')
-                ->whereColumn('ded_scope_cities.id', 'users.city_id');
+        $query->where(function ($scopeQuery) use ($districtName, $stateName) {
+            $scopeQuery->where(function ($directUserQuery) use ($districtName, $stateName) {
+                self::applyDirectUserCityPredicate($directUserQuery, 'users', $districtName, $stateName);
+            });
 
-            self::applyCityDistrictPredicate($subQuery, 'ded_scope_cities', $districtId, $districtName, $stateName);
+            if (Schema::hasTable('cities') && Schema::hasColumn('users', 'city_id')) {
+                $scopeQuery->orWhereExists(function ($subQuery) use ($districtName, $stateName) {
+                    $subQuery->selectRaw(1)
+                        ->from('cities as ded_scope_cities')
+                        ->whereColumn('ded_scope_cities.id', 'users.city_id');
+
+                    self::applyCityDistrictPredicate($subQuery, 'ded_scope_cities', $districtName, $stateName);
+                });
+            }
         });
     }
 
-    private static function applyCityDistrictPredicate($query, string $cityAlias, string $districtId, ?string $districtName, ?string $stateName): void
+    private static function applyUserLocationPredicate($query, string $userAlias, string $cityAlias, string $districtName, ?string $stateName): void
     {
-        if (Schema::hasColumn('cities', 'district_id')) {
-            $query->where("{$cityAlias}.district_id", $districtId);
-            return;
-        }
+        $query->where(function ($locationQuery) use ($userAlias, $cityAlias, $districtName, $stateName) {
+            self::applyDirectUserCityPredicate($locationQuery, $userAlias, $districtName, $stateName);
 
-        if (! $districtName || ! Schema::hasColumn('cities', 'district')) {
+            if (Schema::hasTable('cities')) {
+                $locationQuery->orWhere(function ($cityQuery) use ($cityAlias, $districtName, $stateName) {
+                    self::applyCityDistrictPredicate($cityQuery, $cityAlias, $districtName, $stateName);
+                });
+            }
+        });
+    }
+
+    private static function applyDirectUserCityPredicate($query, string $userAlias, string $districtName, ?string $stateName): void
+    {
+        if (! Schema::hasColumn('users', 'city')) {
             $query->whereRaw('1=0');
             return;
         }
 
-        $query->whereRaw("LOWER({$cityAlias}.district) = ?", [mb_strtolower($districtName)]);
-
-        if ($stateName && Schema::hasColumn('cities', 'state')) {
-            $query->whereRaw("LOWER({$cityAlias}.state) = ?", [mb_strtolower($stateName)]);
-        }
+        $query->where(function ($cityTextQuery) use ($userAlias, $districtName) {
+            $cityTextQuery->whereRaw("LOWER(NULLIF(TRIM({$userAlias}.city), '')) = ?", [mb_strtolower($districtName)])
+                ->orWhere("{$userAlias}.city", 'ILIKE', '%' . str_replace(['%', '_'], ['\\%', '\\_'], $districtName) . '%');
+        });
     }
 
+    private static function applyCityDistrictPredicate($query, string $cityAlias, string $districtName, ?string $stateName): void
+    {
+        $query->where(function ($cityQuery) use ($cityAlias, $districtName, $stateName) {
+            $hasLocationColumn = false;
+
+            if (Schema::hasColumn('cities', 'name')) {
+                $cityQuery->where(function ($nameQuery) use ($cityAlias, $districtName) {
+                    $nameQuery->whereRaw("LOWER(NULLIF(TRIM({$cityAlias}.name), '')) = ?", [mb_strtolower($districtName)])
+                        ->orWhere("{$cityAlias}.name", 'ILIKE', '%' . str_replace(['%', '_'], ['\\%', '\\_'], $districtName) . '%');
+                });
+                $hasLocationColumn = true;
+            }
+
+            if (Schema::hasColumn('cities', 'district')) {
+                $method = $hasLocationColumn ? 'orWhere' : 'where';
+                $cityQuery->{$method}(function ($districtQuery) use ($cityAlias, $districtName) {
+                    $districtQuery->whereRaw("LOWER(NULLIF(TRIM({$cityAlias}.district), '')) = ?", [mb_strtolower($districtName)])
+                        ->orWhere("{$cityAlias}.district", 'ILIKE', '%' . str_replace(['%', '_'], ['\\%', '\\_'], $districtName) . '%');
+                });
+                $hasLocationColumn = true;
+            }
+
+            if (! $hasLocationColumn) {
+                $cityQuery->whereRaw('1=0');
+            }
+        });
+
+        if ($stateName && Schema::hasColumn('cities', 'state')) {
+            $query->where(function ($stateQuery) use ($cityAlias, $stateName) {
+                $stateQuery->whereNull("{$cityAlias}.state")
+                    ->orWhereRaw("NULLIF(TRIM({$cityAlias}.state), '') IS NULL")
+                    ->orWhereRaw("LOWER(NULLIF(TRIM({$cityAlias}.state), '')) = ?", [mb_strtolower($stateName)]);
+            });
+        }
+    }
 
     public static function applyToEventsQuery($query, ?AdminUser $admin, string $eventTable = 'events'): void
     {
@@ -181,32 +238,41 @@ class AdminCircleScope
         }
 
         $location = AdminAccess::assignedDedLocation($admin);
-        $districtId = $location['district_id'] ?? null;
         $districtName = $location['district_name'] ?? null;
         $stateName = $location['state_name'] ?? null;
 
-        if (! $districtId) {
+        if (! $districtName) {
             $query->whereRaw('1=0');
             return;
         }
 
-        if (Schema::hasColumn($eventTable, 'district_id')) {
-            $query->where("{$eventTable}.district_id", $districtId);
-            return;
-        }
-
-        if (! Schema::hasColumn($eventTable, 'circle_id') || ! Schema::hasTable('circles') || ! Schema::hasColumn('circles', 'city_id')) {
+        if (! Schema::hasColumn($eventTable, 'circle_id') || ! Schema::hasTable('circles')) {
             $query->whereRaw('1=0');
             return;
         }
 
-        $query->whereExists(function ($subQuery) use ($eventTable, $districtId, $districtName, $stateName) {
+        $query->whereExists(function ($subQuery) use ($eventTable, $districtName, $stateName) {
             $subQuery->selectRaw(1)
                 ->from('circles as ded_scope_circles')
-                ->join('cities as ded_scope_cities', 'ded_scope_cities.id', '=', 'ded_scope_circles.city_id')
-                ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id");
+                ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id")
+                ->where(function ($circleLocationQuery) use ($districtName, $stateName) {
+                    if (Schema::hasColumn('circles', 'city')) {
+                        $circleLocationQuery->whereRaw("LOWER(NULLIF(TRIM(ded_scope_circles.city), '')) = ?", [mb_strtolower($districtName)])
+                            ->orWhere('ded_scope_circles.city', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $districtName) . '%');
+                    } else {
+                        $circleLocationQuery->whereRaw('1=0');
+                    }
 
-            self::applyCityDistrictPredicate($subQuery, 'ded_scope_cities', $districtId, $districtName, $stateName);
+                    if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
+                        $circleLocationQuery->orWhereExists(function ($citySubQuery) use ($districtName, $stateName) {
+                            $citySubQuery->selectRaw(1)
+                                ->from('cities as ded_scope_cities')
+                                ->whereColumn('ded_scope_cities.id', 'ded_scope_circles.city_id');
+
+                            self::applyCityDistrictPredicate($citySubQuery, 'ded_scope_cities', $districtName, $stateName);
+                        });
+                    }
+                });
         });
     }
 

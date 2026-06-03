@@ -15,7 +15,7 @@
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-            ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+            ...(! $isDed ? [['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index']] : []),
             ...($isGlobalAdmin ? [
                 ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                 ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
@@ -70,7 +70,7 @@
     $referralReportItem = ($isSuper || $isCircleScoped || $isDed)
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
-    $activityExpanded = $activityActive || ! $isGlobalAdmin;
+    $activityExpanded = $activityActive || (! $isGlobalAdmin && ! $isDed);
 
     $postsMenu = $isGlobalAdmin ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
@@ -91,7 +91,7 @@
         ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
         ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
         ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
-        ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
+        ...(! $isDed ? [['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending']] : []),
     ];
 
     $leadsActive = request()->routeIs('admin.leads.*');
@@ -205,6 +205,7 @@
                 </div>
             </li>
 
+            @if (! $isDed)
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
                 <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
                     <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
@@ -222,6 +223,8 @@
                     </ul>
                 </div>
             </li>
+
+            @endif
 
             @if ($isGlobalAdmin || $isDed)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">

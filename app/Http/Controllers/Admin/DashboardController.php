@@ -80,11 +80,9 @@ class DashboardController extends Controller
         abort_unless(AdminAccess::isDed($admin), 403);
 
         $dedLocation = AdminAccess::assignedDedLocation($admin);
-        $districtId = $dedLocation['district_id'] ?? null;
         $districtName = $dedLocation['district_name'] ?? null;
-        $stateName = $dedLocation['state_name'] ?? null;
 
-        if (! $districtId || ! $districtName) {
+        if (! $districtName) {
             return view('admin.ded-dashboard', [
                 'districtName' => null,
                 'stats' => [],
@@ -93,64 +91,35 @@ class DashboardController extends Controller
             ]);
         }
 
-        $today = now();
-        $usersQuery = User::query();
-        AdminCircleScope::applyToUsersQuery($usersQuery, $admin);
+        $districtPeersQuery = User::query();
+        AdminCircleScope::applyToUsersQuery($districtPeersQuery, $admin);
 
-        $newSignupsQuery = User::query();
-        AdminCircleScope::applyToUsersQuery($newSignupsQuery, $admin);
-
-        $activeCirclesQuery = Circle::query();
-        if (Schema::hasColumn('circles', 'district_id')) {
-            $activeCirclesQuery->where('district_id', $districtId);
-        } elseif (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
-            $activeCirclesQuery->whereExists(function ($subQuery) use ($districtId, $districtName, $stateName) {
-                $subQuery->selectRaw(1)
-                    ->from('cities as ded_scope_cities')
-                    ->whereColumn('ded_scope_cities.id', 'circles.city_id');
-
-                if (Schema::hasColumn('cities', 'district_id')) {
-                    $subQuery->where('ded_scope_cities.district_id', $districtId);
-                } elseif (Schema::hasColumn('cities', 'district')) {
-                    $subQuery->whereRaw('LOWER(ded_scope_cities.district) = ?', [mb_strtolower($districtName)]);
-
-                    if ($stateName && Schema::hasColumn('cities', 'state')) {
-                        $subQuery->whereRaw('LOWER(ded_scope_cities.state) = ?', [mb_strtolower($stateName)]);
-                    }
-                } else {
-                    $subQuery->whereRaw('1=0');
-                }
-            });
-        } else {
-            $activeCirclesQuery->whereRaw('1=0');
-        }
-
+        $districtCirclesQuery = Circle::query();
+        $this->applyDedCircleScope($districtCirclesQuery, $admin);
         if (Schema::hasColumn('circles', 'status')) {
-            $activeCirclesQuery->where('status', 'active');
+            $districtCirclesQuery->where('status', 'active');
         }
-
-        $activitiesToday = 0;
-        if ($this->hasTableColumn('activities', 'created_at')) {
-            $activityQuery = DB::table('activities')->whereDate('activities.created_at', $today->toDateString());
-            AdminCircleScope::applyToActivityQuery($activityQuery, $admin, 'activities.user_id', null);
-            $activitiesToday = $activityQuery->count();
-        }
-
-        $recentPeersQuery = User::query()->with('city')->latest('created_at')->limit(8);
-        AdminCircleScope::applyToUsersQuery($recentPeersQuery, $admin);
 
         $stats = [
-            'total_users' => (int) $usersQuery->count(),
-            'active_circles' => (int) $activeCirclesQuery->count(),
-            'new_signups' => (int) $newSignupsQuery->whereDate('users.created_at', $today->toDateString())->count(),
-            'activities_today' => (int) $activitiesToday,
+            'total_users' => (int) (clone $districtPeersQuery)->count(),
+            'active_circles' => (int) $districtCirclesQuery->count(),
+            'testimonials' => $this->scopedTableCount($admin, 'testimonials', 'from_user_id', true, 'to_user_id'),
+            'requirements' => $this->scopedTableCount($admin, 'requirements', 'user_id'),
+            'referrals' => $this->scopedTableCount($admin, 'referrals', 'from_user_id', true, 'to_user_id'),
+            'business_deals' => $this->scopedTableCount($admin, 'business_deals', 'from_user_id', true, 'to_user_id'),
+            'p2p_meetings' => $this->scopedTableCount($admin, 'p2p_meetings', 'initiator_user_id', true, 'peer_user_id'),
+            'coins_earned' => $this->scopedCoinsEarned($admin),
+            'pending_requests' => $this->scopedPendingRequestsCount($admin),
         ];
 
         $pendingItems = [
-            ['title' => 'Pending Activities Today', 'count' => (int) $activitiesToday],
-            ['title' => 'District Peers', 'count' => $stats['total_users']],
-            ['title' => 'Active District Circles', 'count' => $stats['active_circles']],
+            ['title' => 'Pending Requests', 'count' => $stats['pending_requests']],
+            ['title' => 'District Referrals', 'count' => $stats['referrals']],
+            ['title' => 'District Requirements', 'count' => $stats['requirements']],
+            ['title' => 'District Testimonials', 'count' => $stats['testimonials']],
         ];
+
+        $recentPeersQuery = (clone $districtPeersQuery)->with('city')->latest('created_at')->limit(8);
 
         return view('admin.ded-dashboard', [
             'districtName' => $districtName,
@@ -158,6 +127,114 @@ class DashboardController extends Controller
             'pendingItems' => $pendingItems,
             'recentPeers' => $recentPeersQuery->get(),
         ]);
+    }
+
+    private function scopedTableCount($admin, string $table, string $userColumn, bool $hasIsDeleted = false, ?string $peerColumn = null): int
+    {
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $userColumn)) {
+            return 0;
+        }
+
+        $query = DB::table("{$table} as activity");
+
+        if (Schema::hasColumn($table, 'deleted_at')) {
+            $query->whereNull('activity.deleted_at');
+        }
+
+        if ($hasIsDeleted && Schema::hasColumn($table, 'is_deleted')) {
+            $query->where('activity.is_deleted', false);
+        }
+
+        AdminCircleScope::applyToActivityQuery(
+            $query,
+            $admin,
+            "activity.{$userColumn}",
+            ($peerColumn && Schema::hasColumn($table, $peerColumn)) ? "activity.{$peerColumn}" : null
+        );
+
+        return (int) $query->count();
+    }
+
+    private function scopedCoinsEarned($admin): int
+    {
+        if (! Schema::hasTable('coins_ledger') || ! Schema::hasColumn('coins_ledger', 'user_id')) {
+            return 0;
+        }
+
+        $query = DB::table('coins_ledger as activity')
+            ->where('activity.amount', '>', 0);
+
+        AdminCircleScope::applyToActivityQuery($query, $admin, 'activity.user_id', null);
+
+        return (int) $query->sum('activity.amount');
+    }
+
+    private function scopedPendingRequestsCount($admin): int
+    {
+        $total = 0;
+
+        foreach ([
+            ['table' => 'circle_join_requests', 'user_column' => 'user_id', 'status' => ['pending_cd_approval', 'pending_id_approval', 'pending_circle_fee']],
+            ['table' => 'coin_claim_requests', 'user_column' => 'user_id', 'status' => ['pending']],
+            ['table' => 'visitor_registrations', 'user_column' => 'user_id', 'status' => ['pending']],
+        ] as $config) {
+            if (! Schema::hasTable($config['table']) || ! Schema::hasColumn($config['table'], $config['user_column'])) {
+                continue;
+            }
+
+            $query = DB::table($config['table'] . ' as activity');
+            if (Schema::hasColumn($config['table'], 'status')) {
+                $query->whereIn('activity.status', $config['status']);
+            }
+
+            AdminCircleScope::applyToActivityQuery($query, $admin, 'activity.' . $config['user_column'], null);
+            $total += (int) $query->count();
+        }
+
+        return $total;
+    }
+
+    private function applyDedCircleScope($query, $admin): void
+    {
+        $location = AdminAccess::assignedDedLocation($admin);
+        $districtName = $location['district_name'] ?? null;
+        $stateName = $location['state_name'] ?? null;
+
+        if (! $districtName) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->where(function ($scopeQuery) use ($districtName, $stateName) {
+            if (Schema::hasColumn('circles', 'city')) {
+                $scopeQuery->whereRaw('LOWER(NULLIF(TRIM(circles.city), \'\')) = ?', [mb_strtolower($districtName)]);
+            } else {
+                $scopeQuery->whereRaw('1=0');
+            }
+
+            if (Schema::hasTable('cities') && Schema::hasColumn('circles', 'city_id')) {
+                $scopeQuery->orWhereExists(function ($subQuery) use ($districtName, $stateName) {
+                    $subQuery->selectRaw(1)
+                        ->from('cities as ded_scope_cities')
+                        ->whereColumn('ded_scope_cities.id', 'circles.city_id')
+                        ->where(function ($cityQuery) use ($districtName) {
+                            $cityQuery->whereRaw('LOWER(NULLIF(TRIM(ded_scope_cities.name), \'\')) = ?', [mb_strtolower($districtName)]);
+
+                            if (Schema::hasColumn('cities', 'district')) {
+                                $cityQuery->orWhereRaw('LOWER(NULLIF(TRIM(ded_scope_cities.district), \'\')) = ?', [mb_strtolower($districtName)]);
+                            }
+                        });
+
+                    if ($stateName && Schema::hasColumn('cities', 'state')) {
+                        $subQuery->where(function ($stateQuery) use ($stateName) {
+                            $stateQuery->whereNull('ded_scope_cities.state')
+                                ->orWhereRaw("NULLIF(TRIM(ded_scope_cities.state), '') IS NULL")
+                                ->orWhereRaw("LOWER(NULLIF(TRIM(ded_scope_cities.state), '')) = ?", [mb_strtolower($stateName)]);
+                        });
+                    }
+                });
+            }
+        });
     }
 
     private function safeCountTable(string $table): int

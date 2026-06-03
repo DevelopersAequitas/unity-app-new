@@ -16,42 +16,40 @@
 @if (! $districtName)
     <div class="alert alert-warning">No district assigned. Please contact Global Admin.</div>
 @else
+    @php
+        $cards = [
+            ['label' => 'Total District Peers', 'value' => $stats['total_users'] ?? 0],
+            ['label' => 'Total District Circles', 'value' => $stats['active_circles'] ?? 0],
+            ['label' => 'Total Referrals', 'value' => $stats['referrals'] ?? 0],
+            ['label' => 'Total Requirements', 'value' => $stats['requirements'] ?? 0],
+            ['label' => 'Total Testimonials', 'value' => $stats['testimonials'] ?? 0],
+            ['label' => 'Total Business Deals', 'value' => $stats['business_deals'] ?? 0],
+            ['label' => 'Total P2P Meetings', 'value' => $stats['p2p_meetings'] ?? 0],
+            ['label' => 'Total Coins Earned', 'value' => $stats['coins_earned'] ?? 0],
+            ['label' => 'Pending Requests', 'value' => $stats['pending_requests'] ?? 0],
+        ];
+    @endphp
+
     <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-xl-3">
-            <div class="p-3 rounded border bg-white h-100">
-                <p class="text-muted mb-1">District Peers</p>
-                <h4 class="mb-0">{{ number_format($stats['total_users'] ?? 0) }}</h4>
+        @foreach ($cards as $card)
+            <div class="col-sm-6 col-xl-4">
+                <div class="p-3 rounded border bg-white h-100">
+                    <p class="text-muted mb-1">{{ $card['label'] }}</p>
+                    <h4 class="mb-0">{{ number_format($card['value']) }}</h4>
+                </div>
             </div>
-        </div>
-        <div class="col-sm-6 col-xl-3">
-            <div class="p-3 rounded border bg-white h-100">
-                <p class="text-muted mb-1">Active District Circles</p>
-                <h4 class="mb-0">{{ number_format($stats['active_circles'] ?? 0) }}</h4>
-            </div>
-        </div>
-        <div class="col-sm-6 col-xl-3">
-            <div class="p-3 rounded border bg-white h-100">
-                <p class="text-muted mb-1">New Signups Today</p>
-                <h4 class="mb-0">{{ number_format($stats['new_signups'] ?? 0) }}</h4>
-            </div>
-        </div>
-        <div class="col-sm-6 col-xl-3">
-            <div class="p-3 rounded border bg-white h-100">
-                <p class="text-muted mb-1">Activities Today</p>
-                <h4 class="mb-0">{{ number_format($stats['activities_today'] ?? 0) }}</h4>
-            </div>
-        </div>
+        @endforeach
     </div>
 
     <div class="row g-3">
         <div class="col-12 col-xl-5">
             <div class="card p-4 h-100">
-                <h6 class="mb-3">District Pending & Reports</h6>
+                <h6 class="mb-3">District Quick Reports</h6>
                 <div class="list-group list-group-flush">
                     @foreach ($pendingItems as $item)
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <span>{{ $item['title'] }}</span>
-                            <span class="badge bg-primary">{{ $item['count'] }}</span>
+                            <span class="badge bg-primary">{{ number_format($item['count']) }}</span>
                         </div>
                     @endforeach
                 </div>
