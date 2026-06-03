@@ -174,7 +174,7 @@ class EventService
     public function attendanceReport(Event $event, array $filters = []): array
     {
         $query = EventRegistration::query()
-            ->with(['user', 'occurrence'])
+            ->with(['user', 'occurrence', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])
             ->where('event_id', $event->id)
             ->when($filters['occurrence_id'] ?? null, fn ($q, $v) => $q->where('occurrence_id', $v))
             ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
@@ -239,12 +239,31 @@ class EventService
                 'phone' => $registration->visitor_phone,
                 'company' => $registration->visitor_company,
                 'city' => $registration->visitor_city,
+                'designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
+                'business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+                'business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+                'business_category_main' => $registration->businessCategoryMainPayload(),
+                'business_category_sub' => $registration->businessCategorySubPayload(),
+                'business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
+                'business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
             ],
             'status' => $registration->status,
             'checkin_status' => $registration->checkin_status,
             'registered_at' => optional($registration->registered_at)->toISOString(),
             'checked_in_at' => optional($registration->checked_in_at)->toISOString(),
             'source' => $registration->source,
+            'visitor_designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
+            'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+            'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
+            'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'business_category_main' => $registration->businessCategoryMainPayload(),
+            'business_category_sub' => $registration->businessCategorySubPayload(),
+            'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
+            'visitor_business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
+            'invited_by_type' => $registration->invited_by_type ?? data_get($registration->metadata, 'invited_by_type'),
+            'invited_by_user_id' => $registration->invited_by_user_id ?? data_get($registration->metadata, 'invited_by_user_id'),
+            'invited_by_user' => $this->invitedByUserPayload($registration->invitedByUser),
             'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho') : null,
             'payment_url' => $registration->payment_url ?? $registration->zoho_hosted_page_url ?? null,
             'payment_status' => $registration->payment_status ?? null,
@@ -264,6 +283,72 @@ class EventService
         ];
     }
 
+
+    private function invitedByUserPayload(?User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return [
+            'id' => $user->id,
+            'display_name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'company_name' => $user->company_name,
+            'designation' => $user->designation,
+            'profile_photo_url' => $user->profile_photo_url ?? null,
+        ];
+    }
+
+    private function normalizeMetadata(mixed $metadata): array
+    {
+        if (is_string($metadata)) {
+            $decoded = json_decode($metadata, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        if (is_object($metadata)) {
+            $metadata = (array) $metadata;
+        }
+
+        return is_array($metadata) ? $metadata : [];
+    }
+
+    private function normalizeRows(mixed $rows): array
+    {
+        if (is_string($rows)) {
+            $decoded = json_decode($rows, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    private function cleanTextRows(array $rows): array
+    {
+        return collect($rows)->map(fn ($row) => trim((string) $row))->filter(fn ($row) => $row !== '')->values()->all();
+    }
+
+    private function cleanAgenda(array $rows): array
+    {
+        return collect($rows)->map(fn ($row) => [
+            'time' => trim((string) ($row['time'] ?? '')),
+            'title' => trim((string) ($row['title'] ?? '')),
+        ])->filter(fn ($row) => $row['time'] !== '' || $row['title'] !== '')->values()->all();
+    }
+
+    private function cleanSpeakers(array $rows): array
+    {
+        return collect($rows)->map(fn ($row) => [
+            'name' => trim((string) ($row['name'] ?? '')),
+            'designation' => trim((string) ($row['designation'] ?? '')),
+            'company' => trim((string) ($row['company'] ?? '')),
+            'initials' => trim((string) ($row['initials'] ?? '')),
+            'photo_url' => filled($row['photo_url'] ?? null) ? trim((string) $row['photo_url']) : null,
+        ])->filter(fn ($row) => $row['name'] !== '' || $row['designation'] !== '' || $row['company'] !== '' || $row['initials'] !== '' || filled($row['photo_url']))->values()->all();
+    }
+
     public function filterEventColumns(array $data): array
     {
         return array_filter($data, fn ($value, $key) => Schema::hasColumn('events', $key), ARRAY_FILTER_USE_BOTH);
@@ -277,8 +362,39 @@ class EventService
         if ($actor && empty($data['organizer_user_id'])) {
             $data['organizer_user_id'] = $actor->id;
         }
-        if (! empty($data['zoho_form_url'])) {
-            $data['metadata'] = array_merge((array) ($data['metadata'] ?? []), ['zoho_form_url' => $data['zoho_form_url']]);
+        $hasMetadataInput = array_key_exists('metadata', $data)
+            || ! empty($data['zoho_form_url'])
+            || array_key_exists('what_youll_gain', $data)
+            || array_key_exists('organizer_name', $data)
+            || array_key_exists('organizer_phone', $data)
+            || array_key_exists('organizer_email', $data)
+            || array_key_exists('organizer_website', $data);
+
+        if ($hasMetadataInput) {
+            $metadata = $this->normalizeMetadata($data['metadata'] ?? []);
+            if (! empty($data['zoho_form_url'])) {
+                $metadata['zoho_form_url'] = $data['zoho_form_url'];
+            }
+            if (array_key_exists('what_youll_gain', $data)) {
+                $metadata['what_youll_gain'] = $this->cleanTextRows((array) $data['what_youll_gain']);
+                unset($data['what_youll_gain']);
+            }
+            if (array_key_exists('organizer_name', $data) || array_key_exists('organizer_phone', $data) || array_key_exists('organizer_email', $data) || array_key_exists('organizer_website', $data)) {
+                $metadata['organizer'] = [
+                    'name' => $data['organizer_name'] ?? null,
+                    'phone' => $data['organizer_phone'] ?? null,
+                    'email' => $data['organizer_email'] ?? null,
+                    'website' => $data['organizer_website'] ?? null,
+                ];
+                unset($data['organizer_name'], $data['organizer_phone'], $data['organizer_email'], $data['organizer_website']);
+            }
+            $data['metadata'] = $metadata;
+        }
+        if (array_key_exists('agenda', $data)) {
+            $data['agenda'] = $this->cleanAgenda($this->normalizeRows($data['agenda']));
+        }
+        if (array_key_exists('speakers', $data)) {
+            $data['speakers'] = $this->cleanSpeakers($this->normalizeRows($data['speakers']));
         }
 
         if ($withDefaults) {
