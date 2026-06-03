@@ -238,32 +238,7 @@ class AdminCircleScope
             return;
         }
 
-        $query->where(function ($scopeQuery) use ($circleAlias, $districtName, $stateName): void {
-            self::applyCircleLocationPredicate($scopeQuery, $circleAlias, $districtName, $stateName);
-
-            if (Schema::hasTable('circle_members') && Schema::hasTable('users')) {
-                $scopeQuery->orWhereExists(function ($memberSubQuery) use ($circleAlias, $districtName, $stateName): void {
-                    $memberSubQuery->selectRaw(1)
-                        ->from('circle_members as ded_scope_circle_members')
-                        ->join('users as ded_scope_member_users', 'ded_scope_member_users.id', '=', 'ded_scope_circle_members.user_id')
-                        ->whereColumn('ded_scope_circle_members.circle_id', "{$circleAlias}.id");
-
-                    if (Schema::hasTable('cities') && Schema::hasColumn('users', 'city_id')) {
-                        $memberSubQuery->leftJoin('cities as ded_scope_member_cities', 'ded_scope_member_cities.id', '=', 'ded_scope_member_users.city_id');
-                    }
-
-                    if (Schema::hasColumn('circle_members', 'status')) {
-                        $memberSubQuery->where('ded_scope_circle_members.status', 'approved');
-                    }
-
-                    if (Schema::hasColumn('circle_members', 'deleted_at')) {
-                        $memberSubQuery->whereNull('ded_scope_circle_members.deleted_at');
-                    }
-
-                    self::applyUserLocationPredicate($memberSubQuery, 'ded_scope_member_users', 'ded_scope_member_cities', $districtName, $stateName);
-                });
-            }
-        });
+        self::applyCircleLocationPredicate($query, $circleAlias, $districtName, $stateName);
     }
 
     private static function applyCircleLocationPredicate($query, string $circleAlias, string $districtName, ?string $stateName): void
