@@ -14,8 +14,8 @@ use Throwable;
 class DistrictSyncService
 {
     private const INVALID_EXACT_VALUES = [
-        '', '-', '--', 'n/a', 'na', 'none', 'null', 'no city', 'unknown',
-        'not available', 'not applicable', 'all india', 'pan india', 'india',
+        '', '-', '--', 'n/a', 'na', 'none', 'null', 'no city', 'nocity', 'unknown',
+        'not available', 'notavailable', 'not applicable', 'notapplicable', 'all india', 'allindia', 'pan india', 'panindia', 'india',
     ];
 
     public function syncKnownLocations(): void
@@ -91,12 +91,12 @@ class DistrictSyncService
 
     public function districtKey(?string $value): string
     {
-        return Str::lower((string) $this->normalizeDistrictName($value));
+        return $this->locationKey($this->normalizeDistrictName($value));
     }
 
     public function stateKey(?string $value): string
     {
-        return Str::lower((string) $this->normalizeStateName($value));
+        return $this->locationKey($this->normalizeStateName($value));
     }
 
     public function upsertDistrict(?string $stateName, ?string $districtName): ?string
@@ -397,25 +397,30 @@ class DistrictSyncService
 
     private function normalizeLocationName(?string $value, bool $isDistrict): ?string
     {
-        $value = preg_replace('/\s+/u', ' ', trim((string) $value));
-        $value = trim($value, '"');
+        $value = str_replace(["\xc2\xa0", '\u{00A0}'], ' ', (string) $value);
+        $value = preg_replace('/\s+/u', ' ', trim($value));
+        $value = trim($value, '"\'`');
 
         if ($value === '') {
             return null;
         }
 
-        if ($isDistrict && str_contains($value, ',')) {
-            $value = trim(Str::before($value, ','));
+        if ($isDistrict) {
+            $value = preg_split('/[,;|\/]+/u', $value, 2)[0] ?? $value;
+            $value = preg_replace('/\s*\([^)]*\)\s*$/u', '', $value) ?: $value;
+            $value = preg_replace('/^(dist\.?|district)\s+/iu', '', $value) ?: $value;
+            $value = preg_replace('/\s+(district|city)$/iu', '', $value) ?: $value;
         }
 
-        if ($isDistrict) {
-            $value = preg_replace('/\s+district$/iu', '', $value) ?: $value;
+        $value = preg_replace('/\s+/u', ' ', trim($value));
+        if ($value === '') {
+            return null;
         }
 
         $name = Str::title(Str::lower($value));
-        $key = Str::lower($name);
+        $key = $this->locationKey($name);
 
-        if (in_array($key, self::INVALID_EXACT_VALUES, true)) {
+        if ($key === '' || in_array($key, self::INVALID_EXACT_VALUES, true)) {
             return null;
         }
 
@@ -428,6 +433,17 @@ class DistrictSyncService
         }
 
         return $name;
+    }
+
+    private function locationKey(?string $value): string
+    {
+        $value = Str::lower((string) $value);
+        $value = preg_replace('/\s*\([^)]*\)\s*/u', ' ', $value) ?: $value;
+        $value = preg_replace('/[^\pL\pN]+/u', ' ', $value) ?: $value;
+        $value = preg_replace('/\b(dist|district|city)\b/u', ' ', $value) ?: $value;
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?: '';
+
+        return str_replace(' ', '', $value);
     }
 
     private function attributeIfColumnExists(Circle $circle, string $column): ?string

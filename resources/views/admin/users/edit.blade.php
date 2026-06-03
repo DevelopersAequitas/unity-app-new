@@ -771,14 +771,27 @@ document.addEventListener('DOMContentLoaded', function () {
         placeholder.textContent = districts.length ? 'Select district' : 'No districts found for selected state';
         dedDistrictSelect.appendChild(placeholder);
 
+        const seenDistricts = new Set();
         districts.forEach((district) => {
             const option = document.createElement('option');
-            const districtName = district.district_name || district.name || '';
+            const districtName = String(district.district_name || district.name || '').trim();
             const districtId = district.district_id || district.id;
+            const districtKey = districtName
+                .toLowerCase()
+                .replace(/\([^)]*\)/g, ' ')
+                .replace(/[,;|\/].*$/g, '')
+                .replace(/\b(dist|district|city)\b/g, ' ')
+                .replace(/[^a-z0-9]+/g, '');
+
+            if (!districtName || !districtId || seenDistricts.has(districtKey)) {
+                return;
+            }
+
+            seenDistricts.add(districtKey);
             option.value = districtId;
-            option.textContent = district.name || districtName;
+            option.textContent = districtName;
             option.dataset.districtName = districtName;
-            option.selected = String(districtName).toLowerCase() === String(selectedName).toLowerCase();
+            option.selected = String(districtName).toLowerCase() === String(selectedName).trim().toLowerCase();
             dedDistrictSelect.appendChild(option);
         });
     }
