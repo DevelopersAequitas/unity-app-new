@@ -189,10 +189,7 @@ class AdminCircleScope
             return;
         }
 
-        $query->where(function ($cityTextQuery) use ($userAlias, $districtName) {
-            $cityTextQuery->whereRaw("LOWER(NULLIF(TRIM({$userAlias}.city), '')) = ?", [mb_strtolower($districtName)])
-                ->orWhere("{$userAlias}.city", 'ILIKE', '%' . str_replace(['%', '_'], ['\\%', '\\_'], $districtName) . '%');
-        });
+        $query->whereRaw("LOWER(NULLIF(TRIM({$userAlias}.city), '')) = ?", [mb_strtolower($districtName)]);
     }
 
     private static function applyCityDistrictPredicate($query, string $cityAlias, string $districtName, ?string $stateName): void
@@ -201,19 +198,13 @@ class AdminCircleScope
             $hasLocationColumn = false;
 
             if (Schema::hasColumn('cities', 'name')) {
-                $cityQuery->where(function ($nameQuery) use ($cityAlias, $districtName) {
-                    $nameQuery->whereRaw("LOWER(NULLIF(TRIM({$cityAlias}.name), '')) = ?", [mb_strtolower($districtName)])
-                        ->orWhere("{$cityAlias}.name", 'ILIKE', '%' . str_replace(['%', '_'], ['\\%', '\\_'], $districtName) . '%');
-                });
+                $cityQuery->whereRaw("LOWER(NULLIF(TRIM({$cityAlias}.name), '')) = ?", [mb_strtolower($districtName)]);
                 $hasLocationColumn = true;
             }
 
             if (Schema::hasColumn('cities', 'district')) {
-                $method = $hasLocationColumn ? 'orWhere' : 'where';
-                $cityQuery->{$method}(function ($districtQuery) use ($cityAlias, $districtName) {
-                    $districtQuery->whereRaw("LOWER(NULLIF(TRIM({$cityAlias}.district), '')) = ?", [mb_strtolower($districtName)])
-                        ->orWhere("{$cityAlias}.district", 'ILIKE', '%' . str_replace(['%', '_'], ['\\%', '\\_'], $districtName) . '%');
-                });
+                $method = $hasLocationColumn ? 'orWhereRaw' : 'whereRaw';
+                $cityQuery->{$method}("LOWER(NULLIF(TRIM({$cityAlias}.district), '')) = ?", [mb_strtolower($districtName)]);
                 $hasLocationColumn = true;
             }
 
@@ -257,8 +248,7 @@ class AdminCircleScope
                 ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id")
                 ->where(function ($circleLocationQuery) use ($districtName, $stateName) {
                     if (Schema::hasColumn('circles', 'city')) {
-                        $circleLocationQuery->whereRaw("LOWER(NULLIF(TRIM(ded_scope_circles.city), '')) = ?", [mb_strtolower($districtName)])
-                            ->orWhere('ded_scope_circles.city', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $districtName) . '%');
+                        $circleLocationQuery->whereRaw("LOWER(NULLIF(TRIM(ded_scope_circles.city), '')) = ?", [mb_strtolower($districtName)]);
                     } else {
                         $circleLocationQuery->whereRaw('1=0');
                     }

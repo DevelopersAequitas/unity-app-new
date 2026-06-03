@@ -7,7 +7,7 @@
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
 
     $dashboardItem = ($isCircleScoped || $isDed)
-        ? ($isDed ? ['icon' => 'bi-speedometer2', 'label' => 'DED Dashboard', 'route' => 'admin.ded.dashboard'] : null)
+        ? ($isDed ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.ded.dashboard'] : null)
         : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard'];
 
     $navItems = ($isCircleScoped || $isDed)
@@ -226,7 +226,7 @@
 
             @endif
 
-            @if ($isGlobalAdmin || $isDed)
+            @if ($isGlobalAdmin)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
@@ -275,6 +275,24 @@
                     </li>
                 @endif
             @endforeach
+
+            @if ($isDed)
+                <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
+                        <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
+                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    </a>
+                    <div class="collapse {{ $eventsManagementActive ? 'show' : '' }}" id="eventsManagementSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            @foreach ($eventsManagementMenu as $eventItem)
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </li>
+            @endif
         </ul>
     </nav>
 

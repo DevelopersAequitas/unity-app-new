@@ -58,7 +58,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
             return redirect()->route('admin.dashboard');
         })->name('home');
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-        Route::get('/ded/dashboard', [DashboardController::class, 'ded'])->name('ded.dashboard');
+        Route::get('/ded-dashboard', [DashboardController::class, 'ded'])->name('ded.dashboard');
+        Route::get('/ded/dashboard', fn () => redirect()->route('admin.ded.dashboard'))->name('ded.dashboard.legacy');
         Route::get('/location/states/{state}/districts', [LocationController::class, 'districts'])->whereUuid('state')->name('location.states.districts');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
