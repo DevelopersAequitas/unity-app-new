@@ -91,7 +91,7 @@
         ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
         ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
         ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
-        ...(! $isDed ? [['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending']] : []),
+        ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
     ];
 
     $leadsActive = request()->routeIs('admin.leads.*');

@@ -38,7 +38,7 @@ class AdminCircleScope
 
             $routeName = $request->route()?->getName() ?? '';
             $allowedPrefixes = ['admin.ded.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.events.', 'admin.event-joining-requests.'];
-            $allowedRoutes = ['admin.logout', 'admin.files.upload'];
+            $allowedRoutes = ['admin.logout', 'admin.files.upload', 'admin.impacts.pending', 'admin.impacts.show', 'admin.impacts.approve', 'admin.impacts.reject', 'admin.impacts.export.csv'];
 
             if (in_array($routeName, ['admin.dashboard', 'admin.home'], true)) {
                 return redirect()->route('admin.ded.dashboard');

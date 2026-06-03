@@ -86,18 +86,11 @@ class EventManagementController extends Controller
                 });
             });
 
-        if (AdminAccess::isDed(Auth::guard('admin')->user())) {
-            $query->whereHas('event', function ($eventQuery): void {
-                AdminCircleScope::applyToEventsQuery($eventQuery, Auth::guard('admin')->user());
-            });
-        }
+        $admin = Auth::guard('admin')->user();
+        $this->applyJoiningRequestScope($query, $admin);
 
         $summaryBase = EventRegistrationRequest::query();
-        if (AdminAccess::isDed(Auth::guard('admin')->user())) {
-            $summaryBase->whereHas('event', function ($eventQuery): void {
-                AdminCircleScope::applyToEventsQuery($eventQuery, Auth::guard('admin')->user());
-            });
-        }
+        $this->applyJoiningRequestScope($summaryBase, $admin);
         $summary = [
             'pending' => (clone $summaryBase)->where('status', 'pending')->count(),
             'approved' => (clone $summaryBase)->where('status', 'approved')->count(),
@@ -116,7 +109,7 @@ class EventManagementController extends Controller
     public function approveJoiningRequest(Request $request, string $id): RedirectResponse
     {
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
-        abort_unless($this->canAccessEvent((string) $joiningRequest->event_id), 403);
+        abort_unless($this->canAccessJoiningRequest($joiningRequest), 403);
         $joiningRequest->forceFill([
             'status' => 'approved',
             'admin_note' => $request->input('admin_note', 'Approved for cross-circle event registration.'),
@@ -131,7 +124,7 @@ class EventManagementController extends Controller
     {
         $data = $request->validate(['admin_note' => ['required', 'string', 'max:2000']]);
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
-        abort_unless($this->canAccessEvent((string) $joiningRequest->event_id), 403);
+        abort_unless($this->canAccessJoiningRequest($joiningRequest), 403);
         $joiningRequest->forceFill([
             'status' => 'rejected',
             'admin_note' => $data['admin_note'],
@@ -215,6 +208,34 @@ class EventManagementController extends Controller
         $this->zohoInvoiceSync->sync($registration);
 
         return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
+    }
+
+
+    private function applyJoiningRequestScope($query, $admin): void
+    {
+        if (! AdminAccess::isDed($admin)) {
+            return;
+        }
+
+        $query->where(function ($scopeQuery) use ($admin) {
+            $scopeQuery->whereHas('event', function ($eventQuery) use ($admin): void {
+                AdminCircleScope::applyToEventsQuery($eventQuery, $admin);
+            })->orWhere(function ($userScope) use ($admin): void {
+                AdminCircleScope::applyToActivityQuery($userScope, $admin, 'event_registration_requests.user_id', null);
+            });
+        });
+    }
+
+    private function canAccessJoiningRequest(EventRegistrationRequest $joiningRequest): bool
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (! AdminAccess::isDed($admin)) {
+            return $this->canAccessEvent((string) $joiningRequest->event_id);
+        }
+
+        return AdminCircleScope::eventInScope($admin, (string) $joiningRequest->event_id)
+            || AdminCircleScope::userInScope($admin, (string) $joiningRequest->user_id);
     }
 
     private function canAccessEvent(string $eventId): bool
