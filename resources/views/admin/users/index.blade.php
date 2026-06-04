@@ -21,53 +21,69 @@
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <div class="d-flex align-items-center gap-2">
-            <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
-            <select id="perPage" name="per_page" class="form-select form-select-sm" style="width: 90px;">
-                @foreach ([10, 20, 25, 50, 100] as $size)
-                    <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
-                @endforeach
-            </select>
+    <div class="d-flex justify-content-end align-items-center mb-3 gap-2 flex-wrap">
+        <a href="{{ route('admin.users.import') }}" class="btn btn-outline-primary btn-sm">Import</a>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn">Export CSV</button>
+        <a href="{{ route('admin.users.create') }}" class="btn btn-primary btn-sm">Add Peer</a>
+    </div>
+
+    <div class="text-center mb-3">
+        <div class="small text-muted mb-2">Approve selected free peers or free trial peers.</div>
+        <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap">
+            <form id="bulkApproveMembershipForm" method="POST" action="{{ route('admin.users.bulk-approve-membership') }}" class="m-0">
+                @csrf
+                <button type="submit" class="btn btn-success btn-sm">
+                    <i class="bi bi-check-circle me-1"></i>Approve Selected
+                </button>
+            </form>
+            <button type="button" class="btn btn-sm text-white" style="background-color: #6f42c1; border-color: #6f42c1;" id="approveWithDatesBtn" data-bs-toggle="modal" data-bs-target="#approveMembershipDatesModal">
+                <i class="bi bi-calendar-check me-1"></i>Approve With Dates
+            </button>
         </div>
-        <div class="small text-muted">
-            @if($users->total() > 0)
-                Records {{ $users->firstItem() }} to {{ $users->lastItem() }} of {{ $users->total() }}
-            @else
-                No records found
-            @endif
-        </div>
-        <div class="d-flex flex-column align-items-end gap-2 ms-auto">
-            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
-                <a href="{{ route('admin.users.import') }}" class="btn btn-outline-primary btn-sm">Import</a>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn">Export CSV</button>
-                <a href="{{ route('admin.users.create') }}" class="btn btn-primary btn-sm">Add Peer</a>
+    </div>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-end mb-3 gap-2">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+                <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
+                <select id="perPage" name="per_page" class="form-select form-select-sm" style="width: 90px;">
+                    @foreach ([10, 20, 25, 50, 100] as $size)
+                        <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
+                    @endforeach
+                </select>
             </div>
-            <div class="d-flex align-items-end gap-2 flex-wrap justify-content-end">
-                <div class="d-flex flex-column gap-1" style="min-width: 200px;">
-                    <label for="joinedFilter" class="form-label form-label-sm mb-0 text-muted small">Date Filter</label>
-                    <select name="joined_filter" id="joinedFilter" form="usersFiltersForm" class="form-select form-select-sm">
-                        <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
-                        <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
-                        <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
-                        <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
-                        <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
-                    </select>
+            <div class="small text-muted">
+                @if($users->total() > 0)
+                    Records {{ $users->firstItem() }} to {{ $users->lastItem() }} of {{ $users->total() }}
+                @else
+                    No records found
+                @endif
+            </div>
+        </div>
+        <div class="d-flex align-items-end gap-2 flex-wrap justify-content-end ms-auto">
+            <div class="d-flex flex-column gap-1" style="min-width: 200px;">
+                <label for="joinedFilter" class="form-label form-label-sm mb-0 text-muted small">Date Filter</label>
+                <select name="joined_filter" id="joinedFilter" form="usersFiltersForm" class="form-select form-select-sm">
+                    <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
+                    <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
+                    <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
+                    <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
+                    <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
+                </select>
+            </div>
+            <div id="joinedCustomRange" class="d-flex gap-2 flex-wrap">
+                <div class="d-flex flex-column gap-1">
+                    <label for="joinedFrom" class="form-label form-label-sm mb-0 text-muted small">From</label>
+                    <input id="joinedFrom" type="date" name="joined_from" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}">
                 </div>
-                <div id="joinedCustomRange" class="d-flex gap-2 flex-wrap">
-                    <div class="d-flex flex-column gap-1">
-                        <label for="joinedFrom" class="form-label form-label-sm mb-0 text-muted small">From</label>
-                        <input id="joinedFrom" type="date" name="joined_from" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}">
-                    </div>
-                    <div class="d-flex flex-column gap-1">
-                        <label for="joinedTo" class="form-label form-label-sm mb-0 text-muted small">To</label>
-                        <input id="joinedTo" type="date" name="joined_to" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}">
-                    </div>
+                <div class="d-flex flex-column gap-1">
+                    <label for="joinedTo" class="form-label form-label-sm mb-0 text-muted small">To</label>
+                    <input id="joinedTo" type="date" name="joined_to" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}">
                 </div>
-                <div class="d-flex gap-2">
-                    <button type="submit" form="usersFiltersForm" class="btn btn-sm btn-primary">Apply</button>
-                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.users.index') }}">Reset</a>
-                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" form="usersFiltersForm" class="btn btn-sm btn-primary">Apply</button>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.users.index') }}">Reset</a>
             </div>
         </div>
     </div>
@@ -80,6 +96,7 @@
         <input type="hidden" name="joined_filter" value="{{ $filters['joined_filter'] ?? 'all' }}">
         <input type="hidden" name="joined_from" value="{{ $filters['joined_from'] ?? '' }}">
         <input type="hidden" name="joined_to" value="{{ $filters['joined_to'] ?? '' }}">
+        <input type="hidden" name="approve_filter" value="{{ $filters['approve_filter'] ?? 'all' }}">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
@@ -100,6 +117,7 @@
                     </th>
                     <th>Phone</th>
                     <th>Membership</th>
+                    <th>Approve</th>
                     <th>
                         <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Coins
@@ -144,6 +162,13 @@
                         </select>
                     </th>
                     <th>
+                        <select name="approve_filter" form="usersFiltersForm" class="form-select form-select-sm">
+                            <option value="all" @selected(($filters['approve_filter'] ?? 'all') === 'all')>All</option>
+                            <option value="eligible" @selected(($filters['approve_filter'] ?? 'all') === 'eligible')>Eligible</option>
+                            <option value="not_eligible" @selected(($filters['approve_filter'] ?? 'all') === 'not_eligible')>Not Eligible</option>
+                        </select>
+                    </th>
+                    <th>
                         <input type="text" name="coins_balance" class="form-control form-control-sm" placeholder="—" disabled>
                     </th>
                     <th>
@@ -168,6 +193,7 @@
                         $statusValue = $user->status ?? 'active';
                         $isActive = $statusValue === 'active';
                         $detailsId = 'details-' . $user->id;
+                        $canApproveMembership = $canEditUsers && in_array((string) $user->membership_status, ['free_peer', 'free_trial_peer'], true);
                     @endphp
                     <tr>
                         <td>
@@ -194,6 +220,16 @@
                         <td>
                             <span class="badge bg-primary-subtle text-primary text-uppercase">{{ $user->membership_status ?? 'Free' }}</span>
                         </td>
+                        <td>
+                            @if ($canApproveMembership)
+                                <form method="POST" action="{{ route('admin.users.approve-membership', $user->id) }}" onsubmit="return confirm('Approve this peer for 1 year membership?');" class="m-0">
+                                    @csrf
+                                    <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                                </form>
+                            @else
+                                <span class="text-muted">&mdash;</span>
+                            @endif
+                        </td>
                         <td>{{ number_format($user->coins_balance ?? 0) }}</td>
                         <td>{{ optional($user->last_login_at)->format('Y-m-d H:i') ?? '—' }}</td>
                         <td>
@@ -211,7 +247,7 @@
                         </td>
                     </tr>
                     <tr class="collapse-row">
-                        <td colspan="8" class="p-0 border-0">
+                        <td colspan="9" class="p-0 border-0">
                             <div class="collapse" id="{{ $detailsId }}">
                                 <div class="p-3 bg-light border-top">
                                     @php
@@ -460,7 +496,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">No users found.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No users found.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -479,6 +515,36 @@
     </div>
 </div>
 
+
+<form id="bulkApproveMembershipDatesForm" method="POST" action="{{ route('admin.users.bulk-approve-membership') }}">
+    @csrf
+    <div class="modal fade" id="approveMembershipDatesModal" tabindex="-1" aria-labelledby="approveMembershipDatesModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="approveMembershipDatesModalLabel">Approve Membership With Dates</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Select membership start and end dates. The selected peers will get premium membership for the chosen period.</p>
+                    <div class="mb-3">
+                        <label for="membershipStartDate" class="form-label">Start Date</label>
+                        <input type="date" class="form-control" id="membershipStartDate" name="membership_start_date" required>
+                    </div>
+                    <div class="mb-0">
+                        <label for="membershipEndDate" class="form-label">End Date</label>
+                        <input type="date" class="form-control" id="membershipEndDate" name="membership_end_date" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Approve</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -490,6 +556,26 @@
         const exportForm = document.getElementById('exportCsvForm');
         const joinedFilter = document.getElementById('joinedFilter');
         const joinedCustomRange = document.getElementById('joinedCustomRange');
+        const bulkApproveForm = document.getElementById('bulkApproveMembershipForm');
+        const bulkApproveDatesForm = document.getElementById('bulkApproveMembershipDatesForm');
+        const selectedPeerIds = () => Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value).filter(Boolean);
+        const appendSelectedPeerInputs = (form) => {
+            if (!form) return false;
+            form.querySelectorAll('input[name="user_ids[]"]').forEach(el => el.remove());
+            const selected = selectedPeerIds();
+            if (selected.length === 0) {
+                alert('Please select at least one peer.');
+                return false;
+            }
+            selected.forEach(id => {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'user_ids[]';
+                hidden.value = id;
+                form.appendChild(hidden);
+            });
+            return true;
+        };
         const submitFilters = (form) => {
             const params = new URLSearchParams(window.location.search);
             const formData = new FormData(form);
@@ -534,7 +620,7 @@
         exportBtn?.addEventListener('click', () => {
             if (!exportForm) return;
             exportForm.querySelectorAll('input[name="ids[]"]').forEach(el => el.remove());
-            const selected = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value).filter(Boolean);
+            const selected = selectedPeerIds();
             selected.forEach(id => {
                 const hidden = document.createElement('input');
                 hidden.type = 'hidden';
@@ -543,6 +629,26 @@
                 exportForm.appendChild(hidden);
             });
             exportForm.submit();
+        });
+
+        bulkApproveForm?.addEventListener('submit', (e) => {
+            if (!appendSelectedPeerInputs(bulkApproveForm)) {
+                e.preventDefault();
+            }
+        });
+
+        bulkApproveDatesForm?.addEventListener('submit', (e) => {
+            if (!appendSelectedPeerInputs(bulkApproveDatesForm)) {
+                e.preventDefault();
+                return;
+            }
+
+            const startDate = document.getElementById('membershipStartDate')?.value;
+            const endDate = document.getElementById('membershipEndDate')?.value;
+            if (startDate && endDate && endDate < startDate) {
+                e.preventDefault();
+                alert('End Date must be the same as or after Start Date.');
+            }
         });
 
         const tooltipTriggerList = Array.from(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
