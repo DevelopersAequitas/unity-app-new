@@ -16,10 +16,12 @@ use App\Models\IndustryDirectorAssignment;
 use App\Models\JoinedCircleCategory;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Admin\DedLocationService;
 use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,6 +45,7 @@ class UsersController extends Controller
         private readonly ZohoBillingService $zohoBillingService,
         private readonly PublicProfileSlugService $publicProfileSlugService,
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
+        private readonly DedLocationService $dedLocationService,
     ) {
     }
 
@@ -255,6 +258,16 @@ class UsersController extends Controller
         $assignedAdminRoles = $adminUserForRoles
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
+        $states = $this->dedLocationService->getAvailableStates();
+        $assignedDedMapping = $adminUserForRoles
+            ? $this->dedLocationService->getAssignedDedDistrict((string) $adminUserForRoles->id)
+            : null;
+        $assignedDedStateId = $assignedDedMapping->state_id ?? null;
+        $assignedDedStateName = $assignedDedMapping->state_name ?? null;
+        $assignedDedDistrictId = $assignedDedMapping->district_id ?? null;
+        $assignedDedDistrictName = $assignedDedMapping->district_name ?? null;
+        $assignedDedDistricts = $this->dedLocationService->getAvailableDistrictsByState($assignedDedStateId);
+
         $industryDirectorAssignment = $adminUserForRoles
             ? IndustryDirectorAssignment::query()
                 ->where('admin_user_id', $adminUserForRoles->id)
@@ -337,6 +350,12 @@ class UsersController extends Controller
             'user' => $user,
             'cities' => $cities,
             'roles' => $roles,
+            'states' => $states,
+            'assignedDedStateId' => $assignedDedStateId,
+            'assignedDedDistrictId' => $assignedDedDistrictId,
+            'assignedDedStateName' => $assignedDedStateName,
+            'assignedDedDistrictName' => $assignedDedDistrictName,
+            'assignedDedDistricts' => $assignedDedDistricts,
             'industries' => $industries,
             'industryDirectorRoleId' => $industryDirectorRoleId,
             'selectedIndustryId' => $industryDirectorAssignment?->industry_id,
@@ -458,11 +477,60 @@ class UsersController extends Controller
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
+            'ded_state_id' => ['nullable', 'string', 'max:150'],
+            'ded_state_name' => ['nullable', 'string', 'max:150'],
+            'ded_district_id' => ['nullable', 'uuid'],
+            'ded_district_name' => ['nullable', 'string', 'max:150'],
             'industry_id' => ['nullable', 'uuid', 'exists:industries,id'],
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
 
+        $dedRoleId = Role::query()->where('key', 'ded')->value('id');
+        $isDedSelectedForValidation = $dedRoleId && in_array($dedRoleId, (array) $request->input('role_ids', []), true);
+        if ($isDedSelectedForValidation) {
+            $request->validate([
+                'ded_state_id' => [
+                    'required',
+                    'uuid',
+                    function (string $attribute, mixed $value, \Closure $fail): void {
+                        if (! Schema::hasTable('states')) {
+                            $fail('State data is not available. Please run the provided manual SQL before assigning DED.');
+                            return;
+                        }
+
+                        $exists = DB::table('states')
+                            ->where('id', $value)
+                            ->when(Schema::hasColumn('states', 'status'), fn ($query) => $query->where('status', 'active'))
+                            ->exists();
+
+                        if (! $exists) {
+                            $fail('Please select a valid active state when assigning the DED role.');
+                        }
+                    },
+                ],
+                'ded_district_id' => [
+                    'required',
+                    'uuid',
+                    function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                        if (! Schema::hasTable('districts') || ! Schema::hasColumn('districts', 'state_id')) {
+                            $fail('District data is not available. Please run the provided manual SQL before assigning DED.');
+                            return;
+                        }
+
+                        $exists = $this->dedLocationService->districtBelongsToState(
+                            (string) $value,
+                            (string) $request->input('ded_state_id'),
+                        );
+
+                        if (! $exists) {
+                            $fail('Please select a valid active district for the selected state.');
+                        }
+                    },
+                ],
+            ], [
+                'ded_state_id.required' => 'Please select a state when assigning the DED role.',
+                'ded_district_id.required' => 'Please select a district when assigning the DED role.',
         $selectedRoleIdsForValidation = collect($validated['role_ids'] ?? [])->map(fn ($id) => (string) $id);
         if ($industryDirectorRoleId && $selectedRoleIdsForValidation->contains((string) $industryDirectorRoleId) && blank($validated['industry_id'] ?? null)) {
             throw ValidationException::withMessages([
@@ -529,6 +597,10 @@ class UsersController extends Controller
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
         $updatableExclusions = [
             'role_ids',
+            'ded_state_id',
+            'ded_state_name',
+            'ded_district_id',
+            'ded_district_name',
             'industry_id',
             'profile_photo_file_id',
             'cover_photo_file_id',
@@ -775,7 +847,59 @@ class UsersController extends Controller
                         ->unique()
                         ->values()
                         ->all();
+                    $dedRoleId = Role::query()->where('key', 'ded')->value('id');
+                    $isDedSelected = $dedRoleId && in_array($dedRoleId, $selectedRoleIds, true);
 
+                    $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
+                    $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+
+                    if (Schema::hasTable('admin_ded_districts')) {
+                        if ($isDedSelected) {
+                            $districtId = (string) $request->input('ded_district_id');
+                            $stateId = $this->dedLocationService->canonicalStateIdForDistrict(
+                                $districtId,
+                                (string) $request->input('ded_state_id'),
+                            );
+                            $stateName = $this->dedLocationService->resolveStateName($stateId);
+                            $districtName = DB::table('districts')->where('id', $districtId)->value('name');
+                            $districtName = $this->dedLocationService->normalizeDistrictName($districtName);
+
+                            $payload = [
+                                'user_id' => $user->id,
+                                'updated_at' => now(),
+                            ];
+
+                            foreach ([
+                                'state_id' => $stateId,
+                                'district_id' => $districtId,
+                                'state_name' => $stateName,
+                                'district_name' => $districtName,
+                            ] as $column => $value) {
+                                if (Schema::hasColumn('admin_ded_districts', $column)) {
+                                    $payload[$column] = $value;
+                                }
+                            }
+
+                            $dedAssignmentExists = DB::table('admin_ded_districts')
+                                ->where('admin_user_id', $adminUser->id)
+                                ->exists();
+
+                            if ($dedAssignmentExists) {
+                                DB::table('admin_ded_districts')
+                                    ->where('admin_user_id', $adminUser->id)
+                                    ->update($payload);
+                            } else {
+                                DB::table('admin_ded_districts')->insert(array_merge($payload, [
+                                    'id' => (string) Str::uuid(),
+                                    'admin_user_id' => $adminUser->id,
+                                    'created_at' => now(),
+                                ]));
+                            }
+                        } else {
+                            DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+                        }
+
+                        Cache::forget('admin-access:ded-location:' . $adminUser->id);
                     DB::table('admin_user_roles')
                         ->where('user_id', $adminUser->id)
                         ->whereIn('role_id', $adminRoleIds)
@@ -970,6 +1094,11 @@ class UsersController extends Controller
                     'updated_at' => now(),
                 ]);
         });
+
+        if (Schema::hasTable('admin_ded_districts')) {
+            DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+            Cache::forget('admin-access:ded-location:' . $adminUser->id);
+        }
 
         return back()->with('success', 'Role removed successfully.');
     }
@@ -1556,6 +1685,8 @@ class UsersController extends Controller
                 },
             ]);
 
+        if (AdminAccess::isDed(Auth::guard('admin')->user())) {
+            AdminCircleScope::applyToUsersQuery($query, Auth::guard('admin')->user());
         $industryScope = app(IndustryScopeService::class);
         $adminUser = Auth::guard('admin')->user();
         if ($industryScope->isIndustryDirector($adminUser)) {

@@ -9,6 +9,7 @@ use App\Models\IndustryDirectorAssignment;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\AdminAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,6 +29,7 @@ class AdminAuthController extends Controller
         if (Auth::guard('admin')->check()) {
             $adminUser = Auth::guard('admin')->user();
 
+            return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
             if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
                 return redirect()->route('admin.industry-director.dashboard');
             }
@@ -170,6 +172,7 @@ class AdminAuthController extends Controller
         $request->session()->put('admin_login_email', $adminUser->email);
         $request->session()->regenerate();
 
+        return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
         if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
             return redirect()->route('admin.industry-director.dashboard');
         }
