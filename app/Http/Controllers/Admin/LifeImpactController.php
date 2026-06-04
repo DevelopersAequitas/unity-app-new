@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -46,6 +47,7 @@ class LifeImpactController extends Controller
             'members' => $members,
             'filters' => $filters,
             'circles' => AdminCircleScope::circleOptions(auth('admin')->user()),
+            'circles' => $this->circleOptions(auth('admin')->user()),
             'categories' => self::CATEGORIES,
             'impactStats' => $this->impactStatsByUserId($members->pluck('id')->all(), $filters),
             'summary' => $this->summaryStats($filters),
@@ -165,6 +167,7 @@ class LifeImpactController extends Controller
         }
 
         AdminCircleScope::applyToUsersQuery($query, auth('admin')->user());
+        app(IndustryScopeService::class)->applyToUsersQuery($query, auth('admin')->user());
 
         $search = trim((string) ($filters['q'] ?? $filters['search'] ?? ''));
         $circleId = (string) ($filters['circle_id'] ?? 'all');
@@ -483,6 +486,18 @@ class LifeImpactController extends Controller
         });
     }
 
+    private function circleOptions($admin)
+    {
+        $query = Circle::query()->orderBy('name');
+
+        if (app(IndustryScopeService::class)->isIndustryDirector($admin)) {
+            $circleIds = app(IndustryScopeService::class)->circleIdsForAdmin($admin);
+            $query->when($circleIds !== [], fn ($q) => $q->whereIn('id', $circleIds), fn ($q) => $q->whereRaw('1 = 0'));
+        }
+
+        return $query->get(['id', 'name']);
+    }
+
     private function historyFilters(Request $request): array
     {
         return [
@@ -495,7 +510,7 @@ class LifeImpactController extends Controller
 
     private function ensureMemberInScope(string $userId, $admin): void
     {
-        if (! AdminCircleScope::userInScope($admin, $userId)) {
+        if (! AdminCircleScope::userInScope($admin, $userId) || ! app(IndustryScopeService::class)->userInScope($admin, $userId)) {
             abort(403);
         }
     }

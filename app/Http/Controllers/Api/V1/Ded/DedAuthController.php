@@ -20,6 +20,7 @@ class DedAuthController extends Controller
     private const MAX_OTP_ATTEMPTS = 5;
 
     public function requestOtp(Request $request): JsonResponse
+    public function requestOtp(Request $request)
     {
         $validated = $request->validate([
             'email' => ['required', 'email'],
@@ -30,6 +31,11 @@ class DedAuthController extends Controller
 
         if (! $adminUser) {
             return $this->error('Only DED admin users can request a DED API OTP.', 403);
+        $email = mb_strtolower(trim($validated['email']));
+        $admin = $this->dedAdminByEmail($email);
+
+        if (! $admin || ! AdminAccess::isDed($admin)) {
+            return $this->error('Only DED admin users can request an OTP.', 403);
         }
 
         $recentOtp = AdminLoginOtp::query()
@@ -38,6 +44,7 @@ class DedAuthController extends Controller
             ->first();
 
         if ($recentOtp && $recentOtp->last_sent_at && $recentOtp->last_sent_at->diffInSeconds(now()->utc()) < self::OTP_RESEND_SECONDS) {
+        if ($recentOtp && $recentOtp->last_sent_at && $recentOtp->last_sent_at->diffInSeconds(now()->utc()) < 30) {
             return $this->error('Please wait before requesting another OTP.', 429);
         }
 
@@ -54,6 +61,7 @@ class DedAuthController extends Controller
 
         $otpRecord->otp_hash = Hash::make($otp);
         $otpRecord->expires_at = $now->copy()->addMinutes(self::OTP_EXPIRY_MINUTES);
+        $otpRecord->expires_at = $now->copy()->addMinutes(5);
         $otpRecord->last_sent_at = $now;
         $otpRecord->attempts = 0;
         $otpRecord->used_at = null;
@@ -61,6 +69,7 @@ class DedAuthController extends Controller
 
         Mail::raw(
             "Your DED API login OTP is {$otp}. It expires in " . self::OTP_EXPIRY_MINUTES . ' minutes.',
+            "Your DED API login OTP is {$otp}. It expires in 5 minutes.",
             static function ($message) use ($email): void {
                 $message->to($email)->subject('Your DED API Login OTP');
             }
@@ -73,6 +82,10 @@ class DedAuthController extends Controller
     }
 
     public function verifyOtp(Request $request): JsonResponse
+        return $this->success([], 'OTP sent successfully.');
+    }
+
+    public function verifyOtp(Request $request)
     {
         $validated = $request->validate([
             'email' => ['required', 'email'],
@@ -94,6 +107,19 @@ class DedAuthController extends Controller
         }
 
         $result = DB::transaction(function () use ($email, $otp): array {
+        $email = mb_strtolower(trim($validated['email']));
+        $admin = $this->dedAdminByEmail($email);
+
+        if (! $admin || ! AdminAccess::isDed($admin)) {
+            return $this->error('Only DED admin users can verify OTP.', 403);
+        }
+
+        $location = AdminAccess::assignedDedLocation($admin);
+        if (empty($location['district_name'])) {
+            return $this->error('DED district assignment is missing.', 403);
+        }
+
+        $result = DB::transaction(function () use ($email, $validated): array {
             $now = now()->utc();
 
             $otpRecord = AdminLoginOtp::query()
@@ -113,6 +139,11 @@ class DedAuthController extends Controller
             }
 
             if (! Hash::check($otp, $otpRecord->otp_hash)) {
+            if ($otpRecord->attempts >= 5) {
+                return ['status' => 423, 'message' => 'Too many attempts.'];
+            }
+
+            if (! Hash::check(trim($validated['otp']), $otpRecord->otp_hash)) {
                 $otpRecord->attempts += 1;
                 $otpRecord->updated_at = $now;
                 $otpRecord->save();
@@ -143,6 +174,18 @@ class DedAuthController extends Controller
                 'role' => 'ded',
                 'state' => $assignedDistrict['state_name'] ?? $assignedDistrict['state'] ?? null,
                 'district' => $assignedDistrict['district_name'] ?? $assignedDistrict['name'] ?? null,
+        $token = $admin->createToken('ded_api')->plainTextToken;
+
+        return $this->success([
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'admin' => [
+                'id' => $admin->id,
+                'name' => $admin->name,
+                'email' => $admin->email,
+                'role' => 'ded',
+                'district' => $location['district_name'] ?? null,
+                'state' => $location['state_name'] ?? null,
             ],
         ], 'DED login successful.');
     }
@@ -169,5 +212,29 @@ class DedAuthController extends Controller
     private function error(string $message, int $status = 400, array $errors = []): JsonResponse
     {
         return response()->json(['success' => false, 'message' => $message, 'errors' => (object) $errors], $status);
+    private function dedAdminByEmail(string $email): ?AdminUser
+    {
+        return AdminUser::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first();
+    }
+
+    private function success($data = [], string $message = 'OK', int $status = 200)
+    {
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'data' => $data,
+            'meta' => (object) [],
+        ], $status);
+    }
+
+    private function error(string $message, int $status = 400, array $errors = [])
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+            'errors' => (object) $errors,
+        ], $status);
     }
 }

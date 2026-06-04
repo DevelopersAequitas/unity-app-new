@@ -54,6 +54,8 @@ use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
 use App\Http\Controllers\Api\V1\Ded\DedAuthController;
 use App\Http\Controllers\Api\V1\Ded\DedCoinsController;
 use App\Http\Controllers\Api\V1\Ded\DedDashboardController as DedDashboardController;
+use App\Http\Controllers\Api\V1\Ded\DedContextController;
+use App\Http\Controllers\Api\V1\Ded\DedDashboardController;
 use App\Http\Controllers\Api\V1\Ded\DedPeersController;
 use App\Http\Controllers\Api\V1\Ded\DedPendingRequestsController;
 use App\Http\Controllers\Api\V1\Ded\DedReportsController;
@@ -74,6 +76,7 @@ use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\CircleCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
+use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\Api\V1\FollowController;
 use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
 use App\Http\Controllers\Api\V1\Forms\BecomeMentorController;
@@ -86,6 +89,7 @@ use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
+use App\Http\Controllers\Api\V1\MyEventQrController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
@@ -95,6 +99,8 @@ use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
+use App\Http\Controllers\Api\V1\ScanAppAuthController;
+use App\Http\Controllers\Api\V1\ScanAppEventController;
 use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController;
 use App\Http\Controllers\Api\V1\RequirementInterestController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
@@ -179,6 +185,18 @@ Route::middleware(['auth:sanctum', 'ensure.ded.api'])->prefix('v1/ded')->group(f
 });
 
 Route::prefix('v1')->group(function () {
+    Route::prefix('scan-app')->group(function () {
+        Route::post('/login', [ScanAppAuthController::class, 'login']);
+
+        Route::middleware(['auth:sanctum', 'scan.app.user'])->group(function () {
+            Route::get('/me', [ScanAppAuthController::class, 'me']);
+            Route::post('/logout', [ScanAppAuthController::class, 'logout']);
+            Route::get('/events', [ScanAppEventController::class, 'index']);
+            Route::post('/events/{event_id}/scan', [ScanAppEventController::class, 'scan'])->whereUuid('event_id');
+            Route::get('/events/{event}/attendance-history', [ScanAppEventController::class, 'attendanceHistory'])->whereUuid('event');
+        });
+    });
+
     Route::prefix('auth')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login']);
@@ -187,11 +205,83 @@ Route::prefix('v1')->group(function () {
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
-        Route::middleware('auth:sanctum')->group(function () {
+        Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
     });
+
+    Route::prefix('ded/auth')->group(function () {
+        Route::post('/request-otp', [DedAuthController::class, 'requestOtp']);
+        Route::post('/verify-otp', [DedAuthController::class, 'verifyOtp']);
+    });
+
+    Route::middleware(['auth:sanctum', 'ensure.ded.api'])
+        ->prefix('ded')
+        ->group(function () {
+            Route::get('/me', [DedContextController::class, 'me']);
+
+            Route::get('/dashboard', [DedDashboardController::class, 'show']);
+            Route::get('/dashboard/circles', [DedDashboardController::class, 'circles']);
+
+            Route::get('/circles', [DedPeersController::class, 'circles']);
+            Route::get('/peers', [DedPeersController::class, 'index']);
+            Route::get('/peers/{id}', [DedPeersController::class, 'show'])->whereUuid('id');
+
+            Route::get('/activities/summary', [DedActivitiesController::class, 'summary']);
+            Route::get('/activities/recommend-a-peer', [DedActivitiesController::class, 'recommendPeer']);
+            Route::get('/activities/find-build-collaborations', [DedActivitiesController::class, 'findBuildCollaborations']);
+            Route::get('/activities/register-a-visitor', [DedActivitiesController::class, 'registerVisitor']);
+
+            foreach (['testimonials', 'requirements', 'referrals', 'p2p-meetings', 'business-deals'] as $activityType) {
+                Route::get("/activities/{$activityType}", [DedActivitiesController::class, 'index'])
+                    ->defaults('type', $activityType);
+
+                Route::get("/activities/{$activityType}/{id}", [DedActivitiesController::class, 'show'])
+                    ->defaults('type', $activityType)
+                    ->whereUuid('id');
+            }
+
+            Route::get('/coins', [DedCoinsController::class, 'index']);
+            Route::get('/coins/history', [DedCoinsController::class, 'history']);
+
+            Route::get('/pending-requests/summary', [DedPendingRequestsController::class, 'summary']);
+
+            foreach ([
+                'visitor-registrations' => 'visitor_registrations',
+                'event-joining-requests' => 'event_joining_requests',
+                'coin-claims' => 'coin_claims',
+                'circle-joining-requests' => 'circle_joining_requests',
+                'pending-impacts' => 'pending_impacts',
+            ] as $uri => $type) {
+                Route::get("/pending-requests/{$uri}", [DedPendingRequestsController::class, 'index'])
+                    ->defaults('type', $type);
+
+                Route::get("/pending-requests/{$uri}/{id}", [DedPendingRequestsController::class, 'show'])
+                    ->defaults('type', $type)
+                    ->whereUuid('id');
+
+                Route::post("/pending-requests/{$uri}/{id}/approve", [DedPendingRequestsController::class, 'approve'])
+                    ->defaults('type', $type)
+                    ->whereUuid('id');
+
+                Route::post("/pending-requests/{$uri}/{id}/reject", [DedPendingRequestsController::class, 'reject'])
+                    ->defaults('type', $type)
+                    ->whereUuid('id');
+            }
+
+            Route::post('/pending-requests/circle-joining-requests/{id}/ded-approve', [DedPendingRequestsController::class, 'approve'])
+                ->defaults('type', 'circle_joining_requests')
+                ->whereUuid('id');
+
+            Route::get('/referral-report', [DedReportsController::class, 'referralReport']);
+            Route::get('/life-impact', [DedReportsController::class, 'lifeImpact']);
+
+            Route::get('/reports/referrals', [DedReportsController::class, 'referrals']);
+            Route::get('/reports/activities', [DedReportsController::class, 'activities']);
+            Route::get('/reports/coins', [DedReportsController::class, 'coins']);
+            Route::get('/reports/pending-requests', [DedReportsController::class, 'pendingRequests']);
+        });
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
@@ -212,6 +302,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/members-with-circles', [MemberWithCircleController::class, 'index'])->middleware('fixed.members.token');
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 
+    Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->whereUuid('eventId')->where('filename', '[^/]+\.png');
     Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register', [EventController::class, 'visitorRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
     Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
@@ -236,7 +327,12 @@ Route::prefix('v1')->group(function () {
     Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/events/checkin/scan', [EventController::class, 'scan']);
+    });
+
+    Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
+        Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
 
@@ -549,7 +645,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/events', [EventController::class, 'index']);
         Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
         Route::get('/my/event-registrations', [EventController::class, 'myEventRegistrations']);
-        Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
         Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
         Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
@@ -802,7 +897,7 @@ Route::prefix('v1')->group(function () {
     // Other module routes (members, circles, posts, etc.) will be added here later.
 });
 
-Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'unity.user'])->prefix('admin')->group(function () {
     Route::get('/campaigns', [AdminCampaignController::class, 'index']);
     Route::post('/campaigns', [AdminCampaignController::class, 'store']);
     Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);

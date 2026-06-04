@@ -14,6 +14,10 @@ class State extends Model
 
     protected $keyType = 'string';
 
+    use HasUuids;
+
+    protected $table = 'states';
+    protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [
@@ -24,5 +28,6 @@ class State extends Model
     public function districts(): HasMany
     {
         return $this->hasMany(District::class);
+        return $this->hasMany(District::class, 'state_id');
     }
 }

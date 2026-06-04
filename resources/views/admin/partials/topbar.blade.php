@@ -7,6 +7,9 @@
     $roleBadge = $isSuper
         ? 'Global Admin'
         : ($isDed ? ('DED' . ($dedDistrictName ? ' - ' . $dedDistrictName : '')) : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin'));
+    $roleBadge = $isSuper
+        ? 'Global Admin'
+        : ($isDed ? 'DED' : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin'));
 @endphp
 <header class="admin-topbar d-flex align-items-center justify-content-between px-4 py-3 border-bottom bg-white">
     <div class="d-flex align-items-center gap-3 flex-grow-1">
@@ -32,6 +35,7 @@
                         <li><a class="dropdown-item" href="{{ route('admin.users.index') }}">View Peers</a></li>
                         <li><a class="dropdown-item" href="{{ route('admin.activities.index') }}">View Activities</a></li>
                     @elseif ($isCircleScoped)
+                    @if ($isCircleScoped || $isDed)
                         <li><a class="dropdown-item" href="{{ route('admin.users.index') }}">View Peers</a></li>
                         <li><a class="dropdown-item" href="{{ route('admin.activities.index') }}">View Activities</a></li>
                         <li><a class="dropdown-item" href="{{ route('admin.coins.index') }}">View Coins</a></li>

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class CircleJoinRequest extends Model
@@ -62,6 +63,9 @@ class CircleJoinRequest extends Model
         'ded_approved_admin_user_id',
         'ded_approved_at',
         'ded_approval_status',
+        'ded_approval_status',
+        'ded_approved_by',
+        'ded_approved_at',
         'fee_marked_at',
         'fee_paid_at',
         'notes',
@@ -90,6 +94,61 @@ class CircleJoinRequest extends Model
                 $request->id = (string) Str::uuid();
             }
         });
+
+        static::saving(function (self $request): void {
+            if (! Schema::hasTable('circle_join_requests') || ! Schema::hasColumn('circle_join_requests', 'ded_approval_status')) {
+                return;
+            }
+
+            $status = (string) $request->status;
+            $dedStatus = (string) ($request->ded_approval_status ?: 'pending');
+
+            if (in_array($status, [self::STATUS_PENDING_CIRCLE_FEE, self::STATUS_CIRCLE_MEMBER, self::STATUS_PAID], true) && $dedStatus === 'pending') {
+                $request->ded_approval_status = 'approved';
+
+                if (Schema::hasColumn('circle_join_requests', 'ded_approved_by') && ! $request->ded_approved_by) {
+                    $request->ded_approved_by = $request->id_approved_by ?: $request->cd_approved_by;
+                }
+
+                if (Schema::hasColumn('circle_join_requests', 'ded_approved_at') && ! $request->ded_approved_at) {
+                    $request->ded_approved_at = $request->id_approved_at ?: ($request->cd_approved_at ?: ($request->fee_marked_at ?: now()));
+                }
+            }
+
+            if (in_array($status, [self::STATUS_REJECTED_BY_CD, self::STATUS_REJECTED_BY_ID, self::STATUS_CANCELLED], true) && $dedStatus === 'pending') {
+                $request->ded_approval_status = 'rejected';
+            }
+        });
+    }
+
+
+    public function effectiveDedApprovalStatus(): string
+    {
+        $status = (string) $this->status;
+        $dedStatus = (string) ($this->ded_approval_status ?: 'pending');
+
+        if (in_array($status, [self::STATUS_PENDING_CIRCLE_FEE, self::STATUS_CIRCLE_MEMBER, self::STATUS_PAID], true) && $dedStatus === 'pending') {
+            return 'approved';
+        }
+
+        if (in_array($status, [self::STATUS_REJECTED_BY_CD, self::STATUS_REJECTED_BY_ID, self::STATUS_CANCELLED], true) && $dedStatus === 'pending') {
+            return 'rejected';
+        }
+
+        return $dedStatus;
+    }
+
+    public function paymentStatusLabel(): string
+    {
+        if ($this->status === self::STATUS_PENDING_CIRCLE_FEE) {
+            return $this->fee_paid_at ? 'Paid' : 'Unpaid';
+        }
+
+        if (in_array((string) $this->status, [self::STATUS_CIRCLE_MEMBER, self::STATUS_PAID], true)) {
+            return 'Paid';
+        }
+
+        return 'Not Applicable';
     }
 
     public function scopePending(Builder $query): Builder
@@ -124,6 +183,9 @@ class CircleJoinRequest extends Model
 
                 AdminCircleScope::applyDedDistrictCircleScope($subQuery, $adminUser);
             });
+            AdminCircleScope::applyToActivityQuery($query, $adminUser, 'circle_join_requests.user_id', null);
+
+            return $query;
         }
 
         $allowedCircleIds = AdminAccess::allowedCircleIds($adminUser);

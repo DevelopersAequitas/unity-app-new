@@ -1,10 +1,15 @@
 <?php
 
+use App\Exceptions\QrGenerationException;
 use App\Http\Middleware\AdminCircleScope;
 use App\Http\Middleware\AdminRoleMiddleware;
 use App\Http\Middleware\AllowFixedMembersToken;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use App\Http\Middleware\EnsureDedApi;
+use App\Http\Middleware\EnsureDedApiAccess;
+use App\Http\Middleware\EnsureIndustryDirector;
+use App\Http\Middleware\EnsureScanAppUser;
+use App\Http\Middleware\EnsureUnityUser;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -20,13 +25,20 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
     )
+    ->withCommands([
+        __DIR__.'/../app/Console/Commands',
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'admin.auth' => EnsureAdminAuthenticated::class,
             'admin.role' => AdminRoleMiddleware::class,
+            'admin.industry-director' => EnsureIndustryDirector::class,
             'admin.circle' => AdminCircleScope::class,
             'fixed.members.token' => AllowFixedMembersToken::class,
             'ensure.ded.api' => EnsureDedApi::class,
+            'ensure.ded.api' => EnsureDedApiAccess::class,
+            'scan.app.user' => EnsureScanAppUser::class,
+            'unity.user' => EnsureUnityUser::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -37,6 +49,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (Throwable $e, Request $request) {
             if (! ($request->is('api/*') || $request->expectsJson())) {
                 return null;
+            }
+
+            if ($e instanceof QrGenerationException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 500);
             }
 
             if ($e instanceof ValidationException) {
@@ -55,6 +74,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 : 500;
 
             $payload = [
+            return response()->json([
                 'success' => false,
                 'status' => false,
                 'message' => $e->getMessage() ?: 'Something went wrong.',

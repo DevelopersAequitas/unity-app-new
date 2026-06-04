@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Admin\DedLocationService;
+use App\Services\Admin\DistrictSyncService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
 use App\Support\MediaFileUrl;
@@ -139,6 +140,10 @@ class User extends Authenticatable
         'zoho_last_invoice_id',
         'membership_starts_at',
         'membership_ends_at',
+        'membership_start_date',
+        'membership_end_date',
+        'membership_approved_at',
+        'membership_approved_by',
         'last_payment_at',
         'active_circle_subscription_id',
         'circle_joined_at',
@@ -172,6 +177,9 @@ class User extends Authenticatable
         'last_seen_at' => 'datetime',
         'membership_starts_at' => 'datetime',
         'membership_ends_at' => 'datetime',
+        'membership_start_date' => 'date',
+        'membership_end_date' => 'date',
+        'membership_approved_at' => 'datetime',
         'last_payment_at' => 'datetime',
         'circle_joined_at' => 'datetime',
         'circle_expires_at' => 'datetime',
@@ -231,6 +239,8 @@ class User extends Authenticatable
                 app(DedLocationService::class)->syncFromUser($user);
             } catch (Throwable $exception) {
                 report($exception);
+            if ($user->wasRecentlyCreated || $user->wasChanged(['city_id', 'city', 'business_city', 'state', 'business_state', 'district'])) {
+                app(DistrictSyncService::class)->syncFromUser($user);
             }
         });
     }

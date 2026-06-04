@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\AdminLoginOtp;
 use App\Models\AdminUser;
+use App\Models\IndustryDirectorAssignment;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
@@ -13,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -25,9 +27,20 @@ class AdminAuthController extends Controller
     public function showLogin(Request $request): RedirectResponse|View
     {
         if (Auth::guard('admin')->check()) {
+
             $admin = Auth::guard('admin')->user();
 
             return redirect()->route(AdminAccess::isDed($admin) ? 'admin.ded.dashboard' : 'admin.dashboard');
+
+            $adminUser = Auth::guard('admin')->user();
+
+            return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
+            if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
+                return redirect()->route('admin.industry-director.dashboard');
+            }
+
+            return redirect()->route('admin.dashboard');
+
         }
 
         return view('admin.auth.login');
@@ -166,6 +179,14 @@ class AdminAuthController extends Controller
         $request->session()->regenerate();
 
         return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
+
+
+        if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
+            return redirect()->route('admin.industry-director.dashboard');
+        }
+
+        return redirect()->route('admin.dashboard');
+
     }
 
     public function logout(Request $request): RedirectResponse
@@ -176,6 +197,24 @@ class AdminAuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('admin.login');
+    }
+
+    private function shouldRedirectToIndustryDirectorDashboard(?AdminUser $adminUser): bool
+    {
+        if (! $adminUser) {
+            return false;
+        }
+
+        $adminUser->loadMissing('roles:id,key');
+
+        if (! $adminUser->roles->pluck('key')->contains('industry_director')) {
+            return false;
+        }
+
+        return IndustryDirectorAssignment::query()
+            ->where('admin_user_id', $adminUser->id)
+            ->where('is_active', true)
+            ->exists();
     }
 
     private function eligibleAdmin(string $email): ?AdminUser
@@ -223,7 +262,21 @@ class AdminAuthController extends Controller
 
             $circleLeaderRoleId = Role::mustIdByKey('circle_leader');
 
-            $adminUser->roles()->syncWithoutDetaching([$circleLeaderRoleId]);
+            $hasCircleLeaderRole = DB::table('admin_user_roles')
+                ->where('user_id', $adminUser->id)
+                ->where('role_id', $circleLeaderRoleId)
+                ->exists();
+
+            if (! $hasCircleLeaderRole) {
+                DB::table('admin_user_roles')->insert([
+                    'id' => (string) Str::uuid(),
+                    'user_id' => $adminUser->id,
+                    'role_id' => $circleLeaderRoleId,
+                    'created_at' => now(),
+                ]);
+
+                Cache::forget('admin-access:roles:' . $adminUser->id);
+            }
 
             return $adminUser;
         });

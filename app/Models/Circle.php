@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Admin\DedLocationService;
+use App\Services\Admin\DistrictSyncService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -189,6 +190,8 @@ class Circle extends Model
                 app(DedLocationService::class)->syncFromCircle($circle);
             } catch (\Throwable $exception) {
                 report($exception);
+            if ($circle->wasRecentlyCreated || $circle->wasChanged(['city_id', 'city', 'city_display', 'state', 'district'])) {
+                app(DistrictSyncService::class)->syncFromCircle($circle);
             }
         });
     }

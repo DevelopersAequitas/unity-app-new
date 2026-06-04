@@ -16,6 +16,10 @@ class AdminDedDistrict extends Model
 
     protected $keyType = 'string';
 
+    use HasUuids;
+
+    protected $table = 'admin_ded_districts';
+    protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [

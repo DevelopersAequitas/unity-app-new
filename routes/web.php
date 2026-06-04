@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\CoinClaimsController;
 use App\Http\Controllers\Admin\CircleJoinRequestsController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\LoginHistoryController;
+use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\PostReportsController;
 use App\Http\Controllers\Admin\PostModerationController;
@@ -40,8 +41,10 @@ use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\EventManagementController;
+use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\LocationController;
+use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 
 Route::get('/', function () {
     return view('landing');
@@ -59,6 +62,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             if (\App\Support\AdminAccess::isDed($admin)) {
                 return redirect()->route('admin.ded.dashboard');
+            $isIndustryDirector = $admin?->roles()->where('key', 'industry_director')->exists() ?? false;
+
+            if ($isIndustryDirector) {
+                return redirect()->route('admin.industry-director.dashboard');
             }
 
             return redirect()->route('admin.dashboard');
@@ -66,9 +73,19 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/ded-dashboard', [DashboardController::class, 'ded'])->name('ded.dashboard');
         Route::get('/location/states/{state}/districts', [LocationController::class, 'districts'])->name('location.states.districts')->whereUuid('state');
+        Route::get('/ded/dashboard', fn () => redirect()->route('admin.ded.dashboard'))->name('ded.dashboard.legacy');
+        Route::get('/location/states/{state}/districts', [LocationController::class, 'districts'])->whereUuid('state')->name('location.states.districts');
+        Route::get('/industry-director/dashboard', [IndustryDirectorDashboardController::class, 'index'])
+            ->middleware('admin.industry-director')
+            ->name('industry-director.dashboard');
+        Route::post('/industry-director/switch-industry', [IndustryDirectorDashboardController::class, 'switchIndustry'])
+            ->middleware('admin.industry-director')
+            ->name('industry-director.switch-industry');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
+        Route::post('/users/bulk-approve-membership', [UsersController::class, 'bulkApproveMembership'])->name('users.bulk-approve-membership');
+        Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->name('users.approve-membership');
         Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [UsersController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->name('users.circle-members.destroy');
@@ -156,6 +173,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
+        Route::get('/event-scan-credentials', [EventScanCredentialController::class, 'index'])->name('event-scan-credentials.index');
+        Route::get('/event-scan-credentials/create', [EventScanCredentialController::class, 'create'])->name('event-scan-credentials.create');
+        Route::post('/event-scan-credentials', [EventScanCredentialController::class, 'store'])->name('event-scan-credentials.store');
+        Route::get('/event-scan-credentials/{eventScanCredential}/edit', [EventScanCredentialController::class, 'edit'])->name('event-scan-credentials.edit');
+        Route::put('/event-scan-credentials/{eventScanCredential}', [EventScanCredentialController::class, 'update'])->name('event-scan-credentials.update');
+        Route::post('/event-scan-credentials/{eventScanCredential}/toggle', [EventScanCredentialController::class, 'toggle'])->name('event-scan-credentials.toggle');
+        Route::post('/event-scan-credentials/{eventScanCredential}/reset-password', [EventScanCredentialController::class, 'resetPassword'])->name('event-scan-credentials.reset-password');
         Route::get('/events', [EventManagementController::class, 'index'])->name('events.index');
         Route::get('/event-joining-requests', [EventManagementController::class, 'joiningRequests'])->name('event-joining-requests.index');
         Route::post('/event-joining-requests/{id}/approve', [EventManagementController::class, 'approveJoiningRequest'])->whereUuid('id')->name('event-joining-requests.approve');
@@ -213,6 +237,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-cd', [CircleJoinRequestsController::class, 'approveCd'])->whereUuid('id')->name('circle-joining-requests.approve-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-cd', [CircleJoinRequestsController::class, 'rejectCd'])->whereUuid('id')->name('circle-joining-requests.reject-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-id', [CircleJoinRequestsController::class, 'approveId'])->whereUuid('id')->name('circle-joining-requests.approve-id');
+        Route::post('/pending-requests/circle-joining-requests/{id}/approve-ded', [CircleJoinRequestsController::class, 'approveDed'])->whereUuid('id')->name('circle-joining-requests.approve-ded');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-id', [CircleJoinRequestsController::class, 'rejectId'])->whereUuid('id')->name('circle-joining-requests.reject-id');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-ded', [CircleJoinRequestsController::class, 'approveDed'])->whereUuid('id')->name('circle-joining-requests.approve-ded');
 

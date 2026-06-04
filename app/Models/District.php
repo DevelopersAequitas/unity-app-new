@@ -15,6 +15,10 @@ class District extends Model
 
     protected $keyType = 'string';
 
+    use HasUuids;
+
+    protected $table = 'districts';
+    protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [
@@ -31,5 +35,11 @@ class District extends Model
     public function cities(): HasMany
     {
         return $this->hasMany(City::class, 'district', 'name');
+        return $this->belongsTo(State::class, 'state_id');
+    }
+
+    public function dedAssignments(): HasMany
+    {
+        return $this->hasMany(AdminDedDistrict::class, 'district_id');
     }
 }

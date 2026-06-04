@@ -19,10 +19,13 @@ use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
 use App\Models\EventRsvp;
+use App\Models\ScanAppUser;
+use App\Models\User;
 use App\Services\Events\EventCheckinService;
 use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventPaymentSyncService;
 use App\Services\Events\EventRegistrationService;
+use App\Services\Events\EventScannerQrScanService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventQrService;
 use App\Services\Events\EventRazorpayPaymentFinalizer;
@@ -37,6 +40,7 @@ class EventController extends BaseApiController
         private readonly EventService $events,
         private readonly EventRegistrationService $registrations,
         private readonly EventCheckinService $checkins,
+        private readonly EventScannerQrScanService $scannerQrScans,
         private readonly EventPaymentService $payments,
         private readonly EventPaymentSyncService $eventPaymentSync,
         private readonly EventRazorpayPaymentService $razorpayPayments,
@@ -398,7 +402,7 @@ class EventController extends BaseApiController
             'payment_completed_at' => optional($registration->payment_completed_at)->toISOString(),
             'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid'
                 ? null
-                : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
+                : ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url),
             'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
             'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
             'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,
@@ -582,7 +586,7 @@ class EventController extends BaseApiController
                 'razorpay_order_id' => $registration->razorpay_order_id ?? null,
                 'payment_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
                 'checkout_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
-                'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_url ?: $qr->url($registration->qr_code_path)),
+                'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_path ? $qr->url($registration->qr_code_path) : $registration->qr_code_url),
                 'attendee_type' => $registration->user_id ? 'member' : 'visitor',
             ])->values(),
         ], 'My registrations fetched successfully.');
@@ -597,9 +601,48 @@ class EventController extends BaseApiController
 
     public function scan(ScanEventQrRequest $request)
     {
-        $registration = $this->checkins->scan($request->input('qr_token'), $request->user(), (bool) $request->boolean('force'));
+        $authUser = $request->user();
+        $qrToken = trim((string) $request->input('qr_token'));
 
-        return $this->success(new EventRegistrationResource($registration), 'Attendance marked successfully.');
+        if ($authUser instanceof ScanAppUser) {
+            return $this->scannerScanResponse(
+                $this->scannerQrScans->scan($authUser, $qrToken, $this->deviceInfo($request))
+            );
+        }
+
+        if ($authUser instanceof User) {
+            $registration = $this->checkins->scan($qrToken, $authUser, (bool) $request->boolean('force'));
+
+            return $this->success(new EventRegistrationResource($registration), 'Attendance marked successfully.');
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthenticated.',
+        ], 401);
+    }
+
+    private function scannerScanResponse(array $result)
+    {
+        if ($result['success']) {
+            return $this->success($result['data'], $result['message'], $result['status']);
+        }
+
+        if ($result['errors'] !== null) {
+            return $this->error($result['message'], $result['status'], $result['errors']);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => $result['message'],
+        ], $result['status']);
+    }
+
+    private function deviceInfo(Request $request): ?array
+    {
+        $deviceInfo = $request->input('device_info');
+
+        return is_array($deviceInfo) ? $deviceInfo : null;
     }
 
     public function attendance(Request $request, string $eventId)
@@ -654,7 +697,7 @@ class EventController extends BaseApiController
                 'start_at' => optional($r->occurrence?->start_at)->toISOString(),
                 'end_at' => optional($r->occurrence?->end_at)->toISOString(),
             ],
-            'qr_code_url' => $r->qr_code_url ?: app(EventQrService::class)->url($r->qr_code_path),
+            'qr_code_url' => $r->qr_code_path ? app(EventQrService::class)->url($r->qr_code_path) : $r->qr_code_url,
             'invoice_sync_error' => $r->zoho_invoice_sync_error,
         ]), 'Event invoice fetched successfully.');
     }
@@ -686,7 +729,7 @@ class EventController extends BaseApiController
             'zoho_invoice_sync_error' => $registration->zoho_invoice_sync_error,
             'zoho_payment_id' => $registration->zoho_payment_id,
             'paid_at' => optional($registration->payment_completed_at)->toISOString(),
-            'qr_code_url' => $registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path),
+            'qr_code_url' => $registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url,
             'visitor_designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
             'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
             'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
@@ -796,7 +839,7 @@ class EventController extends BaseApiController
     {
         $qrUrl = ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid'
             ? null
-            : ($registration->qr_code_url ?: $qr->url($registration->qr_code_path));
+            : ($registration->qr_code_path ? $qr->url($registration->qr_code_path) : $registration->qr_code_url);
 
         return [
             'registration_id' => $registration->id,
