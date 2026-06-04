@@ -152,11 +152,24 @@ class DedApiService
 
     public function applyActivityScope($query, AdminUser $admin, string $primaryColumn, ?string $peerColumn = null, ?string $circleId = null): void
     {
-        AdminCircleScope::applyToActivityQuery($query, $admin, $primaryColumn, $peerColumn);
+        $primaryColumn = $this->qualifiedColumnExists($primaryColumn) ? $primaryColumn : null;
+        $peerColumn = $peerColumn && $this->qualifiedColumnExists($peerColumn) ? $peerColumn : null;
+
+        if (! $primaryColumn && ! $peerColumn) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $scopePrimaryColumn = $primaryColumn ?: $peerColumn;
+        $scopePeerColumn = $primaryColumn ? $peerColumn : null;
+
+        AdminCircleScope::applyToActivityQuery($query, $admin, $scopePrimaryColumn, $scopePeerColumn);
 
         if ($circleId && $circleId !== 'all') {
             $query->where(function ($circleQuery) use ($primaryColumn, $peerColumn, $circleId): void {
-                $this->whereUserInCircle($circleQuery, $primaryColumn, $circleId);
+                if ($primaryColumn) {
+                    $this->whereUserInCircle($circleQuery, $primaryColumn, $circleId);
+                }
 
                 if ($peerColumn) {
                     $circleQuery->orWhere(function ($peerQuery) use ($peerColumn, $circleId): void {
@@ -177,6 +190,108 @@ class DedApiService
                 ->whereNull('ded_api_activity_circle_members.deleted_at')
                 ->where('ded_api_activity_circle_members.circle_id', $circleId);
         });
+    }
+
+
+    private function qualifiedColumnExists(string $qualifiedColumn): bool
+    {
+        if (! str_contains($qualifiedColumn, '.')) {
+            return true;
+        }
+
+        [$table, $column] = explode('.', $qualifiedColumn, 2);
+
+        if (! Schema::hasTable($table)) {
+            return true;
+        }
+
+        return Schema::hasColumn($table, $column);
+    }
+
+    private function existingQualifiedColumns(string $table, array $columns): array
+    {
+        if (! Schema::hasTable($table)) {
+            return [];
+        }
+
+        return collect($columns)
+            ->filter(fn (string $column): bool => Schema::hasColumn($table, $column))
+            ->map(fn (string $column): string => "{$table}.{$column}")
+            ->values()
+            ->all();
+    }
+
+    private function applyAnyUserColumnScope($query, AdminUser $admin, array $qualifiedColumns, ?string $circleId = null): void
+    {
+        if ($qualifiedColumns === []) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $primaryColumn = array_shift($qualifiedColumns);
+        $query->where(function ($scopeQuery) use ($admin, $primaryColumn, $qualifiedColumns): void {
+            AdminCircleScope::applyDedDistrictScope($scopeQuery, $admin, $primaryColumn);
+
+            foreach ($qualifiedColumns as $qualifiedColumn) {
+                $scopeQuery->orWhere(function ($orQuery) use ($admin, $qualifiedColumn): void {
+                    AdminCircleScope::applyDedDistrictScope($orQuery, $admin, $qualifiedColumn);
+                });
+            }
+        });
+
+        if ($circleId && $circleId !== 'all') {
+            $circleColumns = array_merge([$primaryColumn], $qualifiedColumns);
+            $query->where(function ($circleQuery) use ($circleColumns, $circleId): void {
+                foreach ($circleColumns as $index => $qualifiedColumn) {
+                    $method = $index === 0 ? 'where' : 'orWhere';
+                    $circleQuery->{$method}(function ($innerQuery) use ($qualifiedColumn, $circleId): void {
+                        $this->whereUserInCircle($innerQuery, $qualifiedColumn, $circleId);
+                    });
+                }
+            });
+        }
+    }
+
+    private function applyDirectLocationScope($query, AdminUser $admin, string $table): void
+    {
+        $location = AdminAccess::assignedDedLocation($admin);
+        $districtName = trim((string) ($location['district_name'] ?? ''));
+        $stateName = trim((string) ($location['state_name'] ?? ''));
+
+        if ($districtName === '') {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $districtColumns = array_values(array_filter(
+            ['district', 'district_name', 'visitor_district', 'city', 'visitor_city'],
+            fn (string $column): bool => Schema::hasColumn($table, $column)
+        ));
+        $stateColumns = array_values(array_filter(
+            ['state', 'state_name', 'visitor_state'],
+            fn (string $column): bool => Schema::hasColumn($table, $column)
+        ));
+
+        if ($districtColumns === []) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->where(function ($locationQuery) use ($table, $districtColumns, $districtName): void {
+            foreach ($districtColumns as $index => $column) {
+                $method = $index === 0 ? 'whereRaw' : 'orWhereRaw';
+                $locationQuery->{$method}("LOWER(TRIM({$table}.{$column}::text)) = ?", [mb_strtolower($districtName)]);
+            }
+        });
+
+        if ($stateName !== '' && $stateColumns !== []) {
+            $query->where(function ($stateQuery) use ($table, $stateColumns, $stateName): void {
+                foreach ($stateColumns as $index => $column) {
+                    $method = $index === 0 ? 'whereRaw' : 'orWhereRaw';
+                    $stateQuery->{$method}("LOWER(TRIM({$table}.{$column}::text)) = ?", [mb_strtolower($stateName)]);
+                }
+            });
+        }
     }
 
     public function dashboard(AdminUser $admin, Request $request): array
@@ -453,8 +568,18 @@ class DedApiService
                 }
             }
 
-            foreach (['fromUser', 'toUser', 'user', 'initiator', 'peer', 'impactedPeer', 'invitedByUser'] as $relation) {
-                if (method_exists($model, $relation)) {
+            $relationForeignKeys = [
+                'fromUser' => 'from_user_id',
+                'toUser' => 'to_user_id',
+                'user' => 'user_id',
+                'initiator' => 'initiator_user_id',
+                'peer' => 'peer_user_id',
+                'impactedPeer' => 'impacted_peer_id',
+                'invitedByUser' => 'invited_by_user_id',
+            ];
+
+            foreach ($relationForeignKeys as $relation => $foreignKey) {
+                if (method_exists($model, $relation) && Schema::hasColumn($table, $foreignKey)) {
                     $inner->orWhereHas($relation, fn ($q) => $q->where('display_name', 'ILIKE', $like)
                         ->orWhere('first_name', 'ILIKE', $like)
                         ->orWhere('last_name', 'ILIKE', $like)
@@ -496,8 +621,26 @@ class DedApiService
 
     public function visitorRegistrationsQuery(AdminUser $admin, ?string $circleId = null): EloquentBuilder
     {
-        $query = VisitorRegistration::query()->with(['user', 'invitedByUser']);
-        $this->applyActivityScope($query, $admin, 'visitor_registrations.user_id', 'visitor_registrations.invited_by_user_id', $circleId);
+        $relations = ['user'];
+        if (Schema::hasColumn('visitor_registrations', 'invited_by_user_id')) {
+            $relations[] = 'invitedByUser';
+        }
+
+        $query = VisitorRegistration::query()->with($relations);
+        $userColumns = $this->existingQualifiedColumns('visitor_registrations', [
+            'user_id',
+            'invited_by_user_id',
+            'created_by_user_id',
+            'registered_by_user_id',
+            'peer_id',
+            'visitor_user_id',
+        ]);
+
+        if ($userColumns !== []) {
+            $this->applyAnyUserColumnScope($query, $admin, $userColumns, $circleId);
+        } else {
+            $this->applyDirectLocationScope($query, $admin, 'visitor_registrations');
+        }
 
         return $query;
     }
@@ -512,8 +655,20 @@ class DedApiService
         $this->applyEventRegistrationRequestScope($query, $admin);
         if ($circleId && $circleId !== 'all') {
             $query->where(function ($q) use ($circleId): void {
-                $q->where('event_circle_id', $circleId)
-                    ->orWhereHas('event', fn ($eventQuery) => $eventQuery->where('circle_id', $circleId));
+                $hasDirectCircle = Schema::hasColumn('event_registration_requests', 'event_circle_id');
+                if ($hasDirectCircle) {
+                    $q->where('event_circle_id', $circleId);
+                }
+
+                $hasEvent = Schema::hasColumn('event_registration_requests', 'event_id');
+                if ($hasEvent) {
+                    $method = $hasDirectCircle ? 'orWhereHas' : 'whereHas';
+                    $q->{$method}('event', fn ($eventQuery) => $eventQuery->where('circle_id', $circleId));
+                }
+
+                if (! $hasDirectCircle && ! $hasEvent) {
+                    $q->whereRaw('1=0');
+                }
             });
         }
 
@@ -523,11 +678,25 @@ class DedApiService
     public function applyEventRegistrationRequestScope(EloquentBuilder $query, AdminUser $admin): void
     {
         $query->where(function ($scope) use ($admin): void {
-            $scope->where(function ($userScope) use ($admin): void {
-                AdminCircleScope::applyDedDistrictScope($userScope, $admin, 'event_registration_requests.user_id');
-            })->orWhereHas('event', function ($eventQuery) use ($admin): void {
-                AdminCircleScope::applyToEventsQuery($eventQuery, $admin);
-            });
+            $hasUser = Schema::hasColumn('event_registration_requests', 'user_id');
+            $hasEvent = Schema::hasColumn('event_registration_requests', 'event_id');
+
+            if ($hasUser) {
+                $scope->where(function ($userScope) use ($admin): void {
+                    AdminCircleScope::applyDedDistrictScope($userScope, $admin, 'event_registration_requests.user_id');
+                });
+            }
+
+            if ($hasEvent) {
+                $method = $hasUser ? 'orWhereHas' : 'whereHas';
+                $scope->{$method}('event', function ($eventQuery) use ($admin): void {
+                    AdminCircleScope::applyToEventsQuery($eventQuery, $admin);
+                });
+            }
+
+            if (! $hasUser && ! $hasEvent) {
+                $scope->whereRaw('1=0');
+            }
         });
     }
 
