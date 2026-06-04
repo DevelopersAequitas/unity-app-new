@@ -8,9 +8,27 @@
             <p class="text-muted mb-1">Industry Director</p>
             <h1 class="h3 mb-0">{{ $industry?->name ?? 'Assigned Industry' }} Dashboard</h1>
             <div class="text-muted small mt-1">
-                Includes assigned industry{{ $industryCount > 1 ? ' and '.($industryCount - 1).' child industries/categories' : '' }}.
+                Includes selected industry{{ $industryCount > 1 ? ' and '.($industryCount - 1).' child industries/categories' : '' }}.
             </div>
         </div>
+        @if (($assignedIndustries ?? collect())->count() > 1)
+            <form method="POST" action="{{ route('admin.industry-director.switch-industry') }}" class="d-flex align-items-end gap-2">
+                @csrf
+                <div>
+                    <label for="selected-industry-id" class="form-label small text-muted mb-1">Selected industry</label>
+                    <select id="selected-industry-id" name="selected_industry_id" class="form-select" onchange="this.form.submit()">
+                        @foreach ($assignedIndustries as $assignedIndustry)
+                            <option value="{{ $assignedIndustry->id }}" @selected((string) $selectedIndustryId === (string) $assignedIndustry->id)>
+                                {{ $assignedIndustry->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <noscript>
+                    <button type="submit" class="btn btn-primary">Switch</button>
+                </noscript>
+            </form>
+        @endif
     </div>
 
     <div class="row g-3">

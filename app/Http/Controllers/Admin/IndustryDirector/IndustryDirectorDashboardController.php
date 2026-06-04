@@ -11,6 +11,8 @@ use App\Models\Post;
 use App\Models\User;
 use App\Services\IndustryDirector\IndustryScopeService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,19 +22,27 @@ use Illuminate\View\View;
 
 class IndustryDirectorDashboardController extends Controller
 {
-    public function index(IndustryScopeService $industryScope): View
+    public function index(Request $request, IndustryScopeService $industryScope): View
     {
         $admin = Auth::guard('admin')->user();
         $adminUserId = (string) $admin->id;
-        $assignedIndustryId = $industryScope->assignedIndustryIdForAdmin($adminUserId);
-        $industryIds = $industryScope->industryIdsForAdmin($adminUserId);
-        $memberIds = $industryScope->memberIdsForAdminIndustry($adminUserId);
+        $selectedIndustryId = $industryScope->selectedIndustryId($request);
+        abort_unless($selectedIndustryId, 403, 'No active industry assignment found.');
+
+        $assignedIndustryIds = $industryScope->assignedIndustryIdsForAdmin($adminUserId);
+        $industryIds = $industryScope->industryIdsForFilter($selectedIndustryId);
+        $memberIds = $industryScope->memberIds($selectedIndustryId);
         $circleIds = $industryScope->circleIdsForIndustryIds($industryIds);
-        $industry = $assignedIndustryId ? Industry::query()->find($assignedIndustryId) : null;
+        $industry = Industry::query()->find($selectedIndustryId);
+        $assignedIndustries = Industry::query()
+            ->whereIn('id', $assignedIndustryIds)
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         Log::info('IDE Industry Scope Debug', [
             'admin_user_id' => Auth::guard('admin')->id(),
-            'assigned_industry_id' => $assignedIndustryId,
+            'selected_industry_id' => $selectedIndustryId,
+            'assigned_industry_ids' => $assignedIndustryIds,
             'industry_ids' => $industryIds,
             'matched_member_count' => count($memberIds),
             'matched_member_ids' => $memberIds,
@@ -42,6 +52,27 @@ class IndustryDirectorDashboardController extends Controller
             'total_industry_members' => $this->usersByMemberIdsQuery($memberIds)->count(),
             'active_members' => $this->usersByMemberIdsQuery($memberIds)
                 ->when(Schema::hasColumn('users', 'deleted_at'), fn (Builder $query) => $query->whereNull('deleted_at'))
+                ->where(function (Builder $query): void {
+                    $hasActiveColumn = false;
+
+                    if (Schema::hasColumn('users', 'status')) {
+                        $query->orWhere('status', 'active');
+                        $hasActiveColumn = true;
+                    }
+
+                    if (Schema::hasColumn('users', 'membership_status')) {
+                        $query->orWhereIn('membership_status', [
+                            'visitor',
+                            'premium',
+                            'charter',
+                        ]);
+                        $hasActiveColumn = true;
+                    }
+
+                    if (! $hasActiveColumn) {
+                        $query->whereRaw('1 = 1');
+                    }
+                })
                 ->count(),
             'new_registrations' => $this->usersByMemberIdsQuery($memberIds)
                 ->where('created_at', '>=', now()->startOfMonth())
@@ -66,7 +97,21 @@ class IndustryDirectorDashboardController extends Controller
             'industry' => $industry,
             'industryCount' => count($industryIds),
             'metrics' => $metrics,
+            'assignedIndustries' => $assignedIndustries,
+            'selectedIndustryId' => $selectedIndustryId,
         ]);
+    }
+
+    public function switchIndustry(Request $request, IndustryScopeService $industryScope): RedirectResponse
+    {
+        $validated = $request->validate([
+            'selected_industry_id' => ['required', 'uuid'],
+        ]);
+
+        $industryScope->ensureAdminCanAccessIndustry((string) Auth::guard('admin')->id(), $validated['selected_industry_id']);
+        $industryScope->setSelectedIndustry($validated['selected_industry_id']);
+
+        return redirect()->back();
     }
 
     private function usersByMemberIdsQuery(array $memberIds): Builder

@@ -68,6 +68,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/industry-director/dashboard', [IndustryDirectorDashboardController::class, 'index'])
             ->middleware('admin.industry-director')
             ->name('industry-director.dashboard');
+        Route::post('/industry-director/switch-industry', [IndustryDirectorDashboardController::class, 'switchIndustry'])
+            ->middleware('admin.industry-director')
+            ->name('industry-director.switch-industry');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
