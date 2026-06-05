@@ -13,6 +13,8 @@ use App\Http\Resources\Event\EventOccurrenceListResource;
 use App\Http\Resources\Event\EventRegistrationResource;
 use App\Http\Resources\EventResource;
 use App\Http\Resources\EventRsvpResource;
+use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\Event;
 use App\Models\EventOccurrence;
@@ -33,6 +35,7 @@ use App\Services\Events\EventRazorpayPaymentService;
 use App\Services\Events\EventZohoInvoiceSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class EventController extends BaseApiController
 {
@@ -317,7 +320,8 @@ class EventController extends BaseApiController
         $registration = $this->registrations->registerVisitor(
             $event,
             EventOccurrence::query()->findOrFail($occurrenceId),
-            $request->validated() + ['source' => $request->input('source', 'visitor_app')]
+            $request->validated(),
+            $request->input('source', 'visitor_app')
         );
         Log::info('public_event_registration_payment_link_created', ['event_id' => $event->id, 'occurrence_id' => $occurrenceId, 'registration_id' => (string) $registration->id]);
 
@@ -484,6 +488,21 @@ class EventController extends BaseApiController
         ], 'Public event fetched successfully.');
     }
 
+    public function publicRegistrationForm(string $eventId, string $occurrenceId)
+    {
+        $occurrence = EventOccurrence::query()
+            ->with(['event.circle'])
+            ->where('event_id', $eventId)
+            ->findOrFail($occurrenceId);
+        $event = $occurrence->event;
+
+        if (! ($event->is_public || $event->visibility === 'public' || $this->events->visitorRegistrationEnabled($event))) {
+            return $this->error('Event is not available for public registration.', 403);
+        }
+
+        return $this->success($this->publicRegistrationFormPayload($event, $occurrence), 'Public event registration form fetched successfully.');
+    }
+
     public function publicRegister(VisitorEventRegistrationRequest $request, string $eventId, string $occurrenceId)
     {
         $event = Event::query()->findOrFail($eventId);
@@ -494,7 +513,8 @@ class EventController extends BaseApiController
         $registration = $this->registrations->registerVisitor(
             $event,
             EventOccurrence::query()->findOrFail($occurrenceId),
-            $request->validated() + ['source' => 'visitor_web']
+            $request->validated(),
+            'api'
         );
         Log::info('public_event_registration_payment_link_created', ['event_id' => $event->id, 'occurrence_id' => $occurrenceId, 'registration_id' => (string) $registration->id]);
         $requiresPayment = (bool) ($registration->payment_required ?? false);
@@ -743,6 +763,73 @@ class EventController extends BaseApiController
             'invited_by_user_id' => $registration->invited_by_user_id ?? data_get($registration->metadata, 'invited_by_user_id'),
             'invited_by_user' => $this->invitedByUserPayload($registration->invitedByUser),
             'created_at' => optional($registration->created_at)->toISOString(),
+        ];
+    }
+
+    private function publicRegistrationFormPayload(Event $event, EventOccurrence $occurrence, bool $includeCategories = true): array
+    {
+        return [
+            'event' => [
+                'id' => $event->id,
+                'title' => $event->title,
+                'name' => $event->title,
+                'description' => $event->description,
+                'basic_details' => [
+                    'event_type' => $event->event_type,
+                    'event_category' => $event->event_category,
+                    'mode' => $event->mode,
+                    'circle' => $event->circle ? [
+                        'id' => $event->circle->id,
+                        'name' => $event->circle->name ?? null,
+                    ] : null,
+                ],
+                'start_at' => optional($occurrence->start_at ?? $event->start_at)->toISOString(),
+                'end_at' => optional($occurrence->end_at ?? $event->end_at)->toISOString(),
+                'location_text' => $event->location_text,
+                'mode' => $event->mode,
+                'online_meeting_url' => $event->online_meeting_url,
+                'is_paid' => (bool) $event->is_paid,
+                'ticket_price' => (string) ($event->ticket_price ?? '0.00'),
+                'currency' => $this->payments->currency($event),
+                'visitor_registration_enabled' => $this->events->visitorRegistrationEnabled($event),
+            ],
+            'occurrence' => [
+                'id' => $occurrence->id,
+                'event_id' => $occurrence->event_id,
+                'occurrence_date' => optional($occurrence->occurrence_date)->toDateString(),
+                'start_at' => optional($occurrence->start_at)->toISOString(),
+                'end_at' => optional($occurrence->end_at)->toISOString(),
+                'status' => $occurrence->status,
+                'sequence' => $occurrence->sequence,
+                'registration_limit' => $occurrence->registration_limit,
+                'registered_count' => $occurrence->registered_count,
+                'metadata' => $occurrence->metadata,
+            ],
+            'categories' => $includeCategories ? $this->publicRegistrationCategories() : null,
+            'submit_url' => url('/api/v1/public/events/'.$event->id.'/occurrences/'.$occurrence->id.'/register'),
+            'web_form_url' => url('/events/'.$event->id.'/occurrences/'.$occurrence->id.'/visitor-register'),
+        ];
+    }
+
+    private function publicRegistrationCategories(): array
+    {
+        $main = Schema::hasTable('circle_categories')
+            ? CircleCategory::query()->orderBy('name')->get(['id', 'name'])->map(fn ($category) => [
+                'id' => $category->id,
+                'name' => $category->name,
+            ])->values()->all()
+            : [];
+
+        $sub = (Schema::hasTable('level4_categories') || Schema::hasTable('circle_category_level4'))
+            ? CircleCategoryLevel4::query()->orderBy('name')->get(['id', 'name'])->map(fn ($category) => [
+                'id' => $category->id,
+                'name' => $category->name,
+            ])->values()->all()
+            : [];
+
+        return [
+            'main' => $main,
+            'sub' => $sub,
         ];
     }
 
