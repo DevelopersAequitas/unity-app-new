@@ -4,6 +4,7 @@ namespace App\Services\Zoho;
 
 use App\Models\EventRegistration;
 use App\Services\Events\EventQrService;
+use App\Services\Events\EventVisitorConversionService;
 use App\Services\Events\EventZohoInvoiceSyncService;
 use App\Support\Zoho\ZohoBillingClient;
 use Illuminate\Support\Facades\Log;
@@ -16,6 +17,7 @@ class ZohoBillingPaymentLinkService
         private readonly ZohoBillingClient $client,
         private readonly EventQrService $qrService,
         private readonly EventZohoInvoiceSyncService $invoiceSyncService,
+        private readonly EventVisitorConversionService $visitorConversion,
     ) {}
 
     public function findOrCreateCustomer(EventRegistration $registration): ?string
@@ -174,6 +176,8 @@ class ZohoBillingPaymentLinkService
                 'zoho_payment_status' => 'paid',
                 'payment_status' => 'paid',
                 'status' => 'registered',
+                'payment_completed_at' => $registration->payment_completed_at ?: now(),
+                'paid_at' => $registration->payment_completed_at ?: now(),
             ]))->save();
             Log::info('zoho_payment_id_saved_from_payment_link', ['registration_id' => (string) $registration->id, 'payment_id' => $paymentId]);
             $registration->refresh();
@@ -193,6 +197,7 @@ class ZohoBillingPaymentLinkService
                 'payment_status' => 'paid',
                 'zoho_payment_status' => 'paid',
                 'payment_completed_at' => $registration->payment_completed_at ?: ($paymentDate ? now()->parse((string) $paymentDate) : now()),
+                'paid_at' => $registration->payment_completed_at ?: ($paymentDate ? now()->parse((string) $paymentDate) : now()),
                 'zoho_payment_id' => $paymentId,
                 'webhook_payload' => $rawPayload ?? $paymentLinkData,
                 'zoho_payment_webhook_payload' => $rawPayload ?? $paymentLinkData,
@@ -228,6 +233,12 @@ class ZohoBillingPaymentLinkService
         } catch (\Throwable $e) {
             $registration->forceFill($this->filter(['zoho_invoice_sync_error' => $e->getMessage()]))->save();
             Log::error('zoho_billing_payment_link_invoice_failed', ['registration_id' => (string) $registration->id, 'error' => $e->getMessage()]);
+        }
+
+        $registration = $registration->fresh(['event', 'occurrence', 'user']);
+
+        if (($registration->payment_status ?? null) === 'paid') {
+            $registration = $this->visitorConversion->convertPaidVisitor($registration);
         }
 
         return $registration->fresh(['event', 'occurrence', 'user']);

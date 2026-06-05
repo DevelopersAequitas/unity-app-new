@@ -322,9 +322,18 @@ class EventController extends BaseApiController
         Log::info('public_event_registration_payment_link_created', ['event_id' => $event->id, 'occurrence_id' => $occurrenceId, 'registration_id' => (string) $registration->id]);
 
         $requiresPayment = (bool) ($registration->payment_required ?? false);
+        $payload = $this->payments->responsePayload($registration);
+
+        if ($requiresPayment && empty($payload['checkout_url']) && empty($payload['payment_url'])) {
+            return $this->error(
+                $payload['message'] ?? 'Unable to create payment link. Please try again.',
+                502,
+                ['payment' => $payload['error'] ?? 'Payment link generation failed.']
+            );
+        }
 
         return $this->success(
-            $this->payments->responsePayload($registration),
+            $payload,
             $requiresPayment ? 'Payment required. Please complete payment.' : 'Visitor registered successfully.',
             201
         );
@@ -498,9 +507,18 @@ class EventController extends BaseApiController
         );
         Log::info('public_event_registration_payment_link_created', ['event_id' => $event->id, 'occurrence_id' => $occurrenceId, 'registration_id' => (string) $registration->id]);
         $requiresPayment = (bool) ($registration->payment_required ?? false);
+        $payload = $this->payments->responsePayload($registration);
+
+        if ($requiresPayment && empty($payload['checkout_url']) && empty($payload['payment_url'])) {
+            return $this->error(
+                $payload['message'] ?? 'Unable to create payment link. Please try again.',
+                502,
+                ['payment' => $payload['error'] ?? 'Payment link generation failed.']
+            );
+        }
 
         return $this->success(
-            $this->payments->responsePayload($registration),
+            $payload,
             $requiresPayment ? 'Payment required. Please complete payment.' : 'Visitor registered successfully.',
             201
         );

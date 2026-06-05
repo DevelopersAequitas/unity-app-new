@@ -7,10 +7,8 @@ use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class EventRegistrationService
@@ -198,25 +196,12 @@ class EventRegistrationService
 
     private function preparePublicVisitorData(array $data): array
     {
-        Log::info('public_event_registration_user_lookup_start', [
+        Log::info('public_event_registration_visitor_payload_prepare_start', [
             'visitor_email' => $data['visitor_email'] ?? null,
             'visitor_phone' => $data['visitor_phone'] ?? null,
         ]);
 
-        $user = $this->findUserByEmailOrPhone($data['visitor_email'] ?? null, $data['visitor_phone'] ?? null);
-        if (! $user) {
-            $user = $this->createVisitorUser($data);
-            Log::info('public_event_registration_new_user_created', ['user_id' => (string) $user->id]);
-        } else {
-            Log::info('public_event_registration_existing_user_linked', ['user_id' => (string) $user->id]);
-        }
-
-        $data['user_id'] = $user->id;
-        $data['visitor_name'] = $data['visitor_name'] ?? $this->userDisplayName($user);
-        $data['visitor_email'] = $data['visitor_email'] ?? $user->email;
-        $data['visitor_phone'] = $data['visitor_phone'] ?? $user->phone;
-        $data['visitor_company'] = $data['visitor_company'] ?? $user->company_name;
-        $data['visitor_city'] = $data['visitor_city'] ?? ($user->city ?? $user->city_of_residence);
+        unset($data['user_id']);
         $data = $this->normalizeVisitorBusinessCategories($data);
         $invitedByType = $data['invited_by_type'] ?? null;
         $data['invited_by_user_id'] = in_array($invitedByType, ['circle_member_peer', 'other'], true)
@@ -228,24 +213,19 @@ class EventRegistrationService
 
         $data['metadata'] = array_merge((array) ($data['metadata'] ?? []), array_filter([
             'designation' => $data['visitor_designation'] ?? ($data['designation'] ?? null),
-            'business_category_id' => $data['business_category_id'] ?? null,
-            'business_sub_category' => $data['business_sub_category'] ?? null,
             'referral_code' => $data['referral_code'] ?? null,
             'referred_by' => $data['referred_by'] ?? null,
             'notes' => $data['notes'] ?? null,
             'visitor_designation' => $data['visitor_designation'] ?? null,
-            'visitor_business_category_id' => $data['visitor_business_category_id'] ?? null,
-            'visitor_business_category' => $data['visitor_business_category'] ?? null,
             'visitor_business_category_main_id' => $data['visitor_business_category_main_id'] ?? null,
             'visitor_business_category_sub_id' => $data['visitor_business_category_sub_id'] ?? null,
             'visitor_business_website' => $data['visitor_business_website'] ?? null,
             'visitor_business_brief' => $data['visitor_business_brief'] ?? null,
             'invited_by_type' => $data['invited_by_type'] ?? null,
             'invited_by_user_id' => $data['invited_by_user_id'] ?? null,
-            'linked_user_id' => (string) $user->id,
         ], fn ($value) => $value !== null && $value !== ''));
 
-        foreach (['full_name', 'email', 'phone', 'city', 'company_name', 'designation', 'business_category_id', 'business_sub_category', 'referral_code', 'referred_by', 'notes'] as $key) {
+        foreach (['full_name', 'email', 'phone', 'city', 'company_name', 'designation', 'business_category_id', 'business_sub_category', 'visitor_business_category_id', 'visitor_business_category', 'referral_code', 'referred_by', 'notes'] as $key) {
             unset($data[$key]);
         }
 
@@ -254,56 +234,13 @@ class EventRegistrationService
 
     private function normalizeVisitorBusinessCategories(array $data): array
     {
-        foreach (['visitor_business_category_id', 'visitor_business_category_main_id', 'visitor_business_category_sub_id'] as $key) {
+        foreach (['visitor_business_category_main_id', 'visitor_business_category_sub_id'] as $key) {
             if (array_key_exists($key, $data) && $data[$key] !== null && $data[$key] !== '') {
                 $data[$key] = (int) $data[$key];
             }
         }
 
-        if (! array_key_exists('visitor_business_category_sub_id', $data) && array_key_exists('visitor_business_category_id', $data)) {
-            $data['visitor_business_category_sub_id'] = $data['visitor_business_category_id'];
-        }
-
-
         return $data;
-    }
-
-    private function findUserByEmailOrPhone(?string $email, ?string $phone): ?User
-    {
-        return User::query()
-            ->where(function ($query) use ($email, $phone): void {
-                if ($email) {
-                    $query->orWhereRaw('LOWER(email) = ?', [strtolower($email)]);
-                }
-                if ($phone) {
-                    $query->orWhere('phone', $phone);
-                }
-            })
-            ->first();
-    }
-
-    private function createVisitorUser(array $data): User
-    {
-        $name = trim((string) ($data['visitor_name'] ?? 'Event Visitor')) ?: 'Event Visitor';
-        [$firstName, $lastName] = array_pad(preg_split('/\s+/', $name, 2), 2, null);
-        $attributes = [
-            'first_name' => $firstName ?: $name,
-            'last_name' => $lastName,
-            'display_name' => $name,
-            'email' => $data['visitor_email'] ?? null,
-            'phone' => $data['visitor_phone'] ?? null,
-            'company_name' => $data['visitor_company'] ?? ($data['company_name'] ?? null),
-            'designation' => $data['visitor_designation'] ?? ($data['designation'] ?? null),
-            'city' => $data['visitor_city'] ?? ($data['city'] ?? null),
-            'city_of_residence' => $data['visitor_city'] ?? ($data['city'] ?? null),
-            'business_category_id' => $data['business_category_id'] ?? null,
-            'business_sub_category' => $data['business_sub_category'] ?? null,
-            'membership_status' => 'visitor',
-            'password_hash' => Hash::make(Str::random(32)),
-            'password' => Hash::make(Str::random(32)),
-        ];
-
-        return User::query()->create(array_filter($attributes, fn ($value, $key) => $value !== null && Schema::hasColumn('users', $key), ARRAY_FILTER_USE_BOTH));
     }
 
     private function userDisplayName(User $user): string
@@ -365,15 +302,13 @@ class EventRegistrationService
                     'user_id' => $data['user_id'] ?? $existing->user_id,
                 ]);
                 $updates = $this->filterRegistrationColumns([
-                    'user_id' => $existing->user_id ?: ($data['user_id'] ?? null),
+                    'user_id' => $existing->user_id,
                     'visitor_name' => $data['visitor_name'] ?? $existing->visitor_name,
                     'visitor_email' => $data['visitor_email'] ?? $existing->visitor_email,
                     'visitor_phone' => $data['visitor_phone'] ?? $existing->visitor_phone,
                     'visitor_company' => $data['visitor_company'] ?? $existing->visitor_company,
                     'visitor_city' => $data['visitor_city'] ?? $existing->visitor_city,
                     'visitor_designation' => $data['visitor_designation'] ?? $existing->visitor_designation,
-                    'visitor_business_category_id' => $data['visitor_business_category_id'] ?? $existing->visitor_business_category_id,
-                    'visitor_business_category' => $data['visitor_business_category'] ?? $existing->visitor_business_category,
                     'visitor_business_category_main_id' => $data['visitor_business_category_main_id'] ?? $existing->visitor_business_category_main_id,
                     'visitor_business_category_sub_id' => $data['visitor_business_category_sub_id'] ?? $existing->visitor_business_category_sub_id,
                     'visitor_business_website' => $data['visitor_business_website'] ?? $existing->visitor_business_website,
