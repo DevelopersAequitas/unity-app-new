@@ -4,6 +4,7 @@ namespace App\Services\Events;
 
 use App\Models\EventRegistration;
 use App\Services\Zoho\ZohoBillingPaymentLinkService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class EventPaymentSyncService
@@ -25,8 +26,22 @@ class EventPaymentSyncService
             $registration->refresh();
         }
 
-        if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link' && ! empty($registration->zoho_payment_link_id)) {
+        if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link') {
+            Log::info('event_payment_status_api_zoho_sync_start', [
+                'registration_id' => (string) $registration->id,
+                'payment_status' => $registration->payment_status,
+                'zoho_payment_link_id' => $registration->zoho_payment_link_id,
+                'zoho_payment_session_id' => $registration->zoho_payment_session_id,
+                'zoho_hosted_page_id' => $registration->zoho_hosted_page_id,
+                'zoho_payment_id' => $registration->zoho_payment_id,
+            ]);
             $registration = $this->zohoPaymentLinks->syncPaymentStatus($registration->fresh(['event', 'occurrence', 'user']));
+            Log::info('event_payment_status_api_zoho_sync_result', [
+                'registration_id' => (string) $registration->id,
+                'payment_status' => $registration->payment_status,
+                'zoho_payment_status' => $registration->zoho_payment_status,
+                'zoho_payment_id' => $registration->zoho_payment_id,
+            ]);
         }
 
         return [

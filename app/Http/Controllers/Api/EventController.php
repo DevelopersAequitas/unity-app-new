@@ -388,19 +388,23 @@ class EventController extends BaseApiController
     {
         $registration = EventRegistration::query()->with(['event', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])->findOrFail($registrationId);
 
-        if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link' && ! empty($registration->zoho_payment_link_id)) {
+        if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link'
+            && in_array((string) ($registration->payment_status ?? ''), ['pending', 'processing', 'failed', 'expired'], true)) {
             try {
                 $syncResult = $this->eventPaymentSync->syncRegistrationPayment($registration, ['source' => 'payment_status_api']);
                 $registration = $syncResult['registration'];
-            } catch (\Throwable) {
-                // non-fatal fallback
+            } catch (\Throwable $e) {
+                Log::warning('event_payment_status_api_zoho_sync_failed', [
+                    'registration_id' => (string) $registration->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
         return $this->success([
             'registration_id' => $registration->id,
             'payment_required' => (bool) ($registration->payment_required ?? false),
-            'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho_billing_payment_link') : null,
+            'payment_gateway' => ($registration->payment_required ?? false) ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
             'payment_status' => $registration->payment_status ?? ((bool) ($registration->payment_required ?? false) ? 'pending' : 'not_required'),
             'status' => $registration->status,
             'payment_completed_at' => optional($registration->payment_completed_at)->toISOString(),
@@ -601,7 +605,7 @@ class EventController extends BaseApiController
                 'mode' => $registration->event?->mode,
                 'status' => $registration->status,
                 'checkin_status' => $registration->checkin_status,
-                'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho_billing_payment_link') : null,
+                'payment_gateway' => ($registration->payment_required ?? false) ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
                 'payment_status' => $registration->payment_status ?? null,
                 'razorpay_order_id' => $registration->razorpay_order_id ?? null,
                 'payment_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
