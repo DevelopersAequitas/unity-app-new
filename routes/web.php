@@ -44,10 +44,20 @@ use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
+use App\Http\Controllers\PublicEventRegistrationFormController;
 
 Route::get('/', function () {
     return view('landing');
 });
+
+Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
+    ->whereUuid('event')
+    ->whereUuid('occurrence')
+    ->name('events.visitor-register.show');
+Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'submit'])
+    ->whereUuid('event')
+    ->whereUuid('occurrence')
+    ->name('events.visitor-register.submit');
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');

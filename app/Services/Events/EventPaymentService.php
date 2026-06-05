@@ -136,6 +136,8 @@ class EventPaymentService
             'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
             'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
             'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'visitor_business_category_main' => $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main'),
+            'visitor_business_category_sub' => $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub'),
             'business_category_main' => $registration->businessCategoryMainPayload(),
             'business_category_sub' => $registration->businessCategorySubPayload(),
             'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),

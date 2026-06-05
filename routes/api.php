@@ -241,6 +241,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
     Route::middleware('throttle:60,1')->group(function () {
         Route::get('/public/events/{event_id}/occurrences/{occurrence_id}', [EventController::class, 'publicOccurrence'])->whereUuid('event_id')->whereUuid('occurrence_id');
+        Route::get('/public/events/{event_id}/occurrences/{occurrence_id}/registration-form', [EventController::class, 'publicRegistrationForm'])->whereUuid('event_id')->whereUuid('occurrence_id');
         Route::post('/public/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'publicRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     });
     Route::post('/zoho/events/form-webhook', ZohoEventFormWebhookController::class);
