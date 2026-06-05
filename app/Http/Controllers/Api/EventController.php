@@ -325,11 +325,7 @@ class EventController extends BaseApiController
         $payload = $this->payments->responsePayload($registration);
 
         if ($requiresPayment && empty($payload['checkout_url']) && empty($payload['payment_url'])) {
-            return $this->error(
-                $payload['message'] ?? 'Unable to create payment link. Please try again.',
-                502,
-                ['payment' => $payload['error'] ?? 'Payment link generation failed.']
-            );
+            return $this->paymentLinkGenerationFailedResponse($registration);
         }
 
         return $this->success(
@@ -337,6 +333,31 @@ class EventController extends BaseApiController
             $requiresPayment ? 'Payment required. Please complete payment.' : 'Visitor registered successfully.',
             201
         );
+    }
+
+
+    private function paymentLinkGenerationFailedResponse(EventRegistration $registration)
+    {
+        Log::error('public_event_registration_payment_link_failed_response', [
+            'registration_id' => (string) $registration->id,
+            'event_id' => (string) $registration->event_id,
+            'occurrence_id' => (string) $registration->occurrence_id,
+            'payment_gateway' => 'zoho_billing_payment_link',
+            'payment_status' => $registration->payment_status,
+            'zoho_error_code' => data_get($registration->metadata, 'zoho_payment_link_error_code'),
+            'zoho_error_message' => data_get($registration->metadata, 'zoho_payment_link_error_message'),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'status' => false,
+            'message' => 'Payment link could not be generated. Please contact admin.',
+            'data' => null,
+            'meta' => [
+                'payment_gateway' => 'zoho_billing_payment_link',
+                'zoho_error_code' => data_get($registration->metadata, 'zoho_payment_link_error_code'),
+            ],
+        ], 502);
     }
 
 
@@ -510,11 +531,7 @@ class EventController extends BaseApiController
         $payload = $this->payments->responsePayload($registration);
 
         if ($requiresPayment && empty($payload['checkout_url']) && empty($payload['payment_url'])) {
-            return $this->error(
-                $payload['message'] ?? 'Unable to create payment link. Please try again.',
-                502,
-                ['payment' => $payload['error'] ?? 'Payment link generation failed.']
-            );
+            return $this->paymentLinkGenerationFailedResponse($registration);
         }
 
         return $this->success(
