@@ -50,16 +50,14 @@ class EventVisitorConversionService
             return null;
         }
 
-        return User::query()
-            ->where(function ($query) use ($email, $phone): void {
-                if (filled($email)) {
-                    $query->orWhereRaw('LOWER(email) = ?', [strtolower((string) $email)]);
-                }
-                if (filled($phone)) {
-                    $query->orWhere('phone', $phone);
-                }
-            })
-            ->first();
+        if (filled($email)) {
+            $user = User::query()->whereRaw('LOWER(email) = ?', [strtolower((string) $email)])->first();
+            if ($user) {
+                return $user;
+            }
+        }
+
+        return filled($phone) ? User::query()->where('phone', $phone)->first() : null;
     }
 
     private function createFreePeerUser(EventRegistration $registration): User
@@ -91,6 +89,7 @@ class EventVisitorConversionService
             'first_name' => $user?->first_name ?: ($firstName ?: $name),
             'last_name' => $user?->last_name ?: $lastName,
             'display_name' => $name,
+            'name' => $name,
             'email' => $this->safeUniqueUserValue('email', $registration->visitor_email, $user),
             'phone' => $this->safeUniqueUserValue('phone', $registration->visitor_phone, $user),
             'company_name' => $registration->visitor_company ?: $user?->company_name,
@@ -98,9 +97,12 @@ class EventVisitorConversionService
             'city_of_residence' => $registration->visitor_city ?: $user?->city_of_residence,
             'designation' => $registration->visitor_designation ?: $user?->designation,
             'main_business_category_id' => $registration->visitor_business_category_main_id ?: $user?->main_business_category_id,
+            'business_category_main_id' => $registration->visitor_business_category_main_id ?: ($user?->business_category_main_id ?? null),
             'business_category_id' => $registration->visitor_business_category_sub_id ?: $user?->business_category_id,
+            'business_category_sub_id' => $registration->visitor_business_category_sub_id ?: ($user?->business_category_sub_id ?? null),
             'business_website' => $registration->visitor_business_website ?: $user?->business_website,
             'short_bio' => $registration->visitor_business_brief ?: $user?->short_bio,
+            'business_brief' => $registration->visitor_business_brief ?: ($user?->business_brief ?? null),
             'membership_status' => User::freePeerMembershipStatus(),
         ];
     }

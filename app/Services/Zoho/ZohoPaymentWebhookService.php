@@ -124,13 +124,19 @@ class ZohoPaymentWebhookService
         if ($this->isPaidWebhook($normalized)) {
             Log::info('zoho_payment_webhook_sync_started', $this->context($event, $normalized));
             $this->primePaidFields($registration, $payload, $normalized);
-            $syncResult = $this->paymentSync->syncRegistrationPayment($registration->fresh(['event', 'occurrence', 'user']), [
-                'source' => 'zoho_webhook',
-                'webhook_event_id' => $event->id,
-                'payload' => $payload,
-                'payment_id' => $normalized['payment_id'] ?? null,
-            ]);
-            $this->visitorConversion->convertPaidVisitor($syncResult['registration']->fresh(['event', 'occurrence', 'user']));
+            try {
+                $syncResult = $this->paymentSync->syncRegistrationPayment($registration->fresh(['event', 'occurrence', 'user']), [
+                    'source' => 'zoho_webhook',
+                    'webhook_event_id' => $event->id,
+                    'payload' => $payload,
+                    'payment_id' => $normalized['payment_id'] ?? null,
+                ]);
+                $registration = $syncResult['registration'];
+            } catch (\Throwable $e) {
+                Log::warning('zoho_payment_webhook_status_sync_failed_after_paid_prime', $this->context($event, $normalized) + ['error' => $e->getMessage()]);
+                $registration = $registration->fresh(['event', 'occurrence', 'user']);
+            }
+            $this->visitorConversion->convertPaidVisitor($registration->fresh(['event', 'occurrence', 'user']));
             $event->forceFill(['status' => 'processed', 'processed_at' => now(), 'error' => null])->save();
             Log::info('zoho_payment_webhook_sync_success', $this->context($event, $normalized));
             Log::info('zoho_payment_webhook_processed', $this->context($event, $normalized));

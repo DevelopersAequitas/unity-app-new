@@ -3,8 +3,6 @@
 namespace App\Http\Requests\Event;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Validation\Rule;
 
 class VisitorEventRegistrationRequest extends FormRequest
 {
@@ -24,23 +22,23 @@ class VisitorEventRegistrationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'visitor_name' => ['required', 'string', 'max:150'],
-            'visitor_email' => ['required', 'email', 'max:150'],
-            'visitor_phone' => ['required', 'string', 'max:20'],
-            'visitor_company' => ['nullable', 'string', 'max:120'],
-            'visitor_city' => ['nullable', 'string', 'max:120'],
-            'visitor_designation' => ['nullable', 'string', 'max:150'],
-            'visitor_business_category_main_id' => ['nullable', 'integer', Rule::exists('circle_categories', 'id')],
-            'visitor_business_category_sub_id' => $this->visitorBusinessCategorySubIdRules(),
-            'visitor_business_website' => ['nullable', 'url', 'max:255'],
-            'visitor_business_brief' => ['nullable', 'string', 'max:2000'],
-            'invited_by_type' => ['nullable', 'string', Rule::in(['peers_global_team', 'circle_member_peer', 'other'])],
+            'visitor_name' => ['required', 'string', 'max:255'],
+            'visitor_email' => ['required', 'email', 'max:255'],
+            'visitor_phone' => ['required', 'string', 'max:30'],
+            'visitor_company' => ['nullable', 'string', 'max:255'],
+            'visitor_city' => ['nullable', 'string', 'max:255'],
+            'visitor_designation' => ['nullable', 'string', 'max:255'],
+            'visitor_business_category_main_id' => ['nullable', 'integer'],
+            'visitor_business_category_sub_id' => ['nullable', 'integer'],
+            'visitor_business_website' => ['nullable', 'url', 'max:500'],
+            'visitor_business_brief' => ['nullable', 'string'],
+            'invited_by_type' => ['nullable', 'string', 'max:50'],
             'invited_by_user_id' => ['nullable', 'uuid', 'exists:users,id'],
-            'full_name' => ['sometimes', 'string', 'max:150'],
-            'email' => ['sometimes', 'nullable', 'email', 'max:150'],
-            'phone' => ['sometimes', 'string', 'max:20'],
-            'city' => ['sometimes', 'nullable', 'string', 'max:120'],
-            'company_name' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'full_name' => ['sometimes', 'string', 'max:255'],
+            'email' => ['sometimes', 'nullable', 'email', 'max:255'],
+            'phone' => ['sometimes', 'string', 'max:30'],
+            'city' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'company_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'designation' => ['sometimes', 'nullable', 'string', 'max:255'],
             'business_category_id' => ['sometimes', 'nullable', 'string', 'max:255'],
             'business_sub_category' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -55,26 +53,4 @@ class VisitorEventRegistrationRequest extends FormRequest
         ];
     }
 
-    private function visitorBusinessCategorySubIdRules(): array
-    {
-        $rules = ['nullable', 'integer'];
-
-        $table = $this->level4CategoriesTable();
-        if ($table) {
-            $rules[] = Rule::exists($table, 'id');
-        }
-
-        return $rules;
-    }
-
-    private function level4CategoriesTable(): ?string
-    {
-        foreach (['level4_categories', 'circle_category_level4'] as $table) {
-            if (Schema::hasTable($table)) {
-                return $table;
-            }
-        }
-
-        return null;
-    }
 }

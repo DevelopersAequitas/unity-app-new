@@ -59,7 +59,7 @@ class ZohoBillingPaymentLinkService
     {
         $registration->loadMissing(['event', 'user']);
 
-        if (($registration->payment_status ?? null) === 'pending' && ! empty($registration->zoho_payment_link_url)) {
+        if (($registration->payment_status ?? null) === 'pending' && (! empty($registration->zoho_payment_link_url) || ! empty($registration->payment_url) || ! empty($registration->checkout_url))) {
             return $registration;
         }
 
@@ -100,7 +100,11 @@ class ZohoBillingPaymentLinkService
         try {
             $response = $this->client->request('POST', '/paymentlinks', $payload);
             $link = data_get($response, 'payment_link') ?? data_get($response, 'payment_links') ?? $response;
-            $url = data_get($link, 'url');
+            $url = data_get($link, 'url')
+                ?? data_get($link, 'payment_url')
+                ?? data_get($link, 'checkout_url')
+                ?? data_get($link, 'hostedpage.url')
+                ?? data_get($link, 'hosted_page.url');
 
             if (empty($url)) {
                 Log::error('zoho_billing_payment_link_error', [
@@ -113,7 +117,7 @@ class ZohoBillingPaymentLinkService
             }
 
             $registration->forceFill($this->filter([
-                'zoho_payment_link_id' => data_get($link, 'payment_link_id') ?? null,
+                'zoho_payment_link_id' => data_get($link, 'payment_link_id') ?? data_get($link, 'paymentlink_id') ?? data_get($link, 'id') ?? null,
                 'zoho_payment_link_url' => $url,
                 'payment_url' => $url,
                 'checkout_url' => $url,
