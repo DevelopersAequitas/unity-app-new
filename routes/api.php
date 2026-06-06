@@ -88,6 +88,7 @@ use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
+use App\Http\Controllers\Api\V1\MyEventQrController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
@@ -121,7 +122,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/me', [ScanAppAuthController::class, 'me']);
             Route::post('/logout', [ScanAppAuthController::class, 'logout']);
             Route::get('/events', [ScanAppEventController::class, 'index']);
-            Route::post('/events/{event}/scan', [ScanAppEventController::class, 'scan'])->whereUuid('event');
+            Route::post('/events/{event_id}/scan', [ScanAppEventController::class, 'scan'])->whereUuid('event_id');
             Route::get('/events/{event}/attendance-history', [ScanAppEventController::class, 'attendanceHistory'])->whereUuid('event');
         });
     });
@@ -259,6 +260,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
     Route::middleware('throttle:60,1')->group(function () {
         Route::get('/public/events/{event_id}/occurrences/{occurrence_id}', [EventController::class, 'publicOccurrence'])->whereUuid('event_id')->whereUuid('occurrence_id');
+        Route::get('/public/events/{event_id}/occurrences/{occurrence_id}/registration-form', [EventController::class, 'publicRegistrationForm'])->whereUuid('event_id')->whereUuid('occurrence_id');
         Route::post('/public/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'publicRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     });
     Route::post('/zoho/events/form-webhook', ZohoEventFormWebhookController::class);
@@ -274,8 +276,13 @@ Route::prefix('v1')->group(function () {
     Route::patch('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
     Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/events/checkin/scan', [EventController::class, 'scan']);
+    });
+
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
+        Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
 
@@ -588,7 +595,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/events', [EventController::class, 'index']);
         Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
         Route::get('/my/event-registrations', [EventController::class, 'myEventRegistrations']);
-        Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
         Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
         Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');

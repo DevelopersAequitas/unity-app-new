@@ -2,6 +2,8 @@
 
 namespace App\Services\Events;
 
+use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel4;
 use App\Models\Event;
 use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
@@ -19,6 +21,7 @@ class EventRegistrationService
         private readonly EventService $events,
         private readonly EventQrService $qr,
         private readonly EventPaymentService $payments,
+        private readonly EventRegistrationQrService $registrationQr,
     ) {}
 
     public function registerMember(Event $event, EventOccurrence $occurrence, User $user, string $source = 'app'): EventRegistration
@@ -48,9 +51,7 @@ class EventRegistrationService
             ->first();
 
         if ($existing) {
-            if (empty($existing->qr_code_path) && empty($existing->qr_code_url)) {
-                $this->qr->generateAndStore($existing);
-            }
+            $existing = $this->registrationQr->ensureQrGenerated($existing);
 
             return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
@@ -90,6 +91,8 @@ class EventRegistrationService
                 return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
             }
 
+            $existing = $this->registrationQr->ensureQrGenerated($existing);
+
             return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
 
@@ -128,6 +131,8 @@ class EventRegistrationService
                 return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
             }
 
+            $existing = $this->registrationQr->ensureQrGenerated($existing);
+
             return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
 
@@ -143,7 +148,7 @@ class EventRegistrationService
         ], true);
     }
 
-    public function registerVisitor(Event $event, EventOccurrence $occurrence, array $data): EventRegistration
+    public function registerVisitor(Event $event, EventOccurrence $occurrence, array $data, string $source = 'visitor_app'): EventRegistration
     {
         if ($occurrence->event_id !== $event->id) {
             throw ValidationException::withMessages(['occurrence_id' => 'Occurrence does not belong to this event.']);
@@ -152,7 +157,7 @@ class EventRegistrationService
             throw ValidationException::withMessages(['event_id' => 'Visitor registration is not enabled for this event.']);
         }
 
-        $source = $this->normalizeVisitorSource($data['source'] ?? 'visitor_app');
+        $source = $this->normalizeVisitorSource($data['source'] ?? $source);
         unset($data['source']);
 
         $data = $this->preparePublicVisitorData($data);
@@ -170,7 +175,7 @@ class EventRegistrationService
         }
 
         return DB::transaction(function () use ($event, $occurrence, $data): EventRegistration {
-            $existing = $this->duplicateVisitorQuery($occurrence->id, $data)->lockForUpdate()->first();
+            $existing = $this->duplicateVisitorQuery($occurrence->id, $data, $event->id)->lockForUpdate()->first();
             if ($existing) {
                 $updates = $this->filterRegistrationColumns(array_filter([
                     'visitor_name' => $data['visitor_name'] ?? $existing->visitor_name,
@@ -185,9 +190,7 @@ class EventRegistrationService
                 ], fn ($value) => $value !== null));
                 $existing->forceFill($updates)->save();
 
-                if (empty($existing->qr_code_path) || empty($existing->qr_code_url)) {
-                    $this->qr->generateAndStore($existing);
-                }
+                $existing = $this->registrationQr->ensureQrGenerated($existing);
 
                 return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
             }
@@ -218,6 +221,7 @@ class EventRegistrationService
         $data['visitor_company'] = $data['visitor_company'] ?? $user->company_name;
         $data['visitor_city'] = $data['visitor_city'] ?? ($user->city ?? $user->city_of_residence);
         $data = $this->normalizeVisitorBusinessCategories($data);
+        $data = $this->populateVisitorBusinessCategoryNames($data);
         $invitedByType = $data['invited_by_type'] ?? null;
         $data['invited_by_user_id'] = in_array($invitedByType, ['circle_member_peer', 'other'], true)
             ? ($data['invited_by_user_id'] ?? null)
@@ -238,6 +242,8 @@ class EventRegistrationService
             'visitor_business_category' => $data['visitor_business_category'] ?? null,
             'visitor_business_category_main_id' => $data['visitor_business_category_main_id'] ?? null,
             'visitor_business_category_sub_id' => $data['visitor_business_category_sub_id'] ?? null,
+            'visitor_business_category_main' => $data['visitor_business_category_main'] ?? null,
+            'visitor_business_category_sub' => $data['visitor_business_category_sub'] ?? null,
             'visitor_business_website' => $data['visitor_business_website'] ?? null,
             'visitor_business_brief' => $data['visitor_business_brief'] ?? null,
             'invited_by_type' => $data['invited_by_type'] ?? null,
@@ -264,6 +270,26 @@ class EventRegistrationService
             $data['visitor_business_category_sub_id'] = $data['visitor_business_category_id'];
         }
 
+
+        return $data;
+    }
+
+    private function populateVisitorBusinessCategoryNames(array $data): array
+    {
+        if (! empty($data['visitor_business_category_main_id'])) {
+            $main = CircleCategory::query()->find($data['visitor_business_category_main_id']);
+            if ($main) {
+                $data['visitor_business_category_main'] = $main->name;
+            }
+        }
+
+        if (! empty($data['visitor_business_category_sub_id'])) {
+            $sub = CircleCategoryLevel4::query()->find($data['visitor_business_category_sub_id']);
+            if ($sub) {
+                $data['visitor_business_category_sub'] = $sub->name;
+                $data['visitor_business_category'] = $data['visitor_business_category'] ?? $sub->name;
+            }
+        }
 
         return $data;
     }
@@ -342,19 +368,18 @@ class EventRegistrationService
                 ->firstOrFail();
 
             $registeredCount = EventRegistration::query()
+                ->where('event_id', $event->id)
                 ->where('occurrence_id', $lockedOccurrence->id)
                 ->where('status', '!=', 'cancelled')
                 ->whereNull('deleted_at')
                 ->count();
 
-            $this->assertCapacity($event, $lockedOccurrence, $registeredCount);
-
             $registrationTypeForDuplicate = $data['registration_type'] ?? (isset($data['user_id']) ? 'member' : 'visitor');
             $query = in_array($registrationTypeForDuplicate, ['visitor', 'app_user_visitor'], true)
-                ? $this->duplicateVisitorQuery($lockedOccurrence->id, $data)
+                ? $this->duplicateVisitorQuery($lockedOccurrence->id, $data, $event->id)
                 : (isset($data['user_id'])
                     ? EventRegistration::query()->where('occurrence_id', $lockedOccurrence->id)->where('user_id', $data['user_id'])->where('status', '!=', 'cancelled')->whereNull('deleted_at')
-                    : $this->duplicateVisitorQuery($lockedOccurrence->id, $data));
+                    : $this->duplicateVisitorQuery($lockedOccurrence->id, $data, $event->id));
 
             $existing = $query->lockForUpdate()->first();
             if ($existing) {
@@ -376,6 +401,8 @@ class EventRegistrationService
                     'visitor_business_category' => $data['visitor_business_category'] ?? $existing->visitor_business_category,
                     'visitor_business_category_main_id' => $data['visitor_business_category_main_id'] ?? $existing->visitor_business_category_main_id,
                     'visitor_business_category_sub_id' => $data['visitor_business_category_sub_id'] ?? $existing->visitor_business_category_sub_id,
+                    'visitor_business_category_main' => $data['visitor_business_category_main'] ?? ($existing->visitor_business_category_main ?? null),
+                    'visitor_business_category_sub' => $data['visitor_business_category_sub'] ?? ($existing->visitor_business_category_sub ?? null),
                     'visitor_business_website' => $data['visitor_business_website'] ?? $existing->visitor_business_website,
                     'visitor_business_brief' => $data['visitor_business_brief'] ?? $existing->visitor_business_brief,
                     'invited_by_type' => $data['invited_by_type'] ?? $existing->invited_by_type,
@@ -387,8 +414,12 @@ class EventRegistrationService
                     $existing->forceFill($updates)->save();
                 }
 
+                $existing = $this->registrationQr->ensureQrGenerated($existing);
+
                 return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
             }
+
+            $this->assertCapacity($event, $lockedOccurrence, $registeredCount);
 
             $registrationType = $data['registration_type'] ?? (isset($data['user_id']) ? 'member' : 'visitor');
             unset($data['registration_type']);
@@ -409,7 +440,7 @@ class EventRegistrationService
             ])));
 
             if (! $paymentRequired) {
-                $this->qr->generateAndStore($registration);
+                $registration = $this->registrationQr->ensureQrGenerated($registration);
                 $registration = $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
                 $this->notifySafely($registration);
             }
@@ -420,15 +451,36 @@ class EventRegistrationService
         });
 
         if ((bool) ($registration->payment_required ?? false) && in_array((string) ($registration->payment_status ?? ''), ['pending', 'failed', 'expired'], true)) {
-            return $this->payments->attachCheckout($registration);
+            try {
+                return $this->payments->attachCheckout($registration);
+            } catch (\Throwable $exception) {
+                Log::error('event_registration_payment_checkout_failed', [
+                    'registration_id' => (string) $registration->id,
+                    'error' => $exception->getMessage(),
+                ]);
+
+                $registration->forceFill($this->filterRegistrationColumns([
+                    'payment_status' => 'pending',
+                    'status' => 'pending_payment',
+                    'zoho_invoice_sync_error' => $exception->getMessage(),
+                ]))->save();
+
+                return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
+            }
         }
 
         return $registration;
     }
 
-    private function duplicateVisitorQuery(string $occurrenceId, array $data)
+    private function duplicateVisitorQuery(string $occurrenceId, array $data, ?string $eventId = null)
     {
-        return EventRegistration::query()
+        $query = EventRegistration::query();
+
+        if ($eventId) {
+            $query->where('event_id', $eventId);
+        }
+
+        return $query
             ->where('occurrence_id', $occurrenceId)
             ->where('status', '!=', 'cancelled')
             ->whereNull('deleted_at')
@@ -436,7 +488,11 @@ class EventRegistrationService
                 $matched = false;
                 foreach (['zoho_form_entry_id', 'visitor_phone', 'visitor_email'] as $field) {
                     if (! empty($data[$field])) {
-                        $q->orWhere($field, $data[$field]);
+                        if ($field === 'visitor_email') {
+                            $q->orWhereRaw('LOWER(visitor_email) = ?', [strtolower((string) $data[$field])]);
+                        } else {
+                            $q->orWhere($field, $data[$field]);
+                        }
                         $matched = true;
                     }
                 }
@@ -474,6 +530,8 @@ class EventRegistrationService
             'zoho_form' => 'zoho_form',
             'admin' => 'admin',
             'app' => 'app',
+            'api' => 'api',
+            'web_form' => 'web_form',
             'web', 'public', 'visitor_web' => 'visitor_web',
             default => 'visitor_app',
         };

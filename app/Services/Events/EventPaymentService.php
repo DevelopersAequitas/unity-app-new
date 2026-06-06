@@ -89,8 +89,8 @@ class EventPaymentService
     public function responsePayload(EventRegistration $registration): array
     {
         $requiresPayment = (bool) ($registration->payment_required ?? false);
-        $gateway = $requiresPayment ? (string) config('services.event_payment_gateway', env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link')) : null;
-        $paymentUrl = $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null;
+        $gateway = $requiresPayment ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'))) : null;
+        $paymentUrl = $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_checkout_url ?? $registration->zoho_hosted_page_url ?? null;
         $zohoLinkFailed = $requiresPayment && $gateway === 'zoho_billing_payment_link' && empty($paymentUrl);
 
         $payload = [
@@ -136,6 +136,8 @@ class EventPaymentService
             'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
             'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
             'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'visitor_business_category_main' => $registration->visitor_business_category_main ?? data_get($registration->metadata, 'visitor_business_category_main'),
+            'visitor_business_category_sub' => $registration->visitor_business_category_sub ?? data_get($registration->metadata, 'visitor_business_category_sub'),
             'business_category_main' => $registration->businessCategoryMainPayload(),
             'business_category_sub' => $registration->businessCategorySubPayload(),
             'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),

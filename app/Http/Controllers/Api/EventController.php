@@ -13,23 +13,30 @@ use App\Http\Resources\Event\EventOccurrenceListResource;
 use App\Http\Resources\Event\EventRegistrationResource;
 use App\Http\Resources\EventResource;
 use App\Http\Resources\EventRsvpResource;
+use App\Models\CircleCategory;
+use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\Event;
 use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
 use App\Models\EventRsvp;
+use App\Models\ScanAppUser;
+use App\Models\User;
 use App\Services\Events\EventCheckinService;
 use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventPaymentSyncService;
 use App\Services\Events\EventRegistrationService;
+use App\Services\Events\EventScannerQrScanService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventQrService;
+use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventRazorpayPaymentFinalizer;
 use App\Services\Events\EventRazorpayPaymentService;
 use App\Services\Events\EventZohoInvoiceSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class EventController extends BaseApiController
 {
@@ -37,8 +44,10 @@ class EventController extends BaseApiController
         private readonly EventService $events,
         private readonly EventRegistrationService $registrations,
         private readonly EventCheckinService $checkins,
+        private readonly EventScannerQrScanService $scannerQrScans,
         private readonly EventPaymentService $payments,
         private readonly EventPaymentSyncService $eventPaymentSync,
+        private readonly EventRegistrationQrService $registrationQr,
         private readonly EventRazorpayPaymentService $razorpayPayments,
         private readonly EventRazorpayPaymentFinalizer $paymentFinalizer,
         private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
@@ -313,7 +322,8 @@ class EventController extends BaseApiController
         $registration = $this->registrations->registerVisitor(
             $event,
             EventOccurrence::query()->findOrFail($occurrenceId),
-            $request->validated() + ['source' => $request->input('source', 'visitor_app')]
+            $request->validated(),
+            $request->input('source', 'visitor_app')
         );
         Log::info('public_event_registration_payment_link_created', ['event_id' => $event->id, 'occurrence_id' => $occurrenceId, 'registration_id' => (string) $registration->id]);
 
@@ -380,25 +390,35 @@ class EventController extends BaseApiController
     {
         $registration = EventRegistration::query()->with(['event', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])->findOrFail($registrationId);
 
-        if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link' && ! empty($registration->zoho_payment_link_id)) {
+        if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link'
+            && in_array((string) ($registration->payment_status ?? ''), ['pending', 'processing', 'failed', 'expired'], true)) {
             try {
                 $syncResult = $this->eventPaymentSync->syncRegistrationPayment($registration, ['source' => 'payment_status_api']);
                 $registration = $syncResult['registration'];
-            } catch (\Throwable) {
-                // non-fatal fallback
+            } catch (\Throwable $e) {
+                Log::warning('event_payment_status_api_zoho_sync_failed', [
+                    'registration_id' => (string) $registration->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
+        }
+
+        if (in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)) {
+            $registration = $this->registrationQr->ensureQrGenerated($registration);
         }
 
         return $this->success([
             'registration_id' => $registration->id,
             'payment_required' => (bool) ($registration->payment_required ?? false),
-            'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho_billing_payment_link') : null,
+            'payment_gateway' => ($registration->payment_required ?? false) ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
             'payment_status' => $registration->payment_status ?? ((bool) ($registration->payment_required ?? false) ? 'pending' : 'not_required'),
             'status' => $registration->status,
             'payment_completed_at' => optional($registration->payment_completed_at)->toISOString(),
-            'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid'
+            'qr_token' => $registration->qr_token ?? null,
+            'qr_code_url' => ($registration->payment_required ?? false) && ! in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)
                 ? null
-                : ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url),
+                : $this->registrationQr->qrCodeUrl($registration),
+            'qr_code_svg' => $registration->qr_code_svg ?? null,
             'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
             'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
             'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,
@@ -480,6 +500,21 @@ class EventController extends BaseApiController
         ], 'Public event fetched successfully.');
     }
 
+    public function publicRegistrationForm(string $eventId, string $occurrenceId)
+    {
+        $occurrence = EventOccurrence::query()
+            ->with(['event.circle'])
+            ->where('event_id', $eventId)
+            ->findOrFail($occurrenceId);
+        $event = $occurrence->event;
+
+        if (! ($event->is_public || $event->visibility === 'public' || $this->events->visitorRegistrationEnabled($event))) {
+            return $this->error('Event is not available for public registration.', 403);
+        }
+
+        return $this->success($this->publicRegistrationFormPayload($event, $occurrence), 'Public event registration form fetched successfully.');
+    }
+
     public function publicRegister(VisitorEventRegistrationRequest $request, string $eventId, string $occurrenceId)
     {
         $event = Event::query()->findOrFail($eventId);
@@ -490,7 +525,8 @@ class EventController extends BaseApiController
         $registration = $this->registrations->registerVisitor(
             $event,
             EventOccurrence::query()->findOrFail($occurrenceId),
-            $request->validated() + ['source' => 'visitor_web']
+            $request->validated(),
+            'api'
         );
         Log::info('public_event_registration_payment_link_created', ['event_id' => $event->id, 'occurrence_id' => $occurrenceId, 'registration_id' => (string) $registration->id]);
         $requiresPayment = (bool) ($registration->payment_required ?? false);
@@ -577,7 +613,7 @@ class EventController extends BaseApiController
                 'mode' => $registration->event?->mode,
                 'status' => $registration->status,
                 'checkin_status' => $registration->checkin_status,
-                'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho_billing_payment_link') : null,
+                'payment_gateway' => ($registration->payment_required ?? false) ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
                 'payment_status' => $registration->payment_status ?? null,
                 'razorpay_order_id' => $registration->razorpay_order_id ?? null,
                 'payment_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
@@ -597,9 +633,48 @@ class EventController extends BaseApiController
 
     public function scan(ScanEventQrRequest $request)
     {
-        $registration = $this->checkins->scan($request->input('qr_token'), $request->user(), (bool) $request->boolean('force'));
+        $authUser = $request->user();
+        $qrToken = trim((string) $request->input('qr_token'));
 
-        return $this->success(new EventRegistrationResource($registration), 'Attendance marked successfully.');
+        if ($authUser instanceof ScanAppUser) {
+            return $this->scannerScanResponse(
+                $this->scannerQrScans->scan($authUser, $qrToken, $this->deviceInfo($request))
+            );
+        }
+
+        if ($authUser instanceof User) {
+            $registration = $this->checkins->scan($qrToken, $authUser, (bool) $request->boolean('force'));
+
+            return $this->success(new EventRegistrationResource($registration), 'Attendance marked successfully.');
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthenticated.',
+        ], 401);
+    }
+
+    private function scannerScanResponse(array $result)
+    {
+        if ($result['success']) {
+            return $this->success($result['data'], $result['message'], $result['status']);
+        }
+
+        if ($result['errors'] !== null) {
+            return $this->error($result['message'], $result['status'], $result['errors']);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => $result['message'],
+        ], $result['status']);
+    }
+
+    private function deviceInfo(Request $request): ?array
+    {
+        $deviceInfo = $request->input('device_info');
+
+        return is_array($deviceInfo) ? $deviceInfo : null;
     }
 
     public function attendance(Request $request, string $eventId)
@@ -700,6 +775,73 @@ class EventController extends BaseApiController
             'invited_by_user_id' => $registration->invited_by_user_id ?? data_get($registration->metadata, 'invited_by_user_id'),
             'invited_by_user' => $this->invitedByUserPayload($registration->invitedByUser),
             'created_at' => optional($registration->created_at)->toISOString(),
+        ];
+    }
+
+    private function publicRegistrationFormPayload(Event $event, EventOccurrence $occurrence, bool $includeCategories = true): array
+    {
+        return [
+            'event' => [
+                'id' => $event->id,
+                'title' => $event->title,
+                'name' => $event->title,
+                'description' => $event->description,
+                'basic_details' => [
+                    'event_type' => $event->event_type,
+                    'event_category' => $event->event_category,
+                    'mode' => $event->mode,
+                    'circle' => $event->circle ? [
+                        'id' => $event->circle->id,
+                        'name' => $event->circle->name ?? null,
+                    ] : null,
+                ],
+                'start_at' => optional($occurrence->start_at ?? $event->start_at)->toISOString(),
+                'end_at' => optional($occurrence->end_at ?? $event->end_at)->toISOString(),
+                'location_text' => $event->location_text,
+                'mode' => $event->mode,
+                'online_meeting_url' => $event->online_meeting_url,
+                'is_paid' => (bool) $event->is_paid,
+                'ticket_price' => (string) ($event->ticket_price ?? '0.00'),
+                'currency' => $this->payments->currency($event),
+                'visitor_registration_enabled' => $this->events->visitorRegistrationEnabled($event),
+            ],
+            'occurrence' => [
+                'id' => $occurrence->id,
+                'event_id' => $occurrence->event_id,
+                'occurrence_date' => optional($occurrence->occurrence_date)->toDateString(),
+                'start_at' => optional($occurrence->start_at)->toISOString(),
+                'end_at' => optional($occurrence->end_at)->toISOString(),
+                'status' => $occurrence->status,
+                'sequence' => $occurrence->sequence,
+                'registration_limit' => $occurrence->registration_limit,
+                'registered_count' => $occurrence->registered_count,
+                'metadata' => $occurrence->metadata,
+            ],
+            'categories' => $includeCategories ? $this->publicRegistrationCategories() : null,
+            'submit_url' => url('/api/v1/public/events/'.$event->id.'/occurrences/'.$occurrence->id.'/register'),
+            'web_form_url' => url('/events/'.$event->id.'/occurrences/'.$occurrence->id.'/visitor-register'),
+        ];
+    }
+
+    private function publicRegistrationCategories(): array
+    {
+        $main = Schema::hasTable('circle_categories')
+            ? CircleCategory::query()->orderBy('name')->get(['id', 'name'])->map(fn ($category) => [
+                'id' => $category->id,
+                'name' => $category->name,
+            ])->values()->all()
+            : [];
+
+        $sub = (Schema::hasTable('level4_categories') || Schema::hasTable('circle_category_level4'))
+            ? CircleCategoryLevel4::query()->orderBy('name')->get(['id', 'name'])->map(fn ($category) => [
+                'id' => $category->id,
+                'name' => $category->name,
+            ])->values()->all()
+            : [];
+
+        return [
+            'main' => $main,
+            'sub' => $sub,
         ];
     }
 

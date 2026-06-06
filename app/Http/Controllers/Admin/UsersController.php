@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -561,6 +562,7 @@ class UsersController extends Controller
                 'ded_district_id.required' => 'Please select a district when assigning the DED role.',
             ]);
         }
+
         $selectedRoleIdsForValidation = collect($validated['role_ids'] ?? [])->map(fn ($id) => (string) $id);
         if ($industryDirectorRoleId && $selectedRoleIdsForValidation->contains((string) $industryDirectorRoleId) && blank($validated['industry_id'] ?? null)) {
             throw ValidationException::withMessages([
@@ -931,6 +933,7 @@ class UsersController extends Controller
 
                         Cache::forget('admin-access:ded-location:' . $adminUser->id);
                     }
+
                     DB::table('admin_user_roles')
                         ->where('user_id', $adminUser->id)
                         ->whereIn('role_id', $adminRoleIds)
@@ -1390,6 +1393,66 @@ class UsersController extends Controller
         $validated['active_circle_addon_name'] = $circle?->zoho_addon_name;
     }
 
+    public function approveMembership(Request $request, User $user): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'membership_start_date' => ['nullable', 'date'],
+            'membership_end_date' => ['nullable', 'date', 'after_or_equal:membership_start_date'],
+        ]);
+
+        [$startDate, $endDate] = $this->resolveMembershipApprovalDates($validated);
+        $adminId = Auth::guard('admin')->id();
+
+        $result = DB::transaction(function () use ($user, $startDate, $endDate, $adminId): array {
+            $lockedUser = User::query()->whereKey($user->getKey())->lockForUpdate()->get();
+
+            return $this->approveEligibleUsers($lockedUser, $startDate, $endDate, $adminId ? (string) $adminId : null);
+        });
+
+        if ($result['approved_count'] === 0) {
+            return back()->with('warning', 'Selected peer is not eligible for membership approval.');
+        }
+
+        return back()->with('success', 'Peer approved successfully as Only Unity Peer. Membership valid until ' . $endDate->toDateString() . '.');
+    }
+
+    public function bulkApproveMembership(Request $request): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        if (! $request->filled('user_ids')) {
+            return back()->with('warning', 'Please select at least one peer.');
+        }
+
+        $validated = $request->validate([
+            'user_ids' => ['required', 'array'],
+            'user_ids.*' => ['required', 'uuid', 'exists:users,id'],
+            'membership_start_date' => ['nullable', 'required_with:membership_end_date', 'date'],
+            'membership_end_date' => ['nullable', 'required_with:membership_start_date', 'date', 'after_or_equal:membership_start_date'],
+        ]);
+
+        [$startDate, $endDate] = $this->resolveMembershipApprovalDates($validated);
+        $adminId = Auth::guard('admin')->id();
+        $userIds = collect($validated['user_ids'])->map(fn ($id) => (string) $id)->unique()->values();
+
+        $result = DB::transaction(function () use ($userIds, $startDate, $endDate, $adminId): array {
+            $users = User::query()
+                ->whereIn('id', $userIds->all())
+                ->lockForUpdate()
+                ->get();
+
+            return $this->approveEligibleUsers($users, $startDate, $endDate, $adminId ? (string) $adminId : null);
+        });
+
+        return back()->with('success', "Approved {$result['approved_count']} peers as Only Unity Peer. Skipped {$result['skipped_count']} non-eligible peers.");
+    }
+
     private function membershipStatuses(): array
     {
         return config('membership.statuses', []);
@@ -1719,6 +1782,7 @@ class UsersController extends Controller
         if (AdminAccess::isDed(Auth::guard('admin')->user())) {
             AdminCircleScope::applyToUsersQuery($query, Auth::guard('admin')->user());
         }
+
         $industryScope = app(IndustryScopeService::class);
         $adminUser = Auth::guard('admin')->user();
         if ($industryScope->isIndustryDirector($adminUser)) {
@@ -1747,6 +1811,7 @@ class UsersController extends Controller
         $joinedFilter = (string) $request->input('joined_filter', 'all');
         $joinedFrom = (string) $request->input('joined_from', '');
         $joinedTo = (string) $request->input('joined_to', '');
+        $approveFilter = (string) $request->input('approve_filter', 'all');
         $perPage = $request->integer('per_page') ?: 20;
 
         if ($search !== '') {
@@ -1862,6 +1927,14 @@ class UsersController extends Controller
             $query->where('phone', 'ILIKE', "%{$phone}%");
         }
 
+        if ($approveFilter === 'eligible') {
+            $query->whereIn('membership_status', $this->membershipApprovalEligibleStatuses());
+        } elseif ($approveFilter === 'not_eligible') {
+            $query->whereNotIn('membership_status', $this->membershipApprovalEligibleStatuses());
+        } else {
+            $approveFilter = 'all';
+        }
+
         $joinedDateExpression = 'COALESCE(membership_starts_at, created_at)';
         $now = now();
         switch ($joinedFilter) {
@@ -1923,6 +1996,7 @@ class UsersController extends Controller
             || $joinedFilter !== 'all'
             || filled($joinedFrom)
             || filled($joinedTo)
+            || $approveFilter !== 'all'
         ) {
             Log::info('admin.users.index.filters_applied', [
                 'search' => $search,
@@ -1932,6 +2006,7 @@ class UsersController extends Controller
                 'joined_filter' => $joinedFilter,
                 'joined_from' => $joinedFrom,
                 'joined_to' => $joinedTo,
+                'approve_filter' => $approveFilter,
                 'is_circle_scoped' => $isCircleScoped,
             ]);
         }
@@ -1944,12 +2019,85 @@ class UsersController extends Controller
             'joined_filter' => $joinedFilter,
             'joined_from' => $joinedFrom,
             'joined_to' => $joinedTo,
+            'approve_filter' => $approveFilter,
             'per_page' => $perPage,
             'sort' => $sort,
             'dir' => $direction,
         ];
 
         return [$query, $filters, $perPage];
+    }
+
+    private function approveEligibleUsers(Collection $users, Carbon $startDate, Carbon $endDate, ?string $adminId): array
+    {
+        $approvedCount = 0;
+        $skippedCount = 0;
+        $eligibleStatuses = $this->membershipApprovalEligibleStatuses();
+        $approvedMembershipStatus = $this->approvedMembershipStatus();
+
+        foreach ($users as $user) {
+            if (! in_array((string) $user->membership_status, $eligibleStatuses, true)) {
+                $skippedCount++;
+                continue;
+            }
+
+            $attributes = [
+                'membership_status' => $approvedMembershipStatus,
+            ];
+
+            if (Schema::hasColumn('users', 'membership_start_date')) {
+                $attributes['membership_start_date'] = $startDate->copy()->toDateString();
+            }
+
+            if (Schema::hasColumn('users', 'membership_end_date')) {
+                $attributes['membership_end_date'] = $endDate->copy()->toDateString();
+            }
+
+            if (Schema::hasColumn('users', 'membership_expiry')) {
+                $attributes['membership_expiry'] = $endDate->copy()->endOfDay();
+            }
+
+            if (Schema::hasColumn('users', 'membership_approved_at')) {
+                $attributes['membership_approved_at'] = now();
+            }
+
+            if ($adminId !== null && Schema::hasColumn('users', 'membership_approved_by')) {
+                $attributes['membership_approved_by'] = $adminId;
+            }
+
+            $user->forceFill($attributes)->save();
+            $approvedCount++;
+        }
+
+        return [
+            'approved_count' => $approvedCount,
+            'skipped_count' => $skippedCount,
+        ];
+    }
+
+    private function resolveMembershipApprovalDates(array $validated): array
+    {
+        $startDate = filled($validated['membership_start_date'] ?? null)
+            ? Carbon::parse($validated['membership_start_date'])->startOfDay()
+            : now()->startOfDay();
+
+        $endDate = filled($validated['membership_end_date'] ?? null)
+            ? Carbon::parse($validated['membership_end_date'])->endOfDay()
+            : $startDate->copy()->addYear()->endOfDay();
+
+        return [$startDate, $endDate];
+    }
+
+    private function membershipApprovalEligibleStatuses(): array
+    {
+        return [User::STATUS_FREE, User::STATUS_FREE_TRIAL];
+    }
+
+    private function approvedMembershipStatus(): string
+    {
+        // Database enum membership_status_enum must include only_unity_peer.
+        // Manual SQL: ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'only_unity_peer';
+        return 'only_unity_peer';
     }
 
     private function parseJoinedFilterDate(?string $value): ?Carbon
