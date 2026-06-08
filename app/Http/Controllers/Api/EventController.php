@@ -346,6 +346,8 @@ class EventController extends BaseApiController
             }
         }
 
+        $registration = $this->ensurePendingRegistrationPaymentUrl($registration, 'visitor_register_api');
+
         if ($this->registrationPaymentCompleted($registration)) {
             $registration = $this->registrationQr->ensureQrGenerated($registration);
         }
@@ -389,12 +391,70 @@ class EventController extends BaseApiController
             ->first();
     }
 
+    private function ensurePendingRegistrationPaymentUrl(EventRegistration $registration, string $source): EventRegistration
+    {
+        if (! (bool) ($registration->payment_required ?? false)
+            || $this->registrationPaymentCompleted($registration)
+            || ! empty($this->registrationPaymentUrl($registration))) {
+            return $registration;
+        }
+
+        Log::warning('event_registration_payment_url_missing_before_response', [
+            'source' => $source,
+            'registration_id' => (string) $registration->id,
+            'event_id' => (string) $registration->event_id,
+            'occurrence_id' => (string) $registration->occurrence_id,
+            'payment_gateway' => $registration->payment_gateway,
+            'payment_status' => $registration->payment_status,
+        ]);
+
+        try {
+            return $this->payments->attachCheckout($registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
+        } catch (\Throwable $e) {
+            Log::error('event_registration_payment_url_regeneration_failed', [
+                'source' => $source,
+                'registration_id' => (string) $registration->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $registration->forceFill(array_filter([
+                'payment_gateway' => 'zoho_billing_payment_link',
+                'payment_status' => 'pending',
+                'status' => 'pending_payment',
+                'zoho_invoice_sync_error' => $e->getMessage(),
+            ], fn ($value, $key) => Schema::hasColumn('event_registrations', $key), ARRAY_FILTER_USE_BOTH))->save();
+
+            return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']) ?? $registration;
+        }
+    }
+
+    private function registrationPaymentUrl(EventRegistration $registration): ?string
+    {
+        return $registration->payment_url
+            ?? $registration->checkout_url
+            ?? $registration->zoho_checkout_url
+            ?? $registration->zoho_payment_link_url
+            ?? $registration->zoho_hosted_page_url
+            ?? null;
+    }
+
     private function registrationUsesZohoPaymentLink(EventRegistration $registration): bool
     {
         return ($registration->payment_gateway ?? '') === 'zoho_billing_payment_link'
             || ! empty($registration->zoho_payment_link_url)
             || ! empty($registration->zoho_checkout_url)
             || ! empty($registration->zoho_hosted_page_url);
+    }
+
+    private function registrationPaymentGateway(EventRegistration $registration): string
+    {
+        $gateway = strtolower((string) ($registration->payment_gateway ?: config('services.event_payment_gateway', 'zoho_billing_payment_link')));
+
+        if ($gateway === '' || in_array($gateway, ['none', 'not_required', 'null'], true)) {
+            return 'zoho_billing_payment_link';
+        }
+
+        return $gateway;
     }
 
     private function registrationPaymentCompleted(EventRegistration $registration): bool
@@ -469,6 +529,7 @@ class EventController extends BaseApiController
         }
 
         $registration = $this->registrations->ensureVisitorRegistrationFormUrl($registration);
+        $registration = $this->ensurePendingRegistrationPaymentUrl($registration, 'payment_status_api');
 
         if (in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)) {
             $registration = $this->registrationQr->ensureQrGenerated($registration);
@@ -479,7 +540,7 @@ class EventController extends BaseApiController
         return $this->success([
             'registration_id' => $registration->id,
             'payment_required' => (bool) ($registration->payment_required ?? false),
-            'payment_gateway' => ($registration->payment_required ?? false) ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
+            'payment_gateway' => ($registration->payment_required ?? false) ? $this->registrationPaymentGateway($registration) : null,
             'payment_status' => $registration->payment_status ?? ((bool) ($registration->payment_required ?? false) ? 'pending' : 'not_required'),
             'status' => $registration->status,
             'payment_completed_at' => optional($registration->payment_completed_at)->toISOString(),
@@ -684,7 +745,7 @@ class EventController extends BaseApiController
                 'mode' => $registration->event?->mode,
                 'status' => $registration->status,
                 'checkin_status' => $registration->checkin_status,
-                'payment_gateway' => ($registration->payment_required ?? false) ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
+                'payment_gateway' => ($registration->payment_required ?? false) ? $this->registrationPaymentGateway($registration) : null,
                 'payment_status' => $registration->payment_status ?? null,
                 'razorpay_order_id' => $registration->razorpay_order_id ?? null,
                 'payment_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,

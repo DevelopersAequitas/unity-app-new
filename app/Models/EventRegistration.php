@@ -73,6 +73,7 @@ class EventRegistration extends Model
         'payment_required',
         'payment_gateway',
         'payment_url',
+        'checkout_url',
         'payment_amount',
         'payment_currency',
         'zoho_payment_link_url',

@@ -33,6 +33,12 @@ class PublicEventRegistrationFormController extends Controller
     {
         [$event, $occurrence] = $this->publicEventAndOccurrence($event, $occurrence);
 
+        Log::info('public_event_registration_form_route_loaded', [
+            'event_id' => (string) $event->id,
+            'occurrence_id' => (string) $occurrence->id,
+            'registration_id' => $request->query('registration_id'),
+        ]);
+
         $registration = null;
         $payment = null;
         $qr = null;
@@ -42,6 +48,17 @@ class PublicEventRegistrationFormController extends Controller
                 ->where('event_id', $event->id)
                 ->where('occurrence_id', $occurrence->id)
                 ->findOrFail((string) $request->query('registration_id'));
+            $registration = EventRegistration::query()->findOrFail((string) $request->query('registration_id'));
+            if ((string) $registration->event_id !== (string) $event->id || (string) $registration->occurrence_id !== (string) $occurrence->id) {
+                Log::warning('public_event_registration_form_registration_mismatch', [
+                    'requested_event_id' => (string) $event->id,
+                    'requested_occurrence_id' => (string) $occurrence->id,
+                    'registration_id' => (string) $registration->id,
+                    'registration_event_id' => (string) $registration->event_id,
+                    'registration_occurrence_id' => (string) $registration->occurrence_id,
+                ]);
+                abort(404);
+            }
             $registration = $this->prepareRegistrationForDisplay($registration);
             $payment = $this->payments->responsePayload($registration);
             $qr = $this->qrDetailsForDisplay($registration);
@@ -103,6 +120,8 @@ class PublicEventRegistrationFormController extends Controller
             }
         }
 
+        $registration = $this->ensurePendingPaymentUrl($registration);
+
         if ($this->registrationIsConfirmed($registration)) {
             $registration = $this->registrationQr->ensureQrGenerated($registration);
         }
@@ -117,6 +136,51 @@ class PublicEventRegistrationFormController extends Controller
         }
 
         return $this->registrations->qrDetails($registration);
+    }
+
+    private function ensurePendingPaymentUrl(EventRegistration $registration): EventRegistration
+    {
+        if (! (bool) ($registration->payment_required ?? false)
+            || $this->registrationIsConfirmed($registration)
+            || ! empty($this->registrationPaymentUrl($registration))) {
+            return $registration;
+        }
+
+        Log::warning('public_event_registration_form_payment_url_missing', [
+            'registration_id' => (string) $registration->id,
+            'event_id' => (string) $registration->event_id,
+            'occurrence_id' => (string) $registration->occurrence_id,
+            'payment_gateway' => $registration->payment_gateway,
+            'payment_status' => $registration->payment_status,
+        ]);
+
+        try {
+            return $this->payments->attachCheckout($registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
+        } catch (\Throwable $exception) {
+            Log::error('public_event_registration_form_payment_url_regeneration_failed', [
+                'registration_id' => (string) $registration->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            $registration->forceFill(array_filter([
+                'payment_gateway' => 'zoho_billing_payment_link',
+                'payment_status' => 'pending',
+                'status' => 'pending_payment',
+                'zoho_invoice_sync_error' => $exception->getMessage(),
+            ], fn ($value, $key) => Schema::hasColumn('event_registrations', $key), ARRAY_FILTER_USE_BOTH))->save();
+
+            return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']) ?? $registration;
+        }
+    }
+
+    private function registrationPaymentUrl(EventRegistration $registration): ?string
+    {
+        return $registration->payment_url
+            ?? $registration->checkout_url
+            ?? $registration->zoho_checkout_url
+            ?? $registration->zoho_payment_link_url
+            ?? $registration->zoho_hosted_page_url
+            ?? null;
     }
 
     private function registrationUsesZohoPaymentLink(EventRegistration $registration): bool

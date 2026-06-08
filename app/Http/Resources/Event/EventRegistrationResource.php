@@ -27,6 +27,7 @@ class EventRegistrationResource extends JsonResource
             'amount' => $this->amount !== null ? (string) $this->amount : null,
             'currency' => $this->currency ?? null,
             'payment_gateway' => ($this->payment_required ?? false) ? ($this->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
+            'payment_gateway' => ($this->payment_required ?? false) ? (in_array(strtolower((string) ($this->payment_gateway ?: config('services.event_payment_gateway', 'zoho_billing_payment_link'))), ['none', 'not_required', 'null', ''], true) ? 'zoho_billing_payment_link' : ($this->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link'))) : null,
             'razorpay_order_id' => $this->razorpay_order_id ?? null,
             'razorpay_payment_id' => $this->razorpay_payment_id ?? null,
             'checkout_url' => $this->payment_url ?? $this->zoho_checkout_url ?? $this->zoho_payment_link_url ?? $this->zoho_hosted_page_url ?? null,
