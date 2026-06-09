@@ -74,6 +74,7 @@ use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\CircleCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
+use App\Http\Controllers\Api\V1\EventApiController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\Api\V1\FollowController;
@@ -122,6 +123,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/me', [ScanAppAuthController::class, 'me']);
             Route::post('/logout', [ScanAppAuthController::class, 'logout']);
             Route::get('/events', [ScanAppEventController::class, 'index']);
+            Route::post('/scan', [ScanAppEventController::class, 'scanAny']);
             Route::post('/events/{event_id}/scan', [ScanAppEventController::class, 'scan'])->whereUuid('event_id');
             Route::get('/events/{event}/attendance-history', [ScanAppEventController::class, 'attendanceHistory'])->whereUuid('event');
         });
@@ -153,6 +155,25 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/dashboard', [DedDashboardController::class, 'show']);
             Route::get('/dashboard/circles', [DedDashboardController::class, 'circles']);
+
+            // DED Drilldown APIs
+            Route::get('/drilldowns/active-members', [DedDashboardController::class, 'activeMembers']);
+            Route::get('/drilldowns/leadership-spots', [DedDashboardController::class, 'leadershipSpots']);
+            Route::get('/drilldowns/membership-conversion', [DedDashboardController::class, 'membershipConversion']);
+            Route::get('/drilldowns/referral-activity', [DedDashboardController::class, 'referralActivity']);
+
+            // DED Industry APIs
+            Route::get('/industries', [DedDashboardController::class, 'industries']);
+            Route::get('/industries/{industry_id}', [DedDashboardController::class, 'industryDetail']);
+
+            // DED Leadership APIs
+            Route::get('/leadership/industry-directors', [DedDashboardController::class, 'industryDirectors']);
+            Route::get('/leadership/founders', [DedDashboardController::class, 'founders']);
+            Route::get('/leadership/directors', [DedDashboardController::class, 'directors']);
+            Route::get('/leadership/chairs', [DedDashboardController::class, 'chairs']);
+            Route::get('/leadership/vice-chairs', [DedDashboardController::class, 'viceChairs']);
+            Route::get('/leadership/secretaries', [DedDashboardController::class, 'secretaries']);
+            Route::get('/leadership/members', [DedDashboardController::class, 'members']);
 
             Route::get('/circles', [DedPeersController::class, 'circles']);
             Route::get('/peers', [DedPeersController::class, 'index']);
@@ -233,6 +254,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 
     Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->whereUuid('eventId')->where('filename', '[^/]+\.png');
+    Route::get('/events/all', [EventApiController::class, 'allEvents']);
     Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register', [EventController::class, 'visitorRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
     Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
@@ -241,6 +263,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
     Route::middleware('throttle:60,1')->group(function () {
         Route::get('/public/events/{event_id}/occurrences/{occurrence_id}', [EventController::class, 'publicOccurrence'])->whereUuid('event_id')->whereUuid('occurrence_id');
+        Route::get('/public/events/{event_id}/occurrences/{occurrence_id}/registration-form', [EventController::class, 'publicRegistrationForm'])->whereUuid('event_id')->whereUuid('occurrence_id');
         Route::post('/public/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'publicRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     });
     Route::post('/zoho/events/form-webhook', ZohoEventFormWebhookController::class);

@@ -62,6 +62,7 @@ class CircleController extends Controller
         ];
 
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
+        $isCircleScoped = (bool) $request->attributes->get('is_circle_scoped');
 
         $query = Circle::query()
             ->leftJoin('cities as city', 'city.id', '=', 'circles.city_id')
@@ -73,7 +74,7 @@ class CircleController extends Controller
             ->with(['founder', 'director', 'industryDirector', 'ded', 'city', 'coverFile'])
             ->withCount('members');
 
-        if (is_array($allowedCircleIds)) {
+        if ($isCircleScoped && is_array($allowedCircleIds)) {
             if ($allowedCircleIds === []) {
                 $query->whereRaw('1=0');
             } else {
@@ -84,6 +85,7 @@ class CircleController extends Controller
         $admin = Auth::guard('admin')->user();
         if (AdminAccess::isDed($admin)) {
             AdminCircleScope::applyToCirclesQuery($query, $admin);
+        }
         $industryCircleIds = null;
         if ($this->industryScope->isIndustryDirector($admin)) {
             $industryCircleIds = $this->industryScope->circleIdsForAdmin($admin);
