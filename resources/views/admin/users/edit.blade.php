@@ -624,7 +624,7 @@
                     @php
                         $currentRoleIds = old('role_ids', $userRoleIds);
                         $currentRoleIds = is_array($currentRoleIds) ? $currentRoleIds : [];
-                        $currentIndustryId = old('industry_id', $selectedIndustryId);
+                        $currentIndustryId = old('industry_id', $selectedIndustryId ?? null);
                     @endphp
                     @if ($hasAssignedAdminRole)
                         <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">

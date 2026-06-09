@@ -265,12 +265,13 @@ class UsersController extends Controller
         $assignedDedDistrictName = $assignedDedMapping->district_name ?? null;
         $assignedDedDistricts = $this->dedLocationService->getAvailableDistrictsByState($assignedDedStateId);
 
-        $industryDirectorAssignment = $adminUserForRoles
-            ? IndustryDirectorAssignment::query()
+        $industryDirectorAssignment = null;
+        if ($adminUserForRoles && Schema::hasTable('industry_director_assignments')) {
+            $industryDirectorAssignment = IndustryDirectorAssignment::query()
                 ->where('admin_user_id', $adminUserForRoles->id)
                 ->where('is_active', true)
-                ->first()
-            : null;
+                ->first();
+        }
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
