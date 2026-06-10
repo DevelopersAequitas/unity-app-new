@@ -2,21 +2,6 @@
 
 @section('title', 'Peers')
 
-@push('styles')
-<style>
-    .admin-content .peers-list-scroll.table-responsive {
-        max-height: calc(100vh - 320px);
-        overflow-y: auto !important;
-    }
-
-    @media (max-width: 991.98px) {
-        .admin-content .peers-list-scroll.table-responsive {
-            max-height: calc(100vh - 260px);
-        }
-    }
-</style>
-@endpush
-
 @section('content')
 @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
@@ -31,7 +16,7 @@
     <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
 
-<div class="card p-3">
+<div class="card p-3 peers-index-card">
     <form id="usersFiltersForm" method="GET" class="d-none">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
