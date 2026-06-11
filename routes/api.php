@@ -129,10 +129,6 @@ Route::prefix('v1')->group(function () {
         });
     });
 
-    // Backward-compatible OTP aliases for clients that call these exact v1 auth URLs.
-    Route::post('/auth/request-otp', [AuthController::class, 'requestOtp']);
-    Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']);
-
     Route::prefix('auth')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login']);
