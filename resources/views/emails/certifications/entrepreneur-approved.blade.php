@@ -1,12 +1,3 @@
-@php
-    $certificateTitle = 'Entrepreneur Certification';
-    $recipientName = $submission->full_name ?: 'Peer';
-    $businessName = $submission->business_name ?: 'N/A';
-    $certificationTier = $submission->certification_tier ?: 'N/A';
-    $certificateReference = $submission->id ?: 'N/A';
-    $score = $submission->total_score ?? 'N/A';
-    $percentage = $submission->percentage === null ? 'N/A' : rtrim(rtrim(number_format((float) $submission->percentage, 2), '0'), '.').'%';
-@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,49 +33,19 @@
                                     <td style="padding:22px 20px; text-align:center; border-bottom:1px solid #33205f;">
                                         <div style="font-family:Georgia, 'Times New Roman', serif; color:#ffffff; font-size:30px; line-height:38px; font-weight:bold;">{{ $recipientName }}</div>
                                         <div style="margin-top:10px; color:#d8c7ff; font-size:15px; line-height:23px;">has achieved</div>
-                                        <div style="margin-top:8px; color:#ffffff; font-size:20px; line-height:28px; font-weight:bold;">{{ $certificationTier !== 'N/A' ? $certificationTier : $certificateTitle }}</div>
+                                        <div style="margin-top:8px; color:#ffffff; font-size:20px; line-height:28px; font-weight:bold;">{{ $achievementLabel }}</div>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style="padding:18px 20px;">
                                         <div style="margin:0 0 12px; color:#ffffff; font-size:17px; line-height:25px; font-weight:bold;">Certification Details</div>
-                                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;">
-                                            <tr>
-                                                <td style="padding:8px 0; color:#b8b8c4; font-size:14px; line-height:20px; width:44%;">Certificate</td>
-                                                <td style="padding:8px 0; color:#ffffff; font-size:14px; line-height:20px; font-weight:bold;">{{ $certificateTitle }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding:8px 0; color:#b8b8c4; font-size:14px; line-height:20px;">Recipient</td>
-                                                <td style="padding:8px 0; color:#ffffff; font-size:14px; line-height:20px; font-weight:bold;">{{ $recipientName }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding:8px 0; color:#b8b8c4; font-size:14px; line-height:20px;">Business/Organization</td>
-                                                <td style="padding:8px 0; color:#ffffff; font-size:14px; line-height:20px; font-weight:bold;">{{ $businessName }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding:8px 0; color:#b8b8c4; font-size:14px; line-height:20px;">Tier</td>
-                                                <td style="padding:8px 0; color:#c9a8ff; font-size:14px; line-height:20px; font-weight:bold;">{{ $certificationTier }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding:8px 0; color:#b8b8c4; font-size:14px; line-height:20px;">Total Score</td>
-                                                <td style="padding:8px 0; color:#ffffff; font-size:14px; line-height:20px;">{{ $score }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding:8px 0; color:#b8b8c4; font-size:14px; line-height:20px;">Percentage</td>
-                                                <td style="padding:8px 0; color:#ffffff; font-size:14px; line-height:20px;">{{ $percentage }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding:8px 0; color:#b8b8c4; font-size:14px; line-height:20px;">Status</td>
-                                                <td style="padding:8px 0; color:#c9a8ff; font-size:14px; line-height:20px; font-weight:bold;">Approved</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding:8px 0; color:#b8b8c4; font-size:14px; line-height:20px;">Issue Date</td>
-                                                <td style="padding:8px 0; color:#ffffff; font-size:14px; line-height:20px;">{{ $approvalDate ?: 'N/A' }}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding:8px 0; color:#b8b8c4; font-size:14px; line-height:20px;">Certificate ID</td>
-                                                <td style="padding:8px 0; color:#ffffff; font-size:13px; line-height:20px; word-break:break-all;">{{ $certificateReference }}</td>
-                                            </tr>
+                                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%; border-collapse:collapse;">
+                                            @foreach($certificationDetails as $label => $value)
+                                                <tr>
+                                                    <td style="padding:11px 0; color:#b8b8c4; font-size:14px; line-height:20px; width:44%; border-bottom:1px solid #33205f; vertical-align:top;">{{ $label }}</td>
+                                                    <td style="padding:11px 0; color:#ffffff; font-size:14px; line-height:20px; font-weight:bold; border-bottom:1px solid #33205f; vertical-align:top;">{{ $value }}</td>
+                                                </tr>
+                                            @endforeach
                                         </table>
                                     </td>
                                 </tr>
