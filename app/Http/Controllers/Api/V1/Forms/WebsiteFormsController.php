@@ -87,7 +87,7 @@ class WebsiteFormsController extends BaseApiController
     public function indexLeadershipCertification(Request $request)
     {
         $query = LeadershipCertificationSubmission::query();
-        $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
+        $this->applyCommonFilters($query, $request, ['full_name', 'email', 'contact_no', 'business_name']);
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
 
@@ -117,7 +117,7 @@ class WebsiteFormsController extends BaseApiController
     public function indexEntrepreneurCertification(Request $request)
     {
         $query = EntrepreneurCertificationSubmission::query();
-        $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
+        $this->applyCommonFilters($query, $request, ['full_name', 'email', 'contact_no', 'business_name']);
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
 
@@ -563,8 +563,22 @@ class WebsiteFormsController extends BaseApiController
             });
         }
 
+        foreach (['full_name', 'email', 'contact_no', 'contact_number'] as $filterColumn) {
+            if (! in_array($filterColumn, $searchColumns, true)) {
+                continue;
+            }
+
+            $filterValue = trim((string) $request->query($filterColumn, ''));
+
+            if ($filterValue !== '') {
+                $query->where($filterColumn, 'ilike', '%' . $filterValue . '%');
+            }
+        }
+
         if ($status = trim((string) $request->query('status', ''))) {
-            $query->where('status', $status);
+            if ($status !== 'all') {
+                $query->where('status', $status);
+            }
         }
 
         if ($fromDate = $request->query('from_date')) {
