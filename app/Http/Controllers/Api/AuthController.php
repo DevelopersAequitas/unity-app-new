@@ -892,7 +892,11 @@ class AuthController extends BaseApiController
             'otp'   => ['required', 'digits:4'],
         ]);
 
-        $user = User::where('email', $data['email'])->first();
+        $email = strtolower(trim($data['email']));
+        $otp = (string) $data['otp'];
+        $isAppleReviewEmail = $email === 'admina125@gmail.com';
+
+        $user = User::where('email', $isAppleReviewEmail ? $email : $data['email'])->first();
 
         if (! $user) {
             return response()->json([
@@ -902,38 +906,43 @@ class AuthController extends BaseApiController
             ], 404);
         }
 
-        $otpRecord = OtpCode::where('user_id', $user->id)
-            ->where('purpose', 'login_otp')
-            ->whereNull('used_at')
-            ->orderByDesc('created_at')
-            ->first();
+        // App Store review static OTP for review account only. Do not use for other users.
+        $isAppleReviewLogin = $isAppleReviewEmail && $otp === '2030';
 
-        if (! $otpRecord) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid OTP.',
-                'data'    => null,
-            ], 422);
+        if (! $isAppleReviewLogin) {
+            $otpRecord = OtpCode::where('user_id', $user->id)
+                ->where('purpose', 'login_otp')
+                ->whereNull('used_at')
+                ->orderByDesc('created_at')
+                ->first();
+
+            if (! $otpRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid OTP.',
+                    'data'    => null,
+                ], 422);
+            }
+
+            if (now()->greaterThan($otpRecord->expires_at)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'OTP has expired.',
+                    'data'    => null,
+                ], 422);
+            }
+
+            if (! Hash::check($otp, $otpRecord->code)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid OTP.',
+                    'data'    => null,
+                ], 422);
+            }
+
+            $otpRecord->used_at = now();
+            $otpRecord->save();
         }
-
-        if (now()->greaterThan($otpRecord->expires_at)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'OTP has expired.',
-                'data'    => null,
-            ], 422);
-        }
-
-        if (! Hash::check($data['otp'], $otpRecord->code)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid OTP.',
-                'data'    => null,
-            ], 422);
-        }
-
-        $otpRecord->used_at = now();
-        $otpRecord->save();
 
         $user->expireFreeTrialIfNeeded();
         $user->refresh();
