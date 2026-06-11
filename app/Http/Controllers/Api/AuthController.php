@@ -7,7 +7,9 @@ use App\Http\Resources\UserResource;
 use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\WelcomePeerMail;
+use App\Exceptions\MediaProcessingException;
 use App\Models\EmailLog;
+use App\Models\FileModel;
 
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
@@ -22,6 +24,7 @@ use App\Models\UserLoginHistory;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\OnlineStatusService;
 use App\Services\Referrals\ReferralService;
+use App\Services\Media\FileUploadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,7 +39,7 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends BaseApiController
 {
-    public function register(RegisterRequest $request, ReferralService $referralService)
+    public function register(RegisterRequest $request, ReferralService $referralService, FileUploadService $fileUploadService)
     {
         $data = $request->validated();
         $data = $this->resolveRegisterCategoryPath($data);
@@ -66,13 +69,16 @@ class AuthController extends BaseApiController
         $referralPreview = $referralService->validateReferralCodeOrFail($normalizedReferralCode);
         $data['resolved_referred_by_user_id'] = $this->resolveRegisterReferrerUserId($data, $referralPreview);
 
-        $data['profile_photo_path'] = $this->storeRegisterProfilePhoto($request);
+        $profilePhotoFile = $this->storeRegisterProfilePhoto($request, $fileUploadService);
+        if ($profilePhotoFile) {
+            $data['profile_photo_file_id'] = (string) $profilePhotoFile->id;
+        }
 
         try {
             $transactionUser = $this->createRegisteredUser($data);
         } catch (\Throwable $e) {
-            if (! empty($data['profile_photo_path'])) {
-                Storage::disk('public')->delete($data['profile_photo_path']);
+            if ($profilePhotoFile) {
+                $fileUploadService->delete($profilePhotoFile);
             }
 
             throw $e;
@@ -100,6 +106,16 @@ class AuthController extends BaseApiController
             'email' => (string) $persistedUser->email,
             'exists' => true,
         ]);
+
+        if ($profilePhotoFile) {
+            $profilePhotoFile->uploader_user_id = (string) $persistedUser->id;
+            $profilePhotoFile->save();
+
+            Log::info('auth.register.profile_photo_saved', [
+                'user_id' => (string) $persistedUser->id,
+                'file_id' => (string) $profilePhotoFile->id,
+            ]);
+        }
 
         $circleMember = $this->attachOptionalCircleMembership($persistedUser, $data);
         $this->persistOptionalJoinedCategories($persistedUser, $data, $circleMember);
@@ -608,10 +624,12 @@ class AuthController extends BaseApiController
                 'name' => (string) $businessCategory->name,
             ]
             : null;
+        $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? null;
         $storedProfilePhotoPath = $user->getRawOriginal('profile_photo_url');
-        $payload['profile_photo_url'] = $storedProfilePhotoPath
-            ? $this->resolvePublicDiskUrl($storedProfilePhotoPath)
-            : $user->profile_photo_url;
+        $payload['profile_photo_id'] = $profilePhotoId;
+        $payload['profile_photo_url'] = $profilePhotoId
+            ? url('/api/v1/files/' . $profilePhotoId)
+            : ($storedProfilePhotoPath ? $this->resolvePublicDiskUrl($storedProfilePhotoPath) : $user->profile_photo_url);
         $payload['city_of_residence'] = $user->getAttribute('city_of_residence');
         $payload['referred_by'] = $referrer
             ? [
@@ -693,7 +711,8 @@ class AuthController extends BaseApiController
         $user->designation = $data['designation'] ?? null;
         $user->city_id = $data['city_id'] ?? null;
 
-        $this->fillIfUserColumnExists($user, 'profile_photo_url', $data['profile_photo_path'] ?? null);
+        $this->fillIfUserColumnExists($user, 'profile_photo_file_id', $data['profile_photo_file_id'] ?? null);
+        $this->fillIfUserColumnExists($user, 'profile_photo_id', $data['profile_photo_file_id'] ?? null);
         $this->fillIfUserColumnExists($user, 'city', $data['city'] ?? null);
         $this->fillIfUserColumnExists($user, 'state', $data['state'] ?? null);
         $this->fillIfUserColumnExists($user, 'district', $data['district'] ?? null);
@@ -792,13 +811,21 @@ class AuthController extends BaseApiController
         return Storage::disk('public')->url($pathOrUrl);
     }
 
-    private function storeRegisterProfilePhoto(RegisterRequest $request): ?string
+    private function storeRegisterProfilePhoto(RegisterRequest $request, FileUploadService $fileUploadService): ?FileModel
     {
         if (! $request->hasFile('profile_photo')) {
             return null;
         }
 
-        return $request->file('profile_photo')->store('profile-photos', 'public');
+        Log::info('auth.register.profile_photo_received');
+
+        try {
+            return $fileUploadService->store($request->file('profile_photo'));
+        } catch (MediaProcessingException $e) {
+            throw ValidationException::withMessages([
+                'profile_photo' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function fillIfUserColumnExists(User $user, string $column, mixed $value): void

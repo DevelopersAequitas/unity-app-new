@@ -806,8 +806,12 @@ class User extends Authenticatable
 
     public function getProfilePhotoUrlAttribute(): ?string
     {
-        if ($this->profile_photo_file_id) {
-            return url('/api/v1/files/' . $this->profile_photo_file_id);
+        $profilePhotoId = $this->attributes['profile_photo_file_id']
+            ?? $this->attributes['profile_photo_id']
+            ?? null;
+
+        if ($profilePhotoId) {
+            return url('/api/v1/files/' . $profilePhotoId);
         }
 
         $storedProfilePhotoUrl = $this->attributes['profile_photo_url'] ?? null;
