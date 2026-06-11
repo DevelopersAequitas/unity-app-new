@@ -31,10 +31,8 @@ class LeadershipCertificationApprovedMail extends Mailable
             'Business Name' => $this->displayValue($submission->business_name),
             'Email' => $this->displayValue($submission->email),
             'Contact Number' => $this->displayValue($submission->contact_no),
-            'Certification Level' => $this->displayValue($submission->certification_level),
             'Total Score' => $this->displayValue($submission->total_score),
             'Percentage' => $this->formatPercentage($submission->percentage),
-            'Approval Date' => $this->displayValue($this->approvalDate),
         ];
     }
 

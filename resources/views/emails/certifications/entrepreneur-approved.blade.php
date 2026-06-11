@@ -30,13 +30,6 @@
 
                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%; border:1px solid #4b2a91; border-radius:14px; background-color:#1b1b1f; margin:0 0 24px; border-collapse:separate; border-spacing:0; overflow:hidden;">
                                 <tr>
-                                    <td style="padding:22px 20px; text-align:center; border-bottom:1px solid #33205f; background-color:#17171b;">
-                                        <div style="font-family:Georgia, 'Times New Roman', serif; color:#ffffff; font-size:30px; line-height:38px; font-weight:bold;">{{ $recipientName }}</div>
-                                        <div style="margin-top:10px; color:#d8c7ff; font-size:15px; line-height:23px;">has achieved</div>
-                                        <div style="margin-top:8px; color:#ffffff; font-size:20px; line-height:28px; font-weight:bold;">{{ $achievementLabel }}</div>
-                                    </td>
-                                </tr>
-                                <tr>
                                     <td style="padding:0;">
                                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%; border-collapse:collapse;">
                                             <tr>
@@ -49,6 +42,16 @@
                                                 </tr>
                                             @endforeach
                                         </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%; border:1px solid #4b2a91; border-radius:14px; background-color:#17171b; margin:0 0 24px; border-collapse:separate; border-spacing:0; overflow:hidden;">
+                                <tr>
+                                    <td style="padding:22px 20px; text-align:center;">
+                                        <div style="font-family:Georgia, 'Times New Roman', serif; color:#ffffff; font-size:30px; line-height:38px; font-weight:bold;">{{ $recipientName }}</div>
+                                        <div style="margin-top:10px; color:#d8c7ff; font-size:15px; line-height:23px;">has achieved</div>
+                                        <div style="margin-top:8px; color:#ffffff; font-size:20px; line-height:28px; font-weight:bold;">{{ $achievementLabel }}</div>
                                     </td>
                                 </tr>
                             </table>
