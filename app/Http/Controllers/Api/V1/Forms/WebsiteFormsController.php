@@ -571,6 +571,13 @@ class WebsiteFormsController extends BaseApiController
         }
 
         $email = trim((string) data_get($user, 'email', ''));
+
+        if ($email !== '') {
+            $query->where('email', 'ilike', $email);
+
+            return;
+        }
+
         $contactNumbers = collect([
             data_get($user, 'contact_no'),
             data_get($user, 'contact_number'),
@@ -580,39 +587,18 @@ class WebsiteFormsController extends BaseApiController
             data_get($user, 'secondary_mobile'),
         ])->map(fn ($value) => trim((string) $value))->filter()->unique()->values();
 
-        $fullNames = collect([
-            data_get($user, 'full_name'),
-            data_get($user, 'display_name'),
-            data_get($user, 'name'),
-            trim((string) data_get($user, 'first_name') . ' ' . (string) data_get($user, 'last_name')),
-        ])->map(fn ($value) => trim((string) $value))->filter()->unique()->values();
-
-        $query->where(function ($userQuery) use ($email, $contactNumbers, $fullNames) {
-            $hasIdentityFilter = false;
-
-            if ($email !== '') {
-                $userQuery->where('email', 'ilike', $email);
-                $hasIdentityFilter = true;
-            }
-
-            foreach ($contactNumbers as $contactNumber) {
-                $method = $hasIdentityFilter ? 'orWhere' : 'where';
-                $userQuery->{$method}('contact_no', 'ilike', $contactNumber);
-                $hasIdentityFilter = true;
-            }
-
-            if (! $hasIdentityFilter) {
-                foreach ($fullNames as $fullName) {
-                    $method = $hasIdentityFilter ? 'orWhere' : 'where';
-                    $userQuery->{$method}('full_name', 'ilike', $fullName);
-                    $hasIdentityFilter = true;
+        if ($contactNumbers->isNotEmpty()) {
+            $query->where(function ($userQuery) use ($contactNumbers) {
+                foreach ($contactNumbers as $index => $contactNumber) {
+                    $method = $index === 0 ? 'where' : 'orWhere';
+                    $userQuery->{$method}('contact_no', 'ilike', $contactNumber);
                 }
-            }
+            });
 
-            if (! $hasIdentityFilter) {
-                $userQuery->whereRaw('1 = 0');
-            }
-        });
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
     }
 
     private function applyCommonFilters($query, Request $request, array $searchColumns): void
