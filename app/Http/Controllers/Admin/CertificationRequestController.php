@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class CertificationRequestController extends Controller
@@ -88,8 +89,33 @@ class CertificationRequestController extends Controller
 
         /** @var Model $certificationRequest */
         $certificationRequest = $resource['model']::query()->findOrFail($id);
+        $answerEvaluations = $this->buildAnswerEvaluations($certificationRequest, $resource);
 
-        return view('admin.certification_requests.show', compact('resource', 'certificationRequest'));
+        return view('admin.certification_requests.show', compact('resource', 'certificationRequest', 'answerEvaluations'));
+    }
+
+    private function buildAnswerEvaluations(Model $certificationRequest, array $resource): array
+    {
+        $modelClass = $resource['model'];
+        $quizFields = defined($modelClass.'::QUIZ_FIELDS') ? $modelClass::QUIZ_FIELDS : [];
+        $correctAnswers = defined($modelClass.'::CORRECT_ANSWERS') ? $modelClass::CORRECT_ANSWERS : [];
+
+        return collect($quizFields)
+            ->map(function (string $field) use ($certificationRequest, $correctAnswers): array {
+                $submittedAnswer = data_get($certificationRequest, $field);
+                $hasCorrectAnswer = array_key_exists($field, $correctAnswers);
+                $correctAnswer = $hasCorrectAnswer ? $correctAnswers[$field] : null;
+
+                return [
+                    'field' => $field,
+                    'question_label' => Str::headline($field),
+                    'submitted_answer' => $submittedAnswer,
+                    'has_correct_answer' => $hasCorrectAnswer,
+                    'correct_answer' => $correctAnswer,
+                    'is_correct' => $hasCorrectAnswer ? $submittedAnswer === $correctAnswer : null,
+                ];
+            })
+            ->all();
     }
 
     private function updateStatus(string $type, string $id, string $status): RedirectResponse

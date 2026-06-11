@@ -4,6 +4,51 @@
 
 @push('styles')
     <style>
+        .answer-card {
+            border: 1px solid #e5e7eb;
+            border-radius: .75rem;
+            padding: .9rem 1rem;
+            min-height: 100%;
+            background: #f8fafc;
+        }
+
+        .answer-card-correct {
+            background: #ecfdf3;
+            border-color: #bbf7d0;
+            color: #14532d;
+        }
+
+        .answer-card-incorrect {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #7f1d1d;
+        }
+
+        .answer-status-badge {
+            border-radius: 999px;
+            font-size: .72rem;
+            font-weight: 700;
+            padding: .25rem .6rem;
+        }
+
+        .answer-status-correct {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+
+        .answer-status-incorrect {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .answer-correct-helper {
+            color: #991b1b;
+            font-size: .82rem;
+            margin-top: .55rem;
+        }
+
         .certification-confirm-modal .modal-dialog {
             max-width: 480px;
             width: calc(100% - 2rem);
@@ -145,12 +190,13 @@
         <div class="card-body">
             <div class="row g-3">
                 @foreach($resource['detail_columns'] as $column)
+                    @continue(in_array($column, $certificationRequest::QUIZ_FIELDS, true))
                     @php $value = data_get($certificationRequest, $column); @endphp
                     <div class="col-md-6">
                         <div class="small text-muted mb-1">{{ $formatLabel($column) }}</div>
                         @if($column === 'status')
                             <span class="badge bg-{{ $statusClass }}">{{ $statusLabel }}</span>
-                        @elseif($column === 'notes' || in_array($column, $certificationRequest::QUIZ_FIELDS, true))
+                        @elseif($column === 'notes')
                             <div class="border rounded p-2 bg-light" style="white-space: pre-wrap;">{{ $formatValue($value, $column) }}</div>
                         @else
                             <div>{{ $formatValue($value, $column) }}</div>
@@ -160,6 +206,44 @@
             </div>
         </div>
     </div>
+
+    @if(! empty($answerEvaluations))
+        <div class="card shadow-sm mt-3">
+            <div class="card-header bg-white">
+                <h2 class="h6 mb-0">Submitted Answer Review</h2>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    @foreach($answerEvaluations as $answer)
+                        @php
+                            $isCorrect = $answer['is_correct'];
+                            $answerCardClass = $isCorrect === true
+                                ? 'answer-card-correct'
+                                : ($isCorrect === false ? 'answer-card-incorrect' : '');
+                        @endphp
+                        <div class="col-md-6">
+                            <div class="answer-card {{ $answerCardClass }}">
+                                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                    <div class="small fw-semibold">{{ $answer['question_label'] }}</div>
+                                    @if($isCorrect === true)
+                                        <span class="answer-status-badge answer-status-correct">Correct</span>
+                                    @elseif($isCorrect === false)
+                                        <span class="answer-status-badge answer-status-incorrect">Incorrect</span>
+                                    @endif
+                                </div>
+                                <div style="white-space: pre-wrap;">{{ $formatValue($answer['submitted_answer'], $answer['field']) }}</div>
+                                @if($isCorrect === false && $answer['correct_answer'])
+                                    <div class="answer-correct-helper">
+                                        <span class="fw-semibold">Correct answer:</span> {{ $answer['correct_answer'] }}
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
 
 @if($status === 'new')
