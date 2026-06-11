@@ -2,6 +2,81 @@
 
 @section('title', $resource['title'])
 
+@push('styles')
+    <style>
+        .certification-confirm-modal .modal-dialog {
+            max-width: 480px;
+            width: calc(100% - 2rem);
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .certification-confirm-modal .modal-content {
+            border: 0;
+            border-radius: 1rem;
+            box-shadow: 0 1.5rem 4rem rgba(15, 23, 42, 0.28);
+            overflow: hidden;
+        }
+
+        .certification-confirm-modal .modal-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid #eef2f7;
+            align-items: flex-start;
+        }
+
+        .certification-confirm-modal .modal-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.35;
+        }
+
+        .certification-confirm-modal .btn-close {
+            margin: 0;
+            padding: .5rem;
+            border-radius: 999px;
+        }
+
+        .certification-confirm-modal .modal-body {
+            padding: 1.5rem;
+            color: #475569;
+            line-height: 1.55;
+        }
+
+        .certification-confirm-modal .modal-footer {
+            padding: 1rem 1.5rem 1.25rem;
+            border-top: 0;
+            background: #f8fafc;
+            gap: .5rem;
+        }
+
+        .certification-confirm-modal .modal-footer .btn {
+            min-height: 40px;
+            border-radius: .55rem;
+            padding-left: 1.1rem;
+            padding-right: 1.1rem;
+            font-weight: 600;
+        }
+
+        .modal {
+            z-index: 1055;
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #0f172a;
+            z-index: 1050;
+        }
+
+        .modal-backdrop.show {
+            opacity: .58;
+        }
+    </style>
+@endpush
+
 @section('content')
 @php
     $statusClasses = [
@@ -119,24 +194,6 @@
                         </td>
                     </tr>
 
-                    @if($status === 'new')
-                        <div class="modal fade" id="approve{{ $certificationRequest->id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog"><form class="modal-content" method="POST" action="{{ route($resource['approve_route'], $certificationRequest->id) }}">
-                                @csrf
-                                <div class="modal-header"><h5 class="modal-title">Approve {{ $resource['singular_title'] }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                                <div class="modal-body"><p class="mb-0">Are you sure you want to approve this certification request?</p></div>
-                                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success">Approve</button></div>
-                            </form></div>
-                        </div>
-                        <div class="modal fade" id="reject{{ $certificationRequest->id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog"><form class="modal-content" method="POST" action="{{ route($resource['reject_route'], $certificationRequest->id) }}">
-                                @csrf
-                                <div class="modal-header"><h5 class="modal-title">Reject {{ $resource['singular_title'] }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                                <div class="modal-body"><p class="mb-0">Are you sure you want to reject this certification request?</p></div>
-                                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-danger">Reject</button></div>
-                            </form></div>
-                        </div>
-                    @endif
                 @empty
                     <tr><td colspan="10" class="text-center text-muted py-4">No certification requests found.</td></tr>
                 @endforelse
@@ -145,5 +202,47 @@
         </div>
         <div class="card-footer">{{ $requests->links() }}</div>
     </div>
+
+    @foreach($requests as $certificationRequest)
+        @if($certificationRequest->status === 'new')
+            <div class="modal fade certification-confirm-modal" id="approve{{ $certificationRequest->id }}" tabindex="-1" aria-labelledby="approve{{ $certificationRequest->id }}Label" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <form class="modal-content" method="POST" action="{{ route($resource['approve_route'], $certificationRequest->id) }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="approve{{ $certificationRequest->id }}Label">Approve {{ $resource['singular_title'] }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-0">Are you sure you want to approve this certification request?</p>
+                        </div>
+                        <div class="modal-footer justify-content-end">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success">Approve</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="modal fade certification-confirm-modal" id="reject{{ $certificationRequest->id }}" tabindex="-1" aria-labelledby="reject{{ $certificationRequest->id }}Label" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <form class="modal-content" method="POST" action="{{ route($resource['reject_route'], $certificationRequest->id) }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="reject{{ $certificationRequest->id }}Label">Reject {{ $resource['singular_title'] }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-0">Are you sure you want to reject this certification request?</p>
+                        </div>
+                        <div class="modal-footer justify-content-end">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger">Reject</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+    @endforeach
 </div>
 @endsection
