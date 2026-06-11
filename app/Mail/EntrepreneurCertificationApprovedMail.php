@@ -18,7 +18,6 @@ class EntrepreneurCertificationApprovedMail extends Mailable
     public string $approvalDate;
     public string $certificateTitle = 'Entrepreneur Certification';
     public string $recipientName;
-    public string $achievementLabel;
     public array $certificationDetails;
 
     public function __construct(EntrepreneurCertificationSubmission $submission, ?CarbonInterface $approvalDate = null)
@@ -26,13 +25,13 @@ class EntrepreneurCertificationApprovedMail extends Mailable
         $this->submission = $submission;
         $this->approvalDate = $this->formatDate($approvalDate ?? $submission->getAttribute('approved_at') ?? $submission->updated_at ?? now());
         $this->recipientName = $this->displayValue($submission->full_name, 'Peer');
-        $this->achievementLabel = $this->displayValue($submission->certification_tier, $this->certificateTitle);
         $this->certificationDetails = [
             'Business Name' => $this->displayValue($submission->business_name),
             'Email' => $this->displayValue($submission->email),
             'Contact Number' => $this->displayValue($submission->contact_no),
             'Total Score' => $this->displayValue($submission->total_score),
             'Percentage' => $this->formatPercentage($submission->percentage),
+            'Approval Date' => $this->displayValue($this->approvalDate),
         ];
     }
 
