@@ -5,36 +5,41 @@
 
 @push('styles')
 <style>
-    .event-joining-requests-page .event-request-decision-modal {
-        --bs-modal-width: min(92vw, 520px);
+    .event-request-decision-modal {
+        --bs-modal-width: 560px;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
     }
 
-    .event-joining-requests-page .event-request-decision-modal .modal-dialog {
+    .event-request-decision-modal .modal-dialog {
         margin-left: auto;
         margin-right: auto;
+        max-width: min(560px, calc(100vw - 1.5rem));
+        width: 100%;
     }
 
-    .event-joining-requests-page .event-request-decision-card {
+    .event-request-decision-modal .event-request-decision-card {
+        background: #fff;
         border: 0;
         border-radius: 20px;
         box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
         overflow: hidden;
     }
 
-    .event-joining-requests-page .event-request-decision-header {
+    .event-request-decision-modal .event-request-decision-header {
         align-items: flex-start;
         border-bottom: 1px solid #eef2f7;
         padding: 1.35rem 1.5rem 1rem;
     }
 
-    .event-joining-requests-page .event-request-title-wrap {
+    .event-request-decision-modal .event-request-title-wrap {
         align-items: center;
         display: flex;
         gap: 0.8rem;
         min-width: 0;
     }
 
-    .event-joining-requests-page .event-request-icon {
+    .event-request-decision-modal .event-request-icon {
         align-items: center;
         border-radius: 14px;
         display: inline-flex;
@@ -44,17 +49,17 @@
         width: 42px;
     }
 
-    .event-joining-requests-page .event-request-icon-success {
+    .event-request-decision-modal .event-request-icon-success {
         background: #dcfce7;
         color: #15803d;
     }
 
-    .event-joining-requests-page .event-request-icon-danger {
+    .event-request-decision-modal .event-request-icon-danger {
         background: #fee2e2;
         color: #b91c1c;
     }
 
-    .event-joining-requests-page .event-request-decision-header .modal-title {
+    .event-request-decision-modal .event-request-decision-header .modal-title {
         color: #0f172a;
         font-size: 1.12rem;
         font-weight: 700;
@@ -62,18 +67,18 @@
         margin: 0;
     }
 
-    .event-joining-requests-page .event-request-decision-body {
+    .event-request-decision-modal .event-request-decision-body {
         padding: 1.25rem 1.5rem 1.35rem;
     }
 
-    .event-joining-requests-page .event-request-description {
+    .event-request-decision-modal .event-request-description {
         color: #64748b;
         font-size: 0.95rem;
         line-height: 1.6;
         margin-bottom: 1.15rem;
     }
 
-    .event-joining-requests-page .event-request-note-label {
+    .event-request-decision-modal .event-request-note-label {
         color: #334155;
         display: block;
         font-size: 0.86rem;
@@ -82,12 +87,13 @@
         margin-bottom: 0.5rem;
     }
 
-    .event-joining-requests-page .event-request-note-field {
+    .event-request-decision-modal .event-request-note-field {
         background-color: #fff;
         border: 1px solid #cbd5e1;
         border-radius: 14px;
         box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
         color: #0f172a;
+        box-sizing: border-box;
         display: block;
         font-size: 0.95rem;
         line-height: 1.55;
@@ -97,12 +103,12 @@
         width: 100%;
     }
 
-    .event-joining-requests-page .event-request-note-field:focus {
+    .event-request-decision-modal .event-request-note-field:focus {
         border-color: #86b7fe;
         box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.16);
     }
 
-    .event-joining-requests-page .event-request-decision-footer {
+    .event-request-decision-modal .event-request-decision-footer {
         background: #f8fafc;
         border-top: 1px solid #eef2f7;
         gap: 0.75rem;
@@ -110,7 +116,7 @@
         padding: 1rem 1.5rem 1.25rem;
     }
 
-    .event-joining-requests-page .event-request-decision-footer .btn {
+    .event-request-decision-modal .event-request-decision-footer .btn {
         align-items: center;
         border-radius: 10px;
         display: inline-flex;
@@ -126,22 +132,22 @@
     }
 
     @media (max-width: 575.98px) {
-        .event-joining-requests-page .event-request-decision-modal {
+        .event-request-decision-modal {
             --bs-modal-width: calc(100vw - 1.5rem);
         }
 
-        .event-joining-requests-page .event-request-decision-header,
-        .event-joining-requests-page .event-request-decision-body,
-        .event-joining-requests-page .event-request-decision-footer {
+        .event-request-decision-modal .event-request-decision-header,
+        .event-request-decision-modal .event-request-decision-body,
+        .event-request-decision-modal .event-request-decision-footer {
             padding-left: 1rem;
             padding-right: 1rem;
         }
 
-        .event-joining-requests-page .event-request-decision-footer {
+        .event-request-decision-modal .event-request-decision-footer {
             flex-direction: column-reverse;
         }
 
-        .event-joining-requests-page .event-request-decision-footer .btn {
+        .event-request-decision-modal .event-request-decision-footer .btn {
             width: 100%;
         }
     }
@@ -332,55 +338,6 @@
                             <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
                         </div></div>
                     </div>
-
-                    @if($joinRequest->status === 'pending')
-                        <div class="modal fade event-request-decision-modal" id="approve{{ $joinRequest->id }}" tabindex="-1" aria-labelledby="approve{{ $joinRequest->id }}Label" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <form class="modal-content event-request-decision-card" method="POST" action="{{ route('admin.event-joining-requests.approve', $joinRequest->id) }}">
-                                    @csrf
-                                    <div class="modal-header event-request-decision-header">
-                                        <div class="event-request-title-wrap">
-                                            <span class="event-request-icon event-request-icon-success" aria-hidden="true"><i class="bi bi-check2-circle"></i></span>
-                                            <h5 class="modal-title" id="approve{{ $joinRequest->id }}Label">Approve Event Joining Request</h5>
-                                        </div>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body event-request-decision-body">
-                                        <p class="event-request-description">Are you sure you want to approve this member to register for this event?</p>
-                                        <label class="event-request-note-label" for="approveNote{{ $joinRequest->id }}">Admin Note</label>
-                                        <textarea class="form-control event-request-note-field" id="approveNote{{ $joinRequest->id }}" name="admin_note" rows="4">Approved for cross-circle event registration.</textarea>
-                                    </div>
-                                    <div class="modal-footer event-request-decision-footer">
-                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                        <button type="submit" class="btn btn-success">Approve</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                        <div class="modal fade event-request-decision-modal" id="reject{{ $joinRequest->id }}" tabindex="-1" aria-labelledby="reject{{ $joinRequest->id }}Label" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <form class="modal-content event-request-decision-card" method="POST" action="{{ route('admin.event-joining-requests.reject', $joinRequest->id) }}">
-                                    @csrf
-                                    <div class="modal-header event-request-decision-header">
-                                        <div class="event-request-title-wrap">
-                                            <span class="event-request-icon event-request-icon-danger" aria-hidden="true"><i class="bi bi-x-circle"></i></span>
-                                            <h5 class="modal-title" id="reject{{ $joinRequest->id }}Label">Reject Event Joining Request</h5>
-                                        </div>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body event-request-decision-body">
-                                        <p class="event-request-description">Please add a reason for rejection.</p>
-                                        <label class="event-request-note-label" for="rejectNote{{ $joinRequest->id }}">Admin Note <span class="text-danger">*</span></label>
-                                        <textarea class="form-control event-request-note-field" id="rejectNote{{ $joinRequest->id }}" name="admin_note" rows="4" required></textarea>
-                                    </div>
-                                    <div class="modal-footer event-request-decision-footer">
-                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                        <button type="submit" class="btn btn-danger">Reject</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    @endif
                 @empty
                     <tr><td colspan="7" class="text-center text-muted py-4">No event joining requests found.</td></tr>
                 @endforelse
@@ -389,5 +346,57 @@
         </div>
         <div class="card-footer">{{ $requests->links() }}</div>
     </div>
+
+    @foreach($requests as $joinRequest)
+        @if($joinRequest->status === 'pending')
+            <div class="modal fade event-request-decision-modal" id="approve{{ $joinRequest->id }}" tabindex="-1" aria-labelledby="approve{{ $joinRequest->id }}Label" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <form class="modal-content event-request-decision-card" method="POST" action="{{ route('admin.event-joining-requests.approve', $joinRequest->id) }}">
+                        @csrf
+                        <div class="modal-header event-request-decision-header">
+                            <div class="event-request-title-wrap">
+                                <span class="event-request-icon event-request-icon-success" aria-hidden="true"><i class="bi bi-check2-circle"></i></span>
+                                <h5 class="modal-title" id="approve{{ $joinRequest->id }}Label">Approve Event Joining Request</h5>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body event-request-decision-body">
+                            <p class="event-request-description">Are you sure you want to approve this member to register for this event?</p>
+                            <label class="event-request-note-label" for="approveNote{{ $joinRequest->id }}">Admin Note</label>
+                            <textarea class="form-control event-request-note-field" id="approveNote{{ $joinRequest->id }}" name="admin_note" rows="4">Approved for cross-circle event registration.</textarea>
+                        </div>
+                        <div class="modal-footer event-request-decision-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success">Approve</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="modal fade event-request-decision-modal" id="reject{{ $joinRequest->id }}" tabindex="-1" aria-labelledby="reject{{ $joinRequest->id }}Label" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <form class="modal-content event-request-decision-card" method="POST" action="{{ route('admin.event-joining-requests.reject', $joinRequest->id) }}">
+                        @csrf
+                        <div class="modal-header event-request-decision-header">
+                            <div class="event-request-title-wrap">
+                                <span class="event-request-icon event-request-icon-danger" aria-hidden="true"><i class="bi bi-x-circle"></i></span>
+                                <h5 class="modal-title" id="reject{{ $joinRequest->id }}Label">Reject Event Joining Request</h5>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body event-request-decision-body">
+                            <p class="event-request-description">Please add a reason for rejection.</p>
+                            <label class="event-request-note-label" for="rejectNote{{ $joinRequest->id }}">Admin Note <span class="text-danger">*</span></label>
+                            <textarea class="form-control event-request-note-field" id="rejectNote{{ $joinRequest->id }}" name="admin_note" rows="4" required></textarea>
+                        </div>
+                        <div class="modal-footer event-request-decision-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger">Reject</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+    @endforeach
 </div>
 @endsection
