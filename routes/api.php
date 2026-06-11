@@ -115,6 +115,20 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
+Route::prefix('v1/auth')->group(function () {
+    Route::post('register', [AuthController::class, 'register']);
+    Route::post('login', [AuthController::class, 'login']);
+    Route::post('request-otp', [AuthController::class, 'requestOtp']);
+    Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('reset-password', [AuthController::class, 'resetPassword']);
+
+    Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
+        Route::post('logout', [AuthController::class, 'logout']);
+        Route::get('me', [AuthController::class, 'me']);
+    });
+});
+
 Route::prefix('v1')->group(function () {
     Route::prefix('scan-app')->group(function () {
         Route::post('/login', [ScanAppAuthController::class, 'login']);
@@ -126,20 +140,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/scan', [ScanAppEventController::class, 'scanAny']);
             Route::post('/events/{event_id}/scan', [ScanAppEventController::class, 'scan'])->whereUuid('event_id');
             Route::get('/events/{event}/attendance-history', [ScanAppEventController::class, 'attendanceHistory'])->whereUuid('event');
-        });
-    });
-
-    Route::prefix('auth')->group(function () {
-        Route::post('register', [AuthController::class, 'register']);
-        Route::post('login', [AuthController::class, 'login']);
-        Route::post('request-otp', [AuthController::class, 'requestOtp']);
-        Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
-        Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
-        Route::post('reset-password', [AuthController::class, 'resetPassword']);
-
-        Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
-            Route::post('logout', [AuthController::class, 'logout']);
-            Route::get('me', [AuthController::class, 'me']);
         });
     });
 
