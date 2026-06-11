@@ -53,7 +53,7 @@ return [
         // Temporary App Store review static OTP bypass. Remove after review.
         'enabled' => filter_var(env('REVIEW_STATIC_OTP_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'email' => env('REVIEW_STATIC_OTP_EMAIL', 'usera125@gmail.com'),
-        'otp' => env('REVIEW_STATIC_OTP', '123456'),
+        'otp' => env('REVIEW_STATIC_OTP', '3060'),
     ],
 
 ];
