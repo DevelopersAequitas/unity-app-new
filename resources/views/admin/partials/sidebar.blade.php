@@ -102,6 +102,8 @@
         : [
             ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
             ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
+            ['label' => 'Entrepreneur Certification Requests', 'route' => 'admin.entrepreneur-certification-requests.index'],
+            ['label' => 'Leadership Certification Requests', 'route' => 'admin.leadership-certification-requests.index'],
             ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
             ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
@@ -112,6 +114,8 @@
         request()->routeIs('admin.visitor-registrations.*') ||
         request()->routeIs('admin.coin-claims.*') ||
         request()->routeIs('admin.event-joining-requests.*') ||
+        request()->routeIs('admin.entrepreneur-certification-requests.*') ||
+        request()->routeIs('admin.leadership-certification-requests.*') ||
         request()->routeIs('admin.circle-joining-requests.*') ||
         request()->routeIs('admin.impacts.pending');
 

@@ -1,0 +1,255 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\EntrepreneurCertificationSubmission;
+use App\Models\LeadershipCertificationSubmission;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+
+class CertificationRequestController extends Controller
+{
+    public function entrepreneurIndex(Request $request): View
+    {
+        return $this->index($request, 'entrepreneur');
+    }
+
+    public function entrepreneurShow(string $id): View
+    {
+        return $this->show('entrepreneur', $id);
+    }
+
+    public function entrepreneurApprove(string $id): RedirectResponse
+    {
+        return $this->updateStatus('entrepreneur', $id, 'approved');
+    }
+
+    public function entrepreneurReject(string $id): RedirectResponse
+    {
+        return $this->updateStatus('entrepreneur', $id, 'rejected');
+    }
+
+    public function leadershipIndex(Request $request): View
+    {
+        return $this->index($request, 'leadership');
+    }
+
+    public function leadershipShow(string $id): View
+    {
+        return $this->show('leadership', $id);
+    }
+
+    public function leadershipApprove(string $id): RedirectResponse
+    {
+        return $this->updateStatus('leadership', $id, 'approved');
+    }
+
+    public function leadershipReject(string $id): RedirectResponse
+    {
+        return $this->updateStatus('leadership', $id, 'rejected');
+    }
+
+    private function index(Request $request, string $type): View
+    {
+        $resource = $this->resourceConfig($type);
+        $filters = [
+            'search' => trim((string) $request->query('search', '')),
+            'status' => trim((string) $request->query('status', 'all')),
+            'from_date' => trim((string) $request->query('from_date', '')),
+            'to_date' => trim((string) $request->query('to_date', '')),
+        ];
+
+        /** @var Builder $query */
+        $query = $resource['model']::query()->orderByDesc('created_at');
+        $this->applyFilters($query, $resource, $filters);
+
+        /** @var LengthAwarePaginator $requests */
+        $requests = $query->paginate(25)->appends($request->query());
+
+        $summaryBase = $resource['model']::query();
+        $summary = [
+            'pending' => (clone $summaryBase)->where('status', 'new')->count(),
+            'approved' => (clone $summaryBase)->where('status', 'approved')->count(),
+            'rejected' => (clone $summaryBase)->where('status', 'rejected')->count(),
+            'total' => (clone $summaryBase)->count(),
+        ];
+
+        return view('admin.certification_requests.index', compact('resource', 'requests', 'summary', 'filters'));
+    }
+
+    private function show(string $type, string $id): View
+    {
+        $resource = $this->resourceConfig($type);
+
+        /** @var Model $certificationRequest */
+        $certificationRequest = $resource['model']::query()->findOrFail($id);
+
+        return view('admin.certification_requests.show', compact('resource', 'certificationRequest'));
+    }
+
+    private function updateStatus(string $type, string $id, string $status): RedirectResponse
+    {
+        abort_unless(in_array($status, ['approved', 'rejected'], true), 422);
+
+        $resource = $this->resourceConfig($type);
+
+        /** @var Model $certificationRequest */
+        $certificationRequest = $resource['model']::query()->findOrFail($id);
+
+        if ($certificationRequest->status !== 'new') {
+            return redirect()
+                ->back()
+                ->with('error', 'Only new certification requests can be approved or rejected.');
+        }
+
+        $certificationRequest->forceFill(['status' => $status])->save();
+
+        return redirect()
+            ->route($resource['index_route'])
+            ->with('success', $resource['singular_title'].' '.($status === 'approved' ? 'approved' : 'rejected').' successfully.');
+    }
+
+    private function applyFilters(Builder $query, array $resource, array $filters): void
+    {
+        if ($filters['search'] !== '') {
+            $like = '%'.$filters['search'].'%';
+            $query->where(function (Builder $builder) use ($resource, $like) {
+                foreach ($resource['search_columns'] as $index => $column) {
+                    $method = $index === 0 ? 'where' : 'orWhere';
+                    $builder->{$method}($column, 'ILIKE', $like);
+                }
+            });
+        }
+
+        if ($filters['status'] !== '' && $filters['status'] !== 'all') {
+            $query->where('status', $filters['status']);
+        }
+
+        if ($filters['from_date'] !== '') {
+            $query->whereDate('created_at', '>=', $filters['from_date']);
+        }
+
+        if ($filters['to_date'] !== '') {
+            $query->whereDate('created_at', '<=', $filters['to_date']);
+        }
+    }
+
+    private function resourceConfig(string $type): array
+    {
+        $resources = [
+            'entrepreneur' => [
+                'title' => 'Entrepreneur Certification Requests',
+                'singular_title' => 'Entrepreneur certification request',
+                'description' => 'Review and approve entrepreneur certification submissions.',
+                'model' => EntrepreneurCertificationSubmission::class,
+                'index_route' => 'admin.entrepreneur-certification-requests.index',
+                'show_route' => 'admin.entrepreneur-certification-requests.show',
+                'approve_route' => 'admin.entrepreneur-certification-requests.approve',
+                'reject_route' => 'admin.entrepreneur-certification-requests.reject',
+                'tier_column' => 'certification_tier',
+                'tier_label' => 'Certification Tier',
+                'search_columns' => ['full_name', 'business_name', 'email', 'contact_no', 'certification_tier'],
+                'detail_columns' => [
+                    'id',
+                    'full_name',
+                    'business_name',
+                    'email',
+                    'contact_no',
+                    'total_score',
+                    'percentage',
+                    'certification_tier',
+                    'status',
+                    'notes',
+                    'business_start_reason',
+                    'business_failure_reaction',
+                    'successful_entrepreneur_definition',
+                    'business_purpose_frequency',
+                    'business_challenge_approach',
+                    'finance_tracking_frequency',
+                    'pricing_decision_method',
+                    'business_systems_status',
+                    'unhappy_customer_response',
+                    'money_separation_status',
+                    'failure_recovery_action',
+                    'major_decision_method',
+                    'competitor_growth_response',
+                    'new_idea_action',
+                    'risk_approach',
+                    'networking_belief',
+                    'conflict_handling',
+                    'team_motivation_method',
+                    'business_meet_frequency',
+                    'community_growth_belief',
+                    'five_year_business_vision',
+                    'success_meaning',
+                    'work_life_balance_method',
+                    'society_value_belief',
+                    'future_mentorship_belief',
+                    'created_at',
+                    'updated_at',
+                ],
+            ],
+            'leadership' => [
+                'title' => 'Leadership Certification Requests',
+                'singular_title' => 'Leadership certification request',
+                'description' => 'Review and approve leadership certification submissions.',
+                'model' => LeadershipCertificationSubmission::class,
+                'index_route' => 'admin.leadership-certification-requests.index',
+                'show_route' => 'admin.leadership-certification-requests.show',
+                'approve_route' => 'admin.leadership-certification-requests.approve',
+                'reject_route' => 'admin.leadership-certification-requests.reject',
+                'tier_column' => 'certification_level',
+                'tier_label' => 'Certification Level',
+                'search_columns' => ['full_name', 'business_name', 'email', 'contact_no', 'certification_level'],
+                'detail_columns' => [
+                    'id',
+                    'full_name',
+                    'business_name',
+                    'email',
+                    'contact_no',
+                    'total_score',
+                    'percentage',
+                    'certification_level',
+                    'status',
+                    'notes',
+                    'team_struggling_action',
+                    'leader_definition',
+                    'junior_challenged_idea',
+                    'leader_when_wrong',
+                    'team_motivation',
+                    'leadership_meaning',
+                    'different_background_team_first_step',
+                    'group_task_approach',
+                    'team_conflict_action',
+                    'leader_makes_others_feel',
+                    'team_big_achievement_action',
+                    'guide_new_entrepreneurs',
+                    'local_business_group_thought',
+                    'silent_team_meeting_action',
+                    'leadership_starts_with',
+                    'business_community_approach',
+                    'low_confidence_person_action',
+                    'support_most_in_team',
+                    'good_leadership_means',
+                    'feedback_frequency',
+                    'unhappy_customer_action',
+                    'new_network_person_action',
+                    'local_event_speaking_action',
+                    'leadership_role_offer_action',
+                    'great_leader_opinion',
+                    'created_at',
+                    'updated_at',
+                ],
+            ],
+        ];
+
+        abort_unless(isset($resources[$type]), 404);
+
+        return $resources[$type];
+    }
+}
