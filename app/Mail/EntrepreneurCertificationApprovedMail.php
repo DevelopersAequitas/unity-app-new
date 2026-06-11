@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\EntrepreneurCertificationSubmission;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -23,7 +24,7 @@ class EntrepreneurCertificationApprovedMail extends Mailable
     public function __construct(EntrepreneurCertificationSubmission $submission, ?CarbonInterface $approvalDate = null)
     {
         $this->submission = $submission;
-        $this->approvalDate = ($approvalDate ?? $submission->updated_at ?? now())->format('d M Y');
+        $this->approvalDate = $this->formatDate($approvalDate ?? $submission->getAttribute('approved_at') ?? $submission->updated_at ?? now());
         $this->recipientName = $this->displayValue($submission->full_name, 'Peer');
         $this->achievementLabel = $this->displayValue($submission->certification_tier, $this->certificateTitle);
         $this->certificationDetails = [
@@ -45,19 +46,44 @@ class EntrepreneurCertificationApprovedMail extends Mailable
 
     private function displayValue(mixed $value, string $fallback = '—'): string
     {
-        if ($value === null || $value === '') {
+        if ($value === null) {
             return $fallback;
         }
 
-        return (string) $value;
+        $displayValue = trim((string) $value);
+
+        return $displayValue === '' ? $fallback : $displayValue;
     }
 
     private function formatPercentage(mixed $value): string
+    {
+        $displayValue = $this->displayValue($value);
+
+        if ($displayValue === '—') {
+            return $displayValue;
+        }
+
+        if (str_contains($displayValue, '%')) {
+            return $displayValue;
+        }
+
+        return rtrim(rtrim(number_format((float) $displayValue, 2), '0'), '.').'%';
+    }
+
+    private function formatDate(mixed $value): string
     {
         if ($value === null || $value === '') {
             return '—';
         }
 
-        return rtrim(rtrim(number_format((float) $value, 2), '0'), '.').'%';
+        if ($value instanceof CarbonInterface) {
+            return $value->format('d M Y');
+        }
+
+        try {
+            return Carbon::parse((string) $value)->format('d M Y');
+        } catch (\Throwable) {
+            return $this->displayValue($value);
+        }
     }
 }
