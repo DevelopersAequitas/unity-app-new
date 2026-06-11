@@ -200,6 +200,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/event-joining-requests/{id}/reject', [EventManagementController::class, 'rejectJoiningRequest'])->whereUuid('id')->name('event-joining-requests.reject');
         Route::get('/entrepreneur-certification-requests', [CertificationRequestController::class, 'entrepreneurIndex'])->name('entrepreneur-certification-requests.index');
         Route::get('/entrepreneur-certification-requests/{id}', [CertificationRequestController::class, 'entrepreneurShow'])->whereUuid('id')->name('entrepreneur-certification-requests.show');
+        Route::get('/entrepreneur-certification-requests/{id}/certificate', [CertificationRequestController::class, 'entrepreneurCertificate'])->whereUuid('id')->name('entrepreneur-certification-requests.certificate');
         Route::post('/entrepreneur-certification-requests/{id}/approve', [CertificationRequestController::class, 'entrepreneurApprove'])->whereUuid('id')->name('entrepreneur-certification-requests.approve');
         Route::post('/entrepreneur-certification-requests/{id}/reject', [CertificationRequestController::class, 'entrepreneurReject'])->whereUuid('id')->name('entrepreneur-certification-requests.reject');
         Route::get('/leadership-certification-requests', [CertificationRequestController::class, 'leadershipIndex'])->name('leadership-certification-requests.index');

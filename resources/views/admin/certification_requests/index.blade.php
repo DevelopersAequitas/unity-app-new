@@ -186,6 +186,9 @@
                         <td class="text-end">
                             <div class="btn-group btn-group-sm" role="group">
                                 <a href="{{ route($resource['show_route'], $certificationRequest->id) }}" class="btn btn-outline-primary">View</a>
+                                @if($resource['type'] === 'entrepreneur' && $status === 'approved' && ! empty($resource['certificate_route']))
+                                    <a href="{{ route($resource['certificate_route'], $certificationRequest->id) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">Certificate PDF</a>
+                                @endif
                                 @if($status === 'new')
                                     <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#approve{{ $certificationRequest->id }}">Approve</button>
                                     <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#reject{{ $certificationRequest->id }}">Reject</button>

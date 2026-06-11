@@ -16,6 +16,7 @@ use App\Models\LeadershipCertificationSubmission;
 use App\Models\PartnerWithUsSubmission;
 use App\Models\SmeBusinessStorySubmission;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\Certificates\EntrepreneurCertificatePdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
@@ -127,7 +128,7 @@ class WebsiteFormsController extends BaseApiController
         return response()->json([
             'status' => true,
             'message' => 'Submissions fetched successfully.',
-            'data' => $items->items(),
+            'data' => collect($items->items())->map(fn (EntrepreneurCertificationSubmission $item) => $this->mapEntrepreneurCertificationSubmission($item))->values(),
             'meta' => $this->paginationMeta($items),
         ]);
     }
@@ -143,7 +144,44 @@ class WebsiteFormsController extends BaseApiController
         return response()->json([
             'status' => true,
             'message' => 'Submission fetched successfully.',
-            'data' => $item,
+            'data' => $this->mapEntrepreneurCertificationSubmission($item),
+        ]);
+    }
+
+    public function downloadEntrepreneurCertificate(Request $request, string $id)
+    {
+        $item = EntrepreneurCertificationSubmission::find($id);
+
+        if (! $item) {
+            return $this->submissionNotFound();
+        }
+
+        $authorizedQuery = EntrepreneurCertificationSubmission::query()->whereKey($id);
+        $this->scopeCertificationToAuthenticatedUser($authorizedQuery, $request->user(), EntrepreneurCertificationSubmission::class);
+
+        if (! $authorizedQuery->exists()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'You are not authorized to download this certificate.',
+                'data' => null,
+            ], 403);
+        }
+
+        if ((string) $item->status !== 'approved') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Certificate PDF is available only for approved entrepreneur certification records.',
+                'data' => null,
+            ], 403);
+        }
+
+        $certificatePdf = app(EntrepreneurCertificatePdf::class);
+        $filename = $certificatePdf->filename($item);
+
+        return response($certificatePdf->generate($item), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
         ]);
     }
 
@@ -550,6 +588,16 @@ class WebsiteFormsController extends BaseApiController
             'height' => null,
             'duration' => null,
         ]);
+    }
+
+    private function mapEntrepreneurCertificationSubmission(EntrepreneurCertificationSubmission $item): array
+    {
+        $data = $item->toArray();
+        $data['certificate_download_url'] = (string) $item->status === 'approved'
+            ? url('/api/v1/entrepreneur-certification/'.$item->id.'/certificate')
+            : null;
+
+        return $data;
     }
 
     private function scopeCertificationToAuthenticatedUser($query, $user, string $submissionModelClass): void

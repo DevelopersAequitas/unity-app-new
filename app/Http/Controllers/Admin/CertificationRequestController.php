@@ -7,6 +7,7 @@ use App\Mail\EntrepreneurCertificationApprovedMail;
 use App\Mail\LeadershipCertificationApprovedMail;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\LeadershipCertificationSubmission;
+use App\Services\Certificates\EntrepreneurCertificatePdf;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -37,6 +38,19 @@ class CertificationRequestController extends Controller
     public function entrepreneurReject(string $id): RedirectResponse
     {
         return $this->updateStatus('entrepreneur', $id, 'rejected');
+    }
+
+    public function entrepreneurCertificate(string $id)
+    {
+        $certificationRequest = EntrepreneurCertificationSubmission::query()->findOrFail($id);
+
+        if ((string) $certificationRequest->status !== 'approved') {
+            return redirect()
+                ->back()
+                ->with('error', 'Certificate PDF is available only for approved entrepreneur certification requests.');
+        }
+
+        return $this->streamEntrepreneurCertificate($certificationRequest);
     }
 
     public function leadershipIndex(Request $request): View
@@ -150,6 +164,18 @@ class CertificationRequestController extends Controller
             ->with('success', $resource['singular_title'].' '.($status === 'approved' ? 'approved' : 'rejected').' successfully.');
     }
 
+    private function streamEntrepreneurCertificate(EntrepreneurCertificationSubmission $certificationRequest)
+    {
+        $certificatePdf = app(EntrepreneurCertificatePdf::class);
+        $filename = $certificatePdf->filename($certificationRequest);
+
+        return response($certificatePdf->generate($certificationRequest), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
+        ]);
+    }
+
     private function sendApprovalCertificateEmail(Model $certificationRequest, array $resource): void
     {
         $email = trim((string) data_get($certificationRequest, 'email', ''));
@@ -226,6 +252,7 @@ class CertificationRequestController extends Controller
                 'show_route' => 'admin.entrepreneur-certification-requests.show',
                 'approve_route' => 'admin.entrepreneur-certification-requests.approve',
                 'reject_route' => 'admin.entrepreneur-certification-requests.reject',
+                'certificate_route' => 'admin.entrepreneur-certification-requests.certificate',
                 'tier_column' => 'certification_tier',
                 'tier_label' => 'Certification Tier',
                 'search_columns' => ['full_name', 'business_name', 'email', 'contact_no', 'certification_tier'],
@@ -279,6 +306,7 @@ class CertificationRequestController extends Controller
                 'show_route' => 'admin.leadership-certification-requests.show',
                 'approve_route' => 'admin.leadership-certification-requests.approve',
                 'reject_route' => 'admin.leadership-certification-requests.reject',
+                'certificate_route' => null,
                 'tier_column' => 'certification_level',
                 'tier_label' => 'Certification Level',
                 'search_columns' => ['full_name', 'business_name', 'email', 'contact_no', 'certification_level'],
