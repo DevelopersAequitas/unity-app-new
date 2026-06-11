@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\EntrepreneurCertificationApprovedMail;
+use App\Mail\LeadershipCertificationApprovedMail;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\LeadershipCertificationSubmission;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -10,6 +12,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -127,7 +131,9 @@ class CertificationRequestController extends Controller
         /** @var Model $certificationRequest */
         $certificationRequest = $resource['model']::query()->findOrFail($id);
 
-        if ($certificationRequest->status !== 'new') {
+        $previousStatus = (string) $certificationRequest->status;
+
+        if ($previousStatus !== 'new') {
             return redirect()
                 ->back()
                 ->with('error', 'Only new certification requests can be approved or rejected.');
@@ -135,9 +141,51 @@ class CertificationRequestController extends Controller
 
         $certificationRequest->forceFill(['status' => $status])->save();
 
+        if ($status === 'approved' && $previousStatus !== 'approved') {
+            $this->sendApprovalCertificateEmail($certificationRequest, $resource);
+        }
+
         return redirect()
             ->route($resource['index_route'])
             ->with('success', $resource['singular_title'].' '.($status === 'approved' ? 'approved' : 'rejected').' successfully.');
+    }
+
+    private function sendApprovalCertificateEmail(Model $certificationRequest, array $resource): void
+    {
+        $email = trim((string) data_get($certificationRequest, 'email', ''));
+
+        if ($email === '') {
+            Log::warning('Certification approval email skipped: missing recipient email', [
+                'request_id' => (string) $certificationRequest->getKey(),
+                'certification_type' => $resource['title'] ?? null,
+            ]);
+
+            return;
+        }
+
+        try {
+            if ($resource['type'] === 'entrepreneur' && $certificationRequest instanceof EntrepreneurCertificationSubmission) {
+                $mailable = new EntrepreneurCertificationApprovedMail($certificationRequest, now());
+            } elseif ($resource['type'] === 'leadership' && $certificationRequest instanceof LeadershipCertificationSubmission) {
+                $mailable = new LeadershipCertificationApprovedMail($certificationRequest, now());
+            } else {
+                Log::warning('Certification approval email skipped: unsupported certification type', [
+                    'request_id' => (string) $certificationRequest->getKey(),
+                    'certification_type' => $resource['title'] ?? null,
+                ]);
+
+                return;
+            }
+
+            Mail::to($email)->send($mailable);
+        } catch (\Throwable $exception) {
+            Log::warning('Certification approval email send failed', [
+                'request_id' => (string) $certificationRequest->getKey(),
+                'recipient' => $email,
+                'certification_type' => $resource['title'] ?? null,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function applyFilters(Builder $query, array $resource, array $filters): void
@@ -169,6 +217,7 @@ class CertificationRequestController extends Controller
     {
         $resources = [
             'entrepreneur' => [
+                'type' => 'entrepreneur',
                 'title' => 'Entrepreneur Certification Requests',
                 'singular_title' => 'Entrepreneur certification request',
                 'description' => 'Review and approve entrepreneur certification submissions.',
@@ -221,6 +270,7 @@ class CertificationRequestController extends Controller
                 ],
             ],
             'leadership' => [
+                'type' => 'leadership',
                 'title' => 'Leadership Certification Requests',
                 'singular_title' => 'Leadership certification request',
                 'description' => 'Review and approve leadership certification submissions.',
