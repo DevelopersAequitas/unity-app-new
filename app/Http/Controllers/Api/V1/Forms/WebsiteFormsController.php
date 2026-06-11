@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class WebsiteFormsController extends BaseApiController
@@ -117,6 +118,7 @@ class WebsiteFormsController extends BaseApiController
     public function indexEntrepreneurCertification(Request $request)
     {
         $query = EntrepreneurCertificationSubmission::query();
+        $this->scopeEntrepreneurCertificationToAuthenticatedUser($query, $request->user());
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'contact_no', 'business_name']);
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
@@ -547,6 +549,69 @@ class WebsiteFormsController extends BaseApiController
             'height' => null,
             'duration' => null,
         ]);
+    }
+
+    private function scopeEntrepreneurCertificationToAuthenticatedUser($query, $user): void
+    {
+        if (! $user) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $table = (new EntrepreneurCertificationSubmission())->getTable();
+
+        foreach (['user_id', 'member_id', 'peer_id'] as $userReferenceColumn) {
+            if (Schema::hasColumn($table, $userReferenceColumn)) {
+                $query->where($userReferenceColumn, $user->getKey());
+
+                return;
+            }
+        }
+
+        $email = trim((string) data_get($user, 'email', ''));
+        $contactNumbers = collect([
+            data_get($user, 'contact_no'),
+            data_get($user, 'contact_number'),
+            data_get($user, 'phone'),
+            data_get($user, 'mobile'),
+            data_get($user, 'mobile_number'),
+            data_get($user, 'secondary_mobile'),
+        ])->map(fn ($value) => trim((string) $value))->filter()->unique()->values();
+
+        $fullNames = collect([
+            data_get($user, 'full_name'),
+            data_get($user, 'display_name'),
+            data_get($user, 'name'),
+            trim((string) data_get($user, 'first_name') . ' ' . (string) data_get($user, 'last_name')),
+        ])->map(fn ($value) => trim((string) $value))->filter()->unique()->values();
+
+        $query->where(function ($userQuery) use ($email, $contactNumbers, $fullNames) {
+            $hasIdentityFilter = false;
+
+            if ($email !== '') {
+                $userQuery->where('email', 'ilike', $email);
+                $hasIdentityFilter = true;
+            }
+
+            foreach ($contactNumbers as $contactNumber) {
+                $method = $hasIdentityFilter ? 'orWhere' : 'where';
+                $userQuery->{$method}('contact_no', 'ilike', $contactNumber);
+                $hasIdentityFilter = true;
+            }
+
+            if (! $hasIdentityFilter) {
+                foreach ($fullNames as $fullName) {
+                    $method = $hasIdentityFilter ? 'orWhere' : 'where';
+                    $userQuery->{$method}('full_name', 'ilike', $fullName);
+                    $hasIdentityFilter = true;
+                }
+            }
+
+            if (! $hasIdentityFilter) {
+                $userQuery->whereRaw('1 = 0');
+            }
+        });
     }
 
     private function applyCommonFilters($query, Request $request, array $searchColumns): void
