@@ -88,6 +88,7 @@ class WebsiteFormsController extends BaseApiController
     public function indexLeadershipCertification(Request $request)
     {
         $query = LeadershipCertificationSubmission::query();
+        $this->scopeCertificationToAuthenticatedUser($query, $request->user(), LeadershipCertificationSubmission::class);
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'contact_no', 'business_name']);
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
@@ -118,7 +119,7 @@ class WebsiteFormsController extends BaseApiController
     public function indexEntrepreneurCertification(Request $request)
     {
         $query = EntrepreneurCertificationSubmission::query();
-        $this->scopeEntrepreneurCertificationToAuthenticatedUser($query, $request->user());
+        $this->scopeCertificationToAuthenticatedUser($query, $request->user(), EntrepreneurCertificationSubmission::class);
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'contact_no', 'business_name']);
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
@@ -551,7 +552,7 @@ class WebsiteFormsController extends BaseApiController
         ]);
     }
 
-    private function scopeEntrepreneurCertificationToAuthenticatedUser($query, $user): void
+    private function scopeCertificationToAuthenticatedUser($query, $user, string $submissionModelClass): void
     {
         if (! $user) {
             $query->whereRaw('1 = 0');
@@ -559,7 +560,7 @@ class WebsiteFormsController extends BaseApiController
             return;
         }
 
-        $table = (new EntrepreneurCertificationSubmission())->getTable();
+        $table = (new $submissionModelClass())->getTable();
 
         foreach (['user_id', 'member_id', 'peer_id'] as $userReferenceColumn) {
             if (Schema::hasColumn($table, $userReferenceColumn)) {
