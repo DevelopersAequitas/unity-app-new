@@ -814,7 +814,8 @@ class AuthController extends BaseApiController
             'email' => ['required', 'email'],
         ]);
 
-        $user = User::where('email', $data['email'])->first();
+        $email = $this->normalizeEmail($data['email']);
+        $user = User::where('email', $email)->first();
 
         if (! $user) {
             return response()->json([
@@ -831,6 +832,15 @@ class AuthController extends BaseApiController
                 'message' => 'Your account is inactive. Please contact support.',
                 'data' => null,
             ], 403);
+        }
+
+        if ($this->isReviewStaticOtpEmail($email)) {
+            // Temporary App Store review static OTP bypass. Remove after review.
+            return response()->json([
+                'success' => true,
+                'message' => 'OTP sent successfully.',
+                'data'    => null,
+            ]);
         }
 
         $otp = (string) random_int(1000, 9999);
@@ -887,12 +897,24 @@ class AuthController extends BaseApiController
 
     public function verifyOtp(Request $request): JsonResponse
     {
-        $data = $request->validate([
+        $emailData = $request->validate([
             'email' => ['required', 'email'],
-            'otp'   => ['required', 'digits:4'],
         ]);
 
-        $user = User::where('email', $data['email'])->first();
+        $email = $this->normalizeEmail($emailData['email']);
+        $isReviewStaticOtpEmail = $this->isReviewStaticOtpEmail($email);
+
+        if ($isReviewStaticOtpEmail) {
+            $otpData = $request->validate([
+                'otp' => ['required', 'string'],
+            ]);
+        } else {
+            $otpData = $request->validate([
+                'otp' => ['required', 'digits:4'],
+            ]);
+        }
+
+        $user = User::where('email', $email)->first();
 
         if (! $user) {
             return response()->json([
@@ -902,6 +924,15 @@ class AuthController extends BaseApiController
             ], 404);
         }
 
+        if ($isReviewStaticOtpEmail) {
+            // Temporary App Store review static OTP bypass. Remove after review.
+            if (! hash_equals($this->reviewStaticOtp(), (string) $otpData['otp'])) {
+                return $this->invalidOtpResponse();
+            }
+
+            return $this->completeOtpLogin($request, $user);
+        }
+
         $otpRecord = OtpCode::where('user_id', $user->id)
             ->where('purpose', 'login_otp')
             ->whereNull('used_at')
@@ -909,11 +940,7 @@ class AuthController extends BaseApiController
             ->first();
 
         if (! $otpRecord) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid OTP.',
-                'data'    => null,
-            ], 422);
+            return $this->invalidOtpResponse();
         }
 
         if (now()->greaterThan($otpRecord->expires_at)) {
@@ -924,17 +951,44 @@ class AuthController extends BaseApiController
             ], 422);
         }
 
-        if (! Hash::check($data['otp'], $otpRecord->code)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid OTP.',
-                'data'    => null,
-            ], 422);
+        if (! Hash::check($otpData['otp'], $otpRecord->code)) {
+            return $this->invalidOtpResponse();
         }
 
         $otpRecord->used_at = now();
         $otpRecord->save();
 
+        return $this->completeOtpLogin($request, $user);
+    }
+
+    private function normalizeEmail(string $email): string
+    {
+        return strtolower(trim($email));
+    }
+
+    private function isReviewStaticOtpEmail(string $email): bool
+    {
+        return (bool) config('services.review_static_otp.enabled')
+            && $this->normalizeEmail((string) config('services.review_static_otp.email')) === $this->normalizeEmail($email)
+            && $this->reviewStaticOtp() !== '';
+    }
+
+    private function reviewStaticOtp(): string
+    {
+        return trim((string) config('services.review_static_otp.otp'));
+    }
+
+    private function invalidOtpResponse(): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid OTP.',
+            'data'    => null,
+        ], 422);
+    }
+
+    private function completeOtpLogin(Request $request, User $user): JsonResponse
+    {
         $user->expireFreeTrialIfNeeded();
         $user->refresh();
 
