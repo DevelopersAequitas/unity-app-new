@@ -70,8 +70,6 @@ class EventPaymentService
         if (! in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)) {
             if ($gateway === 'zoho_billing_payment_link') {
                 if (empty($currentPaymentUrl)) {
-                    $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
-                        ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
                     Log::warning('event_registration_payment_url_missing_creating_zoho_link', [
                         'registration_id' => (string) $registration->id,
                         'event_id' => (string) $registration->event_id,
@@ -131,12 +129,19 @@ class EventPaymentService
         $formUrl = $registration->visitor_registration_form_url ?: url('/events/'.$registration->event_id.'/occurrences/'.$registration->occurrence_id.'/visitor-register?registration_id='.$registration->id);
         $formUrl = $registration->visitor_registration_form_url ?: app(EventRegistrationService::class)->visitorRegistrationFormUrl($registration);
         $zohoLinkFailed = $requiresPayment && $gateway === 'zoho_billing_payment_link' && empty($paymentUrl);
+        $zohoError = (string) ($registration->zoho_invoice_sync_error ?? data_get($registration->metadata, 'event_payment.last_payment_link_error.message', ''));
+        $zohoErrorCode = (string) data_get($registration->metadata, 'event_payment.last_payment_link_error.code', '');
+        $zohoAccountDisabled = $zohoErrorCode === '6018' || str_contains(strtolower($zohoError), 'account is disabled');
+        $zohoFailureMessage = $zohoAccountDisabled
+            ? 'Registration saved, but payment link could not be generated because Zoho Billing account access is disabled. Please contact admin.'
+            : 'Registration saved, but payment link could not be generated. Please contact admin.';
+        $debugError = config('app.debug') ? ($zohoError ?: 'Zoho API request failed.') : $zohoFailureMessage;
 
         $payload = [
             'registration_id' => $registration->id,
             'registration_type' => $registration->registration_type ?? null,
-            'status' => ! $zohoLinkFailed,
-            'success' => ! $zohoLinkFailed,
+            'status' => true,
+            'success' => true,
             'payment_required' => $paymentRequired,
             'requires_payment' => $requiresPayment,
             'payment_status' => $registration->payment_status ?? ($requiresPayment ? 'pending' : 'not_required'),
@@ -158,13 +163,14 @@ class EventPaymentService
             'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,
             'zoho_invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
             'message' => $zohoLinkFailed
-                ? 'Unable to create Zoho payment link. Please try again.'
+                ? $zohoFailureMessage
                 : ($paid
                 ? 'Already registered. Payment completed.'
                 : ($requiresPayment
                 ? 'Payment required. Please complete payment.'
                 : 'Event registration successful.')),
-            'error' => $zohoLinkFailed ? ($registration->zoho_invoice_sync_error ?? 'Zoho API request failed.') : null,
+            'error' => $zohoLinkFailed ? $debugError : null,
+            'payment_link_available' => ! $zohoLinkFailed,
         ] + $this->visitorRegistrationDetails($registration);
 
         if ($requiresPayment && $gateway === 'razorpay') {

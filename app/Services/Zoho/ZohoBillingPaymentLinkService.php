@@ -84,33 +84,42 @@ class ZohoBillingPaymentLinkService
             ]);
         }
 
-        $customerId = $this->findOrCreateCustomer($registration);
-        if (empty($customerId)) {
-            throw ValidationException::withMessages([
-                'customer' => 'Zoho customer_id missing for payment link.',
-            ]);
-        }
-
-        $description = 'Event Registration - '.($event->title ?? 'Event')
-            .' | registration_id='.(string) $registration->id
-            .' | event_id='.(string) $registration->event_id
-            .' | occurrence_id='.(string) $registration->occurrence_id;
-
-        $payload = [
-            'customer_id' => (string) $customerId,
-            'payment_amount' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
-            'description' => $description,
-            'expiry_time' => now()->addDays(15)->format('Y-m-d'),
-        ];
-
-        Log::info('zoho_billing_payment_link_create_request', [
-            'registration_id' => (string) $registration->id,
-            'payload' => $payload,
-            'body_keys' => array_keys($payload),
-        ]);
-        Log::info('Zoho Billing request path=/paymentlinks', ['registration_id' => (string) $registration->id]);
+        $payload = [];
+        $endpoint = '/customers';
 
         try {
+            $customerId = $this->findOrCreateCustomer($registration);
+            if (empty($customerId)) {
+                throw ValidationException::withMessages([
+                    'customer' => 'Zoho customer_id missing for payment link.',
+                ]);
+            }
+
+            $description = 'Event Registration - '.($event->title ?? 'Event')
+                .' | registration_id='.(string) $registration->id
+                .' | event_id='.(string) $registration->event_id
+                .' | occurrence_id='.(string) $registration->occurrence_id;
+
+            $payload = [
+                'customer_id' => (string) $customerId,
+                'payment_amount' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
+                'description' => $description,
+                'expiry_time' => now()->addDays(15)->format('Y-m-d'),
+            ];
+
+            $endpoint = '/paymentlinks';
+
+            Log::info('zoho_billing_payment_link_create_request', [
+                'registration_id' => (string) $registration->id,
+                'event_id' => (string) $registration->event_id,
+                'occurrence_id' => (string) $registration->occurrence_id,
+                'endpoint' => $endpoint,
+                'org_id' => $this->zohoOrgId(),
+                'payload' => $payload,
+                'body_keys' => array_keys($payload),
+            ]);
+            Log::info('Zoho Billing request path=/paymentlinks', ['registration_id' => (string) $registration->id]);
+
             $response = $this->client->request('POST', '/paymentlinks', $payload);
             $link = data_get($response, 'payment_link') ?? data_get($response, 'payment_links') ?? $response;
             $url = $this->urlFromZohoResponse(is_array($link) ? $link : [], $response);
@@ -118,6 +127,10 @@ class ZohoBillingPaymentLinkService
             if (empty($url)) {
                 Log::error('zoho_billing_payment_link_error', [
                     'registration_id' => (string) $registration->id,
+                    'event_id' => (string) $registration->event_id,
+                    'occurrence_id' => (string) $registration->occurrence_id,
+                    'endpoint' => $endpoint,
+                    'org_id' => $this->zohoOrgId(),
                     'response' => $response,
                     'error' => 'Zoho Billing payment link URL missing.',
                 ]);
@@ -125,7 +138,14 @@ class ZohoBillingPaymentLinkService
                 throw new \RuntimeException('Zoho Billing payment link URL missing.');
             }
 
+            $metadata = $this->paymentMetadata($registration, [
+                'last_payment_link_error' => null,
+                'fake_payment_link' => false,
+            ]);
+
             $registration->forceFill($this->filter([
+                'metadata' => $metadata,
+                'zoho_invoice_sync_error' => null,
                 'zoho_payment_link_id' => data_get($link, 'payment_link_id') ?? data_get($link, 'paymentlink_id') ?? data_get($link, 'payment_link.payment_link_id') ?? null,
                 'zoho_hosted_page_id' => data_get($link, 'hostedpage_id') ?? data_get($link, 'hostedpage.hostedpage_id') ?? data_get($response, 'hostedpage.hostedpage_id') ?? null,
                 'zoho_payment_link_url' => $url,
@@ -141,15 +161,31 @@ class ZohoBillingPaymentLinkService
 
             Log::info('zoho_billing_payment_link_created', [
                 'registration_id' => (string) $registration->id,
+                'event_id' => (string) $registration->event_id,
+                'occurrence_id' => (string) $registration->occurrence_id,
+                'endpoint' => $endpoint,
+                'org_id' => $this->zohoOrgId(),
                 'zoho_payment_link_id' => $registration->zoho_payment_link_id,
             ]);
         } catch (ValidationException $e) {
             Log::error('zoho_billing_payment_link_validation_failed', [
                 'registration_id' => (string) $registration->id,
+                'event_id' => (string) $registration->event_id,
+                'occurrence_id' => (string) $registration->occurrence_id,
+                'endpoint' => $endpoint,
+                'org_id' => $this->zohoOrgId(),
                 'error' => $e->getMessage(),
                 'errors' => $e->errors(),
             ]);
             $registration->forceFill($this->filter([
+                'metadata' => $this->paymentMetadata($registration, [
+                    'last_payment_link_error' => [
+                        'code' => null,
+                        'message' => $e->getMessage(),
+                        'endpoint' => $endpoint,
+                        'failed_at' => now()->toISOString(),
+                    ],
+                ]),
                 'payment_gateway' => 'zoho_billing_payment_link',
                 'zoho_invoice_sync_error' => $e->getMessage(),
                 'payment_status' => 'pending',
@@ -157,19 +193,113 @@ class ZohoBillingPaymentLinkService
             ]))->save();
             throw $e;
         } catch (\Throwable $e) {
+            $zohoCode = $this->zohoErrorCode($e);
+            $zohoMessage = $this->zohoErrorMessage($e);
+
             Log::error('zoho_billing_payment_link_create_failed', [
                 'registration_id' => (string) $registration->id,
+                'event_id' => (string) $registration->event_id,
+                'occurrence_id' => (string) $registration->occurrence_id,
+                'zoho_error_code' => $zohoCode,
+                'zoho_message' => $zohoMessage,
+                'endpoint' => $endpoint,
+                'org_id' => $this->zohoOrgId(),
                 'error' => $e->getMessage(),
             ]);
+
             $registration->forceFill($this->filter([
+                'metadata' => $this->paymentMetadata($registration, [
+                    'last_payment_link_error' => [
+                        'code' => $zohoCode,
+                        'message' => $zohoMessage,
+                        'endpoint' => $endpoint,
+                        'org_id' => $this->zohoOrgId(),
+                        'failed_at' => now()->toISOString(),
+                    ],
+                ]),
                 'payment_gateway' => 'zoho_billing_payment_link',
                 'zoho_invoice_sync_error' => $e->getMessage(),
                 'payment_status' => 'pending',
                 'status' => 'pending_payment',
             ]))->save();
+
+            if ($this->fakeLinkEnabled()) {
+                $registration = $this->attachFakePaymentLink($registration, $zohoCode, $zohoMessage);
+            }
         }
 
         return $registration->fresh(['event', 'occurrence', 'user']);
+    }
+
+
+    private function fakeLinkEnabled(): bool
+    {
+        return app()->environment('local') && (bool) config('services.event_payment_fake_link_enabled', false);
+    }
+
+    private function attachFakePaymentLink(EventRegistration $registration, ?string $zohoCode, string $zohoMessage): EventRegistration
+    {
+        $url = url('/events/registrations/'.(string) $registration->id.'/mock-payment');
+
+        Log::warning('event_payment_fake_link_created', [
+            'registration_id' => (string) $registration->id,
+            'event_id' => (string) $registration->event_id,
+            'occurrence_id' => (string) $registration->occurrence_id,
+            'zoho_error_code' => $zohoCode,
+            'zoho_message' => $zohoMessage,
+        ]);
+
+        $registration->forceFill($this->filter([
+            'metadata' => $this->paymentMetadata($registration, [
+                'fake_payment_link' => true,
+                'fake_payment_link_reason' => [
+                    'code' => $zohoCode,
+                    'message' => $zohoMessage,
+                ],
+            ]),
+            'payment_gateway' => 'zoho_billing_payment_link',
+            'payment_url' => $url,
+            'checkout_url' => $url,
+            'zoho_payment_link_url' => $url,
+            'zoho_checkout_url' => $url,
+            'payment_status' => 'pending',
+            'status' => 'pending_payment',
+        ]))->save();
+
+        return $registration->fresh(['event', 'occurrence', 'user']);
+    }
+
+    private function paymentMetadata(EventRegistration $registration, array $eventPaymentUpdates): array
+    {
+        $metadata = (array) ($registration->metadata ?? []);
+        $metadata['event_payment'] = array_merge((array) ($metadata['event_payment'] ?? []), $eventPaymentUpdates);
+
+        return $metadata;
+    }
+
+    private function zohoOrgId(): ?string
+    {
+        $orgId = config('services.zoho.billing_org_id') ?: config('zoho_billing.org_id') ?: env('ZOHO_BILLING_ORG_ID') ?: env('ZOHO_ORGANIZATION_ID') ?: env('ZOHO_ORG_ID');
+
+        return $orgId ? (string) $orgId : null;
+    }
+
+    private function zohoErrorCode(\Throwable $e): ?string
+    {
+        if (preg_match('/code\s+(\d+)/i', $e->getMessage(), $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    private function zohoErrorMessage(\Throwable $e): string
+    {
+        if (preg_match('/Zoho API request failed(?: code \d+)?:\s*(.*)$/i', $e->getMessage(), $matches)) {
+            return trim($matches[1]);
+        }
+
+        return $e->getMessage();
     }
 
     private function paymentUrl(EventRegistration $registration): ?string

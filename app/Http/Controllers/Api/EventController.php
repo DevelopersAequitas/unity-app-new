@@ -139,7 +139,9 @@ class EventController extends BaseApiController
                 Log::info('cross_circle_registration_after_approval_payment_link_created', $eligibilityContext + ['request_id' => $approvedRequest->id, 'request_status' => $approvedRequest->status, 'registration_id' => (string) $registration->id]);
                 Log::info('cross_circle_approved_registration_payment_link_created', $eligibilityContext + ['request_id' => $approvedRequest->id, 'registration_id' => (string) $registration->id]);
 
-                return $this->success($this->payments->responsePayload($registration), 'Payment is required to complete registration.', 201);
+                $paymentPayload = $this->payments->responsePayload($registration);
+
+                return $this->success($paymentPayload, $paymentPayload['message'] ?? 'Payment is required to complete registration.', 201);
             }
 
             $req = EventRegistrationRequest::query()
@@ -221,10 +223,11 @@ class EventController extends BaseApiController
             : $this->registrations->registerMember($event, $occurrence, $user, $request->input('source', 'app'));
 
         $paymentRequired = (bool) ($registration->payment_required ?? false);
+        $paymentPayload = $this->payments->responsePayload($registration);
 
         return $this->success(
-            $this->payments->responsePayload($registration),
-            $paymentRequired ? 'Payment is required to complete registration.' : 'Event registration successful.',
+            $paymentPayload,
+            $paymentRequired ? ($paymentPayload['message'] ?? 'Payment is required to complete registration.') : 'Event registration successful.',
             201
         );
     }
