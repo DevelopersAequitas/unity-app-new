@@ -165,7 +165,7 @@
             <p class="text-muted mb-0">{{ $certificationRequest->full_name }} · {{ $certificationRequest->business_name }}</p>
         </div>
         <div class="d-flex flex-wrap justify-content-end gap-2">
-            @if($resource['type'] === 'entrepreneur' && $status === 'approved' && ! empty($resource['certificate_route']))
+            @if($status === 'approved' && ! empty($resource['certificate_route']))
                 <a href="{{ route($resource['certificate_route'], $certificationRequest->id) }}" class="btn btn-primary btn-sm" target="_blank" rel="noopener">Download Certificate</a>
             @endif
             <a href="{{ route($resource['index_route']) }}" class="btn btn-outline-secondary btn-sm">Back</a>
@@ -187,7 +187,7 @@
                     <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#approveCertificationRequest">Approve</button>
                     <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectCertificationRequest">Reject</button>
                 </div>
-            @elseif($resource['type'] === 'entrepreneur' && $status === 'approved' && ! empty($resource['certificate_route']))
+            @elseif($status === 'approved' && ! empty($resource['certificate_route']))
                 <a href="{{ route($resource['certificate_route'], $certificationRequest->id) }}" class="btn btn-outline-primary" target="_blank" rel="noopener">Certificate PDF</a>
             @endif
         </div>

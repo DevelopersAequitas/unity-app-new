@@ -8,6 +8,7 @@ use App\Mail\LeadershipCertificationApprovedMail;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\LeadershipCertificationSubmission;
 use App\Services\Certificates\EntrepreneurCertificatePdf;
+use App\Services\Certificates\LeadershipCertificatePdf;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -61,6 +62,19 @@ class CertificationRequestController extends Controller
     public function leadershipShow(string $id): View
     {
         return $this->show('leadership', $id);
+    }
+
+    public function leadershipCertificate(string $id)
+    {
+        $certificationRequest = LeadershipCertificationSubmission::query()->findOrFail($id);
+
+        if ((string) $certificationRequest->status !== 'approved') {
+            return redirect()
+                ->back()
+                ->with('error', 'Certificate PDF is available only for approved leadership certification requests.');
+        }
+
+        return $this->streamLeadershipCertificate($certificationRequest);
     }
 
     public function leadershipApprove(string $id): RedirectResponse
@@ -167,6 +181,18 @@ class CertificationRequestController extends Controller
     private function streamEntrepreneurCertificate(EntrepreneurCertificationSubmission $certificationRequest)
     {
         $certificatePdf = app(EntrepreneurCertificatePdf::class);
+        $filename = $certificatePdf->filename($certificationRequest);
+
+        return response($certificatePdf->generate($certificationRequest), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
+        ]);
+    }
+
+    private function streamLeadershipCertificate(LeadershipCertificationSubmission $certificationRequest)
+    {
+        $certificatePdf = app(LeadershipCertificatePdf::class);
         $filename = $certificatePdf->filename($certificationRequest);
 
         return response($certificatePdf->generate($certificationRequest), 200, [
@@ -306,7 +332,7 @@ class CertificationRequestController extends Controller
                 'show_route' => 'admin.leadership-certification-requests.show',
                 'approve_route' => 'admin.leadership-certification-requests.approve',
                 'reject_route' => 'admin.leadership-certification-requests.reject',
-                'certificate_route' => null,
+                'certificate_route' => 'admin.leadership-certification-requests.certificate',
                 'tier_column' => 'certification_level',
                 'tier_label' => 'Certification Level',
                 'search_columns' => ['full_name', 'business_name', 'email', 'contact_no', 'certification_level'],
