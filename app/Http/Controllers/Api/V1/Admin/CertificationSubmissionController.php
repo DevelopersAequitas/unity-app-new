@@ -117,6 +117,14 @@ class CertificationSubmissionController extends BaseApiController
             ], 422);
         }
 
+        if (! preg_match('/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/', $id)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Certification submission not found. Use a real certification UUID in the URL, not the literal {id} placeholder.',
+                'data' => null,
+            ], 404);
+        }
+
         $submission = CertificationSubmission::find($id);
 
         if (! $submission) {
