@@ -91,6 +91,7 @@ use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\MyEventQrController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
+use App\Http\Controllers\Api\V1\P2PMeetingRescheduleController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
@@ -672,8 +673,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/p2p-meeting-requests/sent', [P2PMeetingRequestController::class, 'sent']);
         Route::get('/p2p-meeting-requests/{id}', [P2PMeetingRequestController::class, 'show']);
         Route::post('/p2p-meeting-requests/{id}/accept', [P2PMeetingRequestController::class, 'accept']);
+        Route::post('/p2p-meeting-requests/{id}/reschedule', [P2PMeetingRequestController::class, 'requestReschedule']);
         Route::post('/p2p-meeting-requests/{id}/reject', [P2PMeetingRequestController::class, 'reject']);
         Route::post('/p2p-meeting-requests/{id}/cancel', [P2PMeetingRequestController::class, 'cancel']);
+        Route::get('/p2p-meeting-reschedule-requests/pending-received', [P2PMeetingRescheduleController::class, 'pendingReceived']);
+        Route::post('/p2p-meeting-reschedule-requests/{id}/approve', [P2PMeetingRescheduleController::class, 'approve']);
+        Route::post('/p2p-meeting-reschedule-requests/{id}/reject', [P2PMeetingRescheduleController::class, 'reject']);
 
         // Admin Activities
         Route::get('/admin/activities', [AdminActivityController::class, 'index']);
