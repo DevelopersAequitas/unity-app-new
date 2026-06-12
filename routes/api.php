@@ -402,6 +402,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/certifications', [CertificationSubmissionController::class, 'index']);
             Route::get('/certifications/counts', [CertificationSubmissionController::class, 'counts']);
             Route::get('/certifications/{id}', [CertificationSubmissionController::class, 'show'])->whereUuid('id');
+            Route::get('/certifications/{id}/download', [CertificationSubmissionController::class, 'download'])->whereUuid('id');
             Route::post('/certifications/{id}/approve', [CertificationSubmissionController::class, 'approve'])->whereUuid('id');
             Route::post('/certifications/{id}/reject', [CertificationSubmissionController::class, 'reject'])->whereUuid('id');
 

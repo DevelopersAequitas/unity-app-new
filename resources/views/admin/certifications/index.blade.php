@@ -110,8 +110,13 @@
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm" role="group">
                                     <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewCertification{{ $item->id }}">View</button>
-                                    <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#approveCertification{{ $item->id }}">Approve</button>
-                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectCertification{{ $item->id }}">Reject</button>
+                                    @if ($item->status === \App\Models\CertificationSubmission::STATUS_NEW)
+                                        <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#approveCertification{{ $item->id }}">Approve</button>
+                                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectCertification{{ $item->id }}">Reject</button>
+                                    @endif
+                                    @if ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && $item->certificate_download_url)
+                                        <a href="{{ $item->certificate_download_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Download</a>
+                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -151,6 +156,25 @@
                             <div class="col-md-3"><div class="small text-muted">Status</div><span class="badge {{ $statusBadgeClass($item->status) }}">{{ $formatLabel($item->status) }}</span></div>
                             <div class="col-12"><div class="small text-muted">Admin Note</div><div class="border rounded p-2 bg-light" style="white-space: pre-wrap;">{{ $item->admin_note ?: '—' }}</div></div>
                         </div>
+
+                        @if ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED)
+                            <div class="border rounded p-3 bg-light mb-3">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                    <div>
+                                        <h6 class="mb-2">Certificate Details</h6>
+                                        <div class="small text-muted">Certificate Number</div>
+                                        <div class="fw-semibold">{{ $item->certificate_number ?: '—' }}</div>
+                                        <div class="small text-muted mt-2">Issued Date</div>
+                                        <div>{{ $formatDate($item->issued_at) }}</div>
+                                    </div>
+                                    @if ($item->certificate_download_url)
+                                        <a href="{{ $item->certificate_download_url }}" target="_blank" rel="noopener" class="btn btn-primary">
+                                            Download Certificate
+                                        </a>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
 
                         <h6 class="mb-2">Answers</h6>
                         <div class="table-responsive border rounded">

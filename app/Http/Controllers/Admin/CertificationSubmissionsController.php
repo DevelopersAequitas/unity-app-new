@@ -4,11 +4,16 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CertificationSubmission;
+use App\Services\Certifications\CertificateGeneratorService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class CertificationSubmissionsController extends Controller
 {
+    public function __construct(private readonly CertificateGeneratorService $certificateGenerator)
+    {
+    }
+
     public function index(Request $request)
     {
         $filters = $request->validate([
@@ -52,20 +57,17 @@ class CertificationSubmissionsController extends Controller
 
         $submission = CertificationSubmission::findOrFail($id);
 
-        if ($submission->status === CertificationSubmission::STATUS_APPROVED) {
-            return back()->with('success', 'Certification submission is already approved.');
-        }
+        $message = $submission->status === CertificationSubmission::STATUS_APPROVED
+            ? 'Certification submission is already approved.'
+            : 'Certification submission approved successfully.';
 
-        $submission->forceFill([
-            'status' => CertificationSubmission::STATUS_APPROVED,
-            'admin_note' => $data['admin_note'] ?? null,
-            'approved_by' => auth('admin')->id(),
-            'approved_at' => now(),
-            'rejected_by' => null,
-            'rejected_at' => null,
-        ])->save();
+        $this->certificateGenerator->approveSubmission(
+            $submission,
+            $data['admin_note'] ?? $submission->admin_note,
+            auth('admin')->id(),
+        );
 
-        return back()->with('success', 'Certification submission approved successfully.');
+        return back()->with('success', $message);
     }
 
     public function reject(Request $request, string $id)

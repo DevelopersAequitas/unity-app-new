@@ -9,11 +9,17 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Services\Certifications\CertificateGeneratorService;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 class CertificationSubmissionController extends BaseApiController
 {
+    public function __construct(private readonly CertificateGeneratorService $certificateGenerator)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         if (! $this->canReview($request->user())) {
@@ -121,28 +127,60 @@ class CertificationSubmissionController extends BaseApiController
             ], 404);
         }
 
-        if ($submission->status === CertificationSubmission::STATUS_APPROVED) {
-            return response()->json([
-                'status' => true,
-                'message' => 'Certification submission is already approved.',
-                'data' => $this->mapSubmission($submission, true),
-            ]);
-        }
+        $message = $submission->status === CertificationSubmission::STATUS_APPROVED
+            ? 'Certification submission is already approved.'
+            : 'Certification submission approved successfully.';
 
-        $submission->forceFill([
-            'status' => CertificationSubmission::STATUS_APPROVED,
-            'admin_note' => $request->input('admin_note'),
-            'approved_by' => $request->user()?->id,
-            'approved_at' => now(),
-            'rejected_by' => null,
-            'rejected_at' => null,
-        ])->save();
+        $submission = $this->certificateGenerator->approveSubmission(
+            $submission,
+            $request->input('admin_note', $submission->admin_note),
+            $request->user()?->id,
+        );
 
         return response()->json([
             'status' => true,
-            'message' => 'Certification submission approved successfully.',
-            'data' => $this->mapSubmission($submission->refresh(), true),
+            'message' => $message,
+            'data' => $this->mapSubmission($submission, true),
         ]);
+    }
+
+    public function download(Request $request, string $id)
+    {
+        if (! $this->canReview($request->user())) {
+            return $this->unauthorizedResponse();
+        }
+
+        $submission = CertificationSubmission::find($id);
+
+        if (! $submission) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Certification submission not found.',
+                'data' => null,
+            ], 404);
+        }
+
+        if ($submission->status !== CertificationSubmission::STATUS_APPROVED) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Certificate is not available because this submission is not approved.',
+                'data' => null,
+            ], 422);
+        }
+
+        if (! $submission->certificate_file_path || ! Storage::disk('public')->exists($submission->certificate_file_path)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Certificate file is not available.',
+                'data' => null,
+            ], 404);
+        }
+
+        return Storage::disk('public')->download(
+            $submission->certificate_file_path,
+            basename($submission->certificate_file_path),
+            ['Content-Type' => 'application/pdf']
+        );
     }
 
     public function reject(Request $request, string $id): JsonResponse
@@ -248,6 +286,11 @@ class CertificationSubmissionController extends BaseApiController
             'percentage' => (int) $item->percentage,
             'certification_level' => $item->certification_level,
             'certification_title' => $item->certification_title,
+            'certificate_number' => $item->certificate_number,
+            'certificate_file_path' => $item->certificate_file_path,
+            'certificate_download_url' => $item->certificate_download_url,
+            'certificate_generated_at' => optional($item->certificate_generated_at)?->toISOString(),
+            'issued_at' => optional($item->issued_at)?->toISOString(),
             'status' => $item->status,
             'admin_note' => $item->admin_note,
             'approved_by' => $item->approved_by,
