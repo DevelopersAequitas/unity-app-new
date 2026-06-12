@@ -17,7 +17,6 @@ use App\Models\PartnerWithUsSubmission;
 use App\Models\SmeBusinessStorySubmission;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Certificates\EntrepreneurCertificatePdf;
-use App\Services\Certificates\LeadershipCertificatePdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
@@ -89,7 +88,7 @@ class WebsiteFormsController extends BaseApiController
 
     public function indexLeadershipCertification(Request $request)
     {
-        $query = LeadershipCertificationSubmission::query();
+        $query = LeadershipCertificationSubmission::query()->with('leadershipCertificate');
         $this->scopeCertificationToAuthenticatedUser($query, $request->user(), LeadershipCertificationSubmission::class);
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'contact_no', 'business_name']);
 
@@ -105,7 +104,7 @@ class WebsiteFormsController extends BaseApiController
 
     public function showLeadershipCertification(string $id)
     {
-        $item = LeadershipCertificationSubmission::find($id);
+        $item = LeadershipCertificationSubmission::query()->with('leadershipCertificate')->find($id);
 
         if (! $item) {
             return $this->submissionNotFound();
@@ -115,43 +114,6 @@ class WebsiteFormsController extends BaseApiController
             'status' => true,
             'message' => 'Submission fetched successfully.',
             'data' => $this->mapLeadershipCertificationSubmission($item),
-        ]);
-    }
-
-    public function downloadLeadershipCertificate(Request $request, string $id)
-    {
-        $item = LeadershipCertificationSubmission::find($id);
-
-        if (! $item) {
-            return $this->submissionNotFound();
-        }
-
-        $authorizedQuery = LeadershipCertificationSubmission::query()->whereKey($id);
-        $this->scopeCertificationToAuthenticatedUser($authorizedQuery, $request->user(), LeadershipCertificationSubmission::class);
-
-        if (! $authorizedQuery->exists()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'You are not authorized to download this certificate.',
-                'data' => null,
-            ], 403);
-        }
-
-        if ((string) $item->status !== 'approved') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Certificate PDF is available only for approved leadership certification records.',
-                'data' => null,
-            ], 403);
-        }
-
-        $certificatePdf = app(LeadershipCertificatePdf::class);
-        $filename = $certificatePdf->filename($item);
-
-        return response($certificatePdf->generate($item), 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="'.$filename.'"',
-            'Cache-Control' => 'private, max-age=0, must-revalidate',
         ]);
     }
 
@@ -630,10 +592,16 @@ class WebsiteFormsController extends BaseApiController
 
     private function mapLeadershipCertificationSubmission(LeadershipCertificationSubmission $item): array
     {
+        $certificate = $item->relationLoaded('leadershipCertificate')
+            ? $item->getRelation('leadershipCertificate')
+            : $item->leadershipCertificate()->first();
+
         $data = $item->toArray();
-        $data['certificate_download_url'] = (string) $item->status === 'approved'
-            ? url('/api/v1/leadership-certification/'.$item->id.'/certificate')
-            : null;
+        unset($data['leadership_certificate'], $data['certificate_download_url']);
+
+        $data['certificate_number'] = $certificate?->certificate_number;
+        $data['certificate_status'] = $certificate?->status;
+        $data['issued_at'] = optional($certificate?->issued_at)?->toISOString();
 
         return $data;
     }
