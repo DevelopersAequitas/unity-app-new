@@ -81,12 +81,14 @@
 @php
     $statusClasses = [
         'new' => 'warning text-dark',
+        'pending' => 'warning text-dark',
         'approved' => 'success',
         'rejected' => 'danger',
     ];
 
     $statusLabels = [
         'new' => 'Pending / New',
+        'pending' => 'Pending / New',
         'approved' => 'Approved',
         'rejected' => 'Rejected',
     ];
@@ -128,7 +130,7 @@
                     <label class="form-label small text-muted">Status</label>
                     <select name="status" class="form-select">
                         <option value="all" @selected($filters['status'] === 'all')>All</option>
-                        <option value="new" @selected($filters['status'] === 'new')>Pending / New</option>
+                        <option value="new" @selected(in_array($filters['status'], ['new', 'pending', 'pending_new'], true))>Pending / New</option>
                         <option value="approved" @selected($filters['status'] === 'approved')>Approved</option>
                         <option value="rejected" @selected($filters['status'] === 'rejected')>Rejected</option>
                     </select>

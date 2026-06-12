@@ -92,7 +92,7 @@ class CertificationRequestController extends Controller
         $resource = $this->resourceConfig($type);
         $filters = [
             'search' => trim((string) $request->query('search', '')),
-            'status' => trim((string) $request->query('status', 'all')),
+            'status' => strtolower(trim((string) $request->query('status', 'all'))),
             'from_date' => trim((string) $request->query('from_date', '')),
             'to_date' => trim((string) $request->query('to_date', '')),
         ];
@@ -106,7 +106,7 @@ class CertificationRequestController extends Controller
 
         $summaryBase = $resource['model']::query();
         $summary = [
-            'pending' => (clone $summaryBase)->where('status', 'new')->count(),
+            'pending' => (clone $summaryBase)->whereIn('status', ['new', 'pending'])->count(),
             'approved' => (clone $summaryBase)->where('status', 'approved')->count(),
             'rejected' => (clone $summaryBase)->where('status', 'rejected')->count(),
             'total' => (clone $summaryBase)->count(),
@@ -252,8 +252,12 @@ class CertificationRequestController extends Controller
             });
         }
 
-        if ($filters['status'] !== '' && $filters['status'] !== 'all') {
-            $query->where('status', $filters['status']);
+        $status = strtolower((string) ($filters['status'] ?? 'all'));
+
+        if (in_array($status, ['new', 'pending', 'pending_new'], true)) {
+            $query->whereIn('status', ['new', 'pending']);
+        } elseif (in_array($status, ['approved', 'rejected'], true)) {
+            $query->where('status', $status);
         }
 
         if ($filters['from_date'] !== '') {

@@ -126,12 +126,14 @@
 @php
     $statusClasses = [
         'new' => 'warning text-dark',
+        'pending' => 'warning text-dark',
         'approved' => 'success',
         'rejected' => 'danger',
     ];
 
     $statusLabels = [
         'new' => 'Pending / New',
+        'pending' => 'Pending / New',
         'approved' => 'Approved',
         'rejected' => 'Rejected',
     ];
