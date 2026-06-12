@@ -85,6 +85,15 @@ class AdminAuthController extends Controller
         $otpRecord->used_at = null;
         $otpRecord->save();
 
+        if (app()->environment('local')) {
+            // MAIL_MAILER=log does not send to Gmail/inbox; keep the local OTP easy to find in storage/logs/laravel.log.
+            Log::info('LOCAL ADMIN LOGIN OTP DEBUG', [
+                'email' => $email,
+                'otp' => $otp,
+                'expires_at' => $expiresAt,
+            ]);
+        }
+
         Mail::raw(
             "Your admin login OTP is {$otp}. It expires in 5 minutes.",
             static function ($message) use ($email): void {
