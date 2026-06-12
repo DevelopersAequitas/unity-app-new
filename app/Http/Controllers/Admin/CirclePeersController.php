@@ -4,36 +4,47 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use App\Support\UserOptionLabel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class CirclePeersController extends Controller
 {
     public function peerOptions(Request $request, Circle $circle): JsonResponse
     {
-        $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
+        $this->authorizeCirclePeerSearch($request, $circle);
 
-        if (is_array($allowedCircleIds) && ! in_array($circle->id, $allowedCircleIds, true)) {
-            abort(403);
-        }
+        $queryString = trim((string) $request->query('term', $request->query('q', '')));
 
-        $queryString = trim((string) $request->query('q', ''));
-
+        $hasDeletedAt = Schema::hasColumn('users', 'deleted_at');
         $hasName = Schema::hasColumn('users', 'name');
         $hasDisplayName = Schema::hasColumn('users', 'display_name');
+        $hasFirstName = Schema::hasColumn('users', 'first_name');
+        $hasLastName = Schema::hasColumn('users', 'last_name');
+        $hasPhone = Schema::hasColumn('users', 'phone');
         $hasCompanyName = Schema::hasColumn('users', 'company_name');
         $hasCompany = Schema::hasColumn('users', 'company');
         $hasCity = Schema::hasColumn('users', 'city');
 
-        $nameExpr = $hasName
-            ? 'users.name'
-            : ($hasDisplayName
-                ? 'users.display_name'
-                : "TRIM(CONCAT_WS(' ', COALESCE(users.first_name, ''), COALESCE(users.last_name, '')))"
-            );
+        $fullNameExpr = ($hasFirstName || $hasLastName)
+            ? "TRIM(CONCAT_WS(' ', COALESCE(users.first_name, ''), COALESCE(users.last_name, '')))"
+            : "''";
+        $nameCandidates = [];
+        if ($hasName) {
+            $nameCandidates[] = "NULLIF(TRIM(users.name), '')";
+        }
+        if ($hasDisplayName) {
+            $nameCandidates[] = "NULLIF(TRIM(users.display_name), '')";
+        }
+        $nameCandidates[] = "NULLIF({$fullNameExpr}, '')";
+        $nameCandidates[] = "users.email";
+        $nameExpr = 'COALESCE('.implode(', ', $nameCandidates).')';
 
         $companyExpr = $hasCompanyName
             ? 'users.company_name'
@@ -42,25 +53,39 @@ class CirclePeersController extends Controller
         $cityExpr = $hasCity ? 'users.city' : "''";
 
         $rows = DB::table('users')
-            ->whereNull('users.deleted_at')
+            ->when($hasDeletedAt, fn ($query) => $query->whereNull('users.deleted_at'))
             ->whereNotIn('users.id', function ($subQuery) use ($circle): void {
                 $subQuery->select('user_id')
                     ->from('circle_members')
                     ->where('circle_id', $circle->id)
                     ->whereNull('deleted_at');
             })
-            ->when($queryString !== '', function ($query) use ($queryString, $nameExpr, $companyExpr, $cityExpr): void {
+            ->when($queryString !== '', function ($query) use ($queryString, $nameExpr, $companyExpr, $cityExpr, $hasDisplayName, $hasFirstName, $hasLastName, $hasPhone): void {
                 $like = "%{$queryString}%";
 
-                $query->where(function ($searchQuery) use ($like, $nameExpr, $companyExpr, $cityExpr): void {
+                $query->where(function ($searchQuery) use ($like, $nameExpr, $companyExpr, $cityExpr, $hasDisplayName, $hasFirstName, $hasLastName, $hasPhone): void {
                     $searchQuery->whereRaw("{$nameExpr} ILIKE ?", [$like])
                         ->orWhere('users.email', 'ILIKE', $like)
                         ->orWhereRaw("COALESCE({$companyExpr}, '') ILIKE ?", [$like])
                         ->orWhereRaw("COALESCE({$cityExpr}, '') ILIKE ?", [$like]);
+
+                    if ($hasDisplayName) {
+                        $searchQuery->orWhere('users.display_name', 'ILIKE', $like);
+                    }
+                    if ($hasFirstName) {
+                        $searchQuery->orWhere('users.first_name', 'ILIKE', $like);
+                    }
+                    if ($hasLastName) {
+                        $searchQuery->orWhere('users.last_name', 'ILIKE', $like);
+                    }
+                    if ($hasPhone) {
+                        $searchQuery->orWhere('users.phone', 'ILIKE', $like);
+                    }
                 });
             })
             ->selectRaw(
                 "users.id,
+                users.email,
                 {$nameExpr} as name,
                 COALESCE({$companyExpr}, '') as company,
                 COALESCE({$cityExpr}, '') as city,
@@ -80,11 +105,46 @@ class CirclePeersController extends Controller
 
         return response()->json([
             'results' => $rows
-                ->map(fn ($row) => [
-                    'id' => $row->id,
-                    'text' => UserOptionLabel::makeFromRow((array) $row),
-                ])
+                ->map(function ($row): array {
+                    $name = trim((string) ($row->name ?? '')) ?: 'Unknown';
+                    $email = trim((string) ($row->email ?? ''));
+
+                    return [
+                        'id' => $row->id,
+                        'text' => $email !== '' ? "{$name} - {$email}" : UserOptionLabel::makeFromRow((array) $row),
+                    ];
+                })
                 ->values(),
         ]);
+    }
+    private function authorizeCirclePeerSearch(Request $request, Circle $circle): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (AdminAccess::isGlobalAdmin($admin)) {
+            return;
+        }
+
+        $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
+        if (is_array($allowedCircleIds) && in_array((string) $circle->id, array_map('strval', $allowedCircleIds), true)) {
+            return;
+        }
+
+        if (AdminAccess::isDed($admin)) {
+            $query = Circle::query()->whereKey($circle->id);
+            AdminCircleScope::applyToCirclesQuery($query, $admin);
+            if ($query->exists()) {
+                return;
+            }
+        }
+
+        if (is_array($allowedCircleIds)) {
+            Log::warning('Circle peer search access denied', [
+                'admin_id' => $admin?->id,
+                'role' => AdminAccess::adminRoleKeys($admin),
+                'circle_id' => $circle->id,
+            ]);
+            abort(403);
+        }
     }
 }

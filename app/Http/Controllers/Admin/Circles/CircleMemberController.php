@@ -10,6 +10,7 @@ use App\Models\CircleMember;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 class CircleMemberController extends Controller
 {
@@ -18,17 +19,36 @@ class CircleMemberController extends Controller
         $data = $request->validated();
         $redirectQuery = $this->peerFilterQuery($request);
 
-        $payload = [
-            'user_id' => $data['user_id'],
-            'role' => $data['role'],
-            'status' => 'approved',
-        ];
+        DB::transaction(function () use ($circle, $data): void {
+            $payload = [
+                'user_id' => $data['user_id'],
+                'role' => $data['role'],
+                'status' => 'approved',
+                'left_at' => null,
+            ];
 
-        if (Schema::hasColumn('circle_members', 'joined_at')) {
-            $payload['joined_at'] = now();
-        }
+            if (Schema::hasColumn('circle_members', 'joined_at')) {
+                $payload['joined_at'] = now();
+            }
 
-        $circle->members()->create($payload);
+            $member = CircleMember::query()->withTrashed()->firstOrNew([
+                'circle_id' => $circle->id,
+                'user_id' => $data['user_id'],
+            ]);
+
+            if ($member->exists && $member->trashed()) {
+                $member->restore();
+            }
+
+            $member->fill($payload)->save();
+
+            if (Schema::hasColumn('users', 'active_circle_id')) {
+                DB::table('users')
+                    ->where('id', $data['user_id'])
+                    ->whereNull('active_circle_id')
+                    ->update(['active_circle_id' => $circle->id]);
+            }
+        });
 
         return redirect()
             ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))

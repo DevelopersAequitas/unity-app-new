@@ -387,6 +387,8 @@ class CircleController extends Controller
         $meetings = is_array($rawMeetingSchedule) ? array_values($rawMeetingSchedule) : [];
         $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
 
+        $this->ensureLegacyActiveCircleMembers($circle);
+
         $meetingRows = array_map(function ($meeting, int $index): array {
             $meeting = is_array($meeting) ? $meeting : [];
 
@@ -398,6 +400,7 @@ class CircleController extends Controller
 
         $peerMembers = $circle->members()
             ->with(['user', 'roleRef'])
+            ->whereHas('user', fn ($userQuery) => $userQuery->when(Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('deleted_at')))
             ->when($peerFilters['peer_name'] !== '', function ($query) use ($peerFilters): void {
                 $like = '%'.$peerFilters['peer_name'].'%';
 
@@ -562,6 +565,60 @@ class CircleController extends Controller
         return redirect()
             ->route('admin.circles.index')
             ->with('success', 'Circle deleted successfully.');
+    }
+
+    private function ensureLegacyActiveCircleMembers(Circle $circle): void
+    {
+        if (! Schema::hasColumn('users', 'active_circle_id')) {
+            return;
+        }
+
+        $legacyUserColumns = ['id'];
+        if (Schema::hasColumn('users', 'circle_joined_at')) {
+            $legacyUserColumns[] = 'circle_joined_at';
+        }
+        if (Schema::hasColumn('users', 'circle_expires_at')) {
+            $legacyUserColumns[] = 'circle_expires_at';
+        }
+
+        User::query()
+            ->select($legacyUserColumns)
+            ->where('active_circle_id', $circle->id)
+            ->when(Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('deleted_at'))
+            ->whereNotExists(function ($query) use ($circle): void {
+                $query->selectRaw(1)
+                    ->from('circle_members')
+                    ->whereColumn('circle_members.user_id', 'users.id')
+                    ->where('circle_members.circle_id', $circle->id)
+                    ->whereNull('circle_members.deleted_at');
+            })
+            ->chunkById(100, function ($users) use ($circle): void {
+                foreach ($users as $user) {
+                    $member = CircleMember::query()->withTrashed()->firstOrNew([
+                        'user_id' => $user->id,
+                        'circle_id' => $circle->id,
+                    ]);
+
+                    if ($member->exists && $member->trashed()) {
+                        $member->restore();
+                    }
+
+                    $payload = [
+                        'role' => $member->role ?: 'member',
+                        'status' => in_array($member->status, ['approved', 'active'], true) ? $member->status : 'approved',
+                        'left_at' => null,
+                    ];
+
+                    if (Schema::hasColumn('circle_members', 'joined_at') && blank($member->joined_at)) {
+                        $payload['joined_at'] = ($user->circle_joined_at ?? null) ?: now();
+                    }
+                    if (Schema::hasColumn('circle_members', 'expires_at') && blank($member->expires_at) && filled($user->circle_expires_at ?? null)) {
+                        $payload['expires_at'] = $user->circle_expires_at;
+                    }
+
+                    $member->fill($payload)->save();
+                }
+            });
     }
 
     private function authorizeCircleAccess(Request $request, Circle $circle): void

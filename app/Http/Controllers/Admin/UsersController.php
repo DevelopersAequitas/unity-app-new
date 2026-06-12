@@ -882,8 +882,36 @@ class UsersController extends Controller
                     $dedRoleId = Role::query()->where('key', 'ded')->value('id');
                     $isDedSelected = $dedRoleId && in_array($dedRoleId, $selectedRoleIds, true);
 
-                    $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
-                    $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+                    if (Schema::hasTable('admin_user_roles')) {
+                        DB::table('admin_user_roles')
+                            ->where('user_id', $adminUser->id)
+                            ->whereIn('role_id', $adminRoleIds)
+                            ->delete();
+
+                        foreach ($selectedRoleIds as $roleId) {
+                            $rolePayload = [
+                                'user_id' => $adminUser->id,
+                                'role_id' => $roleId,
+                            ];
+                            if (Schema::hasColumn('admin_user_roles', 'id')) {
+                                $rolePayload['id'] = (string) Str::uuid();
+                            }
+                            if (Schema::hasColumn('admin_user_roles', 'created_at')) {
+                                $rolePayload['created_at'] = now();
+                            }
+                            if (Schema::hasColumn('admin_user_roles', 'updated_at')) {
+                                $rolePayload['updated_at'] = now();
+                            }
+
+                            DB::table('admin_user_roles')->insert($rolePayload);
+                        }
+                    } else {
+                        Log::warning('Admin role assignment skipped because admin_user_roles table is missing.', [
+                            'admin_id' => Auth::guard('admin')->id(),
+                            'user_id' => $user->id,
+                            'admin_user_id' => $adminUser->id,
+                        ]);
+                    }
 
                     if (Schema::hasTable('admin_ded_districts')) {
                         if ($isDedSelected) {
@@ -934,54 +962,52 @@ class UsersController extends Controller
                         Cache::forget('admin-access:ded-location:' . $adminUser->id);
                     }
 
-                    DB::table('admin_user_roles')
-                        ->where('user_id', $adminUser->id)
-                        ->whereIn('role_id', $adminRoleIds)
-                        ->delete();
-
-                    foreach ($selectedRoleIds as $roleId) {
-                        DB::table('admin_user_roles')->insert([
-                            'id' => (string) Str::uuid(),
-                            'user_id' => $adminUser->id,
-                            'role_id' => $roleId,
-                            'created_at' => now(),
-                        ]);
-                    }
-
                     $industryDirectorSelected = $industryDirectorRoleId
                         && in_array((string) $industryDirectorRoleId, array_map('strval', $selectedRoleIds), true);
 
                     Cache::forget('admin-access:roles:' . $adminUser->id);
 
-                    if ($industryDirectorSelected) {
-                        $assignmentExists = DB::table('industry_director_assignments')
-                            ->where('admin_user_id', $adminUser->id)
-                            ->exists();
+                    if (Schema::hasTable('industry_director_assignments')) {
+                        if ($industryDirectorSelected) {
+                            $assignmentExists = DB::table('industry_director_assignments')
+                                ->where('admin_user_id', $adminUser->id)
+                                ->exists();
 
-                        DB::table('industry_director_assignments')->updateOrInsert(
-                            ['admin_user_id' => $adminUser->id],
-                            array_merge([
-                                'industry_id' => $validated['industry_id'],
-                                'assigned_by' => Auth::guard('admin')->id(),
-                                'is_active' => true,
-                                'updated_at' => now(),
-                            ], $assignmentExists ? [] : ['created_at' => now()]),
-                        );
-                    } else {
-                        DB::table('industry_director_assignments')
-                            ->where('admin_user_id', $adminUser->id)
-                            ->update([
-                                'is_active' => false,
-                                'updated_at' => now(),
-                            ]);
+                            DB::table('industry_director_assignments')->updateOrInsert(
+                                ['admin_user_id' => $adminUser->id],
+                                array_merge([
+                                    'industry_id' => $validated['industry_id'],
+                                    'assigned_by' => Auth::guard('admin')->id(),
+                                    'is_active' => true,
+                                    'updated_at' => now(),
+                                ], $assignmentExists ? [] : ['created_at' => now()]),
+                            );
+                        } else {
+                            DB::table('industry_director_assignments')
+                                ->where('admin_user_id', $adminUser->id)
+                                ->update([
+                                    'is_active' => false,
+                                    'updated_at' => now(),
+                                ]);
+                        }
+                    } elseif ($industryDirectorSelected) {
+                        Log::warning('Industry director assignment skipped because table is missing.', [
+                            'admin_id' => Auth::guard('admin')->id(),
+                            'user_id' => $user->id,
+                            'admin_user_id' => $adminUser->id,
+                        ]);
                     }
                 }
             });
         } catch (ValidationException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            Log::error('admin.users.update_failed', [
-                'user_id' => $user->id,
+            Log::error('Admin peer update failed', [
+                'admin_id' => Auth::guard('admin')->id(),
+                'user_id' => $user->id ?? null,
+                'message' => $exception->getMessage(),
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
                 'exception' => $exception,
             ]);
 
