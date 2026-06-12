@@ -801,7 +801,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/share-sme-business-story', [WebsiteFormsController::class, 'indexSmeBusinessStory']);
         Route::get('/share-sme-business-story/{id}', [WebsiteFormsController::class, 'showSmeBusinessStory'])->whereUuid('id');
         Route::get('/leadership-certification', [WebsiteFormsController::class, 'indexLeadershipCertification']);
-        Route::get('/leadership-certification/certificate-holders', [WebsiteFormsController::class, 'leadershipCertificateHolders']);
         Route::get('/leadership-certification/{id}/certificate', [WebsiteFormsController::class, 'downloadLeadershipCertificate'])->whereUuid('id');
         Route::get('/leadership-certification/{id}', [WebsiteFormsController::class, 'showLeadershipCertification'])->whereUuid('id');
         Route::get('/entrepreneur-certification', [WebsiteFormsController::class, 'indexEntrepreneurCertification']);

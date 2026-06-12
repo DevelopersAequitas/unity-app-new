@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\EntrepreneurCertificationApprovedMail;
 use App\Mail\LeadershipCertificationApprovedMail;
 use App\Models\EntrepreneurCertificationSubmission;
+use App\Models\LeadershipCertificate;
 use App\Models\LeadershipCertificationSubmission;
 use App\Services\Certificates\EntrepreneurCertificatePdf;
 use App\Services\Certificates\LeadershipCertificatePdf;
@@ -169,6 +170,10 @@ class CertificationRequestController extends Controller
 
         $certificationRequest->forceFill(['status' => $status])->save();
 
+        if ($status === 'approved' && $certificationRequest instanceof LeadershipCertificationSubmission) {
+            $this->issueLeadershipCertificate($certificationRequest);
+        }
+
         if ($status === 'approved' && $previousStatus !== 'approved') {
             $this->sendApprovalCertificateEmail($certificationRequest, $resource);
         }
@@ -176,6 +181,36 @@ class CertificationRequestController extends Controller
         return redirect()
             ->route($resource['index_route'])
             ->with('success', $resource['singular_title'].' '.($status === 'approved' ? 'approved' : 'rejected').' successfully.');
+    }
+
+    private function issueLeadershipCertificate(LeadershipCertificationSubmission $certificationRequest): LeadershipCertificate
+    {
+        $existingCertificate = $certificationRequest->leadershipCertificate()->first();
+        $issuedAt = $existingCertificate?->issued_at ?: now();
+
+        return LeadershipCertificate::query()->updateOrCreate(
+            ['leadership_certification_submission_id' => $certificationRequest->id],
+            [
+                'full_name' => $certificationRequest->full_name,
+                'business_name' => $certificationRequest->business_name,
+                'email' => $certificationRequest->email,
+                'contact_no' => $certificationRequest->contact_no,
+                'certification_level' => $certificationRequest->certification_level,
+                'total_score' => $certificationRequest->total_score,
+                'percentage' => $certificationRequest->percentage,
+                'status' => 'issued',
+                'certificate_number' => $existingCertificate?->certificate_number ?: $this->generateLeadershipCertificateNumber($certificationRequest),
+                'certificate_pdf_path' => $existingCertificate?->certificate_pdf_path,
+                'issued_at' => $issuedAt,
+            ]
+        );
+    }
+
+    private function generateLeadershipCertificateNumber(LeadershipCertificationSubmission $certificationRequest): string
+    {
+        $shortId = strtoupper(substr(str_replace('-', '', (string) $certificationRequest->id), 0, 12));
+
+        return 'LC-'.now()->format('Y').'-'.$shortId;
     }
 
     private function streamEntrepreneurCertificate(EntrepreneurCertificationSubmission $certificationRequest)

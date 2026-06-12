@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class LeadershipCertificationSubmission extends Model
 {
@@ -112,4 +113,9 @@ class LeadershipCertificationSubmission extends Model
         'total_score' => 'integer',
         'percentage' => 'float',
     ];
+
+    public function leadershipCertificate(): HasOne
+    {
+        return $this->hasOne(LeadershipCertificate::class, 'leadership_certification_submission_id');
+    }
 }

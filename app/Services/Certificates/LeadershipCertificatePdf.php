@@ -2,6 +2,7 @@
 
 namespace App\Services\Certificates;
 
+use App\Models\LeadershipCertificate;
 use App\Models\LeadershipCertificationSubmission;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -26,16 +27,18 @@ class LeadershipCertificatePdf
 
     public function details(LeadershipCertificationSubmission $submission): array
     {
+        $certificate = $this->certificateFor($submission);
+
         return [
-            'full_name' => $this->displayValue($submission->full_name),
-            'business_name' => $this->displayValue($submission->business_name),
-            'email' => $this->displayValue($submission->email),
-            'contact_no' => $this->displayValue($submission->contact_no),
-            'certification_level' => $this->displayValue($submission->certification_level),
-            'total_score' => $this->displayValue($submission->total_score),
-            'percentage' => $this->formatPercentage($submission->percentage),
-            'approval_date' => $this->formatApprovalDate($submission),
-            'certificate_id' => $this->displayValue($submission->id),
+            'full_name' => $this->displayValue($certificate?->full_name ?: $submission->full_name),
+            'business_name' => $this->displayValue($certificate?->business_name ?: $submission->business_name),
+            'email' => $this->displayValue($certificate?->email ?: $submission->email),
+            'contact_no' => $this->displayValue($certificate?->contact_no ?: $submission->contact_no),
+            'certification_level' => $this->displayValue($certificate?->certification_level ?: $submission->certification_level),
+            'total_score' => $this->displayValue($certificate?->total_score ?? $submission->total_score),
+            'percentage' => $this->formatPercentage($certificate?->percentage ?? $submission->percentage),
+            'approval_date' => $this->formatApprovalDate($submission, $certificate),
+            'certificate_id' => $this->displayValue($certificate?->certificate_number ?: $submission->id),
         ];
     }
 
@@ -203,9 +206,18 @@ class LeadershipCertificatePdf
         return $percentage;
     }
 
-    private function formatApprovalDate(LeadershipCertificationSubmission $submission): string
+    private function certificateFor(LeadershipCertificationSubmission $submission): ?LeadershipCertificate
     {
-        $date = $submission->getAttribute('approved_at') ?: $submission->updated_at;
+        if ($submission->relationLoaded('leadershipCertificate')) {
+            return $submission->getRelation('leadershipCertificate');
+        }
+
+        return $submission->leadershipCertificate()->first();
+    }
+
+    private function formatApprovalDate(LeadershipCertificationSubmission $submission, ?LeadershipCertificate $certificate): string
+    {
+        $date = $certificate?->issued_at ?: $submission->getAttribute('approved_at') ?: $submission->updated_at;
 
         if (! $date) {
             return '—';
