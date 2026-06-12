@@ -39,6 +39,8 @@ class CertificateGeneratorService
 
             if ($this->shouldWriteCertificatePdf($submission)) {
                 $this->writeCertificatePdf($submission, $now);
+            } elseif ($submission->certificate_file_path) {
+                $submission->certificate_download_url = asset('storage/' . $submission->certificate_file_path);
             }
 
             $submission->save();
@@ -86,6 +88,7 @@ class CertificateGeneratorService
         $relativePath = 'certificates/' . $fileName;
         $pdfBytes = $this->renderPdf($submission);
 
+        Storage::disk('public')->makeDirectory('certificates');
         Storage::disk('public')->put($relativePath, $pdfBytes);
 
         $submission->forceFill([
@@ -111,6 +114,7 @@ class CertificateGeneratorService
         $lines = [
             'Peers Global Unity',
             $this->certificateTitle($submission),
+            'Certification Type: ' . $this->certificationTypeLabel($submission),
             'This certificate is proudly presented to',
             (string) $submission->full_name,
             'Business: ' . (($submission->business_name ?: 'N/A')),
@@ -123,11 +127,12 @@ class CertificateGeneratorService
 
         $content = "BT\n/F1 28 Tf\n80 530 Td\n(" . $this->escapePdfText($lines[0]) . ") Tj\n";
         $content .= "/F1 22 Tf\n0 -52 Td\n(" . $this->escapePdfText($lines[1]) . ") Tj\n";
-        $content .= "/F1 14 Tf\n0 -56 Td\n(" . $this->escapePdfText($lines[2]) . ") Tj\n";
-        $content .= "/F1 26 Tf\n0 -42 Td\n(" . $this->escapePdfText($lines[3]) . ") Tj\n";
+        $content .= "/F1 14 Tf\n0 -40 Td\n(" . $this->escapePdfText($lines[2]) . ") Tj\n";
+        $content .= "0 -36 Td\n(" . $this->escapePdfText($lines[3]) . ") Tj\n";
+        $content .= "/F1 26 Tf\n0 -42 Td\n(" . $this->escapePdfText($lines[4]) . ") Tj\n";
         $content .= "/F1 12 Tf\n0 -48 Td\n";
 
-        foreach (array_slice($lines, 4) as $line) {
+        foreach (array_slice($lines, 5) as $line) {
             $content .= '(' . $this->escapePdfText($line) . ") Tj\n0 -24 Td\n";
         }
 
@@ -164,6 +169,13 @@ class CertificateGeneratorService
         return $submission->certification_type === CertificationSubmission::TYPE_LEADERSHIP
             ? 'Leadership Certification'
             : 'Entrepreneur Certification';
+    }
+
+    private function certificationTypeLabel(CertificationSubmission $submission): string
+    {
+        return $submission->certification_type === CertificationSubmission::TYPE_LEADERSHIP
+            ? 'Leadership'
+            : 'Entrepreneur';
     }
 
     private function escapePdfText(string $text): string

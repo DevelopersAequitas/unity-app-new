@@ -18,9 +18,9 @@
 </head>
 <body>
     @php
-        $title = $submission->certification_type === \App\Models\CertificationSubmission::TYPE_LEADERSHIP
-            ? 'Leadership Certification'
-            : 'Entrepreneur Certification';
+        $isLeadership = $submission->certification_type === \App\Models\CertificationSubmission::TYPE_LEADERSHIP;
+        $title = $isLeadership ? 'Leadership Certification' : 'Entrepreneur Certification';
+        $typeLabel = $isLeadership ? 'Leadership' : 'Entrepreneur';
     @endphp
     <div class="certificate">
         <div class="inner">
@@ -29,6 +29,7 @@
             <div class="presented">This certificate is proudly presented to</div>
             <div class="name">{{ $submission->full_name }}</div>
             <table class="details">
+                <tr><td>Certification Type</td><td>{{ $typeLabel }}</td></tr>
                 <tr><td>Business Name</td><td>{{ $submission->business_name ?: 'N/A' }}</td></tr>
                 <tr><td>Certification Level</td><td>{{ $submission->certification_level ?: 'N/A' }}</td></tr>
                 <tr><td>Score / Percentage</td><td>{{ (int) $submission->total_score }} / {{ (int) $submission->percentage }}%</td></tr>

@@ -61,13 +61,15 @@ class CertificationSubmissionsController extends Controller
             ? 'Certification submission is already approved.'
             : 'Certification submission approved successfully.';
 
-        $this->certificateGenerator->approveSubmission(
+        $submission = $this->certificateGenerator->approveSubmission(
             $submission,
             $data['admin_note'] ?? $submission->admin_note,
             auth('admin')->id(),
         );
 
-        return back()->with('success', $message);
+        return redirect()
+            ->route('admin.certifications.index', ['search' => $submission->email])
+            ->with('success', $message);
     }
 
     public function reject(Request $request, string $id)
