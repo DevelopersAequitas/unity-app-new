@@ -103,6 +103,47 @@ class WebsiteFormsController extends BaseApiController
         ]);
     }
 
+    public function leadershipCertificateHolders(Request $request)
+    {
+        $approvalDateColumn = Schema::hasColumn((new LeadershipCertificationSubmission())->getTable(), 'approved_at')
+            ? 'approved_at'
+            : 'updated_at';
+
+        $query = LeadershipCertificationSubmission::query()
+            ->where('status', 'approved')
+            ->orderByDesc($approvalDateColumn);
+
+        if ($search = trim((string) $request->query('search', ''))) {
+            $query->where(function ($subQuery) use ($search) {
+                $subQuery->where('full_name', 'ilike', '%' . $search . '%')
+                    ->orWhere('email', 'ilike', '%' . $search . '%')
+                    ->orWhere('contact_no', 'ilike', '%' . $search . '%')
+                    ->orWhere('business_name', 'ilike', '%' . $search . '%');
+            });
+        }
+
+        if ($certificationLevel = trim((string) $request->query('certification_level', ''))) {
+            $query->where('certification_level', 'ilike', '%' . $certificationLevel . '%');
+        }
+
+        if ($fromDate = $request->query('from_date')) {
+            $query->whereDate($approvalDateColumn, '>=', $fromDate);
+        }
+
+        if ($toDate = $request->query('to_date')) {
+            $query->whereDate($approvalDateColumn, '<=', $toDate);
+        }
+
+        $items = $query->paginate($this->resolvePerPage($request));
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Leadership certificate holders fetched successfully.',
+            'data' => collect($items->items())->map(fn (LeadershipCertificationSubmission $item) => $this->mapLeadershipCertificateHolder($item))->values(),
+            'meta' => $this->paginationMeta($items),
+        ]);
+    }
+
     public function showLeadershipCertification(string $id)
     {
         $item = LeadershipCertificationSubmission::find($id);
@@ -636,6 +677,35 @@ class WebsiteFormsController extends BaseApiController
             : null;
 
         return $data;
+    }
+
+    private function mapLeadershipCertificateHolder(LeadershipCertificationSubmission $item): array
+    {
+        $approvalDate = $this->leadershipCertificateApprovalDate($item);
+
+        return [
+            'id' => $item->id,
+            'full_name' => $item->full_name,
+            'business_name' => $item->business_name,
+            'email' => $item->email,
+            'contact_no' => $item->contact_no,
+            'status' => $item->status,
+            'total_score' => $item->total_score,
+            'percentage' => $item->percentage,
+            'certification_level' => $item->certification_level,
+            'approval_date' => $approvalDate ? \Illuminate\Support\Carbon::parse($approvalDate)->toISOString() : null,
+            'created_at' => optional($item->created_at)?->toISOString(),
+            'updated_at' => optional($item->updated_at)?->toISOString(),
+        ];
+    }
+
+    private function leadershipCertificateApprovalDate(LeadershipCertificationSubmission $item): mixed
+    {
+        if (Schema::hasColumn($item->getTable(), 'approved_at')) {
+            return $item->getAttribute('approved_at') ?: $item->updated_at;
+        }
+
+        return $item->updated_at;
     }
 
     private function mapEntrepreneurCertificationSubmission(EntrepreneurCertificationSubmission $item): array
