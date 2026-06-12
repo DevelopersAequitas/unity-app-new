@@ -793,8 +793,14 @@ class WebsiteFormsController extends BaseApiController
             }
         }
 
-        if ($status = trim((string) $request->query('status', ''))) {
-            if ($status !== 'all') {
+        $status = strtolower(trim((string) $request->query('status', '')));
+
+        if ($status !== '' && $status !== 'all') {
+            if (in_array($status, ['pending', 'pending_new'], true)) {
+                $query->whereIn('status', ['pending', 'new']);
+            } elseif (in_array($status, ['new', 'approved', 'rejected'], true)) {
+                $query->where('status', $status);
+            } else {
                 $query->where('status', $status);
             }
         }
