@@ -11,8 +11,6 @@
     <p>{{ $actorName }} has approved your P2P meeting reschedule request.</p>
 @elseif ($eventType === 'p2p_reschedule_rejected')
     <p>{{ $actorName }} has rejected your P2P meeting reschedule request.</p>
-@elseif ($eventType === 'p2p_meeting_completed')
-    <p>Your P2P meeting has been marked completed by both peers.</p>
 @else
     <p>There is an update about your P2P meeting.</p>
 @endif

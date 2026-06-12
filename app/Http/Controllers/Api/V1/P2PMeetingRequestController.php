@@ -4,15 +4,12 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\P2PMeetingRequestResource;
-use App\Http\Resources\P2PMeetingRescheduleRequestResource;
 use App\Mail\P2PMeetingWorkflowMail;
 use App\Models\Notification;
 use App\Models\P2PMeetingRequest;
 use App\Models\P2PMeetingRescheduleRequest;
-use App\Models\Post;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
-use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -86,7 +83,7 @@ class P2PMeetingRequestController extends BaseApiController
     public function inbox(Request $request)
     {
         $validated = $request->validate([
-            'status' => ['nullable', Rule::in(['pending', 'accepted', 'scheduled', 'reschedule_requested', 'completed', 'rejected', 'cancelled'])],
+            'status' => ['nullable', Rule::in(['pending', 'accepted', 'scheduled', 'reschedule_requested', 'rejected', 'cancelled'])],
         ]);
 
         $query = P2PMeetingRequest::query()
@@ -215,16 +212,10 @@ class P2PMeetingRequestController extends BaseApiController
         }
 
         DB::transaction(function () use ($meetingRequest, $status, $request, $notifyUserService) {
-            $updates = [
+            $meetingRequest->update([
                 'status' => $status,
                 'responded_at' => now(),
-            ];
-
-            if ($status === 'accepted') {
-                $updates['accepted_at'] = now();
-            }
-
-            $meetingRequest->update($updates);
+            ]);
 
             $meetingRequest->loadMissing(['requester', 'invitee']);
             $requester = $meetingRequest->requester;
@@ -243,7 +234,7 @@ class P2PMeetingRequestController extends BaseApiController
     }
 
 
-    public function reschedule(Request $request, string $id, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
+    public function requestReschedule(Request $request, string $id, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
         $authUser = $request->user();
         $validated = $request->validate([
@@ -264,7 +255,7 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Forbidden.', 403);
         }
 
-        if (! $this->canRescheduleOrComplete($meetingRequest)) {
+        if (! $this->canRequestReschedule($meetingRequest)) {
             return $this->error('This meeting cannot be rescheduled.', 422);
         }
 
@@ -314,98 +305,15 @@ class P2PMeetingRequestController extends BaseApiController
             return $rescheduleRequest;
         });
 
-        $rescheduleRequest->load(['requestedBy', 'requestedTo', 'meetingRequest.requester', 'meetingRequest.invitee']);
-
-        return $this->success(new P2PMeetingRescheduleRequestResource($rescheduleRequest), 'P2P meeting reschedule request created.', 201);
-    }
-
-    public function done(Request $request, string $id, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
-    {
-        $authUser = $request->user();
-        $request->validate([
-            'note' => ['nullable', 'string', 'max:2000'],
-        ]);
-
-        $meetingRequest = P2PMeetingRequest::query()
-            ->with(['requester', 'invitee'])
-            ->find($id);
-
-        if (! $meetingRequest) {
-            return $this->error('Meeting request not found.', 404);
-        }
-
-        if (! $this->isParticipant($meetingRequest, (string) $authUser->id)) {
-            return $this->error('Forbidden.', 403);
-        }
-
-        if (! $this->canRescheduleOrComplete($meetingRequest)) {
-            return $this->error('This meeting cannot be marked completed.', 422);
-        }
-
-        $otherUserId = $this->otherParticipantId($meetingRequest, (string) $authUser->id);
-        if ($otherUserId && $peerBlockService->isBlockedEitherWay((string) $authUser->id, $otherUserId)) {
-            return $this->error('You cannot interact with this peer.', 422);
-        }
-
-        $result = DB::transaction(function () use ($meetingRequest, $authUser, $notifyUserService) {
-            $lockedMeeting = P2PMeetingRequest::query()
-                ->with(['requester', 'invitee'])
-                ->lockForUpdate()
-                ->findOrFail($meetingRequest->id);
-
-            if (! $this->canRescheduleOrComplete($lockedMeeting)) {
-                return ['error' => 'This meeting cannot be marked completed.', 'status' => 422];
-            }
-
-            $completionColumn = (string) $lockedMeeting->requester_id === (string) $authUser->id
-                ? 'completed_by_from_user_at'
-                : 'completed_by_to_user_at';
-
-            if ($lockedMeeting->{$completionColumn}) {
-                return ['error' => 'You have already marked this meeting as completed.', 'status' => 422];
-            }
-
-            $lockedMeeting->forceFill([$completionColumn => now()])->save();
-            $lockedMeeting->refresh()->load(['requester', 'invitee']);
-
-            if (! $lockedMeeting->completed_by_from_user_at || ! $lockedMeeting->completed_by_to_user_at) {
-                return [
-                    'meeting' => $lockedMeeting,
-                    'message' => 'Your meeting completion has been marked. Waiting for the other peer to confirm.',
-                ];
-            }
-
-            $post = $this->createCompletionPostOnce($lockedMeeting);
-            $lockedMeeting->forceFill([
-                'status' => 'completed',
-                'completed_at' => $lockedMeeting->completed_at ?? now(),
-                'completion_post_id' => $lockedMeeting->completion_post_id ?: $post?->id,
-            ])->save();
-
-            $this->rewardCompletionCoins($lockedMeeting, $authUser);
-            $lockedMeeting->refresh()->load(['requester', 'invitee']);
-
-            foreach ([$lockedMeeting->requester, $lockedMeeting->invitee] as $recipient) {
-                if (! $recipient) {
-                    continue;
-                }
-
-                $this->createMeetingNotification($recipient, 'p2p_meeting_completed', $lockedMeeting, $authUser);
-                $this->dispatchPushNotification($notifyUserService, $recipient, $authUser, 'p2p_meeting_completed', $lockedMeeting);
-                $this->sendWorkflowEmail($recipient, $authUser, 'p2p_meeting_completed', $lockedMeeting);
-            }
-
-            return [
-                'meeting' => $lockedMeeting,
-                'message' => 'P2P meeting completed successfully.',
-            ];
-        });
-
-        if (isset($result['error'])) {
-            return $this->error($result['error'], $result['status'] ?? 422);
-        }
-
-        return $this->success(new P2PMeetingRequestResource($result['meeting']), $result['message']);
+        return $this->success([
+            'reschedule_request_id' => (string) $rescheduleRequest->id,
+            'p2p_meeting_request_id' => (string) $rescheduleRequest->p2p_meeting_request_id,
+            'old_scheduled_at' => $rescheduleRequest->old_scheduled_at?->toIso8601String(),
+            'new_scheduled_at' => $rescheduleRequest->new_scheduled_at?->toIso8601String(),
+            'old_place' => $rescheduleRequest->old_place,
+            'new_place' => $rescheduleRequest->new_place,
+            'status' => (string) $rescheduleRequest->status,
+        ], 'P2P meeting reschedule request sent successfully.', 201);
     }
 
     private function createMeetingNotification(User $toUser, string $type, P2PMeetingRequest $meetingRequest, User $fromUser, ?P2PMeetingRescheduleRequest $rescheduleRequest = null): void
@@ -453,10 +361,9 @@ class P2PMeetingRequestController extends BaseApiController
     }
 
 
-    private function canRescheduleOrComplete(P2PMeetingRequest $meetingRequest): bool
+    private function canRequestReschedule(P2PMeetingRequest $meetingRequest): bool
     {
-        return in_array((string) $meetingRequest->status, ['accepted', 'scheduled'], true)
-            && ! $meetingRequest->completed_at;
+        return in_array((string) $meetingRequest->status, ['accepted', 'scheduled'], true);
     }
 
     private function otherParticipantId(P2PMeetingRequest $meetingRequest, string $authUserId): ?string
@@ -487,63 +394,6 @@ class P2PMeetingRequestController extends BaseApiController
         return null;
     }
 
-    private function createCompletionPostOnce(P2PMeetingRequest $meetingRequest): ?Post
-    {
-        if ($meetingRequest->completion_post_id) {
-            return Post::query()->find($meetingRequest->completion_post_id);
-        }
-
-        $existingPost = Post::query()
-            ->where('source_type', 'p2p_meeting_completed')
-            ->where('source_id', $meetingRequest->id)
-            ->where('source_event', 'p2p_meeting_completed')
-            ->first();
-
-        if ($existingPost) {
-            return $existingPost;
-        }
-
-        $meetingRequest->loadMissing(['requester', 'invitee']);
-        $requesterName = $this->resolveDisplayName($meetingRequest->requester);
-        $inviteeName = $this->resolveDisplayName($meetingRequest->invitee);
-
-        return Post::query()->create([
-            'user_id' => $meetingRequest->requester_id,
-            'circle_id' => null,
-            'content_text' => "{$requesterName} completed a P2P meeting with {$inviteeName}.",
-            'media' => [],
-            'tags' => ['p2p_meeting', 'p2p_meeting_completed'],
-            'visibility' => 'public',
-            'moderation_status' => 'pending',
-            'sponsored' => false,
-            'is_deleted' => false,
-            'active' => true,
-            'source_type' => 'p2p_meeting_completed',
-            'source_id' => $meetingRequest->id,
-            'source_event' => 'p2p_meeting_completed',
-        ]);
-    }
-
-    private function rewardCompletionCoins(P2PMeetingRequest $meetingRequest, User $actor): void
-    {
-        $coinsService = app(CoinsService::class);
-
-        foreach ([$meetingRequest->requester, $meetingRequest->invitee] as $user) {
-            if (! $user) {
-                continue;
-            }
-
-            $coinsService->rewardForActivity(
-                $user,
-                'p2p_meeting',
-                null,
-                'P2P Meeting Completed',
-                $actor->id,
-                'p2p_meeting_request',
-                $meetingRequest->id
-            );
-        }
-    }
 
     private function sendWorkflowEmail(User $recipient, User $actor, string $eventType, P2PMeetingRequest $meetingRequest, ?P2PMeetingRescheduleRequest $rescheduleRequest = null, ?string $responseReason = null): void
     {

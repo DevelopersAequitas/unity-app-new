@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
-use App\Http\Resources\P2PMeetingRequestResource;
 use App\Http\Resources\P2PMeetingRescheduleRequestResource;
 use App\Mail\P2PMeetingWorkflowMail;
 use App\Models\Notification;
@@ -16,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
-class P2PMeetingRescheduleRequestController extends BaseApiController
+class P2PMeetingRescheduleController extends BaseApiController
 {
     public function pendingReceived(Request $request)
     {
@@ -93,7 +92,12 @@ class P2PMeetingRescheduleRequestController extends BaseApiController
             return $this->error($result['error'], $result['status'] ?? 422);
         }
 
-        return $this->success(new P2PMeetingRequestResource($result['meeting']), 'P2P meeting reschedule request approved.');
+        return $this->success([
+            'p2p_meeting_request_id' => (string) $result['meeting']->id,
+            'scheduled_at' => $result['meeting']->scheduled_at?->toIso8601String(),
+            'place' => $result['meeting']->place,
+            'status' => (string) $result['meeting']->status,
+        ], 'P2P meeting reschedule request approved successfully.');
     }
 
     public function reject(Request $request, string $id, NotifyUserService $notifyUserService)
@@ -153,7 +157,10 @@ class P2PMeetingRescheduleRequestController extends BaseApiController
             return $this->error($result['error'], $result['status'] ?? 422);
         }
 
-        return $this->success(new P2PMeetingRescheduleRequestResource($result['reschedule_request']), 'P2P meeting reschedule request rejected.');
+        return $this->success([
+            'reschedule_request_id' => (string) $result['reschedule_request']->id,
+            'status' => (string) $result['reschedule_request']->status,
+        ], 'P2P meeting reschedule request rejected successfully.');
     }
 
     private function createMeetingNotification(User $toUser, string $type, P2PMeetingRequest $meetingRequest, User $fromUser, ?P2PMeetingRescheduleRequest $rescheduleRequest = null, ?string $responseReason = null): void

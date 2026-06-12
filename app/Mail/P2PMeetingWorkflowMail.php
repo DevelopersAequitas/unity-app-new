@@ -36,7 +36,6 @@ class P2PMeetingWorkflowMail extends Mailable
             'p2p_reschedule_requested' => 'P2P meeting reschedule requested',
             'p2p_reschedule_approved' => 'P2P meeting reschedule approved',
             'p2p_reschedule_rejected' => 'P2P meeting reschedule rejected',
-            'p2p_meeting_completed' => 'P2P meeting completed',
             default => 'P2P meeting update',
         };
     }

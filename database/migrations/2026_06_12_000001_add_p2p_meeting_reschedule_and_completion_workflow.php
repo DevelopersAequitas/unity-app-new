@@ -10,34 +10,12 @@ return new class extends Migration
         DB::unprepared(<<<'SQL'
 ALTER TYPE p2p_meeting_status_enum ADD VALUE IF NOT EXISTS 'scheduled';
 ALTER TYPE p2p_meeting_status_enum ADD VALUE IF NOT EXISTS 'reschedule_requested';
-ALTER TYPE p2p_meeting_status_enum ADD VALUE IF NOT EXISTS 'completed';
-
 ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_reschedule_requested';
 ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_reschedule_approved';
 ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_reschedule_rejected';
-ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_meeting_completed';
 SQL);
 
         DB::unprepared(<<<'SQL'
-ALTER TABLE p2p_meeting_requests
-    ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ NULL,
-    ADD COLUMN IF NOT EXISTS completed_by_from_user_at TIMESTAMPTZ NULL,
-    ADD COLUMN IF NOT EXISTS completed_by_to_user_at TIMESTAMPTZ NULL,
-    ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ NULL,
-    ADD COLUMN IF NOT EXISTS completion_post_id UUID NULL;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'p2p_meeting_requests_completion_post_id_foreign'
-    ) THEN
-        ALTER TABLE p2p_meeting_requests
-            ADD CONSTRAINT p2p_meeting_requests_completion_post_id_foreign
-            FOREIGN KEY (completion_post_id) REFERENCES posts(id) ON DELETE SET NULL;
-    END IF;
-END
-$$;
-
 CREATE TABLE IF NOT EXISTS p2p_meeting_reschedule_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     p2p_meeting_request_id UUID NOT NULL REFERENCES p2p_meeting_requests(id) ON DELETE CASCADE,
@@ -62,26 +40,19 @@ CREATE INDEX IF NOT EXISTS idx_p2p_meeting_reschedule_requests_to_status
 CREATE INDEX IF NOT EXISTS idx_p2p_meeting_reschedule_requests_by_status
     ON p2p_meeting_reschedule_requests(requested_by_user_id, status);
 
-CREATE INDEX IF NOT EXISTS idx_p2p_meeting_reschedule_requests_meeting_status
-    ON p2p_meeting_reschedule_requests(p2p_meeting_request_id, status);
+CREATE INDEX IF NOT EXISTS idx_p2p_meeting_reschedule_requests_meeting
+    ON p2p_meeting_reschedule_requests(p2p_meeting_request_id);
 SQL);
     }
 
     public function down(): void
     {
         DB::unprepared(<<<'SQL'
-DROP INDEX IF EXISTS idx_p2p_meeting_reschedule_requests_meeting_status;
+DROP INDEX IF EXISTS idx_p2p_meeting_reschedule_requests_meeting;
 DROP INDEX IF EXISTS idx_p2p_meeting_reschedule_requests_by_status;
 DROP INDEX IF EXISTS idx_p2p_meeting_reschedule_requests_to_status;
 DROP TABLE IF EXISTS p2p_meeting_reschedule_requests;
 
-ALTER TABLE p2p_meeting_requests DROP CONSTRAINT IF EXISTS p2p_meeting_requests_completion_post_id_foreign;
-ALTER TABLE p2p_meeting_requests
-    DROP COLUMN IF EXISTS completion_post_id,
-    DROP COLUMN IF EXISTS completed_at,
-    DROP COLUMN IF EXISTS completed_by_to_user_at,
-    DROP COLUMN IF EXISTS completed_by_from_user_at,
-    DROP COLUMN IF EXISTS accepted_at;
 SQL);
     }
 };
