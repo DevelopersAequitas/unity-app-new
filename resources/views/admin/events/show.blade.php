@@ -7,8 +7,8 @@
     <div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h4 mb-0">{{ $event->title }}</h1><div class="d-flex gap-2"><a href="{{ route('admin.events.edit', $event->id) }}" class="btn btn-outline-primary">Edit</a><a href="{{ route('admin.events.index') }}" class="btn btn-outline-secondary">Back</a></div></div>
     <div class="card mb-3"><div class="card-body">
         <div class="row g-3">
-            <div class="col-md-3"><strong>Type:</strong> {{ $event->event_type }}</div>
-            <div class="col-md-3"><strong>Circle:</strong> {{ $event->circle?->name ?? '-' }}</div>
+            <div class="col-md-3"><strong>Type:</strong> {{ str($event->event_type)->replace('_', ' ')->title() }}</div>
+            <div class="col-md-3"><strong>Circle:</strong> @if(in_array($event->event_type, ['city_event', 'global_event'], true) && $event->circles->isNotEmpty()){{ $event->circles->pluck('name')->join(', ') }}@else{{ $event->circle?->name ?? '-' }}@endif</div>
             <div class="col-md-3"><strong>Mode:</strong> {{ $event->mode }}</div>
             <div class="col-md-3"><strong>Recurrence:</strong> {{ $event->recurrence_type ?? 'none' }}</div>
             <div class="col-md-6"><strong>Location:</strong> @if(!empty($event->metadata['google_maps_url']))<a href="{{ $event->metadata['google_maps_url'] }}" target="_blank" rel="noopener">{{ $event->location_text ?? 'Open map' }}</a>@else{{ $event->location_text ?? '-' }}@endif</div>

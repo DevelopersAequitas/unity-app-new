@@ -18,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -355,15 +356,7 @@ class CircleController extends Controller
 
     public function show(Request $request, Circle $circle): View
     {
-        $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
-
-        if (is_array($allowedCircleIds) && ! in_array($circle->id, $allowedCircleIds, true)) {
-            abort(403);
-        }
-
-        if (! $this->industryScope->circleInScope(Auth::guard('admin')->user(), (string) $circle->id)) {
-            abort(403);
-        }
+        $this->authorizeCircleAccess($request, $circle);
 
         $validatedFilters = $request->validate([
             'peer_name' => ['nullable', 'string', 'max:120'],
@@ -394,6 +387,8 @@ class CircleController extends Controller
         $meetings = is_array($rawMeetingSchedule) ? array_values($rawMeetingSchedule) : [];
         $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
 
+        $this->ensureLegacyActiveCircleMembers($circle);
+
         $meetingRows = array_map(function ($meeting, int $index): array {
             $meeting = is_array($meeting) ? $meeting : [];
 
@@ -405,6 +400,7 @@ class CircleController extends Controller
 
         $peerMembers = $circle->members()
             ->with(['user', 'roleRef'])
+            ->whereHas('user', fn ($userQuery) => $userQuery->when(Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('deleted_at')))
             ->when($peerFilters['peer_name'] !== '', function ($query) use ($peerFilters): void {
                 $like = '%'.$peerFilters['peer_name'].'%';
 
@@ -442,6 +438,8 @@ class CircleController extends Controller
 
     public function edit(Request $request, Circle $circle): View
     {
+        $this->authorizeCircleAccess($request, $circle);
+
         $relations = ['city'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
@@ -486,6 +484,8 @@ class CircleController extends Controller
 
     public function update(UpdateCircleRequest $request, Circle $circle): RedirectResponse
     {
+        $this->authorizeCircleAccess($request, $circle);
+
         $validated = $request->validated();
         $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
 
@@ -556,13 +556,114 @@ class CircleController extends Controller
             ->with('success', 'Circle updated successfully.');
     }
 
-    public function destroy(Circle $circle): RedirectResponse
+    public function destroy(Request $request, Circle $circle): RedirectResponse
     {
+        $this->authorizeCircleAccess($request, $circle);
+
         $circle->delete();
 
         return redirect()
             ->route('admin.circles.index')
             ->with('success', 'Circle deleted successfully.');
+    }
+
+    private function ensureLegacyActiveCircleMembers(Circle $circle): void
+    {
+        if (! Schema::hasColumn('users', 'active_circle_id')) {
+            return;
+        }
+
+        $legacyUserColumns = ['id'];
+        if (Schema::hasColumn('users', 'circle_joined_at')) {
+            $legacyUserColumns[] = 'circle_joined_at';
+        }
+        if (Schema::hasColumn('users', 'circle_expires_at')) {
+            $legacyUserColumns[] = 'circle_expires_at';
+        }
+
+        User::query()
+            ->select($legacyUserColumns)
+            ->where('active_circle_id', $circle->id)
+            ->when(Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('deleted_at'))
+            ->whereNotExists(function ($query) use ($circle): void {
+                $query->selectRaw(1)
+                    ->from('circle_members')
+                    ->whereColumn('circle_members.user_id', 'users.id')
+                    ->where('circle_members.circle_id', $circle->id)
+                    ->whereNull('circle_members.deleted_at');
+            })
+            ->chunkById(100, function ($users) use ($circle): void {
+                foreach ($users as $user) {
+                    $member = CircleMember::query()->withTrashed()->firstOrNew([
+                        'user_id' => $user->id,
+                        'circle_id' => $circle->id,
+                    ]);
+
+                    if ($member->exists && $member->trashed()) {
+                        $member->restore();
+                    }
+
+                    $payload = [
+                        'role' => $member->role ?: 'member',
+                        'status' => in_array($member->status, ['approved', 'active'], true) ? $member->status : 'approved',
+                        'left_at' => null,
+                    ];
+
+                    if (Schema::hasColumn('circle_members', 'joined_at') && blank($member->joined_at)) {
+                        $payload['joined_at'] = ($user->circle_joined_at ?? null) ?: now();
+                    }
+                    if (Schema::hasColumn('circle_members', 'expires_at') && blank($member->expires_at) && filled($user->circle_expires_at ?? null)) {
+                        $payload['expires_at'] = $user->circle_expires_at;
+                    }
+
+                    $member->fill($payload)->save();
+                }
+            });
+    }
+
+    private function authorizeCircleAccess(Request $request, Circle $circle): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (AdminAccess::isGlobalAdmin($admin)) {
+            return;
+        }
+
+        if ((bool) $request->attributes->get('is_circle_scoped')) {
+            $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
+            if (is_array($allowedCircleIds) && in_array((string) $circle->id, array_map('strval', $allowedCircleIds), true)) {
+                return;
+            }
+
+            $this->denyCircleAccess($admin, $circle);
+        }
+
+        if (AdminAccess::isDed($admin) && ! $this->dedCanAccessCircle($admin, $circle)) {
+            $this->denyCircleAccess($admin, $circle);
+        }
+
+        if (! $this->industryScope->circleInScope($admin, (string) $circle->id)) {
+            $this->denyCircleAccess($admin, $circle);
+        }
+    }
+
+    private function dedCanAccessCircle($admin, Circle $circle): bool
+    {
+        $query = Circle::query()->whereKey($circle->id);
+        AdminCircleScope::applyToCirclesQuery($query, $admin);
+
+        return $query->exists();
+    }
+
+    private function denyCircleAccess($admin, Circle $circle): never
+    {
+        Log::warning('Circle admin access denied', [
+            'admin_id' => $admin?->id,
+            'role' => method_exists(AdminAccess::class, 'adminRoleKeys') ? AdminAccess::adminRoleKeys($admin) : null,
+            'circle_id' => $circle->id ?? null,
+        ]);
+
+        abort(403);
     }
 
     private function applyUserNameFilter($query, string $relation, string $search): void

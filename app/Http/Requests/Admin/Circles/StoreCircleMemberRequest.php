@@ -22,7 +22,7 @@ class StoreCircleMemberRequest extends FormRequest
                 'required',
                 'uuid',
                 'exists:users,id',
-                Rule::unique('circle_members', 'user_id')->where(fn ($query) => $query->where('circle_id', $circleId)),
+                Rule::unique('circle_members', 'user_id')->where(fn ($query) => $query->where('circle_id', $circleId)->whereNull('deleted_at')),
             ],
             'role' => ['required', Rule::in(CircleMember::roleOptions())],
         ];

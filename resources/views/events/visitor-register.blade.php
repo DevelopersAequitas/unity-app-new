@@ -44,6 +44,8 @@
         ?? null;
     $paymentStatus = strtolower((string) ($payment['payment_status'] ?? $registration?->payment_status ?? ''));
     $paymentRequired = (bool) ($payment['requires_payment'] ?? false);
+    $paymentError = (string) ($payment['error'] ?? '');
+    $paymentErrorIsSafe = str_starts_with($paymentError, 'Registration saved, but payment link could not be generated');
 @endphp
 <div class="page">
     <section class="card">
@@ -70,14 +72,14 @@
         <section class="card">
             @if($paymentRequired)
                 <div class="alert {{ $paymentUrl ? 'alert-success' : 'alert-error' }}">
-                    <strong>{{ $paymentUrl ? 'Registration saved. Payment is required.' : 'Registration saved, but payment link is not available yet.' }}</strong>
+                    <strong>{{ $paymentUrl ? 'Registration saved. Payment is required.' : 'Registration saved, but payment link could not be generated.' }}</strong>
                     <div>{{ $payment['message'] ?? 'Please complete payment to confirm your registration.' }}</div>
                     <div class="muted">Registration ID: {{ $registration->id }}</div>
-                    @if(!empty($payment['error']))
-                        <div>{{ $payment['error'] }}</div>
+                    @if($paymentError !== '' && ($paymentErrorIsSafe || config('app.debug')))
+                        <div>{{ $paymentError }}</div>
                     @endif
                     @if($paymentUrl)
-                        <a class="button payment-button" href="{{ $paymentUrl }}" target="_blank" rel="noopener">Pay now</a>
+                        <a class="button payment-button" href="{{ $paymentUrl }}" target="_blank" rel="noopener">Proceed to Payment</a>
                     @endif
                 </div>
             @else

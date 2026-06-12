@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -109,17 +110,22 @@ class CircleMember extends Model
                 return;
             }
 
+            if (! Schema::hasColumn('circle_members', 'role_id')) {
+                return;
+            }
+
             try {
                 $member->role_id = Role::mustIdByKey($member->role);
             } catch (RuntimeException $exception) {
-                Log::error('Circle member role key missing in roles table.', [
+                Log::warning('Circle member role key missing in roles table; saving role without role_id.', [
                     'circle_member_id' => $member->id,
                     'circle_id' => $member->circle_id,
                     'user_id' => $member->user_id,
                     'role' => $member->role,
+                    'message' => $exception->getMessage(),
                 ]);
 
-                throw $exception;
+                $member->role_id = null;
             }
         });
     }

@@ -7,6 +7,7 @@
     $event = $event ?? null;
     $eventTypes = [
         'circle_meeting' => 'Circle Meeting',
+        'city_event' => 'City Event',
         'global_event' => 'Global Event',
         'public_event' => 'Public / Visitor Event',
         'training' => 'Training / Workshop',
@@ -24,6 +25,8 @@
     $gainRows = old('what_youll_gain', data_get($metadata, 'what_youll_gain', []));
     $gainRows = count($gainRows ?: []) ? $gainRows : [''];
     $organizer = data_get($metadata, 'organizer', []);
+    $selectedCircleIds = old('circle_ids', $isEdit ? $event->circles->pluck('id')->all() : []);
+    $selectedCircleIds = array_map('strval', (array) $selectedCircleIds);
 @endphp
 <div class="container-fluid py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -43,9 +46,23 @@
             <div class="card-header fw-semibold">A. Basic Event Details</div>
             <div class="card-body row g-3">
                 <div class="col-md-6"><label class="form-label">Event Title</label><input class="form-control" name="title" value="{{ old('title', $event->title ?? '') }}" required placeholder="e.g. Winners Circle Weekly Meeting"></div>
-                <div class="col-md-3"><label class="form-label">Event Type</label><select class="form-select" name="event_type" required>@foreach($eventTypes as $value => $label)<option value="{{ $value }}" @selected(old('event_type', $event->event_type ?? null)===$value)>{{ $label }}</option>@endforeach</select></div>
+                <div class="col-md-3"><label class="form-label">Event Type</label><select class="form-select" name="event_type" id="eventTypeSelect" required>@foreach($eventTypes as $value => $label)<option value="{{ $value }}" @selected(old('event_type', $event->event_type ?? null)===$value)>{{ $label }}</option>@endforeach</select></div>
                 <div class="col-md-3"><label class="form-label">Category</label><input class="form-control" name="event_category" value="{{ old('event_category', $event->event_category ?? '') }}" placeholder="training, workshop, networking"></div>
-                <div class="col-md-4"><label class="form-label">Circle</label><select class="form-select" name="circle_id"><option value="">No specific circle</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(old('circle_id', $event->circle_id ?? null)===$circle->id)>{{ $circle->name }}</option>@endforeach</select></div>
+                <div class="col-md-4 single-circle-field"><label class="form-label">Circle</label><select class="form-select" name="circle_id"><option value="">No specific circle</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(old('circle_id', $event->circle_id ?? null)===$circle->id)>{{ $circle->name }}</option>@endforeach</select><div class="form-text">Used for Circle Meeting registration eligibility.</div></div>
+                <div class="col-md-5 multi-circle-field d-none">
+                    <label class="form-label" for="freeCircleAddSelect">Select Free Registration Circle</label>
+                    <select class="form-select" id="freeCircleAddSelect">
+                        <option value="">Choose circle to add</option>
+                        @foreach($circles as $circle)<option value="{{ $circle->id }}">{{ $circle->name }}</option>@endforeach
+                    </select>
+                    <div class="border rounded bg-white p-3 mt-3" id="selectedFreeCirclesBox">
+                        <div class="fw-semibold mb-2">Selected Free Registration Circles</div>
+                        <div class="d-flex flex-wrap gap-2" id="selectedFreeCirclesList"></div>
+                        <div class="text-muted small" id="noFreeCirclesText">No circles selected yet.</div>
+                        <div id="selectedFreeCirclesInputs"></div>
+                    </div>
+                    <div class="form-text">Members of selected circles can register free. Other members can register directly with payment.</div>
+                </div>
                 <div class="col-md-3"><label class="form-label">Event Mode</label><select class="form-select" name="mode" id="modeSelect">@foreach(['offline' => 'Offline / Venue', 'online' => 'Online', 'hybrid' => 'Hybrid'] as $value => $label)<option value="{{ $value }}" @selected(old('mode', $event->mode ?? 'offline')===$value)>{{ $label }}</option>@endforeach</select></div>
                 <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" name="description" rows="3" placeholder="What should attendees know about this event?">{{ old('description', $event->description ?? '') }}</textarea></div>
             </div>
@@ -184,6 +201,13 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('eventCreateForm');
     const mode = document.getElementById('modeSelect');
+    const eventType = document.getElementById('eventTypeSelect');
+    const freeCircleAddSelect = document.getElementById('freeCircleAddSelect');
+    const selectedFreeCirclesList = document.getElementById('selectedFreeCirclesList');
+    const selectedFreeCirclesInputs = document.getElementById('selectedFreeCirclesInputs');
+    const noFreeCirclesText = document.getElementById('noFreeCirclesText');
+    const circlesById = @json($circles->mapWithKeys(fn ($circle) => [(string) $circle->id => $circle->name])->all());
+    let selectedCircleIds = @json($selectedCircleIds);
     const recurrenceType = document.getElementById('recurrenceType');
     const interval = document.getElementById('recurrenceInterval');
     const intervalUnit = document.getElementById('intervalUnit');
@@ -208,7 +232,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('addAgendaRow').addEventListener('click', () => addRepeatRow('agendaRows', '<div class="row g-2 align-items-end agenda-row mb-2 repeat-row"><div class="col-md-3"><label class="form-label">Time</label><input type="time" class="form-control" name="agenda[__INDEX__][time]"></div><div class="col-md-7"><label class="form-label">Title</label><input type="text" class="form-control" name="agenda[__INDEX__][title]" placeholder="Registration & Networking"></div><div class="col-md-2"><button type="button" class="btn btn-outline-danger remove-agenda-row remove-row text-nowrap w-100">Remove</button></div></div>'));
     document.getElementById('addSpeakerRow').addEventListener('click', () => addRepeatRow('speakerRows', '<div class="row g-2 align-items-end mb-2 repeat-row"><div class="col-md-3"><label class="form-label">Name</label><input class="form-control" name="speakers[__INDEX__][name]"></div><div class="col-md-2"><label class="form-label">Designation</label><input class="form-control" name="speakers[__INDEX__][designation]"></div><div class="col-md-2"><label class="form-label">Company</label><input class="form-control" name="speakers[__INDEX__][company]"></div><div class="col-md-1"><label class="form-label">Initials</label><input class="form-control" name="speakers[__INDEX__][initials]"></div><div class="col-md-3"><label class="form-label">Photo URL</label><input class="form-control" name="speakers[__INDEX__][photo_url]"></div><div class="col-md-1"><button type="button" class="btn btn-outline-danger w-100 remove-row">Remove</button></div></div>'));
     document.getElementById('addGainRow').addEventListener('click', () => addRepeatRow('gainRows', '<div class="row g-2 align-items-end mb-2 repeat-row"><div class="col-md-11"><label class="form-label">Benefit</label><input class="form-control" name="what_youll_gain[__INDEX__]" placeholder="Network with 100+ curated MSME leaders"></div><div class="col-md-1"><button type="button" class="btn btn-outline-danger w-100 remove-row">Remove</button></div></div>'));
-    document.addEventListener('click', (event) => { if (event.target.classList.contains('remove-row')) event.target.closest('.repeat-row')?.remove(); });
+    document.addEventListener('click', (event) => {
+        if (event.target.classList.contains('remove-row')) event.target.closest('.repeat-row')?.remove();
+        if (event.target.dataset.circleId) {
+            selectedCircleIds = selectedCircleIds.filter((circleId) => circleId !== event.target.dataset.circleId);
+            renderSelectedFreeCircles();
+        }
+    });
 
     const toggle = (selector, show) => document.querySelectorAll(selector).forEach(el => el.classList.toggle('d-none', !show));
     const ordinal = n => ({1:'First',2:'Second',3:'Third',4:'Fourth',5:'Last'}[n] || n);
@@ -219,6 +249,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const ed = document.getElementById('endDate').value, et = document.getElementById('endTime').value;
         document.getElementById('startAtHidden').value = sd && st ? `${sd}T${st}` : '';
         document.getElementById('endAtHidden').value = ed && et ? `${ed}T${et}` : '';
+    }
+
+
+    function renderSelectedFreeCircles() {
+        selectedFreeCirclesList.innerHTML = '';
+        selectedFreeCirclesInputs.innerHTML = '';
+        noFreeCirclesText.classList.toggle('d-none', selectedCircleIds.length > 0);
+
+        selectedCircleIds.forEach((circleId) => {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'circle_ids[]';
+            hidden.value = circleId;
+            selectedFreeCirclesInputs.appendChild(hidden);
+
+            const chip = document.createElement('span');
+            chip.className = 'badge rounded-pill bg-light text-dark border d-inline-flex align-items-center gap-2 px-3 py-2';
+
+            const label = document.createElement('span');
+            label.textContent = circlesById[circleId] || circleId;
+            chip.appendChild(label);
+
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'btn btn-sm p-0 border-0 bg-transparent text-muted lh-1';
+            removeButton.setAttribute('aria-label', `Remove ${label.textContent}`);
+            removeButton.dataset.circleId = circleId;
+            removeButton.textContent = '×';
+            chip.appendChild(removeButton);
+
+            selectedFreeCirclesList.appendChild(chip);
+        });
+    }
+
+    function addSelectedFreeCircle(circleId) {
+        if (!circleId || selectedCircleIds.includes(circleId)) return;
+        selectedCircleIds.push(circleId);
+        renderSelectedFreeCircles();
+    }
+
+    function updateEventTypeFields() {
+        const multiCircle = ['city_event', 'global_event'].includes(eventType.value);
+        toggle('.single-circle-field', !multiCircle);
+        toggle('.multi-circle-field', multiCircle);
     }
 
     function updateMode() {
@@ -261,7 +335,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (type === 'yearly') preview.textContent = `This event will repeat every ${every} year(s) on ${months[document.getElementById('recurrenceMonth').value] || '—'} ${document.getElementById('yearlyDayOfMonth').value}${untilText()}.`;
     }
 
-    document.querySelectorAll('input,select').forEach(el => el.addEventListener('change', () => { syncDateTimes(); updateMode(); updateRecurrence(); }));
+    freeCircleAddSelect.addEventListener('change', (event) => {
+        addSelectedFreeCircle(event.target.value);
+        event.target.value = '';
+    });
+    document.querySelectorAll('input,select').forEach(el => el.addEventListener('change', () => { syncDateTimes(); updateEventTypeFields(); updateMode(); updateRecurrence(); }));
     document.getElementById('monthlyDayOfWeek').addEventListener('change', e => document.getElementById('dayOfWeek').value = e.target.value);
     document.getElementById('yearlyDayOfMonth').addEventListener('change', e => document.getElementById('dayOfMonth').value = e.target.value);
 
@@ -275,7 +353,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     initDateTimeFields();
-    updateMode(); updateRecurrence();
+    renderSelectedFreeCircles();
+    updateEventTypeFields(); updateMode(); updateRecurrence();
 });
 </script>
 @endsection

@@ -9,6 +9,7 @@ use App\Models\Event;
 use App\Services\Events\EventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Builder;
 
 class EventAdminController extends BaseApiController
 {
@@ -17,10 +18,15 @@ class EventAdminController extends BaseApiController
     public function index(Request $request): JsonResponse
     {
         $items = Event::query()
-            ->with(['circle', 'occurrences'])
+            ->with(['circle', 'circles', 'occurrences'])
             ->withCount(['registrations', 'occurrences'])
             ->when($request->input('event_type'), fn ($q, $v) => $q->where('event_type', $v))
-            ->when($request->input('circle_id'), fn ($q, $v) => $q->where('circle_id', $v))
+            ->when($request->input('circle_id'), function ($q, $v): void {
+                $q->where(function (Builder $circleQuery) use ($v): void {
+                    $circleQuery->where('circle_id', $v)
+                        ->orWhereHas('circles', fn (Builder $eventCircleQuery) => $eventCircleQuery->where('circles.id', $v));
+                });
+            })
             ->latest('start_at')
             ->paginate(max(1, min((int) $request->input('per_page', 20), 100)));
 
@@ -37,7 +43,7 @@ class EventAdminController extends BaseApiController
     public function show(string $id): JsonResponse
     {
         $event = Event::query()
-            ->with(['circle', 'occurrences' => fn ($q) => $q->withCount(['registrations as registered_count' => fn ($r) => $r->where('status', '!=', 'cancelled')])->orderBy('start_at')])
+            ->with(['circle', 'circles', 'occurrences' => fn ($q) => $q->withCount(['registrations as registered_count' => fn ($r) => $r->where('status', '!=', 'cancelled')])->orderBy('start_at')])
             ->withCount(['registrations', 'occurrences'])
             ->findOrFail($id);
 

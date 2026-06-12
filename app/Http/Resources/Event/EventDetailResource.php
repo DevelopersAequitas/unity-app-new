@@ -23,6 +23,11 @@ class EventDetailResource extends JsonResource
             'event_category' => $this->event_category,
             'mode' => $this->mode,
             'circle' => $this->circle ? ['id' => $this->circle->id, 'name' => $this->circle->name, 'slug' => $this->circle->slug ?? null] : null,
+            'circles' => $this->whenLoaded('circles', fn () => $this->circles->map(fn ($circle) => [
+                'id' => $circle->id,
+                'name' => $circle->name,
+                'slug' => $circle->slug ?? null,
+            ])->values()),
             'start_at' => optional($this->start_at)->toISOString(),
             'end_at' => optional($this->end_at)->toISOString(),
             'location_text' => $this->location_text,

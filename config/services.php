@@ -38,10 +38,11 @@ return [
     'zoho' => [
         'webhook_secret' => env('ZOHO_WEBHOOK_SECRET'),
         'webhook_token' => env('ZOHO_WEBHOOK_TOKEN'),
-        'billing_org_id' => env('ZOHO_BILLING_ORG_ID'),
+        'billing_org_id' => env('ZOHO_BILLING_ORG_ID', env('ZOHO_ORGANIZATION_ID')),
     ],
 
     'event_payment_gateway' => env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'),
+    'event_payment_fake_link_enabled' => env('EVENT_PAYMENT_FAKE_LINK_ENABLED', false),
     'zoho_event_ticket_item_id' => env('ZOHO_EVENT_TICKET_ITEM_ID'),
 
     'members_with_circles' => [
