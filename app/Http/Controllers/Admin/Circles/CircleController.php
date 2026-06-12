@@ -18,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -355,15 +356,7 @@ class CircleController extends Controller
 
     public function show(Request $request, Circle $circle): View
     {
-        $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
-
-        if (is_array($allowedCircleIds) && ! in_array($circle->id, $allowedCircleIds, true)) {
-            abort(403);
-        }
-
-        if (! $this->industryScope->circleInScope(Auth::guard('admin')->user(), (string) $circle->id)) {
-            abort(403);
-        }
+        $this->authorizeCircleAccess($request, $circle);
 
         $validatedFilters = $request->validate([
             'peer_name' => ['nullable', 'string', 'max:120'],
@@ -442,6 +435,8 @@ class CircleController extends Controller
 
     public function edit(Request $request, Circle $circle): View
     {
+        $this->authorizeCircleAccess($request, $circle);
+
         $relations = ['city'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
@@ -486,6 +481,8 @@ class CircleController extends Controller
 
     public function update(UpdateCircleRequest $request, Circle $circle): RedirectResponse
     {
+        $this->authorizeCircleAccess($request, $circle);
+
         $validated = $request->validated();
         $circlePackage = $this->resolveCirclePackage($validated['circle_package'] ?? null);
 
@@ -556,13 +553,60 @@ class CircleController extends Controller
             ->with('success', 'Circle updated successfully.');
     }
 
-    public function destroy(Circle $circle): RedirectResponse
+    public function destroy(Request $request, Circle $circle): RedirectResponse
     {
+        $this->authorizeCircleAccess($request, $circle);
+
         $circle->delete();
 
         return redirect()
             ->route('admin.circles.index')
             ->with('success', 'Circle deleted successfully.');
+    }
+
+    private function authorizeCircleAccess(Request $request, Circle $circle): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (AdminAccess::isGlobalAdmin($admin)) {
+            return;
+        }
+
+        if ((bool) $request->attributes->get('is_circle_scoped')) {
+            $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
+            if (is_array($allowedCircleIds) && in_array((string) $circle->id, array_map('strval', $allowedCircleIds), true)) {
+                return;
+            }
+
+            $this->denyCircleAccess($admin, $circle);
+        }
+
+        if (AdminAccess::isDed($admin) && ! $this->dedCanAccessCircle($admin, $circle)) {
+            $this->denyCircleAccess($admin, $circle);
+        }
+
+        if (! $this->industryScope->circleInScope($admin, (string) $circle->id)) {
+            $this->denyCircleAccess($admin, $circle);
+        }
+    }
+
+    private function dedCanAccessCircle($admin, Circle $circle): bool
+    {
+        $query = Circle::query()->whereKey($circle->id);
+        AdminCircleScope::applyToCirclesQuery($query, $admin);
+
+        return $query->exists();
+    }
+
+    private function denyCircleAccess($admin, Circle $circle): never
+    {
+        Log::warning('Circle admin access denied', [
+            'admin_id' => $admin?->id,
+            'role' => method_exists(AdminAccess::class, 'adminRoleKeys') ? AdminAccess::adminRoleKeys($admin) : null,
+            'circle_id' => $circle->id ?? null,
+        ]);
+
+        abort(403);
     }
 
     private function applyUserNameFilter($query, string $relation, string $search): void
