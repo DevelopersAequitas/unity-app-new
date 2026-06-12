@@ -255,7 +255,7 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Forbidden.', 403);
         }
 
-        if (! $this->canRequestReschedule($meetingRequest)) {
+        if (! $this->canRequestReschedule($meetingRequest, (string) $authUser->id)) {
             return $this->error('This meeting cannot be rescheduled.', 422);
         }
 
@@ -361,9 +361,16 @@ class P2PMeetingRequestController extends BaseApiController
     }
 
 
-    private function canRequestReschedule(P2PMeetingRequest $meetingRequest): bool
+    private function canRequestReschedule(P2PMeetingRequest $meetingRequest, string $authUserId): bool
     {
-        return in_array((string) $meetingRequest->status, ['accepted', 'scheduled'], true);
+        $status = (string) $meetingRequest->status;
+
+        if (in_array($status, ['accepted', 'scheduled'], true)) {
+            return true;
+        }
+
+        return $status === 'pending'
+            && (string) $meetingRequest->invitee_id === $authUserId;
     }
 
     private function otherParticipantId(P2PMeetingRequest $meetingRequest, string $authUserId): ?string
