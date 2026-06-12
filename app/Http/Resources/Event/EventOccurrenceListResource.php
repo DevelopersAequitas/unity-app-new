@@ -40,6 +40,11 @@ class EventOccurrenceListResource extends JsonResource
                 'ends_at' => optional($event->recurrence_ends_at)->toISOString(),
             ],
             'circle' => $event->circle ? ['id' => $event->circle->id, 'name' => $event->circle->name, 'slug' => $event->circle->slug ?? null] : null,
+            'circles' => $event->relationLoaded('circles') ? $event->circles->map(fn ($circle) => [
+                'id' => $circle->id,
+                'name' => $circle->name,
+                'slug' => $circle->slug ?? null,
+            ])->values() : [],
             'start_at' => optional($this->start_at)->toISOString(),
             'end_at' => optional($this->end_at)->toISOString(),
             'status' => $this->status ?? $event->status ?? 'scheduled',

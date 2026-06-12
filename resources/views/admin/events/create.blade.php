@@ -7,6 +7,7 @@
     $event = $event ?? null;
     $eventTypes = [
         'circle_meeting' => 'Circle Meeting',
+        'city_event' => 'City Event',
         'global_event' => 'Global Event',
         'public_event' => 'Public / Visitor Event',
         'training' => 'Training / Workshop',
@@ -24,6 +25,8 @@
     $gainRows = old('what_youll_gain', data_get($metadata, 'what_youll_gain', []));
     $gainRows = count($gainRows ?: []) ? $gainRows : [''];
     $organizer = data_get($metadata, 'organizer', []);
+    $selectedCircleIds = old('circle_ids', $isEdit ? $event->circles->pluck('id')->all() : []);
+    $selectedCircleIds = array_map('strval', (array) $selectedCircleIds);
 @endphp
 <div class="container-fluid py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -43,9 +46,10 @@
             <div class="card-header fw-semibold">A. Basic Event Details</div>
             <div class="card-body row g-3">
                 <div class="col-md-6"><label class="form-label">Event Title</label><input class="form-control" name="title" value="{{ old('title', $event->title ?? '') }}" required placeholder="e.g. Winners Circle Weekly Meeting"></div>
-                <div class="col-md-3"><label class="form-label">Event Type</label><select class="form-select" name="event_type" required>@foreach($eventTypes as $value => $label)<option value="{{ $value }}" @selected(old('event_type', $event->event_type ?? null)===$value)>{{ $label }}</option>@endforeach</select></div>
+                <div class="col-md-3"><label class="form-label">Event Type</label><select class="form-select" name="event_type" id="eventTypeSelect" required>@foreach($eventTypes as $value => $label)<option value="{{ $value }}" @selected(old('event_type', $event->event_type ?? null)===$value)>{{ $label }}</option>@endforeach</select></div>
                 <div class="col-md-3"><label class="form-label">Category</label><input class="form-control" name="event_category" value="{{ old('event_category', $event->event_category ?? '') }}" placeholder="training, workshop, networking"></div>
-                <div class="col-md-4"><label class="form-label">Circle</label><select class="form-select" name="circle_id"><option value="">No specific circle</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(old('circle_id', $event->circle_id ?? null)===$circle->id)>{{ $circle->name }}</option>@endforeach</select></div>
+                <div class="col-md-4 single-circle-field"><label class="form-label">Circle</label><select class="form-select" name="circle_id"><option value="">No specific circle</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(old('circle_id', $event->circle_id ?? null)===$circle->id)>{{ $circle->name }}</option>@endforeach</select><div class="form-text">Used for Circle Meeting registration eligibility.</div></div>
+                <div class="col-md-4 multi-circle-field d-none"><label class="form-label">Free Registration Circles</label><select class="form-select" name="circle_ids[]" id="circleIdsSelect" multiple size="5">@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(in_array((string) $circle->id, $selectedCircleIds, true))>{{ $circle->name }}</option>@endforeach</select><div class="form-text">Members of selected circles register free; other members pay directly.</div></div>
                 <div class="col-md-3"><label class="form-label">Event Mode</label><select class="form-select" name="mode" id="modeSelect">@foreach(['offline' => 'Offline / Venue', 'online' => 'Online', 'hybrid' => 'Hybrid'] as $value => $label)<option value="{{ $value }}" @selected(old('mode', $event->mode ?? 'offline')===$value)>{{ $label }}</option>@endforeach</select></div>
                 <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" name="description" rows="3" placeholder="What should attendees know about this event?">{{ old('description', $event->description ?? '') }}</textarea></div>
             </div>
@@ -184,6 +188,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('eventCreateForm');
     const mode = document.getElementById('modeSelect');
+    const eventType = document.getElementById('eventTypeSelect');
     const recurrenceType = document.getElementById('recurrenceType');
     const interval = document.getElementById('recurrenceInterval');
     const intervalUnit = document.getElementById('intervalUnit');
@@ -219,6 +224,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const ed = document.getElementById('endDate').value, et = document.getElementById('endTime').value;
         document.getElementById('startAtHidden').value = sd && st ? `${sd}T${st}` : '';
         document.getElementById('endAtHidden').value = ed && et ? `${ed}T${et}` : '';
+    }
+
+    function updateEventTypeFields() {
+        const multiCircle = ['city_event', 'global_event'].includes(eventType.value);
+        toggle('.single-circle-field', !multiCircle);
+        toggle('.multi-circle-field', multiCircle);
     }
 
     function updateMode() {
@@ -261,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (type === 'yearly') preview.textContent = `This event will repeat every ${every} year(s) on ${months[document.getElementById('recurrenceMonth').value] || '—'} ${document.getElementById('yearlyDayOfMonth').value}${untilText()}.`;
     }
 
-    document.querySelectorAll('input,select').forEach(el => el.addEventListener('change', () => { syncDateTimes(); updateMode(); updateRecurrence(); }));
+    document.querySelectorAll('input,select').forEach(el => el.addEventListener('change', () => { syncDateTimes(); updateEventTypeFields(); updateMode(); updateRecurrence(); }));
     document.getElementById('monthlyDayOfWeek').addEventListener('change', e => document.getElementById('dayOfWeek').value = e.target.value);
     document.getElementById('yearlyDayOfMonth').addEventListener('change', e => document.getElementById('dayOfMonth').value = e.target.value);
 
@@ -275,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     initDateTimeFields();
-    updateMode(); updateRecurrence();
+    updateEventTypeFields(); updateMode(); updateRecurrence();
 });
 </script>
 @endsection

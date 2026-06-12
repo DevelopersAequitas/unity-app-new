@@ -86,8 +86,13 @@ class EventController extends BaseApiController
     public function register(RegisterEventOccurrenceRequest $request, string $eventId, string $occurrenceId)
     {
         $user = $request->user();
-        $event = Event::query()->findOrFail($eventId);
+        $event = Event::query()->with('circles')->findOrFail($eventId);
         $occurrence = EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
+        $eventType = strtolower((string) ($event->event_type ?? ''));
+        if (in_array($eventType, ['city_event', 'global_event'], true)) {
+            return $this->registerCityOrGlobalMember($request, $event, $occurrence);
+        }
+
         $eventCircleId = $event->circle_id;
         Log::info('member_event_registration_start', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
         Log::info('member_event_circle_check_start', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
@@ -196,11 +201,81 @@ class EventController extends BaseApiController
         return $this->success($this->payments->responsePayload($registration), 'Event registration successful.', 201);
     }
 
+    private function registerCityOrGlobalMember(RegisterEventOccurrenceRequest $request, Event $event, EventOccurrence $occurrence)
+    {
+        $user = $request->user();
+        $freeCircleIds = $this->eventFreeCircleIds($event);
+        $freeRegistration = $freeCircleIds !== [] && $this->userBelongsToAnyCircle($user, $freeCircleIds);
+
+        Log::info('city_global_event_registration_start', [
+            'user_id' => $user->id,
+            'event_id' => $event->id,
+            'occurrence_id' => $occurrence->id,
+            'event_type' => $event->event_type,
+            'free_circle_ids' => $freeCircleIds,
+            'free_registration' => $freeRegistration,
+        ]);
+
+        $registration = $freeRegistration
+            ? $this->registrations->registerMemberDirectNoPayment($event, $occurrence, $user, $request->input('source', 'app'))
+            : $this->registrations->registerMember($event, $occurrence, $user, $request->input('source', 'app'));
+
+        $paymentRequired = (bool) ($registration->payment_required ?? false);
+
+        return $this->success(
+            $this->payments->responsePayload($registration),
+            $paymentRequired ? 'Payment is required to complete registration.' : 'Event registration successful.',
+            201
+        );
+    }
+
+    private function eventFreeCircleIds(Event $event): array
+    {
+        if (! Schema::hasTable('event_circles')) {
+            return [];
+        }
+
+        $event->loadMissing('circles');
+
+        return $event->circles
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function userBelongsToAnyCircle(User $user, array $circleIds): bool
+    {
+        $memberQuery = CircleMember::query()
+            ->whereIn('circle_id', $circleIds)
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at');
+
+        if (Schema::hasColumn('circle_members', 'status')) {
+            $memberQuery->whereIn('status', ['approved', 'active']);
+        }
+        if (Schema::hasColumn('circle_members', 'expires_at')) {
+            $memberQuery->where(function ($q): void {
+                $q->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()->toDateString());
+            });
+        }
+
+        return $memberQuery->exists();
+    }
+
     public function createRegistrationRequest(Request $request, string $eventId, string $occurrenceId)
     {
         $user = $request->user();
         $event = Event::query()->findOrFail($eventId);
         $occurrence = EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
+        if (strtolower((string) ($event->event_type ?? '')) !== 'circle_meeting') {
+            return $this->error('Registration requests are only required for Circle Meeting cross-circle registration. Please register directly.', 422, [
+                'request_required' => false,
+            ]);
+        }
+
         $eventCircleId = $event->circle_id;
         $sameCircle = CircleMember::query()->where('circle_id', $eventCircleId)->where('user_id', $user->id)->whereNull('deleted_at')->whereIn('status', ['approved','active'])->exists();
         if ($sameCircle) return $this->success([], 'You are already a member of this circle. You can register directly.');
