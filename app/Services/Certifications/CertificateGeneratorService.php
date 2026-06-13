@@ -82,6 +82,32 @@ class CertificateGeneratorService
         });
     }
 
+    public function regeneratePdf(CertificationSubmission $submission): CertificationSubmission
+    {
+        return DB::transaction(function () use ($submission) {
+            /** @var CertificationSubmission $submission */
+            $submission = CertificationSubmission::query()
+                ->whereKey($submission->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $now = now();
+
+            if (! $submission->certificate_number) {
+                $submission->certificate_number = $this->nextCertificateNumber($submission);
+            }
+
+            if (! $submission->issued_at) {
+                $submission->issued_at = $now;
+            }
+
+            $this->writeCertificatePdf($submission, $now);
+            $submission->save();
+
+            return $submission->refresh();
+        });
+    }
+
     private function nextCertificateNumber(CertificationSubmission $submission): string
     {
         $typePrefix = $submission->certification_type === CertificationSubmission::TYPE_LEADERSHIP ? 'LEAD' : 'ENT';
@@ -149,7 +175,7 @@ class CertificateGeneratorService
     private function renderPdf(CertificationSubmission $submission): string
     {
         if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
-            return \Barryvdh\DomPDF\Facade\Pdf::loadView('certificates.certification', [
+            return \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.certificates.certification', [
                 'submission' => $submission,
             ])->setPaper('a4', 'landscape')->output();
         }
@@ -159,39 +185,61 @@ class CertificateGeneratorService
 
     private function renderBasicPdf(CertificationSubmission $submission): string
     {
-        $lines = [
-            'Peers Global Unity',
-            $this->certificateTitle($submission),
-            'Certification Type: ' . $this->certificationTypeLabel($submission),
-            'This certificate is proudly presented to',
-            (string) $submission->full_name,
-            'Business: ' . (($submission->business_name ?: 'N/A')),
-            'Certification Level: ' . (($submission->certification_level ?: 'N/A')),
-            'Score: ' . (int) $submission->total_score . ' | Percentage: ' . (int) $submission->percentage . '%',
-            'Certificate Number: ' . $submission->certificate_number,
-            'Issued Date: ' . optional($submission->issued_at ?: now())->format('d M Y'),
-            'Approved Date: ' . optional($submission->approved_at ?: now())->format('d M Y'),
+        $issuedDate = optional($submission->issued_at ?: now())->format('d M Y');
+        $approvedDate = optional($submission->approved_at ?: now())->format('d M Y');
+        $details = [
+            ['Certification Type', $this->certificationTypeLabel($submission), 'Business Name', $submission->business_name ?: 'N/A'],
+            ['Certification Level', $submission->certification_level ?: 'N/A', 'Score', (string) (int) $submission->total_score],
+            ['Percentage', (int) $submission->percentage . '%', 'Issued Date', $issuedDate],
+            ['Certificate Number', (string) $submission->certificate_number, 'Approved Date', $approvedDate],
         ];
 
-        $content = "BT\n/F1 28 Tf\n80 530 Td\n(" . $this->escapePdfText($lines[0]) . ") Tj\n";
-        $content .= "/F1 22 Tf\n0 -52 Td\n(" . $this->escapePdfText($lines[1]) . ") Tj\n";
-        $content .= "/F1 14 Tf\n0 -40 Td\n(" . $this->escapePdfText($lines[2]) . ") Tj\n";
-        $content .= "0 -36 Td\n(" . $this->escapePdfText($lines[3]) . ") Tj\n";
-        $content .= "/F1 26 Tf\n0 -42 Td\n(" . $this->escapePdfText($lines[4]) . ") Tj\n";
-        $content .= "/F1 12 Tf\n0 -48 Td\n";
+        $content = "q\n1 0.992 0.961 rg\n0 0 842 595 re f\nQ\n";
+        $content .= "q\n0.043 0.106 0.227 RG\n8 w\n28 28 786 539 re S\nQ\n";
+        $content .= "q\n0.788 0.635 0.153 RG\n3 w\n44 44 754 507 re S\n1 w\n64 64 714 467 re S\nQ\n";
+        $content .= "q\n0.788 0.635 0.153 RG\n2 w\n180 432 482 0 m 662 432 l S\nQ\n";
+        $content .= $this->pdfText('Peers Global Unity', 287, 500, 30, 'F1', '0.043 0.106 0.227');
+        $content .= $this->pdfText('CERTIFICATE OF ACHIEVEMENT', 312, 474, 12, 'F1', '0.420 0.447 0.502');
+        $content .= $this->pdfText('OFFICIAL CERTIFICATION PROGRAM', 320, 457, 10, 'F1', '0.788 0.635 0.153');
+        $content .= $this->pdfText($this->certificateTitle($submission), 292, 408, 27, 'F1', '0.043 0.106 0.227');
+        $content .= $this->pdfText('This certificate is proudly presented to', 304, 370, 14, 'F1', '0.216 0.255 0.318');
+        $content .= $this->pdfText((string) $submission->full_name, 250, 329, 34, 'F2', '0.067 0.094 0.153');
+        $content .= "q\n0.788 0.635 0.153 RG\n2 w\n242 314 358 0 m 600 314 l S\nQ\n";
+        $content .= $this->pdfText(
+            'In recognition of successfully completing the official certification assessment and demonstrating the values expected by Peers Global Unity.',
+            121,
+            286,
+            11,
+            'F1',
+            '0.216 0.255 0.318'
+        );
 
-        foreach (array_slice($lines, 5) as $line) {
-            $content .= '(' . $this->escapePdfText($line) . ") Tj\n0 -24 Td\n";
+        $content .= "q\n1 1 1 rg\n0.898 0.906 0.922 RG\n1 w\n112 168 618 90 re B\nQ\n";
+        $y = 235;
+        foreach ($details as $detail) {
+            $content .= $this->pdfText($detail[0], 128, $y, 9, 'F1', '0.420 0.447 0.502');
+            $content .= $this->pdfText($detail[1], 230, $y, 10, 'F1', '0.067 0.094 0.153');
+            $content .= $this->pdfText($detail[2], 430, $y, 9, 'F1', '0.420 0.447 0.502');
+            $content .= $this->pdfText($detail[3], 535, $y, 10, 'F1', '0.067 0.094 0.153');
+            $y -= 20;
         }
 
-        $content .= 'ET';
+        $content .= "q\n1 0.973 0.839 rg\n0.788 0.635 0.153 RG\n3 w\n382 73 78 78 re B\nQ\n";
+        $content .= $this->pdfText('CERTIFIED', 394, 118, 11, 'F1', '0.043 0.106 0.227');
+        $content .= $this->pdfText('APPROVED', 395, 101, 9, 'F1', '0.043 0.106 0.227');
+        $content .= "q\n0.067 0.094 0.153 RG\n1.5 w\n115 104 165 0 m 280 104 l S\n562 104 165 0 m 727 104 l S\nQ\n";
+        $content .= $this->pdfText('Program Director', 153, 86, 10, 'F1', '0.067 0.094 0.153');
+        $content .= $this->pdfText('Peers Global Unity', 154, 70, 8, 'F1', '0.420 0.447 0.502');
+        $content .= $this->pdfText('Authorized Signatory', 592, 86, 10, 'F1', '0.067 0.094 0.153');
+        $content .= $this->pdfText('Certification Department', 591, 70, 8, 'F1', '0.420 0.447 0.502');
 
         $objects = [
             "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
             "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 4 0 R /F2 6 0 R >> >> /Contents 5 0 R >>\nendobj\n",
             "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
             "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n" . $content . "\nendstream\nendobj\n",
+            "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>\nendobj\n",
         ];
 
         $pdf = "%PDF-1.4\n";
@@ -210,6 +258,11 @@ class CertificateGeneratorService
         $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\nstartxref\n" . $xrefOffset . "\n%%EOF";
 
         return $pdf;
+    }
+
+    private function pdfText(string $text, int $x, int $y, int $size, string $font, string $color): string
+    {
+        return "BT\n{$color} rg\n/{$font} {$size} Tf\n{$x} {$y} Td\n(" . $this->escapePdfText($text) . ") Tj\nET\n";
     }
 
     private function certificateTitle(CertificationSubmission $submission): string

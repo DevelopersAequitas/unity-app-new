@@ -186,7 +186,9 @@ class CertificationSubmissionController extends BaseApiController
             ], 422);
         }
 
-        if (! $submission->certificate_file_path || ! Storage::disk('public')->exists($submission->certificate_file_path)) {
+        if ($request->boolean('regenerate')) {
+            $submission = $this->certificateGenerator->regeneratePdf($submission);
+        } elseif (! $submission->certificate_file_path || ! Storage::disk('public')->exists($submission->certificate_file_path)) {
             $submission = $this->certificateGenerator->ensureCertificate($submission);
         }
 
