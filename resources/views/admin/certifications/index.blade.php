@@ -96,6 +96,11 @@
                 </thead>
                 <tbody>
                     @forelse ($items as $item)
+                        @php
+                            $downloadUrl = ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && ($item->certificate_file_path || $item->certificate_download_url || $item->certificate_number))
+                                ? url('/api/v1/admin/certifications/' . $item->id . '/download')
+                                : null;
+                        @endphp
                         <tr>
                             <td>{{ $formatLabel($item->certification_type) }}</td>
                             <td>{{ $item->full_name }}</td>
@@ -114,8 +119,8 @@
                                         <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#approveCertification{{ $item->id }}">Approve</button>
                                         <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectCertification{{ $item->id }}">Reject</button>
                                     @endif
-                                    @if ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && $item->certificate_download_url)
-                                        <a href="{{ $item->certificate_download_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Download Certificate</a>
+                                    @if ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && $downloadUrl)
+                                        <a href="{{ $downloadUrl }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Download Certificate</a>
                                     @elseif ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED)
                                         <form method="POST" action="{{ route('admin.certifications.approve', $item->id) }}" class="d-inline">
                                             @csrf
@@ -140,6 +145,11 @@
     </div>
 
     @foreach ($items as $item)
+        @php
+            $downloadUrl = ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && ($item->certificate_file_path || $item->certificate_download_url || $item->certificate_number))
+                ? url('/api/v1/admin/certifications/' . $item->id . '/download')
+                : null;
+        @endphp
         <div class="modal fade" id="viewCertification{{ $item->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl modal-dialog-scrollable">
                 <div class="modal-content">
@@ -172,8 +182,8 @@
                                         <div class="small text-muted mt-2">Issued Date</div>
                                         <div>{{ $formatDate($item->issued_at) }}</div>
                                     </div>
-                                    @if ($item->certificate_download_url)
-                                        <a href="{{ $item->certificate_download_url }}" target="_blank" rel="noopener" class="btn btn-primary">
+                                    @if ($downloadUrl)
+                                        <a href="{{ $downloadUrl }}" target="_blank" rel="noopener" class="btn btn-primary">
                                             Download Certificate
                                         </a>
                                     @endif

@@ -10,6 +10,8 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Services\Certifications\CertificateGeneratorService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -168,12 +170,24 @@ class CertificationSubmissionController extends BaseApiController
             ], 404);
         }
 
+        Log::info('Certification certificate download requested', [
+            'certification_submission_id' => (string) $submission->id,
+            'certificate_file_path' => $submission->certificate_file_path,
+            'file_exists' => $submission->certificate_file_path
+                ? Storage::disk('public')->exists($submission->certificate_file_path)
+                : false,
+        ]);
+
         if ($submission->status !== CertificationSubmission::STATUS_APPROVED) {
             return response()->json([
                 'status' => false,
-                'message' => 'Certificate is not available.',
+                'message' => 'Certificate is not available because this submission is not approved.',
                 'data' => null,
             ], 422);
+        }
+
+        if (! $submission->certificate_file_path || ! Storage::disk('public')->exists($submission->certificate_file_path)) {
+            $submission = $this->certificateGenerator->ensureCertificate($submission);
         }
 
         if (! $submission->certificate_file_path || ! Storage::disk('public')->exists($submission->certificate_file_path)) {
@@ -258,6 +272,8 @@ class CertificationSubmissionController extends BaseApiController
 
     private function canReview($user): bool
     {
+        $user ??= Auth::guard('admin')->user();
+
         if ($user instanceof AdminUser) {
             return true;
         }
@@ -280,6 +296,17 @@ class CertificationSubmissionController extends BaseApiController
         ], 403);
     }
 
+    private function certificateDownloadUrl(CertificationSubmission $item): ?string
+    {
+        if ($item->status === CertificationSubmission::STATUS_APPROVED
+            && ($item->certificate_file_path || $item->certificate_download_url || $item->certificate_number)
+        ) {
+            return url('/api/v1/admin/certifications/' . $item->id . '/download');
+        }
+
+        return $item->certificate_download_url;
+    }
+
     private function mapSubmission(CertificationSubmission $item, bool $includeAnswers = false): array
     {
         $data = [
@@ -296,7 +323,7 @@ class CertificationSubmissionController extends BaseApiController
             'certification_title' => $item->certification_title,
             'certificate_number' => $item->certificate_number,
             'certificate_file_path' => $item->certificate_file_path,
-            'certificate_download_url' => $item->certificate_download_url,
+            'certificate_download_url' => $this->certificateDownloadUrl($item),
             'certificate_generated_at' => optional($item->certificate_generated_at)?->toISOString(),
             'issued_at' => optional($item->issued_at)?->toISOString(),
             'status' => $item->status,

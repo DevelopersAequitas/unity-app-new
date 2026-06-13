@@ -20,6 +20,7 @@ class GenerateMissingCertificationCertificates extends Command
                 $query->whereNull('certificate_number')
                     ->orWhereNull('certificate_file_path')
                     ->orWhereNull('certificate_download_url')
+                    ->orWhere('certificate_download_url', 'not like', '%/api/v1/admin/certifications/%/download%')
                     ->orWhereNull('certificate_generated_at')
                     ->orWhereNull('issued_at');
             })

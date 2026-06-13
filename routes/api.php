@@ -289,6 +289,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
     });
 
+    Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function () {
+        Route::get('/certifications/{id}/download', [CertificationSubmissionController::class, 'download'])->whereUuid('id');
+    });
+
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
@@ -402,11 +406,11 @@ Route::prefix('v1')->group(function () {
             // Certification approval API examples:
             // GET /api/v1/admin/certifications
             // POST /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/approve
+            // GET /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/download
             // Body: {"admin_note": "Certification approved after review."}
             Route::get('/certifications', [CertificationSubmissionController::class, 'index']);
             Route::get('/certifications/counts', [CertificationSubmissionController::class, 'counts']);
             Route::get('/certifications/{id}', [CertificationSubmissionController::class, 'show'])->whereUuid('id');
-            Route::get('/certifications/{id}/download', [CertificationSubmissionController::class, 'download'])->whereUuid('id');
             Route::post('/certifications/{id}/approve', [CertificationSubmissionController::class, 'approve']);
             Route::post('/certifications/{id}/reject', [CertificationSubmissionController::class, 'reject'])->whereUuid('id');
 

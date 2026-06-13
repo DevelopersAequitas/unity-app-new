@@ -4,6 +4,7 @@ namespace App\Services\Certifications;
 
 use App\Models\CertificationSubmission;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -40,7 +41,7 @@ class CertificateGeneratorService
             if ($this->shouldWriteCertificatePdf($submission)) {
                 $this->writeCertificatePdf($submission, $now);
             } elseif ($submission->certificate_file_path) {
-                $submission->certificate_download_url = asset('storage/' . $submission->certificate_file_path);
+                $submission->certificate_download_url = $this->downloadUrl($submission);
             }
 
             $submission->save();
@@ -72,7 +73,7 @@ class CertificateGeneratorService
             if ($this->shouldWriteCertificatePdf($submission)) {
                 $this->writeCertificatePdf($submission, $now);
             } elseif ($submission->certificate_file_path) {
-                $submission->certificate_download_url = asset('storage/' . $submission->certificate_file_path);
+                $submission->certificate_download_url = $this->downloadUrl($submission);
             }
 
             $submission->save();
@@ -123,11 +124,26 @@ class CertificateGeneratorService
         Storage::disk('public')->makeDirectory('certificates');
         Storage::disk('public')->put($relativePath, $pdfBytes);
 
+        $fullPath = Storage::disk('public')->path($relativePath);
+        Log::info('Certification certificate generated', [
+            'certification_submission_id' => (string) $submission->id,
+            'certificate_number' => $submission->certificate_number,
+            'certificate_file_path' => $relativePath,
+            'storage_path' => $fullPath,
+            'file_exists' => Storage::disk('public')->exists($relativePath),
+            'certificate_download_url' => $this->downloadUrl($submission),
+        ]);
+
         $submission->forceFill([
             'certificate_file_path' => $relativePath,
-            'certificate_download_url' => asset('storage/' . $relativePath),
+            'certificate_download_url' => $this->downloadUrl($submission),
             'certificate_generated_at' => $generatedAt,
         ]);
+    }
+
+    private function downloadUrl(CertificationSubmission $submission): string
+    {
+        return url('/api/v1/admin/certifications/' . $submission->id . '/download');
     }
 
     private function renderPdf(CertificationSubmission $submission): string
