@@ -189,35 +189,45 @@
 
         .presented-text {
             text-align: center;
-            font-size: 16px;
+            font-size: 15px;
             color: #374151;
-            margin-top: 24px;
+            margin-top: 18px;
+            margin-bottom: 4px;
         }
 
         .recipient-name {
             text-align: center;
             font-family: DejaVu Serif, Georgia, serif;
-            font-size: 50px;
+            font-size: 42px;
             font-weight: 700;
             color: #111827;
+            line-height: 1.15;
+            margin-top: 8px;
+            margin-bottom: 4px;
+            margin-left: auto;
+            margin-right: auto;
+            max-width: 760px;
+            word-wrap: break-word;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            text-decoration: none;
             text-transform: capitalize;
-            margin-top: 10px;
-            line-height: 1.08;
         }
 
         .recipient-underline {
-            width: 460px;
+            width: 360px;
             height: 2px;
             background: #C9A227;
-            margin: 8px auto 14px auto;
+            margin: 8px auto 18px auto;
         }
 
         .description {
-            width: 72%;
+            width: 78%;
             margin: 0 auto;
             text-align: center;
-            font-size: 14.5px;
-            line-height: 1.6;
+            font-size: 13px;
+            line-height: 1.55;
             color: #374151;
         }
 
@@ -374,7 +384,6 @@
     $description = $type === 'entrepreneur'
         ? 'This certificate is awarded in recognition of successfully completing the Entrepreneur Certification assessment and demonstrating entrepreneurial mindset, business awareness, innovation, and commitment to growth.'
         : 'This certificate is awarded in recognition of successfully completing the Leadership Certification assessment and demonstrating strong leadership values, responsibility, collaboration, and commitment to growth.';
-    $recipientName = ucwords(strtolower((string) $submission->full_name));
     $issuedDate = $submission->issued_at ? \Carbon\Carbon::parse($submission->issued_at)->format('d M Y') : now()->format('d M Y');
     $approvedDate = $submission->approved_at ? \Carbon\Carbon::parse($submission->approved_at)->format('d M Y') : $issuedDate;
     $logoSrc = $logoSrc ?? null;
@@ -416,7 +425,7 @@
 
                     <div class="presented-text">This certificate is proudly presented to</div>
 
-                    <div class="recipient-name">{{ $recipientName }}</div>
+                    <div class="recipient-name">{{ ucwords(strtolower($submission->full_name)) }}</div>
                     <div class="recipient-underline"></div>
 
                     <div class="description">{{ $description }}</div>
