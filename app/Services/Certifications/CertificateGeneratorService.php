@@ -3,6 +3,7 @@
 namespace App\Services\Certifications;
 
 use App\Models\CertificationSubmission;
+use App\Models\File;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -177,6 +178,7 @@ class CertificateGeneratorService
         if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
             return \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.certificates.certification', [
                 'submission' => $submission,
+                'logoSrc' => $this->certificateLogoSrc(),
             ])->setPaper('a4', 'landscape')->output();
         }
 
@@ -277,6 +279,45 @@ class CertificateGeneratorService
         return $submission->certification_type === CertificationSubmission::TYPE_LEADERSHIP
             ? 'Leadership'
             : 'Entrepreneur';
+    }
+
+    private function certificateLogoSrc(): ?string
+    {
+        foreach ($this->logoPathCandidates() as $path) {
+            if (is_file($path) && is_readable($path)) {
+                return $this->base64ImageSrc($path);
+            }
+        }
+
+        $file = File::find('019bd9d7-7e13-71fc-8395-0e1dd20a268b');
+        if ($file && $file->s3_key) {
+            $disk = config('filesystems.default', 'public');
+            if (Storage::disk($disk)->exists($file->s3_key)) {
+                $mime = $file->mime_type ?: Storage::disk($disk)->mimeType($file->s3_key) ?: 'image/png';
+
+                return 'data:' . $mime . ';base64,' . base64_encode(Storage::disk($disk)->get($file->s3_key));
+            }
+        }
+
+        return null;
+    }
+
+    private function logoPathCandidates(): array
+    {
+        return [
+            public_path('assets/images/logo.png'),
+            public_path('images/logo.png'),
+            public_path('admin/assets/logo.png'),
+            public_path('storage/logo.png'),
+            public_path('favicon.png'),
+        ];
+    }
+
+    private function base64ImageSrc(string $path): string
+    {
+        $mime = mime_content_type($path) ?: 'image/png';
+
+        return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($path));
     }
 
     private function escapePdfText(string $text): string

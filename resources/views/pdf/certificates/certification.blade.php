@@ -4,108 +4,191 @@
     <meta charset="utf-8">
     <title>Certificate</title>
     <style>
-        @page { margin: 0; }
+        @page {
+            margin: 0;
+            size: A4 landscape;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
 
         body {
             margin: 0;
             padding: 0;
-            background: #FFFDF5;
             font-family: DejaVu Sans, Arial, sans-serif;
             color: #111827;
+            background: #fff7df;
         }
 
-        .page {
+        .certificate-page {
+            width: 1122px;
+            height: 793px;
+            padding: 24px;
+            background: #fff7df;
+            position: relative;
+        }
+
+        .outer {
             width: 100%;
             height: 100%;
-            padding: 28px;
-            box-sizing: border-box;
-            background: #FFFDF5;
+            border: 10px solid #0B1B3A;
+            padding: 9px;
+            background: #fffdf5;
         }
 
-        .outer-border {
-            border: 8px solid #0B1B3A;
+        .gold-border {
+            width: 100%;
             height: 100%;
-            padding: 10px;
-            box-sizing: border-box;
+            border: 4px solid #C9A227;
+            padding: 12px;
+            background: #fffdf5;
         }
 
-        .middle-border {
-            border: 3px solid #C9A227;
+        .inner {
+            width: 100%;
             height: 100%;
-            padding: 18px;
-            box-sizing: border-box;
-        }
-
-        .inner-border {
-            border: 1px solid #C9A227;
-            height: 100%;
-            padding: 28px 46px;
-            box-sizing: border-box;
+            border: 1px solid #D7B94F;
             position: relative;
+            padding: 28px 56px 34px 56px;
+            background: #fffdf5;
+            overflow: hidden;
+        }
+
+        .watermark {
+            position: absolute;
+            top: 285px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 82px;
+            font-weight: 700;
+            color: #0B1B3A;
+            opacity: 0.045;
+            letter-spacing: 8px;
+            z-index: 0;
         }
 
         .corner {
             position: absolute;
-            width: 58px;
-            height: 58px;
-            border-color: #C9A227;
+            width: 76px;
+            height: 76px;
+            z-index: 2;
         }
 
-        .corner.tl { top: 12px; left: 12px; border-top: 4px solid #C9A227; border-left: 4px solid #C9A227; }
-        .corner.tr { top: 12px; right: 12px; border-top: 4px solid #C9A227; border-right: 4px solid #C9A227; }
-        .corner.bl { bottom: 12px; left: 12px; border-bottom: 4px solid #C9A227; border-left: 4px solid #C9A227; }
-        .corner.br { bottom: 12px; right: 12px; border-bottom: 4px solid #C9A227; border-right: 4px solid #C9A227; }
+        .corner-tl {
+            top: 18px;
+            left: 18px;
+            border-top: 5px solid #C9A227;
+            border-left: 5px solid #C9A227;
+        }
 
-        .certificate-no {
+        .corner-tr {
+            top: 18px;
+            right: 18px;
+            border-top: 5px solid #C9A227;
+            border-right: 5px solid #C9A227;
+        }
+
+        .corner-bl {
+            bottom: 18px;
+            left: 18px;
+            border-bottom: 5px solid #C9A227;
+            border-left: 5px solid #C9A227;
+        }
+
+        .corner-br {
+            bottom: 18px;
+            right: 18px;
+            border-bottom: 5px solid #C9A227;
+            border-right: 5px solid #C9A227;
+        }
+
+        .content {
+            position: relative;
+            z-index: 5;
+        }
+
+        .certificate-number-top {
             position: absolute;
-            right: 54px;
-            top: 44px;
+            top: 22px;
+            right: 52px;
             font-size: 11px;
             color: #6B7280;
         }
 
-        .certificate-no strong { color: #111827; }
+        .certificate-number-top strong {
+            color: #0B1B3A;
+        }
 
-        .header {
+        .logo-wrap {
             text-align: center;
-            margin-top: 8px;
+            height: 70px;
+            margin-top: 4px;
+        }
+
+        .logo {
+            max-height: 58px;
+            max-width: 190px;
+            margin: 0 auto;
+        }
+
+        .logo-fallback {
+            width: 62px;
+            height: 62px;
+            margin: 0 auto;
+            border: 3px solid #C9A227;
+            border-radius: 50%;
+            background: #0B1B3A;
+            color: #F7E7A1;
+            line-height: 56px;
+            text-align: center;
+            font-size: 19px;
+            font-weight: 900;
+            letter-spacing: 1px;
         }
 
         .brand {
+            text-align: center;
             font-size: 34px;
-            font-weight: 700;
-            letter-spacing: 1px;
+            font-weight: 800;
             color: #0B1B3A;
-            margin: 0;
+            letter-spacing: 1px;
+            margin-top: 2px;
         }
 
         .subtitle {
+            text-align: center;
+            margin-top: 6px;
             font-size: 13px;
-            letter-spacing: 4px;
             text-transform: uppercase;
+            letter-spacing: 4px;
             color: #6B7280;
-            margin-top: 8px;
+            font-weight: 700;
         }
 
         .program-line {
-            font-size: 11px;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: #C9A227;
+            text-align: center;
             margin-top: 5px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #C9A227;
+            font-weight: 800;
         }
 
         .gold-line {
-            width: 260px;
-            height: 3px;
+            width: 300px;
+            height: 4px;
+            margin: 15px auto 18px auto;
             background: #C9A227;
-            margin: 16px auto 20px auto;
         }
 
-        .certificate-title {
+        .title {
             text-align: center;
-            font-size: 30px;
-            font-weight: 700;
+            font-size: 34px;
+            line-height: 1;
+            font-weight: 800;
             color: #0B1B3A;
             margin: 0;
         }
@@ -113,91 +196,111 @@
         .presented {
             text-align: center;
             font-size: 16px;
-            margin-top: 24px;
             color: #374151;
+            margin-top: 22px;
         }
 
         .recipient {
             text-align: center;
             font-family: DejaVu Serif, Georgia, serif;
-            font-size: 42px;
+            font-size: 48px;
             font-weight: 700;
             color: #111827;
-            margin-top: 12px;
             text-transform: capitalize;
+            margin-top: 8px;
+            line-height: 1.1;
         }
 
-        .name-line {
-            width: 440px;
-            border-bottom: 2px solid #C9A227;
+        .recipient-line {
+            width: 460px;
+            height: 2px;
+            background: #C9A227;
             margin: 8px auto 14px auto;
         }
 
         .description {
-            width: 78%;
+            width: 82%;
             margin: 0 auto;
             text-align: center;
             font-size: 15px;
-            line-height: 1.7;
+            line-height: 1.55;
             color: #374151;
         }
 
         .details-box {
-            width: 82%;
-            margin: 24px auto 0 auto;
-            border: 1px solid #E5E7EB;
-            background: #FFFFFF;
-            padding: 12px 18px;
+            width: 86%;
+            margin: 20px auto 0 auto;
+            border: 1.5px solid #D7B94F;
+            background: #ffffff;
+            padding: 12px 16px;
         }
 
         .details-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 12.5px;
         }
 
         .details-table td {
-            padding: 7px 8px;
+            padding: 6px 8px;
+            border-bottom: 1px solid #F3E8B5;
             vertical-align: top;
         }
 
+        .details-table tr:last-child td {
+            border-bottom: none;
+        }
+
         .label {
+            width: 22%;
             color: #6B7280;
-            font-weight: 700;
-            width: 24%;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.5px;
         }
 
         .value {
+            width: 28%;
             color: #111827;
-            font-weight: 600;
-            width: 26%;
+            font-weight: 700;
         }
 
         .seal {
             position: absolute;
             left: 50%;
-            bottom: 58px;
-            margin-left: -45px;
-            width: 90px;
-            height: 90px;
-            border: 4px solid #C9A227;
+            bottom: 54px;
+            margin-left: -48px;
+            width: 96px;
+            height: 96px;
+            border: 5px solid #C9A227;
             border-radius: 50%;
-            text-align: center;
+            background: #FFF4C2;
             color: #0B1B3A;
-            background: #FFF8D6;
+            text-align: center;
+            z-index: 8;
         }
 
-        .seal .seal-text-1 {
-            font-size: 12px;
-            font-weight: 700;
-            margin-top: 23px;
+        .seal-inner {
+            width: 76px;
+            height: 76px;
+            margin: 5px auto 0 auto;
+            border: 1px solid #C9A227;
+            border-radius: 50%;
+            padding-top: 20px;
+        }
+
+        .seal-main {
+            font-size: 13px;
+            font-weight: 900;
             letter-spacing: 1px;
         }
 
-        .seal .seal-text-2 {
-            font-size: 10px;
+        .seal-sub {
+            font-size: 9px;
             margin-top: 4px;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
+            font-weight: 700;
         }
 
         .footer {
@@ -205,6 +308,7 @@
             left: 70px;
             right: 70px;
             bottom: 34px;
+            z-index: 7;
         }
 
         .signature-table {
@@ -219,21 +323,52 @@
         }
 
         .signature-line {
-            width: 180px;
-            border-bottom: 1.5px solid #111827;
+            width: 190px;
+            height: 1px;
+            border-bottom: 2px solid #111827;
             margin: 0 auto 8px auto;
         }
 
         .signature-title {
             font-size: 12px;
-            font-weight: 700;
+            font-weight: 800;
             color: #111827;
         }
 
         .signature-subtitle {
             font-size: 10px;
             color: #6B7280;
-            margin-top: 2px;
+            margin-top: 3px;
+        }
+
+        .ribbon-left {
+            position: absolute;
+            top: 126px;
+            left: 0;
+            width: 120px;
+            height: 30px;
+            background: #0B1B3A;
+            color: #ffffff;
+            font-size: 11px;
+            line-height: 30px;
+            text-align: center;
+            letter-spacing: 1px;
+            font-weight: 800;
+        }
+
+        .ribbon-right {
+            position: absolute;
+            top: 126px;
+            right: 0;
+            width: 120px;
+            height: 30px;
+            background: #C9A227;
+            color: #0B1B3A;
+            font-size: 11px;
+            line-height: 30px;
+            text-align: center;
+            letter-spacing: 1px;
+            font-weight: 900;
         }
     </style>
 </head>
@@ -246,71 +381,86 @@
     $approvedDate = $submission->approved_at ? \Carbon\Carbon::parse($submission->approved_at)->format('d M Y') : $issuedDate;
 @endphp
 
-<div class="page">
-    <div class="outer-border">
-        <div class="middle-border">
-            <div class="inner-border">
-                <div class="corner tl"></div>
-                <div class="corner tr"></div>
-                <div class="corner bl"></div>
-                <div class="corner br"></div>
+<div class="certificate-page">
+    <div class="outer">
+        <div class="gold-border">
+            <div class="inner">
+                <div class="watermark">CERTIFIED</div>
 
-                <div class="certificate-no">
+                <div class="corner corner-tl"></div>
+                <div class="corner corner-tr"></div>
+                <div class="corner corner-bl"></div>
+                <div class="corner corner-br"></div>
+
+                <div class="ribbon-left">OFFICIAL</div>
+                <div class="ribbon-right">APPROVED</div>
+
+                <div class="certificate-number-top">
                     Certificate No: <strong>{{ $submission->certificate_number }}</strong>
                 </div>
 
-                <div class="header">
-                    <h1 class="brand">Peers Global Unity</h1>
+                <div class="content">
+                    <div class="logo-wrap">
+                        @if (! empty($logoSrc))
+                            <img src="{{ $logoSrc }}" class="logo" alt="Peers Global Unity Logo">
+                        @else
+                            <div class="logo-fallback">PGU</div>
+                        @endif
+                    </div>
+
+                    <div class="brand">Peers Global Unity</div>
                     <div class="subtitle">Certificate of Achievement</div>
                     <div class="program-line">Official Certification Program</div>
                     <div class="gold-line"></div>
-                </div>
 
-                <h2 class="certificate-title">{{ $title }}</h2>
+                    <h1 class="title">{{ $title }}</h1>
 
-                <div class="presented">This certificate is proudly presented to</div>
+                    <div class="presented">This certificate is proudly presented to</div>
 
-                <div class="recipient">{{ $submission->full_name }}</div>
-                <div class="name-line"></div>
+                    <div class="recipient">{{ $submission->full_name }}</div>
+                    <div class="recipient-line"></div>
 
-                <div class="description">
-                    In recognition of successfully completing the official
-                    {{ strtolower($title) }} assessment and demonstrating the required knowledge,
-                    values, and commitment expected by Peers Global Unity.
-                </div>
+                    <div class="description">
+                        In recognition of successfully completing the official
+                        <strong>{{ $title }}</strong> assessment and demonstrating the values,
+                        knowledge, commitment, and excellence expected by Peers Global Unity.
+                    </div>
 
-                <div class="details-box">
-                    <table class="details-table">
-                        <tr>
-                            <td class="label">Certification Type</td>
-                            <td class="value">{{ $typeLabel }}</td>
-                            <td class="label">Business Name</td>
-                            <td class="value">{{ $submission->business_name ?: '-' }}</td>
-                        </tr>
-                        <tr>
-                            <td class="label">Certification Level</td>
-                            <td class="value">{{ $submission->certification_level ?: '-' }}</td>
-                            <td class="label">Score</td>
-                            <td class="value">{{ (int) ($submission->total_score ?? 0) }}</td>
-                        </tr>
-                        <tr>
-                            <td class="label">Percentage</td>
-                            <td class="value">{{ (int) ($submission->percentage ?? 0) }}%</td>
-                            <td class="label">Issued Date</td>
-                            <td class="value">{{ $issuedDate }}</td>
-                        </tr>
-                        <tr>
-                            <td class="label">Certificate Number</td>
-                            <td class="value">{{ $submission->certificate_number }}</td>
-                            <td class="label">Approved Date</td>
-                            <td class="value">{{ $approvedDate }}</td>
-                        </tr>
-                    </table>
+                    <div class="details-box">
+                        <table class="details-table">
+                            <tr>
+                                <td class="label">Certification Type</td>
+                                <td class="value">{{ $typeLabel }}</td>
+                                <td class="label">Business Name</td>
+                                <td class="value">{{ $submission->business_name ?? '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Certification Level</td>
+                                <td class="value">{{ $submission->certification_level ?? '-' }}</td>
+                                <td class="label">Score</td>
+                                <td class="value">{{ $submission->total_score ?? 0 }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Percentage</td>
+                                <td class="value">{{ $submission->percentage ?? 0 }}%</td>
+                                <td class="label">Certificate Number</td>
+                                <td class="value">{{ $submission->certificate_number }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Issued Date</td>
+                                <td class="value">{{ $issuedDate }}</td>
+                                <td class="label">Approved Date</td>
+                                <td class="value">{{ $approvedDate }}</td>
+                            </tr>
+                        </table>
+                    </div>
                 </div>
 
                 <div class="seal">
-                    <div class="seal-text-1">CERTIFIED</div>
-                    <div class="seal-text-2">APPROVED</div>
+                    <div class="seal-inner">
+                        <div class="seal-main">CERTIFIED</div>
+                        <div class="seal-sub">APPROVED</div>
+                    </div>
                 </div>
 
                 <div class="footer">
