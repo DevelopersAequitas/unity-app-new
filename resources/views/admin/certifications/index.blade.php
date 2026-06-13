@@ -115,7 +115,12 @@
                                         <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectCertification{{ $item->id }}">Reject</button>
                                     @endif
                                     @if ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && $item->certificate_download_url)
-                                        <a href="{{ $item->certificate_download_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Download</a>
+                                        <a href="{{ $item->certificate_download_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Download Certificate</a>
+                                    @elseif ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED)
+                                        <form method="POST" action="{{ route('admin.certifications.approve', $item->id) }}" class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-outline-warning">Generate Certificate</button>
+                                        </form>
                                     @endif
                                 </div>
                             </td>

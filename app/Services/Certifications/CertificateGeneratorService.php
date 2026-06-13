@@ -49,6 +49,38 @@ class CertificateGeneratorService
         });
     }
 
+
+    public function ensureCertificate(CertificationSubmission $submission): CertificationSubmission
+    {
+        return DB::transaction(function () use ($submission) {
+            /** @var CertificationSubmission $submission */
+            $submission = CertificationSubmission::query()
+                ->whereKey($submission->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $now = now();
+
+            if (! $submission->certificate_number) {
+                $submission->certificate_number = $this->nextCertificateNumber($submission);
+            }
+
+            if (! $submission->issued_at) {
+                $submission->issued_at = $now;
+            }
+
+            if ($this->shouldWriteCertificatePdf($submission)) {
+                $this->writeCertificatePdf($submission, $now);
+            } elseif ($submission->certificate_file_path) {
+                $submission->certificate_download_url = asset('storage/' . $submission->certificate_file_path);
+            }
+
+            $submission->save();
+
+            return $submission->refresh();
+        });
+    }
+
     private function nextCertificateNumber(CertificationSubmission $submission): string
     {
         $typePrefix = $submission->certification_type === CertificationSubmission::TYPE_LEADERSHIP ? 'LEAD' : 'ENT';

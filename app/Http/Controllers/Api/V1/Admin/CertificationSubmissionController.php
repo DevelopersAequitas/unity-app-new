@@ -171,7 +171,7 @@ class CertificationSubmissionController extends BaseApiController
         if ($submission->status !== CertificationSubmission::STATUS_APPROVED) {
             return response()->json([
                 'status' => false,
-                'message' => 'Certificate is not available because this submission is not approved.',
+                'message' => 'Certificate is not available.',
                 'data' => null,
             ], 422);
         }
@@ -179,7 +179,7 @@ class CertificationSubmissionController extends BaseApiController
         if (! $submission->certificate_file_path || ! Storage::disk('public')->exists($submission->certificate_file_path)) {
             return response()->json([
                 'status' => false,
-                'message' => 'Certificate file is not available.',
+                'message' => 'Certificate is not available.',
                 'data' => null,
             ], 404);
         }

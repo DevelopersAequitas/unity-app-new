@@ -346,6 +346,7 @@ class WebsiteFormsController extends BaseApiController
                 ));
 
                 CertificationSubmission::create([
+                    'id' => $legacySubmission->id,
                     'certification_type' => CertificationSubmission::TYPE_LEADERSHIP,
                     'user_id' => $request->user()?->id,
                     'full_name' => $legacySubmission->full_name,
@@ -431,6 +432,7 @@ class WebsiteFormsController extends BaseApiController
                 ));
 
                 CertificationSubmission::create([
+                    'id' => $legacySubmission->id,
                     'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
                     'user_id' => $request->user()?->id,
                     'full_name' => $legacySubmission->full_name,

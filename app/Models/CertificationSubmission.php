@@ -23,6 +23,7 @@ class CertificationSubmission extends Model
     public $incrementing = false;
 
     protected $fillable = [
+        'id',
         'certification_type',
         'user_id',
         'full_name',
