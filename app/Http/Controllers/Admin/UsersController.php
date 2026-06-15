@@ -2165,7 +2165,7 @@ class UsersController extends Controller
     private function applyOnlyUnityPeerMembershipFilter($query): void
     {
         $query->whereRaw(
-            "LOWER(REPLACE(REPLACE(membership_status, '-', '_'), ' ', '_')) IN (?, ?, ?, ?, ?)",
+            "LOWER(REPLACE(REPLACE(membership_status::text, '-', '_'), ' ', '_')) IN (?, ?, ?, ?, ?)",
             $this->onlyUnityPeerMembershipVariants()
         );
     }
