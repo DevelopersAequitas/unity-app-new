@@ -293,6 +293,18 @@ Route::prefix('v1')->group(function () {
         Route::get('/certifications/{id}/download', [CertificationSubmissionController::class, 'download'])->whereUuid('id');
     });
 
+    Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
+        // Certification approval API examples:
+        // GET /api/v1/admin/certifications
+        // POST /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/approve
+        // Body: {"admin_note": "Certification approved after review."}
+        Route::get('/certifications', [CertificationSubmissionController::class, 'index']);
+        Route::get('/certifications/counts', [CertificationSubmissionController::class, 'counts']);
+        Route::get('/certifications/{id}', [CertificationSubmissionController::class, 'show'])->whereUuid('id');
+        Route::post('/certifications/{id}/approve', [CertificationSubmissionController::class, 'approve'])->whereUuid('id');
+        Route::post('/certifications/{id}/reject', [CertificationSubmissionController::class, 'reject'])->whereUuid('id');
+    });
+
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
@@ -402,17 +414,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/circle-join-requests/{id}/reject-id', [CircleJoinRequestAdminController::class, 'rejectId'])->whereUuid('id');
             Route::post('/impacts/{impact}/approve', [ImpactAdminController::class, 'approve'])->whereUuid('impact');
             Route::post('/impacts/{impact}/reject', [ImpactAdminController::class, 'reject'])->whereUuid('impact');
-
-            // Certification approval API examples:
-            // GET /api/v1/admin/certifications
-            // POST /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/approve
-            // GET /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/download
-            // Body: {"admin_note": "Certification approved after review."}
-            Route::get('/certifications', [CertificationSubmissionController::class, 'index']);
-            Route::get('/certifications/counts', [CertificationSubmissionController::class, 'counts']);
-            Route::get('/certifications/{id}', [CertificationSubmissionController::class, 'show'])->whereUuid('id');
-            Route::post('/certifications/{id}/approve', [CertificationSubmissionController::class, 'approve']);
-            Route::post('/certifications/{id}/reject', [CertificationSubmissionController::class, 'reject'])->whereUuid('id');
 
             Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
             Route::get('/dashboard/revenue', [DashboardController::class, 'revenue']);
