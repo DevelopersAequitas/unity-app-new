@@ -106,7 +106,7 @@
         </div>
 
         <div class="card mb-3">
-            <div class="card-header fw-semibold">F. Event Image</div>
+            <div class="card-header fw-semibold">E. Event Image</div>
             <div class="card-body row g-3">
                 @if($isEdit && !empty($event->banner_url))
                     <div class="col-12"><img src="{{ $event->banner_url }}" alt="Current event banner" class="img-fluid rounded border" style="max-height: 180px;"></div>
@@ -117,7 +117,7 @@
         </div>
 
         <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">G. Event Agenda</span><button type="button" class="btn btn-sm btn-outline-primary" id="addAgendaRow">Add Agenda Row</button></div>
+            <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">F. Event Agenda</span><button type="button" class="btn btn-sm btn-outline-primary" id="addAgendaRow">Add Agenda Row</button></div>
             <div class="card-body" id="agendaRows">
                 @foreach($agendaRows as $index => $row)
                     <div class="row g-2 align-items-end agenda-row mb-2 repeat-row">
@@ -130,7 +130,7 @@
         </div>
 
         <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">H. Featured Speakers</span><button type="button" class="btn btn-sm btn-outline-primary" id="addSpeakerRow">Add Speaker Row</button></div>
+            <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">G. Featured Speakers</span><button type="button" class="btn btn-sm btn-outline-primary" id="addSpeakerRow">Add Speaker Row</button></div>
             <div class="card-body" id="speakerRows">
                 @foreach($speakerRows as $index => $row)
                     <div class="row g-2 align-items-end mb-2 repeat-row">
@@ -146,7 +146,7 @@
         </div>
 
         <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">I. What You'll Gain</span><button type="button" class="btn btn-sm btn-outline-primary" id="addGainRow">Add Gain Row</button></div>
+            <div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">H. What You'll Gain</span><button type="button" class="btn btn-sm btn-outline-primary" id="addGainRow">Add Gain Row</button></div>
             <div class="card-body" id="gainRows">
                 @foreach($gainRows as $index => $gain)
                     <div class="row g-2 align-items-end mb-2 repeat-row"><div class="col-md-11"><label class="form-label">Benefit</label><input class="form-control" name="what_youll_gain[{{ $index }}]" value="{{ $gain }}" placeholder="Network with 100+ curated MSME leaders"></div><div class="col-md-1"><button type="button" class="btn btn-outline-danger w-100 remove-row">Remove</button></div></div>
@@ -155,7 +155,7 @@
         </div>
 
         <div class="card mb-3">
-            <div class="card-header fw-semibold">J. Organizer Details</div>
+            <div class="card-header fw-semibold">I. Organizer Details</div>
             <div class="card-body row g-3">
                 <div class="col-md-3"><label class="form-label">Organizer Name</label><input class="form-control" name="organizer_name" value="{{ old('organizer_name', data_get($organizer, 'name')) }}"></div>
                 <div class="col-md-3"><label class="form-label">Organizer Phone</label><input class="form-control" name="organizer_phone" value="{{ old('organizer_phone', data_get($organizer, 'phone')) }}"></div>
@@ -165,7 +165,7 @@
         </div>
 
         <div class="card mb-3">
-            <div class="card-header fw-semibold">E. Registration & QR Settings</div>
+            <div class="card-header fw-semibold">J. Registration & QR Settings</div>
             <div class="card-body row g-3">
                 <div class="col-md-4"><label class="form-label">Registration Limit</label><input class="form-control" type="number" name="registration_limit" value="{{ old('registration_limit', $event->registration_limit ?? '') }}" placeholder="Leave blank for unlimited"></div>
                 <div class="col-md-4"><label class="form-label">Ticket Price</label><input class="form-control" type="number" step="0.01" name="ticket_price" value="{{ old('ticket_price', $event->ticket_price ?? '') }}"><div class="form-text">Paid events will use Zoho checkout. QR will be generated only after successful payment.</div></div>
