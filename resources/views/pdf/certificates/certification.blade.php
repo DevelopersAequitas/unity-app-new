@@ -21,6 +21,30 @@
             background: #fff7df;
         }
 
+        .screen-actions {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 20;
+        }
+
+        .print-button {
+            border: 0;
+            border-radius: 8px;
+            background: #0B1B3A;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 10px 16px;
+        }
+
+        @media print {
+            .screen-actions {
+                display: none;
+            }
+        }
+
         .certificate-page {
             width: 1122px;
             height: 793px;
@@ -377,6 +401,9 @@
     </style>
 </head>
 <body>
+<div class="screen-actions">
+    <button type="button" class="print-button" onclick="window.print()">Download PDF / Print</button>
+</div>
 @php
     $type = strtolower($submission->certification_type ?? '');
     $title = $type === 'entrepreneur' ? 'Entrepreneur Certification' : 'Leadership Certification';

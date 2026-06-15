@@ -97,8 +97,8 @@
                 <tbody>
                     @forelse ($items as $item)
                         @php
-                            $downloadUrl = ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && ($item->certificate_file_path || $item->certificate_download_url || $item->certificate_number))
-                                ? url('/api/v1/admin/certifications/' . $item->id . '/download')
+                            $downloadUrl = $item->status === \App\Models\CertificationSubmission::STATUS_APPROVED
+                                ? ((is_string($item->certificate_download_url) && str_contains($item->certificate_download_url, '/admin/certificates/') && str_contains($item->certificate_download_url, '/view')) ? $item->certificate_download_url : url('/admin/certificates/' . $item->id . '/view'))
                                 : null;
                         @endphp
                         <tr>
@@ -120,11 +120,11 @@
                                         <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectCertification{{ $item->id }}">Reject</button>
                                     @endif
                                     @if ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && $downloadUrl)
-                                        <a href="{{ $downloadUrl }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Download Certificate</a>
+                                        <a href="{{ $downloadUrl }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Open Certificate</a>
                                     @elseif ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED)
                                         <form method="POST" action="{{ route('admin.certifications.approve', $item->id) }}" class="d-inline">
                                             @csrf
-                                            <button type="submit" class="btn btn-outline-warning">Generate Certificate</button>
+                                            <button type="submit" class="btn btn-outline-warning">Refresh Certificate Link</button>
                                         </form>
                                     @endif
                                 </div>
@@ -146,8 +146,8 @@
 
     @foreach ($items as $item)
         @php
-            $downloadUrl = ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && ($item->certificate_file_path || $item->certificate_download_url || $item->certificate_number))
-                ? url('/api/v1/admin/certifications/' . $item->id . '/download')
+            $downloadUrl = $item->status === \App\Models\CertificationSubmission::STATUS_APPROVED
+                ? ((is_string($item->certificate_download_url) && str_contains($item->certificate_download_url, '/admin/certificates/') && str_contains($item->certificate_download_url, '/view')) ? $item->certificate_download_url : url('/admin/certificates/' . $item->id . '/view'))
                 : null;
         @endphp
         <div class="modal fade" id="viewCertification{{ $item->id }}" tabindex="-1" aria-hidden="true">
@@ -184,7 +184,7 @@
                                     </div>
                                     @if ($downloadUrl)
                                         <a href="{{ $downloadUrl }}" target="_blank" rel="noopener" class="btn btn-primary">
-                                            Download Certificate
+                                            Open Certificate
                                         </a>
                                     @endif
                                 </div>

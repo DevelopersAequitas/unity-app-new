@@ -10,7 +10,7 @@ class GenerateMissingCertificationCertificates extends Command
 {
     protected $signature = 'certifications:generate-missing-certificates {--dry-run : Show records that would be processed without generating files}';
 
-    protected $description = 'Generate missing certificate PDFs and download URLs for approved certification submissions.';
+    protected $description = 'Generate missing certificate numbers and frontend certificate URLs for approved certification submissions.';
 
     public function handle(CertificateGeneratorService $certificateGenerator): int
     {
@@ -18,9 +18,8 @@ class GenerateMissingCertificationCertificates extends Command
             ->where('status', CertificationSubmission::STATUS_APPROVED)
             ->where(function ($query) {
                 $query->whereNull('certificate_number')
-                    ->orWhereNull('certificate_file_path')
                     ->orWhereNull('certificate_download_url')
-                    ->orWhere('certificate_download_url', 'not like', '%/api/v1/admin/certifications/%/download%')
+                    ->orWhere('certificate_download_url', 'not like', '%/admin/certificates/%/view%')
                     ->orWhereNull('certificate_generated_at')
                     ->orWhereNull('issued_at');
             })
@@ -29,7 +28,7 @@ class GenerateMissingCertificationCertificates extends Command
         $total = (clone $query)->count();
 
         if ($this->option('dry-run')) {
-            $this->info("{$total} approved certification submission(s) need certificate generation.");
+            $this->info("{$total} approved certification submission(s) need certificate metadata generation.");
             $query->limit(25)->get(['id', 'full_name', 'email', 'certification_type'])->each(function (CertificationSubmission $submission) {
                 $this->line("{$submission->id} | {$submission->certification_type} | {$submission->full_name} | {$submission->email}");
             });
@@ -43,11 +42,11 @@ class GenerateMissingCertificationCertificates extends Command
             foreach ($submissions as $submission) {
                 $certificateGenerator->ensureCertificate($submission);
                 $processed++;
-                $this->line("Generated certificate for {$submission->id}");
+                $this->line("Generated certificate metadata for {$submission->id}");
             }
         });
 
-        $this->info("Generated or refreshed {$processed} certification certificate(s).");
+        $this->info("Generated or refreshed {$processed} certification certificate metadata record(s).");
 
         return self::SUCCESS;
     }

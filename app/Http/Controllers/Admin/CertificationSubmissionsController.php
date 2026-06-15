@@ -72,6 +72,18 @@ class CertificationSubmissionsController extends Controller
             ->with('success', $message);
     }
 
+    public function certificate(string $id)
+    {
+        $submission = CertificationSubmission::findOrFail($id);
+
+        abort_unless($submission->status === CertificationSubmission::STATUS_APPROVED, 404);
+
+        return view('pdf.certificates.certification', [
+            'submission' => $submission,
+            'logoSrc' => null,
+        ]);
+    }
+
     public function reject(Request $request, string $id)
     {
         $data = $request->validate([

@@ -258,6 +258,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/pending-requests/certifications', [CertificationSubmissionsController::class, 'index'])->name('certifications.index');
         Route::post('/pending-requests/certifications/{id}/approve', [CertificationSubmissionsController::class, 'approve'])->whereUuid('id')->name('certifications.approve');
         Route::post('/pending-requests/certifications/{id}/reject', [CertificationSubmissionsController::class, 'reject'])->whereUuid('id')->name('certifications.reject');
+        Route::get('/certificates/{id}/view', [CertificationSubmissionsController::class, 'certificate'])->whereUuid('id')->name('certifications.certificate');
 
         Route::get('/pending-requests/leads/entrepreneur-certification', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('leads.entrepreneur-certification.index');
         Route::get('/pending-requests/leads/entrepreneur-certification/{id}', [LeadSubmissionsController::class, 'entrepreneurCertificationShow'])->name('leads.entrepreneur-certification.show');
