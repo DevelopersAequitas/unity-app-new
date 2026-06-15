@@ -53,6 +53,7 @@ class UsersController extends Controller
     public function index(Request $request): View
     {
         $this->expireTrialUsersForAdminPanel();
+        $this->normalizeOnlyUnityPeerMembershipStatuses();
 
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
@@ -67,12 +68,8 @@ class UsersController extends Controller
                 return [(string) $user->id => $this->buildJoinedCircleCategoryTrees($memberships)];
             });
 
-        $membershipStatuses = User::query()
-            ->whereNotNull('membership_status')
-            ->distinct()
-            ->pluck('membership_status')
-            ->sort()
-            ->values();
+        $membershipStatuses = $this->adminUserMembershipFilterStatuses();
+        $membershipLabels = $this->adminUserMembershipLabels();
 
         $circlesQuery = Circle::query()->orderBy('name');
         $industryScope = app(IndustryScopeService::class);
@@ -88,6 +85,7 @@ class UsersController extends Controller
         return view('admin.users.index', [
             'users' => $users,
             'membershipStatuses' => $membershipStatuses,
+            'membershipLabels' => $membershipLabels,
             'circles' => $circles,
             'q' => $q,
             'circleId' => $circleId,
@@ -1460,6 +1458,71 @@ class UsersController extends Controller
         return back()->with('success', "Approved {$result['approved_count']} peers as Only Unity Peer. Skipped {$result['skipped_count']} non-eligible peers.");
     }
 
+
+    private function adminUserMembershipFilterStatuses(): array
+    {
+        return [
+            'circle_peer',
+            'multi_circle_peer',
+            'only_unity_peer',
+            User::STATUS_FREE,
+            User::STATUS_FREE_TRIAL,
+        ];
+    }
+
+    private function adminUserMembershipLabels(): array
+    {
+        return [
+            'circle_peer' => 'Circle Peer',
+            'multi_circle_peer' => 'Multi Circle Peer',
+            'only_unity_peer' => 'Only Unity Peer',
+            User::STATUS_FREE => 'Free Peer',
+            User::STATUS_FREE_TRIAL => 'Free Trial Peer',
+        ];
+    }
+
+    private function normalizeMembershipStatusValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $status = trim((string) $value);
+        if ($status === '') {
+            return $status;
+        }
+
+        $normalized = strtolower(str_replace([' ', '-'], '_', $status));
+        $normalized = preg_replace('/_+/', '_', $normalized) ?: $normalized;
+
+        return match ($normalized) {
+            'circle_peer' => 'circle_peer',
+            'multi_circle_peer' => 'multi_circle_peer',
+            'onlyunitypeer', 'only_unity_peer', 'only_unity_peers' => 'only_unity_peer',
+            'free_peer' => User::STATUS_FREE,
+            'free_trial_peer' => User::STATUS_FREE_TRIAL,
+            default => $status,
+        };
+    }
+
+    private function normalizeOnlyUnityPeerMembershipStatuses(): void
+    {
+        try {
+            User::query()
+                ->whereRaw("LOWER(REPLACE(membership_status, ' ', '_')) IN (?, ?, ?)", [
+                    'only_unity_peer',
+                    'only_unity_peers',
+                    'onlyunitypeer',
+                ])
+                ->where('membership_status', '!=', $this->approvedMembershipStatus())
+                ->update(['membership_status' => $this->approvedMembershipStatus()]);
+        } catch (Throwable $exception) {
+            Log::warning('admin.users.membership_status_normalization_failed', [
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
     private function membershipStatuses(): array
     {
         return config('membership.statuses', []);
@@ -1813,7 +1876,7 @@ class UsersController extends Controller
 
         $search = trim((string) $request->query('q', $request->input('search', '')));
         $circleId = (string) $request->query('circle_id', 'all');
-        $membership = $request->input('membership_status');
+        $membership = $this->normalizeMembershipStatusValue($request->input('membership_status'));
         $phone = $request->input('phone');
         $joinedFilter = (string) $request->input('joined_filter', 'all');
         $joinedFrom = (string) $request->input('joined_from', '');
@@ -2043,7 +2106,9 @@ class UsersController extends Controller
         $approvedMembershipStatus = $this->approvedMembershipStatus();
 
         foreach ($users as $user) {
-            if (! in_array((string) $user->membership_status, $eligibleStatuses, true)) {
+            $currentMembershipStatus = $this->normalizeMembershipStatusValue($user->membership_status);
+
+            if (! in_array((string) $currentMembershipStatus, $eligibleStatuses, true)) {
                 $skippedCount++;
                 continue;
             }
@@ -2051,6 +2116,10 @@ class UsersController extends Controller
             $attributes = [
                 'membership_status' => $approvedMembershipStatus,
             ];
+
+            if (Schema::hasColumn('users', 'status')) {
+                $attributes['status'] = 'active';
+            }
 
             if (Schema::hasColumn('users', 'membership_start_date')) {
                 $attributes['membership_start_date'] = $startDate->copy()->toDateString();

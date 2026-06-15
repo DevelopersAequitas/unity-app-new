@@ -1,5 +1,17 @@
 @extends('admin.layouts.app')
 
+@php
+    $membershipLabels = $membershipLabels ?? [
+        'circle_peer' => 'Circle Peer',
+        'multi_circle_peer' => 'Multi Circle Peer',
+        'only_unity_peer' => 'Only Unity Peer',
+        'free_peer' => 'Free Peer',
+        'free_trial_peer' => 'Free Trial Peer',
+    ];
+
+    $formatMembershipLabel = static fn ($membership) => strtoupper($membershipLabels[(string) $membership] ?? str_replace('_', ' ', (string) ($membership ?? 'Free')));
+@endphp
+
 @section('title', 'Peers')
 
 @section('content')
@@ -158,8 +170,10 @@
                     <th>
                         <select name="membership_status" form="usersFiltersForm" class="form-select form-select-sm">
                             <option value="all">All</option>
-                            @foreach ($membershipStatuses as $status)
-                                <option value="{{ $status }}" @selected($filters['membership_status'] === $status)>{{ ucfirst($status) }}</option>
+                            @foreach (array_unique($membershipStatuses instanceof \Illuminate\Support\Collection ? $membershipStatuses->all() : $membershipStatuses) as $status)
+                                <option value="{{ $status }}" @selected($filters['membership_status'] === $status)>
+                                    {{ $membershipLabels[$status] ?? ucwords(str_replace('_', ' ', $status)) }}
+                                </option>
                             @endforeach
                         </select>
                     </th>
@@ -220,7 +234,7 @@
                         </td>
                         <td>{{ $user->phone ?? '—' }}</td>
                         <td>
-                            <span class="badge bg-primary-subtle text-primary text-uppercase">{{ $user->membership_status ?? 'Free' }}</span>
+                            <span class="badge bg-primary-subtle text-primary text-uppercase">{{ $formatMembershipLabel($user->membership_status) }}</span>
                         </td>
                         <td>
                             @if ($canApproveMembership)
