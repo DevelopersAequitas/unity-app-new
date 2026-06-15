@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class EventService
@@ -64,6 +65,8 @@ class EventService
         $timezone = config('app.timezone') ?: 'UTC';
 
 
+        $totalEventsBeforeFilters = Event::query()->count();
+
         $query = EventOccurrence::query()
             ->with(['event.circle', 'event.circles.cityRef', 'registrations' => fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0')])
             ->withCount([
@@ -95,13 +98,29 @@ class EventService
 
         $this->applyValidOccurrenceStatusScope($query);
         $this->applyOccurrenceStatusFilter($query, $status, $timezone);
+        $totalAfterStatusFilters = (clone $query)->count();
 
-        if (! $this->statusFilterControlsDateWindow($status) && ($filters['upcoming'] ?? 'true') !== 'false') {
+        if (! $this->statusFilterControlsDateWindow($status) && ($filters['upcoming'] ?? null) === 'true') {
             $query->where('start_at', '>=', Carbon::now($timezone)->startOfDay());
         }
 
         $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
             ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
+        $totalAfterDateFilters = (clone $query)->count();
+
+        Log::info('api_event_list_query_debug', [
+            'user_id' => $user?->id,
+            'user_circle_id' => $user?->circle_id ?? $user?->active_circle_id ?? null,
+            'user_state' => $user?->state ?? $user?->state_name ?? null,
+            'user_district' => $user?->district ?? $user?->district_name ?? null,
+            'total_events_before_filters' => $totalEventsBeforeFilters,
+            'total_occurrences_after_status_visibility_filters' => $totalAfterStatusFilters,
+            'total_occurrences_after_date_filters' => $totalAfterDateFilters,
+            'event_types_included' => ['circle_meeting', 'global_event', 'state_event', 'public_event', 'public_visitor_event', 'training', 'training_workshop'],
+            'filters' => $filters,
+            'sql' => (clone $query)->toSql(),
+            'bindings' => (clone $query)->getBindings(),
+        ]);
 
         return $query->orderBy('start_at')->paginate($perPage);
     }
@@ -204,7 +223,7 @@ class EventService
 
         $query->where(function (Builder $visibilityQuery) use ($hasEventType, $hasVisibility, $hasIsPublic, $hasCircleId, $memberCircleIds): void {
             if ($hasEventType) {
-                $visibilityQuery->whereIn('event_type', ['global_event', 'public_event']);
+                $visibilityQuery->whereIn('event_type', ['global_event', 'state_event', 'public_event', 'public_visitor_event', 'training', 'training_workshop']);
             }
 
             if ($hasVisibility) {
@@ -221,6 +240,14 @@ class EventService
                 $visibilityQuery->orWhere(function (Builder $circleQuery) use ($memberCircleIds): void {
                     $circleQuery->where('event_type', 'circle_meeting')
                         ->whereIn('circle_id', $memberCircleIds);
+                });
+
+                $visibilityQuery->orWhere(function (Builder $multiCircleQuery) use ($memberCircleIds): void {
+                    $multiCircleQuery->whereIn('event_type', ['global_event', 'state_event'])
+                        ->where(function (Builder $selectedCircleQuery) use ($memberCircleIds): void {
+                            $selectedCircleQuery->whereIn('circle_id', $memberCircleIds)
+                                ->orWhereHas('circles', fn (Builder $eventCircleQuery) => $eventCircleQuery->whereIn('circles.id', $memberCircleIds));
+                        });
                 });
             }
         });
