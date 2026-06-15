@@ -53,7 +53,6 @@ class UsersController extends Controller
     public function index(Request $request): View
     {
         $this->expireTrialUsersForAdminPanel();
-        $this->normalizeOnlyUnityPeerMembershipStatuses();
 
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
@@ -1505,24 +1504,6 @@ class UsersController extends Controller
         };
     }
 
-    private function normalizeOnlyUnityPeerMembershipStatuses(): void
-    {
-        try {
-            User::query()
-                ->whereRaw("LOWER(REPLACE(membership_status, ' ', '_')) IN (?, ?, ?)", [
-                    'only_unity_peer',
-                    'only_unity_peers',
-                    'onlyunitypeer',
-                ])
-                ->where('membership_status', '!=', $this->approvedMembershipStatus())
-                ->update(['membership_status' => $this->approvedMembershipStatus()]);
-        } catch (Throwable $exception) {
-            Log::warning('admin.users.membership_status_normalization_failed', [
-                'error' => $exception->getMessage(),
-            ]);
-        }
-    }
-
     private function membershipStatuses(): array
     {
         return config('membership.statuses', []);
@@ -1990,7 +1971,11 @@ class UsersController extends Controller
         }
 
         if ($membership && $membership !== 'all') {
-            $query->where('membership_status', $membership);
+            if ($membership === $this->approvedMembershipStatus()) {
+                $this->applyOnlyUnityPeerMembershipFilter($query);
+            } else {
+                $query->where('membership_status', $membership);
+            }
         }
 
         if ($phone) {
@@ -2174,6 +2159,26 @@ class UsersController extends Controller
         // Database enum membership_status_enum must include only_unity_peer.
         // Manual SQL: ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'only_unity_peer';
         return 'only_unity_peer';
+    }
+
+
+    private function applyOnlyUnityPeerMembershipFilter($query): void
+    {
+        $query->whereRaw(
+            "LOWER(REPLACE(REPLACE(membership_status, '-', '_'), ' ', '_')) IN (?, ?, ?, ?, ?)",
+            $this->onlyUnityPeerMembershipVariants()
+        );
+    }
+
+    private function onlyUnityPeerMembershipVariants(): array
+    {
+        return [
+            'only_unity_peer',
+            'onlyunitypeer',
+            'only_unity_peers',
+            'only_unity',
+            'unity_peer',
+        ];
     }
 
     private function parseJoinedFilterDate(?string $value): ?Carbon

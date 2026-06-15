@@ -9,7 +9,20 @@
         'free_trial_peer' => 'Free Trial Peer',
     ];
 
-    $formatMembershipLabel = static fn ($membership) => strtoupper($membershipLabels[(string) $membership] ?? str_replace('_', ' ', (string) ($membership ?? 'Free')));
+    $normalizeMembershipLabelKey = static function ($membership) {
+        $normalized = strtolower(str_replace(['-', ' '], '_', (string) ($membership ?? 'Free')));
+        $normalized = preg_replace('/_+/', '_', $normalized) ?: $normalized;
+
+        return in_array($normalized, ['only_unity_peer', 'onlyunitypeer', 'only_unity_peers', 'only_unity', 'unity_peer'], true)
+            ? 'only_unity_peer'
+            : $normalized;
+    };
+
+    $formatMembershipLabel = static function ($membership) use ($membershipLabels, $normalizeMembershipLabelKey) {
+        $labelKey = $normalizeMembershipLabelKey($membership);
+
+        return strtoupper($membershipLabels[$labelKey] ?? str_replace(['_', '-'], ' ', (string) ($membership ?? 'Free')));
+    };
 @endphp
 
 @section('title', 'Peers')
