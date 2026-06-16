@@ -29,6 +29,8 @@ class AppConfigService
                 ->where('id', $row->id)
                 ->first();
 
+            $this->backfillConfigRows((string) $row->id);
+
             return (new AppInstance())->newFromBuilder((array) $row);
         }
 
@@ -36,6 +38,8 @@ class AppConfigService
         DB::table('app_instances')->insert($this->instancePayload($id));
 
         $row = DB::table('app_instances')->where('id', $id)->first();
+
+        $this->backfillConfigRows($id);
 
         return (new AppInstance())->newFromBuilder((array) $row);
     }
@@ -62,6 +66,26 @@ class AppConfigService
 
         if ($updates !== []) {
             DB::table('app_instances')->where('id', $id)->update($updates);
+        }
+    }
+
+    private function backfillConfigRows(string $appInstanceId): void
+    {
+        foreach ([
+            'app_config_settings',
+            'app_labels',
+            'app_features',
+            'app_navigation_items',
+            'app_dashboard_widgets',
+            'app_social_links',
+        ] as $table) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'app_instance_id')) {
+                continue;
+            }
+
+            DB::table($table)
+                ->whereNull('app_instance_id')
+                ->update(['app_instance_id' => $appInstanceId]);
         }
     }
 

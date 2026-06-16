@@ -20,7 +20,7 @@ use Throwable;
 
 class AppConfigController extends Controller
 {
-    public const CACHE_KEY = 'greenpreneur_app_config.v1';
+    public const CACHE_KEY = 'greenpreneur_app_config.v2';
 
     public function show(AppConfigService $appConfigService): JsonResponse
     {
@@ -76,7 +76,11 @@ class AppConfigController extends Controller
             ->map(fn ($value) => (bool) $value)
             ->all() ?: self::defaultFeatures();
 
-        $enabledFeatureKeys = array_keys(array_filter($features));
+        $enabledFeatureKeys = AppFeature::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->where('is_enabled', true)
+            ->pluck('feature_key')
+            ->toArray() ?: array_keys(array_filter($features));
 
         return [
             'app_info' => $branding ? collect($branding)->only([
@@ -120,7 +124,7 @@ class AppConfigController extends Controller
 
     private static function navigationMenu(string $appInstanceId, array $enabledFeatureKeys): array
     {
-        $navigation = AppNavigationItem::query()
+        $navigationItems = AppNavigationItem::query()
             ->where('app_instance_id', $appInstanceId)
             ->where('is_enabled', true)
             ->where(function ($query) use ($enabledFeatureKeys) {
@@ -128,26 +132,31 @@ class AppConfigController extends Controller
                     ->orWhereIn('feature_key', $enabledFeatureKeys);
             })
             ->orderBy('sort_order')
-            ->get()
-            ->groupBy('menu_type')
-            ->map(fn ($items) => $items->values()->map(fn ($item) => collect($item)->only([
-                'id',
-                'item_key',
-                'label_key',
-                'display_label',
-                'icon',
-                'route_name',
-                'feature_key',
-                'sort_order',
-            ])->all())->all())
-            ->all();
+            ->get();
 
-        return array_merge([
-            'bottom_nav' => [],
-            'drawer' => [],
-            'plus_menu' => [],
-            'impact_menu' => [],
-        ], $navigation);
+        $navigationGrouped = $navigationItems->groupBy('menu_type');
+
+        return [
+            'bottom_nav' => self::formatNavigationItems($navigationGrouped->get('bottom_nav', collect())),
+            'drawer' => self::formatNavigationItems($navigationGrouped->get('drawer', collect())),
+            'plus_menu' => self::formatNavigationItems($navigationGrouped->get('plus_menu', collect())),
+            'impact_menu' => self::formatNavigationItems($navigationGrouped->get('impact_menu', collect())),
+        ];
+    }
+
+    private static function formatNavigationItems($items): array
+    {
+        return $items->values()
+            ->map(fn ($item) => [
+                'key' => $item->item_key,
+                'label_key' => $item->label_key,
+                'label' => $item->display_label,
+                'icon' => $item->icon,
+                'route_name' => $item->route_name,
+                'feature_key' => $item->feature_key,
+                'order' => $item->sort_order,
+            ])
+            ->toArray();
     }
 
 
