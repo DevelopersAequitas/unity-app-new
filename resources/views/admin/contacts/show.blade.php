@@ -5,11 +5,29 @@
 @section('content')
 @push('styles')
     <style>
+        .detail-section {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 16px;
+        }
+
+        .detail-group {
+            margin-top: 18px;
+        }
+
+        .detail-group h4 {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
         .detail-line {
             display: flex;
             gap: 8px;
             padding: 8px 0;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #eef0f3;
             line-height: 1.5;
         }
 
@@ -18,8 +36,8 @@
         }
 
         .detail-line strong {
+            min-width: 110px;
             font-weight: 600;
-            min-width: 90px;
             color: #111827;
         }
 
@@ -154,62 +172,49 @@
     </div>
 </div>
 
-<div class="card p-4">
-    <h2 class="h6 mb-3">Additional Contact Details</h2>
-    <div class="row g-3">
-        <div class="col-12 col-xl-4">
-            <div class="p-3 rounded border bg-white h-100">
-                <h3 class="h6 mb-3">Email Details</h3>
-                @if ($emailDetails === [])
-                    <p class="text-muted mb-0">No email details available.</p>
-                @else
-                    <div class="d-flex flex-column">
-                        @foreach ($emailDetails as $emailDetail)
-                            <div class="detail-line">
-                                <strong class="flex-shrink-0">{{ $emailDetail['type'] }}:</strong>
-                                <a class="text-break" href="mailto:{{ $emailDetail['value'] }}">{{ $emailDetail['value'] }}</a>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-        </div>
+<section class="detail-section">
+    <h2 class="h6 mb-0">Additional Contact Details</h2>
 
-        <div class="col-12 col-xl-4">
-            <div class="p-3 rounded border bg-white h-100">
-                <h3 class="h6 mb-3">Phone Details</h3>
-                @if ($phoneDetails === [])
-                    <p class="text-muted mb-0">No phone details available.</p>
-                @else
-                    <div class="d-flex flex-column">
-                        @foreach ($phoneDetails as $phoneDetail)
-                            <div class="detail-line">
-                                <strong class="flex-shrink-0">{{ $phoneDetail['type'] }}:</strong>
-                                <span class="text-break">{{ $phoneDetail['value'] }}</span>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-        </div>
-
-        <div class="col-12 col-xl-4">
-            <div class="p-3 rounded border bg-white h-100">
-                <h3 class="h6 mb-3">Address Details</h3>
-                @if ($addressDetails === [])
-                    <p class="text-muted mb-0">No address details available.</p>
-                @else
-                    <div class="d-flex flex-column">
-                        @foreach ($addressDetails as $addressDetail)
-                            <div class="detail-line">
-                                <strong class="flex-shrink-0">{{ $addressDetail['type'] }}:</strong>
-                                <span class="text-break">{{ $addressDetail['value'] }}</span>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-        </div>
+    <div class="detail-group">
+        <h4>Email Details</h4>
+        @if ($emailDetails === [])
+            <p class="text-muted mb-0">No email details available.</p>
+        @else
+            @foreach ($emailDetails as $emailDetail)
+                <div class="detail-line">
+                    <strong>{{ $emailDetail['type'] }}:</strong>
+                    <a href="mailto:{{ $emailDetail['value'] }}">{{ $emailDetail['value'] }}</a>
+                </div>
+            @endforeach
+        @endif
     </div>
-</div>
+
+    <div class="detail-group">
+        <h4>Phone Details</h4>
+        @if ($phoneDetails === [])
+            <p class="text-muted mb-0">No phone details available.</p>
+        @else
+            @foreach ($phoneDetails as $phoneDetail)
+                <div class="detail-line">
+                    <strong>{{ $phoneDetail['type'] }}:</strong>
+                    <span>{{ $phoneDetail['value'] }}</span>
+                </div>
+            @endforeach
+        @endif
+    </div>
+
+    <div class="detail-group">
+        <h4>Address Details</h4>
+        @if ($addressDetails === [])
+            <p class="text-muted mb-0">No address details available.</p>
+        @else
+            @foreach ($addressDetails as $addressDetail)
+                <div class="detail-line">
+                    <strong>{{ $addressDetail['type'] }}:</strong>
+                    <span>{{ $addressDetail['value'] }}</span>
+                </div>
+            @endforeach
+        @endif
+    </div>
+</section>
 @endsection

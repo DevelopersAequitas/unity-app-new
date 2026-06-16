@@ -26,7 +26,7 @@
     <form method="GET" action="{{ route('admin.contacts.index') }}" class="row g-3 align-items-end">
         <div class="col-12 col-xl-3">
             <label for="search" class="form-label">Search</label>
-            <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" class="form-control" placeholder="Search Name / Email / Phone / Company">
+            <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" class="form-control" placeholder="Name/Email/Phone/Company">
         </div>
         <div class="col-sm-6 col-xl-2">
             <label for="company" class="form-label">Company</label>
@@ -75,25 +75,25 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th class="ps-3">Name</th>
-                    <th>Email</th>
+                    <th class="ps-3" style="width: 42px;"><input type="checkbox" class="form-check-input" aria-label="Select all contacts"></th>
+                    <th>Contact Name</th>
                     <th>Phone</th>
                     <th style="min-width: 180px;">Company</th>
                     <th style="min-width: 180px;">Job Title</th>
-                    <th>Nickname</th>
+                    <th>Email</th>
                     <th>Date</th>
-                    <th class="text-end pe-3">Action</th>
+                    <th class="text-end pe-3">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($contactPosts as $contactPost)
                     <tr>
-                        <td class="ps-3 fw-semibold">{{ $contactPost->full_name ?: trim(collect([$contactPost->first_name, $contactPost->middle_name, $contactPost->last_name])->filter()->implode(' ')) ?: '—' }}</td>
-                        <td>{{ $contactPost->email ?: '—' }}</td>
+                        <td class="ps-3"><input type="checkbox" class="form-check-input" aria-label="Select contact {{ $contactPost->full_name ?: $contactPost->email ?: $contactPost->id }}"></td>
+                        <td class="fw-semibold">{{ $contactPost->full_name ?: trim(collect([$contactPost->first_name, $contactPost->middle_name, $contactPost->last_name])->filter()->implode(' ')) ?: '—' }}</td>
                         <td>{{ $contactPost->phone ?: '—' }}</td>
                         <td class="text-wrap">{{ $contactPost->company ?: '—' }}</td>
                         <td class="text-wrap">{{ $contactPost->job_title ?: '—' }}</td>
-                        <td>{{ $contactPost->nickname ?: '—' }}</td>
+                        <td class="text-break">{{ $contactPost->email ?: '—' }}</td>
                         <td>{{ optional($contactPost->created_at)->format('d M Y, h:i A') ?: '—' }}</td>
                         <td class="text-end pe-3">
                             <a href="{{ route('admin.contacts.show', $contactPost->id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
