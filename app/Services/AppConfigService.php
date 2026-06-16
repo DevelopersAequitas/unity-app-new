@@ -29,7 +29,7 @@ class AppConfigService
                 ->where('id', $row->id)
                 ->first();
 
-            return AppInstance::query()->newFromBuilder((array) $row);
+            return (new AppInstance())->newFromBuilder((array) $row);
         }
 
         $id = (string) Str::uuid();
@@ -37,7 +37,7 @@ class AppConfigService
 
         $row = DB::table('app_instances')->where('id', $id)->first();
 
-        return AppInstance::query()->newFromBuilder((array) $row);
+        return (new AppInstance())->newFromBuilder((array) $row);
     }
 
     private function activateExistingInstance(string $id, object $row): void

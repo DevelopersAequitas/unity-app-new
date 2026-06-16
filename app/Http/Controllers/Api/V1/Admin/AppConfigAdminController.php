@@ -23,15 +23,50 @@ class AppConfigAdminController extends Controller
     {
         $appInstanceId = $this->appInstanceId();
 
+        $branding = AppConfigSetting::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->latest('updated_at')
+            ->first();
+
         return $this->ok([
-            'branding' => AppConfigSetting::query()->where('app_instance_id', $appInstanceId)->first(),
-            'labels' => AppLabel::query()->where('app_instance_id', $appInstanceId)->orderBy('label_key')->get(),
-            'features' => AppFeature::query()->where('app_instance_id', $appInstanceId)->orderBy('sort_order')->get(),
-            'navigation' => AppNavigationItem::query()->where('app_instance_id', $appInstanceId)->orderBy('menu_type')->orderBy('sort_order')->get(),
-            'dashboard_widgets' => AppDashboardWidget::query()->where('app_instance_id', $appInstanceId)->orderBy('sort_order')->get(),
-            'social_links' => AppSocialLink::query()->where('app_instance_id', $appInstanceId)->orderBy('sort_order')->get(),
-            'membership_labels' => AppMembershipLabel::query()->orderBy('membership_key')->get(),
-        ], 'App configuration fetched successfully.');
+            'branding' => $branding?->toArray() ?? [],
+            'labels' => AppLabel::query()
+                ->where('app_instance_id', $appInstanceId)
+                ->orderBy('label_key')
+                ->get()
+                ->values()
+                ->toArray(),
+            'features' => AppFeature::query()
+                ->where('app_instance_id', $appInstanceId)
+                ->orderBy('sort_order')
+                ->get()
+                ->values()
+                ->toArray(),
+            'navigation_items' => AppNavigationItem::query()
+                ->where('app_instance_id', $appInstanceId)
+                ->orderBy('menu_type')
+                ->orderBy('sort_order')
+                ->get()
+                ->values()
+                ->toArray(),
+            'dashboard_widgets' => AppDashboardWidget::query()
+                ->where('app_instance_id', $appInstanceId)
+                ->orderBy('sort_order')
+                ->get()
+                ->values()
+                ->toArray(),
+            'social_links' => AppSocialLink::query()
+                ->where('app_instance_id', $appInstanceId)
+                ->orderBy('sort_order')
+                ->get()
+                ->values()
+                ->toArray(),
+            'membership_labels' => AppMembershipLabel::query()
+                ->orderBy('membership_key')
+                ->get()
+                ->values()
+                ->toArray(),
+        ], 'Admin app configuration fetched successfully.');
     }
 
     public function updateBranding(Request $request): JsonResponse
