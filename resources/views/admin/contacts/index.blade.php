@@ -59,6 +59,7 @@
             <select id="date_preset" name="date_preset" class="form-select">
                 <option value="">Any</option>
                 <option value="today" @selected(($filters['date_preset'] ?? '') === 'today')>Today</option>
+                <option value="this_week" @selected(($filters['date_preset'] ?? '') === 'this_week')>This Week</option>
                 <option value="this_month" @selected(($filters['date_preset'] ?? '') === 'this_month')>This Month</option>
             </select>
         </div>

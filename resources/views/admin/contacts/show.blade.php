@@ -3,6 +3,33 @@
 @section('title', 'Contact Detail')
 
 @section('content')
+@push('styles')
+    <style>
+        .detail-line {
+            display: flex;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+            line-height: 1.5;
+        }
+
+        .detail-line:last-child {
+            border-bottom: none;
+        }
+
+        .detail-line strong {
+            font-weight: 600;
+            min-width: 90px;
+            color: #111827;
+        }
+
+        .detail-line span,
+        .detail-line a {
+            color: #374151;
+            word-break: break-word;
+        }
+    </style>
+@endpush
 @php
     $displayValue = fn ($value) => filled($value) ? $value : '—';
     $formatType = fn ($type, $fallback = 'Other') => filled($type)
@@ -138,7 +165,7 @@
                 @else
                     <div class="d-flex flex-column">
                         @foreach ($emailDetails as $emailDetail)
-                            <div class="d-flex gap-2 py-2 @unless($loop->last) border-bottom @endunless">
+                            <div class="detail-line">
                                 <strong class="flex-shrink-0">{{ $emailDetail['type'] }}:</strong>
                                 <a class="text-break" href="mailto:{{ $emailDetail['value'] }}">{{ $emailDetail['value'] }}</a>
                             </div>
@@ -156,7 +183,7 @@
                 @else
                     <div class="d-flex flex-column">
                         @foreach ($phoneDetails as $phoneDetail)
-                            <div class="d-flex gap-2 py-2 @unless($loop->last) border-bottom @endunless">
+                            <div class="detail-line">
                                 <strong class="flex-shrink-0">{{ $phoneDetail['type'] }}:</strong>
                                 <span class="text-break">{{ $phoneDetail['value'] }}</span>
                             </div>
@@ -174,7 +201,7 @@
                 @else
                     <div class="d-flex flex-column">
                         @foreach ($addressDetails as $addressDetail)
-                            <div class="d-flex gap-2 py-2 @unless($loop->last) border-bottom @endunless">
+                            <div class="detail-line">
                                 <strong class="flex-shrink-0">{{ $addressDetail['type'] }}:</strong>
                                 <span class="text-break">{{ $addressDetail['value'] }}</span>
                             </div>

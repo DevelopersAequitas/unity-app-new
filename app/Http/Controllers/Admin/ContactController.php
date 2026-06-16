@@ -207,15 +207,21 @@ class ContactController extends Controller
                         'company',
                         'job_title',
                         'nickname',
+                        'notes',
                     ] as $field) {
-                        $query->orWhere($field, 'like', "%{$search}%");
+                        $query->orWhere($field, 'ILIKE', "%{$search}%");
+                    }
+
+                    foreach (['emails', 'phones', 'addresses'] as $jsonField) {
+                        $query->orWhereRaw("{$jsonField}::text ILIKE ?", ["%{$search}%"]);
                     }
                 });
             })
             ->when($filters['company'] ?? null, fn ($query, string $company) => $query->where('company', $company))
             ->when($filters['job_title'] ?? null, fn ($query, string $jobTitle) => $query->where('job_title', $jobTitle))
             ->when(($filters['date_preset'] ?? null) === 'today', fn ($query) => $query->whereDate('created_at', now()->toDateString()))
-            ->when(($filters['date_preset'] ?? null) === 'this_month', fn ($query) => $query->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()]))
+            ->when(($filters['date_preset'] ?? null) === 'this_week', fn ($query) => $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]))
+            ->when(($filters['date_preset'] ?? null) === 'this_month', fn ($query) => $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year))
             ->when($filters['from_date'] ?? null, fn ($query, string $fromDate) => $query->whereDate('created_at', '>=', $fromDate))
             ->when($filters['to_date'] ?? null, fn ($query, string $toDate) => $query->whereDate('created_at', '<=', $toDate));
     }
