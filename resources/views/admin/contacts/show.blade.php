@@ -136,18 +136,13 @@
                 @if ($emailDetails === [])
                     <p class="text-muted mb-0">No email details available.</p>
                 @else
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead class="table-light"><tr><th>Type</th><th>Email</th></tr></thead>
-                            <tbody>
-                                @foreach ($emailDetails as $emailDetail)
-                                    <tr>
-                                        <td>{{ $emailDetail['type'] }}</td>
-                                        <td><a href="mailto:{{ $emailDetail['value'] }}">{{ $emailDetail['value'] }}</a></td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                    <div class="d-flex flex-column">
+                        @foreach ($emailDetails as $emailDetail)
+                            <div class="d-flex gap-2 py-2 @unless($loop->last) border-bottom @endunless">
+                                <strong class="flex-shrink-0">{{ $emailDetail['type'] }}:</strong>
+                                <a class="text-break" href="mailto:{{ $emailDetail['value'] }}">{{ $emailDetail['value'] }}</a>
+                            </div>
+                        @endforeach
                     </div>
                 @endif
             </div>
@@ -159,18 +154,13 @@
                 @if ($phoneDetails === [])
                     <p class="text-muted mb-0">No phone details available.</p>
                 @else
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead class="table-light"><tr><th>Type</th><th>Phone Number</th></tr></thead>
-                            <tbody>
-                                @foreach ($phoneDetails as $phoneDetail)
-                                    <tr>
-                                        <td>{{ $phoneDetail['type'] }}</td>
-                                        <td>{{ $phoneDetail['value'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                    <div class="d-flex flex-column">
+                        @foreach ($phoneDetails as $phoneDetail)
+                            <div class="d-flex gap-2 py-2 @unless($loop->last) border-bottom @endunless">
+                                <strong class="flex-shrink-0">{{ $phoneDetail['type'] }}:</strong>
+                                <span class="text-break">{{ $phoneDetail['value'] }}</span>
+                            </div>
+                        @endforeach
                     </div>
                 @endif
             </div>
@@ -182,18 +172,13 @@
                 @if ($addressDetails === [])
                     <p class="text-muted mb-0">No address details available.</p>
                 @else
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead class="table-light"><tr><th>Type</th><th>Address</th></tr></thead>
-                            <tbody>
-                                @foreach ($addressDetails as $addressDetail)
-                                    <tr>
-                                        <td>{{ $addressDetail['type'] }}</td>
-                                        <td>{{ $addressDetail['value'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                    <div class="d-flex flex-column">
+                        @foreach ($addressDetails as $addressDetail)
+                            <div class="d-flex gap-2 py-2 @unless($loop->last) border-bottom @endunless">
+                                <strong class="flex-shrink-0">{{ $addressDetail['type'] }}:</strong>
+                                <span class="text-break">{{ $addressDetail['value'] }}</span>
+                            </div>
+                        @endforeach
                     </div>
                 @endif
             </div>

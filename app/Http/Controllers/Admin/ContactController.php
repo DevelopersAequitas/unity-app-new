@@ -50,7 +50,7 @@ class ContactController extends Controller
         return view('admin.contacts.import');
     }
 
-    public function storeImport(Request $request): RedirectResponse
+    public function importStore(Request $request): RedirectResponse
     {
         $request->validate([
             'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
