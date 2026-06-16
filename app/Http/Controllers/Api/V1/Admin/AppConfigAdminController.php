@@ -229,17 +229,29 @@ class AppConfigAdminController extends Controller
     public function updateSocialLink(Request $request, string $platform): JsonResponse
     {
         $data = $request->validate([
-            'display_name' => 'sometimes|required|string|max:255',
-            'url' => 'nullable|url',
-            'icon' => 'nullable|string|max:100',
-            'is_enabled' => 'sometimes|required|boolean',
-            'sort_order' => 'sometimes|required|integer',
+            'display_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'url' => ['sometimes', 'nullable', 'url'],
+            'icon' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'is_enabled' => ['sometimes', 'required', 'boolean'],
+            'sort_order' => ['sometimes', 'required', 'integer', 'min:0'],
         ]);
-        $model = AppSocialLink::query()
-            ->where('app_instance_id', $this->appInstanceId())
+
+        $appInstanceId = $this->appInstanceId();
+        $existing = AppSocialLink::query()
+            ->where('app_instance_id', $appInstanceId)
             ->where('platform', $platform)
-            ->firstOrFail();
-        $model->update($data);
+            ->first();
+
+        $model = AppSocialLink::query()->updateOrCreate(
+            ['app_instance_id' => $appInstanceId, 'platform' => $platform],
+            [
+                'display_name' => $data['display_name'] ?? $existing?->display_name ?? str($platform)->replace('_', ' ')->title()->toString(),
+                'url' => array_key_exists('url', $data) ? $data['url'] : $existing?->url,
+                'icon' => array_key_exists('icon', $data) ? $data['icon'] : ($existing?->icon ?? $platform),
+                'is_enabled' => array_key_exists('is_enabled', $data) ? $request->boolean('is_enabled') : ($existing?->is_enabled ?? true),
+                'sort_order' => $data['sort_order'] ?? $existing?->sort_order ?? 0,
+            ]
+        );
 
         return $this->changed($model, 'Social link updated successfully.');
     }

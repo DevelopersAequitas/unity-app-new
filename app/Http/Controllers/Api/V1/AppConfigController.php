@@ -115,7 +115,6 @@ class AppConfigController extends Controller
             'membership_labels' => self::membershipLabels(),
             'social_links' => AppSocialLink::query()
                 ->where('app_instance_id', $appInstanceId)
-                ->where('is_enabled', true)
                 ->orderBy('sort_order')
                 ->pluck('url', 'platform')
                 ->all() ?: self::defaultSocialLinks(),
@@ -237,6 +236,7 @@ class AppConfigController extends Controller
             'linkedin' => 'https://linkedin.com/company/greenpreneur',
             'instagram' => 'https://instagram.com/greenpreneur',
             'facebook' => 'https://facebook.com/greenpreneur',
+            'youtube' => null,
             'website' => 'https://greenpreneur.in',
         ];
     }
