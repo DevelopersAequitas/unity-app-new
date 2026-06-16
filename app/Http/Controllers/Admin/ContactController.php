@@ -46,9 +46,14 @@ class ContactController extends Controller
         ]);
     }
 
-    public function import(): View
+    public function import(Request $request): View
     {
-        return view('admin.contacts.import');
+        $defaultUserId = trim((string) $request->query('user_id', ''));
+        $defaultUserId = $defaultUserId !== '' && User::query()->whereKey($defaultUserId)->exists() ? $defaultUserId : null;
+
+        return view('admin.contacts.import', [
+            'defaultUserId' => $defaultUserId,
+        ]);
     }
 
     public function importStore(Request $request): RedirectResponse
@@ -56,6 +61,11 @@ class ContactController extends Controller
         $request->validate([
             'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
         ]);
+
+        $defaultUserId = trim((string) $request->input('default_user_id', ''));
+        if ($defaultUserId !== '' && ! User::query()->whereKey($defaultUserId)->exists()) {
+            return back()->withErrors(['csv_file' => 'Default user_id must be a valid user ID.'])->withInput();
+        }
 
         $path = $request->file('csv_file')->getRealPath();
         $handle = fopen($path, 'rb');
@@ -113,6 +123,9 @@ class ContactController extends Controller
             $payload['full_name'] = $fullName;
             $payload['email'] = $email !== '' ? $email : null;
             $userId = trim((string) ($rowData['user_id'] ?? ''));
+            if ($userId === '' && $defaultUserId !== '') {
+                $userId = $defaultUserId;
+            }
             if ($userId !== '' && ! User::query()->whereKey($userId)->exists()) {
                 fclose($handle);
                 return back()->withErrors(['csv_file' => "Row {$rowNumber}: user_id must be a valid user ID."])->withInput();
@@ -275,6 +288,56 @@ class ContactController extends Controller
                     }
                 });
 
+            fclose($output);
+        }, $fileName, ['Content-Type' => 'text/csv']);
+    }
+
+
+    public function exportSelected(Request $request, string $userId): StreamedResponse
+    {
+        $validated = $request->validate([
+            'selected_ids' => ['required', 'array', 'min:1'],
+            'selected_ids.*' => ['required', 'string'],
+        ]);
+
+        $selectedIds = array_values(array_unique($validated['selected_ids']));
+        $contacts = ContactPost::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $selectedIds)
+            ->latest('created_at')
+            ->get();
+
+        if ($contacts->count() !== count($selectedIds)) {
+            abort(422, 'Selected contacts must exist and belong to the selected user.');
+        }
+
+        $columns = [
+            'id',
+            'user_id',
+            'full_name',
+            'first_name',
+            'middle_name',
+            'last_name',
+            'email',
+            'phone',
+            'company',
+            'job_title',
+            'nickname',
+            'notes',
+            'emails',
+            'phones',
+            'addresses',
+            'created_at',
+            'updated_at',
+        ];
+        $fileName = 'selected-user-contacts-'.$userId.'.csv';
+
+        return response()->streamDownload(function () use ($columns, $contacts): void {
+            $output = fopen('php://output', 'wb');
+            fputcsv($output, $columns);
+            foreach ($contacts as $contact) {
+                fputcsv($output, $this->contactCsvRow($contact, $columns));
+            }
             fclose($output);
         }, $fileName, ['Content-Type' => 'text/csv']);
     }

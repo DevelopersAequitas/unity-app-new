@@ -24,6 +24,10 @@
 <div class="card p-4">
     <form method="POST" action="{{ route('admin.contacts.import.store') }}" enctype="multipart/form-data">
         @csrf
+        @if (! empty($defaultUserId))
+            <input type="hidden" name="default_user_id" value="{{ $defaultUserId }}">
+            <div class="alert alert-info">Records without a CSV user_id will be assigned to selected user ID: {{ $defaultUserId }}</div>
+        @endif
         <div class="mb-3">
             <label for="csv_file" class="form-label">CSV File</label>
             <input type="file" id="csv_file" name="csv_file" class="form-control" accept=".csv,text/csv" required>

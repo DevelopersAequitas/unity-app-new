@@ -10,8 +10,10 @@
     </div>
     <div class="d-flex flex-wrap gap-2 justify-content-end">
         <a href="{{ route('admin.contacts.index') }}" class="btn btn-outline-secondary">Back to Contacts</a>
-        <a href="{{ route('admin.contacts.import') }}" class="btn btn-primary">Import CSV</a>
+        <a href="{{ route('admin.contacts.import', ['user_id' => $userId]) }}" class="btn btn-primary">Import CSV</a>
         <a href="{{ route('admin.contacts.user-details.export', array_merge(['user_id' => $userId], request()->query())) }}" class="btn btn-outline-primary">Export CSV</a>
+        <button type="submit" form="selected-export-form" id="export-selected-btn" class="btn btn-outline-success" disabled>Export Selected CSV</button>
+        <span id="selected-count" class="align-self-center text-muted small">Selected: 0</span>
     </div>
 </div>
 
@@ -90,12 +92,15 @@
     </form>
 </div>
 
-<div class="card p-0 overflow-hidden">
+<form method="POST" action="{{ route('admin.contacts.user-details.export-selected', $userId) }}" id="selected-export-form">
+    @csrf
+    <div class="card p-0 overflow-hidden">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th class="ps-3">Contact Name</th>
+                    <th class="ps-3" style="width: 42px;"><input type="checkbox" id="select-all-contacts" class="form-check-input" aria-label="Select all visible contacts"></th>
+                    <th>Contact Name</th>
                     <th>Phone</th>
                     <th>Email</th>
                     <th style="min-width: 180px;">Company</th>
@@ -108,7 +113,8 @@
             <tbody>
                 @forelse ($contacts as $contact)
                     <tr>
-                        <td class="ps-3 fw-semibold">{{ $contact->full_name ?: trim(collect([$contact->first_name, $contact->middle_name, $contact->last_name])->filter()->implode(' ')) ?: '—' }}</td>
+                        <td class="ps-3"><input type="checkbox" name="selected_ids[]" value="{{ $contact->id }}" class="form-check-input contact-checkbox" aria-label="Select contact {{ $contact->full_name ?: $contact->email ?: $contact->id }}"></td>
+                        <td class="fw-semibold">{{ $contact->full_name ?: trim(collect([$contact->first_name, $contact->middle_name, $contact->last_name])->filter()->implode(' ')) ?: '—' }}</td>
                         <td>{{ $contact->phone ?: '—' }}</td>
                         <td class="text-break">{{ $contact->email ?: '—' }}</td>
                         <td class="text-wrap">{{ $contact->company ?: '—' }}</td>
@@ -121,7 +127,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">No contacts found for this user.</td>
+                        <td colspan="9" class="text-center text-muted py-4">No contacts found for this user.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -130,5 +136,43 @@
     <div class="p-3 border-top">
         {{ $contacts->links() }}
     </div>
-</div>
+    </div>
+</form>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const checkboxes = Array.from(document.querySelectorAll('.contact-checkbox'));
+        const selectAll = document.getElementById('select-all-contacts');
+        const exportBtn = document.getElementById('export-selected-btn');
+        const selectedCount = document.getElementById('selected-count');
+
+        const updateSelectionState = () => {
+            const selected = checkboxes.filter((checkbox) => checkbox.checked).length;
+            if (exportBtn) {
+                exportBtn.disabled = selected === 0;
+            }
+            if (selectedCount) {
+                selectedCount.textContent = `Selected: ${selected}`;
+            }
+            if (selectAll) {
+                selectAll.checked = checkboxes.length > 0 && selected === checkboxes.length;
+                selectAll.indeterminate = selected > 0 && selected < checkboxes.length;
+            }
+        };
+
+        if (selectAll) {
+            selectAll.addEventListener('change', () => {
+                checkboxes.forEach((checkbox) => {
+                    checkbox.checked = selectAll.checked;
+                });
+                updateSelectionState();
+            });
+        }
+
+        checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateSelectionState));
+        updateSelectionState();
+    });
+</script>
+@endpush
