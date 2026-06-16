@@ -22,7 +22,7 @@ class AppConfigController extends Controller
 {
     public const CACHE_KEY = 'greenpreneur_app_config.v2';
 
-    public function show(AppConfigService $appConfigService): JsonResponse
+    public function publicConfig(AppConfigService $appConfigService): JsonResponse
     {
         try {
             $appInstance = $appConfigService->getGreenpreneurAppInstance();
@@ -148,13 +148,13 @@ class AppConfigController extends Controller
     {
         return $items->values()
             ->map(fn ($item) => [
-                'key' => $item->item_key,
+                'key' => $item->item_key ?? $item->nav_key ?? $item->v_key,
                 'label_key' => $item->label_key,
-                'label' => $item->display_label,
+                'label' => $item->display_label ?? $item->nav_label ?? $item->v_label,
                 'icon' => $item->icon,
                 'route_name' => $item->route_name,
                 'feature_key' => $item->feature_key,
-                'order' => $item->sort_order,
+                'order' => $item->sort_order ?? $item->position,
             ])
             ->toArray();
     }

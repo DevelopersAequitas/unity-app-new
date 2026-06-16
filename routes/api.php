@@ -120,7 +120,7 @@ use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-    Route::get('/app/config', [AppConfigController::class, 'show']);
+    Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::prefix('scan-app')->group(function () {
         Route::post('/login', [ScanAppAuthController::class, 'login']);
 
@@ -411,13 +411,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
             Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
 
-            Route::get('/app-config', [AppConfigAdminController::class, 'index']);
+            Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
             Route::put('/app-config/labels', [AppConfigAdminController::class, 'bulkUpdateLabels']);
             Route::put('/app-config/labels/{label_key}', [AppConfigAdminController::class, 'updateLabel']);
             Route::put('/app-config/features', [AppConfigAdminController::class, 'bulkUpdateFeatures']);
             Route::put('/app-config/features/{feature_key}', [AppConfigAdminController::class, 'updateFeature']);
-            Route::put('/app-config/navigation/{id}', [AppConfigAdminController::class, 'updateNavigation'])->whereUuid('id');
+            Route::post('/app-config/navigation', [AppConfigAdminController::class, 'createNavigationItem']);
+            Route::put('/app-config/navigation/{id}', [AppConfigAdminController::class, 'updateNavigationItem'])->whereUuid('id');
+            Route::delete('/app-config/navigation/{id}', [AppConfigAdminController::class, 'deleteNavigationItem'])->whereUuid('id');
             Route::put('/app-config/dashboard-widgets/{widget_key}', [AppConfigAdminController::class, 'updateDashboardWidget']);
             Route::put('/app-config/social-links/{platform}', [AppConfigAdminController::class, 'updateSocialLink']);
             Route::put('/app-config/membership-labels/{membership_key}', [AppConfigAdminController::class, 'updateMembershipLabel']);

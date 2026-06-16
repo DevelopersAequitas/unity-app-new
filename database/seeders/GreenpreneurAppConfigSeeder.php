@@ -138,12 +138,17 @@ class GreenpreneurAppConfigSeeder extends Seeder
             AppNavigationItem::query()->updateOrCreate(
                 ['app_instance_id' => $appInstanceId, 'menu_type' => $type, 'item_key' => $key],
                 [
+                    'nav_key' => $key,
+                    'nav_label' => $label,
+                    'v_key' => $key,
+                    'v_label' => $label,
                     'label_key' => $labelKey,
                     'display_label' => $label,
                     'icon' => $icon,
                     'route_name' => $routeName,
                     'feature_key' => $featureKey,
                     'is_enabled' => $enabled,
+                    'position' => $sortOrder,
                     'sort_order' => $sortOrder,
                 ]
             );

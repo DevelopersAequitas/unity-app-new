@@ -19,7 +19,7 @@ class AppConfigAdminController extends Controller
 {
     public function __construct(private readonly AppConfigService $appConfigService) {}
 
-    public function index(): JsonResponse
+    public function adminConfig(): JsonResponse
     {
         $appInstanceId = $this->appInstanceId();
 
@@ -138,20 +138,72 @@ class AppConfigAdminController extends Controller
         return $this->changed(null, 'Feature toggles updated successfully.');
     }
 
-    public function updateNavigation(Request $request, string $id): JsonResponse
+    public function createNavigationItem(Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'display_label' => 'sometimes|required|string|max:255',
-            'icon' => 'nullable|string|max:100',
-            'route_name' => 'nullable|string|max:255',
-            'feature_key' => 'nullable|string|max:255',
-            'is_enabled' => 'sometimes|required|boolean',
-            'sort_order' => 'sometimes|required|integer',
-        ]);
+        $data = $request->validate($this->navigationRules(requireCoreFields: true));
+        $sortOrder = $data['sort_order'] ?? $data['position'] ?? 0;
+        $itemKey = $data['item_key'];
+        $displayLabel = $data['display_label'];
+
+        $model = AppNavigationItem::query()->updateOrCreate(
+            [
+                'app_instance_id' => $this->appInstanceId(),
+                'menu_type' => $data['menu_type'],
+                'item_key' => $itemKey,
+            ],
+            [
+                'nav_key' => $data['nav_key'] ?? $itemKey,
+                'nav_label' => $data['nav_label'] ?? $displayLabel,
+                'v_key' => $data['v_key'] ?? $itemKey,
+                'v_label' => $data['v_label'] ?? $displayLabel,
+                'label_key' => $data['label_key'] ?? null,
+                'display_label' => $displayLabel,
+                'icon' => $data['icon'] ?? null,
+                'route_name' => $data['route_name'] ?? null,
+                'feature_key' => $data['feature_key'] ?? null,
+                'is_enabled' => $data['is_enabled'] ?? true,
+                'position' => $sortOrder,
+                'sort_order' => $sortOrder,
+            ]
+        );
+
+        return $this->changed($model, 'Navigation item created successfully.');
+    }
+
+    public function updateNavigationItem(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate($this->navigationRules(requireCoreFields: false));
         $model = AppNavigationItem::query()->where('app_instance_id', $this->appInstanceId())->findOrFail($id);
+
+        if (array_key_exists('item_key', $data)) {
+            $data['nav_key'] = $data['nav_key'] ?? $data['item_key'];
+            $data['v_key'] = $data['v_key'] ?? $data['item_key'];
+        }
+
+        if (array_key_exists('display_label', $data)) {
+            $data['nav_label'] = $data['nav_label'] ?? $data['display_label'];
+            $data['v_label'] = $data['v_label'] ?? $data['display_label'];
+        }
+
+        if (array_key_exists('sort_order', $data) && ! array_key_exists('position', $data)) {
+            $data['position'] = $data['sort_order'];
+        }
+
+        if (array_key_exists('position', $data) && ! array_key_exists('sort_order', $data)) {
+            $data['sort_order'] = $data['position'];
+        }
+
         $model->update($data);
 
         return $this->changed($model, 'Navigation item updated successfully.');
+    }
+
+    public function deleteNavigationItem(string $id): JsonResponse
+    {
+        $model = AppNavigationItem::query()->where('app_instance_id', $this->appInstanceId())->findOrFail($id);
+        $model->delete();
+
+        return $this->changed(null, 'Navigation item deleted successfully.');
     }
 
     public function updateDashboardWidget(Request $request, string $widget_key): JsonResponse
@@ -198,6 +250,28 @@ class AppConfigAdminController extends Controller
         AppConfigController::clearCache();
 
         return $this->ok(null, 'App configuration cache cleared successfully.');
+    }
+
+    private function navigationRules(bool $requireCoreFields): array
+    {
+        $required = $requireCoreFields ? 'required' : 'sometimes|required';
+
+        return [
+            'menu_type' => [$required, 'string', 'max:50'],
+            'item_key' => [$required, 'string', 'max:255'],
+            'nav_key' => 'nullable|string|max:255',
+            'nav_label' => 'nullable|string|max:255',
+            'v_key' => 'nullable|string|max:255',
+            'v_label' => 'nullable|string|max:255',
+            'label_key' => 'nullable|string|max:255',
+            'display_label' => [$required, 'string', 'max:255'],
+            'icon' => 'nullable|string|max:100',
+            'route_name' => 'nullable|string|max:255',
+            'feature_key' => 'nullable|string|max:255',
+            'is_enabled' => 'sometimes|required|boolean',
+            'position' => 'sometimes|required|integer',
+            'sort_order' => 'sometimes|required|integer',
+        ];
     }
 
     private function brandingRules(): array

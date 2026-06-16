@@ -22,12 +22,17 @@ class AppNavigationItem extends Model
         'app_instance_id',
         'menu_type',
         'item_key',
+        'nav_key',
+        'nav_label',
+        'v_key',
+        'v_label',
         'label_key',
         'display_label',
         'icon',
         'route_name',
         'feature_key',
         'is_enabled',
+        'position',
         'sort_order',
     ];
 
