@@ -1,5 +1,5 @@
 @extends('admin.layouts.app')
-@section('title', 'Greenpreneur App Config')
+@section('title', 'App Configuration')
 @php
 $active = request('tab','overview');
 $tabs = ['overview'=>'Overview','branding'=>'Branding','labels'=>'Labels','features'=>'Features','navigation'=>'Navigation','widgets'=>'Dashboard Widgets','social'=>'Social Links','membership'=>'Membership Labels','api-docs'=>'API Docs'];
@@ -25,7 +25,7 @@ $docs = [
 @endphp
 @section('content')
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <div><h1 class="h4 mb-1">Greenpreneur App Config</h1><div class="text-muted small">Manage branding, labels, menus, widgets, membership labels, and social links for the greenpreneur app instance.</div></div>
+    <div><h1 class="h4 mb-1">App Configuration</h1><div class="text-muted small">Manage branding, labels, menus, widgets, membership labels, and social links for the greenpreneur app instance.</div></div>
     <form method="POST" action="{{ route('admin.app-config.clear-cache') }}">@csrf <input type="hidden" name="tab" value="{{ $active }}"><button class="btn btn-outline-success btn-sm"><i class="bi bi-arrow-clockwise me-1"></i>Clear App Config Cache</button></form>
 </div>
 @if(session('success'))<div class="alert alert-success">{{ session('success') }}</div>@endif

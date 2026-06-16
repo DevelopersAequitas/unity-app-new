@@ -283,7 +283,7 @@
             @if ($isGlobalAdmin)
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
-                        <i class="bi bi-sliders me-2"></i>Greenpreneur App Config
+                        <i class="bi bi-sliders me-2"></i>App Configuration
                     </a>
                 </li>
             @endif
