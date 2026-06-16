@@ -81,7 +81,8 @@
                     <th style="min-width: 180px;">Company</th>
                     <th style="min-width: 180px;">Job Title</th>
                     <th>Email</th>
-                    <th>Date</th>
+                    <th>Total Contacts</th>
+                    <th>Latest Date</th>
                     <th class="text-end pe-3">Actions</th>
                 </tr>
             </thead>
@@ -94,14 +95,15 @@
                         <td class="text-wrap">{{ $contactPost->company ?: '—' }}</td>
                         <td class="text-wrap">{{ $contactPost->job_title ?: '—' }}</td>
                         <td class="text-break">{{ $contactPost->email ?: '—' }}</td>
-                        <td>{{ optional($contactPost->created_at)->format('d M Y, h:i A') ?: '—' }}</td>
+                        <td><span class="badge bg-light text-dark">{{ number_format($contactPost->total_contacts ?? 0) }}</span></td>
+                        <td>{{ optional($contactPost->latest_created_at ? \Illuminate\Support\Carbon::parse($contactPost->latest_created_at) : null)->format('d M Y, h:i A') ?: '—' }}</td>
                         <td class="text-end pe-3">
-                            <a href="{{ $contactPost->user_id ? route('admin.contacts.user-details', $contactPost->user_id) : route('admin.contacts.show', $contactPost->id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                            <a href="{{ route('admin.contacts.user-details', $contactPost->user_id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">No contacts found.</td>
+                        <td colspan="9" class="text-center text-muted py-4">No contacts found.</td>
                     </tr>
                 @endforelse
             </tbody>

@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ContactController extends Controller
 {
     private const CSV_COLUMNS = [
+        'user_id',
         'full_name',
         'first_name',
         'middle_name',
@@ -33,8 +34,7 @@ class ContactController extends Controller
     {
         $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'date_preset']);
 
-        $contactPosts = $this->filteredQuery($filters)
-            ->latest('created_at')
+        $contactPosts = $this->groupedUserContactsQuery($filters)
             ->paginate(20)
             ->withQueryString();
 
@@ -112,7 +112,12 @@ class ContactController extends Controller
             $payload = array_intersect_key($rowData, array_flip(self::CSV_COLUMNS));
             $payload['full_name'] = $fullName;
             $payload['email'] = $email !== '' ? $email : null;
-            $payload['user_id'] = null;
+            $userId = trim((string) ($rowData['user_id'] ?? ''));
+            if ($userId !== '' && ! User::query()->whereKey($userId)->exists()) {
+                fclose($handle);
+                return back()->withErrors(['csv_file' => "Row {$rowNumber}: user_id must be a valid user ID."])->withInput();
+            }
+            $payload['user_id'] = $userId !== '' ? $userId : null;
 
             if ($payload['email'] !== null) {
                 $contact = ContactPost::query()->where('email', $payload['email'])->first();
@@ -141,34 +146,24 @@ class ContactController extends Controller
         $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'date_preset']);
         $fileName = 'contacts-'.now()->format('Y-m-d-His').'.csv';
         $columns = [
-            'id',
             'user_id',
             'full_name',
-            'first_name',
-            'middle_name',
-            'last_name',
             'email',
             'phone',
             'company',
             'job_title',
-            'nickname',
-            'notes',
-            'emails',
-            'phones',
-            'addresses',
-            'created_at',
-            'updated_at',
+            'total_contacts',
+            'latest_created_at',
         ];
 
         return response()->streamDownload(function () use ($filters, $columns): void {
             $output = fopen('php://output', 'wb');
             fputcsv($output, $columns);
 
-            $this->filteredQuery($filters)
-                ->latest('created_at')
-                ->chunk(500, function ($contacts) use ($output, $columns): void {
-                    foreach ($contacts as $contact) {
-                        fputcsv($output, $this->contactCsvRow($contact, $columns));
+            $this->groupedUserContactsQuery($filters)
+                ->chunk(500, function ($rows) use ($output, $columns): void {
+                    foreach ($rows as $row) {
+                        fputcsv($output, collect($columns)->map(fn ($column) => $row->{$column})->all());
                     }
                 });
 
@@ -447,10 +442,20 @@ class ContactController extends Controller
         return $row;
     }
 
+    private function groupedUserContactsQuery(array $filters)
+    {
+        return $this->filteredQuery($filters)
+            ->whereNotNull('contact_posts.user_id')
+            ->leftJoin('users', 'users.id', '=', 'contact_posts.user_id')
+            ->selectRaw("\n                contact_posts.user_id,\n                COALESCE(\n                    MAX(NULLIF(users.display_name, '')),\n                    MAX(NULLIF(TRIM(CONCAT(COALESCE(users.first_name, ''), ' ', COALESCE(users.last_name, ''))), '')),\n                    MAX(contact_posts.full_name)\n                ) as full_name,\n                COALESCE(MAX(users.email), MAX(contact_posts.email)) as email,\n                COALESCE(MAX(users.phone), MAX(contact_posts.phone)) as phone,\n                MAX(contact_posts.company) as company,\n                MAX(contact_posts.job_title) as job_title,\n                COUNT(*) as total_contacts,\n                MAX(contact_posts.created_at) as latest_created_at\n            ")
+            ->groupBy('contact_posts.user_id')
+            ->orderByDesc('latest_created_at');
+    }
+
     private function filteredQuery(array $filters, ?string $userId = null)
     {
         return ContactPost::query()
-            ->when($userId, fn ($query, string $id) => $query->where('user_id', $id))
+            ->when($userId, fn ($query, string $id) => $query->where('contact_posts.user_id', $id))
             ->when($filters['search'] ?? null, function ($query, string $search): void {
                 $query->where(function ($query) use ($search): void {
                     foreach ([
@@ -465,21 +470,21 @@ class ContactController extends Controller
                         'nickname',
                         'notes',
                     ] as $field) {
-                        $query->orWhere($field, 'ILIKE', "%{$search}%");
+                        $query->orWhere('contact_posts.'.$field, 'ILIKE', "%{$search}%");
                     }
 
                     foreach (['emails', 'phones', 'addresses'] as $jsonField) {
-                        $query->orWhereRaw("{$jsonField}::text ILIKE ?", ["%{$search}%"]);
+                        $query->orWhereRaw("contact_posts.{$jsonField}::text ILIKE ?", ["%{$search}%"]);
                     }
                 });
             })
-            ->when($filters['company'] ?? null, fn ($query, string $company) => $query->where('company', $company))
-            ->when($filters['job_title'] ?? null, fn ($query, string $jobTitle) => $query->where('job_title', $jobTitle))
-            ->when(($filters['date_preset'] ?? null) === 'today', fn ($query) => $query->whereDate('created_at', now()->toDateString()))
-            ->when(($filters['date_preset'] ?? null) === 'this_week', fn ($query) => $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]))
-            ->when(($filters['date_preset'] ?? null) === 'this_month', fn ($query) => $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year))
-            ->when($filters['from_date'] ?? null, fn ($query, string $fromDate) => $query->whereDate('created_at', '>=', $fromDate))
-            ->when($filters['to_date'] ?? null, fn ($query, string $toDate) => $query->whereDate('created_at', '<=', $toDate));
+            ->when($filters['company'] ?? null, fn ($query, string $company) => $query->where('contact_posts.company', $company))
+            ->when($filters['job_title'] ?? null, fn ($query, string $jobTitle) => $query->where('contact_posts.job_title', $jobTitle))
+            ->when(($filters['date_preset'] ?? null) === 'today', fn ($query) => $query->whereDate('contact_posts.created_at', now()->toDateString()))
+            ->when(($filters['date_preset'] ?? null) === 'this_week', fn ($query) => $query->whereBetween('contact_posts.created_at', [now()->startOfWeek(), now()->endOfWeek()]))
+            ->when(($filters['date_preset'] ?? null) === 'this_month', fn ($query) => $query->whereMonth('contact_posts.created_at', now()->month)->whereYear('contact_posts.created_at', now()->year))
+            ->when($filters['from_date'] ?? null, fn ($query, string $fromDate) => $query->whereDate('contact_posts.created_at', '>=', $fromDate))
+            ->when($filters['to_date'] ?? null, fn ($query, string $toDate) => $query->whereDate('contact_posts.created_at', '<=', $toDate));
     }
 
     private function filterOptions(string $column, ?string $userId = null)

@@ -28,8 +28,8 @@
             <label for="csv_file" class="form-label">CSV File</label>
             <input type="file" id="csv_file" name="csv_file" class="form-control" accept=".csv,text/csv" required>
             <div class="form-text">
-                Allowed columns: full_name, first_name, middle_name, last_name, email, phone, company, job_title, nickname, notes, emails, phones, addresses.
-                JSON columns may contain valid JSON text.
+                Allowed columns: user_id, full_name, first_name, middle_name, last_name, email, phone, company, job_title, nickname, notes, emails, phones, addresses.
+                JSON columns may contain valid JSON text. user_id is optional and must match an existing user when provided.
             </div>
         </div>
         <div class="d-flex justify-content-end gap-2">
