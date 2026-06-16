@@ -96,6 +96,7 @@ return [
             'prefix_indexes' => true,
             'search_path' => env('DB_SEARCH_PATH', env('DB_SCHEMA', 'public')),
             'sslmode' => 'prefer',
+            'timezone' => 'UTC',
         ],
 
         'sqlsrv' => [

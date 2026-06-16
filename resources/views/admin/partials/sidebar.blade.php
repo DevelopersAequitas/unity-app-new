@@ -249,21 +249,25 @@
 
             @foreach ($navItems as $item)
                 @if ($item['label'] === 'Notifications & Email')
-                    <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
-                            <span><i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}</span>
-                            <i class="bi bi-chevron-right menu-arrow"></i>
-                        </a>
-                        <div class="collapse {{ $campaignsActive ? 'show' : '' }}" id="campaignsSubmenu">
-                            <ul class="nav flex-column ms-3">
-                                @foreach ($campaignsMenu as $campaignItem)
-                                    <li class="nav-item">
-                                        <a class="nav-link {{ request()->routeIs($campaignItem['route']) ? 'active' : '' }}" href="{{ route($campaignItem['route']) }}">{{ $campaignItem['label'] }}</a>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    </li>
+                    @if (Route::has($item['route']))
+                        <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
+                            <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
+                                <span><i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}</span>
+                                <i class="bi bi-chevron-right menu-arrow"></i>
+                            </a>
+                            <div class="collapse {{ $campaignsActive ? 'show' : '' }}" id="campaignsSubmenu">
+                                <ul class="nav flex-column ms-3">
+                                    @foreach ($campaignsMenu as $campaignItem)
+                                        @if (Route::has($campaignItem['route']))
+                                            <li class="nav-item">
+                                                <a class="nav-link {{ request()->routeIs($campaignItem['route']) ? 'active' : '' }}" href="{{ route($campaignItem['route']) }}">{{ $campaignItem['label'] }}</a>
+                                            </li>
+                                        @endif
+                                    @endforeach
+                                </ul>
+                            </div>
+                        </li>
+                    @endif
                 @else
                     <li class="nav-item">
                         @if ($item['route'] === '#')
@@ -271,9 +275,11 @@
                                 <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                             </span>
                         @else
-                            <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                                <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
-                            </a>
+                            @if (Route::has($item['route']))
+                                <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                                </a>
+                            @endif
                         @endif
                     </li>
                 @endif
