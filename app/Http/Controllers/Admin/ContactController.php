@@ -185,7 +185,7 @@ class ContactController extends Controller
 
     public function show(string $id): View
     {
-        $contactPost = ContactPost::query()->findOrFail($id);
+        $contactPost = ContactPost::with('user')->findOrFail($id);
 
         return view('admin.contacts.show', [
             'contactPost' => $contactPost,

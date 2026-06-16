@@ -172,6 +172,39 @@
     </div>
 </div>
 
+
+<div class="card p-4 mb-3">
+    <h2 class="h6 mb-3">Linked User Details</h2>
+    @if ($contactPost->user)
+        @php
+            $linkedUser = $contactPost->user;
+            $linkedUserName = $linkedUser->display_name
+                ?: trim(collect([$linkedUser->first_name ?? null, $linkedUser->last_name ?? null])->filter()->implode(' '));
+            $linkedUserPhone = $linkedUser->phone ?? $linkedUser->mobile ?? $linkedUser->secondary_mobile ?? null;
+            $linkedUserMembership = $linkedUser->membership_status ?? $linkedUser->membership_type ?? null;
+        @endphp
+        <div class="row g-3">
+            @foreach ([
+                'User ID' => $linkedUser->id,
+                'User Name' => $linkedUserName,
+                'User Email' => $linkedUser->email,
+                'User Phone' => $linkedUserPhone,
+                'Membership' => $linkedUserMembership,
+                'Status' => $linkedUser->status,
+            ] as $label => $value)
+                <div class="col-md-6 col-xl-4">
+                    <div class="p-3 rounded border bg-white h-100">
+                        <p class="text-muted small mb-1">{{ $label }}</p>
+                        <div class="fw-semibold text-break">{{ $displayValue($value) }}</div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @else
+        <p class="text-muted mb-0">No linked user found.</p>
+    @endif
+</div>
+
 <section class="detail-section">
     <h2 class="h6 mb-0">Additional Contact Details</h2>
 
