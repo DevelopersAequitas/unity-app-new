@@ -254,23 +254,40 @@ class AppConfigAdminController extends Controller
 
     private function navigationRules(bool $requireCoreFields): array
     {
-        $required = $requireCoreFields ? 'required' : 'sometimes|required';
+        if ($requireCoreFields) {
+            return [
+                'menu_type' => ['required', 'string', 'in:bottom_nav,drawer,plus_menu,impact_menu'],
+                'item_key' => ['required', 'string', 'max:150'],
+                'nav_key' => ['sometimes', 'nullable', 'string', 'max:150'],
+                'nav_label' => ['sometimes', 'nullable', 'string', 'max:255'],
+                'v_key' => ['sometimes', 'nullable', 'string', 'max:150'],
+                'v_label' => ['sometimes', 'nullable', 'string', 'max:255'],
+                'label_key' => ['sometimes', 'nullable', 'string', 'max:150'],
+                'display_label' => ['required', 'string', 'max:255'],
+                'icon' => ['sometimes', 'nullable', 'string', 'max:100'],
+                'route_name' => ['sometimes', 'nullable', 'string', 'max:150'],
+                'feature_key' => ['sometimes', 'nullable', 'string', 'max:150'],
+                'is_enabled' => ['sometimes', 'required', 'boolean'],
+                'position' => ['sometimes', 'required', 'integer', 'min:0'],
+                'sort_order' => ['sometimes', 'required', 'integer', 'min:0'],
+            ];
+        }
 
         return [
-            'menu_type' => [$required, 'string', 'max:50'],
-            'item_key' => [$required, 'string', 'max:255'],
-            'nav_key' => 'nullable|string|max:255',
-            'nav_label' => 'nullable|string|max:255',
-            'v_key' => 'nullable|string|max:255',
-            'v_label' => 'nullable|string|max:255',
-            'label_key' => 'nullable|string|max:255',
-            'display_label' => [$required, 'string', 'max:255'],
-            'icon' => 'nullable|string|max:100',
-            'route_name' => 'nullable|string|max:255',
-            'feature_key' => 'nullable|string|max:255',
-            'is_enabled' => 'sometimes|required|boolean',
-            'position' => 'sometimes|required|integer',
-            'sort_order' => 'sometimes|required|integer',
+            'menu_type' => ['sometimes', 'nullable', 'string', 'in:bottom_nav,drawer,plus_menu,impact_menu'],
+            'item_key' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'nav_key' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'nav_label' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'v_key' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'v_label' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'label_key' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'display_label' => ['sometimes', 'required', 'string', 'max:255'],
+            'icon' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'route_name' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'feature_key' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'is_enabled' => ['sometimes', 'required', 'boolean'],
+            'position' => ['sometimes', 'required', 'integer', 'min:0'],
+            'sort_order' => ['sometimes', 'required', 'integer', 'min:0'],
         ];
     }
 
