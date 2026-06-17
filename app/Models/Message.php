@@ -26,7 +26,13 @@ class Message extends Model
         'id',
         'chat_id',
         'sender_id',
+        'receiver_id',
         'content',
+        'message',
+        'message_type',
+        'file_url',
+        'file_path',
+        'read_at',
         'attachments',
         'is_read',
     ];
@@ -34,6 +40,7 @@ class Message extends Model
     protected $casts = [
         'attachments' => 'array',
         'is_read' => 'boolean',
+        'read_at' => 'datetime',
         'deleted_at' => 'datetime',
         'deleted_for_user1_at' => 'datetime',
         'deleted_for_user2_at' => 'datetime',
@@ -47,5 +54,10 @@ class Message extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    public function receiver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'receiver_id');
     }
 }

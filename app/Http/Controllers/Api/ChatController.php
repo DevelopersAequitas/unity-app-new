@@ -24,7 +24,9 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Throwable;
 
 class ChatController extends BaseApiController
 {
@@ -64,6 +66,99 @@ class ChatController extends BaseApiController
             ->get();
 
         return $this->success(ChatResource::collection($chats));
+    }
+
+
+    public function allChats(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $userId = (string) $user->id;
+
+            $chatUserOneColumn = Schema::hasColumn('chats', 'user_one_id') ? 'user_one_id' : 'user1_id';
+            $chatUserTwoColumn = Schema::hasColumn('chats', 'user_two_id') ? 'user_two_id' : 'user2_id';
+            $hasParticipantsTable = Schema::hasTable('chat_participants');
+            $messageTextColumn = Schema::hasColumn('messages', 'message') ? 'message' : 'content';
+            $hasReceiverColumn = Schema::hasColumn('messages', 'receiver_id');
+            $hasReadAtColumn = Schema::hasColumn('messages', 'read_at');
+            $hasIsReadColumn = Schema::hasColumn('messages', 'is_read');
+
+            $chats = Chat::query()
+                ->with([
+                    'user1.activeCircle:id,name',
+                    'user2.activeCircle:id,name',
+                    'userOne.activeCircle:id,name',
+                    'userTwo.activeCircle:id,name',
+                    'lastMessage.sender',
+                    'latestMessage.sender',
+                ])
+                ->when($hasParticipantsTable, fn ($query) => $query->with('participants.activeCircle:id,name'))
+                ->where(function ($query) use ($userId, $chatUserOneColumn, $chatUserTwoColumn, $hasParticipantsTable) {
+                    if (Schema::hasColumn('chats', $chatUserOneColumn) && Schema::hasColumn('chats', $chatUserTwoColumn)) {
+                        $query->where($chatUserOneColumn, $userId)
+                            ->orWhere($chatUserTwoColumn, $userId);
+                    }
+
+                    if ($hasParticipantsTable) {
+                        $query->orWhereHas('participants', fn ($participantQuery) => $participantQuery->where('users.id', $userId));
+                    }
+                })
+                ->withCount(['messages as unread_count' => function ($query) use ($userId, $hasReceiverColumn, $hasReadAtColumn, $hasIsReadColumn) {
+                    if ($hasReceiverColumn) {
+                        $query->where('receiver_id', $userId);
+                    } else {
+                        $query->where('sender_id', '!=', $userId);
+                    }
+
+                    if ($hasReadAtColumn) {
+                        $query->whereNull('read_at');
+                    } elseif ($hasIsReadColumn) {
+                        $query->where('is_read', false);
+                    }
+
+                    if (Schema::hasColumn('messages', 'deleted_at')) {
+                        $query->whereNull('deleted_at');
+                    }
+                }])
+                ->get()
+                ->sortByDesc(function (Chat $chat) {
+                    $lastMessage = $chat->lastMessage ?: $chat->latestMessage;
+
+                    return optional($lastMessage?->created_at ?: $chat->last_message_at ?: $chat->updated_at)->timestamp ?? 0;
+                })
+                ->values();
+
+            $data = $chats->map(function (Chat $chat) use ($userId, $chatUserOneColumn, $chatUserTwoColumn, $messageTextColumn) {
+                $receiver = $this->resolveChatReceiver($chat, $userId, $chatUserOneColumn, $chatUserTwoColumn);
+                $lastMessage = $chat->lastMessage ?: $chat->latestMessage;
+
+                return [
+                    'chat_id' => (string) $chat->id,
+                    'chat_type' => (string) ($chat->chat_type ?? $chat->type ?? 'private'),
+                    'receiver' => $receiver ? $this->formatChatReceiver($receiver) : null,
+                    'last_message' => $lastMessage ? $this->formatChatLastMessage($lastMessage, $userId, $messageTextColumn) : null,
+                    'unread_count' => (int) ($chat->unread_count ?? 0),
+                    'updated_at' => optional($chat->updated_at)->toISOString(),
+                ];
+            })->all();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'All chats fetched successfully.',
+                'data' => $data,
+            ]);
+        } catch (Throwable $e) {
+            $payload = [
+                'success' => false,
+                'message' => 'Failed to fetch chats.',
+            ];
+
+            if (config('app.debug')) {
+                $payload['error'] = $e->getMessage();
+            }
+
+            return response()->json($payload, 500);
+        }
     }
 
     public function storeChat(StoreChatRequest $request, PeerBlockService $peerBlockService)
@@ -323,6 +418,86 @@ class ChatController extends BaseApiController
         return $this->success(new MessageResource($message), 'Message sent', 201);
     }
 
+
+
+    private function resolveChatReceiver(Chat $chat, string $userId, string $chatUserOneColumn, string $chatUserTwoColumn): ?User
+    {
+        if ((string) ($chat->{$chatUserOneColumn} ?? '') === $userId) {
+            return $chat->relationLoaded('userTwo') && $chat->userTwo ? $chat->userTwo : $chat->user2;
+        }
+
+        if ((string) ($chat->{$chatUserTwoColumn} ?? '') === $userId) {
+            return $chat->relationLoaded('userOne') && $chat->userOne ? $chat->userOne : $chat->user1;
+        }
+
+        if ($chat->relationLoaded('participants')) {
+            return $chat->participants->first(fn ($participant) => (string) $participant->id !== $userId);
+        }
+
+        return null;
+    }
+
+    private function formatChatReceiver(User $user): array
+    {
+        return [
+            'id' => (string) $user->id,
+            'name' => $this->resolveDisplayName($user),
+            'profile_photo_url' => $this->resolveMediaUrl($user->profile_photo ?? $user->profile_photo_url ?? null),
+            'circle_id' => $user->active_circle_id ? (string) $user->active_circle_id : null,
+            'circle_name' => $user->relationLoaded('activeCircle') ? ($user->activeCircle?->name) : null,
+            'business_name' => $user->business_name ?? $user->company_name ?? null,
+        ];
+    }
+
+    private function formatChatLastMessage(Message $message, string $userId, string $messageTextColumn): array
+    {
+        return [
+            'id' => (string) $message->id,
+            'message' => $message->{$messageTextColumn} ?? $message->content ?? null,
+            'message_type' => $message->message_type ?? $this->inferMessageType($message),
+            'file_url' => $this->resolveMessageFileUrl($message),
+            'sender_id' => (string) $message->sender_id,
+            'is_mine' => (string) $message->sender_id === $userId,
+            'created_at' => optional($message->created_at)->toISOString(),
+        ];
+    }
+
+    private function inferMessageType(Message $message): string
+    {
+        $attachments = is_array($message->attachments) ? $message->attachments : [];
+
+        return count($attachments) > 0 ? (string) ($attachments[0]['kind'] ?? 'file') : 'text';
+    }
+
+    private function resolveMessageFileUrl(Message $message): ?string
+    {
+        $rawUrl = $message->file_url ?? $message->file_path ?? null;
+
+        if (! $rawUrl && is_array($message->attachments) && count($message->attachments) > 0) {
+            $rawUrl = $message->attachments[0]['url'] ?? null;
+        }
+
+        return $this->resolveMediaUrl($rawUrl);
+    }
+
+    private function resolveMediaUrl(mixed $path): ?string
+    {
+        if (! is_string($path) || trim($path) === '') {
+            return null;
+        }
+
+        $path = trim($path);
+
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        if (Str::startsWith($path, ['/api/', 'api/'])) {
+            return $this->toAbsoluteFileUrl($path);
+        }
+
+        return asset('storage/' . ltrim($path, '/'));
+    }
 
     private function normalizedContent(mixed $value): ?string
     {

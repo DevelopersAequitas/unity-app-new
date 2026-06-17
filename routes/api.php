@@ -748,6 +748,7 @@ Route::prefix('v1')->group(function () {
 
         // Chats & Messages
         Route::get('/chats', [ChatController::class, 'index']);
+        Route::get('/chats/all', [ChatController::class, 'allChats']);
         Route::post('/chats', [ChatController::class, 'storeChat']);
         Route::get('/chats/{id}', [ChatController::class, 'showChat']);
         Route::get('/chats/{id}/messages', [ChatController::class, 'listMessages']);

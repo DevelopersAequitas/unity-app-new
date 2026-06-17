@@ -367,6 +367,16 @@ class User extends Authenticatable
         return $this->belongsTo(CircleCategory::class, 'business_category_id');
     }
 
+    public function chats(): BelongsToMany
+    {
+        return $this->belongsToMany(Chat::class, 'chat_participants', 'user_id', 'chat_id')->withTimestamps();
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(Message::class, 'sender_id');
+    }
+
     public function foundedCircles(): HasMany
     {
         return $this->hasMany(Circle::class, 'founder_user_id');
