@@ -75,6 +75,47 @@ class EventPopupApiTest extends TestCase
         Bus::assertDispatched(SendEventPopupNotificationJob::class);
     }
 
+
+    public function test_admin_can_toggle_popup_flags_for_one_event(): void
+    {
+        EventFacade::fake([EventPopupUpdated::class]);
+        Bus::fake();
+        Sanctum::actingAs($this->user());
+        $event = $this->event([
+            'popup_version' => 5,
+            'show_popup' => false,
+            'realtime_popup' => false,
+            'popup_title' => 'Keep This Title',
+        ]);
+        $otherEvent = $this->event(['popup_version' => 2, 'show_popup' => false]);
+
+        $this->postJson("/api/v1/admin/events/{$event->id}/popup-toggle", [
+            'show_popup' => true,
+            'realtime_popup' => true,
+            'popup_message' => 'A new event is available. Register now.',
+            'popup_action_url' => null,
+        ])->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'Event popup settings updated successfully.')
+            ->assertJsonPath('data.event_id', $event->id)
+            ->assertJsonPath('data.show_popup', true)
+            ->assertJsonPath('data.realtime_popup', true)
+            ->assertJsonPath('data.popup_title', 'Keep This Title')
+            ->assertJsonPath('data.popup_version', 6);
+
+        $event->refresh();
+        $otherEvent->refresh();
+
+        $this->assertTrue((bool) $event->show_popup);
+        $this->assertTrue((bool) $event->realtime_popup);
+        $this->assertSame(6, (int) $event->popup_version);
+        $this->assertNotNull($event->popup_last_triggered_at);
+        $this->assertSame(2, (int) $otherEvent->popup_version);
+
+        EventFacade::assertDispatched(EventPopupUpdated::class);
+        Bus::assertDispatched(SendEventPopupNotificationJob::class);
+    }
+
     public function test_seen_api_stores_popup_view_and_already_seen_is_returned(): void
     {
         $user = $this->user();

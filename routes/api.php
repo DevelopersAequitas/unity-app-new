@@ -308,6 +308,7 @@ Route::prefix('v1')->group(function () {
         // POST /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/approve
         // Body: {"admin_note": "Certification approved after review."}
         Route::patch('/events/{event}/popup-settings', [EventPopupController::class, 'updateSettings'])->whereUuid('event');
+        Route::post('/events/{event}/popup-toggle', [EventPopupController::class, 'toggle'])->whereUuid('event');
         Route::get('/certifications', [CertificationSubmissionController::class, 'index']);
         Route::get('/certifications/counts', [CertificationSubmissionController::class, 'counts']);
         Route::get('/certifications/{id}', [CertificationSubmissionController::class, 'show'])->whereUuid('id');

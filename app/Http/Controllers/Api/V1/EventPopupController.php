@@ -76,6 +76,47 @@ class EventPopupController extends BaseApiController
         return $this->success(EventPopupResource::payload($event), 'Event popup settings updated successfully.');
     }
 
+
+    public function toggle(Request $request, Event $event): JsonResponse
+    {
+        $validated = $request->validate([
+            'show_popup' => ['required', 'boolean'],
+            'realtime_popup' => ['required', 'boolean'],
+            'popup_title' => ['nullable', 'string', 'max:255'],
+            'popup_message' => ['nullable', 'string'],
+            'popup_action_url' => ['nullable', 'url'],
+        ]);
+
+        DB::transaction(function () use ($event, $request, $validated): void {
+            $updates = [
+                'show_popup' => (bool) $validated['show_popup'],
+                'realtime_popup' => (bool) $validated['realtime_popup'],
+                'popup_version' => (int) ($event->popup_version ?: 1) + 1,
+            ];
+
+            foreach (['popup_title', 'popup_message', 'popup_action_url'] as $field) {
+                if ($request->has($field)) {
+                    $updates[$field] = $validated[$field] ?? null;
+                }
+            }
+
+            if ((bool) $validated['realtime_popup']) {
+                $updates['popup_last_triggered_at'] = now();
+            }
+
+            $event->forceFill($updates)->save();
+        });
+
+        $event->refresh()->load('circle');
+        broadcast(new EventPopupUpdated($event));
+
+        if ((bool) $event->realtime_popup) {
+            SendEventPopupNotificationJob::dispatch((string) $event->id)->afterCommit();
+        }
+
+        return $this->success(EventPopupResource::payload($event), 'Event popup settings updated successfully.');
+    }
+
     public function seen(Request $request, Event $event): JsonResponse
     {
         $validated = $request->validate([
