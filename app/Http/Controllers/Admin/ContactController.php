@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ContactPost;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -32,7 +33,7 @@ class ContactController extends Controller
 
     public function index(Request $request): View
     {
-        $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'date_preset']);
+        $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'quick']);
 
         $contactPosts = $this->groupedUserContactsQuery($filters)
             ->paginate(20)
@@ -156,7 +157,7 @@ class ContactController extends Controller
 
     public function export(Request $request): StreamedResponse
     {
-        $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'date_preset']);
+        $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'quick']);
         $fileName = 'contacts-'.now()->format('Y-m-d-His').'.csv';
         $columns = [
             'user_id',
@@ -198,7 +199,7 @@ class ContactController extends Controller
 
     public function userDetails(Request $request, string $userId): View
     {
-        $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'date_preset']);
+        $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'quick']);
         $contacts = $this->filteredQuery($filters, $userId)
             ->latest('created_at')
             ->paginate(20)
@@ -216,7 +217,7 @@ class ContactController extends Controller
 
     public function exportUserDetails(Request $request, string $userId): StreamedResponse
     {
-        $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'date_preset']);
+        $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'quick']);
         $fileName = 'user-contacts-'.$userId.'-'.now()->format('Y-m-d-His').'.csv';
         $columns = [
             'id',
@@ -505,9 +506,9 @@ class ContactController extends Controller
             })
             ->when($filters['company'] ?? null, fn ($query, string $company) => $query->where('contact_posts.company', $company))
             ->when($filters['job_title'] ?? null, fn ($query, string $jobTitle) => $query->where('contact_posts.job_title', $jobTitle))
-            ->when(($filters['date_preset'] ?? null) === 'today', fn ($query) => $query->whereDate('contact_posts.created_at', now()->toDateString()))
-            ->when(($filters['date_preset'] ?? null) === 'this_week', fn ($query) => $query->whereBetween('contact_posts.created_at', [now()->startOfWeek(), now()->endOfWeek()]))
-            ->when(($filters['date_preset'] ?? null) === 'this_month', fn ($query) => $query->whereMonth('contact_posts.created_at', now()->month)->whereYear('contact_posts.created_at', now()->year))
+            ->when(($filters['quick'] ?? 'any') === 'today', fn ($query) => $query->whereDate('contact_posts.created_at', Carbon::today()))
+            ->when(($filters['quick'] ?? 'any') === 'this_week', fn ($query) => $query->whereBetween('contact_posts.created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]))
+            ->when(($filters['quick'] ?? 'any') === 'this_month', fn ($query) => $query->whereYear('contact_posts.created_at', Carbon::now()->year)->whereMonth('contact_posts.created_at', Carbon::now()->month))
             ->when($filters['from_date'] ?? null, fn ($query, string $fromDate) => $query->whereDate('contact_posts.created_at', '>=', $fromDate))
             ->when($filters['to_date'] ?? null, fn ($query, string $toDate) => $query->whereDate('contact_posts.created_at', '<=', $toDate));
     }

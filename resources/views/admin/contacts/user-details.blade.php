@@ -75,13 +75,13 @@
             <label for="to_date" class="form-label">Date To</label>
             <input type="date" id="to_date" name="to_date" value="{{ $filters['to_date'] ?? '' }}" class="form-control">
         </div>
-        <div class="col-sm-6 col-xl-1">
-            <label for="date_preset" class="form-label">Quick</label>
-            <select id="date_preset" name="date_preset" class="form-select">
-                <option value="">Any</option>
-                <option value="today" @selected(($filters['date_preset'] ?? '') === 'today')>Today</option>
-                <option value="this_week" @selected(($filters['date_preset'] ?? '') === 'this_week')>This Week</option>
-                <option value="this_month" @selected(($filters['date_preset'] ?? '') === 'this_month')>This Month</option>
+        <div class="col-sm-6 col-xl-2">
+            <label for="quick" class="form-label">Quick</label>
+            <select id="quick" name="quick" class="form-select">
+                <option value="any" @selected(($filters['quick'] ?? 'any') === 'any')>Any</option>
+                <option value="today" @selected(($filters['quick'] ?? 'any') === 'today')>Today</option>
+                <option value="this_week" @selected(($filters['quick'] ?? 'any') === 'this_week')>This Week</option>
+                <option value="this_month" @selected(($filters['quick'] ?? 'any') === 'this_month')>This Month</option>
             </select>
         </div>
         <div class="col-12 d-flex justify-content-end gap-2">
