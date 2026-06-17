@@ -76,6 +76,20 @@ class EventPopupApiTest extends TestCase
     }
 
 
+
+    public function test_popup_toggle_returns_json_unauthenticated_response(): void
+    {
+        $event = $this->event();
+
+        $this->postJson("/api/v1/admin/events/{$event->id}/popup-toggle", [
+            'show_popup' => true,
+            'realtime_popup' => false,
+        ])->assertUnauthorized()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Unauthenticated.')
+            ->assertJsonPath('data', null);
+    }
+
     public function test_admin_can_toggle_popup_flags_for_one_event(): void
     {
         EventFacade::fake([EventPopupUpdated::class]);
