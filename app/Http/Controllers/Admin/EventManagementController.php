@@ -185,7 +185,7 @@ class EventManagementController extends Controller
     {
         abort_if(AdminAccess::isDed(Auth::guard('admin')->user()), 403);
 
-        $data = $this->prepareEventData($request, $this->validated($request));
+        $data = $this->withCreatePopupDefaults($this->prepareEventData($request, $this->validated($request)));
         $event = DB::transaction(function () use ($data): Event {
             $event = Event::query()->create($this->filterColumns($this->withDefaults($data)));
             $this->syncEventCircles($event, $data['circle_ids'] ?? null);
@@ -193,6 +193,12 @@ class EventManagementController extends Controller
 
             return $event;
         });
+
+        $event->refresh()->load('circle');
+        if ((bool) $event->realtime_popup) {
+            broadcast(new EventPopupUpdated($event));
+            SendEventPopupNotificationJob::dispatch((string) $event->id)->afterCommit();
+        }
 
         return redirect()->route('admin.events.show', $event)->with('success', 'Event created successfully.');
     }
@@ -315,7 +321,7 @@ class EventManagementController extends Controller
         return $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'event_type' => ['required', 'string', 'in:circle_meeting,global_event,state_event,public_event,public_visitor_event,training,training_workshop'],
+            'event_type' => ['required', 'string', 'in:circle_meeting,circle_event,global_event,state_event,city_event,public_event,public_visitor_event,training,training_workshop'],
             'circle_ids' => [Rule::requiredIf(fn () => in_array($request->input('event_type'), ['global_event', 'state_event'], true)), 'array', 'min:1'],
             'circle_ids.*' => ['uuid', 'distinct', 'exists:circles,id'],
             'state_name' => [Rule::requiredIf(fn () => $request->input('event_type') === 'state_event'), 'nullable', 'string', 'max:255'],
@@ -368,6 +374,20 @@ class EventManagementController extends Controller
             'popup_message' => ['nullable', 'string'],
             'popup_action_url' => ['nullable', 'url'],
         ]);
+    }
+
+
+    private function withCreatePopupDefaults(array $data): array
+    {
+        $data['show_popup'] = array_key_exists('show_popup', $data) ? (bool) $data['show_popup'] : true;
+        $data['realtime_popup'] = array_key_exists('realtime_popup', $data) ? (bool) $data['realtime_popup'] : true;
+        $data['popup_title'] = filled($data['popup_title'] ?? null) ? $data['popup_title'] : 'New Event Alert';
+        $data['popup_message'] = filled($data['popup_message'] ?? null) ? $data['popup_message'] : 'A new event is available. Register now.';
+        $data['popup_action_url'] = $data['popup_action_url'] ?? null;
+        $data['popup_version'] = 1;
+        $data['popup_last_triggered_at'] = (bool) $data['realtime_popup'] ? now() : null;
+
+        return $data;
     }
 
     private function prepareEventData(Request $request, array $data, ?Event $event = null): array
