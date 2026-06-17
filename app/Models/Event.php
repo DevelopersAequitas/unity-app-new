@@ -62,6 +62,13 @@ class Event extends Model
         'online_meeting_url',
         'zoho_form_url',
         'recurrence_ends_at',
+        'show_popup',
+        'realtime_popup',
+        'popup_title',
+        'popup_message',
+        'popup_action_url',
+        'popup_last_triggered_at',
+        'popup_version',
     ];
 
     protected $casts = [
@@ -79,6 +86,10 @@ class Event extends Model
         'speakers' => 'array',
         'metadata' => 'array',
         'recurrence_ends_at' => 'datetime',
+        'show_popup' => 'boolean',
+        'realtime_popup' => 'boolean',
+        'popup_last_triggered_at' => 'datetime',
+        'popup_version' => 'integer',
         'ticket_price' => 'decimal:2',
         'revenue_target' => 'decimal:2',
         'total_revenue' => 'decimal:2',
@@ -132,6 +143,11 @@ class Event extends Model
     public function occurrences(): HasMany
     {
         return $this->hasMany(EventOccurrence::class);
+    }
+
+    public function popupViews(): HasMany
+    {
+        return $this->hasMany(EventPopupView::class);
     }
 
     public function registrations(): HasMany

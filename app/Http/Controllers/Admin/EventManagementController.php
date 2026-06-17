@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Events\EventPopupUpdated;
 use App\Http\Controllers\Controller;
+use App\Jobs\SendEventPopupNotificationJob;
 use App\Models\Circle;
 use App\Models\Event;
 use App\Models\EventRegistration;
@@ -201,12 +203,28 @@ class EventManagementController extends Controller
         abort_unless($this->canAccessEvent((string) $event->id), 403);
         $data = $this->prepareEventData($request, $this->validated($request), $event);
 
-        DB::transaction(function () use ($event, $data): void {
+        $oldRealtimePopup = (bool) $event->realtime_popup;
+
+        DB::transaction(function () use ($event, $data, $oldRealtimePopup): void {
             $event->fill($this->filterColumns($this->withDefaults($data)));
+            if ($this->popupSettingsChanged($event)) {
+                $event->popup_version = (int) ($event->popup_version ?: 1) + 1;
+            }
+            if (! $oldRealtimePopup && (bool) $event->realtime_popup) {
+                $event->popup_last_triggered_at = now();
+            }
             $event->save();
             $this->syncEventCircles($event, $data['circle_ids'] ?? null);
             $this->occurrences->regenerateFuture($event);
         });
+
+        $event->refresh()->load('circle');
+        if ($this->popupSettingsChangedForBroadcast($data, $oldRealtimePopup, (bool) $event->realtime_popup)) {
+            broadcast(new EventPopupUpdated($event));
+            if (! $oldRealtimePopup && (bool) $event->realtime_popup) {
+                SendEventPopupNotificationJob::dispatch((string) $event->id)->afterCommit();
+            }
+        }
 
         return redirect()->route('admin.events.show', $event)->with('success', 'Event updated successfully.');
     }
@@ -344,6 +362,11 @@ class EventManagementController extends Controller
             'organizer_phone' => ['nullable', 'string', 'max:50'],
             'organizer_email' => ['nullable', 'email', 'max:255'],
             'organizer_website' => ['nullable', 'string', 'max:255'],
+            'show_popup' => ['nullable', 'boolean'],
+            'realtime_popup' => ['nullable', 'boolean'],
+            'popup_title' => ['nullable', 'string', 'max:255'],
+            'popup_message' => ['nullable', 'string'],
+            'popup_action_url' => ['nullable', 'url'],
         ]);
     }
 
@@ -431,7 +454,7 @@ class EventManagementController extends Controller
 
         unset($data['venue_name'], $data['address_line'], $data['city'], $data['state'], $data['google_maps_url'], $data['circle_ids']);
 
-        foreach (['is_paid', 'qr_checkin_enabled', 'visitor_registration_enabled', 'member_registration_enabled'] as $key) {
+        foreach (['is_paid', 'qr_checkin_enabled', 'visitor_registration_enabled', 'member_registration_enabled', 'show_popup', 'realtime_popup'] as $key) {
             $data[$key] = (bool) ($data[$key] ?? false);
         }
         $data['member_registration_enabled'] = (bool) ($data['member_registration_enabled'] ?? true);
@@ -443,6 +466,18 @@ class EventManagementController extends Controller
         }
 
         return $data;
+    }
+
+
+    private function popupSettingsChanged(Event $event): bool
+    {
+        return $event->isDirty(['show_popup', 'realtime_popup', 'popup_title', 'popup_message', 'popup_action_url']);
+    }
+
+    private function popupSettingsChangedForBroadcast(array $data, bool $oldRealtimePopup, bool $newRealtimePopup): bool
+    {
+        return array_intersect_key($data, array_flip(['show_popup', 'realtime_popup', 'popup_title', 'popup_message', 'popup_action_url'])) !== []
+            && ($oldRealtimePopup || $newRealtimePopup || (bool) ($data['show_popup'] ?? false));
     }
 
     private function cleanAgenda(array $rows): array

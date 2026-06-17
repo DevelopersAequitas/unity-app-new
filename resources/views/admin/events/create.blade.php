@@ -105,6 +105,18 @@
             </div>
         </div>
 
+
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">Popup Settings</div>
+            <div class="card-body row g-3">
+                <div class="col-md-6"><div class="form-check border rounded p-3 h-100"><input type="hidden" name="show_popup" value="0"><input class="form-check-input ms-0 me-2" type="checkbox" name="show_popup" value="1" id="show_popup" @checked(old('show_popup', $event->show_popup ?? false))><label class="form-check-label fw-semibold" for="show_popup">Show Popup</label><div class="small text-muted mt-1">Enable this event in the mobile popup API.</div></div></div>
+                <div class="col-md-6"><div class="form-check border rounded p-3 h-100"><input type="hidden" name="realtime_popup" value="0"><input class="form-check-input ms-0 me-2" type="checkbox" name="realtime_popup" value="1" id="realtime_popup" @checked(old('realtime_popup', $event->realtime_popup ?? false))><label class="form-check-label fw-semibold" for="realtime_popup">Real Time Popup</label><div class="small text-muted mt-1">When enabled, open apps receive a Reverb popup update and users receive push notifications.</div></div></div>
+                <div class="col-md-6"><label class="form-label">Popup Title</label><input class="form-control" name="popup_title" value="{{ old('popup_title', $event->popup_title ?? '') }}" maxlength="255"></div>
+                <div class="col-md-6"><label class="form-label">Popup Action URL</label><input class="form-control" name="popup_action_url" value="{{ old('popup_action_url', $event->popup_action_url ?? '') }}" placeholder="https://..."></div>
+                <div class="col-12"><label class="form-label">Popup Message</label><textarea class="form-control" name="popup_message" rows="3">{{ old('popup_message', $event->popup_message ?? '') }}</textarea></div>
+            </div>
+        </div>
+
         <div class="card mb-3">
             <div class="card-header fw-semibold">F. Event Image</div>
             <div class="card-body row g-3">

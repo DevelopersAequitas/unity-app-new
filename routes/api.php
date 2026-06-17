@@ -79,6 +79,7 @@ use App\Http\Controllers\Api\V1\CircleCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\EventApiController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
+use App\Http\Controllers\Api\V1\EventPopupController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\Api\V1\FollowController;
 use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
@@ -289,6 +290,8 @@ Route::prefix('v1')->group(function () {
     Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/events/popups', [EventPopupController::class, 'index']);
+        Route::post('/events/popups/{event}/seen', [EventPopupController::class, 'seen'])->whereUuid('event');
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::post('/events/{event}/occurrences/{occurrence}/register', [EventController::class, 'register'])
             ->whereUuid('event')
@@ -304,6 +307,7 @@ Route::prefix('v1')->group(function () {
         // GET /api/v1/admin/certifications
         // POST /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/approve
         // Body: {"admin_note": "Certification approved after review."}
+        Route::patch('/events/{event}/popup-settings', [EventPopupController::class, 'updateSettings'])->whereUuid('event');
         Route::get('/certifications', [CertificationSubmissionController::class, 'index']);
         Route::get('/certifications/counts', [CertificationSubmissionController::class, 'counts']);
         Route::get('/certifications/{id}', [CertificationSubmissionController::class, 'show'])->whereUuid('id');
