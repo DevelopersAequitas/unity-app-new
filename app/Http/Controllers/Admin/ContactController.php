@@ -196,44 +196,6 @@ class ContactController extends Controller
         ], $detailData));
     }
 
-    public function exportShow(Request $request, string $id): StreamedResponse
-    {
-        $contactPost = ContactPost::query()->findOrFail($id);
-        $filters = $this->showFilters($request);
-        $detailData = $this->filteredDetailData($contactPost, $filters);
-        $fileName = 'contact-detail-'.$contactPost->id.'.csv';
-        $columns = [
-            'id',
-            'user_id',
-            'full_name',
-            'first_name',
-            'middle_name',
-            'last_name',
-            'email',
-            'phone',
-            'company',
-            'job_title',
-            'nickname',
-            'notes',
-            'emails',
-            'phones',
-            'addresses',
-            'created_at',
-            'updated_at',
-        ];
-
-        return response()->streamDownload(function () use ($columns, $contactPost, $detailData): void {
-            $output = fopen('php://output', 'wb');
-            fputcsv($output, $columns);
-            fputcsv($output, $this->contactCsvRow($contactPost, $columns, [
-                'emails' => $detailData['filteredEmails'],
-                'phones' => $detailData['filteredPhones'],
-                'addresses' => $detailData['filteredAddresses'],
-            ]));
-            fclose($output);
-        }, $fileName, ['Content-Type' => 'text/csv']);
-    }
-
     public function userDetails(Request $request, string $userId): View
     {
         $filters = $request->only(['search', 'company', 'job_title', 'from_date', 'to_date', 'date_preset']);

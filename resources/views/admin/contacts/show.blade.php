@@ -66,8 +66,6 @@
     </div>
     <div class="d-flex flex-wrap gap-2 justify-content-end">
         <a href="{{ route('admin.contacts.index') }}" class="btn btn-outline-secondary">Back to Contacts</a>
-        <a href="{{ route('admin.contacts.import') }}" class="btn btn-primary">Import CSV</a>
-        <a href="{{ route('admin.contacts.show.export', array_merge(['id' => $contactPost->id], request()->query())) }}" class="btn btn-outline-primary">Export CSV</a>
     </div>
 </div>
 

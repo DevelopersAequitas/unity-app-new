@@ -135,7 +135,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/contacts/user/{user_id}/export', [ContactController::class, 'exportUserDetails'])->name('contacts.user-details.export');
         Route::post('/contacts/user/{user_id}/export-selected', [ContactController::class, 'exportSelected'])->name('contacts.user-details.export-selected');
         Route::get('/contacts/user/{user_id}', [ContactController::class, 'userDetails'])->name('contacts.user-details');
-        Route::get('/contacts/{id}/export', [ContactController::class, 'exportShow'])->name('contacts.show.export');
         Route::get('/contacts/{id}', [ContactController::class, 'show'])->name('contacts.show');
         Route::get('/activities/{peer}/become-a-leader', [ActivitiesLeaderInterestController::class, 'show'])
             ->whereUuid('peer')
