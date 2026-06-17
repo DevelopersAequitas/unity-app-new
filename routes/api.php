@@ -413,6 +413,9 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
+            Route::put('/app-config/colors', [AppConfigAdminController::class, 'updateColors']);
+            Route::put('/app-config/icons', [AppConfigAdminController::class, 'bulkUpdateIcons']);
+            Route::put('/app-config/icons/{icon_key}', [AppConfigAdminController::class, 'updateIcon']);
             Route::put('/app-config/labels', [AppConfigAdminController::class, 'bulkUpdateLabels']);
             Route::put('/app-config/labels/{label_key}', [AppConfigAdminController::class, 'updateLabel']);
             Route::put('/app-config/features', [AppConfigAdminController::class, 'bulkUpdateFeatures']);

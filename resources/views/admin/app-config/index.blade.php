@@ -7,6 +7,7 @@ $tabs = [
     'branding'=>['label'=>'Branding','icon'=>'bi-palette'],
     'labels'=>['label'=>'Labels','icon'=>'bi-tags'],
     'features'=>['label'=>'Features','icon'=>'bi-toggle2-on'],
+    'icons'=>['label'=>'Icons','icon'=>'bi-image'],
     'navigation'=>['label'=>'Navigation','icon'=>'bi-menu-button-wide'],
     'widgets'=>['label'=>'Dashboard Widgets','icon'=>'bi-grid-3x3-gap'],
     'social'=>['label'=>'Social Links','icon'=>'bi-share'],
@@ -14,9 +15,9 @@ $tabs = [
     'api-docs'=>['label'=>'API Docs','icon'=>'bi-file-earmark-code'],
 ];
 $branding = (array) ($branding ?? []);
-$colorFields = ['primary_color','secondary_color','accent_color','splash_bg_color','button_color','text_color'];
+$colorFields = ['primary_color','primary_dark_color','primary_light_color','primary_ultra_light_color','secondary_color','secondary_light_color','background_color','background_light_color','background_secondary_color','background_dark_color','card_background_color','card_border_color','text_primary_color','text_secondary_color','accent_color','splash_bg_color','button_color','text_color'];
 $brandGroups = [
-    'Basic App Info'=>['icon'=>'bi-info-circle','help'=>'Core identity and launch assets shown in the mobile app.','fields'=>['app_name','app_logo_url','splash_logo_url']],
+    'Basic App Info'=>['icon'=>'bi-info-circle','help'=>'Core identity and launch assets shown in the mobile app.','fields'=>['app_name','logo_url_light','logo_url_dark','logo_url_splash','app_logo_url','splash_logo_url']],
     'Brand Colors'=>['icon'=>'bi-droplet-half','help'=>'Theme colors consumed by Flutter for buttons, cards, text, and splash screens.','fields'=>$colorFields],
     'App Links & Support'=>['icon'=>'bi-link-45deg','help'=>'Store links, website, and support channels displayed to users.','fields'=>['playstore_url','appstore_url','website_url','support_email','support_phone']],
 ];
@@ -30,9 +31,12 @@ $menuTypes = ['bottom_nav'=>'Bottom Navigation','plus_menu'=>'Plus Menu','impact
 $menuHelp = ['bottom_nav'=>'Mobile bottom tabs','plus_menu'=>'Center action menu','impact_menu'=>'Impact shortcuts','drawer'=>'Side drawer options'];
 $methodClass = ['GET'=>'primary','POST'=>'success','PUT'=>'warning text-dark','DELETE'=>'danger'];
 $docs = [
-['GET','/app/config','No','Public Flutter app config','{}','{"success":true,"data":{"app_info":{},"labels":{}}}'],
+['GET','/app/config','No','Public Flutter app config','{}','{"success":true,"data":{"app_info":{},"colors":{},"icons":{},"features":{},"labels":{}}}'],
 ['GET','/admin/app-config','Yes','Fetch full admin config','{}','{"success":true,"data":{"branding":{},"labels":[]}}'],
 ['PUT','/admin/app-config/branding','Yes','Update branding','{"app_name":"Greenpreneur"}','{"success":true}'],
+['PUT','/admin/app-config/colors','Yes','Update colors','{"primary_color":"#2E7D32"}','{"success":true}'],
+['PUT','/admin/app-config/icons/{icon_key}','Yes','Update one icon','{"icon_url":null}','{"success":true}'],
+['PUT','/admin/app-config/icons','Yes','Bulk update icons','{"icons":{"home_icon":null}}','{"success":true}'],
 ['PUT','/admin/app-config/labels/{label_key}','Yes','Update one label','{"label_value":"Green Member"}','{"success":true}'],
 ['PUT','/admin/app-config/labels','Yes','Bulk update labels','{"labels":{"peer":"Green Member"}}','{"success":true}'],
 ['PUT','/admin/app-config/features/{feature_key}','Yes','Update one feature','{"is_enabled":true}','{"success":true}'],
@@ -79,6 +83,11 @@ $publicApi = 'https://peersunity.com/api/v1/app/config';
 @endif
 @if($active==='labels')
 <form method="POST" action="{{ route('admin.app-config.labels') }}" class="card ac-card">@csrf @method('PUT')<div class="card-header"><div class="d-flex flex-wrap justify-content-between gap-2"><div><h2 class="h5 mb-1">Labels</h2><p class="text-muted small mb-0">Edit text shown in the app without changing code. <span class="badge bg-light text-dark border">{{ $labels->count() }} total</span></p></div><button class="btn btn-success"><i class="bi bi-save me-1"></i>Save All Changed Labels</button></div></div><div class="card-body"><div class="toolbar row g-2 mb-3"><div class="col-md-5"><input class="form-control js-search" data-target="#labelsTable" placeholder="Search labels by key, value, group, or description"></div><div class="col-md-4"><select class="form-select js-filter" data-target="#labelsTable" data-col="group"><option value="">All groups</option>@foreach($labels->pluck('group_name')->filter()->unique()->sort() as $group)<option value="{{ $group }}">{{ $group }}</option>@endforeach</select></div><div class="col-md-3"><select class="form-select js-filter" data-target="#labelsTable" data-col="active"><option value="">All statuses</option><option value="1">Active</option><option value="0">Inactive</option></select></div></div><div class="table-responsive" style="max-height:68vh"><table id="labelsTable" class="table align-middle"><thead><tr><th>Label Key</th><th>Label Value</th><th>Group Name</th><th>Description</th><th>Active</th><th>Action</th></tr></thead><tbody>@forelse($labels as $l)<tr data-group="{{ $l->group_name }}" data-active="{{ $l->is_active ? '1':'0' }}"><td><span class="mono-badge">{{ $l->label_key }}</span></td><td><input class="form-control form-control-sm js-dirty" name="labels[{{ $l->label_key }}][label_value]" value="{{ $l->label_value }}"></td><td><input class="form-control form-control-sm js-dirty" name="labels[{{ $l->label_key }}][group_name]" value="{{ $l->group_name }}"></td><td><input class="form-control form-control-sm js-dirty" name="labels[{{ $l->label_key }}][description]" value="{{ $l->description }}"></td><td><div class="form-check form-switch"><input type="checkbox" class="form-check-input switch js-dirty" name="labels[{{ $l->label_key }}][is_active]" value="1" @checked($l->is_active)></div></td><td><button class="btn btn-sm btn-outline-success">Save</button></td></tr>@empty<tr><td colspan="6"><div class="empty-state">No labels found.</div></td></tr>@endforelse</tbody></table></div></div><div class="card-footer bg-white"><button class="btn btn-success">Bulk Save Labels</button><button type="reset" class="btn btn-outline-secondary ms-2">Discard changes</button><span class="small text-muted ms-2 unsaved-count"></span></div></form>
+@endif
+
+
+@if($active==='icons')
+<form method="POST" action="{{ route('admin.app-config.icons') }}" class="card ac-card">@csrf @method('PUT')<div class="card-header d-flex flex-wrap justify-content-between gap-2"><div><h2 class="h5 mb-1">Dynamic Icons</h2><p class="text-muted small mb-0">Manage Flutter startup icon URLs. Empty URLs are returned as null so the app can use bundled assets.</p></div><button class="btn btn-success">Save All Icons</button></div><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Icon Key</th><th>Name</th><th style="min-width:280px">URL</th><th>Fallback Asset</th><th>Preview</th><th>Active</th><th>Sort</th><th>Action</th></tr></thead><tbody>@php($iconKeys=['home_icon','my_network_icon','circle_icon','highlights_icon','events_icon','referrals_icon','deals_icon','p2p_icon','testimonials_icon'])@foreach($iconKeys as $i=>$key)@php($icon=$icons->firstWhere('icon_key',$key))<tr><td><span class="mono-badge">{{ $key }}</span></td><td><input class="form-control form-control-sm js-dirty" name="icons[{{ $key }}][icon_name]" value="{{ $icon->icon_name ?? \Illuminate\Support\Str::of($key)->replace('_',' ')->title() }}"></td><td><input class="form-control form-control-sm js-dirty" name="icons[{{ $key }}][icon_url]" value="{{ $icon->icon_url ?? '' }}" placeholder="Leave blank for null"></td><td><input class="form-control form-control-sm js-dirty" name="icons[{{ $key }}][fallback_asset]" value="{{ $icon->fallback_asset ?? '' }}"></td><td>@if(!empty($icon?->icon_url))<img src="{{ $icon->icon_url }}" style="width:32px;height:32px;object-fit:contain" onerror="this.style.display='none'">@else<span class="text-muted small">null</span>@endif</td><td><div class="form-check form-switch"><input type="checkbox" class="form-check-input switch js-dirty" name="icons[{{ $key }}][is_active]" value="1" @checked($icon->is_active ?? true)></div></td><td><input type="number" class="form-control form-control-sm js-dirty" name="icons[{{ $key }}][sort_order]" value="{{ $icon->sort_order ?? $i }}"></td><td><button class="btn btn-sm btn-outline-success">Save</button></td></tr>@endforeach</tbody></table></div><div class="card-footer bg-white"><button class="btn btn-success">Save All Icons</button></div></form>
 @endif
 
 @if($active==='features')

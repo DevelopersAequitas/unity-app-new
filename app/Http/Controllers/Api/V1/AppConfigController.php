@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppConfigSetting;
 use App\Models\AppDashboardWidget;
 use App\Models\AppFeature;
+use App\Models\AppIconAsset;
 use App\Models\AppInstance;
 use App\Models\AppLabel;
 use App\Models\AppMembershipLabel;
@@ -20,7 +21,7 @@ use Throwable;
 
 class AppConfigController extends Controller
 {
-    public const CACHE_KEY = 'greenpreneur_app_config.v2';
+    public const CACHE_KEY = 'app_config:greenpreneur:v2';
 
     public function publicConfig(AppConfigService $appConfigService): JsonResponse
     {
@@ -33,15 +34,15 @@ class AppConfigController extends Controller
 
             $data = Cache::remember(
                 self::CACHE_KEY,
-                now()->addMinutes(30),
+                now()->addSeconds(300),
                 fn () => self::buildPublicConfig($appInstance)
             );
 
             return response()->json([
                 'success' => true,
-                'message' => 'App configuration fetched successfully.',
+                'message' => 'App configuration loaded successfully.',
                 'data' => $data,
-            ]);
+            ])->header('Cache-Control', 'public, max-age=300');
         } catch (Throwable $exception) {
             Log::error('Failed to fetch Greenpreneur app configuration.', [
                 'exception' => $exception,
@@ -49,15 +50,16 @@ class AppConfigController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Default app configuration fetched successfully.',
+                'message' => 'App configuration loaded successfully.',
                 'data' => self::defaultPublicConfig(),
-            ]);
+            ])->header('Cache-Control', 'public, max-age=300');
         }
     }
 
     public static function clearCache(): void
     {
         Cache::forget(self::CACHE_KEY);
+        Cache::forget('greenpreneur_app_config.v2');
     }
 
     public static function buildPublicConfig(AppInstance $appInstance): array
@@ -83,28 +85,15 @@ class AppConfigController extends Controller
             ->toArray() ?: array_keys(array_filter($features));
 
         return [
-            'app_info' => $branding ? collect($branding)->only([
-                'app_name',
-                'app_logo_url',
-                'splash_logo_url',
-                'primary_color',
-                'secondary_color',
-                'accent_color',
-                'splash_bg_color',
-                'button_color',
-                'text_color',
-                'playstore_url',
-                'appstore_url',
-                'website_url',
-                'support_email',
-                'support_phone',
-            ])->all() : self::defaultAppInfo(),
+            'app_info' => self::appInfo($branding),
+            'colors' => self::colors($branding),
+            'icons' => self::icons($appInstanceId),
+            'features' => $features,
             'labels' => AppLabel::query()
                 ->where('app_instance_id', $appInstanceId)
                 ->where('is_active', true)
                 ->pluck('label_value', 'label_key')
                 ->all() ?: self::defaultLabels(),
-            'features' => $features,
             'navigation_menu' => self::navigationMenu($appInstanceId, $enabledFeatureKeys),
             'dashboard_widgets' => AppDashboardWidget::query()
                 ->where('app_instance_id', $appInstanceId)
@@ -118,6 +107,82 @@ class AppConfigController extends Controller
                 ->orderBy('sort_order')
                 ->pluck('url', 'platform')
                 ->all() ?: self::defaultSocialLinks(),
+        ];
+    }
+
+
+    private static function appInfo(?AppConfigSetting $branding): array
+    {
+        $defaults = self::defaultAppInfo();
+        $light = $branding?->logo_url_light ?: $branding?->app_logo_url ?: $defaults['logo_url_light'];
+        $splash = $branding?->logo_url_splash ?: $branding?->splash_logo_url ?: $defaults['logo_url_splash'];
+
+        return [
+            'app_name' => $branding?->app_name ?: $defaults['app_name'],
+            'logo_url_light' => $light,
+            'logo_url_dark' => $branding?->logo_url_dark ?: $light,
+            'logo_url_splash' => $splash,
+            'playstore_url' => $branding?->playstore_url ?: $defaults['playstore_url'],
+            'appstore_url' => $branding?->appstore_url ?: $defaults['appstore_url'],
+        ];
+    }
+
+    private static function colors(?AppConfigSetting $branding): array
+    {
+        $defaults = self::defaultColors();
+        $colors = [];
+        foreach ($defaults as $key => $default) {
+            $value = $branding?->{$key};
+            $colors[$key] = is_string($value) && preg_match('/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/', $value) ? $value : $default;
+        }
+
+        return $colors;
+    }
+
+    private static function icons(string $appInstanceId): array
+    {
+        if (! Schema::hasTable('app_icon_assets')) {
+            return self::defaultIcons();
+        }
+
+        $configured = AppIconAsset::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->where('is_active', true)
+            ->pluck('icon_url', 'icon_key')
+            ->all();
+
+        return collect(self::supportedIconKeys())
+            ->mapWithKeys(fn ($key) => [$key => array_key_exists($key, $configured) ? $configured[$key] : null])
+            ->all();
+    }
+
+    public static function supportedIconKeys(): array
+    {
+        return ['home_icon', 'my_network_icon', 'circle_icon', 'highlights_icon', 'events_icon', 'referrals_icon', 'deals_icon', 'p2p_icon', 'testimonials_icon'];
+    }
+
+    private static function defaultIcons(): array
+    {
+        return array_fill_keys(self::supportedIconKeys(), null);
+    }
+
+    private static function defaultColors(): array
+    {
+        return [
+            'primary_color' => '#2E7D32',
+            'primary_dark_color' => '#1B5E20',
+            'primary_light_color' => '#81C784',
+            'primary_ultra_light_color' => '#E8F5E9',
+            'secondary_color' => '#0F172A',
+            'secondary_light_color' => '#475569',
+            'background_color' => '#FFFFFF',
+            'background_light_color' => '#F8F9FA',
+            'background_secondary_color' => '#F5F7FA',
+            'background_dark_color' => '#F0F2F5',
+            'card_background_color' => '#FFFFFF',
+            'card_border_color' => '#E5E7EB',
+            'text_primary_color' => '#1F2937',
+            'text_secondary_color' => '#6B7280',
         ];
     }
 
@@ -163,7 +228,8 @@ class AppConfigController extends Controller
     {
         return [
             'app_info' => self::defaultAppInfo(),
-            'labels' => self::defaultLabels(),
+            'colors' => self::defaultColors(),
+            'icons' => self::defaultIcons(),
             'features' => self::defaultFeatures(),
             'navigation_menu' => [
                 'bottom_nav' => [],
@@ -245,19 +311,11 @@ class AppConfigController extends Controller
     {
         return [
             'app_name' => 'Greenpreneur',
-            'app_logo_url' => 'https://greenpreneur.in/uploads/greenpreneur_logo.png',
-            'splash_logo_url' => 'https://greenpreneur.in/uploads/greenpreneur_logo.png',
-            'primary_color' => '#2E7D32',
-            'secondary_color' => '#81C784',
-            'accent_color' => '#FFC107',
-            'splash_bg_color' => '#FFFFFF',
-            'button_color' => '#2E7D32',
-            'text_color' => '#212121',
-            'playstore_url' => null,
-            'appstore_url' => null,
-            'website_url' => 'https://greenpreneur.in',
-            'support_email' => 'support@greenpreneur.in',
-            'support_phone' => '+91XXXXXXXXXX',
+            'logo_url_light' => 'https://peersunity.com/assets/brand/logo_light.png',
+            'logo_url_dark' => 'https://peersunity.com/assets/brand/logo_dark.png',
+            'logo_url_splash' => 'https://peersunity.com/assets/brand/logo_splash.png',
+            'playstore_url' => 'https://play.google.com/store/apps/details?id=com.greenpreneur.greenpreneur',
+            'appstore_url' => 'https://apps.apple.com/app/id1234567890',
         ];
     }
 
