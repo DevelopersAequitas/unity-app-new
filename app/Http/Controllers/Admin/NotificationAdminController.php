@@ -10,6 +10,7 @@ use App\Models\Notifications\NotificationCampaignRun;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
 use App\Models\UserPushToken;
+use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Notifications\CampaignService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -182,13 +183,14 @@ class NotificationAdminController extends Controller
     }
 
 
-    public function sendTestForm(): View
+    public function sendTestForm(FirebaseFcmService $firebase): View
     {
         $recentTests = Schema::hasTable('app_notifications')
             ? AppNotification::with('user')->where('category', 'admin_test')->latest()->limit(15)->get()
             : collect();
+        $firebaseDiagnostics = $firebase->diagnostics();
 
-        return view('admin.notifications.send-test', compact('recentTests'));
+        return view('admin.notifications.send-test', compact('recentTests', 'firebaseDiagnostics'));
     }
 
     public function searchUsers(Request $request): JsonResponse
@@ -426,7 +428,7 @@ class NotificationAdminController extends Controller
             return $this->recordDelivery($notification, 'push', false, 'No active push token found.', 'firebase');
         }
 
-        $firebase = app(\App\Services\Firebase\FcmService::class);
+        $firebase = app(FirebaseFcmService::class);
         if (method_exists($firebase, 'credentialsAvailable') && ! $firebase->credentialsAvailable()) {
             return $this->recordDelivery($notification, 'push', false, 'Firebase credentials file is not available.', 'firebase');
         }

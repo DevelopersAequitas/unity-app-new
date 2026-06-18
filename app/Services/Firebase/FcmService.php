@@ -25,7 +25,7 @@ class FcmService
         $notificationType = $context['notification_type'] ?? ($data['notification_type'] ?? ($data['type'] ?? null));
 
         try {
-            $projectId = (string) config('firebase.project_id');
+            $projectId = $this->projectId();
 
             if ($projectId === '') {
                 throw new RuntimeException('Firebase project id is not configured.');
@@ -215,7 +215,27 @@ class FcmService
         return $this->resolveFirebaseCredentialsPath() !== null;
     }
 
-    private function resolveFirebaseCredentialsPath(): ?string
+    public function diagnostics(): array
+    {
+        $configuredPath = $this->configuredCredentialsPath();
+        $candidates = $configuredPath ? $this->credentialPathCandidates($configuredPath) : [];
+        $resolvedPath = $this->resolveFirebaseCredentialsPath() ?: ($candidates[0] ?? null);
+
+        return [
+            'project_id' => $this->projectId(),
+            'credentials_configured' => $configuredPath !== null,
+            'resolved_credentials_path' => $resolvedPath,
+            'file_exists' => $resolvedPath !== null && file_exists($resolvedPath),
+            'file_readable' => $resolvedPath !== null && is_readable($resolvedPath),
+        ];
+    }
+
+    private function projectId(): string
+    {
+        return (string) (config('services.firebase.project_id') ?: config('firebase.project_id') ?: env('FIREBASE_PROJECT_ID', ''));
+    }
+
+    private function configuredCredentialsPath(): ?string
     {
         $path = config('services.firebase.credentials') ?: config('firebase.credentials_path') ?: config('firebase.credentials') ?: env('FIREBASE_CREDENTIALS');
 
@@ -225,6 +245,12 @@ class FcmService
 
         $path = trim((string) $path);
         $path = trim($path, "\"'");
+
+        return $path !== '' ? $path : null;
+    }
+
+    private function credentialPathCandidates(string $path): array
+    {
         $candidates = [];
 
         if (str_starts_with($path, '/') || (strlen($path) > 2 && ctype_alpha($path[0]) && $path[1] === ':' && in_array($path[2], ['/', '\\'], true))) {
@@ -235,7 +261,18 @@ class FcmService
         $candidates[] = storage_path($path);
         $candidates[] = storage_path('app/' . ltrim($path, '/\\'));
 
-        foreach (array_unique($candidates) as $candidate) {
+        return array_values(array_unique($candidates));
+    }
+
+    private function resolveFirebaseCredentialsPath(): ?string
+    {
+        $path = $this->configuredCredentialsPath();
+
+        if ($path === null) {
+            return null;
+        }
+
+        foreach ($this->credentialPathCandidates($path) as $candidate) {
             if ($candidate && file_exists($candidate) && is_readable($candidate)) {
                 return $candidate;
             }

@@ -25,18 +25,20 @@ class NotificationEngineController extends BaseApiController
             ->where('user_id', '!=', $request->user()->id)
             ->update(['is_active' => false]);
 
-        UserPushToken::updateOrCreate(
-            ['token' => $validated['token']],
-            [
-                'user_id' => $request->user()->id,
-                'platform' => $validated['platform'] ?? null,
-                'device_id' => $validated['device_id'] ?? null,
-                'app_version' => $validated['app_version'] ?? null,
-                'is_active' => true,
-                'last_used_at' => now(),
-                'last_seen_at' => now(),
-            ]
-        );
+        $attributes = [
+            'user_id' => $request->user()->id,
+            'platform' => $validated['platform'] ?? null,
+            'device_id' => $validated['device_id'] ?? null,
+            'app_version' => $validated['app_version'] ?? null,
+            'is_active' => true,
+            'last_used_at' => now(),
+        ];
+
+        if (Schema::hasColumn('user_push_tokens', 'last_seen_at')) {
+            $attributes['last_seen_at'] = now();
+        }
+
+        UserPushToken::updateOrCreate(['token' => $validated['token']], $attributes);
 
         return $this->success([], 'Push token saved successfully.');
     }

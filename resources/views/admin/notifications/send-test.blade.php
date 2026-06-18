@@ -17,6 +17,47 @@
     </div>
 </div>
 
+@php($firebaseDiagnostics = $firebaseDiagnostics ?? [])
+<div class="card shadow-sm mb-4 border-{{ ($firebaseDiagnostics['file_readable'] ?? false) ? 'success' : 'warning' }}">
+    <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+        <span>Firebase Push Diagnostics</span>
+        @if($firebaseDiagnostics['file_readable'] ?? false)
+            <span class="badge bg-success">Ready</span>
+        @else
+            <span class="badge bg-warning text-dark">Check configuration</span>
+        @endif
+    </div>
+    <div class="card-body">
+        @unless($firebaseDiagnostics['file_readable'] ?? false)
+            <div class="alert alert-warning mb-3">
+                Firebase credentials are not ready. Push sends will be saved with a failed delivery log until the credentials path is configured and readable.
+            </div>
+        @endunless
+        <div class="row g-3 small">
+            <div class="col-md-4">
+                <div class="text-muted">Project ID</div>
+                <div class="fw-semibold">{{ $firebaseDiagnostics['project_id'] ?: 'Not configured' }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted">Credentials configured</div>
+                <span class="badge bg-{{ ($firebaseDiagnostics['credentials_configured'] ?? false) ? 'success' : 'danger' }}">{{ ($firebaseDiagnostics['credentials_configured'] ?? false) ? 'Yes' : 'No' }}</span>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted">File exists</div>
+                <span class="badge bg-{{ ($firebaseDiagnostics['file_exists'] ?? false) ? 'success' : 'danger' }}">{{ ($firebaseDiagnostics['file_exists'] ?? false) ? 'Yes' : 'No' }}</span>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted">File readable</div>
+                <span class="badge bg-{{ ($firebaseDiagnostics['file_readable'] ?? false) ? 'success' : 'danger' }}">{{ ($firebaseDiagnostics['file_readable'] ?? false) ? 'Yes' : 'No' }}</span>
+            </div>
+            <div class="col-md-12">
+                <div class="text-muted">Resolved credentials path</div>
+                <code class="text-break">{{ $firebaseDiagnostics['resolved_credentials_path'] ?: 'Not resolved' }}</code>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <form method="POST" action="{{ route('admin.notifications.send-test.store') }}">
