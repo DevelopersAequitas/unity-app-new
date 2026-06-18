@@ -219,18 +219,12 @@ class AppConfigController extends Controller
         return [
             'primary_color' => '#44A268',
             'primary_dark_color' => '#1B5E20',
-            'primary_light_color' => '#E8F5E9',
             'primary_ultra_light_color' => '#E8F5E9',
             'secondary_color' => '#0F172A',
-            'secondary_light_color' => '#6B7280',
-            'background_color' => '#F5F7FA',
-            'background_light_color' => '#F5F7FA',
-            'background_secondary_color' => '#F5F7FA',
-            'background_dark_color' => '#F5F7FA',
-            'card_background_color' => '#FFFFFF',
-            'card_border_color' => '#E5E7EB',
             'text_primary_color' => '#466186',
             'text_secondary_color' => '#6B7280',
+            'background_color' => '#F5F7FA',
+            'card_background_color' => '#FFFFFF',
         ];
     }
 
