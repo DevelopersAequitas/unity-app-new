@@ -117,40 +117,155 @@ class ReferralService
 
     public function validateReferralCode(string $code): ?array
     {
-        $normalized = strtoupper(trim($code));
-        $userColumn = $this->referralLinksUserColumn();
-        $codeColumn = $this->referralLinksCodeColumn();
+        $lookup = $this->lookupReferralCode($code);
 
-        $row = DB::table('referral_links as rl')
-            ->join('users as u', 'u.id', '=', 'rl.' . $userColumn)
-            ->where('rl.' . $codeColumn, $normalized)
-            ->select([
-                DB::raw('rl."' . $userColumn . '" as "user_id"'),
-                DB::raw('rl."' . $codeColumn . '" as "referral_code"'),
-                'u.first_name',
-                'u.last_name',
-                'u.display_name',
-                'u.email',
-            ])
-            ->first();
+        if (! $lookup) {
+            Log::info('referral.code.validated', [
+                'referral_code' => strtoupper(trim($code)),
+                'valid' => false,
+                'referrer_user_id' => null,
+            ]);
+
+            return null;
+        }
 
         Log::info('referral.code.validated', [
-            'referral_code' => $normalized,
-            'valid' => $row !== null,
-            'referrer_user_id' => $row?->user_id,
+            'referral_code' => (string) $lookup['referral_code'],
+            'valid' => true,
+            'referrer_user_id' => (string) $lookup['referrer_user_id'],
         ]);
+
+        return [
+            'referrer_user_id' => (string) $lookup['referrer_user_id'],
+            'referral_code' => (string) $lookup['referral_code'],
+            'referral_link' => $this->buildReferralLinkFromToken((string) $lookup['referral_code']),
+            'referrer_name' => (string) ($lookup['referrer_name'] ?? ''),
+            'referrer_email' => (string) ($lookup['referrer_email'] ?? ''),
+        ];
+    }
+
+    public function lookupReferralCode(string $code): ?array
+    {
+        $normalized = trim($code);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $row = $this->lookupReferralLinkCode($normalized) ?? $this->lookupUserReferralCode($normalized);
 
         if (! $row) {
             return null;
         }
 
         return [
-            'referrer_user_id' => (string) $row->user_id,
             'referral_code' => (string) $row->referral_code,
-            'referral_link' => $this->buildReferralLinkFromToken((string) $row->referral_code),
-            'referrer_name' => trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '') . ' ' . ($row->last_name ?? '')))),
+            'referrer_user_id' => (string) $row->user_id,
+            'referrer_name' => $this->referrerName($row),
             'referrer_email' => (string) ($row->email ?? ''),
+            'referrer_profile_photo_url' => $this->referrerProfilePhotoUrl($row),
         ];
+    }
+
+
+    private function lookupReferralLinkCode(string $code): ?object
+    {
+        if (! Schema::hasTable('referral_links')) {
+            return null;
+        }
+
+        $userColumn = $this->referralLinksUserColumn();
+        $codeColumn = $this->referralLinksCodeColumn();
+
+        $query = DB::table('referral_links as rl')
+            ->join('users as u', 'u.id', '=', 'rl.' . $userColumn)
+            ->whereRaw('LOWER(rl."' . $codeColumn . '") = ?', [strtolower($code)]);
+
+        if (Schema::hasColumn('referral_links', 'status')) {
+            $query->where('rl.status', 'active');
+        }
+
+        $this->applyActiveReferrerFilters($query);
+
+        return $query->select($this->referrerSelectColumns('rl."' . $userColumn . '"', 'rl."' . $codeColumn . '"'))->first();
+    }
+
+    private function lookupUserReferralCode(string $code): ?object
+    {
+        if (! Schema::hasColumn('users', 'referral_code')) {
+            return null;
+        }
+
+        $query = DB::table('users as u')
+            ->whereRaw('LOWER(u.referral_code) = ?', [strtolower($code)]);
+
+        $this->applyActiveReferrerFilters($query);
+
+        return $query->select($this->referrerSelectColumns('u.id', 'u.referral_code'))->first();
+    }
+
+    private function applyActiveReferrerFilters($query): void
+    {
+        $query->whereNull('u.deleted_at');
+
+        if (Schema::hasColumn('users', 'gdpr_deleted_at')) {
+            $query->whereNull('u.gdpr_deleted_at');
+        }
+
+        if (Schema::hasColumn('users', 'status')) {
+            $query->whereIn('u.status', ['active', 'approved']);
+        }
+
+        if (Schema::hasColumn('users', 'membership_status')) {
+            $query->where('u.membership_status', '!=', 'suspended');
+        }
+    }
+
+    private function referrerSelectColumns(string $userIdExpression, string $codeExpression): array
+    {
+        return [
+            DB::raw($userIdExpression . ' as "user_id"'),
+            DB::raw($codeExpression . ' as "referral_code"'),
+            'u.first_name',
+            'u.last_name',
+            'u.display_name',
+            'u.email',
+            'u.profile_photo_url',
+            'u.profile_photo_file_id',
+            'u.profile_photo_id',
+        ];
+    }
+
+    private function referrerName(object $row): ?string
+    {
+        $name = trim((string) ($row->display_name ?? ''));
+
+        if ($name === '') {
+            $name = trim((string) (($row->first_name ?? '') . ' ' . ($row->last_name ?? '')));
+        }
+
+        return $name !== '' ? $name : null;
+    }
+
+    private function referrerProfilePhotoUrl(object $row): ?string
+    {
+        $profilePhotoId = $row->profile_photo_file_id ?? $row->profile_photo_id ?? null;
+
+        if ($profilePhotoId) {
+            return url('/api/v1/files/' . $profilePhotoId);
+        }
+
+        $profilePhotoUrl = $row->profile_photo_url ?? null;
+
+        if (blank($profilePhotoUrl)) {
+            return null;
+        }
+
+        if (filter_var($profilePhotoUrl, FILTER_VALIDATE_URL)) {
+            return $profilePhotoUrl;
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($profilePhotoUrl);
     }
 
     public function validateReferralCodeOrFail(?string $code): ?array
@@ -183,7 +298,7 @@ class ReferralService
         try {
             return DB::transaction(function () use ($newUser, $normalized, $userColumn, $codeColumn) {
             $link = DB::table('referral_links')
-                ->where($codeColumn, $normalized)
+                ->whereRaw('LOWER("' . $codeColumn . '") = ?', [strtolower($normalized)])
                 ->lockForUpdate()
                 ->first();
 

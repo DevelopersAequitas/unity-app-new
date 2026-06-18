@@ -137,6 +137,7 @@ Route::prefix('v1')->group(function () {
 
     Route::prefix('auth')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
+        Route::post('referral-code/lookup', [AuthController::class, 'lookupReferralCode']);
         Route::post('login', [AuthController::class, 'login']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
         Route::post('verify-otp', [AuthController::class, 'verifyOtp']);

@@ -35,10 +35,42 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends BaseApiController
 {
+    public function lookupReferralCode(Request $request, ReferralService $referralService): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'referral_code' => ['required', 'string', 'max:50'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first('referral_code'),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $referrer = $referralService->lookupReferralCode((string) $validator->validated()['referral_code']);
+
+        if (! $referrer) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid referral code.',
+                'data' => null,
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Referral code found.',
+            'data' => $referrer,
+        ]);
+    }
+
     public function register(RegisterRequest $request, ReferralService $referralService, FileUploadService $fileUploadService)
     {
         $data = $request->validated();
