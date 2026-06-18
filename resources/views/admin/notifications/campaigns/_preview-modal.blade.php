@@ -1,4 +1,7 @@
-@php($modalId = $modalId ?? 'previewModal')
+@php
+    $modalId = $modalId ?? 'previewModal';
+    $hasPreview = session()->has('preview');
+@endphp
 
 <div class="modal fade" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $modalId }}Label" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -36,7 +39,7 @@
                         @endforeach
                     </div>
 
-                    @if(session('preview'))
+                    @if($hasPreview)
                         <hr>
                         <h6>Rendered Preview</h6>
                         <dl class="row">
@@ -69,7 +72,7 @@
     </div>
 </div>
 
-@if(session('preview') && $modalId === 'previewModal')
+@if($hasPreview && $modalId === 'previewModal')
     @push('scripts')
         <script>
             document.addEventListener('DOMContentLoaded', () => {
