@@ -309,6 +309,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/notifications/campaigns/{id}/toggle', [NotificationAdminController::class, 'toggleCampaign'])->whereUuid('id')->name('notifications.campaigns.toggle');
         Route::post('/notifications/campaigns/{id}/preview', [NotificationAdminController::class, 'previewCampaign'])->whereUuid('id')->name('notifications.campaigns.preview');
         Route::post('/notifications/campaigns/{id}/run', [NotificationAdminController::class, 'runCampaign'])->whereUuid('id')->name('notifications.campaigns.run');
+        Route::get('/notifications/users/search', [NotificationAdminController::class, 'searchUsers'])->name('notifications.users.search');
         Route::get('/notifications/send-test', [NotificationAdminController::class, 'sendTestForm'])->name('notifications.send-test');
         Route::post('/notifications/send-test', [NotificationAdminController::class, 'sendTest'])->name('notifications.send-test.store');
         Route::get('/notifications/logs', [NotificationAdminController::class, 'logs'])->name('notifications.logs');

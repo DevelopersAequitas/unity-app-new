@@ -1,4 +1,137 @@
 <?php
+
 namespace App\Http\Controllers\Api\V1;
-use App\Http\Controllers\Api\BaseApiController; use App\Models\Notifications\{AppNotification,NotificationPreference}; use App\Models\UserPushToken; use App\Services\Notifications\NotificationService; use Illuminate\Http\Request;
-class NotificationEngineController extends BaseApiController { public function pushToken(Request $r){$v=$r->validate(['token'=>'required|string','platform'=>'nullable|in:android,ios,web','device_id'=>'nullable|string','app_version'=>'nullable|string']); UserPushToken::where('token',$v['token'])->where('user_id','!=',$r->user()->id)->update(['is_active'=>false]); UserPushToken::updateOrCreate(['token'=>$v['token']],['user_id'=>$r->user()->id,'platform'=>$v['platform']??null,'device_id'=>$v['device_id']??null,'app_version'=>$v['app_version']??null,'is_active'=>true,'last_used_at'=>now(),'last_seen_at'=>now()]); return $this->success([],'Push token saved successfully.');} public function index(Request $r){$q=AppNotification::where('user_id',$r->user()->id); if($r->boolean('unread_only'))$q->whereNull('read_at'); if($r->filled('type'))$q->where('type',$r->type); $p=$q->latest()->paginate(min((int)$r->get('per_page',20),100)); return $this->success(['notifications'=>$p->items(),'pagination'=>['current_page'=>$p->currentPage(),'last_page'=>$p->lastPage(),'per_page'=>$p->perPage(),'total'=>$p->total()],'unread_count'=>AppNotification::where('user_id',$r->user()->id)->whereNull('read_at')->count()],'Notifications fetched successfully.');} public function read(Request $r,string $id,NotificationService $s){return $this->success($s->markAsRead($r->user(),$id),'Notification marked as read.');} public function readAll(Request $r,NotificationService $s){return $this->success(['updated'=>$s->markAllAsRead($r->user())],'All notifications marked as read.');} public function click(Request $r,string $id,NotificationService $s){return $this->success($s->recordClick($r->user(),$id),'Notification click recorded.');} public function preferences(Request $r){return $this->success(NotificationPreference::firstOrCreate(['user_id'=>$r->user()->id]),'Notification preferences fetched successfully.');} public function updatePreferences(Request $r){$v=$r->validate(['push_enabled'=>'boolean','email_enabled'=>'boolean','chat_enabled'=>'boolean','event_enabled'=>'boolean','circle_enabled'=>'boolean','business_enabled'=>'boolean','campaign_enabled'=>'boolean','quiet_hours_start'=>'nullable|date_format:H:i','quiet_hours_end'=>'nullable|date_format:H:i']); $p=NotificationPreference::firstOrCreate(['user_id'=>$r->user()->id]); $p->update($v); return $this->success($p,'Notification preferences updated successfully.');}}
+
+use App\Http\Controllers\Api\BaseApiController;
+use App\Models\Notifications\AppNotification;
+use App\Models\Notifications\NotificationPreference;
+use App\Models\UserPushToken;
+use App\Services\Notifications\NotificationService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+
+class NotificationEngineController extends BaseApiController
+{
+    public function pushToken(Request $request)
+    {
+        $validated = $request->validate([
+            'token' => ['required', 'string'],
+            'platform' => ['nullable', 'in:android,ios,web'],
+            'device_id' => ['nullable', 'string'],
+            'app_version' => ['nullable', 'string'],
+        ]);
+
+        UserPushToken::where('token', $validated['token'])
+            ->where('user_id', '!=', $request->user()->id)
+            ->update(['is_active' => false]);
+
+        UserPushToken::updateOrCreate(
+            ['token' => $validated['token']],
+            [
+                'user_id' => $request->user()->id,
+                'platform' => $validated['platform'] ?? null,
+                'device_id' => $validated['device_id'] ?? null,
+                'app_version' => $validated['app_version'] ?? null,
+                'is_active' => true,
+                'last_used_at' => now(),
+                'last_seen_at' => now(),
+            ]
+        );
+
+        return $this->success([], 'Push token saved successfully.');
+    }
+
+    public function index(Request $request)
+    {
+        $query = AppNotification::where('user_id', $request->user()->id);
+
+        if (Schema::hasColumn('app_notifications', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        if ($request->boolean('unread_only')) {
+            $query->whereNull('read_at');
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+
+        $perPage = min(max((int) $request->get('per_page', 20), 1), 100);
+        $paginator = $query->latest()->paginate($perPage);
+
+        $unreadQuery = AppNotification::where('user_id', $request->user()->id)->whereNull('read_at');
+        if (Schema::hasColumn('app_notifications', 'deleted_at')) {
+            $unreadQuery->whereNull('deleted_at');
+        }
+
+        return $this->success([
+            'notifications' => collect($paginator->items())->map(fn (AppNotification $notification): array => [
+                'id' => (string) $notification->id,
+                'type' => $notification->type,
+                'category' => $notification->category,
+                'title' => $notification->title,
+                'body' => $notification->body,
+                'channel' => $notification->channel,
+                'priority' => $notification->priority,
+                'screen' => $notification->screen,
+                'reference_type' => $notification->reference_type,
+                'reference_id' => $notification->reference_id,
+                'data' => $notification->data ?? [],
+                'status' => $notification->status,
+                'is_read' => $notification->read_at !== null,
+                'sent_at' => $notification->sent_at,
+                'read_at' => $notification->read_at,
+                'clicked_at' => $notification->clicked_at,
+                'created_at' => $notification->created_at,
+            ])->values(),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+            'unread_count' => $unreadQuery->count(),
+        ], 'Notifications fetched successfully.');
+    }
+
+    public function read(Request $request, string $id, NotificationService $service)
+    {
+        return $this->success($service->markAsRead($request->user(), $id), 'Notification marked as read.');
+    }
+
+    public function readAll(Request $request, NotificationService $service)
+    {
+        return $this->success(['updated' => $service->markAllAsRead($request->user())], 'All notifications marked as read.');
+    }
+
+    public function click(Request $request, string $id, NotificationService $service)
+    {
+        return $this->success($service->recordClick($request->user(), $id), 'Notification click recorded.');
+    }
+
+    public function preferences(Request $request)
+    {
+        return $this->success(NotificationPreference::firstOrCreate(['user_id' => $request->user()->id]), 'Notification preferences fetched successfully.');
+    }
+
+    public function updatePreferences(Request $request)
+    {
+        $validated = $request->validate([
+            'push_enabled' => ['boolean'],
+            'email_enabled' => ['boolean'],
+            'chat_enabled' => ['boolean'],
+            'event_enabled' => ['boolean'],
+            'circle_enabled' => ['boolean'],
+            'business_enabled' => ['boolean'],
+            'campaign_enabled' => ['boolean'],
+            'quiet_hours_start' => ['nullable', 'date_format:H:i'],
+            'quiet_hours_end' => ['nullable', 'date_format:H:i'],
+        ]);
+
+        $preference = NotificationPreference::firstOrCreate(['user_id' => $request->user()->id]);
+        $preference->update($validated);
+
+        return $this->success($preference, 'Notification preferences updated successfully.');
+    }
+}

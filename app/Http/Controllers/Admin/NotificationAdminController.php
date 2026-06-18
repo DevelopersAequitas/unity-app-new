@@ -12,9 +12,11 @@ use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Notifications\CampaignService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -179,92 +181,135 @@ class NotificationAdminController extends Controller
         return back()->with('success', 'Default notification campaigns seeded successfully.');
     }
 
-    public function sendTestForm(Request $request): View
+
+    public function sendTestForm(): View
     {
-        $userQuery = User::query()
-            ->when($request->filled('user_search'), function (Builder $query) use ($request): void {
-                $search = '%' . $request->string('user_search')->toString() . '%';
-                $query->where(fn (Builder $q) => $q
-                    ->where('display_name', 'ilike', $search)
-                    ->orWhere('first_name', 'ilike', $search)
-                    ->orWhere('last_name', 'ilike', $search)
-                    ->orWhere('email', 'ilike', $search)
-                    ->orWhere('phone', 'ilike', $search));
-            });
-
-        if (Schema::hasTable('user_push_tokens') && Schema::hasColumn('user_push_tokens', 'is_active')) {
-            $userQuery->withCount(['pushTokens as active_push_tokens_count' => fn (Builder $q) => $q->where('is_active', true)]);
-        }
-
-        $users = $userQuery->orderBy('first_name')->limit(50)->get();
-
         $recentTests = Schema::hasTable('app_notifications')
-            ? AppNotification::with('user')->where('category', 'admin_test')->latest()->limit(10)->get()
+            ? AppNotification::with('user')->where('category', 'admin_test')->latest()->limit(15)->get()
             : collect();
 
-        return view('admin.notifications.send-test', compact('users', 'recentTests'));
+        return view('admin.notifications.send-test', compact('recentTests'));
+    }
+
+    public function searchUsers(Request $request): JsonResponse
+    {
+        $page = max((int) $request->query('page', 1), 1);
+        $perPage = 20;
+        $q = trim((string) $request->query('q', ''));
+        $columns = collect(['display_name', 'first_name', 'last_name', 'name', 'email', 'phone', 'mobile'])
+            ->filter(fn (string $column): bool => Schema::hasColumn('users', $column))
+            ->values();
+
+        $query = User::query();
+
+        if (Schema::hasColumn('users', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        if ($q !== '' && $columns->isNotEmpty()) {
+            $needle = '%' . mb_strtolower($q) . '%';
+            $query->where(function (Builder $builder) use ($columns, $needle): void {
+                foreach ($columns as $column) {
+                    $builder->orWhereRaw('LOWER(' . $column . ') LIKE ?', [$needle]);
+                }
+            });
+        }
+
+        foreach (['first_name', 'name', 'email'] as $orderColumn) {
+            if (Schema::hasColumn('users', $orderColumn)) {
+                $query->orderBy($orderColumn);
+            }
+        }
+
+        $total = (clone $query)->count();
+        $users = $query->forPage($page, $perPage)->get();
+
+        return response()->json([
+            'results' => $users->map(fn (User $user): array => [
+                'id' => (string) $user->id,
+                'text' => $this->userSelectText($user),
+                'active_push_tokens_count' => $this->activePushTokenCount($user),
+            ])->values(),
+            'pagination' => ['more' => ($page * $perPage) < $total],
+        ]);
     }
 
     public function sendTest(Request $request): RedirectResponse
     {
-        $data = $this->testNotificationData($request);
-        $payload = json_decode($data['data'] ?: '{}', true) ?: [];
-        $channel = $data['channel'];
+        try {
+            $data = $this->testNotificationData($request);
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            if ($exception->validator->errors()->has('data')) {
+                return back()->withInput()->with('error', 'Data JSON must be valid JSON.');
+            }
+            throw $exception;
+        }
 
         if (! Schema::hasTable('app_notifications')) {
             return back()->withInput()->with('error', 'The app_notifications table is not available. Please run migrations.');
         }
 
-        try {
-            $hasActiveToken = Schema::hasTable('user_push_tokens')
-                && Schema::hasColumn('user_push_tokens', 'is_active')
-                && UserPushToken::where('user_id', $data['user_id'])->where('is_active', true)->exists();
+        $payload = json_decode($data['data'] ?: '{}', true) ?: [];
+        $channel = $data['channel'];
+        $notification = AppNotification::create([
+            'user_id' => $data['user_id'],
+            'type' => $data['type'],
+            'category' => $data['category'],
+            'title' => $data['title'],
+            'body' => $data['body'],
+            'channel' => $channel,
+            'priority' => $data['priority'],
+            'reference_type' => $data['reference_type'] ?? null,
+            'reference_id' => $data['reference_id'] ?? null,
+            'screen' => $data['screen'],
+            'data' => array_merge($payload, ['screen' => $data['screen'], 'reference_id' => $data['reference_id'] ?? null]),
+            'status' => 'pending',
+        ]);
 
-            $notification = AppNotification::create([
-                'user_id' => $data['user_id'],
-                'type' => $data['type'],
-                'category' => $data['category'],
-                'title' => $data['title'],
-                'body' => $data['body'],
-                'channel' => $channel,
-                'priority' => $data['priority'],
-                'reference_type' => $data['reference_type'] ?? null,
-                'reference_id' => $data['reference_id'] ?? null,
-                'screen' => $data['screen'],
-                'data' => array_merge($payload, ['screen' => $data['screen'], 'reference_id' => $data['reference_id'] ?? null]),
-                'status' => ($channel === 'in_app_only' || (in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken)) ? ($channel === 'in_app_only' ? 'sent' : 'failed') : 'pending',
-                'sent_at' => $channel === 'in_app_only' ? now() : null,
-                'failed_at' => in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken ? now() : null,
-                'failure_reason' => in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken ? 'No active push token found.' : null,
-            ]);
+        $results = ['push' => null, 'email' => null];
 
-            if (in_array($channel, ['push', 'push_email'], true) && $hasActiveToken) {
-                SendNotificationChannelJob::dispatch($notification->id, 'push');
-            }
-
-            if (in_array($channel, ['email', 'push_email'], true)) {
-                SendNotificationChannelJob::dispatch($notification->id, 'email');
-            }
-
-            if (Schema::hasTable('notification_delivery_logs')) {
-                NotificationDeliveryLog::create([
-                    'notification_id' => $notification->id,
-                    'user_id' => $notification->user_id,
-                    'channel' => $channel,
-                    'provider' => $channel === 'in_app_only' ? 'in_app' : null,
-                    'status' => in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken ? 'failed' : ($channel === 'in_app_only' ? 'sent' : 'queued'),
-                    'request_payload' => $notification->dataPayload(),
-                    'error_message' => in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken ? 'No active push token found.' : null,
-                    'attempted_at' => now(),
-                    'delivered_at' => $channel === 'in_app_only' ? now() : null,
-                ]);
-            }
-        } catch (Throwable $throwable) {
-            report($throwable);
-            return back()->withInput()->with('error', 'Test notification could not be created: ' . $throwable->getMessage());
+        if ($channel === 'in_app_only') {
+            $notification->update(['status' => 'sent', 'sent_at' => now()]);
+            return redirect()->route('admin.notifications.send-test')->with('success', 'In-app notification created successfully.');
         }
 
-        return redirect()->route('admin.notifications.send-test')->with('success', 'Test notification created/sent successfully.');
+        if (in_array($channel, ['push', 'push_email'], true)) {
+            $results['push'] = $this->sendPushForTest($notification);
+        }
+
+        if (in_array($channel, ['email', 'push_email'], true)) {
+            $results['email'] = $this->sendEmailForTest($notification);
+        }
+
+        $successes = collect($results)->filter(fn ($result) => is_array($result) && ($result['success'] ?? false))->count();
+        $failures = collect($results)->filter(fn ($result) => is_array($result) && ! ($result['success'] ?? false))->values();
+
+        if ($successes > 0) {
+            $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
+        } else {
+            $reason = (string) ($failures->first()['error'] ?? 'Delivery failed.');
+            $notification->update(['status' => 'failed', 'failed_at' => now(), 'failure_reason' => $reason]);
+        }
+
+        if ($channel === 'push_email') {
+            if (($results['push']['success'] ?? false) && ($results['email']['success'] ?? false)) {
+                return redirect()->route('admin.notifications.send-test')->with('success', 'Push and email sent successfully.');
+            }
+
+            if ($results['email']['success'] ?? false) {
+                return redirect()->route('admin.notifications.send-test')->with('warning', 'Notification saved. Email sent, but push failed: ' . ($results['push']['error'] ?? 'Unknown error.'));
+            }
+
+            if ($results['push']['success'] ?? false) {
+                return redirect()->route('admin.notifications.send-test')->with('warning', 'Notification saved. Push sent, but email failed: ' . ($results['email']['error'] ?? 'Unknown error.'));
+            }
+        }
+
+        if ($successes > 0) {
+            return redirect()->route('admin.notifications.send-test')->with('success', 'Test notification sent successfully.');
+        }
+
+        return redirect()->route('admin.notifications.send-test')->with('warning', 'Notification saved, but delivery failed: ' . ($failures->first()['error'] ?? 'Unknown error.'));
     }
 
     public function logs(Request $request): View
@@ -369,6 +414,109 @@ class NotificationAdminController extends Controller
         return back()->with('success', 'User notifications cleared successfully.');
     }
 
+
+    private function sendPushForTest(AppNotification $notification): array
+    {
+        if (! Schema::hasTable('user_push_tokens') || ! Schema::hasColumn('user_push_tokens', 'is_active')) {
+            return $this->recordDelivery($notification, 'push', false, 'No active push token found.', 'firebase');
+        }
+
+        $tokens = UserPushToken::where('user_id', $notification->user_id)->where('is_active', true)->get();
+        if ($tokens->isEmpty()) {
+            return $this->recordDelivery($notification, 'push', false, 'No active push token found.', 'firebase');
+        }
+
+        $firebase = app(\App\Services\Firebase\FcmService::class);
+        if (method_exists($firebase, 'credentialsAvailable') && ! $firebase->credentialsAvailable()) {
+            return $this->recordDelivery($notification, 'push', false, 'Firebase credentials file is not available.', 'firebase');
+        }
+
+        $firstError = null;
+        foreach ($tokens as $token) {
+            $result = $firebase->sendToDevice($token->token, $notification->title, $notification->body, $notification->dataPayload(), null, 1, [
+                'user_id' => $notification->user_id,
+                'notification_type' => $notification->type,
+            ]);
+
+            if ($result['success'] ?? false) {
+                $this->recordDelivery($notification, 'push', true, null, 'firebase', $result, $result['firebase_response']['name'] ?? null);
+                return ['success' => true];
+            }
+
+            $firstError ??= (string) ($result['error'] ?? 'Push delivery failed.');
+            if (str_contains(strtolower($firstError), 'invalid') || str_contains(strtolower($firstError), 'unregistered')) {
+                UserPushToken::where('token', $token->token)->update(['is_active' => false]);
+            }
+        }
+
+        return $this->recordDelivery($notification, 'push', false, $firstError ?: 'Push delivery failed.', 'firebase');
+    }
+
+    private function sendEmailForTest(AppNotification $notification): array
+    {
+        try {
+            Mail::raw($notification->body, fn ($message) => $message->to($notification->user?->email)->subject($notification->title));
+            return $this->recordDelivery($notification, 'email', true, null, 'mail');
+        } catch (Throwable $throwable) {
+            report($throwable);
+            return $this->recordDelivery($notification, 'email', false, $throwable->getMessage(), 'mail');
+        }
+    }
+
+    private function recordDelivery(AppNotification $notification, string $channel, bool $success, ?string $error = null, ?string $provider = null, array $response = [], ?string $providerMessageId = null): array
+    {
+        if (Schema::hasTable('notification_delivery_logs')) {
+            NotificationDeliveryLog::create([
+                'notification_id' => $notification->id,
+                'user_id' => $notification->user_id,
+                'campaign_id' => $notification->campaign_id,
+                'channel' => $channel,
+                'provider' => $provider,
+                'provider_message_id' => $providerMessageId,
+                'status' => $success ? 'sent' : 'failed',
+                'request_payload' => $notification->dataPayload(),
+                'response_payload' => $response,
+                'error_message' => $error,
+                'attempted_at' => now(),
+                'delivered_at' => $success ? now() : null,
+            ]);
+        }
+
+        return ['success' => $success, 'error' => $error];
+    }
+
+    private function activePushTokenCount(User $user): int
+    {
+        if (! Schema::hasTable('user_push_tokens') || ! Schema::hasColumn('user_push_tokens', 'is_active')) {
+            return 0;
+        }
+
+        return UserPushToken::where('user_id', $user->id)->where('is_active', true)->count();
+    }
+
+    private function userSelectText(User $user): string
+    {
+        $displayName = trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? '')));
+        if ($displayName === '') {
+            $displayName = (string) ($user->name ?? 'Unknown User');
+        }
+
+        $parts = [$displayName];
+        if (! empty($user->email)) {
+            $parts[] = $user->email;
+        }
+        if (! empty($user->phone)) {
+            $parts[] = $user->phone;
+        } elseif (! empty($user->mobile)) {
+            $parts[] = $user->mobile;
+        }
+
+        $tokenCount = $this->activePushTokenCount($user);
+        $parts[] = $tokenCount > 0 ? 'Push available (' . $tokenCount . ')' : 'No active push token';
+
+        return implode(' — ', array_filter($parts));
+    }
+
     private function campaignData(Request $request, ?string $ignoreId = null): array
     {
         $data = $request->validate([
@@ -420,13 +568,19 @@ class NotificationAdminController extends Controller
 
     private function applyUserSearch(Builder $query, string $search): void
     {
-        $like = '%' . $search . '%';
-        $query->where(fn (Builder $q) => $q
-            ->where('display_name', 'ilike', $like)
-            ->orWhere('first_name', 'ilike', $like)
-            ->orWhere('last_name', 'ilike', $like)
-            ->orWhere('email', 'ilike', $like)
-            ->orWhere('phone', 'ilike', $like));
+        $columns = collect(['display_name', 'first_name', 'last_name', 'name', 'email', 'phone', 'mobile'])
+            ->filter(fn (string $column): bool => Schema::hasColumn('users', $column));
+
+        if ($columns->isEmpty()) {
+            return;
+        }
+
+        $like = '%' . mb_strtolower($search) . '%';
+        $query->where(function (Builder $builder) use ($columns, $like): void {
+            foreach ($columns as $column) {
+                $builder->orWhereRaw('LOWER(' . $column . ') LIKE ?', [$like]);
+            }
+        });
     }
 
     private function renderPreview(NotificationCampaign $campaign, array $placeholders): array

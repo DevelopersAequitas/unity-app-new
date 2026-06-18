@@ -73,7 +73,7 @@ class FcmService
             }
 
             if ($this->isInvalidTokenResponse($firebaseResponse)) {
-                UserPushToken::where('token', $deviceToken)->delete();
+                UserPushToken::where('token', $deviceToken)->update(['is_active' => false]);
 
                 Log::warning('FCM token removed after invalid token response', [
                     'token_masked' => $this->maskToken($deviceToken),
@@ -209,12 +209,47 @@ class FcmService
         ];
     }
 
+
+    public function credentialsAvailable(): bool
+    {
+        return $this->resolveFirebaseCredentialsPath() !== null;
+    }
+
+    private function resolveFirebaseCredentialsPath(): ?string
+    {
+        $path = config('services.firebase.credentials') ?: config('firebase.credentials_path') ?: config('firebase.credentials') ?: env('FIREBASE_CREDENTIALS');
+
+        if (! $path) {
+            return null;
+        }
+
+        $path = trim((string) $path);
+        $path = trim($path, "\"'");
+        $candidates = [];
+
+        if (str_starts_with($path, '/') || (strlen($path) > 2 && ctype_alpha($path[0]) && $path[1] === ':' && in_array($path[2], ['/', '\\'], true))) {
+            $candidates[] = $path;
+        }
+
+        $candidates[] = base_path($path);
+        $candidates[] = storage_path($path);
+        $candidates[] = storage_path('app/' . ltrim($path, '/\\'));
+
+        foreach (array_unique($candidates) as $candidate) {
+            if ($candidate && file_exists($candidate) && is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
     private function getAccessToken(): string
     {
         return Cache::remember('firebase.fcm.access_token', now()->addMinutes(50), function (): string {
-            $credentialsPath = (string) config('firebase.credentials_path');
+            $credentialsPath = $this->resolveFirebaseCredentialsPath();
 
-            if ($credentialsPath === '' || ! is_file($credentialsPath)) {
+            if ($credentialsPath === null) {
                 throw new RuntimeException('Firebase credentials file is not available.');
             }
 

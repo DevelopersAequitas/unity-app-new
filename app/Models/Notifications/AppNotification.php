@@ -33,12 +33,14 @@ class AppNotification extends Model
         return array_merge((array) ($this->data ?? []), [
             'notification_id' => (string) $this->id,
             'type' => (string) $this->type,
-            'screen' => (string) $this->screen,
+            'category' => (string) ($this->category ?? ''),
+            'screen' => (string) ($this->screen ?? 'home'),
             'reference_type' => (string) $this->reference_type,
             'reference_id' => (string) $this->reference_id,
             'campaign_id' => (string) $this->campaign_id,
             'title' => (string) $this->title,
             'body' => (string) $this->body,
+            'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
         ]);
     }
 
