@@ -3,6 +3,7 @@
 
 @section('content')
 @include('admin.notifications._helpers')
+@include('admin.notifications._styles')
 @include('admin.notifications._flash')
 
 @if (session('warning'))
@@ -93,7 +94,7 @@
 <div class="card shadow-sm">
     <div class="card-header bg-white fw-semibold">Recent Test Notifications</div>
     <div class="table-responsive">
-        <table class="table table-striped align-middle mb-0">
+        <table class="table table-striped table-hover align-middle notification-admin-table mb-0">
             <thead class="table-light">
             <tr>
                 <th>Date</th><th>User</th><th>Title</th><th>Channel</th><th>Status</th><th>Failure Reason</th><th>Sent At</th><th>Read At</th><th>Clicked At</th>
