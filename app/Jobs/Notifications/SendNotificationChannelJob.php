@@ -1,0 +1,4 @@
+<?php
+namespace App\Jobs\Notifications;
+use App\Models\Notifications\AppNotification; use App\Services\Notifications\FcmService; use Illuminate\Bus\Queueable; use Illuminate\Contracts\Queue\ShouldQueue; use Illuminate\Foundation\Bus\Dispatchable; use Illuminate\Queue\InteractsWithQueue; use Illuminate\Queue\SerializesModels; use Illuminate\Support\Facades\Mail; use Throwable;
+class SendNotificationChannelJob implements ShouldQueue { use Dispatchable, InteractsWithQueue, Queueable, SerializesModels; public function __construct(public string $notificationId, public string $channel){} public function handle(FcmService $fcm):void{ $n=AppNotification::find($this->notificationId); if(!$n)return; if($this->channel==='push'){$fcm->sendToUser($n->user,$n->title,$n->body,$n->dataPayload(),$n);} if($this->channel==='email'){ try{ Mail::raw($n->body, fn($m)=>$m->to($n->user->email)->subject($n->title)); }catch(Throwable $e){ report($e);} } } }
