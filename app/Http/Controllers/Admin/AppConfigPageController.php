@@ -70,12 +70,15 @@ class AppConfigPageController extends Controller
 
     public function updateBranding(Request $request)
     {
-        $hex = ['nullable', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/'];
+        $hex = ['required', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/'];
+        $nullableHex = ['nullable', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/'];
         $data = $request->validate([
             'app_name' => ['nullable', 'string', 'max:255'], 'app_logo_url' => ['nullable', 'url'], 'splash_logo_url' => ['nullable', 'url'], 'logo_url_light' => ['nullable', 'url'], 'logo_url_dark' => ['nullable', 'url'], 'logo_url_splash' => ['nullable', 'url'],
-            'primary_color' => $hex, 'primary_dark_color' => $hex, 'primary_light_color' => $hex, 'primary_ultra_light_color' => $hex, 'secondary_color' => $hex, 'secondary_light_color' => $hex, 'background_color' => $hex, 'background_light_color' => $hex, 'background_secondary_color' => $hex, 'background_dark_color' => $hex, 'card_background_color' => $hex, 'card_border_color' => $hex, 'text_primary_color' => $hex, 'text_secondary_color' => $hex, 'secondary_color' => $hex, 'accent_color' => $hex, 'splash_bg_color' => $hex, 'button_color' => $hex, 'text_color' => $hex,
+            'primary_color' => $hex, 'primary_dark_color' => $hex, 'primary_ultra_light_color' => $hex, 'secondary_color' => $hex, 'text_primary_color' => $hex, 'text_secondary_color' => $hex, 'background_color' => $hex, 'card_background_color' => $hex,
+            'accent_color' => $nullableHex, 'splash_bg_color' => $nullableHex, 'button_color' => $nullableHex, 'text_color' => $nullableHex,
             'playstore_url' => ['nullable', 'url'], 'appstore_url' => ['nullable', 'url'], 'website_url' => ['nullable', 'url'], 'support_email' => ['nullable', 'email'], 'support_phone' => ['nullable', 'string', 'max:50'],
         ]);
+        $data = $this->applyColorFallbacks($data);
         DB::table('app_config_settings')->updateOrInsert(['app_instance_id' => $this->appId(), 'app_key' => 'greenpreneur'], $data + ['is_active' => true, 'updated_at' => now(), 'created_at' => now()]);
         return $this->done('Branding updated successfully.', 'branding');
     }
@@ -105,6 +108,73 @@ class AppConfigPageController extends Controller
         $payload['nav_key'] = $payload['v_key'] = $data['item_key']; $payload['nav_label'] = $payload['v_label'] = $data['display_label']; $payload['position'] = $data['sort_order']; $payload['is_enabled'] = $request->boolean('is_enabled'); $payload['updated_at'] = now();
         if ($id) DB::table('app_navigation_items')->where('app_instance_id', $this->appId())->where('id', $id)->update($payload); else DB::table('app_navigation_items')->insert($payload + ['id' => (string) \Illuminate\Support\Str::uuid(), 'created_at' => now()]);
         return $this->done('Navigation item saved successfully.', 'navigation');
+    }
+
+
+    public function bulkUpdateNavigationGroup(Request $request, string $menuType)
+    {
+        abort_unless(in_array($menuType, ['bottom_nav', 'plus_menu', 'impact_menu', 'drawer'], true), 404);
+
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['nullable', 'uuid'],
+            'items.*.item_key' => ['required', 'string', 'max:150'],
+            'items.*.label_key' => ['nullable', 'string', 'max:150'],
+            'items.*.display_label' => ['required', 'string', 'max:255'],
+            'items.*.icon' => ['nullable', 'string', 'max:150'],
+            'items.*.route_name' => ['nullable', 'string', 'max:150'],
+            'items.*.feature_key' => ['nullable', 'string', 'max:150'],
+            'items.*.is_enabled' => ['boolean'],
+            'items.*.sort_order' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $appId = $this->appId();
+        $updatedCount = 0;
+
+        DB::transaction(function () use ($data, $menuType, $appId, &$updatedCount) {
+            foreach ($data['items'] as $item) {
+                $sortOrder = $item['sort_order'] ?? 0;
+                $payload = [
+                    'app_instance_id' => $appId,
+                    'menu_type' => $menuType,
+                    'item_key' => $item['item_key'],
+                    'label_key' => $item['label_key'] ?? null,
+                    'display_label' => $item['display_label'],
+                    'icon' => $item['icon'] ?? null,
+                    'route_name' => $item['route_name'] ?? null,
+                    'feature_key' => $item['feature_key'] ?? null,
+                    'is_enabled' => (bool) ($item['is_enabled'] ?? false),
+                    'sort_order' => $sortOrder,
+                    'position' => $sortOrder,
+                    'nav_key' => $item['item_key'],
+                    'nav_label' => $item['display_label'],
+                    'v_key' => $item['item_key'],
+                    'v_label' => $item['display_label'],
+                    'updated_at' => now(),
+                ];
+
+                $query = DB::table('app_navigation_items')->where('app_instance_id', $appId);
+                if (!empty($item['id'])) {
+                    $query->where('id', $item['id']);
+                } else {
+                    $query->where('menu_type', $menuType)->where('item_key', $item['item_key']);
+                }
+
+                $query->update($payload);
+                $updatedCount++;
+            }
+        });
+
+        AppConfigController::clearCache();
+
+        return response()->json([
+            'success' => true,
+            'message' => $this->navigationGroupLabel($menuType) . ' saved successfully.',
+            'data' => [
+                'menu_type' => $menuType,
+                'updated_count' => $updatedCount,
+            ],
+        ]);
     }
 
     public function deleteNavigation(string $id) { DB::table('app_navigation_items')->where('app_instance_id', $this->appId())->where('id', $id)->delete(); return $this->done('Navigation item deleted successfully.', 'navigation'); }
@@ -187,5 +257,24 @@ class AppConfigPageController extends Controller
 
     public function clearCache() { return $this->done('App configuration cache cleared successfully.', request('tab', 'overview')); }
     private function appId(): string { return $this->appConfigService->getGreenpreneurAppInstance()->id; }
+    private function navigationGroupLabel(string $menuType): string { return ['bottom_nav' => 'Bottom Navigation', 'plus_menu' => 'Plus Menu', 'impact_menu' => 'Impact Menu', 'drawer' => 'Drawer Menu'][$menuType] ?? 'Navigation group'; }
+    private function applyColorFallbacks(array $data): array
+    {
+        if (array_key_exists('primary_ultra_light_color', $data)) {
+            $data['primary_light_color'] = $data['primary_ultra_light_color'];
+        }
+        if (array_key_exists('text_secondary_color', $data)) {
+            $data['secondary_light_color'] = $data['text_secondary_color'];
+        }
+        if (array_key_exists('background_color', $data)) {
+            $data['background_light_color'] = $data['background_color'];
+            $data['background_secondary_color'] = $data['background_color'];
+            $data['background_dark_color'] = $data['background_color'];
+        }
+        $data['card_border_color'] = '#E5E7EB';
+
+        return $data;
+    }
+
     private function done(string $message, string $tab) { AppConfigController::clearCache(); return redirect()->route('admin.app-config.index', ['tab' => $tab])->with('success', $message); }
 }
