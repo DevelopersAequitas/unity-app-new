@@ -156,6 +156,8 @@ class User extends Authenticatable
         'welcome_membership_email_status',
         'welcome_membership_email_error',
         'welcome_membership_email_plan_code',
+        'referral_code',
+        'referred_by',
     ];
 
     protected $hidden = [

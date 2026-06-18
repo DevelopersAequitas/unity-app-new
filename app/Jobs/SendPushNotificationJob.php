@@ -42,7 +42,7 @@ class SendPushNotificationJob implements ShouldQueue
                 'image_url' => $imageUrl,
             ]);
 
-            if (($this->user->status ?? null) !== 'active') {
+            if (($this->user->status ?? null) !== null && $this->user->status !== 'active') {
                 return;
             }
 

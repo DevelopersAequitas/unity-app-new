@@ -3,8 +3,10 @@
 namespace App\Services\Referrals;
 
 use App\Http\Resources\MemberDetailResource;
+use App\Jobs\SendPushNotificationJob;
 use App\Mail\ReferralJoinedMail;
 use App\Models\CoinsLedger;
+use App\Models\Notification;
 use App\Models\ReferralData;
 use App\Models\User;
 use App\Services\Coins\CoinsService;
@@ -461,20 +463,7 @@ class ReferralService
                 ->value('life_impacted_count') ?? 0);
 
             if ($referrer) {
-                $this->notifyUserService->notifyUser(
-                    $referrer,
-                    $newUser,
-                    'referral_signup',
-                    [
-                        'title' => 'New Referral Joined',
-                        'body' => 'A new peer has joined using your referral code.',
-                        'referred_user_id' => $newUserId,
-                        'referred_user_name' => trim((string) ($newUser->display_name ?: ($newUser->first_name . ' ' . $newUser->last_name))),
-                        'referral_code_used' => $normalized,
-                    ],
-                    $data
-                );
-
+                $this->notifyReferralJoined($referrer, $newUser, $normalized, $data);
                 $this->sendReferralEmail($referrer, $newUser, $normalized);
             }
 
@@ -505,6 +494,64 @@ class ReferralService
 
             throw $exception;
         }
+    }
+
+
+    private function notifyReferralJoined(User $referrer, User $newUser, string $referralCode, ReferralData $referralData): ?Notification
+    {
+        $newUserName = trim((string) ($newUser->display_name ?: ($newUser->first_name . ' ' . $newUser->last_name)));
+        if ($newUserName === '') {
+            $newUserName = 'A new peer';
+        }
+
+        $title = 'New Referral Joined';
+        $body = $newUserName . ' joined Peers Global Unity using your referral code.';
+        $payloadData = [
+            'type' => 'referral_joined',
+            'new_user_id' => (string) $newUser->id,
+            'new_user_name' => $newUserName,
+            'referral_code' => $referralCode,
+            'referral_data_id' => (string) $referralData->id,
+        ];
+
+        $notification = Notification::query()->create([
+            'user_id' => (string) $referrer->id,
+            'type' => 'referral_joined',
+            'payload' => [
+                'notification_type' => 'referral_joined',
+                'title' => $title,
+                'body' => $body,
+                'from_user_id' => (string) $newUser->id,
+                'to_user_id' => (string) $referrer->id,
+                'data' => $payloadData,
+                'notifiable_type' => ReferralData::class,
+                'notifiable_id' => (string) $referralData->id,
+            ],
+            'data' => $payloadData,
+            'title' => $title,
+            'message' => $body,
+            'source_type' => 'referral',
+            'source_id' => Str::isUuid((string) $referralData->id) ? (string) $referralData->id : null,
+            'source_event' => 'referral_joined',
+            'is_read' => false,
+            'created_at' => now(),
+            'read_at' => null,
+        ]);
+
+        try {
+            SendPushNotificationJob::dispatch($referrer, $title, $body, $payloadData + [
+                'notification_id' => (string) $notification->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('referral.registration.push_dispatch_failed', [
+                'notification_id' => (string) $notification->id,
+                'referrer_user_id' => (string) $referrer->id,
+                'new_user_id' => (string) $newUser->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $notification;
     }
 
     public function getReferralMembers(User $user, int $perPage = 20): LengthAwarePaginator

@@ -98,7 +98,18 @@ class AuthController extends BaseApiController
             'referral_code' => (string) ($normalizedReferralCode ?? ''),
         ]);
 
-        $referralPreview = $referralService->validateReferralCodeOrFail($normalizedReferralCode);
+        $referralPreview = filled($normalizedReferralCode)
+            ? $referralService->validateReferralCode((string) $normalizedReferralCode)
+            : null;
+
+        if (filled($normalizedReferralCode) && ! $referralPreview) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid referral code.',
+                'data' => null,
+            ], 422);
+        }
+
         $data['resolved_referred_by_user_id'] = $this->resolveRegisterReferrerUserId($data, $referralPreview);
 
         $profilePhotoFile = $this->storeRegisterProfilePhoto($request, $fileUploadService);
@@ -149,6 +160,9 @@ class AuthController extends BaseApiController
             ]);
         }
 
+        $ownReferral = $referralService->generateOrGetReferral($persistedUser);
+        $this->syncUserReferralCode($persistedUser, (string) ($ownReferral['referral_code'] ?? ''));
+
         $circleMember = $this->attachOptionalCircleMembership($persistedUser, $data);
         $this->persistOptionalJoinedCategories($persistedUser, $data, $circleMember);
 
@@ -197,7 +211,8 @@ class AuthController extends BaseApiController
             'message' => 'Registration successful.',
             'data'    => [
                 'token' => $token,
-                'user'  => $this->buildRegisterUserPayload($persistedUser),
+                'user'  => $this->buildRegisterUserPayload($persistedUser, $ownReferral ?? null),
+                'referrer' => $this->buildRegisterReferrerPayload($referralMeta, $referralPreview),
                 'referral' => $referralMeta,
                 'categories' => $this->buildJoinedCategoriesPayload($persistedUser),
             ],
@@ -606,6 +621,34 @@ class AuthController extends BaseApiController
         return $explicitUserId !== '' ? $explicitUserId : null;
     }
 
+    private function syncUserReferralCode(User $user, string $referralCode): void
+    {
+        if ($referralCode === '' || ! Schema::hasColumn('users', 'referral_code')) {
+            return;
+        }
+
+        if ((string) ($user->referral_code ?? '') === '') {
+            $user->referral_code = $referralCode;
+            $user->save();
+            $user->refresh();
+        }
+    }
+
+    private function buildRegisterReferrerPayload(?array $referralMeta, ?array $referralPreview): ?array
+    {
+        $referrerUserId = (string) ($referralMeta['referrer_user_id'] ?? $referralPreview['referrer_user_id'] ?? '');
+
+        if ($referrerUserId === '') {
+            return null;
+        }
+
+        return [
+            'id' => $referrerUserId,
+            'name' => (string) ($referralPreview['referrer_name'] ?? ''),
+            'referral_code' => (string) ($referralMeta['referral_code'] ?? $referralPreview['referral_code'] ?? ''),
+        ];
+    }
+
     private function persistRegisterReferrer(User $user, ?string $referrerUserId): void
     {
         $referrerUserId = trim((string) $referrerUserId);
@@ -626,12 +669,17 @@ class AuthController extends BaseApiController
             $dirty = true;
         }
 
+        if (Schema::hasColumn('users', 'referred_by') && blank($user->referred_by)) {
+            $user->referred_by = $referrerUserId;
+            $dirty = true;
+        }
+
         if ($dirty) {
             $user->save();
         }
     }
 
-    private function buildRegisterUserPayload(User $user): array
+    private function buildRegisterUserPayload(User $user, ?array $ownReferral = null): array
     {
         $user->loadMissing(['mainBusinessCategory:id,name', 'businessCategory:id,name', 'introducedBy:id,first_name,last_name,display_name']);
 
@@ -663,7 +711,12 @@ class AuthController extends BaseApiController
             ? url('/api/v1/files/' . $profilePhotoId)
             : ($storedProfilePhotoPath ? $this->resolvePublicDiskUrl($storedProfilePhotoPath) : $user->profile_photo_url);
         $payload['city_of_residence'] = $user->getAttribute('city_of_residence');
-        $payload['referred_by'] = $referrer
+        $payload['mobile'] = $user->phone;
+        $payload['referral_code'] = (string) ($ownReferral['referral_code'] ?? $user->getAttribute('referral_code') ?? '');
+        $payload['referred_by'] = $user->getAttribute('referred_by')
+            ?? $user->getAttribute('referred_by_user_id')
+            ?? $user->getAttribute('introduced_by');
+        $payload['referred_by_user'] = $referrer
             ? [
                 'id' => (string) $referrer->id,
                 'display_name' => trim((string) (($referrer->display_name ?: '') ?: (($referrer->first_name ?? '') . ' ' . ($referrer->last_name ?? '')))),
@@ -780,6 +833,10 @@ class AuthController extends BaseApiController
 
             if (Schema::hasColumn('users', 'referred_by_user_id')) {
                 $user->referred_by_user_id = (string) $data['resolved_referred_by_user_id'];
+            }
+
+            if (Schema::hasColumn('users', 'referred_by')) {
+                $user->referred_by = (string) $data['resolved_referred_by_user_id'];
             }
         }
 
