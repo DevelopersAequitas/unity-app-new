@@ -1,3 +1,83 @@
 @php($modalId = $modalId ?? 'previewModal')
-<div class="modal fade" id="{{ $modalId }}" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><form method="POST" action="{{ route('admin.notifications.campaigns.preview', $campaign->id) }}">@csrf<div class="modal-header"><h5 class="modal-title">Preview Campaign</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row g-3">@foreach(['person'=>'Person','requirement_title'=>'Requirement Title','event_title'=>'Event Title','circle_name'=>'Circle Name','date'=>'Date','amount'=>'Amount','x'=>'X','status'=>'Status','badge_name'=>'Badge Name'] as $name=>$label)<div class="col-md-4"><label class="form-label">{{ $label }}</label><input class="form-control" name="{{ $name }}" value="{{ old($name) }}"></div>@endforeach</div>@if(session('preview'))<hr><h6>Rendered Preview</h6><dl class="row"><dt class="col-sm-3">Push Title</dt><dd class="col-sm-9">{{ session('preview.push_title') }}</dd><dt class="col-sm-3">Push Body</dt><dd class="col-sm-9">{{ session('preview.push_body') }}</dd><dt class="col-sm-3">Email Subject</dt><dd class="col-sm-9">{{ session('preview.email_subject') ?: '-' }}</dd><dt class="col-sm-3">Email Body</dt><dd class="col-sm-9"><pre class="bg-light p-2 rounded mb-0">{{ session('preview.email_body') ?: '-' }}</pre></dd><dt class="col-sm-3">Tap Screen</dt><dd class="col-sm-9"><code>{{ session('preview.tap_screen') ?: '-' }}</code></dd></dl>@endif</div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Render Preview</button></div></form></div></div></div>
-@if(session('preview') && $modalId === 'previewModal')@push('scripts')<script>document.addEventListener('DOMContentLoaded',()=>new bootstrap.Modal(document.getElementById('previewModal')).show());</script>@endpush@endif
+
+<div class="modal fade" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $modalId }}Label" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ route('admin.notifications.campaigns.preview', $campaign->id) }}">
+                @csrf
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="{{ $modalId }}Label">Preview Campaign</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="row g-3">
+                        @foreach([
+                            'person' => 'Person',
+                            'requirement_title' => 'Requirement Title',
+                            'event_title' => 'Event Title',
+                            'circle_name' => 'Circle Name',
+                            'date' => 'Date',
+                            'amount' => 'Amount',
+                            'x' => 'X',
+                            'status' => 'Status',
+                            'badge_name' => 'Badge Name',
+                        ] as $name => $label)
+                            <div class="col-md-4">
+                                <label class="form-label" for="{{ $modalId }}-{{ $name }}">{{ $label }}</label>
+                                <input
+                                    class="form-control"
+                                    id="{{ $modalId }}-{{ $name }}"
+                                    name="{{ $name }}"
+                                    value="{{ old($name) }}"
+                                >
+                            </div>
+                        @endforeach
+                    </div>
+
+                    @if(session('preview'))
+                        <hr>
+                        <h6>Rendered Preview</h6>
+                        <dl class="row">
+                            <dt class="col-sm-3">Push Title</dt>
+                            <dd class="col-sm-9">{{ session('preview.push_title') }}</dd>
+
+                            <dt class="col-sm-3">Push Body</dt>
+                            <dd class="col-sm-9">{{ session('preview.push_body') }}</dd>
+
+                            <dt class="col-sm-3">Email Subject</dt>
+                            <dd class="col-sm-9">{{ session('preview.email_subject') ?: '-' }}</dd>
+
+                            <dt class="col-sm-3">Email Body</dt>
+                            <dd class="col-sm-9">
+                                <pre class="bg-light p-2 rounded mb-0">{{ session('preview.email_body') ?: '-' }}</pre>
+                            </dd>
+
+                            <dt class="col-sm-3">Tap Screen</dt>
+                            <dd class="col-sm-9"><code>{{ session('preview.tap_screen') ?: '-' }}</code></dd>
+                        </dl>
+                    @endif
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary">Render Preview</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@if(session('preview') && $modalId === 'previewModal')
+    @push('scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const previewModal = document.getElementById('previewModal');
+                if (previewModal) {
+                    new bootstrap.Modal(previewModal).show();
+                }
+            });
+        </script>
+    @endpush
+@endif
