@@ -35,7 +35,7 @@
         <a href="{{ route('admin.events.index') }}" class="btn btn-outline-secondary">Back</a>
     </div>
 
-    <form method="POST" action="{{ $isEdit ? route('admin.events.update', $event->id) : route('admin.events.store') }}" id="eventCreateForm" enctype="multipart/form-data">
+    <form method="POST" action="{{ $isEdit ? route('admin.events.update', $event->id) : route('admin.events.store') }}" id="eventCreateForm" class="create-event-form" enctype="multipart/form-data">
         @csrf
         @if($isEdit) @method('PUT') @endif
         @if($errors->any())<div class="alert alert-danger"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
@@ -115,10 +115,10 @@
             <div class="card-header event-form-card__header d-flex justify-content-between align-items-center gap-2 flex-wrap"><span class="fw-semibold">F. Event Agenda</span><button type="button" class="btn btn-sm btn-outline-primary" id="addAgendaRow">Add Agenda Row</button></div>
             <div class="card-body event-form-card__body" id="agendaRows">
                 @foreach($agendaRows as $index => $row)
-                    <div class="row g-2 align-items-end agenda-row mb-2 repeat-row">
+                    <div class="row g-2 align-items-end agenda-row dynamic-row mb-2 repeat-row">
                         <div class="col-md-3"><label class="form-label">Time</label><input type="time" class="form-control" name="agenda[{{ $index }}][time]" value="{{ $row['time'] ?? '' }}"></div>
                         <div class="col-md-7"><label class="form-label">Title</label><input type="text" class="form-control" name="agenda[{{ $index }}][title]" value="{{ $row['title'] ?? '' }}" placeholder="Registration & Networking"></div>
-                        <div class="col-md-2"><button type="button" class="btn btn-outline-danger remove-agenda-row remove-row text-nowrap w-100">Remove</button></div>
+                        <div class="remove-row-col"><button type="button" class="btn btn-outline-danger remove-agenda-row remove-row remove-row-btn text-nowrap">Remove</button></div>
                     </div>
                 @endforeach
             </div>
@@ -128,13 +128,13 @@
             <div class="card-header event-form-card__header d-flex justify-content-between align-items-center gap-2 flex-wrap"><span class="fw-semibold">G. Featured Speakers</span><button type="button" class="btn btn-sm btn-outline-primary" id="addSpeakerRow">Add Speaker Row</button></div>
             <div class="card-body event-form-card__body" id="speakerRows">
                 @foreach($speakerRows as $index => $row)
-                    <div class="row g-2 align-items-end mb-2 repeat-row">
+                    <div class="row g-2 align-items-end speaker-row dynamic-row mb-2 repeat-row">
                         <div class="col-md-3"><label class="form-label">Name</label><input class="form-control" name="speakers[{{ $index }}][name]" value="{{ $row['name'] ?? '' }}"></div>
                         <div class="col-md-2"><label class="form-label">Designation</label><input class="form-control" name="speakers[{{ $index }}][designation]" value="{{ $row['designation'] ?? '' }}"></div>
                         <div class="col-md-2"><label class="form-label">Company</label><input class="form-control" name="speakers[{{ $index }}][company]" value="{{ $row['company'] ?? '' }}"></div>
                         <div class="col-md-1"><label class="form-label">Initials</label><input class="form-control" name="speakers[{{ $index }}][initials]" value="{{ $row['initials'] ?? '' }}"></div>
                         <div class="col-md-3"><label class="form-label">Photo URL</label><input class="form-control" name="speakers[{{ $index }}][photo_url]" value="{{ $row['photo_url'] ?? '' }}" placeholder="https://.../speaker.jpg"></div>
-                        <div class="col-md-1"><button type="button" class="btn btn-outline-danger w-100 remove-row">Remove</button></div>
+                        <div class="remove-row-col"><button type="button" class="btn btn-outline-danger remove-row remove-row-btn text-nowrap">Remove</button></div>
                     </div>
                 @endforeach
             </div>
@@ -144,7 +144,7 @@
             <div class="card-header event-form-card__header d-flex justify-content-between align-items-center gap-2 flex-wrap"><span class="fw-semibold">H. What You'll Gain</span><button type="button" class="btn btn-sm btn-outline-primary" id="addGainRow">Add Gain Row</button></div>
             <div class="card-body event-form-card__body" id="gainRows">
                 @foreach($gainRows as $index => $gain)
-                    <div class="row g-2 align-items-end mb-2 repeat-row"><div class="col-md-11"><label class="form-label">Benefit</label><input class="form-control" name="what_youll_gain[{{ $index }}]" value="{{ $gain }}" placeholder="Network with 100+ curated MSME leaders"></div><div class="col-md-1"><button type="button" class="btn btn-outline-danger w-100 remove-row">Remove</button></div></div>
+                    <div class="row g-2 align-items-end gain-row dynamic-row mb-2 repeat-row"><div class="gain-input-col"><label class="form-label">Benefit</label><input class="form-control" name="what_youll_gain[{{ $index }}]" value="{{ $gain }}" placeholder="Network with 100+ curated MSME leaders"></div><div class="remove-row-col"><button type="button" class="btn btn-outline-danger remove-row remove-row-btn text-nowrap">Remove</button></div></div>
                 @endforeach
             </div>
         </div>
@@ -195,12 +195,39 @@
 .event-form-card .repeat-row { padding: .75rem; border: 1px solid #eef2f7; border-radius: 12px; background: #fff; }
 .event-form-card .btn-outline-danger { border-color: #dc3545; color: #dc3545; }
 .event-form-card .btn-outline-primary { border-color: #0d6efd; color: #0d6efd; }
+
+.create-event-form .dynamic-row .remove-row-col { flex: 0 0 120px; width: 120px; max-width: 120px; }
+.create-event-form .dynamic-row .gain-input-col { flex: 1 1 0; width: auto; max-width: calc(100% - 128px); }
+.create-event-form .dynamic-row .remove-row-btn {
+    min-width: 110px;
+    width: 100%;
+    height: 42px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0 16px;
+    color: #dc3545;
+    background: #fff;
+}
 .event-form-card .form-check { padding-left: 2.5rem !important; }
 .event-form-card .form-check-input { margin-left: -1.5rem !important; }
+
+@media (min-width: 768px) {
+    .create-event-form .agenda-row > .col-md-3 { flex: 0 1 180px; width: auto; max-width: none; }
+    .create-event-form .agenda-row > .col-md-7 { flex: 1 1 320px; width: auto; max-width: none; }
+    .create-event-form .speaker-row > [class*="col-md-"] { flex: 1 1 0; width: auto; max-width: none; min-width: 110px; }
+    .create-event-form .speaker-row > .col-md-1 { flex: 0 0 90px; min-width: 90px; }
+}
 @media (max-width: 767.98px) {
     .event-form-card__header .btn { width: 100%; }
     .event-form-card .repeat-row > [class*="col-"] { width: 100%; }
     .event-form-card .remove-row { margin-top: .25rem; }
+
+    .create-event-form .dynamic-row .remove-row-col,
+    .create-event-form .dynamic-row .gain-input-col { flex: 0 0 100%; width: 100%; max-width: 100%; }
+    .create-event-form .dynamic-row .remove-row-btn { width: 100%; min-width: 110px; }
     .d-flex.justify-content-end.gap-2.mb-4 { flex-direction: column-reverse; }
     .d-flex.justify-content-end.gap-2.mb-4 .btn { width: 100%; }
 }
@@ -255,9 +282,9 @@ document.addEventListener('DOMContentLoaded', () => {
         container.insertAdjacentHTML('beforeend', html.replaceAll('__INDEX__', index));
     }
 
-    document.getElementById('addAgendaRow').addEventListener('click', () => addRepeatRow('agendaRows', '<div class="row g-2 align-items-end agenda-row mb-2 repeat-row"><div class="col-md-3"><label class="form-label">Time</label><input type="time" class="form-control" name="agenda[__INDEX__][time]"></div><div class="col-md-7"><label class="form-label">Title</label><input type="text" class="form-control" name="agenda[__INDEX__][title]" placeholder="Registration & Networking"></div><div class="col-md-2"><button type="button" class="btn btn-outline-danger remove-agenda-row remove-row text-nowrap w-100">Remove</button></div></div>'));
-    document.getElementById('addSpeakerRow').addEventListener('click', () => addRepeatRow('speakerRows', '<div class="row g-2 align-items-end mb-2 repeat-row"><div class="col-md-3"><label class="form-label">Name</label><input class="form-control" name="speakers[__INDEX__][name]"></div><div class="col-md-2"><label class="form-label">Designation</label><input class="form-control" name="speakers[__INDEX__][designation]"></div><div class="col-md-2"><label class="form-label">Company</label><input class="form-control" name="speakers[__INDEX__][company]"></div><div class="col-md-1"><label class="form-label">Initials</label><input class="form-control" name="speakers[__INDEX__][initials]"></div><div class="col-md-3"><label class="form-label">Photo URL</label><input class="form-control" name="speakers[__INDEX__][photo_url]" placeholder="https://.../speaker.jpg"></div><div class="col-md-1"><button type="button" class="btn btn-outline-danger w-100 remove-row">Remove</button></div></div>'));
-    document.getElementById('addGainRow').addEventListener('click', () => addRepeatRow('gainRows', '<div class="row g-2 align-items-end mb-2 repeat-row"><div class="col-md-11"><label class="form-label">Benefit</label><input class="form-control" name="what_youll_gain[__INDEX__]" placeholder="Network with 100+ curated MSME leaders"></div><div class="col-md-1"><button type="button" class="btn btn-outline-danger w-100 remove-row">Remove</button></div></div>'));
+    document.getElementById('addAgendaRow').addEventListener('click', () => addRepeatRow('agendaRows', '<div class="row g-2 align-items-end agenda-row dynamic-row mb-2 repeat-row"><div class="col-md-3"><label class="form-label">Time</label><input type="time" class="form-control" name="agenda[__INDEX__][time]"></div><div class="col-md-7"><label class="form-label">Title</label><input type="text" class="form-control" name="agenda[__INDEX__][title]" placeholder="Registration & Networking"></div><div class="remove-row-col"><button type="button" class="btn btn-outline-danger remove-agenda-row remove-row remove-row-btn text-nowrap">Remove</button></div></div>'));
+    document.getElementById('addSpeakerRow').addEventListener('click', () => addRepeatRow('speakerRows', '<div class="row g-2 align-items-end speaker-row dynamic-row mb-2 repeat-row"><div class="col-md-3"><label class="form-label">Name</label><input class="form-control" name="speakers[__INDEX__][name]"></div><div class="col-md-2"><label class="form-label">Designation</label><input class="form-control" name="speakers[__INDEX__][designation]"></div><div class="col-md-2"><label class="form-label">Company</label><input class="form-control" name="speakers[__INDEX__][company]"></div><div class="col-md-1"><label class="form-label">Initials</label><input class="form-control" name="speakers[__INDEX__][initials]"></div><div class="col-md-3"><label class="form-label">Photo URL</label><input class="form-control" name="speakers[__INDEX__][photo_url]" placeholder="https://.../speaker.jpg"></div><div class="remove-row-col"><button type="button" class="btn btn-outline-danger remove-row remove-row-btn text-nowrap">Remove</button></div></div>'));
+    document.getElementById('addGainRow').addEventListener('click', () => addRepeatRow('gainRows', '<div class="row g-2 align-items-end gain-row dynamic-row mb-2 repeat-row"><div class="gain-input-col"><label class="form-label">Benefit</label><input class="form-control" name="what_youll_gain[__INDEX__]" placeholder="Network with 100+ curated MSME leaders"></div><div class="remove-row-col"><button type="button" class="btn btn-outline-danger remove-row remove-row-btn text-nowrap">Remove</button></div></div>'));
     document.addEventListener('click', (event) => { if (event.target.classList.contains('remove-row')) event.target.closest('.repeat-row')?.remove(); });
 
     const toggle = (selector, show) => document.querySelectorAll(selector).forEach(el => el.classList.toggle('d-none', !show));
