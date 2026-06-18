@@ -14,8 +14,8 @@ use App\Services\Notifications\CampaignService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Throwable;
@@ -27,35 +27,47 @@ class NotificationAdminController extends Controller
 
     public function dashboard(): View
     {
+        $hasNotifications = Schema::hasTable('app_notifications');
+        $hasCampaigns = Schema::hasTable('notification_campaigns');
+        $hasPushTokens = Schema::hasTable('user_push_tokens');
+        $hasDeliveryLogs = Schema::hasTable('notification_delivery_logs');
+
         $stats = [
-            'total_notifications' => AppNotification::count(),
-            'sent_notifications' => AppNotification::where('status', 'sent')->count(),
-            'failed_notifications' => AppNotification::where('status', 'failed')->count(),
-            'pending_notifications' => AppNotification::where('status', 'pending')->count(),
-            'read_notifications' => AppNotification::whereNotNull('read_at')->count(),
-            'clicked_notifications' => AppNotification::whereNotNull('clicked_at')->count(),
-            'active_campaigns' => NotificationCampaign::where('is_active', true)->count(),
-            'inactive_campaigns' => NotificationCampaign::where('is_active', false)->count(),
-            'total_push_tokens' => UserPushToken::count(),
-            'active_push_tokens' => UserPushToken::where('is_active', true)->count(),
-            'today_sent' => AppNotification::whereDate('sent_at', today())->count(),
-            'today_failed' => AppNotification::whereDate('failed_at', today())->count(),
-            'today_read' => AppNotification::whereDate('read_at', today())->count(),
-            'today_clicked' => AppNotification::whereDate('clicked_at', today())->count(),
+            'total_notifications' => $hasNotifications ? AppNotification::count() : 0,
+            'sent_notifications' => $hasNotifications ? AppNotification::where('status', 'sent')->count() : 0,
+            'failed_notifications' => $hasNotifications ? AppNotification::where('status', 'failed')->count() : 0,
+            'pending_notifications' => $hasNotifications ? AppNotification::where('status', 'pending')->count() : 0,
+            'read_notifications' => $hasNotifications ? AppNotification::whereNotNull('read_at')->count() : 0,
+            'clicked_notifications' => $hasNotifications ? AppNotification::whereNotNull('clicked_at')->count() : 0,
+            'active_campaigns' => $hasCampaigns ? NotificationCampaign::where('is_active', true)->count() : 0,
+            'inactive_campaigns' => $hasCampaigns ? NotificationCampaign::where('is_active', false)->count() : 0,
+            'total_push_tokens' => $hasPushTokens ? UserPushToken::count() : 0,
+            'active_push_tokens' => ($hasPushTokens && Schema::hasColumn('user_push_tokens', 'is_active')) ? UserPushToken::where('is_active', true)->count() : 0,
+            'today_sent' => $hasNotifications ? AppNotification::whereDate('sent_at', today())->count() : 0,
+            'today_failed' => $hasNotifications ? AppNotification::whereDate('failed_at', today())->count() : 0,
+            'today_read' => $hasNotifications ? AppNotification::whereDate('read_at', today())->count() : 0,
+            'today_clicked' => $hasNotifications ? AppNotification::whereDate('clicked_at', today())->count() : 0,
         ];
 
-        $recentNotifications = AppNotification::with('user')->latest()->limit(10)->get();
-        $failedLogs = NotificationDeliveryLog::with(['notification.user'])
+        $recentNotifications = $hasNotifications ? AppNotification::with('user')->latest()->limit(10)->get() : collect();
+        $failedLogs = $hasDeliveryLogs ? NotificationDeliveryLog::with(['notification.user', 'user'])
             ->where('status', 'failed')
             ->latest()
             ->limit(10)
-            ->get();
+            ->get() : collect();
 
         return view('admin.notifications.dashboard', compact('stats', 'recentNotifications', 'failedLogs'));
     }
 
     public function campaigns(Request $request): View
     {
+        if (! Schema::hasTable('notification_campaigns')) {
+            return view('admin.notifications.campaigns.index', [
+                'campaigns' => $this->emptyPaginator($request),
+                'filters' => ['categories' => collect(), 'channels' => collect(), 'priorities' => self::PRIORITIES],
+            ]);
+        }
+
         $campaigns = NotificationCampaign::query()
             ->when($request->filled('search'), function (Builder $query) use ($request): void {
                 $search = '%' . $request->string('search')->toString() . '%';
@@ -169,7 +181,7 @@ class NotificationAdminController extends Controller
 
     public function sendTestForm(Request $request): View
     {
-        $users = User::query()
+        $userQuery = User::query()
             ->when($request->filled('user_search'), function (Builder $query) use ($request): void {
                 $search = '%' . $request->string('user_search')->toString() . '%';
                 $query->where(fn (Builder $q) => $q
@@ -178,17 +190,17 @@ class NotificationAdminController extends Controller
                     ->orWhere('last_name', 'ilike', $search)
                     ->orWhere('email', 'ilike', $search)
                     ->orWhere('phone', 'ilike', $search));
-            })
-            ->withCount(['pushTokens as active_push_tokens_count' => fn (Builder $q) => $q->where('is_active', true)])
-            ->orderBy('first_name')
-            ->limit(50)
-            ->get();
+            });
 
-        $recentTests = AppNotification::with('user')
-            ->where('category', 'admin_test')
-            ->latest()
-            ->limit(10)
-            ->get();
+        if (Schema::hasTable('user_push_tokens') && Schema::hasColumn('user_push_tokens', 'is_active')) {
+            $userQuery->withCount(['pushTokens as active_push_tokens_count' => fn (Builder $q) => $q->where('is_active', true)]);
+        }
+
+        $users = $userQuery->orderBy('first_name')->limit(50)->get();
+
+        $recentTests = Schema::hasTable('app_notifications')
+            ? AppNotification::with('user')->where('category', 'admin_test')->latest()->limit(10)->get()
+            : collect();
 
         return view('admin.notifications.send-test', compact('users', 'recentTests'));
     }
@@ -199,7 +211,15 @@ class NotificationAdminController extends Controller
         $payload = json_decode($data['data'] ?: '{}', true) ?: [];
         $channel = $data['channel'];
 
+        if (! Schema::hasTable('app_notifications')) {
+            return back()->withInput()->with('error', 'The app_notifications table is not available. Please run migrations.');
+        }
+
         try {
+            $hasActiveToken = Schema::hasTable('user_push_tokens')
+                && Schema::hasColumn('user_push_tokens', 'is_active')
+                && UserPushToken::where('user_id', $data['user_id'])->where('is_active', true)->exists();
+
             $notification = AppNotification::create([
                 'user_id' => $data['user_id'],
                 'type' => $data['type'],
@@ -212,11 +232,13 @@ class NotificationAdminController extends Controller
                 'reference_id' => $data['reference_id'] ?? null,
                 'screen' => $data['screen'],
                 'data' => array_merge($payload, ['screen' => $data['screen'], 'reference_id' => $data['reference_id'] ?? null]),
-                'status' => $channel === 'in_app_only' ? 'sent' : 'pending',
+                'status' => ($channel === 'in_app_only' || (in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken)) ? ($channel === 'in_app_only' ? 'sent' : 'failed') : 'pending',
                 'sent_at' => $channel === 'in_app_only' ? now() : null,
+                'failed_at' => in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken ? now() : null,
+                'failure_reason' => in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken ? 'No active push token found.' : null,
             ]);
 
-            if (in_array($channel, ['push', 'push_email'], true)) {
+            if (in_array($channel, ['push', 'push_email'], true) && $hasActiveToken) {
                 SendNotificationChannelJob::dispatch($notification->id, 'push');
             }
 
@@ -224,16 +246,19 @@ class NotificationAdminController extends Controller
                 SendNotificationChannelJob::dispatch($notification->id, 'email');
             }
 
-            NotificationDeliveryLog::create([
-                'notification_id' => $notification->id,
-                'user_id' => $notification->user_id,
-                'channel' => $channel,
-                'provider' => $channel === 'in_app_only' ? 'in_app' : null,
-                'status' => $channel === 'in_app_only' ? 'sent' : 'queued',
-                'request_payload' => $notification->dataPayload(),
-                'attempted_at' => now(),
-                'delivered_at' => $channel === 'in_app_only' ? now() : null,
-            ]);
+            if (Schema::hasTable('notification_delivery_logs')) {
+                NotificationDeliveryLog::create([
+                    'notification_id' => $notification->id,
+                    'user_id' => $notification->user_id,
+                    'channel' => $channel,
+                    'provider' => $channel === 'in_app_only' ? 'in_app' : null,
+                    'status' => in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken ? 'failed' : ($channel === 'in_app_only' ? 'sent' : 'queued'),
+                    'request_payload' => $notification->dataPayload(),
+                    'error_message' => in_array($channel, ['push', 'push_email'], true) && ! $hasActiveToken ? 'No active push token found.' : null,
+                    'attempted_at' => now(),
+                    'delivered_at' => $channel === 'in_app_only' ? now() : null,
+                ]);
+            }
         } catch (Throwable $throwable) {
             report($throwable);
             return back()->withInput()->with('error', 'Test notification could not be created: ' . $throwable->getMessage());
@@ -244,7 +269,14 @@ class NotificationAdminController extends Controller
 
     public function logs(Request $request): View
     {
-        $logs = NotificationDeliveryLog::with(['notification.user', 'notification.campaign'])
+        if (! Schema::hasTable('notification_delivery_logs')) {
+            return view('admin.notifications.logs', [
+                'logs' => $this->emptyPaginator($request),
+                'campaigns' => Schema::hasTable('notification_campaigns') ? NotificationCampaign::orderBy('name')->get() : collect(),
+            ]);
+        }
+
+        $logs = NotificationDeliveryLog::with(['notification.user', 'notification.campaign', 'user', 'campaign'])
             ->when($request->filled('status'), fn (Builder $q) => $q->where('status', $request->status))
             ->when($request->filled('channel'), fn (Builder $q) => $q->where('channel', $request->channel))
             ->when($request->filled('provider'), fn (Builder $q) => $q->where('provider', $request->provider))
@@ -256,15 +288,20 @@ class NotificationAdminController extends Controller
             ->paginate(30)
             ->withQueryString();
 
-        return view('admin.notifications.logs', ['logs' => $logs, 'campaigns' => NotificationCampaign::orderBy('name')->get()]);
+        return view('admin.notifications.logs', ['logs' => $logs, 'campaigns' => Schema::hasTable('notification_campaigns') ? NotificationCampaign::orderBy('name')->get() : collect()]);
     }
 
     public function pushTokens(Request $request): View
     {
+        if (! Schema::hasTable('user_push_tokens')) {
+            return view('admin.notifications.push-tokens', ['tokens' => $this->emptyPaginator($request)]);
+        }
+
+        $hasIsActive = Schema::hasColumn('user_push_tokens', 'is_active');
         $tokens = UserPushToken::with('user')
-            ->when($request->filled('platform'), fn (Builder $q) => $q->where('platform', $request->platform))
-            ->when($request->filled('active'), fn (Builder $q) => $q->where('is_active', $request->active === '1'))
-            ->when($request->filled('app_version'), fn (Builder $q) => $q->where('app_version', 'ilike', '%' . $request->app_version . '%'))
+            ->when($request->filled('platform') && Schema::hasColumn('user_push_tokens', 'platform'), fn (Builder $q) => $q->where('platform', $request->platform))
+            ->when($request->filled('active') && $hasIsActive, fn (Builder $q) => $q->where('is_active', $request->active === '1'))
+            ->when($request->filled('app_version') && Schema::hasColumn('user_push_tokens', 'app_version'), fn (Builder $q) => $q->where('app_version', 'ilike', '%' . $request->app_version . '%'))
             ->when($request->filled('user_search'), fn (Builder $q) => $q->whereHas('user', fn (Builder $u) => $this->applyUserSearch($u, $request->string('user_search')->toString())))
             ->latest()
             ->paginate(30)
@@ -275,13 +312,19 @@ class NotificationAdminController extends Controller
 
     public function deactivatePushToken(string $id): RedirectResponse
     {
-        UserPushToken::findOrFail($id)->update(['is_active' => false]);
+        if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+            UserPushToken::findOrFail($id)->update(['is_active' => false]);
+        }
 
         return back()->with('success', 'Push token deactivated successfully.');
     }
 
     public function userNotifications(Request $request): View
     {
+        if (! Schema::hasTable('app_notifications')) {
+            return view('admin.notifications.user-notifications', ['notifications' => $this->emptyPaginator($request)]);
+        }
+
         $notifications = AppNotification::with('user')
             ->when($request->filled('type'), fn (Builder $q) => $q->where('type', $request->type))
             ->when($request->filled('category'), fn (Builder $q) => $q->where('category', $request->category))
@@ -301,21 +344,27 @@ class NotificationAdminController extends Controller
 
     public function markNotificationRead(string $id): RedirectResponse
     {
-        AppNotification::findOrFail($id)->update(['read_at' => now()]);
+        if (Schema::hasTable('app_notifications')) {
+            AppNotification::findOrFail($id)->update(['read_at' => now()]);
+        }
 
         return back()->with('success', 'Notification marked as read.');
     }
 
     public function deleteNotification(string $id): RedirectResponse
     {
-        AppNotification::findOrFail($id)->delete();
+        if (Schema::hasTable('app_notifications')) {
+            AppNotification::findOrFail($id)->delete();
+        }
 
         return back()->with('success', 'Notification deleted successfully.');
     }
 
     public function clearUserNotifications(string $userId): RedirectResponse
     {
-        AppNotification::where('user_id', $userId)->delete();
+        if (Schema::hasTable('app_notifications')) {
+            AppNotification::where('user_id', $userId)->delete();
+        }
 
         return back()->with('success', 'User notifications cleared successfully.');
     }
@@ -406,6 +455,15 @@ class NotificationAdminController extends Controller
     private function screens(): array
     {
         return ['home','feed','post_details','member_profile','private_chat','chat_details','circle_chat','event_details','live_meeting','event_feedback','circle_join_requests','circle_details','circular_details','announcement_details','p2p_meetings','p2p_outcome_form','business_deals_history','referrals_history','testimonials','write_testimonial','visitor_history','membership_application','requirement_details','suggested_connections','coins_wallet','leaderboard','performance','subscription_plans','renew_subscription','badges'];
+    }
+
+
+    private function emptyPaginator(Request $request): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator([], 0, 30, LengthAwarePaginator::resolveCurrentPage(), [
+            'path' => $request->url(),
+            'query' => $request->query(),
+        ]);
     }
 
     private function defaultCampaigns(): array
