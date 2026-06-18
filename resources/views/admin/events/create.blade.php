@@ -112,7 +112,7 @@
         </div>
 
         <div class="card event-form-card mb-3">
-            <div class="card-header event-form-card__header d-flex justify-content-between align-items-center gap-2 flex-wrap"><span class="fw-semibold">F. Event Agenda</span><button type="button" class="btn btn-sm btn-outline-primary" id="addAgendaRow">Add Agenda Row</button></div>
+            <div class="card-header event-form-card__header section-header"><span class="fw-semibold">F. Event Agenda</span><button type="button" class="btn btn-outline-primary text-nowrap add-row-btn" id="addAgendaRow">Add Agenda Row</button></div>
             <div class="card-body event-form-card__body" id="agendaRows">
                 @foreach($agendaRows as $index => $row)
                     <div class="row g-2 align-items-end agenda-row dynamic-row mb-2 repeat-row">
@@ -125,7 +125,7 @@
         </div>
 
         <div class="card event-form-card mb-3">
-            <div class="card-header event-form-card__header d-flex justify-content-between align-items-center gap-2 flex-wrap"><span class="fw-semibold">G. Featured Speakers</span><button type="button" class="btn btn-sm btn-outline-primary" id="addSpeakerRow">Add Speaker Row</button></div>
+            <div class="card-header event-form-card__header section-header"><span class="fw-semibold">G. Featured Speakers</span><button type="button" class="btn btn-outline-primary text-nowrap add-row-btn" id="addSpeakerRow">Add Speaker Row</button></div>
             <div class="card-body event-form-card__body" id="speakerRows">
                 @foreach($speakerRows as $index => $row)
                     <div class="row g-2 align-items-end speaker-row dynamic-row mb-2 repeat-row">
@@ -141,7 +141,7 @@
         </div>
 
         <div class="card event-form-card mb-3">
-            <div class="card-header event-form-card__header d-flex justify-content-between align-items-center gap-2 flex-wrap"><span class="fw-semibold">H. What You'll Gain</span><button type="button" class="btn btn-sm btn-outline-primary" id="addGainRow">Add Gain Row</button></div>
+            <div class="card-header event-form-card__header section-header"><span class="fw-semibold">H. What You'll Gain</span><button type="button" class="btn btn-outline-primary text-nowrap add-row-btn" id="addGainRow">Add Gain Row</button></div>
             <div class="card-body event-form-card__body" id="gainRows">
                 @foreach($gainRows as $index => $gain)
                     <div class="row g-2 align-items-end gain-row dynamic-row mb-2 repeat-row"><div class="gain-input-col"><label class="form-label">Benefit</label><input class="form-control" name="what_youll_gain[{{ $index }}]" value="{{ $gain }}" placeholder="Network with 100+ curated MSME leaders"></div><div class="remove-row-col"><button type="button" class="btn btn-outline-danger remove-row remove-row-btn text-nowrap">Remove</button></div></div>
@@ -196,38 +196,75 @@
 .event-form-card .btn-outline-danger { border-color: #dc3545; color: #dc3545; }
 .event-form-card .btn-outline-primary { border-color: #0d6efd; color: #0d6efd; }
 
-.create-event-form .dynamic-row .remove-row-col { flex: 0 0 120px; width: 120px; max-width: 120px; }
-.create-event-form .dynamic-row .gain-input-col { flex: 1 1 0; width: auto; max-width: calc(100% - 128px); }
-.create-event-form .dynamic-row .remove-row-btn {
+
+.create-event-form .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.create-event-form .add-row-btn {
+    min-width: 120px;
+    height: 38px;
+    padding: 0 14px;
+    white-space: nowrap !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+}
+.create-event-form .add-row-btn.btn-outline-primary {
+    color: #0d6efd !important;
+    background-color: #fff !important;
+    border-color: #0d6efd !important;
+}
+.create-event-form .dynamic-row {
+    display: grid !important;
+    gap: 8px;
+    align-items: end;
+    margin-left: 0;
+    margin-right: 0;
+}
+.create-event-form .dynamic-row > * {
+    width: auto !important;
+    max-width: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+.create-event-form .agenda-row { grid-template-columns: 180px minmax(0, 1fr) 110px; }
+.create-event-form .speaker-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 80px minmax(0, 1.3fr) 110px; }
+.create-event-form .gain-row { grid-template-columns: minmax(0, 1fr) 110px; }
+.create-event-form .dynamic-row input,
+.create-event-form .dynamic-row select { height: 42px; }
+.create-event-form .remove-row-btn {
     min-width: 110px;
     width: 100%;
     height: 42px;
-    white-space: nowrap;
+    padding: 0 16px;
+    white-space: nowrap !important;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    padding: 0 16px;
-    color: #dc3545;
-    background: #fff;
+    font-size: 14px;
+    line-height: 1;
+    color: #dc3545 !important;
+    background: #fff !important;
+    border-color: #dc3545 !important;
 }
 .event-form-card .form-check { padding-left: 2.5rem !important; }
 .event-form-card .form-check-input { margin-left: -1.5rem !important; }
-
-@media (min-width: 768px) {
-    .create-event-form .agenda-row > .col-md-3 { flex: 0 1 180px; width: auto; max-width: none; }
-    .create-event-form .agenda-row > .col-md-7 { flex: 1 1 320px; width: auto; max-width: none; }
-    .create-event-form .speaker-row > [class*="col-md-"] { flex: 1 1 0; width: auto; max-width: none; min-width: 110px; }
-    .create-event-form .speaker-row > .col-md-1 { flex: 0 0 90px; min-width: 90px; }
+@media (max-width: 991px) {
+    .create-event-form .agenda-row,
+    .create-event-form .speaker-row,
+    .create-event-form .gain-row { grid-template-columns: 1fr; }
+    .create-event-form .remove-row-btn,
+    .create-event-form .add-row-btn { width: 100%; min-width: 110px; }
+    .create-event-form .section-header { align-items: flex-start; flex-wrap: wrap; }
 }
 @media (max-width: 767.98px) {
     .event-form-card__header .btn { width: 100%; }
-    .event-form-card .repeat-row > [class*="col-"] { width: 100%; }
-    .event-form-card .remove-row { margin-top: .25rem; }
-
-    .create-event-form .dynamic-row .remove-row-col,
-    .create-event-form .dynamic-row .gain-input-col { flex: 0 0 100%; width: 100%; max-width: 100%; }
-    .create-event-form .dynamic-row .remove-row-btn { width: 100%; min-width: 110px; }
     .d-flex.justify-content-end.gap-2.mb-4 { flex-direction: column-reverse; }
     .d-flex.justify-content-end.gap-2.mb-4 .btn { width: 100%; }
 }
