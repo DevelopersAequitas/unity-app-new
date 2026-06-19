@@ -399,7 +399,8 @@ class FcmService
         $errorCode = Arr::get($response, 'error.details.0.errorCode');
         $message = strtolower((string) Arr::get($response, 'error.message', ''));
 
-        return in_array($errorCode, ['UNREGISTERED', 'INVALID_ARGUMENT'], true)
+        return $errorCode === 'UNREGISTERED'
+            || ($errorCode === 'INVALID_ARGUMENT' && (str_contains($message, 'registration token') || str_contains($message, 'fcm registration token') || str_contains($message, 'invalid registration token')))
             || str_contains($message, 'registration-token-not-registered')
             || str_contains($message, 'registration token is not a valid fcm registration token')
             || str_contains($message, 'invalid registration token')

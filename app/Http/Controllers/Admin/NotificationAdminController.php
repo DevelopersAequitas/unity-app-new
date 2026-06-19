@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Notifications\CampaignService;
+use App\Services\PushNotificationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -493,107 +494,71 @@ class NotificationAdminController extends Controller
 
     private function sendPushForTest(AppNotification $notification): array
     {
-        if (! Schema::hasTable('user_push_tokens') || ! Schema::hasColumn('user_push_tokens', 'is_active')) {
-            return $this->recordDelivery($notification, 'push', false, 'No valid Firebase device token found.', 'firebase');
+        if (! $notification->user) {
+            return $this->recordDelivery($notification, 'push', false, 'Notification user was not found.', 'firebase');
         }
 
-        $tokens = UserPushToken::query()
-            ->where('user_id', $notification->user_id)
-            ->where('is_active', true)
-            ->whereNotNull('token')
-            ->where('token', '!=', '')
-            ->when(Schema::hasColumn('user_push_tokens', 'last_seen_at'), fn (Builder $q) => $q->orderByDesc('last_seen_at'))
-            ->when(Schema::hasColumn('user_push_tokens', 'last_used_at'), fn (Builder $q) => $q->orderByDesc('last_used_at'))
-            ->orderByDesc('updated_at')
-            ->orderByDesc('created_at')
-            ->limit(1)
-            ->get();
+        if (! Schema::hasTable('user_push_tokens') || ! Schema::hasColumn('user_push_tokens', 'is_active')) {
+            return $this->recordDelivery($notification, 'push', false, 'No valid active Firebase device token found.', 'firebase');
+        }
 
-        if ($tokens->isEmpty()) {
+        $pushNotificationService = app(PushNotificationService::class);
+        $tokenCount = $pushNotificationService->tokensForUser($notification->user, true)->count();
+
+        if ($tokenCount === 0) {
             $error = $this->totalPushTokenCountForUserId((string) $notification->user_id) > 0
                 ? 'This user has push token records, but none are active. Ask user to open the app again so Flutter can register a fresh active token.'
-                : 'No valid Firebase device token found.';
+                : 'No valid active Firebase device token found.';
 
             return $this->recordDelivery($notification, 'push', false, $error, 'firebase');
         }
 
-        $firebase = app(FirebaseFcmService::class);
-        if (method_exists($firebase, 'credentialsAvailable') && ! $firebase->credentialsAvailable()) {
-            return $this->recordDelivery($notification, 'push', false, 'Firebase credentials file is not available.', 'firebase');
-        }
+        Log::info('Admin test push using shared push notification service', [
+            'notification_id' => (string) $notification->id,
+            'user_id' => (string) $notification->user_id,
+            'service' => PushNotificationService::class,
+            'token_ids' => $pushNotificationService->tokensForUser($notification->user, true)->pluck('id')->map(fn ($id) => (string) $id)->values()->all(),
+            'payload_keys' => array_keys($notification->dataPayload()),
+        ]);
 
-        $sent = 0;
-        $failed = 0;
-        $lastError = null;
+        $result = $pushNotificationService->sendNow(
+            $notification->user,
+            $notification->title,
+            $notification->body,
+            $notification->dataPayload(),
+            true,
+        );
 
-        foreach ($tokens as $token) {
-            try {
-                $result = $firebase->sendToDevice(
-                    $token->token,
-                    $notification->title,
-                    $notification->body,
-                    $notification->dataPayload(),
-                    null,
-                    1,
-                    [
-                        'user_id' => $notification->user_id,
-                        'notification_type' => $notification->type,
-                        'device_id' => $token->device_id,
-                        'platform' => $token->platform,
-                    ]
-                );
+        $errors = [];
+        foreach ($result['results'] ?? [] as $tokenResult) {
+            $error = $tokenResult['error'] ?? null;
+            $success = (bool) ($tokenResult['success'] ?? false);
 
-                if (($result['success'] ?? false) === true) {
-                    $sent++;
-
-                    $this->recordDelivery(
-                        $notification,
-                        'push',
-                        true,
-                        null,
-                        'firebase',
-                        $result,
-                        $result['firebase_response']['name'] ?? null,
-                        $token->token
-                    );
-
-                    continue;
-                }
-
-                $error = (string) ($result['error'] ?? 'Push delivery failed.');
-                $failed++;
-                $lastError = $error;
-
-                if ($this->isInvalidFirebaseTokenError($error)) {
-                    $token->update(['is_active' => false, 'updated_at' => now()]);
-                    $error = 'Invalid or unregistered Firebase device token.';
-                    $lastError = $error;
-                }
-
-                $this->recordDelivery($notification, 'push', false, $error, 'firebase', $result, null, $token->token);
-            } catch (Throwable $throwable) {
-                report($throwable);
-
-                $failed++;
-                $lastError = $this->isInvalidFirebaseTokenError($throwable->getMessage())
-                    ? 'Invalid or unregistered Firebase device token.'
-                    : $throwable->getMessage();
-
-                if ($lastError === 'Invalid or unregistered Firebase device token.') {
-                    $token->update(['is_active' => false, 'updated_at' => now()]);
-                }
-
-                $this->recordDelivery($notification, 'push', false, $lastError, 'firebase', [
-                    'exception' => get_class($throwable),
-                    'message' => $throwable->getMessage(),
-                    'code' => $throwable->getCode(),
-                ], null, $token->token);
+            if (! $success && $error) {
+                $errors[] = $error;
             }
+
+            $this->recordDelivery(
+                $notification,
+                'push',
+                $success,
+                $success ? null : $error,
+                'firebase',
+                $tokenResult['response'] ?? [],
+                $tokenResult['provider_message_id'] ?? null,
+                $tokenResult['token'] ?? null,
+                $tokenResult,
+            );
         }
+
+        $sent = (int) ($result['sent_count'] ?? 0);
+        $failed = (int) ($result['failed_count'] ?? 0);
 
         return [
             'success' => $sent > 0,
-            'error' => $sent > 0 ? null : ($lastError ?: 'Push delivery failed.'),
+            'error' => $sent > 0
+                ? ($failed > 0 ? 'Some device tokens failed. Check delivery logs.' : null)
+                : (collect($errors)->unique()->implode(' ') ?: 'Push delivery failed.'),
             'sent_count' => $sent,
             'failed_count' => $failed,
         ];
@@ -610,7 +575,7 @@ class NotificationAdminController extends Controller
         }
     }
 
-    private function recordDelivery(AppNotification $notification, string $channel, bool $success, ?string $error = null, ?string $provider = null, array $response = [], ?string $providerMessageId = null, ?string $deviceToken = null): array
+    private function recordDelivery(AppNotification $notification, string $channel, bool $success, ?string $error = null, ?string $provider = null, array $response = [], ?string $providerMessageId = null, ?string $deviceToken = null, ?array $tokenResult = null): array
     {
         if (Schema::hasTable('notification_delivery_logs')) {
             NotificationDeliveryLog::create([
@@ -621,7 +586,7 @@ class NotificationAdminController extends Controller
                 'provider' => $provider,
                 'provider_message_id' => $providerMessageId,
                 'status' => $success ? 'sent' : 'failed',
-                'request_payload' => $this->deliveryRequestPayload($notification, $channel, $deviceToken),
+                'request_payload' => $this->deliveryRequestPayload($notification, $channel, $deviceToken, $tokenResult),
                 'response_payload' => $response,
                 'error_message' => $error,
                 'attempted_at' => now(),
@@ -672,7 +637,7 @@ class NotificationAdminController extends Controller
         ];
     }
 
-    private function deliveryRequestPayload(AppNotification $notification, string $channel, ?string $deviceToken = null): array
+    private function deliveryRequestPayload(AppNotification $notification, string $channel, ?string $deviceToken = null, ?array $tokenResult = null): array
     {
         $payload = [
             'title' => $notification->title,
@@ -682,7 +647,11 @@ class NotificationAdminController extends Controller
 
         if ($channel === 'push') {
             if ($deviceToken !== null) {
+                $payload['token_id'] = $tokenResult['token_id'] ?? null;
                 $payload['token'] = $this->maskToken($deviceToken);
+                $payload['platform'] = $tokenResult['platform'] ?? null;
+                $payload['device_id'] = $tokenResult['device_id'] ?? null;
+                $payload['app_version'] = $tokenResult['app_version'] ?? null;
 
                 return $payload;
             }
@@ -714,7 +683,6 @@ class NotificationAdminController extends Controller
 
         foreach ([
             'unregistered',
-            'invalid_argument',
             'registration-token-not-registered',
             'requested entity was not found',
             'notfound',
@@ -833,6 +801,16 @@ class NotificationAdminController extends Controller
 
         $result = $channel === 'push' ? $results['push'] : $results['email'];
         if ($result['success'] ?? false) {
+            if ($channel === 'push' && (int) ($result['failed_count'] ?? 0) > 0) {
+                $notification->update([
+                    'status' => 'partial',
+                    'sent_at' => now(),
+                    'failed_at' => null,
+                    'failure_reason' => 'Some device tokens failed. Check delivery logs.',
+                ]);
+                return;
+            }
+
             $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
             return;
         }
