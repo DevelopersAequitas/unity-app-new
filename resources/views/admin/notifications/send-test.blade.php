@@ -182,35 +182,41 @@
                 <th>Date</th><th>User</th><th>Title</th><th>Channel</th><th>Notification Status</th><th>Push Result</th><th>Email Result</th><th>Failure Reason</th><th>Sent At</th><th>Read At</th><th>Clicked At</th>
             </tr>
             </thead>
+            @php($recentNotifications = $recentNotifications ?? ($recentTests ?? collect()))
             <tbody>
-            @forelse($recentTests as $notification)
-                @php
-                    $logs = $notification->deliveryLogs ?? collect();
-                    $pushLogs = $logs->where('channel', 'push');
-                    $emailLogs = $logs->where('channel', 'email');
-                    $pushResult = in_array($notification->channel, ['push', 'push_email'], true)
-                        ? ($pushLogs->contains('status', 'sent') ? 'sent' : ($pushLogs->contains('status', 'failed') ? 'failed' : 'skipped'))
-                        : 'skipped';
-                    $emailResult = in_array($notification->channel, ['email', 'push_email'], true)
-                        ? ($emailLogs->contains('status', 'sent') ? 'sent' : ($emailLogs->contains('status', 'failed') ? 'failed' : 'skipped'))
-                        : 'skipped';
-                @endphp
-                <tr>
-                    <td>{{ optional($notification->created_at)->format('d M Y H:i') }}</td>
-                    <td>{{ notification_admin_user_name($notification->user) }}</td>
-                    <td>{{ $notification->title }}</td>
-                    <td>{{ $notification->channel }}</td>
-                    <td><span class="badge bg-{{ notification_admin_status_badge($notification->status) }}">{{ $notification->status }}</span></td>
-                    <td><span class="badge bg-{{ notification_admin_status_badge($pushResult) }}">{{ $pushResult }}</span></td>
-                    <td><span class="badge bg-{{ notification_admin_status_badge($emailResult) }}">{{ $emailResult }}</span></td>
-                    <td class="text-muted small" title="{{ $notification->failure_reason }}">{{ Str::limit($notification->failure_reason, 60) ?: '-' }}</td>
-                    <td>{{ optional($notification->sent_at)->format('d M H:i') ?: '-' }}</td>
-                    <td>{{ optional($notification->read_at)->format('d M H:i') ?: '-' }}</td>
-                    <td>{{ optional($notification->clicked_at)->format('d M H:i') ?: '-' }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="11" class="text-center text-muted py-4">No test notifications yet.</td></tr>
-            @endforelse
+                @forelse($recentNotifications as $notification)
+                    @php
+                        $user = $notification->user ?? null;
+                        $displayName = notification_admin_user_name($user);
+                        $logs = $notification->deliveryLogs ?? collect();
+                        $pushLogs = $logs->where('channel', 'push');
+                        $emailLogs = $logs->where('channel', 'email');
+                        $pushResult = in_array($notification->channel, ['push', 'push_email'], true)
+                            ? ($pushLogs->contains('status', 'sent') ? 'sent' : ($pushLogs->contains('status', 'failed') ? 'failed' : 'skipped'))
+                            : 'skipped';
+                        $emailResult = in_array($notification->channel, ['email', 'push_email'], true)
+                            ? ($emailLogs->contains('status', 'sent') ? 'sent' : ($emailLogs->contains('status', 'failed') ? 'failed' : 'skipped'))
+                            : 'skipped';
+                        $status = $notification->status ?? 'pending';
+                    @endphp
+                    <tr>
+                        <td>{{ optional($notification->created_at)->format('d M Y H:i') ?? '-' }}</td>
+                        <td>{{ $displayName }}</td>
+                        <td>{{ $notification->title ?? '-' }}</td>
+                        <td>{{ $notification->channel ?? '-' }}</td>
+                        <td><span class="badge bg-{{ notification_admin_status_badge($status) }}">{{ ucfirst($status) }}</span></td>
+                        <td><span class="badge bg-{{ notification_admin_status_badge($pushResult) }}">{{ ucfirst($pushResult) }}</span></td>
+                        <td><span class="badge bg-{{ notification_admin_status_badge($emailResult) }}">{{ ucfirst($emailResult) }}</span></td>
+                        <td class="text-muted small" title="{{ $notification->failure_reason ?? '' }}">{{ \Illuminate\Support\Str::limit($notification->failure_reason ?? '-', 60) }}</td>
+                        <td>{{ optional($notification->sent_at)->format('d M H:i') ?? '-' }}</td>
+                        <td>{{ optional($notification->read_at)->format('d M H:i') ?? '-' }}</td>
+                        <td>{{ optional($notification->clicked_at)->format('d M H:i') ?? '-' }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="11" class="text-center text-muted py-4">No test notifications yet.</td>
+                    </tr>
+                @endforelse
             </tbody>
         </table>
     </div>
