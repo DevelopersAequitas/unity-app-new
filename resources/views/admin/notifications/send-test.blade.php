@@ -175,15 +175,27 @@
     </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-header bg-white fw-semibold">Recent Test Notifications</div>
+<div class="card shadow-sm mt-4">
+    <div class="card-header">
+        <strong>Recent Test Notifications</strong>
+    </div>
+
     <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle notification-admin-table mb-0">
+        <table class="table table-striped table-hover align-middle mb-0 notification-admin-table">
             <thead class="table-light">
-            <tr>
-                <th>Date</th><th>User</th><th>Title</th><th>Channel</th><th>Status</th><th>Failure Reason</th><th>Sent At</th><th>Read At</th><th>Clicked At</th>
-            </tr>
+                <tr>
+                    <th>Date</th>
+                    <th>User</th>
+                    <th>Title</th>
+                    <th>Channel</th>
+                    <th>Status</th>
+                    <th>Failure Reason</th>
+                    <th>Sent At</th>
+                    <th>Read At</th>
+                    <th>Clicked At</th>
+                </tr>
             </thead>
+
             <tbody>
                 @forelse($recentNotifications as $notification)
                     <tr>
@@ -203,6 +215,7 @@
                         </td>
 
                         <td>{{ $notification->title ?? '-' }}</td>
+
                         <td>{{ $notification->channel ?? '-' }}</td>
 
                         <td>
@@ -241,6 +254,7 @@
         </table>
     </div>
 </div>
+
 @endsection
 
 @push('scripts')
