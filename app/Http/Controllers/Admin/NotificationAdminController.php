@@ -199,30 +199,29 @@ class NotificationAdminController extends Controller
         $page = max((int) $request->query('page', 1), 1);
         $perPage = 20;
         $q = trim((string) $request->query('q', ''));
-        $pushTokenFilter = (string) $request->query('push_token_status', 'all');
-        $canCountPushTokens = Schema::hasTable('user_push_tokens') && Schema::hasColumn('user_push_tokens', 'is_active');
-        $columns = collect(['display_name', 'first_name', 'last_name', 'name', 'email', 'phone', 'mobile'])
+        $userFilter = (string) ($request->query('user_filter') ?: $request->query('push_token_status', 'all'));
+        $canCountPushTokens = Schema::hasTable('user_push_tokens');
+        $columns = collect(['id', 'display_name', 'first_name', 'last_name', 'name', 'email', 'phone', 'mobile'])
             ->filter(fn (string $column): bool => Schema::hasColumn('users', $column))
             ->values();
 
         $query = User::query()
             ->when($canCountPushTokens, fn (Builder $builder) => $builder->withCount([
-                'pushTokens as active_push_tokens_count' => fn (Builder $tokenQuery) => $tokenQuery
-                    ->where('is_active', true)
-                    ->whereNotNull('token')
-                    ->where('token', '!=', ''),
+                'pushTokens as total_push_tokens_count' => fn (Builder $tokenQuery) => $this->whereTokenPresent($tokenQuery),
+                'pushTokens as active_push_tokens_count' => fn (Builder $tokenQuery) => $this->whereActiveToken($tokenQuery),
             ]));
 
         if (Schema::hasColumn('users', 'deleted_at')) {
             $query->whereNull('deleted_at');
         }
 
-        if ($canCountPushTokens && in_array($pushTokenFilter, ['with', 'without'], true)) {
-            $operator = $pushTokenFilter === 'with' ? '>=' : '=';
-            $query->has('pushTokens', $operator, $pushTokenFilter === 'with' ? 1 : 0, 'and', fn (Builder $tokenQuery) => $tokenQuery
-                ->where('is_active', true)
-                ->whereNotNull('token')
-                ->where('token', '!=', ''));
+        if ($canCountPushTokens) {
+            match ($userFilter) {
+                'with_any_token', 'with' => $query->whereHas('pushTokens', fn (Builder $tokenQuery) => $this->whereTokenPresent($tokenQuery)),
+                'with_active_token' => $query->whereHas('pushTokens', fn (Builder $tokenQuery) => $this->whereActiveToken($tokenQuery)),
+                'without_token', 'without' => $query->whereDoesntHave('pushTokens', fn (Builder $tokenQuery) => $this->whereTokenPresent($tokenQuery)),
+                default => null,
+            };
         }
 
         if ($q !== '' && $columns->isNotEmpty()) {
@@ -232,6 +231,10 @@ class NotificationAdminController extends Controller
                     $builder->orWhereRaw('LOWER(' . $column . ') LIKE ?', [$needle]);
                 }
             });
+        }
+
+        if ($canCountPushTokens) {
+            $query->orderByDesc('active_push_tokens_count')->orderByDesc('total_push_tokens_count');
         }
 
         foreach (['first_name', 'name', 'email'] as $orderColumn) {
@@ -248,6 +251,8 @@ class NotificationAdminController extends Controller
                 'id' => (string) $user->id,
                 'text' => $this->userSelectText($user),
                 'active_push_tokens_count' => (int) ($user->active_push_tokens_count ?? $this->activePushTokenCount($user)),
+                'total_push_tokens_count' => (int) ($user->total_push_tokens_count ?? $this->totalPushTokenCount($user)),
+                'push_token_status' => $this->pushTokenStatusLabel($user),
             ])->values(),
             'pagination' => ['more' => ($page * $perPage) < $total],
         ]);
@@ -262,15 +267,15 @@ class NotificationAdminController extends Controller
         if (Schema::hasTable('user_push_tokens')) {
             $query = UserPushToken::where('user_id', $user);
             if (Schema::hasColumn('user_push_tokens', 'is_active')) {
-                $activeTokens = (clone $query)->where('is_active', true)->whereNotNull('token')->where('token', '!=', '')->get();
-                $inactiveTokens = (clone $query)->where('is_active', false)->get();
+                $activeTokens = $this->whereActiveToken(clone $query)->get();
+                $inactiveTokens = $this->whereTokenPresent(clone $query)->where('is_active', false)->get();
             } else {
                 $activeTokens = $query->get();
             }
         }
 
-        $latestToken = $activeTokens->sortByDesc(fn ($token) => $token->last_used_at ?? $token->updated_at ?? $token->created_at)->first()
-            ?: $inactiveTokens->sortByDesc(fn ($token) => $token->last_used_at ?? $token->updated_at ?? $token->created_at)->first();
+        $latestToken = $activeTokens->sortByDesc(fn ($token) => $token->last_seen_at ?? $token->last_used_at ?? $token->updated_at ?? $token->created_at)->first()
+            ?: $inactiveTokens->sortByDesc(fn ($token) => $token->last_seen_at ?? $token->last_used_at ?? $token->updated_at ?? $token->created_at)->first();
 
         $lastFailureReason = null;
         if (Schema::hasTable('notification_delivery_logs')) {
@@ -476,13 +481,19 @@ class NotificationAdminController extends Controller
             ->where('is_active', true)
             ->whereNotNull('token')
             ->where('token', '!=', '')
-            ->orderByDesc('last_used_at')
+            ->when(Schema::hasColumn('user_push_tokens', 'last_seen_at'), fn (Builder $q) => $q->orderByDesc('last_seen_at'))
+            ->when(Schema::hasColumn('user_push_tokens', 'last_used_at'), fn (Builder $q) => $q->orderByDesc('last_used_at'))
             ->orderByDesc('updated_at')
+            ->orderByDesc('created_at')
             ->limit(1)
             ->get();
 
         if ($tokens->isEmpty()) {
-            return $this->recordDelivery($notification, 'push', false, 'No valid Firebase device token found.', 'firebase');
+            $error = $this->totalPushTokenCountForUserId((string) $notification->user_id) > 0
+                ? 'This user has push token records, but none are active. Ask user to open the app again so Flutter can register a fresh active token.'
+                : 'No valid Firebase device token found.';
+
+            return $this->recordDelivery($notification, 'push', false, $error, 'firebase');
         }
 
         $firebase = app(FirebaseFcmService::class);
@@ -605,7 +616,11 @@ class NotificationAdminController extends Controller
     {
         if (! Schema::hasTable('user_push_tokens')) {
             return [
+                'total_rows' => 0,
                 'total_active' => 0,
+                'total_inactive' => 0,
+                'users_with_any_token' => 0,
+                'users_with_active_token' => 0,
                 'android_active' => 0,
                 'ios_active' => 0,
                 'last_saved_at' => null,
@@ -615,14 +630,18 @@ class NotificationAdminController extends Controller
             ];
         }
 
-        $active = UserPushToken::query()
-            ->where('is_active', true)
+        $tokens = UserPushToken::query()
             ->whereNotNull('token')
             ->where('token', '!=', '');
-        $lastToken = (clone $active)->with('user')->latest('updated_at')->first();
+        $active = (clone $tokens)->where('is_active', true);
+        $lastToken = (clone $tokens)->with('user')->latest('updated_at')->first();
 
         return [
+            'total_rows' => (clone $tokens)->count(),
             'total_active' => (clone $active)->count(),
+            'total_inactive' => (clone $tokens)->where('is_active', false)->count(),
+            'users_with_any_token' => (clone $tokens)->distinct('user_id')->count('user_id'),
+            'users_with_active_token' => (clone $active)->distinct('user_id')->count('user_id'),
             'android_active' => (clone $active)->whereRaw('LOWER(platform) = ?', ['android'])->count(),
             'ios_active' => (clone $active)->whereRaw("LOWER(platform) IN ('ios', 'iphone')")->count(),
             'last_saved_at' => optional($lastToken?->updated_at)->toDateTimeString(),
@@ -652,8 +671,10 @@ class NotificationAdminController extends Controller
                 ->where('is_active', true)
                 ->whereNotNull('token')
                 ->where('token', '!=', '')
-                ->orderByDesc('last_used_at')
+                ->when(Schema::hasColumn('user_push_tokens', 'last_seen_at'), fn (Builder $q) => $q->orderByDesc('last_seen_at'))
+                ->when(Schema::hasColumn('user_push_tokens', 'last_used_at'), fn (Builder $q) => $q->orderByDesc('last_used_at'))
                 ->orderByDesc('updated_at')
+                ->orderByDesc('created_at')
                 ->first();
             $payload['token'] = $token ? $this->maskToken($token->token) : null;
         }
@@ -689,17 +710,60 @@ class NotificationAdminController extends Controller
         return false;
     }
 
+
+    private function whereTokenPresent(Builder $query): Builder
+    {
+        return $query->whereNotNull('token')->where('token', '!=', '');
+    }
+
+    private function whereActiveToken(Builder $query): Builder
+    {
+        $query = $this->whereTokenPresent($query);
+
+        if (! Schema::hasColumn('user_push_tokens', 'is_active')) {
+            return $query;
+        }
+
+        $type = Schema::getColumnType('user_push_tokens', 'is_active');
+
+        return $type === 'boolean'
+            ? $query->where('is_active', true)
+            : $query->whereIn('is_active', [true, 1, '1', 't', 'true']);
+    }
+
+    private function totalPushTokenCount(User $user): int
+    {
+        return $this->totalPushTokenCountForUserId((string) $user->id);
+    }
+
+    private function totalPushTokenCountForUserId(string $userId): int
+    {
+        if (! Schema::hasTable('user_push_tokens')) {
+            return 0;
+        }
+
+        return $this->whereTokenPresent(UserPushToken::where('user_id', $userId))->count();
+    }
+
+    private function pushTokenStatusLabel(User $user): string
+    {
+        $activeCount = (int) ($user->active_push_tokens_count ?? $this->activePushTokenCount($user));
+        $totalCount = (int) ($user->total_push_tokens_count ?? $this->totalPushTokenCount($user));
+
+        if ($activeCount > 0) {
+            return 'Push ready';
+        }
+
+        return $totalCount > 0 ? 'Inactive token' : 'No device token';
+    }
+
     private function activePushTokenCount(User $user): int
     {
         if (! Schema::hasTable('user_push_tokens') || ! Schema::hasColumn('user_push_tokens', 'is_active')) {
             return 0;
         }
 
-        return UserPushToken::where('user_id', $user->id)
-            ->where('is_active', true)
-            ->whereNotNull('token')
-            ->where('token', '!=', '')
-            ->count();
+        return $this->whereActiveToken(UserPushToken::where('user_id', $user->id))->count();
     }
 
     private function userSelectText(User $user): string
@@ -719,8 +783,7 @@ class NotificationAdminController extends Controller
             $parts[] = $user->mobile;
         }
 
-        $tokenCount = $this->activePushTokenCount($user);
-        $parts[] = $tokenCount > 0 ? 'Push ready' : 'No device token';
+        $parts[] = $this->pushTokenStatusLabel($user);
 
         return implode(' — ', array_filter($parts));
     }
@@ -780,6 +843,10 @@ class NotificationAdminController extends Controller
             return 'Email sent, but push failed because selected user has no valid Firebase device token.';
         }
 
+        if ($error === 'This user has push token records, but none are active. Ask user to open the app again so Flutter can register a fresh active token.') {
+            return 'Email sent, but push failed because selected user has push token records, but none are active. Ask user to open the app again so Flutter can register a fresh active token.';
+        }
+
         if ($error === 'Invalid or unregistered Firebase device token.') {
             return 'Email sent, but push failed because the Firebase token was invalid and has been deactivated. Ask user to open the app again so Flutter can register a fresh token.';
         }
@@ -791,6 +858,10 @@ class NotificationAdminController extends Controller
     {
         if (in_array($error, ['No active push token found.', 'No valid Firebase device token found.'], true)) {
             return 'Notification saved, but push failed because selected user has no valid Firebase device token.';
+        }
+
+        if ($error === 'This user has push token records, but none are active. Ask user to open the app again so Flutter can register a fresh active token.') {
+            return 'This user has push token records, but none are active. Ask user to open the app again so Flutter can register a fresh active token.';
         }
 
         if ($error === 'Invalid or unregistered Firebase device token.') {

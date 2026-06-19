@@ -66,8 +66,24 @@
     <div class="card-body">
         <div class="row g-3 small">
             <div class="col-md-2">
-                <div class="text-muted">Total active push tokens</div>
-                <div class="fw-semibold">{{ $pushTokenDiagnostics['total_active'] ?? 0 }}</div>
+                <div class="text-muted">Total push token rows</div>
+                <div class="fw-semibold">{{ $pushTokenDiagnostics['total_rows'] ?? 0 }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted">Active push token rows</div>
+                <div class="fw-semibold text-success">{{ $pushTokenDiagnostics['total_active'] ?? 0 }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted">Inactive push token rows</div>
+                <div class="fw-semibold text-warning">{{ $pushTokenDiagnostics['total_inactive'] ?? 0 }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted">Users with any token</div>
+                <div class="fw-semibold">{{ $pushTokenDiagnostics['users_with_any_token'] ?? 0 }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted">Users with active token</div>
+                <div class="fw-semibold">{{ $pushTokenDiagnostics['users_with_active_token'] ?? 0 }}</div>
             </div>
             <div class="col-md-2">
                 <div class="text-muted">Active Android tokens</div>
@@ -120,10 +136,11 @@
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label" for="push_token_status_filter">User Filter</label>
-                    <select id="push_token_status_filter" class="form-select">
+                    <select id="push_token_status_filter" name="user_filter" class="form-select">
                         <option value="all">All users</option>
-                        <option value="with">Users with active push token</option>
-                        <option value="without">Users without active push token</option>
+                        <option value="with_any_token">Users with any push token</option>
+                        <option value="with_active_token">Users with active push token</option>
+                        <option value="without_token">Users without push token</option>
                     </select>
                 </div>
 
@@ -317,7 +334,7 @@
                     return {
                         q: params.term || '',
                         page: params.page || 1,
-                        push_token_status: jQuery('#push_token_status_filter').val() || 'all'
+                        user_filter: jQuery('#push_token_status_filter').val() || 'all'
                     };
                 },
                 processResults: function (data) {
@@ -332,25 +349,42 @@
                 if (!peer.id) {
                     return peer.text || 'Select peer';
                 }
-                const count = Number(peer.active_push_tokens_count || 0);
-                const badgeClass = count > 0 ? 'bg-success' : 'bg-warning text-dark';
-                const badgeText = count > 0 ? 'Push ready' : 'No device token';
-                return jQuery('<div class="d-flex justify-content-between align-items-center gap-2"><span></span><span class="badge ' + badgeClass + '">' + badgeText + '</span></div>').find('span:first').text(peer.text || '').end();
+                const status = peer.push_token_status || 'No device token';
+                const badgeClass = status === 'Push ready' ? 'bg-success' : (status === 'Inactive token' ? 'bg-warning text-dark' : 'bg-secondary');
+                return jQuery('<div class="d-flex justify-content-between align-items-center gap-2"><span></span><span class="badge ' + badgeClass + '">' + status + '</span></div>').find('span:first').text(peer.text || '').end();
             },
             templateSelection: function (peer) {
                 return peer.text || 'Select peer';
             }
         }).on('select2:select', function (event) {
-            const count = Number(event.params.data.active_push_tokens_count || 0);
-            this.dataset.activePushTokens = String(count);
+            const activeCount = Number(event.params.data.active_push_tokens_count || 0);
+            const totalCount = Number(event.params.data.total_push_tokens_count || 0);
+            this.dataset.activePushTokens = String(activeCount);
             const help = document.getElementById('push-token-help');
             if (help) {
-                help.textContent = count > 0 ? `Push ready (${count} active device token${count === 1 ? '' : 's'})` : 'No device token — the user has not opened the app with notification permission, or the old Firebase token became invalid.';
-                help.className = count > 0 ? 'form-text text-success' : 'form-text text-warning';
+                if (activeCount > 0) {
+                    help.textContent = `Push ready (${activeCount} active device token${activeCount === 1 ? '' : 's'})`;
+                    help.className = 'form-text text-success';
+                } else if (totalCount > 0) {
+                    help.textContent = 'Inactive token — this user has token records, but none are active. Ask the user to open the app again so Flutter can register a fresh active token.';
+                    help.className = 'form-text text-warning';
+                } else {
+                    help.textContent = 'No device token — the user has not opened the app with notification permission, or the old Firebase token became invalid.';
+                    help.className = 'form-text text-muted';
+                }
             }
             loadPushStatus(event.params.data.id);
         });
 
+
+        jQuery('#push_token_status_filter').on('change', function () {
+            jQuery('#notification_user_id').val(null).trigger('change');
+            const help = document.getElementById('push-token-help');
+            if (help) {
+                help.textContent = 'Search users inside the selected token filter. Inactive token means a token row exists, but push will not send until Flutter saves an active token.';
+                help.className = 'form-text text-muted';
+            }
+        });
 
         function loadPushStatus(userId) {
             const panel = document.getElementById('selected-user-push-status');
