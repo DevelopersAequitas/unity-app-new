@@ -103,6 +103,8 @@ use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
+use App\Http\Controllers\Api\V1\NotificationEngineController;
+use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
 use App\Http\Controllers\Api\V1\ScanAppAuthController;
 use App\Http\Controllers\Api\V1\ScanAppEventController;
@@ -579,6 +581,15 @@ Route::prefix('v1')->group(function () {
             Route::patch('/post-reports/{id}/resolve', [AdminOpsController::class, 'postReportResolve'])->whereUuid('id');
             Route::patch('/post-reports/{id}/dismiss', [AdminOpsController::class, 'postReportDismiss'])->whereUuid('id');
 
+
+            Route::get('/notification-campaigns', [NotificationCampaignController::class, 'index']);
+            Route::post('/notification-campaigns', [NotificationCampaignController::class, 'store']);
+            Route::put('/notification-campaigns/{id}', [NotificationCampaignController::class, 'update'])->whereUuid('id');
+            Route::patch('/notification-campaigns/{id}/toggle', [NotificationCampaignController::class, 'toggle'])->whereUuid('id');
+            Route::post('/notification-campaigns/{id}/preview', [NotificationCampaignController::class, 'preview'])->whereUuid('id');
+            Route::post('/notification-campaigns/{id}/run', [NotificationCampaignController::class, 'run'])->whereUuid('id');
+            Route::get('/notification-campaigns/{id}/runs', [NotificationCampaignController::class, 'runs'])->whereUuid('id');
+            Route::get('/notification-logs', [NotificationCampaignController::class, 'logs']);
             Route::get('/notifications/logs', [AdminOpsController::class, 'notificationLogs']);
             Route::post('/notifications/broadcast', [AdminOpsController::class, 'notificationBroadcast']);
             Route::get('/notifications/templates', [AdminOpsController::class, 'notificationTemplates']);
@@ -772,6 +783,13 @@ Route::prefix('v1')->group(function () {
 
 
         // Notifications
+        Route::post('/notifications/push-token', [NotificationEngineController::class, 'pushToken']);
+        Route::get('/notifications', [NotificationEngineController::class, 'index']);
+        Route::post('/notifications/{id}/read', [NotificationEngineController::class, 'read'])->whereUuid('id');
+        Route::post('/notifications/read-all', [NotificationEngineController::class, 'readAll']);
+        Route::post('/notifications/{id}/click', [NotificationEngineController::class, 'click'])->whereUuid('id');
+        Route::get('/notifications/preferences', [NotificationEngineController::class, 'preferences']);
+        Route::put('/notifications/preferences', [NotificationEngineController::class, 'updatePreferences']);
         Route::get('/notifications', [NotificationController::class, 'index']);
         Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
         Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);

@@ -25,11 +25,15 @@ class UserPushToken extends Model
         'device_id',
         'app_version',
         'last_seen_at',
+        'last_used_at',
+        'is_active',
         'last_update_notification_sent_at',
     ];
 
     protected $casts = [
         'last_seen_at' => 'datetime',
+        'last_used_at' => 'datetime',
+        'is_active' => 'boolean',
         'last_update_notification_sent_at' => 'datetime',
     ];
 
