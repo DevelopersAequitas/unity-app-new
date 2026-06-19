@@ -18,6 +18,9 @@
 </div>
 
 @php($firebaseDiagnostics = $firebaseDiagnostics ?? [])
+@php
+    $firebaseDiagnostics = $firebaseDiagnostics ?? [];
+@endphp
 <div class="card shadow-sm mb-4 border-{{ ($firebaseDiagnostics['file_readable'] ?? false) ? 'success' : 'warning' }}">
     <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
         <span>Firebase Push Diagnostics</span>
@@ -63,12 +66,56 @@
         <form method="POST" action="{{ route('admin.notifications.send-test.store') }}">
             @csrf
             <div class="row g-3">
+<div class="alert alert-info shadow-sm">
+    <strong>Push delivery requirements:</strong>
+    Push notifications do not depend on login/logout status. They require a valid Firebase device token. A token is created only after the user opens the Flutter app and allows notifications at least once. If a user has <strong>No device token</strong>, push cannot be delivered to that device. You can still send <strong>In-app only</strong> notification, and the user will see it when they open the app.
+</div>
+
+<div class="alert alert-secondary shadow-sm">
+    <strong>Local/mobile testing note:</strong>
+    FCM push can work from a local Laravel server because Firebase is cloud-based. If testing from a physical mobile device, make sure Flutter API base URL points to a reachable backend URL, not <code>127.0.0.1</code>. Use a LAN IP such as <code>http://192.168.1.10:8000/api/v1</code>, ngrok, or a live API URL so Flutter can save the FCM token.
+</div>
+
+<div class="alert alert-light border shadow-sm">
+    <strong>Flutter implementation:</strong>
+    After login, request notification permission, call <code>FirebaseMessaging.instance.getToken()</code>, POST it to <code>/api/v1/notifications/push-token</code> with <code>platform</code>, <code>device_id</code>, and <code>app_version</code>, and call the same API from <code>FirebaseMessaging.instance.onTokenRefresh.listen(...)</code>. Android <code>google-services.json</code> must use project_id <code>peers-global-app</code>.
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="POST" action="{{ route('admin.notifications.send-test.store') }}" id="send_test_notification_form">
+            @csrf
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label" for="push_token_status_filter">User Filter</label>
+                    <select id="push_token_status_filter" class="form-select">
+                        <option value="all">All users</option>
+                        <option value="with">Users with active push token</option>
+                        <option value="without">Users without active push token</option>
+                    </select>
+                </div>
+
                 <div class="col-md-6">
                     <label class="form-label" for="notification_user_id">User *</label>
                     <select name="user_id" id="notification_user_id" class="form-control select2-peer" required>
                         <option value="">Select peer</option>
                     </select>
                     <div id="push-token-help" class="form-text">Open the dropdown to load peers.</div>
+                    <div id="push-token-help" class="form-text">Open the dropdown to load peers. No device token means the user has not opened the app with notification permission, or the old Firebase token became invalid.</div>
+                </div>
+
+                <div class="col-12">
+                    <div id="selected-user-push-status" class="border rounded p-3 bg-light small d-none">
+                        <div class="fw-semibold mb-2">Selected User Push Status</div>
+                        <div class="row g-2">
+                            <div class="col-md-2">Active tokens: <strong data-field="active_tokens">0</strong></div>
+                            <div class="col-md-2">Inactive tokens: <strong data-field="inactive_tokens">0</strong></div>
+                            <div class="col-md-2">Can send push: <strong data-field="can_send_push">No</strong></div>
+                            <div class="col-md-2">Platform: <strong data-field="latest_platform">-</strong></div>
+                            <div class="col-md-2">Last used: <strong data-field="latest_last_used_at">-</strong></div>
+                            <div class="col-md-12 text-muted">Last failure: <span data-field="last_failure_reason">-</span></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="col-md-3">
@@ -78,6 +125,14 @@
                             <option value="{{ $value }}" @selected(old('channel', 'push') === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
+                        <option value="push" @selected(old('channel', 'push') === 'push')>Push</option>
+                        <option value="email" @selected(old('channel', 'push') === 'email')>Email</option>
+                        <option value="push_email" @selected(old('channel', 'push') === 'push_email')>Push + Email</option>
+                        <option value="in_app_only" @selected(old('channel', 'push') === 'in_app_only')>In-app only</option>
+                    </select>
+                    <div class="form-text">
+                        Push works when a valid Firebase device token exists, even if the user is logged out. Email requires user email. Push + Email attempts both and may become partial. In-app only saves to notification history.
+                    </div>
                 </div>
 
                 <div class="col-md-3">
@@ -86,6 +141,10 @@
                         @foreach(['low', 'medium', 'high', 'urgent'] as $priority)
                             <option value="{{ $priority }}" @selected(old('priority', 'high') === $priority)>{{ Str::headline($priority) }}</option>
                         @endforeach
+                        <option value="low" @selected(old('priority', 'high') === 'low')>Low</option>
+                        <option value="medium" @selected(old('priority', 'high') === 'medium')>Medium</option>
+                        <option value="high" @selected(old('priority', 'high') === 'high')>High</option>
+                        <option value="urgent" @selected(old('priority', 'high') === 'urgent')>Urgent</option>
                     </select>
                 </div>
 
@@ -157,10 +216,86 @@
             @empty
                 <tr><td colspan="9" class="text-center text-muted py-4">No test notifications yet.</td></tr>
             @endforelse
+<div class="card shadow-sm mt-4">
+    <div class="card-header">
+        <strong>Recent Test Notifications</strong>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle mb-0 notification-admin-table">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th>
+                    <th>User</th>
+                    <th>Title</th>
+                    <th>Channel</th>
+                    <th>Status</th>
+                    <th>Failure Reason</th>
+                    <th>Sent At</th>
+                    <th>Read At</th>
+                    <th>Clicked At</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @forelse($recentNotifications as $notification)
+                    <tr>
+                        <td>{{ optional($notification->created_at)->format('d M Y H:i') ?? '-' }}</td>
+
+                        <td>
+                            @php
+                                $user = $notification->user ?? null;
+                                $displayName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+
+                                if ($displayName === '') {
+                                    $displayName = $user->name ?? $user->email ?? 'Unknown User';
+                                }
+                            @endphp
+
+                            {{ $displayName }}
+                        </td>
+
+                        <td>{{ $notification->title ?? '-' }}</td>
+
+                        <td>{{ $notification->channel ?? '-' }}</td>
+
+                        <td>
+                            @php
+                                $status = $notification->status ?? 'pending';
+
+                                $statusClass = match ($status) {
+                                    'sent' => 'success',
+                                    'partial' => 'warning',
+                                    'failed' => 'danger',
+                                    default => 'secondary',
+                                };
+                            @endphp
+
+                            <span class="badge bg-{{ $statusClass }}">
+                                {{ ucfirst($status) }}
+                            </span>
+                        </td>
+
+                        <td class="text-muted small" title="{{ $notification->failure_reason ?? '' }}">
+                            {{ \Illuminate\Support\Str::limit($notification->failure_reason ?? '-', 60) }}
+                        </td>
+
+                        <td>{{ optional($notification->sent_at)->format('d M H:i') ?? '-' }}</td>
+                        <td>{{ optional($notification->read_at)->format('d M H:i') ?? '-' }}</td>
+                        <td>{{ optional($notification->clicked_at)->format('d M H:i') ?? '-' }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">
+                            No test notifications yet.
+                        </td>
+                    </tr>
+                @endforelse
             </tbody>
         </table>
     </div>
 </div>
+
 @endsection
 
 @push('scripts')
@@ -181,6 +316,11 @@
                 delay: 250,
                 data: function (params) {
                     return { q: params.term || '', page: params.page || 1 };
+                    return {
+                        q: params.term || '',
+                        page: params.page || 1,
+                        push_token_status: jQuery('#push_token_status_filter').val() || 'all'
+                    };
                 },
                 processResults: function (data) {
                     return {
@@ -191,6 +331,15 @@
                 cache: true
             },
             templateResult: function (peer) {
+                if (!peer.id) {
+                    return peer.text || 'Select peer';
+                }
+                const count = Number(peer.active_push_tokens_count || 0);
+                const badgeClass = count > 0 ? 'bg-success' : 'bg-warning text-dark';
+                const badgeText = count > 0 ? 'Push ready' : 'No device token';
+                return jQuery('<div class="d-flex justify-content-between align-items-center gap-2"><span></span><span class="badge ' + badgeClass + '">' + badgeText + '</span></div>').find('span:first').text(peer.text || '').end();
+            },
+            templateSelection: function (peer) {
                 return peer.text || 'Select peer';
             }
         }).on('select2:select', function (event) {
@@ -200,6 +349,55 @@
                 help.textContent = count > 0 ? `Push available (${count} active token${count === 1 ? '' : 's'})` : 'No active push token';
                 help.className = count > 0 ? 'form-text text-success' : 'form-text text-warning';
             }
+            this.dataset.activePushTokens = String(count);
+            const help = document.getElementById('push-token-help');
+            if (help) {
+                help.textContent = count > 0 ? `Push ready (${count} active device token${count === 1 ? '' : 's'})` : 'No device token — the user has not opened the app with notification permission, or the old Firebase token became invalid.';
+                help.className = count > 0 ? 'form-text text-success' : 'form-text text-warning';
+            }
+            loadPushStatus(event.params.data.id);
+        });
+
+
+        function loadPushStatus(userId) {
+            const panel = document.getElementById('selected-user-push-status');
+            if (!panel || !userId) {
+                return;
+            }
+            const url = '{{ route('admin.notifications.users.push-status', ['user' => '__USER__']) }}'.replace('__USER__', userId);
+            fetch(url, { headers: { 'Accept': 'application/json' } })
+                .then((response) => response.json())
+                .then((payload) => {
+                    const data = payload.data || {};
+                    panel.classList.remove('d-none');
+                    panel.querySelector('[data-field="active_tokens"]').textContent = data.active_tokens ?? 0;
+                    panel.querySelector('[data-field="inactive_tokens"]').textContent = data.inactive_tokens ?? 0;
+                    panel.querySelector('[data-field="can_send_push"]').textContent = data.can_send_push ? 'Yes' : 'No';
+                    panel.querySelector('[data-field="latest_platform"]').textContent = data.latest_platform || '-';
+                    panel.querySelector('[data-field="latest_last_used_at"]').textContent = data.latest_last_used_at || '-';
+                    panel.querySelector('[data-field="last_failure_reason"]').textContent = data.last_failure_reason || '-';
+                })
+                .catch(() => panel.classList.add('d-none'));
+        }
+
+        document.getElementById('send_test_notification_form')?.addEventListener('submit', function (event) {
+            const channel = this.querySelector('[name="channel"]')?.value;
+            const count = Number(document.getElementById('notification_user_id')?.dataset.activePushTokens || 0);
+            if ((channel === 'push' || channel === 'push_email') && count === 0) {
+                if (!confirm('Selected user has no valid Firebase device token. Push will fail until Flutter registers a fresh token. Continue?')) {
+                    event.preventDefault();
+                }
+            }
+        });
+
+        jQuery('#push_token_status_filter').on('change', function () {
+            jQuery('#notification_user_id').val(null).trigger('change');
+            const help = document.getElementById('push-token-help');
+            if (help) {
+                help.textContent = 'Open the dropdown to load peers.';
+                help.className = 'form-text';
+            }
+            document.getElementById('selected-user-push-status')?.classList.add('d-none');
         });
     });
 </script>

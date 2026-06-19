@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AppNotification extends Model
 {
@@ -52,5 +53,10 @@ class AppNotification extends Model
     public function campaign(): BelongsTo
     {
         return $this->belongsTo(NotificationCampaign::class, 'campaign_id');
+    }
+
+    public function deliveryLogs(): HasMany
+    {
+        return $this->hasMany(NotificationDeliveryLog::class, 'notification_id');
     }
 }

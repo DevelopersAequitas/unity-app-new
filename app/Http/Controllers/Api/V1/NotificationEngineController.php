@@ -41,6 +41,28 @@ class NotificationEngineController extends BaseApiController
         UserPushToken::updateOrCreate(['token' => $validated['token']], $attributes);
 
         return $this->success([], 'Push token saved successfully.');
+        $pushToken = UserPushToken::where('token', $validated['token'])->first();
+
+        if (! $pushToken && ! empty($validated['device_id'])) {
+            $pushToken = UserPushToken::where('user_id', $request->user()->id)
+                ->where('device_id', $validated['device_id'])
+                ->first();
+        }
+
+        if ($pushToken) {
+            $pushToken->update(array_merge($attributes, ['token' => $validated['token']]));
+        } else {
+            $pushToken = UserPushToken::create(array_merge($attributes, ['token' => $validated['token']]));
+        }
+
+        return $this->success([
+            'id' => (string) $pushToken->id,
+            'user_id' => (string) $pushToken->user_id,
+            'platform' => $pushToken->platform,
+            'is_active' => (bool) $pushToken->is_active,
+            'last_used_at' => $pushToken->last_used_at,
+            'flutter_note' => 'After login, request notification permission, get the FirebaseMessaging FCM token, call this endpoint with the bearer token, and call it again from FirebaseMessaging.onTokenRefresh. Ensure android/app/google-services.json uses project_id peers-global-app.',
+        ], 'Push token saved successfully.');
     }
 
     public function index(Request $request)
