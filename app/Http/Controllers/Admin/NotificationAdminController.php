@@ -185,12 +185,12 @@ class NotificationAdminController extends Controller
 
     public function sendTestForm(FirebaseFcmService $firebase): View
     {
-        $recentTests = Schema::hasTable('app_notifications')
+        $recentNotifications = Schema::hasTable('app_notifications')
             ? AppNotification::with(['user', 'deliveryLogs'])->where('category', 'admin_test')->latest()->limit(15)->get()
             : collect();
         $firebaseDiagnostics = $firebase->diagnostics();
 
-        return view('admin.notifications.send-test', compact('recentTests', 'firebaseDiagnostics'));
+        return view('admin.notifications.send-test', compact('recentNotifications', 'firebaseDiagnostics'));
     }
 
     public function searchUsers(Request $request): JsonResponse
