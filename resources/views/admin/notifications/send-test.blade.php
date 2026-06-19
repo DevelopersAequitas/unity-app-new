@@ -112,9 +112,10 @@
                 <div class="col-md-3">
                     <label class="form-label">Channel *</label>
                     <select name="channel" class="form-select" required>
-                        @foreach(['push' => 'Push', 'email' => 'Email', 'push_email' => 'Push + Email', 'in_app_only' => 'In-app only'] as $value => $label)
-                            <option value="{{ $value }}" @selected(old('channel', 'push') === $value)>{{ $label }}</option>
-                        @endforeach
+                        <option value="push" @selected(old('channel', 'push') === 'push')>Push</option>
+                        <option value="email" @selected(old('channel', 'push') === 'email')>Email</option>
+                        <option value="push_email" @selected(old('channel', 'push') === 'push_email')>Push + Email</option>
+                        <option value="in_app_only" @selected(old('channel', 'push') === 'in_app_only')>In-app only</option>
                     </select>
                     <div class="form-text">
                         Push works when a valid Firebase device token exists, even if the user is logged out. Email requires user email. Push + Email attempts both and may become partial. In-app only saves to notification history.
@@ -124,9 +125,10 @@
                 <div class="col-md-3">
                     <label class="form-label">Priority *</label>
                     <select name="priority" class="form-select" required>
-                        @foreach(['low', 'medium', 'high', 'urgent'] as $priority)
-                            <option value="{{ $priority }}" @selected(old('priority', 'high') === $priority)>{{ Str::headline($priority) }}</option>
-                        @endforeach
+                        <option value="low" @selected(old('priority', 'high') === 'low')>Low</option>
+                        <option value="medium" @selected(old('priority', 'high') === 'medium')>Medium</option>
+                        <option value="high" @selected(old('priority', 'high') === 'high')>High</option>
+                        <option value="urgent" @selected(old('priority', 'high') === 'urgent')>Urgent</option>
                     </select>
                 </div>
 
