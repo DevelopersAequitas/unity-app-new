@@ -1,0 +1,19 @@
+@extends('admin.layouts.app')
+@section('title', 'Notifications Dashboard')
+@section('content')
+@include('admin.notifications._helpers')
+@include('admin.notifications._styles')
+@include('admin.notifications._flash')
+<div class="d-flex justify-content-between align-items-center mb-3"><div><h1 class="h4 mb-0">Notifications Dashboard</h1><div class="text-muted small">Engagement, delivery, read and click overview.</div></div><a href="{{ route('admin.notifications.send-test') }}" class="btn btn-primary"><i class="bi bi-send me-1"></i>Send Test</a></div>
+<div class="row g-3 mb-4">
+@foreach ([['Total Notifications','total_notifications','primary'],['Sent Notifications','sent_notifications','success'],['Failed Notifications','failed_notifications','danger'],['Pending Notifications','pending_notifications','secondary'],['Read Notifications','read_notifications','info'],['Clicked Notifications','clicked_notifications','warning'],['Active Campaigns','active_campaigns','success'],['Inactive Campaigns','inactive_campaigns','secondary'],['Total Push Tokens','total_push_tokens','primary'],['Active Push Tokens','active_push_tokens','success']] as [$label,$key,$color])
+<div class="col-6 col-lg-3 col-xxl-2"><div class="card shadow-sm h-100 rounded-3"><div class="card-body"><div class="small text-muted">{{ $label }}</div><div class="h3 mb-0 text-{{ $color }}">{{ number_format($stats[$key] ?? 0) }}</div></div></div></div>
+@endforeach
+</div>
+<div class="row g-3 mb-4">
+@foreach ([['Today Sent','today_sent','success'],['Today Failed','today_failed','danger'],['Today Read','today_read','info'],['Today Clicked','today_clicked','warning']] as [$label,$key,$color])
+<div class="col-6 col-xl-3"><div class="card shadow-sm border-0"><div class="card-body d-flex justify-content-between align-items-center"><span class="text-muted">{{ $label }}</span><strong class="fs-4 text-{{ $color }}">{{ number_format($stats[$key] ?? 0) }}</strong></div></div></div>
+@endforeach
+</div>
+<div class="row g-4"><div class="col-xl-8"><div class="card shadow-sm"><div class="card-header bg-white fw-semibold">Recent Notifications</div><div class="table-responsive"><table class="table table-striped table-hover align-middle notification-admin-table mb-0"><thead class="table-light"><tr><th>Date</th><th>User</th><th>Type</th><th>Title</th><th>Channel</th><th>Priority</th><th>Status</th><th>Read</th><th>Clicked</th></tr></thead><tbody>@forelse($recentNotifications as $n)<tr><td>{{ optional($n->created_at)->format('d M Y H:i') }}</td><td>{{ notification_admin_user_name($n->user) }}</td><td><code>{{ $n->type }}</code></td><td>{{ Str::limit($n->title, 40) }}</td><td>{{ $n->channel }}</td><td><span class="badge bg-{{ notification_admin_priority_badge($n->priority) }}">{{ $n->priority }}</span></td><td><span class="badge bg-{{ notification_admin_status_badge($n->status) }}">{{ $n->status }}</span></td><td>{{ $n->read_at ? 'Yes' : 'No' }}</td><td>{{ $n->clicked_at ? 'Yes' : 'No' }}</td></tr>@empty<tr><td colspan="9" class="text-center text-muted py-4">No notifications yet.</td></tr>@endforelse</tbody></table></div></div></div><div class="col-xl-4"><div class="card shadow-sm"><div class="card-header bg-white fw-semibold">Recent Failed Delivery Logs</div><div class="table-responsive"><table class="table table-sm table-hover align-middle notification-admin-table mb-0"><thead class="table-light"><tr><th>Date</th><th>User</th><th>Channel</th><th>Error</th><th>Status</th></tr></thead><tbody>@forelse($failedLogs as $log)<tr><td>{{ optional($log->created_at)->format('d M H:i') }}</td><td>{{ notification_admin_user_name($log->notification?->user) }}</td><td>{{ $log->channel }}</td><td>{{ Str::limit($log->error_message, 60) }}</td><td><span class="badge bg-danger">{{ $log->status }}</span></td></tr>@empty<tr><td colspan="5" class="text-center text-muted py-4">No failed logs.</td></tr>@endforelse</tbody></table></div></div></div></div>
+@endsection

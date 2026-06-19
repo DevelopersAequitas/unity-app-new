@@ -126,6 +126,15 @@
         ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index'],
     ];
     $campaignsActive = request()->routeIs('admin.campaigns.*') || request()->routeIs('admin.campaign-pamphlets.*') || request()->routeIs('admin.execution.communications');
+    $notificationsMenu = [
+        ['label' => 'Dashboard', 'route' => 'admin.notifications.dashboard'],
+        ['label' => 'Campaigns', 'route' => 'admin.notifications.campaigns'],
+        ['label' => 'Send Test Notification', 'route' => 'admin.notifications.send-test'],
+        ['label' => 'Notification Logs', 'route' => 'admin.notifications.logs'],
+        ['label' => 'Push Tokens', 'route' => 'admin.notifications.push-tokens'],
+        ['label' => 'User Notifications', 'route' => 'admin.notifications.user-notifications'],
+    ];
+    $notificationsActive = request()->routeIs('admin.notifications.*');
     $eventsManagementMenu = [
         ['label' => 'Events', 'route' => 'admin.events.index'],
         ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
@@ -281,6 +290,24 @@
             @endforeach
 
 
+            @if (! $isIndustryDirector)
+                <li class="nav-item menu-parent {{ $notificationsActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $notificationsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#notificationsSubmenu" role="button" aria-expanded="{{ $notificationsActive ? 'true' : 'false' }}" aria-controls="notificationsSubmenu">
+                        <span><i class="bi bi-bell me-2"></i>Notifications</span>
+                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    </a>
+                    <div class="collapse {{ $notificationsActive ? 'show' : '' }}" id="notificationsSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            @foreach ($notificationsMenu as $notificationItem)
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs($notificationItem['route']) ? 'active' : '' }}" href="{{ route($notificationItem['route']) }}">{{ $notificationItem['label'] }}</a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </li>
+            @endif
+
             @if ($isGlobalAdmin)
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
@@ -355,7 +382,7 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu', 'leadsSubmenu', 'campaignsSubmenu', 'eventsManagementSubmenu'].forEach((submenuId) => {
+            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu', 'leadsSubmenu', 'campaignsSubmenu', 'notificationsSubmenu', 'eventsManagementSubmenu'].forEach((submenuId) => {
                 const submenu = document.getElementById(submenuId);
                 if (!submenu) {
                     return;
