@@ -476,8 +476,8 @@ class NotificationAdminController extends Controller
             ->where('is_active', true)
             ->whereNotNull('token')
             ->where('token', '!=', '')
-            ->latest('last_used_at')
-            ->latest('updated_at')
+            ->orderByDesc('last_used_at')
+            ->orderByDesc('updated_at')
             ->limit(1)
             ->get();
 
@@ -610,6 +610,8 @@ class NotificationAdminController extends Controller
                 'ios_active' => 0,
                 'last_saved_at' => null,
                 'last_user_name' => null,
+                'last_platform' => null,
+                'last_token_preview' => null,
             ];
         }
 
@@ -621,10 +623,12 @@ class NotificationAdminController extends Controller
 
         return [
             'total_active' => (clone $active)->count(),
-            'android_active' => (clone $active)->where('platform', 'android')->count(),
-            'ios_active' => (clone $active)->whereIn('platform', ['ios', 'iOS'])->count(),
+            'android_active' => (clone $active)->whereRaw('LOWER(platform) = ?', ['android'])->count(),
+            'ios_active' => (clone $active)->whereRaw("LOWER(platform) IN ('ios', 'iphone')")->count(),
             'last_saved_at' => optional($lastToken?->updated_at)->toDateTimeString(),
             'last_user_name' => $lastToken?->user ? $this->userSelectText($lastToken->user) : null,
+            'last_platform' => $lastToken?->platform,
+            'last_token_preview' => $lastToken?->token ? $this->maskToken($lastToken->token) : null,
         ];
     }
 
@@ -648,8 +652,8 @@ class NotificationAdminController extends Controller
                 ->where('is_active', true)
                 ->whereNotNull('token')
                 ->where('token', '!=', '')
-                ->latest('last_used_at')
-                ->latest('updated_at')
+                ->orderByDesc('last_used_at')
+                ->orderByDesc('updated_at')
                 ->first();
             $payload['token'] = $token ? $this->maskToken($token->token) : null;
         }

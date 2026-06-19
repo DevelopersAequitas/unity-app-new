@@ -85,6 +85,14 @@
                 <div class="text-muted">Last token user</div>
                 <div class="fw-semibold text-break">{{ $pushTokenDiagnostics['last_user_name'] ?? 'No active token user' }}</div>
             </div>
+            <div class="col-md-2">
+                <div class="text-muted">Last token platform</div>
+                <div class="fw-semibold">{{ $pushTokenDiagnostics['last_platform'] ?? '-' }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted">Last token preview</div>
+                <code class="text-break">{{ $pushTokenDiagnostics['last_token_preview'] ?? 'No active token' }}</code>
+            </div>
         </div>
         <div class="text-muted small mt-2">Full Firebase tokens are never shown here; use the push token table or SQL token previews for masked diagnostics only.</div>
     </div>
