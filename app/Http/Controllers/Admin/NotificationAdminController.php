@@ -186,7 +186,7 @@ class NotificationAdminController extends Controller
     public function sendTestForm(FirebaseFcmService $firebase): View
     {
         $recentTests = Schema::hasTable('app_notifications')
-            ? AppNotification::with('user')->where('category', 'admin_test')->latest()->limit(15)->get()
+            ? AppNotification::with(['user', 'deliveryLogs'])->where('category', 'admin_test')->latest()->limit(15)->get()
             : collect();
         $firebaseDiagnostics = $firebase->diagnostics();
 
@@ -246,6 +246,47 @@ class NotificationAdminController extends Controller
         ]);
     }
 
+
+    public function pushStatus(string $user): JsonResponse
+    {
+        $activeTokens = collect();
+        $inactiveTokens = collect();
+
+        if (Schema::hasTable('user_push_tokens')) {
+            $query = UserPushToken::where('user_id', $user);
+            if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                $activeTokens = (clone $query)->where('is_active', true)->get();
+                $inactiveTokens = (clone $query)->where('is_active', false)->get();
+            } else {
+                $activeTokens = $query->get();
+            }
+        }
+
+        $latestToken = $activeTokens->sortByDesc(fn ($token) => $token->last_used_at ?? $token->updated_at ?? $token->created_at)->first()
+            ?: $inactiveTokens->sortByDesc(fn ($token) => $token->last_used_at ?? $token->updated_at ?? $token->created_at)->first();
+
+        $lastFailureReason = null;
+        if (Schema::hasTable('notification_delivery_logs')) {
+            $lastFailureReason = NotificationDeliveryLog::where('user_id', $user)
+                ->where('channel', 'push')
+                ->where('status', 'failed')
+                ->latest()
+                ->value('error_message');
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'active_tokens' => $activeTokens->count(),
+                'inactive_tokens' => $inactiveTokens->count(),
+                'can_send_push' => $activeTokens->isNotEmpty(),
+                'latest_platform' => $latestToken?->platform,
+                'latest_last_used_at' => optional($latestToken?->last_used_at ?? $latestToken?->updated_at)->toDateTimeString(),
+                'last_failure_reason' => $lastFailureReason,
+            ],
+        ]);
+    }
+
     public function sendTest(Request $request): RedirectResponse
     {
         try {
@@ -278,11 +319,12 @@ class NotificationAdminController extends Controller
             'status' => 'pending',
         ]);
 
-        $results = ['push' => null, 'email' => null];
+        $results = ['push' => null, 'email' => null, 'in_app_only' => null];
 
         if ($channel === 'in_app_only') {
-            $notification->update(['status' => 'sent', 'sent_at' => now()]);
-            return redirect()->route('admin.notifications.send-test')->with('success', 'In-app notification created successfully.');
+            $results['in_app_only'] = $this->recordDelivery($notification, 'in_app_only', true, null, 'database');
+            $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
+            return redirect()->route('admin.notifications.send-test')->with('success', 'In-app notification created successfully. The user will see it when the app calls the notification list API.');
         }
 
         if (in_array($channel, ['push', 'push_email'], true)) {
@@ -293,35 +335,24 @@ class NotificationAdminController extends Controller
             $results['email'] = $this->sendEmailForTest($notification);
         }
 
-        $successes = collect($results)->filter(fn ($result) => is_array($result) && ($result['success'] ?? false))->count();
-        $failures = collect($results)->filter(fn ($result) => is_array($result) && ! ($result['success'] ?? false))->values();
-
-        if ($successes > 0) {
-            $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
-        } else {
-            $reason = (string) ($failures->first()['error'] ?? 'Delivery failed.');
-            $notification->update(['status' => 'failed', 'failed_at' => now(), 'failure_reason' => $reason]);
-        }
+        $this->updateNotificationStatusFromResults($notification, $channel, $results);
 
         if ($channel === 'push_email') {
             if (($results['push']['success'] ?? false) && ($results['email']['success'] ?? false)) {
                 return redirect()->route('admin.notifications.send-test')->with('success', 'Push and email sent successfully.');
             }
 
-            if ($results['email']['success'] ?? false) {
-                return redirect()->route('admin.notifications.send-test')->with('warning', $this->pushEmailWarningMessage((string) ($results['push']['error'] ?? 'Unknown error.')));
-            }
-
-            if ($results['push']['success'] ?? false) {
-                return redirect()->route('admin.notifications.send-test')->with('warning', 'Notification saved. Push sent, but email failed: ' . ($results['email']['error'] ?? 'Unknown error.'));
+            if (($results['email']['success'] ?? false) || ($results['push']['success'] ?? false)) {
+                return redirect()->route('admin.notifications.send-test')->with('warning', $this->partialWarningMessage($results));
             }
         }
 
-        if ($successes > 0) {
+        if (($results[$channel]['success'] ?? false) || ($results['push']['success'] ?? false) || ($results['email']['success'] ?? false)) {
             return redirect()->route('admin.notifications.send-test')->with('success', 'Test notification sent successfully.');
         }
 
-        return redirect()->route('admin.notifications.send-test')->with('warning', $this->deliveryWarningMessage((string) ($failures->first()['error'] ?? 'Unknown error.')));
+        $error = (string) (($results['push']['error'] ?? null) ?: ($results['email']['error'] ?? 'Unknown error.'));
+        return redirect()->route('admin.notifications.send-test')->with('warning', $this->deliveryWarningMessage($error));
     }
 
     public function logs(Request $request): View
@@ -430,12 +461,12 @@ class NotificationAdminController extends Controller
     private function sendPushForTest(AppNotification $notification): array
     {
         if (! Schema::hasTable('user_push_tokens') || ! Schema::hasColumn('user_push_tokens', 'is_active')) {
-            return $this->recordDelivery($notification, 'push', false, 'No active push token found.', 'firebase');
+            return $this->recordDelivery($notification, 'push', false, 'No valid Firebase device token found.', 'firebase');
         }
 
         $tokens = UserPushToken::where('user_id', $notification->user_id)->where('is_active', true)->get();
         if ($tokens->isEmpty()) {
-            return $this->recordDelivery($notification, 'push', false, 'No active push token found.', 'firebase');
+            return $this->recordDelivery($notification, 'push', false, 'No valid Firebase device token found.', 'firebase');
         }
 
         $firebase = app(FirebaseFcmService::class);
@@ -443,7 +474,9 @@ class NotificationAdminController extends Controller
             return $this->recordDelivery($notification, 'push', false, 'Firebase credentials file is not available.', 'firebase');
         }
 
-        $firstError = null;
+        $sent = 0;
+        $failures = [];
+
         foreach ($tokens as $token) {
             $result = $firebase->sendToDevice($token->token, $notification->title, $notification->body, $notification->dataPayload(), null, 1, [
                 'user_id' => $notification->user_id,
@@ -451,19 +484,27 @@ class NotificationAdminController extends Controller
             ]);
 
             if ($result['success'] ?? false) {
+                $sent++;
                 $this->recordDelivery($notification, 'push', true, null, 'firebase', $result, $result['firebase_response']['name'] ?? null);
-                return ['success' => true];
+                continue;
             }
 
             $error = (string) ($result['error'] ?? 'Push delivery failed.');
-            $firstError ??= $error;
             if (str_contains(strtolower($error), 'invalid') || str_contains(strtolower($error), 'unregistered')) {
                 UserPushToken::where('token', $token->token)->update(['is_active' => false]);
-                return $this->recordDelivery($notification, 'push', false, 'Invalid or unregistered Firebase device token.', 'firebase', $result);
+                $error = 'Invalid or unregistered Firebase device token.';
             }
+
+            $failures[] = $error;
+            $this->recordDelivery($notification, 'push', false, $error, 'firebase', $result);
         }
 
-        return $this->recordDelivery($notification, 'push', false, $firstError ?: 'Push delivery failed.', 'firebase');
+        return [
+            'success' => $sent > 0,
+            'error' => $sent > 0 ? null : ($failures[0] ?? 'Push delivery failed.'),
+            'sent_count' => $sent,
+            'failed_count' => count($failures),
+        ];
     }
 
     private function sendEmailForTest(AppNotification $notification): array
@@ -526,20 +567,68 @@ class NotificationAdminController extends Controller
         }
 
         $tokenCount = $this->activePushTokenCount($user);
-        $parts[] = $tokenCount > 0 ? 'Push active' : 'No active push token';
+        $parts[] = $tokenCount > 0 ? 'Push ready' : 'No device token';
 
         return implode(' — ', array_filter($parts));
     }
 
 
+
+    private function updateNotificationStatusFromResults(AppNotification $notification, string $channel, array $results): void
+    {
+        $pushSuccess = (bool) ($results['push']['success'] ?? false);
+        $emailSuccess = (bool) ($results['email']['success'] ?? false);
+        $pushError = (string) ($results['push']['error'] ?? '');
+        $emailError = (string) ($results['email']['error'] ?? '');
+
+        if ($channel === 'push_email') {
+            if ($pushSuccess && $emailSuccess) {
+                $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
+                return;
+            }
+
+            if ($pushSuccess || $emailSuccess) {
+                $reason = $pushSuccess ? 'Email failed: ' . ($emailError ?: 'Unknown error.') : 'Push failed: ' . ($pushError ?: 'Unknown error.');
+                $notification->update(['status' => 'partial', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => $reason]);
+                return;
+            }
+
+            $combined = trim('Push failed: ' . ($pushError ?: 'Unknown error.') . ' Email failed: ' . ($emailError ?: 'Unknown error.'));
+            $notification->update(['status' => 'failed', 'sent_at' => null, 'failed_at' => now(), 'failure_reason' => $combined]);
+            return;
+        }
+
+        $result = $channel === 'push' ? $results['push'] : $results['email'];
+        if ($result['success'] ?? false) {
+            $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
+            return;
+        }
+
+        $notification->update([
+            'status' => 'failed',
+            'sent_at' => null,
+            'failed_at' => now(),
+            'failure_reason' => (string) ($result['error'] ?? 'Delivery failed.'),
+        ]);
+    }
+
+    private function partialWarningMessage(array $results): string
+    {
+        if ($results['email']['success'] ?? false) {
+            return 'Notification partially sent. Email sent, but push failed: ' . ($results['push']['error'] ?? 'Unknown error.');
+        }
+
+        return 'Notification partially sent. Push sent, but email failed: ' . ($results['email']['error'] ?? 'Unknown error.');
+    }
+
     private function pushEmailWarningMessage(string $error): string
     {
-        if ($error === 'No active push token found.') {
-            return 'Email sent, but push failed because selected user has no active push token.';
+        if (in_array($error, ['No active push token found.', 'No valid Firebase device token found.'], true)) {
+            return 'Email sent, but push failed because selected user has no valid Firebase device token.';
         }
 
         if ($error === 'Invalid or unregistered Firebase device token.') {
-            return 'Email sent, but push failed because the Firebase token was invalid and has been deactivated. Ask user to open/login in Flutter app again.';
+            return 'Email sent, but push failed because the Firebase token was invalid and has been deactivated. Ask user to open the app again so Flutter can register a fresh token.';
         }
 
         return 'Notification saved. Email sent, but push failed: ' . $error;
@@ -547,12 +636,12 @@ class NotificationAdminController extends Controller
 
     private function deliveryWarningMessage(string $error): string
     {
-        if ($error === 'No active push token found.') {
-            return 'Notification saved, but push failed because selected user has no active push token. Ask user to login/open Flutter app.';
+        if (in_array($error, ['No active push token found.', 'No valid Firebase device token found.'], true)) {
+            return 'Notification saved, but push failed because selected user has no valid Firebase device token.';
         }
 
         if ($error === 'Invalid or unregistered Firebase device token.') {
-            return 'Notification saved, but push failed. Token was invalid and has been deactivated. Ask user to open/login in Flutter app again.';
+            return 'Notification saved, but push failed. Token was invalid and has been deactivated. Ask user to open the app again so Flutter can register a fresh token.';
         }
 
         return 'Notification saved, but delivery failed: ' . $error;

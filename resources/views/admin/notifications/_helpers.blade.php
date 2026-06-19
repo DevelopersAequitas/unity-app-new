@@ -9,7 +9,7 @@
         }
         if (! function_exists('notification_admin_status_badge')) {
             function notification_admin_status_badge($status): string {
-                return match ((string) $status) { 'delivered', 'sent', 'completed' => 'success', 'failed' => 'danger', 'queued' => 'primary', 'pending', 'running' => 'secondary', default => 'info' };
+                return match ((string) $status) { 'delivered', 'sent', 'completed' => 'success', 'partial' => 'warning', 'failed' => 'danger', 'queued' => 'primary', 'pending', 'running', 'skipped' => 'secondary', default => 'info' };
             }
         }
         if (! function_exists('notification_admin_priority_badge')) {
