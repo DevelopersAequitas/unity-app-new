@@ -120,6 +120,9 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
+// Backward-compatible ads endpoint for clients that still call /api/ads.
+Route::middleware(['auth:sanctum', 'unity.user'])->get('/ads', [AdController::class, 'index']);
+
 Route::prefix('v1')->group(function () {
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::prefix('scan-app')->group(function () {
