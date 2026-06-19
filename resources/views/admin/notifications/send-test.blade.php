@@ -17,7 +17,9 @@
     </div>
 </div>
 
-@php($firebaseDiagnostics = $firebaseDiagnostics ?? [])
+@php
+    $firebaseDiagnostics = $firebaseDiagnostics ?? [];
+@endphp
 <div class="card shadow-sm mb-4 border-{{ ($firebaseDiagnostics['file_readable'] ?? false) ? 'success' : 'warning' }}">
     <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
         <span>Firebase Push Diagnostics</span>
