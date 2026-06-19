@@ -25,7 +25,7 @@ class FcmService
         $notificationType = $context['notification_type'] ?? ($data['notification_type'] ?? ($data['type'] ?? null));
 
         try {
-            $projectId = (string) config('firebase.project_id');
+            $projectId = $this->projectId();
 
             if ($projectId === '') {
                 throw new RuntimeException('Firebase project id is not configured.');
@@ -73,7 +73,7 @@ class FcmService
             }
 
             if ($this->isInvalidTokenResponse($firebaseResponse)) {
-                UserPushToken::where('token', $deviceToken)->delete();
+                UserPushToken::where('token', $deviceToken)->update(['is_active' => false]);
 
                 Log::warning('FCM token removed after invalid token response', [
                     'token_masked' => $this->maskToken($deviceToken),
@@ -209,12 +209,84 @@ class FcmService
         ];
     }
 
+
+    public function credentialsAvailable(): bool
+    {
+        return $this->resolveFirebaseCredentialsPath() !== null;
+    }
+
+    public function diagnostics(): array
+    {
+        $configuredPath = $this->configuredCredentialsPath();
+        $candidates = $configuredPath ? $this->credentialPathCandidates($configuredPath) : [];
+        $resolvedPath = $this->resolveFirebaseCredentialsPath() ?: ($candidates[0] ?? null);
+
+        return [
+            'project_id' => $this->projectId(),
+            'credentials_configured' => $configuredPath !== null,
+            'resolved_credentials_path' => $resolvedPath,
+            'file_exists' => $resolvedPath !== null && file_exists($resolvedPath),
+            'file_readable' => $resolvedPath !== null && is_readable($resolvedPath),
+        ];
+    }
+
+    private function projectId(): string
+    {
+        return (string) (config('services.firebase.project_id') ?: config('firebase.project_id') ?: env('FIREBASE_PROJECT_ID', ''));
+    }
+
+    private function configuredCredentialsPath(): ?string
+    {
+        $path = config('services.firebase.credentials') ?: config('firebase.credentials_path') ?: config('firebase.credentials') ?: env('FIREBASE_CREDENTIALS');
+
+        if (! $path) {
+            return null;
+        }
+
+        $path = trim((string) $path);
+        $path = trim($path, "\"'");
+
+        return $path !== '' ? $path : null;
+    }
+
+    private function credentialPathCandidates(string $path): array
+    {
+        $candidates = [];
+
+        if (str_starts_with($path, '/') || (strlen($path) > 2 && ctype_alpha($path[0]) && $path[1] === ':' && in_array($path[2], ['/', '\\'], true))) {
+            $candidates[] = $path;
+        }
+
+        $candidates[] = base_path($path);
+        $candidates[] = storage_path($path);
+        $candidates[] = storage_path('app/' . ltrim($path, '/\\'));
+
+        return array_values(array_unique($candidates));
+    }
+
+    private function resolveFirebaseCredentialsPath(): ?string
+    {
+        $path = $this->configuredCredentialsPath();
+
+        if ($path === null) {
+            return null;
+        }
+
+        foreach ($this->credentialPathCandidates($path) as $candidate) {
+            if ($candidate && file_exists($candidate) && is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
     private function getAccessToken(): string
     {
         return Cache::remember('firebase.fcm.access_token', now()->addMinutes(50), function (): string {
-            $credentialsPath = (string) config('firebase.credentials_path');
+            $credentialsPath = $this->resolveFirebaseCredentialsPath();
 
-            if ($credentialsPath === '' || ! is_file($credentialsPath)) {
+            if ($credentialsPath === null) {
                 throw new RuntimeException('Firebase credentials file is not available.');
             }
 
