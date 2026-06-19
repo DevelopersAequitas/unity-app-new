@@ -19,6 +19,7 @@
 
 @php
     $firebaseDiagnostics = $firebaseDiagnostics ?? [];
+    $pushTokenDiagnostics = $pushTokenDiagnostics ?? [];
 @endphp
 <div class="card shadow-sm mb-4 border-{{ ($firebaseDiagnostics['file_readable'] ?? false) ? 'success' : 'warning' }}">
     <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
@@ -57,6 +58,35 @@
                 <code class="text-break">{{ $firebaseDiagnostics['resolved_credentials_path'] ?: 'Not resolved' }}</code>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Live Push Token Diagnostics</div>
+    <div class="card-body">
+        <div class="row g-3 small">
+            <div class="col-md-2">
+                <div class="text-muted">Total active push tokens</div>
+                <div class="fw-semibold">{{ $pushTokenDiagnostics['total_active'] ?? 0 }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted">Active Android tokens</div>
+                <div class="fw-semibold">{{ $pushTokenDiagnostics['android_active'] ?? 0 }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted">Active iOS tokens</div>
+                <div class="fw-semibold">{{ $pushTokenDiagnostics['ios_active'] ?? 0 }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted">Last token saved at</div>
+                <div class="fw-semibold">{{ $pushTokenDiagnostics['last_saved_at'] ?? 'No active token saved' }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted">Last token user</div>
+                <div class="fw-semibold text-break">{{ $pushTokenDiagnostics['last_user_name'] ?? 'No active token user' }}</div>
+            </div>
+        </div>
+        <div class="text-muted small mt-2">Full Firebase tokens are never shown here; use the push token table or SQL token previews for masked diagnostics only.</div>
     </div>
 </div>
 

@@ -26,11 +26,20 @@ class PushTokenController extends BaseApiController
 
             UserPushToken::where('token', $token)
                 ->where('user_id', '!=', $user->id)
-                ->delete();
+                ->update(['is_active' => false]);
+
+            if (! empty($validated['device_id'])) {
+                UserPushToken::where('user_id', $user->id)
+                    ->where('device_id', $validated['device_id'])
+                    ->where('token', '!=', $token)
+                    ->update(['is_active' => false]);
+            }
 
             $updates = [
                 'platform' => $validated['platform'],
                 'last_seen_at' => now(),
+                'last_used_at' => now(),
+                'is_active' => true,
             ];
 
             if (array_key_exists('device_id', $validated)) {
@@ -58,6 +67,8 @@ class PushTokenController extends BaseApiController
                 'device_id' => $pushToken->device_id,
                 'app_version' => $pushToken->app_version,
                 'last_seen_at' => $pushToken->last_seen_at,
+                'last_used_at' => $pushToken->last_used_at,
+                'token_saved' => true,
             ], 'Push token saved successfully');
         } catch (Throwable $throwable) {
             report($throwable);

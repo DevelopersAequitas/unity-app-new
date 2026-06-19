@@ -21,8 +21,17 @@ class NotificationEngineController extends BaseApiController
             'app_version' => ['nullable', 'string'],
         ]);
 
+        $user = $request->user();
+
+        if (! empty($validated['device_id'])) {
+            UserPushToken::where('user_id', $user->id)
+                ->where('device_id', $validated['device_id'])
+                ->where('token', '!=', $validated['token'])
+                ->update(['is_active' => false]);
+        }
+
         $attributes = [
-            'user_id' => $request->user()->id,
+            'user_id' => $user->id,
             'platform' => $validated['platform'] ?? null,
             'device_id' => $validated['device_id'] ?? null,
             'app_version' => $validated['app_version'] ?? null,
@@ -37,7 +46,7 @@ class NotificationEngineController extends BaseApiController
         $pushToken = UserPushToken::where('token', $validated['token'])->first();
 
         if (! $pushToken && ! empty($validated['device_id'])) {
-            $pushToken = UserPushToken::where('user_id', $request->user()->id)
+            $pushToken = UserPushToken::where('user_id', $user->id)
                 ->where('device_id', $validated['device_id'])
                 ->first();
         }
@@ -49,12 +58,7 @@ class NotificationEngineController extends BaseApiController
         }
 
         return $this->success([
-            'id' => (string) $pushToken->id,
-            'user_id' => (string) $pushToken->user_id,
-            'platform' => $pushToken->platform,
-            'is_active' => (bool) $pushToken->is_active,
-            'last_used_at' => $pushToken->last_used_at,
-            'flutter_note' => 'After login, request notification permission, get the FirebaseMessaging FCM token, call this endpoint with the bearer token, and call it again from FirebaseMessaging.onTokenRefresh. Ensure android/app/google-services.json uses project_id peers-global-app.',
+            'token_saved' => true,
         ], 'Push token saved successfully.');
     }
 

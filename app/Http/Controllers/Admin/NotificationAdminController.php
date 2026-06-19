@@ -189,8 +189,9 @@ class NotificationAdminController extends Controller
             ? AppNotification::with(['user', 'deliveryLogs'])->where('category', 'admin_test')->latest()->limit(15)->get()
             : collect();
         $firebaseDiagnostics = $firebase->diagnostics();
+        $pushTokenDiagnostics = $this->pushTokenDiagnostics();
 
-        return view('admin.notifications.send-test', compact('recentNotifications', 'firebaseDiagnostics'));
+        return view('admin.notifications.send-test', compact('recentNotifications', 'firebaseDiagnostics', 'pushTokenDiagnostics'));
     }
 
     public function searchUsers(Request $request): JsonResponse
@@ -206,7 +207,10 @@ class NotificationAdminController extends Controller
 
         $query = User::query()
             ->when($canCountPushTokens, fn (Builder $builder) => $builder->withCount([
-                'pushTokens as active_push_tokens_count' => fn (Builder $tokenQuery) => $tokenQuery->where('is_active', true),
+                'pushTokens as active_push_tokens_count' => fn (Builder $tokenQuery) => $tokenQuery
+                    ->where('is_active', true)
+                    ->whereNotNull('token')
+                    ->where('token', '!=', ''),
             ]));
 
         if (Schema::hasColumn('users', 'deleted_at')) {
@@ -215,7 +219,10 @@ class NotificationAdminController extends Controller
 
         if ($canCountPushTokens && in_array($pushTokenFilter, ['with', 'without'], true)) {
             $operator = $pushTokenFilter === 'with' ? '>=' : '=';
-            $query->has('pushTokens', $operator, $pushTokenFilter === 'with' ? 1 : 0, 'and', fn (Builder $tokenQuery) => $tokenQuery->where('is_active', true));
+            $query->has('pushTokens', $operator, $pushTokenFilter === 'with' ? 1 : 0, 'and', fn (Builder $tokenQuery) => $tokenQuery
+                ->where('is_active', true)
+                ->whereNotNull('token')
+                ->where('token', '!=', ''));
         }
 
         if ($q !== '' && $columns->isNotEmpty()) {
@@ -255,7 +262,7 @@ class NotificationAdminController extends Controller
         if (Schema::hasTable('user_push_tokens')) {
             $query = UserPushToken::where('user_id', $user);
             if (Schema::hasColumn('user_push_tokens', 'is_active')) {
-                $activeTokens = (clone $query)->where('is_active', true)->get();
+                $activeTokens = (clone $query)->where('is_active', true)->whereNotNull('token')->where('token', '!=', '')->get();
                 $inactiveTokens = (clone $query)->where('is_active', false)->get();
             } else {
                 $activeTokens = $query->get();
@@ -468,6 +475,10 @@ class NotificationAdminController extends Controller
             ->where('user_id', $notification->user_id)
             ->where('is_active', true)
             ->whereNotNull('token')
+            ->where('token', '!=', '')
+            ->latest('last_used_at')
+            ->latest('updated_at')
+            ->limit(1)
             ->get();
 
         if ($tokens->isEmpty()) {
@@ -495,6 +506,8 @@ class NotificationAdminController extends Controller
                     [
                         'user_id' => $notification->user_id,
                         'notification_type' => $notification->type,
+                        'device_id' => $token->device_id,
+                        'platform' => $token->platform,
                     ]
                 );
 
@@ -508,7 +521,8 @@ class NotificationAdminController extends Controller
                         null,
                         'firebase',
                         $result,
-                        $result['firebase_response']['name'] ?? null
+                        $result['firebase_response']['name'] ?? null,
+                        $token->token
                     );
 
                     continue;
@@ -518,24 +532,30 @@ class NotificationAdminController extends Controller
                 $failed++;
                 $lastError = $error;
 
-                if (
-                    str_contains(strtolower($error), 'invalid') ||
-                    str_contains(strtolower($error), 'unregistered') ||
-                    str_contains(strtolower($error), 'not registered')
-                ) {
+                if ($this->isInvalidFirebaseTokenError($error)) {
                     $token->update(['is_active' => false]);
                     $error = 'Invalid or unregistered Firebase device token.';
                     $lastError = $error;
                 }
 
-                $this->recordDelivery($notification, 'push', false, $error, 'firebase', $result);
+                $this->recordDelivery($notification, 'push', false, $error, 'firebase', $result, null, $token->token);
             } catch (Throwable $throwable) {
                 report($throwable);
 
                 $failed++;
-                $lastError = $throwable->getMessage();
+                $lastError = $this->isInvalidFirebaseTokenError($throwable->getMessage())
+                    ? 'Invalid or unregistered Firebase device token.'
+                    : $throwable->getMessage();
 
-                $this->recordDelivery($notification, 'push', false, $throwable->getMessage(), 'firebase');
+                if ($lastError === 'Invalid or unregistered Firebase device token.') {
+                    $token->update(['is_active' => false]);
+                }
+
+                $this->recordDelivery($notification, 'push', false, $lastError, 'firebase', [
+                    'exception' => get_class($throwable),
+                    'message' => $throwable->getMessage(),
+                    'code' => $throwable->getCode(),
+                ], null, $token->token);
             }
         }
 
@@ -558,7 +578,7 @@ class NotificationAdminController extends Controller
         }
     }
 
-    private function recordDelivery(AppNotification $notification, string $channel, bool $success, ?string $error = null, ?string $provider = null, array $response = [], ?string $providerMessageId = null): array
+    private function recordDelivery(AppNotification $notification, string $channel, bool $success, ?string $error = null, ?string $provider = null, array $response = [], ?string $providerMessageId = null, ?string $deviceToken = null): array
     {
         if (Schema::hasTable('notification_delivery_logs')) {
             NotificationDeliveryLog::create([
@@ -569,7 +589,7 @@ class NotificationAdminController extends Controller
                 'provider' => $provider,
                 'provider_message_id' => $providerMessageId,
                 'status' => $success ? 'sent' : 'failed',
-                'request_payload' => $notification->dataPayload(),
+                'request_payload' => $this->deliveryRequestPayload($notification, $channel, $deviceToken),
                 'response_payload' => $response,
                 'error_message' => $error,
                 'attempted_at' => now(),
@@ -580,13 +600,102 @@ class NotificationAdminController extends Controller
         return ['success' => $success, 'error' => $error];
     }
 
+
+    private function pushTokenDiagnostics(): array
+    {
+        if (! Schema::hasTable('user_push_tokens')) {
+            return [
+                'total_active' => 0,
+                'android_active' => 0,
+                'ios_active' => 0,
+                'last_saved_at' => null,
+                'last_user_name' => null,
+            ];
+        }
+
+        $active = UserPushToken::query()
+            ->where('is_active', true)
+            ->whereNotNull('token')
+            ->where('token', '!=', '');
+        $lastToken = (clone $active)->with('user')->latest('updated_at')->first();
+
+        return [
+            'total_active' => (clone $active)->count(),
+            'android_active' => (clone $active)->where('platform', 'android')->count(),
+            'ios_active' => (clone $active)->whereIn('platform', ['ios', 'iOS'])->count(),
+            'last_saved_at' => optional($lastToken?->updated_at)->toDateTimeString(),
+            'last_user_name' => $lastToken?->user ? $this->userSelectText($lastToken->user) : null,
+        ];
+    }
+
+    private function deliveryRequestPayload(AppNotification $notification, string $channel, ?string $deviceToken = null): array
+    {
+        $payload = [
+            'title' => $notification->title,
+            'body' => $notification->body,
+            'data' => $notification->dataPayload(),
+        ];
+
+        if ($channel === 'push') {
+            if ($deviceToken !== null) {
+                $payload['token'] = $this->maskToken($deviceToken);
+
+                return $payload;
+            }
+
+            $token = UserPushToken::query()
+                ->where('user_id', $notification->user_id)
+                ->where('is_active', true)
+                ->whereNotNull('token')
+                ->where('token', '!=', '')
+                ->latest('last_used_at')
+                ->latest('updated_at')
+                ->first();
+            $payload['token'] = $token ? $this->maskToken($token->token) : null;
+        }
+
+        return $payload;
+    }
+
+    private function maskToken(string $token): string
+    {
+        return strlen($token) <= 24 ? substr($token, 0, 12) . '...' : substr($token, 0, 12) . '...' . substr($token, -8);
+    }
+
+    private function isInvalidFirebaseTokenError(string $error): bool
+    {
+        $haystack = strtolower($error);
+
+        foreach ([
+            'unregistered',
+            'invalid_argument',
+            'registration-token-not-registered',
+            'requested entity was not found',
+            'notfound',
+            'not found',
+            'registration token is not a valid fcm registration token',
+            'invalid registration token',
+            'messaging/registrationtokennotregistered',
+        ] as $needle) {
+            if (str_contains($haystack, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function activePushTokenCount(User $user): int
     {
         if (! Schema::hasTable('user_push_tokens') || ! Schema::hasColumn('user_push_tokens', 'is_active')) {
             return 0;
         }
 
-        return UserPushToken::where('user_id', $user->id)->where('is_active', true)->count();
+        return UserPushToken::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->whereNotNull('token')
+            ->where('token', '!=', '')
+            ->count();
     }
 
     private function userSelectText(User $user): string

@@ -387,7 +387,7 @@ class FcmService
 
     private function maskToken(string $token): string
     {
-        return substr($token, 0, 8).'****';
+        return strlen($token) <= 24 ? substr($token, 0, 12) . '...' : substr($token, 0, 12) . '...' . substr($token, -8);
     }
 
     private function isInvalidTokenResponse(mixed $response): bool
@@ -400,7 +400,11 @@ class FcmService
         $message = strtolower((string) Arr::get($response, 'error.message', ''));
 
         return in_array($errorCode, ['UNREGISTERED', 'INVALID_ARGUMENT'], true)
+            || str_contains($message, 'registration-token-not-registered')
             || str_contains($message, 'registration token is not a valid fcm registration token')
-            || str_contains($message, 'requested entity was not found');
+            || str_contains($message, 'invalid registration token')
+            || str_contains($message, 'requested entity was not found')
+            || str_contains($message, 'notfound')
+            || str_contains($message, 'not found');
     }
 }
