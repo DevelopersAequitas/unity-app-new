@@ -111,6 +111,7 @@
             </div>
         </div>
         <div class="text-muted small mt-2">Full Firebase tokens are never shown here; use the push token table or SQL token previews for masked diagnostics only.</div>
+        <div class="alert alert-warning small mt-3 mb-0">If push fails as invalid/unregistered, Firebase rejected the saved device token. The token is automatically deactivated. Ask the user to open the Flutter app again so a fresh token is saved.</div>
     </div>
 </div>
 
@@ -338,6 +339,10 @@
                     };
                 },
                 processResults: function (data) {
+                    if (data.message && (!data.results || data.results.length === 0)) {
+                        console.warn(data.message);
+                    }
+
                     return {
                         results: data.results || [],
                         pagination: { more: data.pagination ? data.pagination.more : false }

@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -196,66 +197,86 @@ class NotificationAdminController extends Controller
 
     public function searchUsers(Request $request): JsonResponse
     {
-        $page = max((int) $request->query('page', 1), 1);
-        $perPage = 20;
-        $q = trim((string) $request->query('q', ''));
-        $userFilter = (string) ($request->query('user_filter') ?: $request->query('push_token_status', 'all'));
-        $canCountPushTokens = Schema::hasTable('user_push_tokens');
-        $columns = collect(['id', 'display_name', 'first_name', 'last_name', 'name', 'email', 'phone', 'mobile'])
-            ->filter(fn (string $column): bool => Schema::hasColumn('users', $column))
-            ->values();
+        try {
+            $page = max((int) $request->query('page', 1), 1);
+            $perPage = 20;
+            $q = trim((string) $request->query('q', ''));
+            $userFilter = (string) ($request->query('user_filter') ?: $request->query('push_token_status', 'all'));
+            $canCountPushTokens = Schema::hasTable('user_push_tokens');
+            $columns = collect(['display_name', 'first_name', 'last_name', 'name', 'email', 'phone', 'mobile', 'contact'])
+                ->filter(fn (string $column): bool => Schema::hasColumn('users', $column))
+                ->values();
 
-        $query = User::query()
-            ->when($canCountPushTokens, fn (Builder $builder) => $builder->withCount([
-                'pushTokens as total_push_tokens_count' => fn (Builder $tokenQuery) => $this->whereTokenPresent($tokenQuery),
-                'pushTokens as active_push_tokens_count' => fn (Builder $tokenQuery) => $this->whereActiveToken($tokenQuery),
-            ]));
+            $query = User::query()
+                ->when($canCountPushTokens, fn (Builder $builder) => $builder->withCount([
+                    'pushTokens as total_push_tokens_count' => fn (Builder $tokenQuery) => $this->whereTokenPresent($tokenQuery),
+                    'pushTokens as active_push_tokens_count' => fn (Builder $tokenQuery) => $this->whereActiveToken($tokenQuery),
+                ]));
 
-        if (Schema::hasColumn('users', 'deleted_at')) {
-            $query->whereNull('deleted_at');
-        }
-
-        if ($canCountPushTokens) {
-            match ($userFilter) {
-                'with_any_token', 'with' => $query->whereHas('pushTokens', fn (Builder $tokenQuery) => $this->whereTokenPresent($tokenQuery)),
-                'with_active_token' => $query->whereHas('pushTokens', fn (Builder $tokenQuery) => $this->whereActiveToken($tokenQuery)),
-                'without_token', 'without' => $query->whereDoesntHave('pushTokens', fn (Builder $tokenQuery) => $this->whereTokenPresent($tokenQuery)),
-                default => null,
-            };
-        }
-
-        if ($q !== '' && $columns->isNotEmpty()) {
-            $needle = '%' . mb_strtolower($q) . '%';
-            $query->where(function (Builder $builder) use ($columns, $needle): void {
-                foreach ($columns as $column) {
-                    $builder->orWhereRaw('LOWER(' . $column . ') LIKE ?', [$needle]);
-                }
-            });
-        }
-
-        if ($canCountPushTokens) {
-            $query->orderByDesc('active_push_tokens_count')->orderByDesc('total_push_tokens_count');
-        }
-
-        foreach (['first_name', 'name', 'email'] as $orderColumn) {
-            if (Schema::hasColumn('users', $orderColumn)) {
-                $query->orderBy($orderColumn);
+            if (Schema::hasColumn('users', 'deleted_at')) {
+                $query->whereNull('deleted_at');
             }
+
+            if ($canCountPushTokens) {
+                match ($userFilter) {
+                    'with_any_token', 'with' => $query->whereHas('pushTokens', fn (Builder $tokenQuery) => $this->whereTokenPresent($tokenQuery)),
+                    'with_active_token' => $query->whereHas('pushTokens', fn (Builder $tokenQuery) => $this->whereActiveToken($tokenQuery)),
+                    'without_token', 'without' => $query->whereDoesntHave('pushTokens', fn (Builder $tokenQuery) => $this->whereTokenPresent($tokenQuery)),
+                    default => null,
+                };
+            }
+
+            if ($q !== '') {
+                $needle = '%' . mb_strtolower($q) . '%';
+                $query->where(function (Builder $builder) use ($columns, $needle): void {
+                    if (Schema::hasColumn('users', 'id')) {
+                        $builder->orWhereRaw('LOWER(CAST(id AS TEXT)) LIKE ?', [$needle]);
+                    }
+
+                    foreach ($columns as $column) {
+                        $builder->orWhereRaw('LOWER(CAST(' . $column . ' AS TEXT)) LIKE ?', [$needle]);
+                    }
+                });
+            }
+
+            if ($canCountPushTokens) {
+                $query->orderByDesc('active_push_tokens_count')->orderByDesc('total_push_tokens_count');
+            }
+
+            foreach (['first_name', 'name', 'email'] as $orderColumn) {
+                if (Schema::hasColumn('users', $orderColumn)) {
+                    $query->orderBy($orderColumn);
+                }
+            }
+
+            $total = (clone $query)->count();
+            $users = $query->forPage($page, $perPage)->get();
+
+            return response()->json([
+                'results' => $users->map(fn (User $user): array => [
+                    'id' => (string) $user->id,
+                    'text' => $this->userSelectText($user),
+                    'status_label' => $this->pushTokenStatusLabel($user),
+                    'push_token_status' => $this->pushTokenStatusLabel($user),
+                    'active_tokens' => (int) ($user->active_push_tokens_count ?? $this->activePushTokenCount($user)),
+                    'total_tokens' => (int) ($user->total_push_tokens_count ?? $this->totalPushTokenCount($user)),
+                    'active_push_tokens_count' => (int) ($user->active_push_tokens_count ?? $this->activePushTokenCount($user)),
+                    'total_push_tokens_count' => (int) ($user->total_push_tokens_count ?? $this->totalPushTokenCount($user)),
+                ])->values(),
+                'pagination' => ['more' => ($page * $perPage) < $total],
+            ]);
+        } catch (Throwable $throwable) {
+            Log::error('Notification user search failed', [
+                'message' => $throwable->getMessage(),
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
+            ]);
+
+            return response()->json([
+                'results' => [],
+                'message' => 'User search failed. Check Laravel logs.',
+            ], 500);
         }
-
-        $total = (clone $query)->count();
-        $users = $query->forPage($page, $perPage)->get();
-
-        return response()->json([
-            'results' => $users->map(fn (User $user): array => [
-                'id' => (string) $user->id,
-                'text' => $this->userSelectText($user),
-                'active_push_tokens_count' => (int) ($user->active_push_tokens_count ?? $this->activePushTokenCount($user)),
-                'total_push_tokens_count' => (int) ($user->total_push_tokens_count ?? $this->totalPushTokenCount($user)),
-                'push_token_status' => $this->pushTokenStatusLabel($user),
-            ])->values(),
-            'pagination' => ['more' => ($page * $perPage) < $total],
-        ]);
     }
 
 
@@ -544,7 +565,7 @@ class NotificationAdminController extends Controller
                 $lastError = $error;
 
                 if ($this->isInvalidFirebaseTokenError($error)) {
-                    $token->update(['is_active' => false]);
+                    $token->update(['is_active' => false, 'updated_at' => now()]);
                     $error = 'Invalid or unregistered Firebase device token.';
                     $lastError = $error;
                 }
@@ -559,7 +580,7 @@ class NotificationAdminController extends Controller
                     : $throwable->getMessage();
 
                 if ($lastError === 'Invalid or unregistered Firebase device token.') {
-                    $token->update(['is_active' => false]);
+                    $token->update(['is_active' => false, 'updated_at' => now()]);
                 }
 
                 $this->recordDelivery($notification, 'push', false, $lastError, 'firebase', [
@@ -724,11 +745,7 @@ class NotificationAdminController extends Controller
             return $query;
         }
 
-        $type = Schema::getColumnType('user_push_tokens', 'is_active');
-
-        return $type === 'boolean'
-            ? $query->where('is_active', true)
-            : $query->whereIn('is_active', [true, 1, '1', 't', 'true']);
+        return $query->where('is_active', true);
     }
 
     private function totalPushTokenCount(User $user): int
