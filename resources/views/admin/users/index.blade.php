@@ -43,17 +43,16 @@
         </div>
     </div>
 
-    <div class="border rounded-3 bg-light-subtle p-3 mb-3">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div>
-                <div class="fw-semibold text-dark">Membership Approval</div>
-                <div class="small text-muted">Select peers and approve their membership as Only Unity Peer.</div>
+    @if(in_array(($filters['membership_status'] ?? null), ['free_peer', 'free_trial_peer'], true))
+        <div class="border rounded-3 bg-light-subtle p-3 mb-3">
+            <div class="d-flex flex-wrap justify-content-center justify-content-lg-between align-items-center gap-3 text-center text-lg-start">
+                <div class="small text-muted">Approve selected free peers or free trial peers.</div>
+                <button type="button" class="btn btn-success btn-sm" id="approveSelectedPeersBtn">
+                    <i class="bi bi-check-circle me-1"></i>Approve Selected
+                </button>
             </div>
-            <button type="button" class="btn btn-success btn-sm" id="approveSelectedPeersBtn">
-                <i class="bi bi-check-circle me-1"></i>Approve Selected
-            </button>
         </div>
-    </div>
+    @endif
 
     <form id="usersFiltersForm" method="GET" class="border rounded-3 p-3 mb-3 bg-white">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
@@ -83,15 +82,6 @@
                     @foreach ($membershipStatuses as $status)
                         <option value="{{ $status }}" @selected(request('membership_status') === $status)>{{ $membershipStatusLabels[$status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $status)) }}</option>
                     @endforeach
-                </select>
-            </div>
-            <div class="col-12 col-md-6 col-xl-2">
-                <label class="form-label small text-muted" for="approvalStatusFilter">Approval Status</label>
-                <select id="approvalStatusFilter" name="approval_status" class="form-select form-select-sm">
-                    <option value="all" @selected(($filters['approval_status'] ?? 'all') === 'all')>All</option>
-                    <option value="approved" @selected(($filters['approval_status'] ?? 'all') === 'approved')>Approved</option>
-                    <option value="pending" @selected(($filters['approval_status'] ?? 'all') === 'pending')>Pending</option>
-                    <option value="rejected" @selected(($filters['approval_status'] ?? 'all') === 'rejected')>Rejected</option>
                 </select>
             </div>
             <div class="col-12 col-md-6 col-xl-2">
@@ -140,7 +130,6 @@
         <input type="hidden" name="joined_from" value="{{ $filters['joined_from'] ?? '' }}">
         <input type="hidden" name="joined_to" value="{{ $filters['joined_to'] ?? '' }}">
         <input type="hidden" name="approve_filter" value="{{ $filters['approve_filter'] ?? 'all' }}">
-        <input type="hidden" name="approval_status" value="{{ $filters['approval_status'] ?? 'all' }}">
         <input type="hidden" name="start_date" value="{{ $filters['start_date'] ?? '' }}">
         <input type="hidden" name="end_date" value="{{ $filters['end_date'] ?? '' }}">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
@@ -154,7 +143,7 @@
                         <input type="checkbox" class="form-check-input" id="selectAllPeers">
                     </th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'display_name', 'dir' => $filters['sort'] === 'display_name' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'display_name', 'dir' => $filters['sort'] === 'display_name' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Peer Name
                             @if ($filters['sort'] === 'display_name')
                                 <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
@@ -165,7 +154,7 @@
                     <th>Membership</th>
                     <th>Membership Ends At</th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Coins
                             @if ($filters['sort'] === 'coins_balance')
                                 <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
@@ -173,7 +162,7 @@
                         </a>
                     </th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'last_login_at', 'dir' => $filters['sort'] === 'last_login_at' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'last_login_at', 'dir' => $filters['sort'] === 'last_login_at' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Last Login
                             @if ($filters['sort'] === 'last_login_at')
                                 <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
@@ -498,7 +487,7 @@
     </div>
     <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
         <div>
-            {{ $users->withQueryString()->links() }}
+            {{ $users->appends(request()->except('approval_status'))->links() }}
         </div>
         <div class="small text-muted">
             @if($users->total() > 0)
@@ -603,6 +592,7 @@
                 }
             }
             params.delete('page');
+            params.delete('approval_status');
             const query = params.toString();
             window.location = query ? `${window.location.pathname}?${query}` : window.location.pathname;
         };
@@ -634,6 +624,7 @@
                 const params = new URLSearchParams(window.location.search);
                 params.set('per_page', perPage.value);
                 params.delete('page');
+                params.delete('approval_status');
                 window.location = `${window.location.pathname}?${params.toString()}`;
             });
         }
