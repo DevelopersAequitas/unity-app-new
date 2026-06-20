@@ -1961,8 +1961,11 @@ class UsersController extends Controller
             }
         }
 
-        if ($membership && $membership !== 'all') {
-            $query->whereIn('membership_status', $this->membershipValueVariants($membership));
+        $allowedMembershipStatuses = array_keys($this->membershipFilterOptions());
+        if ($membership && in_array($membership, $allowedMembershipStatuses, true)) {
+            $query->where('membership_status', $membership);
+        } else {
+            $membership = null;
         }
 
         if ($phone) {
@@ -2115,13 +2118,6 @@ class UsersController extends Controller
         return strtolower(trim(str_replace(' ', '_', (string) $value)));
     }
 
-    private function membershipValueVariants(string $value): array
-    {
-        $normalized = $this->normalizeMembershipValue($value);
-        $label = $this->membershipFilterOptions()[$normalized] ?? Str::headline(str_replace('_', ' ', $normalized));
-
-        return array_values(array_unique([$normalized, $label, str_replace(' ', '_', $label), ucfirst($normalized)]));
-    }
 
     private function membershipStartFilterColumn(): ?string
     {

@@ -154,9 +154,9 @@
                     </th>
                     <th>
                         <select name="membership_status" form="usersFiltersForm" class="form-select form-select-sm">
-                            <option value="all">All</option>
+                            <option value="">All</option>
                             @foreach ($membershipStatuses as $status)
-                                <option value="{{ $status }}" @selected($filters['membership_status'] === $status)>{{ $membershipStatusLabels[$status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $status)) }}</option>
+                                <option value="{{ $status }}" @selected(request('membership_status') === $status)>{{ $membershipStatusLabels[$status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $status)) }}</option>
                             @endforeach
                         </select>
                     </th>

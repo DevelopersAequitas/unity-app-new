@@ -32,18 +32,39 @@ return new class extends Migration
         $membershipColumn = Schema::hasColumn('users', 'membership_status') ? 'membership_status' : (Schema::hasColumn('users', 'membership_type') ? 'membership_type' : null);
 
         if ($membershipColumn !== null) {
-            DB::table('users')->where($membershipColumn, 'Only_Unity_Peer')->update([$membershipColumn => 'only_unity_peer']);
-            DB::table('users')->where($membershipColumn, 'Only Unity Peer')->update([$membershipColumn => 'only_unity_peer']);
-            DB::table('users')->where($membershipColumn, 'Circle Peer')->update([$membershipColumn => 'circle_peer']);
-            DB::table('users')->where($membershipColumn, 'Multi Circle Peer')->update([$membershipColumn => 'multi_circle_peer']);
-            DB::table('users')->where($membershipColumn, 'Free_peer')->update([$membershipColumn => 'free_peer']);
-            DB::table('users')->where($membershipColumn, 'Free_trial_peer')->update([$membershipColumn => 'free_trial_peer']);
+            $this->ensureOnlyUnityPeerEnumValue();
+            $this->normalizeMembershipValue($membershipColumn, 'Only_Unity_Peer', 'only_unity_peer');
+            $this->normalizeMembershipValue($membershipColumn, 'Only Unity Peer', 'only_unity_peer');
+            $this->normalizeMembershipValue($membershipColumn, 'Circle Peer', 'circle_peer');
+            $this->normalizeMembershipValue($membershipColumn, 'Multi Circle Peer', 'multi_circle_peer');
+            $this->normalizeMembershipValue($membershipColumn, 'Free_peer', 'free_peer');
+            $this->normalizeMembershipValue($membershipColumn, 'Free_trial_peer', 'free_trial_peer');
 
             DB::statement("CREATE INDEX IF NOT EXISTS users_{$membershipColumn}_index ON users ({$membershipColumn})");
         }
 
         DB::statement('CREATE INDEX IF NOT EXISTS users_membership_ends_at_index ON users (membership_ends_at)');
         DB::statement('CREATE INDEX IF NOT EXISTS users_approval_status_index ON users (approval_status)');
+    }
+
+    private function ensureOnlyUnityPeerEnumValue(): void
+    {
+        DB::statement(<<<'SQL'
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'membership_status_enum') THEN
+        ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'only_unity_peer';
+    END IF;
+END $$;
+SQL);
+
+    }
+
+    private function normalizeMembershipValue(string $membershipColumn, string $legacyValue, string $normalizedValue): void
+    {
+        DB::table('users')
+            ->whereRaw("{$membershipColumn}::text = ?", [$legacyValue])
+            ->update([$membershipColumn => $normalizedValue]);
     }
 
     public function down(): void
