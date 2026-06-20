@@ -86,15 +86,6 @@
                 </select>
             </div>
             <div class="col-12 col-md-6 col-xl-2">
-                <label class="form-label small text-muted" for="approvalStatusFilter">Approval Status</label>
-                <select id="approvalStatusFilter" name="approval_status" class="form-select form-select-sm">
-                    <option value="all" @selected(($filters['approval_status'] ?? 'all') === 'all')>All</option>
-                    <option value="approved" @selected(($filters['approval_status'] ?? 'all') === 'approved')>Approved</option>
-                    <option value="pending" @selected(($filters['approval_status'] ?? 'all') === 'pending')>Pending</option>
-                    <option value="rejected" @selected(($filters['approval_status'] ?? 'all') === 'rejected')>Rejected</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-6 col-xl-2">
                 <label class="form-label small text-muted" for="startDateFilter">Start Date</label>
                 <input id="startDateFilter" type="date" name="start_date" class="form-control form-control-sm" value="{{ $filters['start_date'] ?? '' }}">
             </div>
@@ -140,7 +131,6 @@
         <input type="hidden" name="joined_from" value="{{ $filters['joined_from'] ?? '' }}">
         <input type="hidden" name="joined_to" value="{{ $filters['joined_to'] ?? '' }}">
         <input type="hidden" name="approve_filter" value="{{ $filters['approve_filter'] ?? 'all' }}">
-        <input type="hidden" name="approval_status" value="{{ $filters['approval_status'] ?? 'all' }}">
         <input type="hidden" name="start_date" value="{{ $filters['start_date'] ?? '' }}">
         <input type="hidden" name="end_date" value="{{ $filters['end_date'] ?? '' }}">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
@@ -154,7 +144,7 @@
                         <input type="checkbox" class="form-check-input" id="selectAllPeers">
                     </th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'display_name', 'dir' => $filters['sort'] === 'display_name' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'display_name', 'dir' => $filters['sort'] === 'display_name' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Peer Name
                             @if ($filters['sort'] === 'display_name')
                                 <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
@@ -165,7 +155,7 @@
                     <th>Membership</th>
                     <th>Membership Ends At</th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Coins
                             @if ($filters['sort'] === 'coins_balance')
                                 <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
@@ -173,7 +163,7 @@
                         </a>
                     </th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'last_login_at', 'dir' => $filters['sort'] === 'last_login_at' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'last_login_at', 'dir' => $filters['sort'] === 'last_login_at' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Last Login
                             @if ($filters['sort'] === 'last_login_at')
                                 <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
@@ -498,7 +488,7 @@
     </div>
     <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
         <div>
-            {{ $users->withQueryString()->links() }}
+            {{ $users->appends(request()->except('approval_status'))->links() }}
         </div>
         <div class="small text-muted">
             @if($users->total() > 0)
@@ -603,6 +593,7 @@
                 }
             }
             params.delete('page');
+            params.delete('approval_status');
             const query = params.toString();
             window.location = query ? `${window.location.pathname}?${query}` : window.location.pathname;
         };
@@ -634,6 +625,7 @@
                 const params = new URLSearchParams(window.location.search);
                 params.set('per_page', perPage.value);
                 params.delete('page');
+                params.delete('approval_status');
                 window.location = `${window.location.pathname}?${params.toString()}`;
             });
         }

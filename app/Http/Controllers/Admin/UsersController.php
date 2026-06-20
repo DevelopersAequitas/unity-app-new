@@ -60,7 +60,7 @@ class UsersController extends Controller
 
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
-        $users = $query->paginate($perPage)->appends($request->query());
+        $users = $query->paginate($perPage)->appends($request->except('approval_status'));
         $canEditUsers = AdminAccess::canEditUsers(Auth::guard('admin')->user());
         $joinedCircleCategoryTreesByUserId = $users->getCollection()
             ->mapWithKeys(function (User $user) {
@@ -1853,7 +1853,6 @@ class UsersController extends Controller
         $joinedFrom = (string) $request->input('joined_from', '');
         $joinedTo = (string) $request->input('joined_to', '');
         $approveFilter = (string) $request->input('approve_filter', 'all');
-        $approvalStatus = (string) $request->input('approval_status', 'all');
         $startDate = (string) $request->input('start_date', '');
         $endDate = (string) $request->input('end_date', '');
         $perPage = $request->integer('per_page') ?: 20;
@@ -1982,12 +1981,6 @@ class UsersController extends Controller
             $approveFilter = 'all';
         }
 
-        if (in_array($approvalStatus, ['approved', 'pending', 'rejected'], true) && Schema::hasColumn('users', 'approval_status')) {
-            $query->where('approval_status', $approvalStatus);
-        } else {
-            $approvalStatus = 'all';
-        }
-
         $startDateColumn = $this->membershipStartFilterColumn();
         if ($startDateColumn && ($parsedStartDate = $this->parseJoinedFilterDate($startDate)) instanceof Carbon) {
             $query->whereDate($startDateColumn, '>=', $parsedStartDate->toDateString());
@@ -2069,7 +2062,6 @@ class UsersController extends Controller
                 'joined_from' => $joinedFrom,
                 'joined_to' => $joinedTo,
                 'approve_filter' => $approveFilter,
-                'approval_status' => $approvalStatus,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'is_circle_scoped' => $isCircleScoped,
@@ -2085,7 +2077,6 @@ class UsersController extends Controller
             'joined_from' => $joinedFrom,
             'joined_to' => $joinedTo,
             'approve_filter' => $approveFilter,
-            'approval_status' => $approvalStatus,
             'start_date' => $startDate,
             'end_date' => $endDate,
             'per_page' => $perPage,
