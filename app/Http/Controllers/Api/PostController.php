@@ -544,8 +544,10 @@ class PostController extends BaseApiController
             'is_deleted'        => false,
         ]);
 
-        $this->dispatchNewPostNotifications($notifications, $post, $user);
-        $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null);
+        DB::afterCommit(function () use ($notifications, $post, $user): void {
+            $notifications->sendNewPostNotification($post, $user);
+            $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null);
+        });
 
         return response()->json([
             'success' => true,
@@ -651,15 +653,7 @@ class PostController extends BaseApiController
         if ($like->wasRecentlyCreated && (string) $post->user_id !== (string) $authUser->id) {
             try {
                 if ($postOwner = User::find($post->user_id)) {
-                    $notifications->sendCampaignNotification(
-                        'post_like_received',
-                        $postOwner,
-                        ['person' => $this->displayName($authUser), 'post_preview_content' => $this->postPreview($post)],
-                        ['screen' => 'post_details', 'post_id' => (string) $post->id, 'liker_id' => (string) $authUser->id, 'type' => 'post_like'],
-                        $authUser,
-                        $post,
-                        ['type' => 'post_like', 'reference_type' => 'post', 'reference_id' => (string) $post->id, 'dedupe_key' => 'post_like:' . $post->id . ':' . $authUser->id]
-                    );
+                    DB::afterCommit(fn () => $notifications->sendPostLikeNotification($post, $authUser));
                 }
             } catch (Throwable $e) {
                 Log::warning('Post like notification failed', ['post_id' => (string) $post->id, 'liker_user_id' => (string) $authUser->id, 'error' => $e->getMessage()]);
@@ -718,15 +712,7 @@ class PostController extends BaseApiController
         if ((string) $post->user_id !== (string) $authUser->id) {
             try {
                 if ($postOwner = User::find($post->user_id)) {
-                    $notifications->sendCampaignNotification(
-                        'post_comment_received',
-                        $postOwner,
-                        ['person' => $this->displayName($authUser), 'comment_preview_content' => Str::limit($comment->content, 120), 'post_preview_content' => $this->postPreview($post)],
-                        ['screen' => 'post_details', 'post_id' => (string) $post->id, 'comment_id' => (string) $comment->id, 'commenter_id' => (string) $authUser->id, 'type' => 'post_comment'],
-                        $authUser,
-                        $comment,
-                        ['type' => 'post_comment', 'reference_type' => 'post_comment', 'reference_id' => (string) $comment->id, 'dedupe_key' => 'post_comment:' . $comment->id]
-                    );
+                    DB::afterCommit(fn () => $notifications->sendPostCommentNotification($post, $comment, $authUser));
                 }
             } catch (Throwable $e) {
                 Log::warning('Post comment notification failed', ['post_id' => (string) $post->id, 'comment_id' => (string) $comment->id, 'error' => $e->getMessage()]);
@@ -803,15 +789,7 @@ class PostController extends BaseApiController
             return;
         }
         try {
-            $notifications->sendCampaignNotification(
-                'user_mention_notification',
-                $mentionedUsers,
-                ['person' => $this->displayName($actor), 'post_preview_content' => Str::limit($text, 120), 'comment_preview_content' => Str::limit($text, 120)],
-                ['screen' => 'post_details', 'post_id' => (string) $post->id, 'comment_id' => $comment?->id, 'mentioned_by' => (string) $actor->id, 'type' => 'mention'],
-                $actor,
-                $comment ?: $post,
-                ['type' => 'mention', 'reference_type' => $comment ? 'post_comment' : 'post', 'reference_id' => (string) ($comment?->id ?? $post->id), 'dedupe_key' => 'mention:' . ($comment?->id ?? $post->id)]
-            );
+            $notifications->sendPostMentionNotification($post, $actor, $mentionedUsers, $comment, $text);
         } catch (Throwable $e) {
             Log::warning('Mention notification failed', ['post_id' => (string) $post->id, 'error' => $e->getMessage()]);
         }

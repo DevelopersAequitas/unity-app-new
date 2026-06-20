@@ -92,6 +92,7 @@ class NotificationEngineController extends BaseApiController
                 'channel' => $notification->channel,
                 'priority' => $notification->priority,
                 'screen' => $notification->screen,
+                'tap_destination' => $notification->data['tap_destination'] ?? $notification->screen,
                 'reference_type' => $notification->reference_type,
                 'reference_id' => $notification->reference_id,
                 'data' => $notification->data ?? [],
@@ -100,7 +101,7 @@ class NotificationEngineController extends BaseApiController
                 'sent_at' => $notification->sent_at,
                 'read_at' => $notification->read_at,
                 'clicked_at' => $notification->clicked_at,
-                'created_at' => $notification->created_at,
+                'created_at' => optional($notification->created_at)->format('d M Y h:i A'),
             ])->values(),
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
