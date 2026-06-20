@@ -22,18 +22,21 @@ class MembershipApprovedMail extends Mailable
     private function logoUrl(): ?string
     {
         foreach ([
+            'assets/images/peers-global-logo.png',
             'assets/images/logo.png',
             'assets/img/logo.png',
+            'images/peers-global-logo.png',
             'images/logo.png',
+            'admin/images/logo.png',
             'img/logo.png',
             'logo.png',
         ] as $path) {
-            if (public_path($path) && file_exists(public_path($path))) {
+            if (file_exists(public_path($path))) {
                 return asset($path);
             }
         }
 
-        return null;
+        return 'https://unity.peersglobal.com/wp-content/uploads/2025/08/peersglobal_white-removebg-preview.png';
     }
 
     public function build()
