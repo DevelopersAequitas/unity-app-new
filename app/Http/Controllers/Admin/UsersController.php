@@ -1450,14 +1450,16 @@ class UsersController extends Controller
         $validated = $request->validate([
             'user_ids' => ['required', 'array', 'min:1'],
             'user_ids.*' => ['required', 'uuid', 'exists:users,id'],
-            'membership_ends_at' => ['nullable', 'date', 'after_or_equal:today'],
-            'membership_end_date' => ['nullable', 'date', 'after_or_equal:today'],
+            'membership_starts_at' => ['nullable', 'date'],
+            'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at', 'after_or_equal:today'],
         ]);
 
-        $startDate = now();
+        $startDate = filled($validated['membership_starts_at'] ?? null)
+            ? Carbon::parse($validated['membership_starts_at'])->startOfDay()
+            : now();
         $endDate = filled($validated['membership_ends_at'] ?? null)
             ? Carbon::parse($validated['membership_ends_at'])->endOfDay()
-            : (filled($validated['membership_end_date'] ?? null) ? Carbon::parse($validated['membership_end_date'])->endOfDay() : now()->addYear());
+            : $startDate->copy()->addYear()->endOfDay();
         $adminId = Auth::guard('admin')->id();
         $userIds = collect($validated['user_ids'])->map(fn ($id) => (string) $id)->unique()->values();
 
