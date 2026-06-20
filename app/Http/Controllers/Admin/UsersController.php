@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\MembershipApprovedMail;
 use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleCategory;
@@ -1432,7 +1433,7 @@ class UsersController extends Controller
             return back()->with('warning', 'Selected peer is not eligible for membership approval.');
         }
 
-        $this->sendMembershipApprovalNotifications(User::query()->whereKey($user->getKey())->get(), $startDate, $endDate);
+        $this->sendMembershipApprovalNotifications(User::query()->whereKey($user->getKey())->get(), $startDate, $endDate, false);
 
         return back()->with('success', 'Peer approved successfully as Only Unity Peer. Membership valid until ' . $endDate->toDateString() . '.');
     }
@@ -2181,7 +2182,7 @@ class UsersController extends Controller
     }
 
 
-    private function sendMembershipApprovalNotifications(Collection $users, Carbon $startDate, Carbon $endDate): void
+    private function sendMembershipApprovalNotifications(Collection $users, Carbon $startDate, Carbon $endDate, bool $sendEmail = true): void
     {
         $title = 'Membership Approved';
         $endDateLabel = $endDate->format('d M Y');
@@ -2218,22 +2219,19 @@ class UsersController extends Controller
 
             $this->sendMembershipApprovalPush($user, $title, $message, $notificationData);
 
+            if (! $sendEmail) {
+                continue;
+            }
+
             if (blank($user->email)) {
                 Log::info('admin.users.membership_approval_email_missing', ['user_id' => $user->id]);
                 continue;
             }
 
             try {
-                Mail::send('emails.membership.approved', [
-                    'user' => $user,
-                    'membershipLabel' => 'Only Unity Peer',
-                    'startDate' => $startDate,
-                    'endDate' => $endDate,
-                ], function ($mail) use ($user): void {
-                    $mail->to($user->email)->subject('Your PeersGlobal Membership Has Been Approved');
-                });
+                Mail::to($user->email)->send(new MembershipApprovedMail($user, $startDate, $endDate));
             } catch (Throwable $throwable) {
-                Log::warning('admin.users.membership_approval_email_failed', [
+                Log::error('Membership approval email failed', [
                     'user_id' => $user->id,
                     'email' => $user->email,
                     'error' => $throwable->getMessage(),
