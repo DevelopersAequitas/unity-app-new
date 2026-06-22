@@ -26,9 +26,19 @@ class TestCyberPanelSmtpCommand extends Command
         $fromName = (string) config('mail.from.name');
         $subject = 'CyberPanel SMTP Test';
 
+        $mailUsername = (string) config('mail.mailers.smtp.username');
+        if (strcasecmp($mailUsername, $from) !== 0) {
+            $this->warn('MAIL_USERNAME does not match MAIL_FROM_ADDRESS. CyberPanel may reject this with 553 Sender is not allowed to relay emails.');
+            Log::warning('CyberPanel SMTP username/from mismatch', [
+                'mail_username' => $mailUsername,
+                'from' => $from,
+            ]);
+        }
+
         Log::info('CyberPanel SMTP test email sending started', [
             'to' => $to,
             'from' => $from,
+            'mail_username' => $mailUsername,
             'mail_host' => (string) config('mail.mailers.smtp.host'),
             'mail_port' => (string) config('mail.mailers.smtp.port'),
             'mailer' => (string) config('mail.default'),

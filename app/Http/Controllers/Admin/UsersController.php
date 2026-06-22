@@ -2223,6 +2223,7 @@ class UsersController extends Controller
                 'to' => $email,
                 'from' => (string) config('peers.membership_update_from_email'),
                 'mail_host' => (string) config('mail.mailers.smtp.host'),
+                'mail_username' => (string) config('mail.mailers.smtp.username'),
                 'mail_port' => (string) config('mail.mailers.smtp.port'),
                 'mailer' => (string) config('mail.default'),
                 'queue_connection' => (string) config('queue.default'),
