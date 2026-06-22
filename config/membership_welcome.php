@@ -6,6 +6,12 @@ return [
     'cc_email' => env('MEMBERSHIP_WELCOME_CC_EMAIL', 'pravin@preesglobal.com'),
     'membership_welcome_cc_email' => env('MEMBERSHIP_WELCOME_CC_EMAIL', 'pravin@preesglobal.com'),
 
+    'membership_welcome_attachment_path_1' => env('MEMBERSHIP_WELCOME_ATTACHMENT_PATH_1', env('MEMBERSHIP_WELCOME_ATTACHMENT_PATH', storage_path('app/public/membership/welcome.pdf'))),
+    'membership_welcome_attachment_name_1' => env('MEMBERSHIP_WELCOME_ATTACHMENT_NAME_1', env('MEMBERSHIP_WELCOME_ATTACHMENT_NAME', 'welcome.pdf')),
+
+    'membership_welcome_attachment_path_2' => env('MEMBERSHIP_WELCOME_ATTACHMENT_PATH_2', env('MEMBERSHIP_WELCOME_ATTACHMENT_2_PATH', storage_path('app/private/membership-welcome/membership-benefits.pdf'))),
+    'membership_welcome_attachment_name_2' => env('MEMBERSHIP_WELCOME_ATTACHMENT_NAME_2', env('MEMBERSHIP_WELCOME_ATTACHMENT_2_NAME', 'membership-benefits.pdf')),
+
     'attachment_path' => env('MEMBERSHIP_WELCOME_ATTACHMENT_PATH', storage_path('app/public/membership/welcome.pdf')),
     'attachment_name' => env('MEMBERSHIP_WELCOME_ATTACHMENT_NAME', 'welcome.pdf'),
 

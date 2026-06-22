@@ -340,27 +340,27 @@ class MembershipWelcomeEmailService
     {
         $attachmentConfigs = [
             [
-                'path' => (string) config('membership_welcome.attachment_path', ''),
-                'name' => (string) config('membership_welcome.attachment_name', ''),
+                'slot' => 1,
+                'path' => (string) config('membership_welcome.membership_welcome_attachment_path_1', ''),
+                'name' => (string) config('membership_welcome.membership_welcome_attachment_name_1', ''),
             ],
             [
-                'path' => (string) config('membership_welcome.attachment_1_path', ''),
-                'name' => (string) config('membership_welcome.attachment_1_name', ''),
-            ],
-            [
-                'path' => (string) config('membership_welcome.attachment_2_path', ''),
-                'name' => (string) config('membership_welcome.attachment_2_name', ''),
+                'slot' => 2,
+                'path' => (string) config('membership_welcome.membership_welcome_attachment_path_2', ''),
+                'name' => (string) config('membership_welcome.membership_welcome_attachment_name_2', ''),
             ],
         ];
 
         $attachments = [];
+        $seenPaths = [];
 
-        foreach ($attachmentConfigs as $index => $attachmentConfig) {
+        foreach ($attachmentConfigs as $attachmentConfig) {
+            $slot = (int) Arr::get($attachmentConfig, 'slot');
             $path = trim((string) Arr::get($attachmentConfig, 'path', ''));
             $name = trim((string) Arr::get($attachmentConfig, 'name', ''));
 
             if ($path === '') {
-                Log::warning('membership.welcome_email.attachment_missing_path', ['slot' => $index + 1]);
+                Log::warning('membership.welcome_email.attachment_missing_path', ['slot' => $slot]);
                 continue;
             }
 
@@ -368,9 +368,20 @@ class MembershipWelcomeEmailService
                 $path = base_path($path);
             }
 
+            $dedupeKey = $this->attachmentDedupeKey($path);
+            if (isset($seenPaths[$dedupeKey])) {
+                Log::info('Duplicate welcome attachment path skipped', [
+                    'slot' => $slot,
+                    'path' => $path,
+                ]);
+
+                continue;
+            }
+            $seenPaths[$dedupeKey] = true;
+
             if (! is_file($path)) {
                 Log::warning('membership.welcome_email.attachment_not_found', [
-                    'slot' => $index + 1,
+                    'slot' => $slot,
                     'path' => $path,
                 ]);
 
@@ -384,6 +395,13 @@ class MembershipWelcomeEmailService
         }
 
         return $attachments;
+    }
+
+    private function attachmentDedupeKey(string $path): string
+    {
+        $realPath = realpath($path);
+
+        return $realPath !== false ? $realPath : $path;
     }
 
     private function emailDetails(User $user): array
