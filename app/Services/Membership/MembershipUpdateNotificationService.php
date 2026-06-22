@@ -76,7 +76,7 @@ class MembershipUpdateNotificationService
         $oldStatus = (string) ($oldValues['membership_status'] ?? '');
         $newStatus = (string) ($freshUser->membership_status ?? '');
         $oldExpiry = $this->normalizeDateTime($oldValues['membership_expiry'] ?? null);
-        $newExpiry = $this->normalizeDateTime($freshUser->membership_expiry ?? $freshUser->membership_ends_at ?? null);
+        $newExpiry = $this->normalizeDateTime($this->membershipExpiryValue($freshUser));
 
         return [
             'status_changed' => $oldStatus !== $newStatus,
@@ -217,7 +217,7 @@ class MembershipUpdateNotificationService
 
         $attachments = $this->resolveAttachments();
         $mailable = new MembershipUpdatedMail($user, $details, $attachments);
-        $ccEmail = trim((string) config('membership_update.cc_email', ''));
+        $ccEmail = trim((string) config('membership_update.cc_email', config('membership_update.membership_update_cc_email', '')));
 
         try {
             $pendingMail = Mail::to($email);
@@ -313,6 +313,26 @@ class MembershipUpdateNotificationService
         return $labels[$normalized] ?? Str::headline(str_replace('_', ' ', $value));
     }
 
+    private function membershipExpiryValue(User $user): mixed
+    {
+        foreach ([
+            'membership_ends_at',
+            'membership_expiry',
+            'membership_expiry_date',
+            'membership_expires_at',
+            'membership_end_date',
+            'expires_at',
+        ] as $attribute) {
+            $value = $user->getAttribute($attribute);
+
+            if (filled($value)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
     private function normalizeDateTime(mixed $value): ?string
     {
         if (blank($value)) {
@@ -333,7 +353,7 @@ class MembershipUpdateNotificationService
         }
 
         try {
-            return Carbon::parse($value)->format('d-m-Y h:i A');
+            return Carbon::parse($value)->format('d-m-Y');
         } catch (Throwable) {
             return $value;
         }

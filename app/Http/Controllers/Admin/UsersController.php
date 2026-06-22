@@ -428,7 +428,12 @@ class UsersController extends Controller
         $user = User::query()->findOrFail($userId);
         $oldMembershipValues = [
             'membership_status' => $user->membership_status,
-            'membership_expiry' => $user->membership_expiry ?? $user->membership_ends_at,
+            'membership_expiry' => $user->membership_ends_at
+                ?? $user->membership_expiry
+                ?? $user->membership_expiry_date
+                ?? $user->membership_expires_at
+                ?? $user->membership_end_date
+                ?? $user->expires_at,
         ];
         $originalCoinsBalance = (int) ($user->coins_balance ?? 0);
         $submittedCoinsBalance = (int) $request->input('coins_balance', $originalCoinsBalance);
