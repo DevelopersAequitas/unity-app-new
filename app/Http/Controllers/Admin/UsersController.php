@@ -2215,8 +2215,6 @@ class UsersController extends Controller
                 'user_id' => $user->id,
                 'to' => $user->email,
                 'from' => (string) config('peers.membership_update_from_email'),
-                'reply_to' => (string) config('peers.membership_update_reply_to_email'),
-                'cc' => strcasecmp((string) config('peers.membership_update_cc_email'), (string) $user->email) === 0 ? null : (string) config('peers.membership_update_cc_email'),
                 'mailer' => (string) config('mail.default'),
                 'queued' => false,
             ]);
