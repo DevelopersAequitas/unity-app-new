@@ -86,10 +86,13 @@ class AppConfigController extends Controller
             ->pluck('feature_key')
             ->toArray() ?: array_keys(array_filter($features));
 
+        $icons = self::icons($appInstanceId);
+
         return [
             'app_info' => self::appInfo($branding),
             'colors' => self::colors($branding),
-            'icons' => self::icons($appInstanceId),
+            'icons' => $icons,
+            'drawer_menu' => $icons['drawer_menu'] ?? [],
             'features' => $features,
             'labels' => AppLabel::query()
                 ->where('app_instance_id', $appInstanceId)
@@ -151,7 +154,6 @@ class AppConfigController extends Controller
 
         $icons = AppIconAsset::query()
             ->where('app_instance_id', $appInstanceId)
-            ->where('is_active', true)
             ->orderBy('icon_group')
             ->orderBy('sort_order')
             ->get();
@@ -272,6 +274,7 @@ class AppConfigController extends Controller
             'app_info' => self::defaultAppInfo(),
             'colors' => self::defaultColors(),
             'icons' => self::defaultIcons(),
+            'drawer_menu' => self::defaultIcons()['drawer_menu'] ?? [],
             'features' => self::defaultFeatures(),
             'navigation_menu' => [
                 'bottom_nav' => [],

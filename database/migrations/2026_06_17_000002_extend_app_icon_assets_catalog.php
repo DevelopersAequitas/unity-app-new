@@ -104,16 +104,22 @@ return new class extends Migration {
         }
 
         foreach (GreenpreneurIconCatalog::rows() as $row) {
+            $keys = ['app_instance_id' => $appInstanceId, 'icon_key' => $row['icon_key']];
+            $existing = DB::table('app_icon_assets')->where($keys)->exists();
+
             DB::table('app_icon_assets')->updateOrInsert(
-                ['app_instance_id' => $appInstanceId, 'icon_key' => $row['icon_key']],
-                array_merge([
-                    'id' => (string) Str::uuid(),
-                    'icon_url' => null,
-                    'selected_icon_url' => null,
-                    'is_active' => true,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ], $row, ['updated_at' => now()])
+                $keys,
+                array_merge(
+                    $existing ? [] : [
+                        'id' => (string) Str::uuid(),
+                        'icon_url' => null,
+                        'selected_icon_url' => null,
+                        'is_active' => true,
+                        'created_at' => now(),
+                    ],
+                    $row,
+                    ['updated_at' => now()]
+                )
             );
         }
     }
