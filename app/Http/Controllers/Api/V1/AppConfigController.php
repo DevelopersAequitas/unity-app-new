@@ -62,6 +62,8 @@ class AppConfigController extends Controller
         Cache::forget(self::CACHE_KEY);
         Cache::forget('greenpreneur_app_config.v2');
         Cache::forget('app_config:greenpreneur');
+        Cache::forget('app_config_navigation:greenpreneur');
+        Cache::forget('navigation:greenpreneur');
     }
 
     public static function buildPublicConfig(AppInstance $appInstance): array
@@ -86,10 +88,13 @@ class AppConfigController extends Controller
             ->pluck('feature_key')
             ->toArray() ?: array_keys(array_filter($features));
 
+        $icons = self::icons($appInstanceId);
+
         return [
             'app_info' => self::appInfo($branding),
             'colors' => self::colors($branding),
-            'icons' => self::icons($appInstanceId),
+            'icons' => $icons,
+            'drawer_menu' => $icons['drawer_menu'] ?? [],
             'features' => $features,
             'labels' => AppLabel::query()
                 ->where('app_instance_id', $appInstanceId)
@@ -151,7 +156,6 @@ class AppConfigController extends Controller
 
         $icons = AppIconAsset::query()
             ->where('app_instance_id', $appInstanceId)
-            ->where('is_active', true)
             ->orderBy('icon_group')
             ->orderBy('sort_order')
             ->get();
@@ -160,6 +164,7 @@ class AppConfigController extends Controller
             return self::defaultIcons();
         }
 
+        $drawerNavigationState = self::drawerNavigationState($appInstanceId);
         $grouped = collect(GreenpreneurIconCatalog::GROUPS)
             ->mapWithKeys(fn ($label, $group) => [$group => []])
             ->all();
@@ -170,7 +175,7 @@ class AppConfigController extends Controller
                 $grouped[$group] = [];
             }
 
-            $grouped[$group][] = self::formatIcon($icon);
+            $grouped[$group][] = self::formatIcon($icon, $drawerNavigationState);
         }
 
         $byKey = $icons->keyBy('icon_key');
@@ -182,8 +187,18 @@ class AppConfigController extends Controller
         return array_merge($grouped, $flat);
     }
 
-    private static function formatIcon(AppIconAsset $icon): array
+    private static function formatIcon(AppIconAsset $icon, array $drawerNavigationState = []): array
     {
+        $isActive = (bool) $icon->is_active;
+        if (($icon->icon_group ?: null) === 'drawer_menu') {
+            foreach ([$icon->menu_key, $icon->feature_key, $icon->icon_key] as $key) {
+                if ($key !== null && array_key_exists((string) $key, $drawerNavigationState)) {
+                    $isActive = $drawerNavigationState[(string) $key];
+                    break;
+                }
+            }
+        }
+
         return [
             'icon_key' => $icon->icon_key,
             'icon_name' => $icon->icon_name,
@@ -199,9 +214,34 @@ class AppConfigController extends Controller
             'menu_key' => $icon->menu_key,
             'screen_name' => $icon->screen_name,
             'usage_location' => $icon->usage_location,
-            'is_active' => (bool) $icon->is_active,
+            'is_active' => $isActive,
             'sort_order' => (int) $icon->sort_order,
         ];
+    }
+
+    private static function drawerNavigationState(string $appInstanceId): array
+    {
+        if (! Schema::hasTable('app_navigation_items')) {
+            return [];
+        }
+
+        return AppNavigationItem::query()
+            ->where('app_instance_id', $appInstanceId)
+            ->where('menu_type', 'drawer')
+            ->get(['item_key', 'feature_key', 'is_enabled'])
+            ->flatMap(function (AppNavigationItem $item): array {
+                $isEnabled = (bool) $item->is_enabled;
+                $keys = collect([$item->item_key, $item->feature_key])
+                    ->filter(fn ($key) => filled($key))
+                    ->map(fn ($key) => (string) $key)
+                    ->unique()
+                    ->values();
+
+                return $keys
+                    ->flatMap(fn (string $key) => [$key => $isEnabled, 'drawer_' . $key => $isEnabled])
+                    ->all();
+            })
+            ->all();
     }
 
     public static function supportedIconKeys(): array
@@ -272,6 +312,7 @@ class AppConfigController extends Controller
             'app_info' => self::defaultAppInfo(),
             'colors' => self::defaultColors(),
             'icons' => self::defaultIcons(),
+            'drawer_menu' => self::defaultIcons()['drawer_menu'] ?? [],
             'features' => self::defaultFeatures(),
             'navigation_menu' => [
                 'bottom_nav' => [],

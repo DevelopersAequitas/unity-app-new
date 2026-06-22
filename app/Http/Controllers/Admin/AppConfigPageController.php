@@ -124,6 +124,7 @@ class AppConfigPageController extends Controller
         $payload = $data + ['app_instance_id' => $this->appId()];
         $payload['nav_key'] = $payload['v_key'] = $data['item_key']; $payload['nav_label'] = $payload['v_label'] = $data['display_label']; $payload['position'] = $data['sort_order']; $payload['is_enabled'] = $request->boolean('is_enabled'); $payload['updated_at'] = now();
         if ($id) DB::table('app_navigation_items')->where('app_instance_id', $this->appId())->where('id', $id)->update($payload); else DB::table('app_navigation_items')->insert($payload + ['id' => (string) \Illuminate\Support\Str::uuid(), 'created_at' => now()]);
+        $this->syncDrawerIconActiveState($payload['menu_type'], $payload['item_key'], $payload['feature_key'] ?? null, $payload['is_enabled']);
         return $this->done('Navigation item saved successfully.', 'navigation');
     }
 
@@ -178,6 +179,7 @@ class AppConfigPageController extends Controller
                 }
 
                 $query->update($payload);
+                $this->syncDrawerIconActiveState($menuType, $item['item_key'], $item['feature_key'] ?? null, $payload['is_enabled']);
                 $updatedCount++;
             }
         });
@@ -273,6 +275,33 @@ class AppConfigPageController extends Controller
     }
 
     public function clearCache() { return $this->done('App configuration cache cleared successfully.', request('tab', 'overview')); }
+
+    private function syncDrawerIconActiveState(string $menuType, ?string $itemKey, ?string $featureKey, bool $isEnabled): void
+    {
+        if ($menuType !== 'drawer' || ! Schema::hasTable('app_icon_assets')) {
+            return;
+        }
+
+        $keys = collect([$itemKey, $featureKey])
+            ->filter(fn ($key) => filled($key))
+            ->map(fn ($key) => (string) $key)
+            ->unique()
+            ->values();
+
+        if ($keys->isEmpty()) {
+            return;
+        }
+
+        DB::table('app_icon_assets')
+            ->where('app_instance_id', $this->appId())
+            ->where('icon_group', 'drawer_menu')
+            ->where(function ($query) use ($keys) {
+                $query->whereIn('menu_key', $keys)
+                    ->orWhereIn('feature_key', $keys)
+                    ->orWhereIn('icon_key', $keys->map(fn ($key) => 'drawer_' . $key));
+            })
+            ->update(['is_active' => $isEnabled, 'updated_at' => now()]);
+    }
     private function appId(): string { return $this->appConfigService->getGreenpreneurAppInstance()->id; }
     private function navigationGroupLabel(string $menuType): string { return ['bottom_nav' => 'Bottom Navigation', 'plus_menu' => 'Plus Menu', 'impact_menu' => 'Impact Menu', 'drawer' => 'Drawer Menu'][$menuType] ?? 'Navigation group'; }
     private function applyColorFallbacks(array $data): array
