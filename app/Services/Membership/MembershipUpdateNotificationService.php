@@ -19,7 +19,7 @@ use Throwable;
 class MembershipUpdateNotificationService
 {
     private const TITLE = 'Membership Updated';
-    private const TYPE = 'membership_updated';
+    private const TYPE = 'membership_update';
 
     public function __construct(
         private readonly NotificationService $notificationService,
@@ -55,10 +55,18 @@ class MembershipUpdateNotificationService
             'screen' => 'membership',
             'reference_type' => 'user',
             'reference_id' => (string) $freshUser->id,
+            'membership_status' => $changes['new_status'],
+            'membership_status_label' => $changes['new_status_label'],
+            'membership_expiry' => $changes['new_expiry'] ? Carbon::parse($changes['new_expiry'])->toDateString() : null,
+            'membership_expiry_label' => $changes['new_expiry_label'],
             'old_membership_status' => $changes['old_status'],
+            'old_membership_status_label' => $changes['old_status_label'],
             'new_membership_status' => $changes['new_status'],
+            'new_membership_status_label' => $changes['new_status_label'],
             'old_membership_expiry' => $changes['old_expiry'],
+            'old_membership_expiry_label' => $changes['old_expiry_label'],
             'new_membership_expiry' => $changes['new_expiry'],
+            'new_membership_expiry_label' => $changes['new_expiry_label'],
             'status_changed' => $changes['status_changed'],
             'expiry_changed' => $changes['expiry_changed'],
         ];
@@ -179,7 +187,7 @@ class MembershipUpdateNotificationService
 
             $pushToken = $query->whereNotNull($tokenColumn)->where($tokenColumn, '!=', '')->first();
             if (! $pushToken) {
-                Log::info('membership.update_notifications.push_token_missing', ['user_id' => (string) $user->id]);
+                Log::info('No active push token found for user ' . $user->id, ['user_id' => (string) $user->id]);
                 return;
             }
 
