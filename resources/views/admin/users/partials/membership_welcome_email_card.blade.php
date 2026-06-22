@@ -3,9 +3,19 @@
     $welcomeStatusRaw = $user->welcome_membership_email_status;
     $welcomeStatus = $welcomeStatusRaw ?: ($welcomeSent ? 'sent' : 'not_sent');
     $welcomeSentLabel = $welcomeSent ? 'Yes' : 'No';
-    $welcomeSentAt = optional($user->welcome_membership_email_sent_at)->format('Y-m-d H:i:s') ?: '—';
+    $welcomeSentAt = optional($user->welcome_membership_email_sent_at)->format('d-m-Y h:i A') ?: '—';
     $welcomePlanCode = $user->welcome_membership_email_plan_code ?: '—';
-    $welcomeError = $user->welcome_membership_email_error ?: '—';
+    $welcomeError = $welcomeStatus === 'failed' ? ($user->welcome_membership_email_error ?: '—') : '—';
+    $statusBadgeClass = match ($welcomeStatus) {
+        'sent' => 'bg-success-subtle text-success',
+        'failed' => 'bg-danger-subtle text-danger',
+        default => 'bg-warning-subtle text-warning',
+    };
+    $statusBadgeLabel = match ($welcomeStatus) {
+        'sent' => 'Sent',
+        'failed' => 'Failed',
+        default => 'Not Sent',
+    };
 
     $showSendButton = ($showSendButton ?? false) && ! $welcomeSent;
     $sendButtonClass = $sendButtonClass ?? 'btn btn-outline-primary btn-sm';
@@ -15,11 +25,7 @@
 <div class="card {{ $cardClass ?? '' }}">
     <div class="card-header fw-semibold d-flex justify-content-between align-items-center {{ $headerClass ?? '' }}">
         <span>Membership Welcome Email</span>
-        @if ($welcomeSent)
-            <span class="badge bg-success-subtle text-success">Already Sent</span>
-        @else
-            <span class="badge bg-warning-subtle text-warning">Not Sent Yet</span>
-        @endif
+        <span class="badge {{ $statusBadgeClass }}">{{ $statusBadgeLabel }}</span>
     </div>
 
     <div class="card-body {{ $bodyClass ?? '' }}">
@@ -34,16 +40,18 @@
             </div>
             <div class="col-md-4">
                 <div class="small text-muted">Status</div>
-                <div class="fw-semibold text-capitalize">{{ str_replace('_', ' ', $welcomeStatus) }}</div>
+                <div class="fw-semibold">{{ $statusBadgeLabel }}</div>
             </div>
             <div class="col-md-4">
                 <div class="small text-muted">Plan Code At Send</div>
                 <div class="fw-semibold">{{ $welcomePlanCode }}</div>
             </div>
-            <div class="col-md-8">
-                <div class="small text-muted">Last Error</div>
-                <div class="text-break">{{ $welcomeError }}</div>
-            </div>
+            @if ($welcomeStatus === 'failed')
+                <div class="col-md-8">
+                    <div class="small text-muted">Last Error</div>
+                    <div class="text-break text-danger">{{ $welcomeError }}</div>
+                </div>
+            @endif
             <div class="col-12 d-flex justify-content-end">
                 @if ($welcomeSent)
                     <button type="button" class="btn btn-success btn-sm" disabled>Already Sent</button>

@@ -6,6 +6,10 @@ use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Models\User;
 use App\Services\Membership\MembershipUpgradeService;
+use App\Services\Membership\MembershipWelcomeEmailService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 use Illuminate\Support\Str;
 
 class MembershipService
@@ -66,7 +70,7 @@ class MembershipService
             $endsAt = $now->copy()->addDays((int) $plan->duration_days);
         }
 
-        return $this->membershipUpgradeService->markAsOnlyUnityPeerAfterPayment($user, [
+        $activatedUser = $this->membershipUpgradeService->markAsOnlyUnityPeerAfterPayment($user, [
             'payment_id' => $payment->id,
             'membership_plan_id' => $plan->id,
             'plan_name' => $plan->name,
@@ -78,5 +82,18 @@ class MembershipService
             'membership_ends_at' => $endsAt,
             'paid_at' => $payment->paid_at ?? $now,
         ]);
+
+        DB::afterCommit(function () use ($activatedUser): void {
+            try {
+                app(MembershipWelcomeEmailService::class)->sendAfterFirstSuccessfulMembershipPayment($activatedUser);
+            } catch (Throwable $throwable) {
+                Log::warning('membership.welcome_email.after_payment_exception', [
+                    'user_id' => (string) $activatedUser->id,
+                    'message' => $throwable->getMessage(),
+                ]);
+            }
+        });
+
+        return $activatedUser;
     }
 }

@@ -296,7 +296,7 @@ class BillingCheckoutController extends Controller
                 return $syncedUser;
             });
 
-            $this->membershipWelcomeEmailService->sendIfEligible($freshUser);
+            $this->membershipWelcomeEmailService->sendAfterFirstSuccessfulMembershipPayment($freshUser);
 
             return response()->json([
                 'success' => true,

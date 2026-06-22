@@ -112,7 +112,7 @@ class ZohoBillingWebhookController extends Controller
                 'invoice' => $invoice,
             ]);
 
-            $this->membershipWelcomeEmailService->sendIfEligible($syncedUser);
+            $this->membershipWelcomeEmailService->sendAfterFirstSuccessfulMembershipPayment($syncedUser);
             $this->sendMembershipPurchaseCongratulationsEmail($syncedUser);
 
             return response()->json(['success' => true]);

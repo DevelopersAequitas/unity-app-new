@@ -1096,7 +1096,7 @@ class ZohoBillingService
                 'zoho_plan_code' => (string) ($freshUser->zoho_plan_code ?? ''),
             ]);
 
-            $result = $this->membershipWelcomeEmailService->sendIfEligible($freshUser);
+            $result = $this->membershipWelcomeEmailService->sendAfterFirstSuccessfulMembershipPayment($freshUser);
 
             Log::info('membership.welcome_email.auto_hook_result', [
                 'source' => $source,
