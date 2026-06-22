@@ -48,7 +48,7 @@ class MembershipUpdateNotificationService
         }
 
         $body = $this->notificationBody($changes);
-        $details = $this->emailDetails($changes, $adminNote, $body);
+        $details = $this->emailDetails($freshUser, $changes, $adminNote, $body);
         $payload = [
             'type' => self::TYPE,
             'screen' => 'membership',
@@ -110,16 +110,17 @@ class MembershipUpdateNotificationService
 
     /**
      * @param  array{old_status_label:string,new_status_label:string,old_expiry_label:string,new_expiry_label:string}  $changes
-     * @return array{old_status:string,new_status:string,old_expiry:string,new_expiry:string,updated_at:string,admin_note:?string,notification_body:string}
+     * @return array{old_status:string,new_status:string,old_expiry:string,new_expiry:string,email:string,updated_at:string,admin_note:?string,notification_body:string}
      */
-    private function emailDetails(array $changes, ?string $adminNote, string $body): array
+    private function emailDetails(User $user, array $changes, ?string $adminNote, string $body): array
     {
         return [
             'old_status' => $changes['old_status_label'],
             'new_status' => $changes['new_status_label'],
             'old_expiry' => $changes['old_expiry_label'],
             'new_expiry' => $changes['new_expiry_label'],
-            'updated_at' => now()->format('d M Y, h:i A'),
+            'email' => $this->emptyLabel((string) ($user->email ?? '')),
+            'updated_at' => now()->format('d-m-Y h:i A'),
             'admin_note' => filled($adminNote) ? trim((string) $adminNote) : null,
             'notification_body' => $body,
         ];
@@ -204,7 +205,7 @@ class MembershipUpdateNotificationService
     }
 
     /**
-     * @param  array{old_status:string,new_status:string,old_expiry:string,new_expiry:string,updated_at:string,admin_note:?string,notification_body:string}  $details
+     * @param  array{old_status:string,new_status:string,old_expiry:string,new_expiry:string,email:string,updated_at:string,admin_note:?string,notification_body:string}  $details
      */
     private function sendEmail(User $user, array $details): void
     {
@@ -296,7 +297,7 @@ class MembershipUpdateNotificationService
     {
         $value = (string) $value;
         if ($value === '') {
-            return 'Not set';
+            return '—';
         }
 
         $labels = [
@@ -328,14 +329,21 @@ class MembershipUpdateNotificationService
     private function dateLabel(?string $value): string
     {
         if ($value === null || $value === '') {
-            return 'Not set';
+            return '—';
         }
 
         try {
-            return Carbon::parse($value)->format('d M Y, h:i A');
+            return Carbon::parse($value)->format('d-m-Y h:i A');
         } catch (Throwable) {
             return $value;
         }
+    }
+
+    private function emptyLabel(?string $value): string
+    {
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : '—';
     }
 
     private function peerName(User $user): string
