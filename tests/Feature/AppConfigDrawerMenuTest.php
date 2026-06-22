@@ -15,7 +15,18 @@ class AppConfigDrawerMenuTest extends TestCase
     {
         parent::setUp();
 
+        Schema::dropIfExists('app_navigation_items');
         Schema::dropIfExists('app_icon_assets');
+        Schema::create('app_navigation_items', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('app_instance_id');
+            $table->string('menu_type');
+            $table->string('item_key');
+            $table->string('feature_key')->nullable();
+            $table->boolean('is_enabled')->default(true);
+            $table->timestamps();
+        });
+
         Schema::create('app_icon_assets', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('app_instance_id');
@@ -39,7 +50,7 @@ class AppConfigDrawerMenuTest extends TestCase
         });
     }
 
-    public function test_drawer_menu_icons_keep_disabled_items_with_false_is_active(): void
+    public function test_drawer_menu_uses_saved_navigation_enabled_state_over_icon_defaults(): void
     {
         $appInstanceId = '00000000-0000-0000-0000-000000000001';
 
@@ -63,8 +74,19 @@ class AppConfigDrawerMenuTest extends TestCase
                 'menu_key' => $menuKey,
                 'screen_name' => 'HomeDrawer',
                 'usage_location' => 'Side Drawer / More Menu',
-                'is_active' => $isActive,
+                'is_active' => true,
                 'sort_order' => $sortOrder,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::table('app_navigation_items')->insert([
+                'id' => fake()->uuid(),
+                'app_instance_id' => $appInstanceId,
+                'menu_type' => 'drawer',
+                'item_key' => $menuKey,
+                'feature_key' => $menuKey,
+                'is_enabled' => $isActive,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
