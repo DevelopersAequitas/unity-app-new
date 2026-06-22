@@ -21,6 +21,7 @@ use App\Models\UserPushToken;
 use App\Services\Admin\DedLocationService;
 use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
+use App\Services\Membership\MembershipUpdateNotificationService;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Notifications\NotificationService;
 use App\Services\Users\PublicProfileSlugService;
@@ -425,6 +426,10 @@ class UsersController extends Controller
         }
 
         $user = User::query()->findOrFail($userId);
+        $oldMembershipValues = [
+            'membership_status' => $user->membership_status,
+            'membership_expiry' => $user->membership_expiry ?? $user->membership_ends_at,
+        ];
         $originalCoinsBalance = (int) ($user->coins_balance ?? 0);
         $submittedCoinsBalance = (int) $request->input('coins_balance', $originalCoinsBalance);
         $coinsBalanceChanged = $submittedCoinsBalance !== $originalCoinsBalance;
@@ -998,6 +1003,15 @@ class UsersController extends Controller
                 ->withInput()
                 ->withErrors(['roles' => 'Unable to update user roles right now. Please try again or contact support.']);
         }
+
+        $user->refresh();
+        app(MembershipUpdateNotificationService::class)->sendIfMembershipChanged(
+            $user,
+            $oldMembershipValues,
+            $request->input('membership_admin_note')
+                ?? $request->input('admin_note')
+                ?? $request->input('note')
+        );
 
         $statusMessage = $request->has('add_circle_membership')
             ? 'Circle membership added successfully.'
