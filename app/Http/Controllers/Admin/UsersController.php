@@ -2199,6 +2199,7 @@ class UsersController extends Controller
             Log::error('admin.users.membership_update_notification_failed', [
                 'user_id' => $user->id,
                 'error' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
             ]);
         }
     }
@@ -2242,6 +2243,7 @@ class UsersController extends Controller
                 'to' => $email,
                 'from' => (string) config('peers.membership_update_from_email'),
                 'error' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
             ]);
         }
     }
@@ -2290,6 +2292,7 @@ class UsersController extends Controller
             Log::warning('admin.users.membership_update_push_lookup_failed', [
                 'user_id' => $user->id,
                 'error' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
             ]);
         }
     }
@@ -2436,6 +2439,7 @@ class UsersController extends Controller
             Log::warning('admin.users.membership_approval_notification_duplicate_check_failed', [
                 'user_id' => $user->id,
                 'error' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
             ]);
         }
 
@@ -2475,6 +2479,7 @@ class UsersController extends Controller
             Log::error('Membership approval app notification failed', [
                 'user_id' => $user->id,
                 'error' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
             ]);
         }
     }
@@ -2546,6 +2551,7 @@ class UsersController extends Controller
             Log::warning('admin.users.membership_approval_push_lookup_failed', [
                 'user_id' => $user->id,
                 'error' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
             ]);
         }
     }

@@ -72,6 +72,7 @@ class MembershipWelcomeEmailService
             ]);
 
             $freshUser->forceFill([
+                'welcome_membership_email_sent_at' => null,
                 'welcome_membership_email_status' => 'failed',
                 'welcome_membership_email_error' => 'Invalid recipient email: ' . $email,
                 'welcome_membership_email_plan_code' => $freshUser->zoho_plan_code,
@@ -145,6 +146,7 @@ class MembershipWelcomeEmailService
             $message = Str::limit($throwable->getMessage(), 2000, '');
 
             $freshUser->forceFill([
+                'welcome_membership_email_sent_at' => null,
                 'welcome_membership_email_status' => 'failed',
                 'welcome_membership_email_error' => $message,
                 'welcome_membership_email_plan_code' => $freshUser->zoho_plan_code,
@@ -172,6 +174,7 @@ class MembershipWelcomeEmailService
                 'to' => $email,
                 'from' => (string) config('peers.membership_welcome_from_email'),
                 'error' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
             ]);
 
             return ['sent' => false, 'reason' => 'failed'];
