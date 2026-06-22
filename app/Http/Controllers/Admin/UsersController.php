@@ -27,6 +27,7 @@ use App\Services\Notifications\NotificationService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
+use App\Support\Membership\MembershipStatusLabels;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -2110,25 +2111,19 @@ class UsersController extends Controller
 
     private function membershipFilterOptions(): array
     {
-        return [
-            'circle_peer' => 'Circle Peer',
-            'multi_circle_peer' => 'Multi Circle Peer',
-            'only_unity_peer' => 'Only Unity Peer',
-            'free_peer' => 'Free Peer',
-            'free_trial_peer' => 'Free Trial Peer',
-        ];
+        return collect((array) config('membership.statuses', []))
+            ->mapWithKeys(fn (string $status): array => [$status => MembershipStatusLabels::label($status)])
+            ->all();
     }
 
     private function membershipLabel(?string $value): string
     {
-        $normalized = $this->normalizeMembershipValue($value);
-
-        return $this->membershipFilterOptions()[$normalized] ?? Str::headline(str_replace('_', ' ', (string) $value));
+        return MembershipStatusLabels::label($value);
     }
 
     private function normalizeMembershipValue(?string $value): string
     {
-        return strtolower(trim(str_replace(' ', '_', (string) $value)));
+        return MembershipStatusLabels::normalize($value);
     }
 
 

@@ -103,7 +103,7 @@
                             <label class="form-label">{{ $label }}</label>
                             <select name="filters[{{ $key }}][]" class="form-select select2" multiple>
                                 @foreach ($options as $option)
-                                    <option value="{{ $option }}" @selected(in_array($option, $filters[$key] ?? [], true))>{{ $option }}</option>
+                                    <option value="{{ $option }}" @selected(in_array($option, $filters[$key] ?? [], true))>{{ $key === 'membership_statuses' ? \App\Support\Membership\MembershipStatusLabels::label($option) : $option }}</option>
                                 @endforeach
                             </select>
                         </div>

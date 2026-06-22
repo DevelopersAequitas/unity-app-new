@@ -176,7 +176,7 @@
             $linkedUserName = $linkedUser->display_name
                 ?: trim(collect([$linkedUser->first_name ?? null, $linkedUser->last_name ?? null])->filter()->implode(' '));
             $linkedUserPhone = $linkedUser->phone ?? $linkedUser->mobile ?? $linkedUser->secondary_mobile ?? null;
-            $linkedUserMembership = $linkedUser->membership_status ?? $linkedUser->membership_type ?? null;
+            $linkedUserMembership = \App\Support\Membership\MembershipStatusLabels::label($linkedUser->membership_status ?? $linkedUser->membership_type ?? null);
         @endphp
         <div class="row g-3">
             @foreach ([

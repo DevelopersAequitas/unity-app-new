@@ -8,6 +8,7 @@ use App\Models\UserPushToken;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Notifications\NotificationService;
+use App\Support\Membership\MembershipStatusLabels;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -295,22 +296,7 @@ class MembershipUpdateNotificationService
 
     private function membershipLabel(?string $value): string
     {
-        $value = (string) $value;
-        if ($value === '') {
-            return '—';
-        }
-
-        $labels = [
-            'free_trial_peer' => 'Free Trial Peer',
-            'free_peer' => 'Free Peer',
-            'only_unity_peer' => 'Only Unity Peer',
-            'circle_peer' => 'Circle Peer',
-            'multi_circle_peer' => 'Multi Circle Peer',
-        ];
-
-        $normalized = strtolower(trim(str_replace(' ', '_', $value)));
-
-        return $labels[$normalized] ?? Str::headline(str_replace('_', ' ', $value));
+        return MembershipStatusLabels::label($value);
     }
 
     private function membershipExpiryValue(User $user): mixed

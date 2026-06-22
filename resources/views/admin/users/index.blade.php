@@ -260,7 +260,7 @@
                                             ['label' => 'Turnover Range', 'value' => $user->turnover_range],
                                             ['label' => 'City ID', 'value' => $user->city_id],
                                             ['label' => 'City (string)', 'value' => $user->city],
-                                            ['label' => 'Membership Status', 'value' => $user->membership_status],
+                                            ['label' => 'Membership Status', 'value' => $membershipStatusLabels[$user->membership_status] ?? \App\Support\Membership\MembershipStatusLabels::label($user->membership_status)],
                                             ['label' => 'Membership Ends At', 'value' => $user->membership_ends_at, 'type' => 'membership_date'],
                                             ['label' => 'Circles', 'value' => $joinedCircleName ?: 'No Circle', 'circle_id' => $joinedCircleId],
                                             ['label' => 'Zoho Customer ID', 'value' => $user->zoho_customer_id],
