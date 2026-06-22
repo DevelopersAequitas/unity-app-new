@@ -197,9 +197,15 @@
                                 'Board Advisor' => 'Board Advisor',
                             ];
                         @endphp
+                        @php
+                            $selectedMembershipStatus = old('membership_status', $user->membership_status);
+                            if ($selectedMembershipStatus === 'Only Unity Peer') {
+                                $selectedMembershipStatus = 'only_unity_peer';
+                            }
+                        @endphp
                         <select name="membership_status" class="form-select" required>
                             @foreach ($membershipStatuses as $status)
-                                <option value="{{ $status }}" @selected(old('membership_status', $user->membership_status) === $status)>
+                                <option value="{{ $status }}" @selected($selectedMembershipStatus === $status)>
                                     {{ $membershipStatusLabels[$status] ?? $status }}
                                 </option>
                             @endforeach
