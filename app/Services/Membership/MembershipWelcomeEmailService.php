@@ -172,6 +172,7 @@ class MembershipWelcomeEmailService
         ];
 
         $attachments = [];
+        $attachedPaths = [];
 
         foreach ($attachmentConfigs as $index => $attachmentConfig) {
             $path = trim((string) Arr::get($attachmentConfig, 'path', ''));
@@ -185,21 +186,52 @@ class MembershipWelcomeEmailService
                 continue;
             }
 
-            if (! is_file($path)) {
+            $resolvedPath = $this->resolveAttachmentPath($path);
+
+            if (! is_file($resolvedPath)) {
                 Log::warning('membership.welcome_email.attachment_not_found', [
                     'slot' => $index + 1,
                     'path' => $path,
+                    'resolved_path' => $resolvedPath,
                 ]);
 
                 continue;
             }
 
+            $dedupeKey = realpath($resolvedPath) ?: $resolvedPath;
+            if (isset($attachedPaths[$dedupeKey])) {
+                Log::warning('membership.welcome_email.duplicate_attachment_skipped', [
+                    'slot' => $index + 1,
+                    'path' => $path,
+                    'resolved_path' => $resolvedPath,
+                ]);
+
+                continue;
+            }
+
+            $attachedPaths[$dedupeKey] = true;
+
             $attachments[] = [
-                'path' => $path,
-                'name' => $name !== '' ? $name : basename($path),
+                'path' => $resolvedPath,
+                'name' => $name !== '' ? $name : basename($resolvedPath),
             ];
         }
 
+        if ($attachments === []) {
+            Log::warning('membership.welcome_email.attachments_unavailable', [
+                'message' => 'No configured membership welcome attachments were found; email will be sent without attachments.',
+            ]);
+        }
+
         return $attachments;
+    }
+
+    private function resolveAttachmentPath(string $path): string
+    {
+        if (Str::startsWith($path, ['/'])) {
+            return $path;
+        }
+
+        return base_path($path);
     }
 }

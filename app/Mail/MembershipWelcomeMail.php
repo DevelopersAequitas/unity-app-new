@@ -29,11 +29,20 @@ class MembershipWelcomeMail extends Mailable
 
     public function build()
     {
-        $mail = $this->subject('Welcome to your Peers Unity Membership')
+        $mail = $this->from(
+                config('membership_welcome.from_email'),
+                config('membership_welcome.from_name')
+            )
+            ->subject('Welcome to Peers Global Unity')
             ->view('emails.membership.membership_welcome')
             ->with([
                 'user' => $this->user,
             ]);
+
+        $ccEmail = trim((string) config('membership_welcome.cc_email', ''));
+        if ($ccEmail !== '') {
+            $mail->cc($ccEmail);
+        }
 
         foreach ($this->attachmentsConfig as $attachment) {
             $mail->attach($attachment['path'], [
