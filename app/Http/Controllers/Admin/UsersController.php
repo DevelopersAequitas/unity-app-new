@@ -2221,6 +2221,8 @@ class UsersController extends Controller
                 'user_id' => $user->id,
                 'to' => $email,
                 'from' => (string) config('peers.membership_update_from_email'),
+                'mail_host' => (string) config('mail.mailers.smtp.host'),
+                'mail_port' => (string) config('mail.mailers.smtp.port'),
                 'mailer' => (string) config('mail.default'),
                 'queue_connection' => (string) config('queue.default'),
                 'subject' => 'Your Peers Global Membership Has Been Updated',

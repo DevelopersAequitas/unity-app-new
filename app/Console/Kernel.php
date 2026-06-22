@@ -15,6 +15,7 @@ use App\Console\Commands\SyncZohoSubscriptionPayment;
 use App\Console\Commands\TestZohoConvertInvoice;
 use App\Console\Commands\TestZohoCustomerPaymentWebhook;
 use App\Console\Commands\TestZohoPaidWebhook;
+use App\Console\Commands\TestCyberPanelSmtpCommand;
 use App\Console\Commands\SendAppUpdateReminderNotifications;
 use App\Console\Commands\RunNotificationCampaignsCommand;
 use Illuminate\Console\Scheduling\Schedule;
@@ -37,6 +38,7 @@ class Kernel extends ConsoleKernel
         RetryZohoWebhooks::class,
         RetryIgnoredZohoWebhooks::class,
         TestZohoPaidWebhook::class,
+        TestCyberPanelSmtpCommand::class,
         RunNotificationCampaignsCommand::class,
     ];
 

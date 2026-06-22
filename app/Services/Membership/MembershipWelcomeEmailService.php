@@ -99,6 +99,8 @@ class MembershipWelcomeEmailService
                 'user_id' => (string) $freshUser->id,
                 'to' => $email,
                 'from' => (string) config('peers.membership_welcome_from_email'),
+                'mail_host' => (string) config('mail.mailers.smtp.host'),
+                'mail_port' => (string) config('mail.mailers.smtp.port'),
                 'mailer' => (string) config('mail.default'),
                 'queue_connection' => (string) config('queue.default'),
                 'subject' => 'Welcome to Peers Global Unity',
