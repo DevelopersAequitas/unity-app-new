@@ -2205,26 +2205,40 @@ class UsersController extends Controller
 
     private function sendMembershipUpdateEmail(User $user, ?string $oldStatus, ?string $newStatus, mixed $oldExpiry, mixed $newExpiry): void
     {
-        if (blank($user->email)) {
-            Log::info('admin.users.membership_update_email_missing', ['user_id' => $user->id]);
+        $email = trim((string) $user->email);
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('Membership email skipped: invalid recipient email for user ' . $user->id, [
+                'type' => 'membership_update',
+                'user_id' => $user->id,
+                'to' => $email,
+            ]);
             return;
         }
 
         try {
-            Log::info('Sending membership update email', [
+            Log::info('Membership email sending started', [
+                'type' => 'membership_update',
                 'user_id' => $user->id,
-                'to' => $user->email,
+                'to' => $email,
                 'from' => (string) config('peers.membership_update_from_email'),
                 'mailer' => (string) config('mail.default'),
-                'queued' => false,
+                'queue_connection' => (string) config('queue.default'),
+                'subject' => 'Your Peers Global Membership Has Been Updated',
             ]);
 
-            Mail::to($user->email)->send(new MembershipUpdatedMail($user, $oldStatus, $newStatus, $oldExpiry, $newExpiry, now()));
-            Log::info('Membership update email sent successfully to ' . $user->email, ['user_id' => $user->id]);
-        } catch (Throwable $throwable) {
-            Log::error('Membership email failed for user ' . $user->id . ': ' . $throwable->getMessage(), [
+            Mail::to($email)->send(new MembershipUpdatedMail($user, $oldStatus, $newStatus, $oldExpiry, $newExpiry, now()));
+            Log::info('Membership email sent successfully', [
+                'type' => 'membership_update',
                 'user_id' => $user->id,
-                'email' => $user->email,
+                'to' => $email,
+                'from' => (string) config('peers.membership_update_from_email'),
+            ]);
+        } catch (Throwable $throwable) {
+            Log::error('Membership email failed', [
+                'type' => 'membership_update',
+                'user_id' => $user->id,
+                'to' => $email,
+                'from' => (string) config('peers.membership_update_from_email'),
                 'error' => $throwable->getMessage(),
             ]);
         }

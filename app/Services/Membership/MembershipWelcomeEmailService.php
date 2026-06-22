@@ -63,6 +63,23 @@ class MembershipWelcomeEmailService
             return ['sent' => false, 'reason' => 'missing_email'];
         }
 
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $message = 'Membership email skipped: invalid recipient email for user ' . $freshUser->id;
+            Log::warning($message, [
+                'type' => 'membership_welcome',
+                'user_id' => (string) $freshUser->id,
+                'to' => $email,
+            ]);
+
+            $freshUser->forceFill([
+                'welcome_membership_email_status' => 'failed',
+                'welcome_membership_email_error' => 'Invalid recipient email: ' . $email,
+                'welcome_membership_email_plan_code' => $freshUser->zoho_plan_code,
+            ])->save();
+
+            return ['sent' => false, 'reason' => 'invalid_email'];
+        }
+
         if (! $this->isEligiblePaidMembershipUser($freshUser)) {
             Log::info('membership.welcome_email.skipped', [
                 'user_id' => (string) $freshUser->id,
@@ -77,12 +94,14 @@ class MembershipWelcomeEmailService
         $mailable = new MembershipWelcomeMail($freshUser, $attachments);
 
         try {
-            Log::info('Sending membership welcome email', [
+            Log::info('Membership email sending started', [
+                'type' => 'membership_welcome',
                 'user_id' => (string) $freshUser->id,
                 'to' => $email,
                 'from' => (string) config('peers.membership_welcome_from_email'),
                 'mailer' => (string) config('mail.default'),
-                'queued' => false,
+                'queue_connection' => (string) config('queue.default'),
+                'subject' => 'Welcome to Peers Global Unity',
                 'attachments_count' => count($attachments),
             ]);
 
@@ -111,8 +130,11 @@ class MembershipWelcomeEmailService
                 ],
             ]);
 
-            Log::info('Membership welcome email sent to ' . $email, [
+            Log::info('Membership email sent successfully', [
+                'type' => 'membership_welcome',
                 'user_id' => (string) $freshUser->id,
+                'to' => $email,
+                'from' => (string) config('peers.membership_welcome_from_email'),
                 'attachments_count' => count($attachments),
             ]);
 
@@ -142,9 +164,12 @@ class MembershipWelcomeEmailService
                 ],
             ], $throwable);
 
-            Log::warning('Membership email failed for user ' . $freshUser->id . ': ' . $throwable->getMessage(), [
+            Log::warning('Membership email failed', [
+                'type' => 'membership_welcome',
                 'user_id' => (string) $freshUser->id,
-                'message' => $throwable->getMessage(),
+                'to' => $email,
+                'from' => (string) config('peers.membership_welcome_from_email'),
+                'error' => $throwable->getMessage(),
             ]);
 
             return ['sent' => false, 'reason' => 'failed'];
