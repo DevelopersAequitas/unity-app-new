@@ -77,6 +77,17 @@ class MembershipWelcomeEmailService
         $mailable = new MembershipWelcomeMail($freshUser, $attachments);
 
         try {
+            Log::info('Sending membership welcome email', [
+                'user_id' => (string) $freshUser->id,
+                'to' => $email,
+                'from' => (string) config('peers.membership_welcome_from_email'),
+                'reply_to' => (string) config('peers.membership_welcome_reply_to_email'),
+                'cc' => strcasecmp((string) config('peers.membership_welcome_cc_email'), $email) === 0 ? null : (string) config('peers.membership_welcome_cc_email'),
+                'mailer' => (string) config('mail.default'),
+                'queued' => false,
+                'attachments_count' => count($attachments),
+            ]);
+
             Mail::to($email)->send($mailable);
 
             $freshUser->forceFill([

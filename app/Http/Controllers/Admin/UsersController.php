@@ -2211,8 +2211,18 @@ class UsersController extends Controller
         }
 
         try {
+            Log::info('Sending membership update email', [
+                'user_id' => $user->id,
+                'to' => $user->email,
+                'from' => (string) config('peers.membership_update_from_email'),
+                'reply_to' => (string) config('peers.membership_update_reply_to_email'),
+                'cc' => strcasecmp((string) config('peers.membership_update_cc_email'), (string) $user->email) === 0 ? null : (string) config('peers.membership_update_cc_email'),
+                'mailer' => (string) config('mail.default'),
+                'queued' => false,
+            ]);
+
             Mail::to($user->email)->send(new MembershipUpdatedMail($user, $oldStatus, $newStatus, $oldExpiry, $newExpiry, now()));
-            Log::info('Membership update email sent to ' . $user->email, ['user_id' => $user->id]);
+            Log::info('Membership update email sent successfully to ' . $user->email, ['user_id' => $user->id]);
         } catch (Throwable $throwable) {
             Log::error('Membership email failed for user ' . $user->id . ': ' . $throwable->getMessage(), [
                 'user_id' => $user->id,

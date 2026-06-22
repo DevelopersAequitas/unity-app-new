@@ -33,6 +33,7 @@ class MembershipWelcomeMail extends Mailable
                 config('peers.membership_welcome_from_email'),
                 config('peers.membership_welcome_from_name')
             )
+            ->replyTo(config('peers.membership_welcome_reply_to_email'))
             ->subject('Welcome to Peers Global Unity')
             ->view('emails.membership.membership_welcome')
             ->with([
@@ -41,7 +42,15 @@ class MembershipWelcomeMail extends Mailable
 
         $ccEmail = trim((string) config('peers.membership_welcome_cc_email', ''));
         if ($ccEmail !== '') {
-            $mail->cc($ccEmail);
+            if (strcasecmp($ccEmail, (string) $this->user->email) === 0) {
+                \Illuminate\Support\Facades\Log::info('Membership email CC skipped because recipient is same as To email.', [
+                    'user_id' => $this->user->id,
+                    'to' => $this->user->email,
+                    'cc' => $ccEmail,
+                ]);
+            } else {
+                $mail->cc($ccEmail);
+            }
         }
 
         foreach ($this->attachmentsConfig as $attachment) {
