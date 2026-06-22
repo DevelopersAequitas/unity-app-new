@@ -102,7 +102,7 @@ class MembershipWelcomeEmailService
                 ],
             ]);
 
-            Log::info('membership.welcome_email.sent', [
+            Log::info('Membership welcome email sent to ' . $email, [
                 'user_id' => (string) $freshUser->id,
                 'attachments_count' => count($attachments),
             ]);
@@ -133,7 +133,7 @@ class MembershipWelcomeEmailService
                 ],
             ], $throwable);
 
-            Log::warning('membership.welcome_email.failed', [
+            Log::warning('Membership email failed for user ' . $freshUser->id . ': ' . $throwable->getMessage(), [
                 'user_id' => (string) $freshUser->id,
                 'message' => $throwable->getMessage(),
             ]);
@@ -162,11 +162,11 @@ class MembershipWelcomeEmailService
     {
         $attachmentConfigs = [
             [
-                'path' => (string) config('membership_welcome.attachment_1_path', ''),
+                'path' => (string) (config('peers.membership_welcome_attachment_path_1') ?: config('membership_welcome.attachment_1_path', '')),
                 'name' => (string) config('membership_welcome.attachment_1_name', ''),
             ],
             [
-                'path' => (string) config('membership_welcome.attachment_2_path', ''),
+                'path' => (string) (config('peers.membership_welcome_attachment_path_2') ?: config('membership_welcome.attachment_2_path', '')),
                 'name' => (string) config('membership_welcome.attachment_2_name', ''),
             ],
         ];

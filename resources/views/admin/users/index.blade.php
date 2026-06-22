@@ -226,7 +226,7 @@
                         <td>
                             <span class="badge bg-primary-subtle text-primary">{{ $membershipStatusLabels[$user->membership_status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', (string) ($user->membership_status ?? 'Free'))) }}</span>
                         </td>
-                        <td>{{ $user->membership_ends_at ? $user->membership_ends_at->format('d M Y') : '—' }}</td>
+                        <td>{{ $user->membership_ends_at ? $user->membership_ends_at->format('d-m-Y') : '—' }}</td>
                         <td>{{ number_format($user->coins_balance ?? 0) }}</td>
                         <td>{{ optional($user->last_login_at)->format('Y-m-d H:i') ?? '—' }}</td>
                         <td>
@@ -274,7 +274,7 @@
                                             ['label' => 'Turnover Range', 'value' => $user->turnover_range],
                                             ['label' => 'City ID', 'value' => $user->city_id],
                                             ['label' => 'City (string)', 'value' => $user->city],
-                                            ['label' => 'Membership Status', 'value' => $user->membership_status],
+                                            ['label' => 'Membership Status', 'value' => $user->membership_status, 'type' => 'membership_status'],
                                             ['label' => 'Membership Ends At', 'value' => $user->membership_ends_at, 'type' => 'membership_date'],
                                             ['label' => 'Circles', 'value' => $joinedCircleName ?: 'No Circle', 'circle_id' => $joinedCircleId],
                                             ['label' => 'Zoho Customer ID', 'value' => $user->zoho_customer_id],
@@ -344,6 +344,10 @@
                                                 $formatted = $isDate ? $value->format('Y-m-d H:i') : (string) $value;
                                                 $raw = $isDate && method_exists($value, 'toDateTimeString') ? $value->toDateTimeString() : (string) $value;
                                                 return e($formatted) . ' <span class="text-muted small">(' . e($raw) . ')</span>';
+                                            }
+
+                                            if ($type === 'membership_status') {
+                                                return e(\App\Support\MembershipDisplay::statusLabel($value));
                                             }
 
                                             if ($type === 'membership_date') {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Mail\MembershipApprovedMail;
+use App\Mail\MembershipUpdatedMail;
 use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleCategory;
@@ -26,6 +27,7 @@ use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
+use App\Support\MembershipDisplay;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -425,6 +427,8 @@ class UsersController extends Controller
         }
 
         $user = User::query()->findOrFail($userId);
+        $oldMembershipStatus = (string) ($user->membership_status ?? '');
+        $oldMembershipExpiry = $user->membership_ends_at ?? $user->membership_expiry ?? null;
         $originalCoinsBalance = (int) ($user->coins_balance ?? 0);
         $submittedCoinsBalance = (int) $request->input('coins_balance', $originalCoinsBalance);
         $coinsBalanceChanged = $submittedCoinsBalance !== $originalCoinsBalance;
@@ -660,10 +664,6 @@ class UsersController extends Controller
         }
 
         $updatable = Arr::except($validated, $updatableExclusions);
-        if ($user->membership_status !== $validated['membership_status']) {
-            $updatable['membership_ends_at'] = null;
-            $updatable['membership_expiry'] = null;
-        }
         $activeCircleMemberStatus = $this->activeCircleMemberStatus();
         $selectedCircleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
         $validated['active_circle_id'] = $selectedCircleId;
@@ -671,7 +671,7 @@ class UsersController extends Controller
         $ledgerHasRemarkColumn = Schema::hasColumn('coins_ledger', 'remark');
 
         try {
-            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds, $industryDirectorRoleId) {
+            DB::transaction(function () use ($user, $oldMembershipStatus, $oldMembershipExpiry, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds, $industryDirectorRoleId) {
                 $user->fill($updatable);
                 $user->status = $validated['status'];
                 $user->active_circle_id = $selectedCircleId;
@@ -685,6 +685,18 @@ class UsersController extends Controller
                 }
 
                 $user->save();
+
+                $newMembershipStatus = (string) ($user->membership_status ?? '');
+                $newMembershipExpiry = $user->membership_ends_at ?? $user->membership_expiry ?? null;
+                if ($this->membershipStatusOrExpiryChanged($oldMembershipStatus, $newMembershipStatus, $oldMembershipExpiry, $newMembershipExpiry)) {
+                    DB::afterCommit(fn () => $this->sendMembershipUpdateCommunications(
+                        (string) $user->id,
+                        $oldMembershipStatus,
+                        $newMembershipStatus,
+                        $oldMembershipExpiry,
+                        $newMembershipExpiry
+                    ));
+                }
 
                 if ($coinsBalanceChanged) {
                     $newCoinsBalance = (int) ($user->coins_balance ?? 0);
@@ -1503,7 +1515,7 @@ class UsersController extends Controller
 
     private function membershipStatuses(): array
     {
-        return config('membership.statuses', []);
+        return array_keys(MembershipDisplay::statusOptions());
     }
 
     private function expireTrialUsersForAdminPanel(): void
@@ -2100,25 +2112,162 @@ class UsersController extends Controller
 
     private function membershipFilterOptions(): array
     {
-        return [
-            'circle_peer' => 'Circle Peer',
-            'multi_circle_peer' => 'Multi Circle Peer',
-            'only_unity_peer' => 'Only Unity Peer',
-            'free_peer' => 'Free Peer',
-            'free_trial_peer' => 'Free Trial Peer',
-        ];
+        return MembershipDisplay::statusOptions();
     }
 
     private function membershipLabel(?string $value): string
     {
-        $normalized = $this->normalizeMembershipValue($value);
-
-        return $this->membershipFilterOptions()[$normalized] ?? Str::headline(str_replace('_', ' ', (string) $value));
+        return MembershipDisplay::statusLabel($value);
     }
 
     private function normalizeMembershipValue(?string $value): string
     {
-        return strtolower(trim(str_replace(' ', '_', (string) $value)));
+        return MembershipDisplay::normalizeStatus($value);
+    }
+
+    private function membershipStatusOrExpiryChanged(?string $oldStatus, ?string $newStatus, mixed $oldExpiry, mixed $newExpiry): bool
+    {
+        return $this->normalizeMembershipValue($oldStatus) !== $this->normalizeMembershipValue($newStatus)
+            || MembershipDisplay::dateKey($oldExpiry) !== MembershipDisplay::dateKey($newExpiry);
+    }
+
+    private function sendMembershipUpdateCommunications(string $userId, ?string $oldStatus, ?string $newStatus, mixed $oldExpiry, mixed $newExpiry): void
+    {
+        $user = User::query()->find($userId);
+        if (! $user) {
+            Log::warning('admin.users.membership_update_user_missing', ['user_id' => $userId]);
+            return;
+        }
+
+        $statusChanged = $this->normalizeMembershipValue($oldStatus) !== $this->normalizeMembershipValue($newStatus);
+        $expiryChanged = MembershipDisplay::dateKey($oldExpiry) !== MembershipDisplay::dateKey($newExpiry);
+
+        if (! $statusChanged && ! $expiryChanged) {
+            return;
+        }
+
+        $title = 'Membership Updated';
+        $body = $this->membershipUpdateNotificationBody($statusChanged, $expiryChanged, $newStatus, $newExpiry);
+        $data = [
+            'type' => 'membership_updated',
+            'screen' => 'membership',
+            'old_membership_status' => $this->normalizeMembershipValue($oldStatus),
+            'new_membership_status' => $this->normalizeMembershipValue($newStatus),
+            'old_membership_expiry' => MembershipDisplay::dateKey($oldExpiry),
+            'new_membership_expiry' => MembershipDisplay::dateKey($newExpiry),
+        ];
+
+        $this->createMembershipUpdateNotification($user, $title, $body, $data);
+        $this->sendMembershipUpdatePush($user, $title, $body, $data);
+        $this->sendMembershipUpdateEmail($user, $oldStatus, $newStatus, $oldExpiry, $newExpiry);
+    }
+
+    private function membershipUpdateNotificationBody(bool $statusChanged, bool $expiryChanged, ?string $newStatus, mixed $newExpiry): string
+    {
+        $statusLabel = MembershipDisplay::statusLabel($newStatus);
+        $expiryLabel = MembershipDisplay::dateLabel($newExpiry);
+
+        if ($statusChanged && $expiryChanged) {
+            return "Your membership status has been updated to {$statusLabel} and your membership expiry date has been updated to {$expiryLabel}.";
+        }
+
+        if ($statusChanged) {
+            return "Your membership status has been updated to {$statusLabel}.";
+        }
+
+        return "Your membership expiry date has been updated to {$expiryLabel}.";
+    }
+
+    private function createMembershipUpdateNotification(User $user, string $title, string $body, array $data): void
+    {
+        try {
+            AppNotification::create([
+                'user_id' => $user->id,
+                'type' => 'membership_updated',
+                'category' => 'membership',
+                'title' => $title,
+                'body' => $body,
+                'channel' => 'in_app',
+                'priority' => 'high',
+                'screen' => 'membership',
+                'data' => $data,
+                'dedupe_key' => 'membership_updated:' . $user->id . ':' . md5(json_encode($data)) . ':' . now()->format('YmdHi'),
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+        } catch (Throwable $throwable) {
+            Log::error('admin.users.membership_update_notification_failed', [
+                'user_id' => $user->id,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+    }
+
+    private function sendMembershipUpdateEmail(User $user, ?string $oldStatus, ?string $newStatus, mixed $oldExpiry, mixed $newExpiry): void
+    {
+        if (blank($user->email)) {
+            Log::info('admin.users.membership_update_email_missing', ['user_id' => $user->id]);
+            return;
+        }
+
+        try {
+            Mail::to($user->email)->send(new MembershipUpdatedMail($user, $oldStatus, $newStatus, $oldExpiry, $newExpiry, now()));
+            Log::info('Membership update email sent to ' . $user->email, ['user_id' => $user->id]);
+        } catch (Throwable $throwable) {
+            Log::error('Membership email failed for user ' . $user->id . ': ' . $throwable->getMessage(), [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+    }
+
+    private function sendMembershipUpdatePush(User $user, string $title, string $body, array $data): void
+    {
+        try {
+            if (! Schema::hasTable('user_push_tokens')) {
+                Log::warning('admin.users.membership_update_push_table_missing', ['user_id' => $user->id]);
+                return;
+            }
+
+            $tokenColumn = Schema::hasColumn('user_push_tokens', 'fcm_token') ? 'fcm_token' : (Schema::hasColumn('user_push_tokens', 'token') ? 'token' : null);
+            if ($tokenColumn === null) {
+                Log::warning('admin.users.membership_update_push_token_column_missing', ['user_id' => $user->id]);
+                return;
+            }
+
+            $query = UserPushToken::query()->where('user_id', $user->id);
+            if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                $query->where('is_active', true);
+            }
+
+            $tokens = $query->whereNotNull($tokenColumn)->where($tokenColumn, '!=', '')->get();
+            if ($tokens->isEmpty()) {
+                Log::info('No active push token found for user ' . $user->id, ['user_id' => $user->id]);
+                return;
+            }
+
+            $fcmService = app(FirebaseFcmService::class);
+            foreach ($tokens as $pushToken) {
+                try {
+                    $fcmService->sendToDevice((string) $pushToken->{$tokenColumn}, $title, $body, $data, null, 1, [
+                        'user_id' => $user->id,
+                        'notification_type' => 'membership_updated',
+                    ]);
+                } catch (Throwable $throwable) {
+                    Log::warning('admin.users.membership_update_push_failed', [
+                        'user_id' => $user->id,
+                        'push_token_id' => $pushToken->id ?? null,
+                        'error' => $throwable->getMessage(),
+                    ]);
+                }
+            }
+        } catch (Throwable $throwable) {
+            Log::warning('admin.users.membership_update_push_lookup_failed', [
+                'user_id' => $user->id,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
     }
 
 

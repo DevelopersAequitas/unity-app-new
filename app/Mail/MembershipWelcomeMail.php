@@ -30,8 +30,8 @@ class MembershipWelcomeMail extends Mailable
     public function build()
     {
         $mail = $this->from(
-                config('membership_welcome.from_email'),
-                config('membership_welcome.from_name')
+                config('peers.membership_welcome_from_email'),
+                config('peers.membership_welcome_from_name')
             )
             ->subject('Welcome to Peers Global Unity')
             ->view('emails.membership.membership_welcome')
@@ -39,7 +39,7 @@ class MembershipWelcomeMail extends Mailable
                 'user' => $this->user,
             ]);
 
-        $ccEmail = trim((string) config('membership_welcome.cc_email', ''));
+        $ccEmail = trim((string) config('peers.membership_welcome_cc_email', ''));
         if ($ccEmail !== '') {
             $mail->cc($ccEmail);
         }
