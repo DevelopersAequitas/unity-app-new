@@ -3,11 +3,15 @@
 namespace App\Services\Membership;
 
 use App\Mail\MembershipWelcomeMail;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
+use App\Models\UserPushToken;
+use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -142,6 +146,8 @@ class MembershipWelcomeEmailService
                 'attachments_count' => count($attachments),
             ]);
 
+            $this->sendWelcomeNotifications($freshUser);
+
             return ['sent' => true, 'reason' => 'sent'];
         } catch (Throwable $throwable) {
             $message = Str::limit($throwable->getMessage(), 2000, '');
@@ -179,6 +185,96 @@ class MembershipWelcomeEmailService
             ]);
 
             return ['sent' => false, 'reason' => 'failed'];
+        }
+    }
+
+    private function sendWelcomeNotifications(User $user): void
+    {
+        $title = 'Welcome to Peers Global Unity';
+        $body = 'Your membership has been activated successfully. Welcome to Peers Global Unity.';
+        $data = [
+            'type' => 'membership_welcome',
+            'screen' => 'membership',
+            'membership_status' => (string) ($user->membership_status ?? ''),
+            'zoho_plan_code' => (string) ($user->zoho_plan_code ?? ''),
+        ];
+
+        $this->createWelcomeNotification($user, $title, $body, $data);
+        $this->sendWelcomePush($user, $title, $body, $data);
+    }
+
+    private function createWelcomeNotification(User $user, string $title, string $body, array $data): void
+    {
+        try {
+            AppNotification::create([
+                'user_id' => $user->id,
+                'type' => 'membership_welcome',
+                'category' => 'membership',
+                'title' => $title,
+                'body' => $body,
+                'channel' => 'in_app',
+                'priority' => 'high',
+                'screen' => 'membership',
+                'data' => $data,
+                'dedupe_key' => 'membership_welcome:' . $user->id . ':' . now()->format('YmdHi'),
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+        } catch (Throwable $throwable) {
+            Log::warning('membership.welcome_email.app_notification_failed', [
+                'user_id' => (string) $user->id,
+                'error' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
+            ]);
+        }
+    }
+
+    private function sendWelcomePush(User $user, string $title, string $body, array $data): void
+    {
+        try {
+            if (! Schema::hasTable('user_push_tokens')) {
+                Log::warning('membership.welcome_email.push_table_missing', ['user_id' => (string) $user->id]);
+                return;
+            }
+
+            $tokenColumn = Schema::hasColumn('user_push_tokens', 'fcm_token') ? 'fcm_token' : (Schema::hasColumn('user_push_tokens', 'token') ? 'token' : null);
+            if ($tokenColumn === null) {
+                Log::warning('membership.welcome_email.push_token_column_missing', ['user_id' => (string) $user->id]);
+                return;
+            }
+
+            $query = UserPushToken::query()->where('user_id', $user->id);
+            if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                $query->where('is_active', true);
+            }
+
+            $tokens = $query->whereNotNull($tokenColumn)->where($tokenColumn, '!=', '')->get();
+            if ($tokens->isEmpty()) {
+                Log::info('No active push token found for user ' . $user->id, ['user_id' => (string) $user->id]);
+                return;
+            }
+
+            $fcmService = app(FirebaseFcmService::class);
+            foreach ($tokens as $pushToken) {
+                try {
+                    $fcmService->sendToDevice((string) $pushToken->{$tokenColumn}, $title, $body, $data, null, 1, [
+                        'user_id' => $user->id,
+                        'notification_type' => 'membership_welcome',
+                    ]);
+                } catch (Throwable $throwable) {
+                    Log::warning('membership.welcome_email.push_failed', [
+                        'user_id' => (string) $user->id,
+                        'push_token_id' => $pushToken->id ?? null,
+                        'error' => $throwable->getMessage(),
+                    ]);
+                }
+            }
+        } catch (Throwable $throwable) {
+            Log::warning('membership.welcome_email.push_lookup_failed', [
+                'user_id' => (string) $user->id,
+                'error' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
+            ]);
         }
     }
 

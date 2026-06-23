@@ -45,6 +45,21 @@ class MembershipDisplay
         return $date->format('d-m-Y');
     }
 
+    public static function dateTimeLabel(mixed $value): string
+    {
+        if (blank($value)) {
+            return '—';
+        }
+
+        try {
+            $date = $value instanceof CarbonInterface ? $value : Carbon::parse($value);
+        } catch (\Throwable) {
+            return '—';
+        }
+
+        return $date->format('d-m-Y h:i A');
+    }
+
     public static function dateKey(mixed $value): ?string
     {
         if (blank($value)) {

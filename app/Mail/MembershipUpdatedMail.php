@@ -34,7 +34,7 @@ class MembershipUpdatedMail extends Mailable
                 'newMembershipStatus' => MembershipDisplay::statusLabel($this->newMembershipStatus),
                 'oldMembershipExpiry' => MembershipDisplay::dateLabel($this->oldMembershipExpiry),
                 'newMembershipExpiry' => MembershipDisplay::dateLabel($this->newMembershipExpiry),
-                'updatedAtLabel' => MembershipDisplay::dateLabel($this->updatedAt),
+                'updatedAtLabel' => MembershipDisplay::dateTimeLabel($this->updatedAt),
             ]);
 
         $attachmentPath = trim((string) config('peers.membership_update_attachment_path', ''));
