@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\Notifications\NotificationPreference;
+use App\Models\Post;
 use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Notifications\NotificationService;
@@ -143,8 +144,14 @@ class NotificationEngineController extends BaseApiController
         ]);
 
         $notifications = AppNotification::with('user')
-            ->where('reference_type', $validated['reference_type'])
-            ->where('reference_id', $validated['reference_id'])
+            ->where(function ($query) use ($validated): void {
+                $query->where(function ($referenceQuery) use ($validated): void {
+                    $referenceQuery->where('reference_type', $validated['reference_type'])
+                        ->where('reference_id', $validated['reference_id']);
+                })
+                    ->orWhere('data->post_id', $validated['reference_id'])
+                    ->orWhere('data->reference_id', $validated['reference_id']);
+            })
             ->when($validated['type'] ?? null, fn ($query, $type) => $query->where('type', $type))
             ->when($validated['user_id'] ?? null, fn ($query, $userId) => $query->where('user_id', $userId))
             ->latest()
@@ -160,8 +167,12 @@ class NotificationEngineController extends BaseApiController
                 }
 
                 $query->orWhereHas('notification', function ($notificationQuery) use ($validated): void {
-                    $notificationQuery->where('reference_type', $validated['reference_type'])
-                        ->where('reference_id', $validated['reference_id']);
+                    $notificationQuery->where(function ($referenceQuery) use ($validated): void {
+                        $referenceQuery->where('reference_type', $validated['reference_type'])
+                            ->where('reference_id', $validated['reference_id']);
+                    })
+                        ->orWhere('data->post_id', $validated['reference_id'])
+                        ->orWhere('data->reference_id', $validated['reference_id']);
                 });
             })
             ->when($validated['type'] ?? null, fn ($query, $type) => $query->whereHas('notification', fn ($notificationQuery) => $notificationQuery->where('type', $type)))
@@ -170,11 +181,20 @@ class NotificationEngineController extends BaseApiController
             ->limit(200)
             ->get();
 
+        $debug = $this->notificationCheckDebug($validated, $notifications);
+
         return $this->success([
             'reference_type' => $validated['reference_type'],
             'reference_id' => $validated['reference_id'],
             'total_notifications' => $notifications->count(),
             'total_delivery_logs' => $deliveryLogs->count(),
+            'post_found' => $debug['post_found'],
+            'post_status' => $debug['post_status'],
+            'moderation_status' => $debug['moderation_status'],
+            'post_user_id' => $debug['post_user_id'],
+            'is_post_visible' => $debug['is_post_visible'],
+            'expected_notification_trigger' => $debug['expected_notification_trigger'],
+            'reason' => $debug['reason'],
             'notifications' => $notifications->map(fn (AppNotification $notification): array => [
                 'id' => (string) $notification->id,
                 'recipient_id' => (string) $notification->user_id,
@@ -215,6 +235,13 @@ class NotificationEngineController extends BaseApiController
             'user_id' => $userId,
             'total_notifications' => $notifications->count(),
             'total_delivery_logs' => $deliveryLogs->count(),
+            'post_found' => $debug['post_found'],
+            'post_status' => $debug['post_status'],
+            'moderation_status' => $debug['moderation_status'],
+            'post_user_id' => $debug['post_user_id'],
+            'is_post_visible' => $debug['is_post_visible'],
+            'expected_notification_trigger' => $debug['expected_notification_trigger'],
+            'reason' => $debug['reason'],
             'notifications' => $notifications->map(fn (AppNotification $notification): array => [
                 'id' => (string) $notification->id,
                 'recipient_id' => (string) $notification->user_id,
@@ -241,6 +268,19 @@ class NotificationEngineController extends BaseApiController
         ], 'Notification check fetched successfully');
     }
 
+
+    public function sendPostTest(Request $request, string $postId, NotificationService $service)
+    {
+        $validated = $request->validate([
+            'force' => ['nullable', 'boolean'],
+        ]);
+
+        $post = Post::with('user')->findOrFail($postId);
+        $summary = $service->sendPostPublishedNotification($post, (bool) ($validated['force'] ?? false));
+
+        return $this->success($summary, 'Post notification test send completed.');
+    }
+
     public function preferences(Request $request)
     {
         return $this->success(NotificationPreference::firstOrCreate(['user_id' => $request->user()->id]), 'Notification preferences fetched successfully.');
@@ -265,6 +305,51 @@ class NotificationEngineController extends BaseApiController
 
         return $this->success($preference, 'Notification preferences updated successfully.');
     }
+
+    private function notificationCheckDebug(array $validated, $notifications): array
+    {
+        $post = $validated['reference_type'] === 'post'
+            ? Post::query()->withTrashed()->find($validated['reference_id'])
+            : null;
+
+        if (! $post) {
+            return [
+                'post_found' => false,
+                'post_status' => null,
+                'moderation_status' => null,
+                'post_user_id' => null,
+                'is_post_visible' => false,
+                'expected_notification_trigger' => 'none',
+                'reason' => 'Post not found',
+            ];
+        }
+
+        $status = strtolower((string) ($post->moderation_status ?? ''));
+        $isVisible = in_array($status, ['approved', 'published', 'visible'], true);
+        $existing = $notifications->isNotEmpty();
+        $recipientCount = app(NotificationService::class)->postNotificationRecipients($post)->count();
+
+        if ($existing) {
+            $reason = 'Notification already exists';
+        } elseif (! $isVisible) {
+            $reason = 'Post is pending, notification will send after approval';
+        } elseif ($recipientCount === 0) {
+            $reason = 'No eligible recipients found';
+        } else {
+            $reason = 'Notification trigger missing';
+        }
+
+        return [
+            'post_found' => true,
+            'post_status' => $status,
+            'moderation_status' => $post->moderation_status,
+            'post_user_id' => (string) $post->user_id,
+            'is_post_visible' => $isVisible,
+            'expected_notification_trigger' => $isVisible ? 'approval' : 'approval',
+            'reason' => $reason,
+        ];
+    }
+
     private function debugUserName(?User $user): string
     {
         if (! $user) {

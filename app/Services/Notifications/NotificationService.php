@@ -7,7 +7,10 @@ use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationCampaign;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\Notifications\NotificationPreference;
+use App\Models\CircleMember;
+use App\Models\Connection;
 use App\Models\Notifications\NotificationSuppressionLog;
+use App\Models\Post;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +59,164 @@ class NotificationService
 
             return $notification;
         });
+    }
+
+
+    public function sendPostPublishedNotification(Post $post, bool $force = false): array
+    {
+        $post->loadMissing('user', 'circle');
+
+        if (! $this->isPostVisibleForNotifications($post)) {
+            return [
+                'recipients_count' => 0,
+                'in_app_created' => 0,
+                'push_sent' => 0,
+                'push_failed' => 0,
+                'push_skipped' => 0,
+                'already_exists_count' => 0,
+                'reason' => 'Post is pending, notification will send after approval',
+            ];
+        }
+
+        $existingCount = AppNotification::query()
+            ->where('type', 'new_post')
+            ->where('reference_type', 'post')
+            ->where('reference_id', (string) $post->id)
+            ->count();
+
+        if ($existingCount > 0 && ! $force) {
+            return [
+                'recipients_count' => 0,
+                'in_app_created' => 0,
+                'push_sent' => 0,
+                'push_failed' => 0,
+                'push_skipped' => 0,
+                'already_exists_count' => $existingCount,
+                'reason' => 'Notification already exists',
+            ];
+        }
+
+        $author = $post->user ?: User::find($post->user_id);
+        if (! $author) {
+            return [
+                'recipients_count' => 0,
+                'in_app_created' => 0,
+                'push_sent' => 0,
+                'push_failed' => 0,
+                'push_skipped' => 0,
+                'already_exists_count' => $existingCount,
+                'reason' => 'Post author not found',
+            ];
+        }
+
+        $recipients = $this->postNotificationRecipients($post);
+        if ($recipients->isEmpty()) {
+            return [
+                'recipients_count' => 0,
+                'in_app_created' => 0,
+                'push_sent' => 0,
+                'push_failed' => 0,
+                'push_skipped' => 0,
+                'already_exists_count' => $existingCount,
+                'reason' => 'No eligible recipients found',
+            ];
+        }
+
+        $authorName = $this->displayName($author);
+        $body = $this->postPreview($post) ?: 'A new post has been published';
+        $dedupeKey = 'new_post:' . $post->id . ($force ? ':force:' . now()->timestamp : '');
+
+        $notifications = $this->sendToUsers(
+            $recipients,
+            'new_post',
+            'New post by ' . $authorName,
+            $body,
+            [
+                'post_id' => (string) $post->id,
+                'actor_id' => (string) $post->user_id,
+                'screen' => 'post_detail',
+                'tap_destination' => 'post_detail',
+                'reference_type' => 'post',
+                'reference_id' => (string) $post->id,
+            ],
+            [
+                'actor_id' => (string) $post->user_id,
+                'channel' => 'push',
+                'reference_type' => 'post',
+                'reference_id' => (string) $post->id,
+                'dedupe_key' => $dedupeKey,
+            ]
+        );
+
+        $logs = NotificationDeliveryLog::query()->whereIn('notification_id', $notifications->pluck('id'))->get();
+
+        return [
+            'recipients_count' => $recipients->count(),
+            'in_app_created' => $notifications->count(),
+            'push_sent' => $logs->where('channel', 'push')->whereIn('status', ['sent', 'delivered'])->count(),
+            'push_failed' => $logs->where('channel', 'push')->where('status', 'failed')->count(),
+            'push_skipped' => $logs->where('channel', 'push')->where('status', 'skipped')->count(),
+            'already_exists_count' => $existingCount,
+            'reason' => $notifications->isEmpty() ? 'Notification trigger missing' : 'Notification sent',
+        ];
+    }
+
+    public function isPostVisibleForNotifications(Post $post): bool
+    {
+        $status = strtolower((string) ($post->moderation_status ?? ''));
+
+        return in_array($status, ['approved', 'published', 'visible'], true);
+    }
+
+    public function postNotificationRecipients(Post $post): Collection
+    {
+        $authorId = (string) $post->user_id;
+
+        $connectionIds = Connection::query()
+            ->where('is_approved', true)
+            ->where(fn ($query) => $query->where('requester_id', $authorId)->orWhere('addressee_id', $authorId))
+            ->get()
+            ->flatMap(fn (Connection $connection) => [(string) $connection->requester_id, (string) $connection->addressee_id]);
+
+        $circleIds = CircleMember::query()
+            ->where('user_id', $authorId)
+            ->whereNull('deleted_at')
+            ->where(fn ($query) => $query->whereNull('status')->orWhereIn('status', ['active', 'approved', 'member']))
+            ->pluck('circle_id');
+
+        $circleUserIds = CircleMember::query()
+            ->whereIn('circle_id', $circleIds)
+            ->whereNull('deleted_at')
+            ->where(fn ($query) => $query->whereNull('status')->orWhereIn('status', ['active', 'approved', 'member']))
+            ->pluck('user_id');
+
+        $ids = $connectionIds
+            ->merge($circleUserIds)
+            ->filter()
+            ->unique()
+            ->reject(fn ($id) => (string) $id === $authorId)
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereIn('id', $ids)
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('status')->orWhere('status', 'active')))
+            ->get();
+    }
+
+    private function postPreview(Post $post): string
+    {
+        return \Illuminate\Support\Str::limit(trim((string) $post->content_text), 120) ?: 'A new post has been published';
+    }
+
+    private function displayName(User $user): string
+    {
+        return trim((string) ($user->display_name ?? ''))
+            ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? '')))
+            ?: (string) ($user->name ?? 'A member');
     }
 
     public function sendToUsers(Collection|array $users, string $type, string $title, string $body, array $data = [], array $options = []): Collection

@@ -8,8 +8,6 @@ use App\Http\Resources\PostResource;
 use App\Http\Resources\PostCommentResource;
 use App\Models\ActivityCreative;
 use App\Models\Circle;
-use App\Models\CircleMember;
-use App\Models\Connection;
 use App\Models\File;
 use App\Models\FileModel;
 use App\Models\P2pMeeting;
@@ -545,7 +543,7 @@ class PostController extends BaseApiController
             'is_deleted'        => false,
         ]);
 
-        $this->dispatchNewPostNotifications($notificationService, $post, $user);
+        $this->dispatchNewPostNotifications($notificationService, $post);
         $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null);
 
         return response()->json([
@@ -802,37 +800,10 @@ class PostController extends BaseApiController
         return $this->success($data);
     }
 
-    private function dispatchNewPostNotifications(NotificationService $notifications, Post $post, User $author): void
+    private function dispatchNewPostNotifications(NotificationService $notifications, Post $post): void
     {
         try {
-            $recipients = $this->newPostRecipients($post, $author);
-            if ($recipients->isEmpty()) {
-                return;
-            }
-            $media = collect($post->media ?? [])->first();
-            $preview = $this->postPreview($post);
-            $bodyPreview = $media ? ($this->displayName($author) . ' shared a new ' . (($media['type'] ?? '') === 'video' ? 'video.' : 'photo.')) : $preview;
-            $notifications->sendToUsers(
-                $recipients,
-                'new_post',
-                'New post by ' . $this->displayName($author),
-                $bodyPreview ?: 'A new post has been published',
-                [
-                    'post_id' => (string) $post->id,
-                    'actor_id' => (string) $author->id,
-                    'screen' => 'post_detail',
-                    'tap_destination' => 'post_detail',
-                    'reference_type' => 'post',
-                    'reference_id' => (string) $post->id,
-                ],
-                [
-                    'actor_id' => (string) $author->id,
-                    'channel' => 'push',
-                    'reference_type' => 'post',
-                    'reference_id' => (string) $post->id,
-                    'dedupe_key' => 'new_post:' . $post->id,
-                ]
-            );
+            $notifications->sendPostPublishedNotification($post);
         } catch (Throwable $e) {
             Log::warning('New post notification failed', ['post_id' => (string) $post->id, 'error' => $e->getMessage()]);
         }
@@ -857,25 +828,6 @@ class PostController extends BaseApiController
         } catch (Throwable $e) {
             Log::warning('Mention notification failed', ['post_id' => (string) $post->id, 'error' => $e->getMessage()]);
         }
-    }
-
-    private function newPostRecipients(Post $post, User $author): \Illuminate\Support\Collection
-    {
-        $connectionIds = Connection::query()
-            ->where('is_approved', true)
-            ->where(fn ($q) => $q->where('requester_id', $author->id)->orWhere('addressee_id', $author->id))
-            ->get()
-            ->flatMap(fn (Connection $connection) => [(string) $connection->requester_id, (string) $connection->addressee_id]);
-
-        $circleIds = CircleMember::query()->where('user_id', $author->id)->whereNull('deleted_at')->where(function ($q) { $q->whereNull('status')->orWhereIn('status', ['active', 'approved', 'member']); })->pluck('circle_id');
-        $circleUserIds = CircleMember::query()->whereIn('circle_id', $circleIds)->whereNull('deleted_at')->where(function ($q) { $q->whereNull('status')->orWhereIn('status', ['active', 'approved', 'member']); })->pluck('user_id');
-
-        $ids = $connectionIds->merge($circleUserIds)->filter()->unique()->reject(fn ($id) => (string) $id === (string) $author->id)->values();
-        if ($ids->isEmpty()) {
-            return collect();
-        }
-
-        return User::whereIn('id', $ids)->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($q) => $q->where(function ($query) { $query->whereNull('status')->orWhere('status', 'active'); }))->get();
     }
 
     private function mentionedUsers(string $text): \Illuminate\Support\Collection
