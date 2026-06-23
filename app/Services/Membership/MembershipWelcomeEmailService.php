@@ -109,6 +109,8 @@ class MembershipWelcomeEmailService
                 'mail_port' => (string) config('mail.mailers.smtp.port'),
                 'mailer' => (string) config('mail.default'),
                 'queue_connection' => (string) config('queue.default'),
+                'attachment_1_exists' => $this->configuredAttachmentExists('membership_welcome_attachment_path_1'),
+                'attachment_2_exists' => $this->configuredAttachmentExists('membership_welcome_attachment_path_2'),
                 'subject' => 'Welcome to Peers Global Unity',
                 'attachments_count' => count($attachments),
             ]);
@@ -292,6 +294,18 @@ class MembershipWelcomeEmailService
             || filled($user->zoho_plan_code)
             || filled($user->membership_starts_at)
             || filled($user->membership_ends_at);
+    }
+
+    private function configuredAttachmentExists(string $configKey): bool
+    {
+        $path = trim((string) config('peers.' . $configKey, ''));
+        if ($path === '') {
+            return false;
+        }
+
+        $resolvedPath = $this->resolveAttachmentPath($path);
+
+        return is_file($resolvedPath);
     }
 
     private function resolveAttachments(): array
