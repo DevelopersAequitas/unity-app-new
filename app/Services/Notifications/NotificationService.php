@@ -187,7 +187,7 @@ class NotificationService
         return User::query()
             ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('deleted_at'))
             ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($query) => $query->whereNull('gdpr_deleted_at'))
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('status')->orWhereIn('status', ['active', 'approved'])))
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('status')->orWhereRaw("LOWER(status::text) NOT IN ('inactive', 'suspended', 'blocked', 'banned', 'deleted', 'rejected')")))
             ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'membership_status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('membership_status')->orWhere('membership_status', '!=', 'suspended')))
             ->whereDoesntHave('roles');
     }
