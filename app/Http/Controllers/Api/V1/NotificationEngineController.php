@@ -191,6 +191,10 @@ class NotificationEngineController extends BaseApiController
             'total_delivery_logs' => $deliveryLogs->count(),
             'post_found' => $debug['post_found'],
             'post_user_id' => $debug['post_user_id'],
+            'circle_id' => $debug['circle_id'],
+            'eligible_recipient_count' => $debug['eligible_recipient_count'],
+            'excluded_actor_id' => $debug['excluded_actor_id'],
+            'trigger_connected' => $debug['trigger_connected'],
             'reason' => $debug['reason'],
             'notifications' => $notifications->map(fn (AppNotification $notification): array => [
                 'id' => (string) $notification->id,
@@ -246,6 +250,10 @@ class NotificationEngineController extends BaseApiController
             'total_delivery_logs' => $deliveryLogs->count(),
             'post_found' => $debug['post_found'],
             'post_user_id' => $debug['post_user_id'],
+            'circle_id' => $debug['circle_id'],
+            'eligible_recipient_count' => $debug['eligible_recipient_count'],
+            'excluded_actor_id' => $debug['excluded_actor_id'],
+            'trigger_connected' => $debug['trigger_connected'],
             'reason' => $debug['reason'],
             'notifications' => $notifications->map(fn (AppNotification $notification): array => [
                 'id' => (string) $notification->id,
@@ -321,22 +329,26 @@ class NotificationEngineController extends BaseApiController
             return [
                 'post_found' => false,
                 'post_user_id' => null,
+                'circle_id' => null,
+                'eligible_recipient_count' => 0,
+                'excluded_actor_id' => null,
+                'trigger_connected' => false,
                 'reason' => 'Post not found',
             ];
         }
 
-        if ($notifications->isNotEmpty()) {
-            $reason = 'Notifications found for this post';
-        } else {
-            $recipientCount = app(NotificationService::class)->postNotificationRecipients($post)->count();
-            $reason = $recipientCount === 0
-                ? 'No notifications found. Post notification trigger may not be connected or no eligible recipients found.'
-                : 'No notifications found. Post notification trigger may not be connected or no eligible recipients found.';
-        }
+        $recipientCount = app(NotificationService::class)->postNotificationRecipients($post)->count();
+        $reason = $notifications->isNotEmpty()
+            ? 'Notifications found for this post'
+            : 'No notifications found. Post notification trigger may not be connected or no eligible recipients found.';
 
         return [
             'post_found' => true,
             'post_user_id' => (string) $post->user_id,
+            'circle_id' => $post->circle_id ? (string) $post->circle_id : null,
+            'eligible_recipient_count' => $recipientCount,
+            'excluded_actor_id' => (string) $post->user_id,
+            'trigger_connected' => true,
             'reason' => $reason,
         ];
     }

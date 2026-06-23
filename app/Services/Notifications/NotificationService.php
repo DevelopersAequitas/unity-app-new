@@ -8,7 +8,6 @@ use App\Models\Notifications\NotificationCampaign;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\Notifications\NotificationPreference;
 use App\Models\CircleMember;
-use App\Models\Connection;
 use App\Models\Notifications\NotificationSuppressionLog;
 use App\Models\Post;
 use App\Models\User;
@@ -153,39 +152,44 @@ class NotificationService
     {
         $authorId = (string) $post->user_id;
 
-        $connectionIds = Connection::query()
-            ->where('is_approved', true)
-            ->where(fn ($query) => $query->where('requester_id', $authorId)->orWhere('addressee_id', $authorId))
-            ->get()
-            ->flatMap(fn (Connection $connection) => [(string) $connection->requester_id, (string) $connection->addressee_id]);
+        if (! empty($post->circle_id)) {
+            $ids = CircleMember::query()
+                ->where('circle_id', $post->circle_id)
+                ->whereNull('deleted_at')
+                ->where(fn ($query) => $query->whereNull('status')->orWhereIn('status', CircleMember::activeStatuses()))
+                ->pluck('user_id')
+                ->filter()
+                ->unique()
+                ->reject(fn ($id) => (string) $id === $authorId)
+                ->values();
 
-        $circleIds = CircleMember::query()
-            ->where('user_id', $authorId)
-            ->whereNull('deleted_at')
-            ->where(fn ($query) => $query->whereNull('status')->orWhereIn('status', CircleMember::activeStatuses()))
-            ->pluck('circle_id');
+            return $this->activePeerUsersByIds($ids);
+        }
 
-        $circleUserIds = CircleMember::query()
-            ->whereIn('circle_id', $circleIds)
-            ->whereNull('deleted_at')
-            ->where(fn ($query) => $query->whereNull('status')->orWhereIn('status', CircleMember::activeStatuses()))
-            ->pluck('user_id');
+        return $this->activePeerUsersQuery()
+            ->where('id', '!=', $authorId)
+            ->get();
+    }
 
-        $ids = $connectionIds
-            ->merge($circleUserIds)
-            ->filter()
-            ->unique()
-            ->reject(fn ($id) => (string) $id === $authorId)
-            ->values();
-
+    private function activePeerUsersByIds(Collection $ids): Collection
+    {
         if ($ids->isEmpty()) {
             return collect();
         }
 
-        return User::query()
+        return $this->activePeerUsersQuery()
             ->whereIn('id', $ids)
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('status')->orWhere('status', 'active')))
             ->get();
+    }
+
+    private function activePeerUsersQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return User::query()
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('deleted_at'))
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($query) => $query->whereNull('gdpr_deleted_at'))
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('status')->orWhereIn('status', ['active', 'approved'])))
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'membership_status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('membership_status')->orWhere('membership_status', '!=', 'suspended')))
+            ->whereDoesntHave('roles');
     }
 
     private function postPreview(Post $post): string
