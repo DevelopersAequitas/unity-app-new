@@ -136,100 +136,57 @@ class NotificationEngineController extends BaseApiController
 
     public function check(Request $request)
     {
-        try {
         $validated = $request->validate([
             'reference_type' => ['required', 'string', 'max:100'],
             'reference_id' => ['required', 'string', 'max:255'],
             'type' => ['nullable', 'string', 'max:100'],
             'user_id' => ['nullable', 'uuid'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $notifications = AppNotification::with('user')
-            ->where(function ($query) use ($validated): void {
-                $query->where(function ($referenceQuery) use ($validated): void {
-                    $referenceQuery->where('reference_type', $validated['reference_type'])
-                        ->where('reference_id', $validated['reference_id']);
-                })
-                    ->orWhere('data->post_id', $validated['reference_id'])
-                    ->orWhere('data->reference_id', $validated['reference_id']);
-            })
+        $perPage = min(max((int) ($validated['per_page'] ?? 100), 1), 100);
+        $notificationQuery = $this->referenceNotificationQuery($validated)
             ->when($validated['type'] ?? null, fn ($query, $type) => $query->where('type', $type))
+            ->when($validated['user_id'] ?? null, fn ($query, $userId) => $query->where('user_id', $userId));
+
+        $totalNotifications = (clone $notificationQuery)->count();
+        $totalDeliveryLogs = NotificationDeliveryLog::query()
+            ->whereHas('notification', fn ($query) => $this->applyReferenceFilters($query, $validated))
+            ->when($validated['type'] ?? null, fn ($query, $type) => $query->whereHas('notification', fn ($notificationQuery) => $notificationQuery->where('type', $type)))
             ->when($validated['user_id'] ?? null, fn ($query, $userId) => $query->where('user_id', $userId))
-            ->latest()
-            ->limit(100)
-            ->get();
+            ->count();
 
-        $notificationIds = $notifications->pluck('id');
-
+        $notifications = (clone $notificationQuery)->with('user')->latest()->limit($perPage)->get();
         $deliveryLogs = NotificationDeliveryLog::with(['notification', 'user'])
-            ->where(function ($query) use ($notificationIds, $validated): void {
-                if ($notificationIds->isNotEmpty()) {
-                    $query->whereIn('notification_id', $notificationIds);
-                }
-
-                $query->orWhereHas('notification', function ($notificationQuery) use ($validated): void {
-                    $notificationQuery->where(function ($referenceQuery) use ($validated): void {
-                        $referenceQuery->where('reference_type', $validated['reference_type'])
-                            ->where('reference_id', $validated['reference_id']);
-                    })
-                        ->orWhere('data->post_id', $validated['reference_id'])
-                        ->orWhere('data->reference_id', $validated['reference_id']);
-                });
-            })
+            ->whereHas('notification', fn ($query) => $this->applyReferenceFilters($query, $validated))
             ->when($validated['type'] ?? null, fn ($query, $type) => $query->whereHas('notification', fn ($notificationQuery) => $notificationQuery->where('type', $type)))
             ->when($validated['user_id'] ?? null, fn ($query, $userId) => $query->where('user_id', $userId))
             ->latest()
-            ->limit(200)
+            ->limit($perPage)
             ->get();
 
-        $debug = $this->notificationCheckDebug($validated, $notifications);
+        $debug = $this->notificationCheckDebug($validated, $totalNotifications);
 
         return $this->success([
             'reference_type' => $validated['reference_type'],
             'reference_id' => $validated['reference_id'],
-            'total_notifications' => $notifications->count(),
-            'total_delivery_logs' => $deliveryLogs->count(),
             'post_found' => $debug['post_found'],
             'post_user_id' => $debug['post_user_id'],
             'circle_id' => $debug['circle_id'],
             'eligible_recipient_count' => $debug['eligible_recipient_count'],
             'excluded_actor_id' => $debug['excluded_actor_id'],
+            'expected_recipient_count' => $debug['expected_recipient_count'],
+            'total_notifications_in_db' => $totalNotifications,
+            'total_delivery_logs_in_db' => $totalDeliveryLogs,
+            'displayed_notifications_count' => $notifications->count(),
+            'displayed_delivery_logs_count' => $deliveryLogs->count(),
+            'is_paginated' => $totalNotifications > $perPage || $totalDeliveryLogs > $perPage,
+            'per_page' => $perPage,
             'trigger_connected' => $debug['trigger_connected'],
             'reason' => $debug['reason'],
-            'notifications' => $notifications->map(fn (AppNotification $notification): array => [
-                'id' => (string) $notification->id,
-                'recipient_id' => (string) $notification->user_id,
-                'recipient_name' => $this->debugUserName($notification->user),
-                'actor_id' => (string) data_get($notification->data, 'actor_id', ''),
-                'type' => $notification->type,
-                'title' => $notification->title,
-                'body' => $notification->body,
-                'read_at' => $notification->read_at,
-                'clicked_at' => $notification->clicked_at,
-                'created_at' => $notification->created_at,
-            ])->values(),
-            'delivery_logs' => $deliveryLogs->map(fn (NotificationDeliveryLog $log): array => [
-                'notification_id' => (string) $log->notification_id,
-                'recipient_id' => (string) $log->user_id,
-                'channel' => $log->channel,
-                'provider' => $log->provider,
-                'status' => $log->status,
-                'error_message' => $log->error_message,
-                'created_at' => $log->created_at,
-            ])->values(),
+            'notifications' => $notifications->map(fn (AppNotification $notification): array => $this->notificationDebugPayload($notification))->values(),
+            'delivery_logs' => $deliveryLogs->map(fn (NotificationDeliveryLog $log): array => $this->deliveryLogDebugPayload($log))->values(),
         ], 'Notification check fetched successfully');
-            } catch (\Throwable $throwable) {
-            report($throwable);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Unable to check notifications',
-                'data' => null,
-                'meta' => [
-                    'error' => config('app.debug') ? $throwable->getMessage() : 'Unable to check notifications right now.',
-                ],
-            ], 500);
-        }
     }
 
     public function checkPost(Request $request, string $postId)
@@ -239,48 +196,116 @@ class NotificationEngineController extends BaseApiController
         return $this->check($request);
     }
 
+    public function checkUserForReference(Request $request)
+    {
+        $validated = $request->validate([
+            'reference_type' => ['required', 'string', 'max:100'],
+            'reference_id' => ['required', 'string', 'max:255'],
+            'user_id' => ['required', 'uuid'],
+        ]);
+
+        $user = User::findOrFail($validated['user_id']);
+        $notification = $this->referenceNotificationQuery($validated)
+            ->where('user_id', $user->id)
+            ->latest()
+            ->first();
+        $logs = $notification
+            ? NotificationDeliveryLog::where('notification_id', $notification->id)->latest()->get()
+            : collect();
+        $pushLog = $logs->firstWhere('channel', 'push');
+        $activeTokenCount = $this->activePushTokenQuery($user->id)->count();
+
+        $reason = 'Notification and delivery state fetched';
+        if (! $notification) {
+            $reason = 'No in-app notification found for this user and reference.';
+        } elseif ($activeTokenCount > 0 && ! $pushLog) {
+            $reason = 'Active token exists but push send was not attempted. Fix token selection or push dispatch logic.';
+        } elseif ($pushLog && $pushLog->status === 'sent') {
+            $reason = 'Push sent successfully';
+        } elseif ($pushLog && $pushLog->status === 'skipped') {
+            $reason = $pushLog->error_message ?: 'Push skipped';
+        } elseif ($pushLog && $pushLog->status === 'failed') {
+            $reason = $pushLog->error_message ?: 'Push failed';
+        }
+
+        return $this->success([
+            'post_id' => $validated['reference_type'] === 'post' ? $validated['reference_id'] : null,
+            'reference_type' => $validated['reference_type'],
+            'reference_id' => $validated['reference_id'],
+            'user_id' => (string) $user->id,
+            'user_name' => $this->debugUserName($user),
+            'user_has_active_token' => $activeTokenCount > 0,
+            'active_token_count' => $activeTokenCount,
+            'notification_found' => (bool) $notification,
+            'notification_id' => $notification ? (string) $notification->id : null,
+            'in_app_status' => $logs->firstWhere('channel', 'in_app')?->status,
+            'push_status' => $pushLog?->status,
+            'push_error' => $pushLog?->error_message,
+            'token_used' => (bool) $pushLog,
+            'latest_push_response' => $pushLog?->response_payload,
+            'reason' => $reason,
+        ], 'User notification check fetched successfully');
+    }
+
+    public function postSummary(string $postId, NotificationService $service)
+    {
+        $post = Post::query()->withTrashed()->findOrFail($postId);
+        $eligibleIds = $service->postNotificationRecipients($post)->pluck('id')->map(fn ($id) => (string) $id)->values();
+        $notifications = AppNotification::query()
+            ->where('type', 'new_post')
+            ->where('reference_type', 'post')
+            ->where('reference_id', (string) $post->id)
+            ->get();
+        $notificationIds = $notifications->pluck('id');
+        $notifiedIds = $notifications->pluck('user_id')->map(fn ($id) => (string) $id)->unique()->values();
+        $logs = NotificationDeliveryLog::query()->whereIn('notification_id', $notificationIds)->get();
+        $missingIds = $eligibleIds->diff($notifiedIds)->values();
+        $failedUserIds = $logs->where('channel', 'push')->where('status', 'failed')->pluck('user_id')->map(fn ($id) => (string) $id)->unique()->values();
+        $activeTokenUserIds = UserPushToken::query()
+            ->whereIn('user_id', $eligibleIds)
+            ->whereNotNull('token')
+            ->where('token', '!=', '')
+            ->whereIn('platform', ['android', 'ios'])
+            ->when(Schema::hasColumn('user_push_tokens', 'deleted_at'), fn ($query) => $query->whereNull('deleted_at'))
+            ->when(Schema::hasColumn('user_push_tokens', 'token_status'), fn ($query) => $query->where('token_status', 'active'))
+            ->when(! Schema::hasColumn('user_push_tokens', 'token_status') && Schema::hasColumn('user_push_tokens', 'is_active'), fn ($query) => $query->where('is_active', true))
+            ->pluck('user_id')
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values();
+
+        return $this->success([
+            'post_id' => (string) $post->id,
+            'eligible_recipient_count' => $eligibleIds->count(),
+            'expected_recipient_count' => $eligibleIds->count(),
+            'notification_created_count' => $notifications->count(),
+            'missing_notification_count' => $missingIds->count(),
+            'in_app_sent_count' => $logs->where('channel', 'in_app')->where('status', 'sent')->count(),
+            'push_sent_count' => $logs->where('channel', 'push')->where('status', 'sent')->count(),
+            'push_failed_count' => $logs->where('channel', 'push')->where('status', 'failed')->count(),
+            'push_skipped_count' => $logs->where('channel', 'push')->where('status', 'skipped')->count(),
+            'active_token_users_count' => $activeTokenUserIds->count(),
+            'no_token_users_count' => $eligibleIds->diff($activeTokenUserIds)->count(),
+            'missing_users' => $this->usersPreview($missingIds),
+            'failed_users' => $this->usersPreview($failedUserIds),
+        ], 'Post notification summary fetched successfully');
+    }
+
     public function checkUser(string $userId)
     {
         $notifications = AppNotification::with('user')->where('user_id', $userId)->latest()->limit(100)->get();
-        $deliveryLogs = NotificationDeliveryLog::where('user_id', $userId)->latest()->limit(200)->get();
+        $deliveryLogs = NotificationDeliveryLog::where('user_id', $userId)->latest()->limit(100)->get();
 
         return $this->success([
             'user_id' => $userId,
-            'total_notifications' => $notifications->count(),
-            'total_delivery_logs' => $deliveryLogs->count(),
-            'post_found' => $debug['post_found'],
-            'post_user_id' => $debug['post_user_id'],
-            'circle_id' => $debug['circle_id'],
-            'eligible_recipient_count' => $debug['eligible_recipient_count'],
-            'excluded_actor_id' => $debug['excluded_actor_id'],
-            'trigger_connected' => $debug['trigger_connected'],
-            'reason' => $debug['reason'],
-            'notifications' => $notifications->map(fn (AppNotification $notification): array => [
-                'id' => (string) $notification->id,
-                'recipient_id' => (string) $notification->user_id,
-                'recipient_name' => $this->debugUserName($notification->user),
-                'actor_id' => (string) data_get($notification->data, 'actor_id', ''),
-                'type' => $notification->type,
-                'title' => $notification->title,
-                'body' => $notification->body,
-                'reference_type' => $notification->reference_type,
-                'reference_id' => $notification->reference_id,
-                'read_at' => $notification->read_at,
-                'clicked_at' => $notification->clicked_at,
-                'created_at' => $notification->created_at,
-            ])->values(),
-            'delivery_logs' => $deliveryLogs->map(fn (NotificationDeliveryLog $log): array => [
-                'notification_id' => (string) $log->notification_id,
-                'recipient_id' => (string) $log->user_id,
-                'channel' => $log->channel,
-                'provider' => $log->provider,
-                'status' => $log->status,
-                'error_message' => $log->error_message,
-                'created_at' => $log->created_at,
-            ])->values(),
+            'displayed_notifications_count' => $notifications->count(),
+            'displayed_delivery_logs_count' => $deliveryLogs->count(),
+            'is_paginated' => true,
+            'per_page' => 100,
+            'notifications' => $notifications->map(fn (AppNotification $notification): array => $this->notificationDebugPayload($notification))->values(),
+            'delivery_logs' => $deliveryLogs->map(fn (NotificationDeliveryLog $log): array => $this->deliveryLogDebugPayload($log))->values(),
         ], 'Notification check fetched successfully');
     }
-
 
     public function sendPostTest(Request $request, string $postId, NotificationService $service)
     {
@@ -319,7 +344,7 @@ class NotificationEngineController extends BaseApiController
         return $this->success($preference, 'Notification preferences updated successfully.');
     }
 
-    private function notificationCheckDebug(array $validated, $notifications): array
+    private function notificationCheckDebug(array $validated, int $totalNotifications): array
     {
         $post = $validated['reference_type'] === 'post'
             ? Post::query()->withTrashed()->find($validated['reference_id'])
@@ -331,14 +356,15 @@ class NotificationEngineController extends BaseApiController
                 'post_user_id' => null,
                 'circle_id' => null,
                 'eligible_recipient_count' => 0,
+                'expected_recipient_count' => 0,
                 'excluded_actor_id' => null,
                 'trigger_connected' => false,
                 'reason' => 'Post not found',
             ];
         }
 
-        $recipientCount = app(NotificationService::class)->postNotificationRecipients($post)->count();
-        $reason = $notifications->isNotEmpty()
+        $recipientCount = app(NotificationService::class)->postNotificationRecipientQuery($post)->count();
+        $reason = $totalNotifications > 0
             ? 'Notifications found for this post'
             : 'No notifications found. Post notification trigger may not be connected or no eligible recipients found.';
 
@@ -347,9 +373,80 @@ class NotificationEngineController extends BaseApiController
             'post_user_id' => (string) $post->user_id,
             'circle_id' => $post->circle_id ? (string) $post->circle_id : null,
             'eligible_recipient_count' => $recipientCount,
+            'expected_recipient_count' => $recipientCount,
             'excluded_actor_id' => (string) $post->user_id,
             'trigger_connected' => true,
             'reason' => $reason,
+        ];
+    }
+
+    private function referenceNotificationQuery(array $validated)
+    {
+        return AppNotification::query()->where(fn ($query) => $this->applyReferenceFilters($query, $validated));
+    }
+
+    private function applyReferenceFilters($query, array $validated): void
+    {
+        $query->where(function ($referenceQuery) use ($validated): void {
+            $referenceQuery->where('reference_type', $validated['reference_type'])
+                ->where('reference_id', $validated['reference_id']);
+        })
+            ->orWhere('data->post_id', $validated['reference_id'])
+            ->orWhere('data->reference_id', $validated['reference_id']);
+    }
+
+    private function activePushTokenQuery(string $userId)
+    {
+        return UserPushToken::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('token')
+            ->where('token', '!=', '')
+            ->whereIn('platform', ['android', 'ios'])
+            ->when(Schema::hasColumn('user_push_tokens', 'deleted_at'), fn ($query) => $query->whereNull('deleted_at'))
+            ->when(Schema::hasColumn('user_push_tokens', 'token_status'), fn ($query) => $query->where('token_status', 'active'))
+            ->when(! Schema::hasColumn('user_push_tokens', 'token_status') && Schema::hasColumn('user_push_tokens', 'is_active'), fn ($query) => $query->where('is_active', true));
+    }
+
+    private function usersPreview($userIds): array
+    {
+        return User::query()
+            ->whereIn('id', collect($userIds)->take(50))
+            ->get(['id', 'display_name', 'first_name', 'last_name', 'name', 'email'])
+            ->map(fn (User $user): array => ['id' => (string) $user->id, 'name' => $this->debugUserName($user)])
+            ->values()
+            ->all();
+    }
+
+    private function notificationDebugPayload(AppNotification $notification): array
+    {
+        return [
+            'id' => (string) $notification->id,
+            'recipient_id' => (string) $notification->user_id,
+            'recipient_name' => $this->debugUserName($notification->user),
+            'actor_id' => (string) data_get($notification->data, 'actor_id', ''),
+            'type' => $notification->type,
+            'title' => $notification->title,
+            'body' => $notification->body,
+            'reference_type' => $notification->reference_type,
+            'reference_id' => $notification->reference_id,
+            'status' => $notification->status,
+            'read_at' => $notification->read_at,
+            'clicked_at' => $notification->clicked_at,
+            'created_at' => $notification->created_at,
+        ];
+    }
+
+    private function deliveryLogDebugPayload(NotificationDeliveryLog $log): array
+    {
+        return [
+            'notification_id' => (string) $log->notification_id,
+            'recipient_id' => (string) $log->user_id,
+            'channel' => $log->channel,
+            'provider' => $log->provider,
+            'status' => $log->status,
+            'error_message' => $log->error_message,
+            'response_payload' => $log->response_payload,
+            'created_at' => $log->created_at,
         ];
     }
 

@@ -7,6 +7,7 @@ use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class FcmService
@@ -56,7 +57,26 @@ class FcmService
 
     public function sendToUser(User $user, string $title, string $body, array $data, ?AppNotification $notification = null): array
     {
-        $tokens = $user->pushTokens()->where('is_active', true)->get();
+        $tokenQuery = $user->pushTokens()
+            ->whereNotNull('token')
+            ->where('token', '!=', '')
+            ->whereIn('platform', ['android', 'ios']);
+
+        if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+            $tokenQuery->whereNull('deleted_at');
+        }
+
+        if (Schema::hasColumn('user_push_tokens', 'token_status')) {
+            $tokenQuery->where('token_status', 'active');
+        } elseif (Schema::hasColumn('user_push_tokens', 'is_active')) {
+            $tokenQuery->where('is_active', true);
+        }
+
+        $tokens = $tokenQuery
+            ->orderByRaw('COALESCE(last_seen_at, last_used_at, updated_at, created_at) DESC')
+            ->get()
+            ->unique(fn (UserPushToken $token) => $token->device_id ?: $token->token)
+            ->values();
 
         if ($tokens->isEmpty()) {
             if ($notification) {
