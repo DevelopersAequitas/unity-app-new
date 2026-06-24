@@ -45,7 +45,7 @@ class EventService
 
     public function create(array $data, User $actor): Event
     {
-        return DB::transaction(function () use ($data, $actor): Event {
+        $event = DB::transaction(function () use ($data, $actor): Event {
             $circleIds = $this->extractCircleIds($data);
             $data = $this->filterEventColumns($this->normalize($data, $actor));
             $event = Event::query()->create($data);
@@ -54,6 +54,12 @@ class EventService
 
             return $event->load(['circle', 'circles', 'occurrences']);
         });
+
+        // afterResponse() runs the job immediately after the HTTP response is sent.
+        // This means: no queue worker needed, no blocking the API response.
+        \App\Jobs\SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
+
+        return $event;
     }
 
     public function update(Event $event, array $data): Event

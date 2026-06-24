@@ -17,10 +17,19 @@ class FcmService
     {
     }
 
-    public function sendToToken(UserPushToken|string $token, string $title, string $body, array $data, ?AppNotification $notification = null): array
+    public function sendToToken(UserPushToken|string $token, string $title, string $body, array $data, ?AppNotification $notification = null, ?string $imageUrl = null): array
     {
         $pushToken = $token instanceof UserPushToken ? $token : null;
         $tokenValue = $pushToken?->token ?: (string) $token;
+
+        // Resolve image URL from data payload if not explicitly provided
+        if ($imageUrl === null) {
+            $imageUrl = $data['image_url'] ?? $data['event_banner'] ?? null;
+            if (!is_string($imageUrl) || trim($imageUrl) === '') {
+                $imageUrl = null;
+            }
+        }
+
         $tokenRequestPayload = [
             'token_id' => $pushToken ? (string) $pushToken->id : null,
             'token_preview' => Str::limit($tokenValue, 18, '...'),
@@ -75,10 +84,10 @@ class FcmService
             'push_token_id' => $pushToken?->id,
             'device_id' => $pushToken?->device_id,
             'platform' => $pushToken?->platform,
-        ]);
+        ], $imageUrl);
 
         if (! ($result['success'] ?? false) && $this->isInvalidTokenError((string) ($result['error'] ?? ''))) {
-            $this->deactivateInvalidToken($tokenValue);
+            $this->deactivateInvalidToken($tokenValue, (string) ($result['error'] ?? ''));
             $result['error'] = $this->friendlyError((string) ($result['error'] ?? 'Invalid Firebase token'));
         }
 
@@ -144,7 +153,7 @@ class FcmService
     public function activeTokensForUser(string $userId): Collection
     {
         $query = UserPushToken::query()
-            ->where('user_id', $userId)
+            ->where(UserPushToken::getUserIdColumn(), $userId)
             ->whereNotNull('token')
             ->where('token', '!=', '');
 
@@ -183,7 +192,7 @@ class FcmService
             ->values();
     }
 
-    public function deactivateInvalidToken(string $token): void
+    public function deactivateInvalidToken(string $token, ?string $reason = null): void
     {
         $updates = [];
 
@@ -197,6 +206,14 @@ class FcmService
 
         if (Schema::hasColumn('user_push_tokens', 'token_status')) {
             $updates['token_status'] = 'deactivated';
+        }
+
+        if (Schema::hasColumn('user_push_tokens', 'failed_at')) {
+            $updates['failed_at'] = now();
+        }
+
+        if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
+            $updates['failure_reason'] = $reason ?: 'Invalid Firebase token';
         }
 
         if ($updates !== []) {
@@ -230,6 +247,11 @@ class FcmService
             return false;
         }
 
-        return str_contains($error, 'invalid') || str_contains($error, 'unregistered') || str_contains($error, 'not registered') || str_contains($error, 'registration-token-not-registered');
+        return str_contains($error, 'invalid')
+            || str_contains($error, 'unregistered')
+            || str_contains($error, 'not registered')
+            || str_contains($error, 'registration-token-not-registered')
+            || str_contains($error, 'not found')
+            || str_contains($error, 'invalid-argument');
     }
 }
