@@ -47,6 +47,7 @@ class MembershipWelcomeMail extends Mailable
     public function build()
     {
         $mail = $this->subject('Welcome to Peers Global Unity')
+        $mail = $this->subject('Welcome to your Peers Unity Membership')
             ->view('emails.membership.membership_welcome')
             ->with([
                 'user' => $this->user,

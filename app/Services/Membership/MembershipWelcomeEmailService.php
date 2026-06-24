@@ -141,6 +141,7 @@ class MembershipWelcomeEmailService
                 'related_id' => (string) $freshUser->id,
                 'payload' => [
                     'flow' => 'membership_activation',
+                    'flow' => 'zoho_membership_activation',
                     'membership_status' => (string) ($freshUser->membership_status ?? ''),
                     'plan_code' => $this->planCodeAtSend($freshUser),
                     'cc_email_configured' => $ccEmail !== '',
@@ -176,6 +177,7 @@ class MembershipWelcomeEmailService
                 'related_id' => (string) $freshUser->id,
                 'payload' => [
                     'flow' => 'membership_activation',
+                    'flow' => 'zoho_membership_activation',
                     'membership_status' => (string) ($freshUser->membership_status ?? ''),
                     'plan_code' => $this->planCodeAtSend($freshUser),
                     'cc_email_configured' => $ccEmail !== '',
