@@ -10,13 +10,15 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\Admin\AdminAuditService;
 use App\Services\Admin\AdminScopeService;
+use App\Services\Membership\MembershipStatusNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class UserManagementController extends BaseApiController
 {
-    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit)
+    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit, private readonly MembershipStatusNotificationService $membershipStatusNotifications)
     {
     }
 
@@ -62,9 +64,18 @@ class UserManagementController extends BaseApiController
         ]);
 
         $old = $target->only(array_keys($validated));
+        $oldMembershipStatus = (string) ($target->membership_status ?? '');
         $target->fill($validated)->save();
 
         $this->audit->log($request->user(), 'admin.user.update', 'users', $target->id, $old, $validated, $request);
+
+        if (array_key_exists('membership_status', $validated) && $oldMembershipStatus !== (string) $target->membership_status) {
+            try {
+                $this->membershipStatusNotifications->sendIfEligible($target, $oldMembershipStatus, (string) $target->membership_status);
+            } catch (Throwable $throwable) {
+                report($throwable);
+            }
+        }
 
         return $this->success($target->fresh());
     }
