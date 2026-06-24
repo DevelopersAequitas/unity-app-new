@@ -3,11 +3,13 @@
 namespace App\Services\Membership;
 
 use App\Mail\MembershipWelcomeMail;
+use App\Models\File;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -162,10 +164,12 @@ class MembershipWelcomeEmailService
     {
         $attachmentConfigs = [
             [
+                'file_id' => (string) config('membership_welcome.attachment_1_file_id', ''),
                 'path' => (string) config('membership_welcome.attachment_1_path', ''),
                 'name' => (string) config('membership_welcome.attachment_1_name', ''),
             ],
             [
+                'file_id' => (string) config('membership_welcome.attachment_2_file_id', ''),
                 'path' => (string) config('membership_welcome.attachment_2_path', ''),
                 'name' => (string) config('membership_welcome.attachment_2_name', ''),
             ],
@@ -174,32 +178,126 @@ class MembershipWelcomeEmailService
         $attachments = [];
 
         foreach ($attachmentConfigs as $index => $attachmentConfig) {
-            $path = trim((string) Arr::get($attachmentConfig, 'path', ''));
-            $name = trim((string) Arr::get($attachmentConfig, 'name', ''));
+            $slot = $index + 1;
+            $fileId = trim((string) Arr::get($attachmentConfig, 'file_id', ''));
 
-            if ($path === '') {
-                Log::warning('membership.welcome_email.attachment_missing_path', [
-                    'slot' => $index + 1,
-                ]);
+            if ($fileId !== '') {
+                $resolvedUploadedFile = $this->resolveUploadedFileAttachment($fileId, $slot);
 
-                continue;
-            }
-
-            if (! is_file($path)) {
-                Log::warning('membership.welcome_email.attachment_not_found', [
-                    'slot' => $index + 1,
-                    'path' => $path,
-                ]);
+                if ($resolvedUploadedFile !== null) {
+                    $attachments[] = $resolvedUploadedFile;
+                }
 
                 continue;
             }
 
-            $attachments[] = [
-                'path' => $path,
-                'name' => $name !== '' ? $name : basename($path),
-            ];
+            $resolvedPath = $this->resolveLegacyPathAttachment($attachmentConfig, $slot);
+
+            if ($resolvedPath !== null) {
+                $attachments[] = $resolvedPath;
+            }
+        }
+
+        if (count($attachments) === 0) {
+            Log::warning('membership.welcome_email.attachments_unavailable', [
+                'configured_slots' => count($attachmentConfigs),
+            ]);
+        } elseif (count($attachments) < count($attachmentConfigs)) {
+            Log::warning('membership.welcome_email.attachments_partially_unavailable', [
+                'loaded_count' => count($attachments),
+                'configured_slots' => count($attachmentConfigs),
+            ]);
         }
 
         return $attachments;
+    }
+
+    private function resolveUploadedFileAttachment(string $fileId, int $slot): ?array
+    {
+        $file = File::query()->find($fileId);
+
+        if (! $file) {
+            Log::warning('membership.welcome_email.attachment_file_record_not_found', [
+                'slot' => $slot,
+                'file_id' => $fileId,
+            ]);
+
+            return null;
+        }
+
+        $disk = config('filesystems.default', 'public');
+        $storagePath = trim((string) ($file->s3_key ?? ''));
+
+        if ($storagePath === '') {
+            Log::warning('membership.welcome_email.attachment_file_missing_storage_key', [
+                'slot' => $slot,
+                'file_id' => $fileId,
+            ]);
+
+            return null;
+        }
+
+        if (! Storage::disk($disk)->exists($storagePath)) {
+            if (! $file->is_orphaned) {
+                $file->is_orphaned = true;
+                $file->save();
+            }
+
+            Log::warning('membership.welcome_email.attachment_file_missing_storage_object', [
+                'slot' => $slot,
+                'file_id' => $fileId,
+                'disk' => $disk,
+                'storage_path' => $storagePath,
+            ]);
+
+            return null;
+        }
+
+        Log::info('membership.welcome_email.attachment_loaded', [
+            'slot' => $slot,
+            'file_id' => $fileId,
+            'disk' => $disk,
+            'storage_path' => $storagePath,
+        ]);
+
+        return [
+            'disk' => $disk,
+            'storage_path' => $storagePath,
+            'name' => basename($storagePath),
+            'mime' => $file->mime_type ?: null,
+        ];
+    }
+
+    private function resolveLegacyPathAttachment(array $attachmentConfig, int $slot): ?array
+    {
+        $path = trim((string) Arr::get($attachmentConfig, 'path', ''));
+        $name = trim((string) Arr::get($attachmentConfig, 'name', ''));
+
+        if ($path === '') {
+            Log::warning('membership.welcome_email.attachment_missing_path', [
+                'slot' => $slot,
+            ]);
+
+            return null;
+        }
+
+        if (! is_file($path)) {
+            Log::warning('membership.welcome_email.attachment_not_found', [
+                'slot' => $slot,
+                'path' => $path,
+            ]);
+
+            return null;
+        }
+
+        Log::info('membership.welcome_email.attachment_loaded', [
+            'slot' => $slot,
+            'path' => $path,
+        ]);
+
+        return [
+            'path' => $path,
+            'name' => $name !== '' ? $name : basename($path),
+        ];
     }
 }
