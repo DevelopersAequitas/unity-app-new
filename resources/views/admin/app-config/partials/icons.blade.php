@@ -2,23 +2,27 @@
     @csrf
     @method('PUT')
 
-    <div class="icons-action-bar toolbar d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-        <div class="flex-grow-1 min-w-0">
-            <h2 class="h5 mb-1">Icon Configuration</h2>
-            <p class="text-muted small mb-0">Manage app, feature, navigation, and drawer icon metadata returned by the app configuration API.</p>
-        </div>
-        <div class="icons-actions d-flex flex-wrap gap-2 align-items-center">
-            <div class="icons-search input-group input-group-sm">
-                <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-                <input type="search" class="form-control js-icon-search" placeholder="Search icons by name, key, group, feature, fallback..." aria-label="Search icons">
+    <div class="icons-header-card ac-card card mb-3">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                <div class="flex-grow-1 min-w-0">
+                    <h2 class="h5 mb-1">Icon Configuration</h2>
+                    <p class="text-muted small mb-0">Manage app, feature, navigation, and drawer icon metadata returned by the app configuration API.</p>
+                </div>
+                <button class="btn btn-success icons-save-button"><i class="bi bi-save me-1"></i>Save Icons</button>
             </div>
-            <span class="badge bg-light text-dark border js-icon-count" data-total-icons="{{ $icons->count() }}">{{ $icons->count() }} icons</span>
-            <button class="btn btn-success"><i class="bi bi-save me-1"></i>Save Icons</button>
+            <div class="icons-toolbar d-flex flex-wrap gap-2 align-items-center">
+                <div class="icons-search input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="search" class="form-control js-icon-search" placeholder="Search icons by name, key, group, feature, fallback..." aria-label="Search icons">
+                </div>
+                <span class="badge bg-light text-dark border js-icon-count" data-total-icons="{{ $icons->count() }}">{{ $icons->count() }} icons</span>
+            </div>
         </div>
     </div>
 
     @if($icons->count())
-        <div class="accordion icons-accordion" id="iconsAccordion">
+        <div class="accordion icons-accordion app-config-icons-section" id="iconsAccordion">
             @foreach($icons->groupBy(fn ($icon) => $icon->icon_group ?: 'custom_assets') as $group => $groupIcons)
                 @php($groupId = 'icons-group-' . \Illuminate\Support\Str::slug($group ?: 'custom-assets'))
                 <div class="accordion-item ac-card mb-3 js-icon-group" data-group="{{ $group }}">
@@ -120,7 +124,136 @@
 
 @push('styles')
 <style>
-.icons-action-bar{position:sticky;top:72px;z-index:30;background:#fff}.icons-actions{min-width:0}.icons-search{min-width:280px;width:min(480px,42vw)}.icons-accordion .accordion-button{padding:.8rem 1rem}.icon-table-wrap{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}.icon-config-table{min-width:1420px;table-layout:fixed}.icon-config-table thead th{position:sticky;top:0;z-index:5;padding:.55rem .65rem}.icon-config-table td{padding:.45rem .65rem}.icon-config-table th:nth-child(1),.icon-config-table td:nth-child(1){width:260px}.icon-config-table th:nth-child(2),.icon-config-table td:nth-child(2){width:190px}.icon-config-table th:nth-child(3),.icon-config-table td:nth-child(3),.icon-config-table th:nth-child(4),.icon-config-table td:nth-child(4){width:270px}.icon-config-table th:nth-child(5),.icon-config-table td:nth-child(5){width:190px}.icon-config-table th:nth-child(6),.icon-config-table td:nth-child(6),.icon-config-table th:nth-child(7),.icon-config-table td:nth-child(7){width:145px}.icon-config-table th:nth-child(8),.icon-config-table td:nth-child(8){width:82px}.icon-config-table th:nth-child(9),.icon-config-table td:nth-child(9){width:92px}.icon-preview,.icon-preview-empty{width:34px;height:34px;min-width:34px;border-radius:10px;object-fit:contain}.icon-preview{border:1px solid var(--ac-border);background:#fff;padding:4px}.icon-key-badge{max-width:180px}.icon-input{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.icon-url-group .btn{flex:0 0 auto}.icon-short-input{max-width:135px}.icon-sort-input{max-width:78px}.compact-switch{min-height:0}.min-w-0{min-width:0}.js-icon-row.d-none{display:none!important}@media(max-width:768px){.icons-action-bar{position:static}.icons-actions,.icons-search{width:100%}.icons-search{min-width:0}.icons-actions .btn{width:100%}.icon-config-table{min-width:1100px}.icon-config-table td{padding:.4rem .5rem}}
+.icons-config-form,
+.app-config-icons-section {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.icons-header-card,
+.icons-accordion .accordion-item {
+    overflow: visible;
+}
+
+.icons-toolbar {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.icons-search {
+    flex: 1 1 360px;
+    max-width: 620px;
+    min-width: 260px;
+}
+
+.icons-save-button {
+    flex-shrink: 0;
+}
+
+.icons-accordion .accordion-button {
+    padding: .8rem 1rem;
+}
+
+.icon-table-wrap {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    position: relative;
+    width: 100%;
+}
+
+.icon-config-table {
+    max-width: none;
+    min-width: 1380px;
+    table-layout: fixed;
+    width: 1380px;
+}
+
+.icon-config-table thead th {
+    background: #f8fbf9;
+    padding: .55rem .65rem;
+    position: static !important;
+    top: auto !important;
+    z-index: auto;
+}
+
+.icon-config-table td {
+    padding: .45rem .65rem;
+}
+
+.icon-config-table th:nth-child(1),
+.icon-config-table td:nth-child(1) { width: 260px; }
+.icon-config-table th:nth-child(2),
+.icon-config-table td:nth-child(2) { width: 190px; }
+.icon-config-table th:nth-child(3),
+.icon-config-table td:nth-child(3),
+.icon-config-table th:nth-child(4),
+.icon-config-table td:nth-child(4) { width: 270px; }
+.icon-config-table th:nth-child(5),
+.icon-config-table td:nth-child(5) { width: 190px; }
+.icon-config-table th:nth-child(6),
+.icon-config-table td:nth-child(6),
+.icon-config-table th:nth-child(7),
+.icon-config-table td:nth-child(7) { width: 145px; }
+.icon-config-table th:nth-child(8),
+.icon-config-table td:nth-child(8) { width: 82px; }
+.icon-config-table th:nth-child(9),
+.icon-config-table td:nth-child(9) { width: 92px; }
+
+.icon-preview,
+.icon-preview-empty {
+    border-radius: 10px;
+    height: 34px;
+    min-width: 34px;
+    object-fit: contain;
+    width: 34px;
+}
+
+.icon-preview {
+    background: #fff;
+    border: 1px solid var(--ac-border);
+    padding: 4px;
+}
+
+.icon-key-badge { max-width: 180px; }
+.icon-input {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.icon-url-group .btn { flex: 0 0 auto; }
+.icon-short-input { max-width: 135px; }
+.icon-sort-input { max-width: 78px; }
+.compact-switch { min-height: 0; }
+.min-w-0 { min-width: 0; }
+.js-icon-row.d-none { display: none !important; }
+
+@media (max-width: 768px) {
+    .icons-search {
+        flex-basis: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .icons-save-button {
+        width: 100%;
+    }
+
+    .icon-config-table {
+        min-width: 1180px;
+        width: 1180px;
+    }
+
+    .icon-config-table td {
+        padding: .4rem .5rem;
+    }
+}
 </style>
 @endpush
 
