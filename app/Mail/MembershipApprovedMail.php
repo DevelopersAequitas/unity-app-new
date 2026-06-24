@@ -12,6 +12,16 @@ class MembershipApprovedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    private function senderAddress(): string
+    {
+        return (string) config('mail.from.address');
+    }
+
+    private function senderName(): string
+    {
+        return (string) config('mail.from.name');
+    }
+
     public function __construct(
         public User $user,
         public Carbon $membershipStartsAt,
@@ -41,7 +51,7 @@ class MembershipApprovedMail extends Mailable
 
     private function applyMembershipHeaders(Mailable $mail, string $emailType): Mailable
     {
-        return $mail->replyTo('pravin@peersunity.com', 'Peers Global')
+        return $mail->replyTo($this->senderAddress(), $this->senderName())
             ->withSymfonyMessage(function ($message) use ($emailType): void {
                 $headers = $message->getHeaders();
                 $headers->addTextHeader('X-PeersGlobal-Email-Type', $emailType);
@@ -53,7 +63,7 @@ class MembershipApprovedMail extends Mailable
     public function build()
     {
         return $this->applyMembershipHeaders(
-            $this->from('pravin@peersunity.com', 'Peers Global')
+            $this->from($this->senderAddress(), $this->senderName())
                 ->subject('Your PeersGlobal Membership Has Been Approved')
                 ->view('emails.membership-approved')
                 ->text('emails.membership.text.approved'),

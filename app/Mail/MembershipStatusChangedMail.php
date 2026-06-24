@@ -12,6 +12,16 @@ class MembershipStatusChangedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    private function senderAddress(): string
+    {
+        return (string) config('mail.from.address');
+    }
+
+    private function senderName(): string
+    {
+        return (string) config('mail.from.name');
+    }
+
     /**
      * @param  array<int, array{file_id:string,disk:string,path:string,name:string,mime?:string|null,resolved_path?:string|null}>  $attachmentsConfig
      */
@@ -25,7 +35,7 @@ class MembershipStatusChangedMail extends Mailable
 
     private function applyMembershipHeaders(Mailable $mail, string $emailType): Mailable
     {
-        return $mail->replyTo('pravin@peersunity.com', 'Peers Global')
+        return $mail->replyTo($this->senderAddress(), $this->senderName())
             ->withSymfonyMessage(function ($message) use ($emailType): void {
                 $headers = $message->getHeaders();
                 $headers->addTextHeader('X-PeersGlobal-Email-Type', $emailType);
@@ -37,7 +47,7 @@ class MembershipStatusChangedMail extends Mailable
     public function build()
     {
         $mail = $this->applyMembershipHeaders(
-            $this->from('pravin@peersunity.com', 'Peers Global')
+            $this->from($this->senderAddress(), $this->senderName())
                 ->subject('Your Unity Peer Membership Status Updated')
                 ->view('emails.membership.status-changed')
                 ->text('emails.membership.text.status-changed'),

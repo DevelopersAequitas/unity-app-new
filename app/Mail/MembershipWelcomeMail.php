@@ -29,12 +29,12 @@ class MembershipWelcomeMail extends Mailable
 
     private function senderAddress(): string
     {
-        return 'pravin@peersunity.com';
+        return (string) config('mail.from.address');
     }
 
     private function senderName(): string
     {
-        return 'Peers Global';
+        return (string) config('mail.from.name');
     }
 
     private function applyMembershipHeaders(Mailable $mail, string $emailType): Mailable

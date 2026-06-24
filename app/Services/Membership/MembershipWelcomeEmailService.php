@@ -83,6 +83,8 @@ class MembershipWelcomeEmailService
         $mailable = new MembershipWelcomeMail($freshUser, $attachments);
 
         try {
+            $this->logSmtpDebugContext($email, $fromAddress, 'Welcome to your Peers Unity Membership');
+
             Mail::to($email)->send($mailable);
 
             $freshUser->forceFill([
@@ -166,7 +168,35 @@ class MembershipWelcomeEmailService
 
     private function senderAddress(): string
     {
-        return 'pravin@peersunity.com';
+        return (string) config('mail.from.address');
+    }
+
+    private function logSmtpDebugContext(string $toEmail, string $fromAddress, string $subject): void
+    {
+        $mailer = (string) config('mail.default');
+        $smtpConfig = (array) config('mail.mailers.smtp', []);
+        $smtpUsername = (string) ($smtpConfig['username'] ?? '');
+
+        Log::info('membership.welcome_email.smtp_debug', [
+            'mailer' => $mailer,
+            'smtp_host' => $smtpConfig['host'] ?? null,
+            'smtp_port' => $smtpConfig['port'] ?? null,
+            'smtp_username' => $smtpUsername,
+            'from_email' => $fromAddress,
+            'to_email' => $toEmail,
+            'subject' => $subject,
+        ]);
+
+        if ($smtpUsername !== '' && strcasecmp($smtpUsername, $fromAddress) !== 0) {
+            Log::warning('membership.welcome_email.smtp_sender_mismatch', [
+                'mailer' => $mailer,
+                'smtp_host' => $smtpConfig['host'] ?? null,
+                'smtp_username' => $smtpUsername,
+                'from_email' => $fromAddress,
+                'to_email' => $toEmail,
+                'subject' => $subject,
+            ]);
+        }
     }
 
     private function isUnauthorizedSenderError(string $message): bool

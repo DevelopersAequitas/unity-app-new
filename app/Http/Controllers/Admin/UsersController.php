@@ -2233,7 +2233,7 @@ class UsersController extends Controller
 
                 Log::info('Membership approval email sent', [
                     'user_id' => $user->id,
-                    'from_email' => 'pravin@peersunity.com',
+                    'from_email' => (string) config('mail.from.address'),
                     'to_email' => $user->email,
                     'subject' => 'Your PeersGlobal Membership Has Been Approved',
                     'mail_status' => 'sent',
@@ -2243,7 +2243,7 @@ class UsersController extends Controller
                 Log::error('Membership approval email failed', [
                     'user_id' => $user->id,
                     'email' => $user->email,
-                    'from_email' => 'pravin@peersunity.com',
+                    'from_email' => (string) config('mail.from.address'),
                     'to_email' => $user->email,
                     'subject' => 'Your PeersGlobal Membership Has Been Approved',
                     'mail_status' => 'failed',
@@ -2811,7 +2811,7 @@ class UsersController extends Controller
             'not_paid' => ['warning', 'Membership is not active yet.'],
             'missing_email' => ['warning', 'User does not have an email address.'],
             'disabled' => ['warning', 'Membership welcome email is currently disabled.'],
-            'sender_unauthorized' => ['error', 'Email could not be sent because the sender email is not authorized. Please verify SMTP FROM email configuration.'],
+            'sender_unauthorized' => ['error', 'SMTP sender authorization failed. Verify MAIL_USERNAME and MAIL_FROM_ADDRESS are authorized on the mail server.'],
             default => ['error', 'Welcome email failed to send.'],
         };
     }

@@ -239,7 +239,7 @@ class MembershipStatusNotificationService
 
             Log::info('membership_status_email_sent', [
                 'user_id' => (string) $user->id,
-                'from_email' => 'pravin@peersunity.com',
+                'from_email' => (string) config('mail.from.address'),
                 'to_email' => $user->email,
                 'subject' => $subject,
                 'mail_status' => 'sent',
@@ -250,7 +250,7 @@ class MembershipStatusNotificationService
             Log::error('membership_status_email_failed', [
                 'user_id' => (string) $user->id,
                 'email' => $user->email,
-                'from_email' => 'pravin@peersunity.com',
+                'from_email' => (string) config('mail.from.address'),
                 'to_email' => $user->email,
                 'subject' => 'Your Unity Peer Membership Status Updated',
                 'mail_status' => 'failed',
