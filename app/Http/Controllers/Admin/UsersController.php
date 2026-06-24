@@ -1156,6 +1156,11 @@ class UsersController extends Controller
         $user = User::query()->findOrFail($userId);
 
         try {
+            Log::info('admin.users.membership_welcome_manual_send_started', [
+                'user_id' => (string) $user->id,
+                'email' => (string) ($user->email ?? ''),
+            ]);
+
             $result = $this->membershipWelcomeEmailService->sendIfEligible($user);
             $reason = (string) ($result['reason'] ?? '');
 
@@ -1167,9 +1172,13 @@ class UsersController extends Controller
 
             return back()->with(...$this->welcomeMailFlashMessage($reason));
         } catch (Throwable $throwable) {
-            Log::warning('admin.users.membership_welcome_send_failed', [
+            Log::error('Membership Welcome Email Failed', [
                 'user_id' => (string) $user->id,
+                'email' => (string) ($user->email ?? ''),
                 'message' => $throwable->getMessage(),
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
+                'trace' => $throwable->getTraceAsString(),
             ]);
 
             return back()->with('error', 'Welcome email failed to send.');
@@ -1423,11 +1432,25 @@ class UsersController extends Controller
         [$startDate, $endDate] = $this->resolveMembershipApprovalDates($validated);
         $adminId = Auth::guard('admin')->id();
 
+        Log::info('admin.users.membership_approval_started', [
+            'user_id' => (string) $user->id,
+            'email' => (string) ($user->email ?? ''),
+            'membership_start_date' => $startDate->toDateString(),
+            'membership_end_date' => $endDate->toDateString(),
+            'admin_id' => $adminId ? (string) $adminId : null,
+        ]);
+
         $result = DB::transaction(function () use ($user, $startDate, $endDate, $adminId): array {
             $lockedUser = User::query()->whereKey($user->getKey())->lockForUpdate()->get();
 
             return $this->approveEligibleUsers($lockedUser, $startDate, $endDate, $adminId ? (string) $adminId : null);
         });
+
+        Log::info('admin.users.membership_approval_completed', [
+            'user_id' => (string) $user->id,
+            'email' => (string) ($user->email ?? ''),
+            'approved_count' => (int) ($result['approved_count'] ?? 0),
+        ]);
 
         if ($result['approved_count'] === 0) {
             return back()->with('warning', 'Selected peer is not eligible for membership approval.');
@@ -2229,12 +2252,28 @@ class UsersController extends Controller
             }
 
             try {
+                Log::info('admin.users.membership_approval_email_send_started', [
+                    'user_id' => (string) $user->id,
+                    'email' => (string) $user->email,
+                    'queued' => false,
+                ]);
+
                 Mail::to($user->email)->send(new MembershipApprovedMail($user, $startDate, $endDate));
+
+                Log::info('admin.users.membership_approval_email_send_completed', [
+                    'user_id' => (string) $user->id,
+                    'email' => (string) $user->email,
+                    'queued' => false,
+                ]);
             } catch (Throwable $throwable) {
-                Log::error('Membership approval email failed', [
-                    'user_id' => $user->id,
-                    'email' => $user->email,
-                    'error' => $throwable->getMessage(),
+                Log::error('Membership approval email failed.', [
+                    'user_id' => (string) $user->id,
+                    'email' => (string) $user->email,
+                    'message' => $throwable->getMessage(),
+                    'file' => $throwable->getFile(),
+                    'line' => $throwable->getLine(),
+                    'trace' => $throwable->getTraceAsString(),
+                    'queued' => false,
                 ]);
             }
         }

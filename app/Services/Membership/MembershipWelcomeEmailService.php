@@ -75,11 +75,37 @@ class MembershipWelcomeEmailService
             return ['sent' => false, 'reason' => 'not_paid'];
         }
 
+        Log::info('membership.welcome_email.generation_started', [
+            'user_id' => (string) $freshUser->id,
+            'email' => $email,
+        ]);
+
         $attachments = $this->resolveAttachments();
         $mailable = new MembershipWelcomeMail($freshUser, $attachments);
 
+        Log::info('membership.welcome_email.generation_completed', [
+            'user_id' => (string) $freshUser->id,
+            'email' => $email,
+            'attachments_count' => count($attachments),
+            'queued' => false,
+        ]);
+
         try {
+            Log::info('membership.welcome_email.mail_send_started', [
+                'user_id' => (string) $freshUser->id,
+                'email' => $email,
+                'attachments_count' => count($attachments),
+                'queued' => false,
+            ]);
+
             Mail::to($email)->send($mailable);
+
+            Log::info('membership.welcome_email.mail_send_completed', [
+                'user_id' => (string) $freshUser->id,
+                'email' => $email,
+                'attachments_count' => count($attachments),
+                'queued' => false,
+            ]);
 
             $freshUser->forceFill([
                 'welcome_membership_email_sent_at' => now(),
@@ -135,9 +161,15 @@ class MembershipWelcomeEmailService
                 ],
             ], $throwable);
 
-            Log::warning('membership.welcome_email.failed', [
+            Log::error('Membership Welcome Email Failed', [
                 'user_id' => (string) $freshUser->id,
+                'email' => $email,
                 'message' => $throwable->getMessage(),
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
+                'trace' => $throwable->getTraceAsString(),
+                'attachments_count' => count($attachments),
+                'queued' => false,
             ]);
 
             return ['sent' => false, 'reason' => 'failed'];
