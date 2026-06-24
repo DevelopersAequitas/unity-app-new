@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
+use Symfony\Component\Mime\Email;
 
 class MembershipWelcomeMail extends Mailable
 {
@@ -29,12 +30,23 @@ class MembershipWelcomeMail extends Mailable
 
     public function build()
     {
-        $mail = $this->from(config('mail.from.address'), config('mail.from.name'))
-            ->subject('Welcome to your Peers Unity Membership')
+        $mail = $this->from('pravin@peersunity.com', 'Peers Global')
+            ->subject('Welcome to Peers Global Unity')
             ->view('emails.membership.membership_welcome')
             ->with([
                 'user' => $this->user,
-            ]);
+            ])
+            ->withSymfonyMessage(function (Email $message): void {
+                $headers = $message->getHeaders();
+
+                if ($headers->has('Reply-To')) {
+                    $headers->remove('Reply-To');
+                }
+
+                if (! $headers->has('Date')) {
+                    $headers->addDateHeader('Date', now()->toDateTimeImmutable());
+                }
+            });
 
         foreach ($this->attachmentsConfig as $attachment) {
             if (! empty($attachment['disk']) && ! empty($attachment['storage_path'])) {

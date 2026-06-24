@@ -4,6 +4,7 @@ namespace App\Services\Membership;
 
 use App\Mail\MembershipWelcomeMail;
 use App\Models\File;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Arr;
@@ -136,6 +137,8 @@ class MembershipWelcomeEmailService
                 ],
             ]);
 
+            $this->createWelcomeNotification($freshUser);
+
             Log::info('membership.welcome_email.sent', [
                 'user_id' => (string) $freshUser->id,
                 'attachments_count' => count($attachments),
@@ -184,6 +187,60 @@ class MembershipWelcomeEmailService
         }
     }
 
+    private function createWelcomeNotification(User $user): void
+    {
+        $dedupeKey = 'membership_welcome:' . $user->id;
+
+        try {
+            if (AppNotification::query()
+                ->where('user_id', $user->id)
+                ->where('type', 'membership_welcome')
+                ->where('dedupe_key', $dedupeKey)
+                ->exists()) {
+                Log::info('membership.welcome_email.notification_skipped_duplicate', [
+                    'user_id' => (string) $user->id,
+                    'dedupe_key' => $dedupeKey,
+                ]);
+
+                return;
+            }
+
+            $notification = AppNotification::create([
+                'user_id' => $user->id,
+                'type' => 'membership_welcome',
+                'category' => 'membership',
+                'title' => 'Welcome to Peers Global Unity',
+                'body' => 'Welcome to Peers Global Unity. Your membership has been successfully activated.',
+                'channel' => 'in_app',
+                'priority' => 'high',
+                'screen' => 'membership',
+                'data' => [
+                    'type' => 'membership_welcome',
+                    'screen' => 'membership',
+                    'tap_destination' => 'membership',
+                    'membership_status' => (string) ($user->membership_status ?? ''),
+                    'zoho_plan_code' => (string) ($user->zoho_plan_code ?? ''),
+                ],
+                'dedupe_key' => $dedupeKey,
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+
+            Log::info('membership.welcome_email.notification_created', [
+                'user_id' => (string) $user->id,
+                'notification_id' => (string) $notification->id,
+                'dedupe_key' => $dedupeKey,
+            ]);
+        } catch (Throwable $throwable) {
+            Log::error('membership.welcome_email.notification_failed', [
+                'user_id' => (string) $user->id,
+                'message' => $throwable->getMessage(),
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
+            ]);
+        }
+    }
+
     private function mailDiagnostics(): array
     {
         $defaultMailer = (string) config('mail.default', '');
@@ -192,7 +249,7 @@ class MembershipWelcomeEmailService
             'mailer' => $defaultMailer,
             'transport' => (string) config("mail.mailers.{$defaultMailer}.transport", $defaultMailer),
             'smtp_username' => config("mail.mailers.{$defaultMailer}.username"),
-            'mail_from' => config('mail.from.address'),
+            'mail_from' => 'pravin@peersunity.com',
         ];
     }
 
