@@ -152,10 +152,12 @@ class MembershipWelcomeEmailService
             return false;
         }
 
-        return filled($user->zoho_subscription_id)
+        return (
+            filled($user->zoho_subscription_id)
             || filled($user->zoho_plan_code)
             || filled($user->membership_starts_at)
-            || filled($user->membership_ends_at);
+            || filled($user->membership_ends_at)
+        );
     }
 
     private function resolveAttachments(): array
