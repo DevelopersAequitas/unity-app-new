@@ -78,6 +78,7 @@ class MembershipWelcomeEmailService
         Log::info('membership.welcome_email.generation_started', [
             'user_id' => (string) $freshUser->id,
             'email' => $email,
+            'view' => 'emails.membership.membership_welcome',
         ]);
 
         $attachments = $this->resolveAttachments();
@@ -88,6 +89,7 @@ class MembershipWelcomeEmailService
             'email' => $email,
             'attachments_count' => count($attachments),
             'queued' => false,
+            'view' => 'emails.membership.membership_welcome',
         ]);
 
         try {
@@ -96,6 +98,8 @@ class MembershipWelcomeEmailService
                 'email' => $email,
                 'attachments_count' => count($attachments),
                 'queued' => false,
+                'view' => 'emails.membership.membership_welcome',
+                'mail' => $this->mailDiagnostics(),
             ]);
 
             Mail::to($email)->send($mailable);
@@ -105,6 +109,8 @@ class MembershipWelcomeEmailService
                 'email' => $email,
                 'attachments_count' => count($attachments),
                 'queued' => false,
+                'view' => 'emails.membership.membership_welcome',
+                'mail' => $this->mailDiagnostics(),
             ]);
 
             $freshUser->forceFill([
@@ -170,10 +176,24 @@ class MembershipWelcomeEmailService
                 'trace' => $throwable->getTraceAsString(),
                 'attachments_count' => count($attachments),
                 'queued' => false,
+                'view' => 'emails.membership.membership_welcome',
+                'mail' => $this->mailDiagnostics(),
             ]);
 
             return ['sent' => false, 'reason' => 'failed'];
         }
+    }
+
+    private function mailDiagnostics(): array
+    {
+        $defaultMailer = (string) config('mail.default', '');
+
+        return [
+            'mailer' => $defaultMailer,
+            'transport' => (string) config("mail.mailers.{$defaultMailer}.transport", $defaultMailer),
+            'smtp_username' => config("mail.mailers.{$defaultMailer}.username"),
+            'mail_from' => config('mail.from.address'),
+        ];
     }
 
     private function isEligiblePaidMembershipUser(User $user): bool
