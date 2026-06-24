@@ -47,6 +47,7 @@ use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\AppConfigPageController;
+use App\Http\Controllers\Admin\MembershipEmailSettingsController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 
@@ -95,6 +96,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/app-config/social-links', [AppConfigPageController::class, 'bulkSocial'])->name('app-config.social');
         Route::put('/app-config/membership-labels', [AppConfigPageController::class, 'membershipLabels'])->name('app-config.membership-labels');
         Route::post('/app-config/clear-cache', [AppConfigPageController::class, 'clearCache'])->name('app-config.clear-cache');
+        Route::get('/membership-email-settings', [MembershipEmailSettingsController::class, 'index'])->name('membership-email-settings.index');
+        Route::put('/membership-email-settings', [MembershipEmailSettingsController::class, 'update'])->name('membership-email-settings.update');
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/ded-dashboard', [DashboardController::class, 'ded'])->name('ded.dashboard');
         Route::get('/ded-dashboard/leadership/{role}', [DashboardController::class, 'dedLeadershipDetail'])->name('ded.dashboard.leadership');

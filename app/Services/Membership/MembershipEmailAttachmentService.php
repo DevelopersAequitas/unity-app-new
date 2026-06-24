@@ -3,7 +3,9 @@
 namespace App\Services\Membership;
 
 use App\Models\File;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class MembershipEmailAttachmentService
@@ -79,11 +81,34 @@ class MembershipEmailAttachmentService
      */
     private function configuredFileIds(): array
     {
+        $databaseFileIds = $this->databaseFileIds();
+
+        if ($databaseFileIds !== []) {
+            return $databaseFileIds;
+        }
+
         return collect((array) config('membership_email_attachments.file_ids', []))
             ->map(static fn ($id) => trim((string) $id))
             ->filter()
             ->unique()
             ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function databaseFileIds(): array
+    {
+        if (! Schema::hasTable('membership_email_attachments')) {
+            return [];
+        }
+
+        return DB::table('membership_email_attachments')
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->pluck('file_id')
+            ->map(static fn ($id) => (string) $id)
             ->all();
     }
 
