@@ -111,6 +111,11 @@ class MembershipWelcomeEmailService
 
             Log::info('membership.welcome_email.sent', [
                 'user_id' => (string) $freshUser->id,
+                'from_email' => $fromAddress,
+                'to_email' => $email,
+                'subject' => 'Welcome to your Peers Unity Membership',
+                'mail_status' => 'sent',
+                'smtp_response' => null,
                 'attachments_count' => count($attachments),
             ]);
 
@@ -148,6 +153,9 @@ class MembershipWelcomeEmailService
                 'email_type' => 'membership_welcome',
                 'from_address' => $fromAddress,
                 'to_address' => $email,
+                'subject' => 'Welcome to your Peers Unity Membership',
+                'mail_status' => 'failed',
+                'smtp_response' => $throwable->getMessage(),
                 'smtp_error_message' => $throwable->getMessage(),
                 'reason' => $isUnauthorizedSender ? 'sender_unauthorized' : 'failed',
             ]);
@@ -158,9 +166,7 @@ class MembershipWelcomeEmailService
 
     private function senderAddress(): string
     {
-        $address = trim((string) config('mail.from.address'));
-
-        return $address !== '' ? $address : 'pravin@peersunity.com';
+        return 'pravin@peersunity.com';
     }
 
     private function isUnauthorizedSenderError(string $message): bool

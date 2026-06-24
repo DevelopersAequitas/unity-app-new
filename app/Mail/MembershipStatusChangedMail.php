@@ -23,11 +23,26 @@ class MembershipStatusChangedMail extends Mailable
     ) {
     }
 
+    private function applyMembershipHeaders(Mailable $mail, string $emailType): Mailable
+    {
+        return $mail->replyTo('pravin@peersunity.com', 'Peers Global')
+            ->withSymfonyMessage(function ($message) use ($emailType): void {
+                $headers = $message->getHeaders();
+                $headers->addTextHeader('X-PeersGlobal-Email-Type', $emailType);
+                $headers->addTextHeader('X-Auto-Response-Suppress', 'All');
+                $headers->addTextHeader('Precedence', 'bulk');
+            });
+    }
+
     public function build()
     {
-        $mail = $this->from('pravin@peersunity.com', 'Peers Global / Unity Peer')
-            ->subject('Your Unity Peer Membership Status Updated')
-            ->view('emails.membership.status-changed')
+        $mail = $this->applyMembershipHeaders(
+            $this->from('pravin@peersunity.com', 'Peers Global')
+                ->subject('Your Unity Peer Membership Status Updated')
+                ->view('emails.membership.status-changed')
+                ->text('emails.membership.text.status-changed'),
+            'membership_status'
+        )
             ->with([
                 'userName' => $this->memberName(),
                 'membershipStatus' => $this->statusLabel(),

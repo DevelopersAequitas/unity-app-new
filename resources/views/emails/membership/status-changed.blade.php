@@ -35,7 +35,6 @@
                                 </tr>
                             </table>
 
-                            <p style="margin:0 0 18px;font-size:15px;line-height:23px;">The related PDF documents are attached for your reference.</p>
                             <p style="margin:0;font-size:15px;line-height:23px;">Regards,<br><strong>Peers Global / Unity Peer Team</strong></p>
                         </td>
                     </tr>

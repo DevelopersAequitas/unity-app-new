@@ -39,10 +39,26 @@ class MembershipApprovedMail extends Mailable
         return 'https://unity.peersglobal.com/wp-content/uploads/2025/08/peersglobal_white-removebg-preview.png';
     }
 
+    private function applyMembershipHeaders(Mailable $mail, string $emailType): Mailable
+    {
+        return $mail->replyTo('pravin@peersunity.com', 'Peers Global')
+            ->withSymfonyMessage(function ($message) use ($emailType): void {
+                $headers = $message->getHeaders();
+                $headers->addTextHeader('X-PeersGlobal-Email-Type', $emailType);
+                $headers->addTextHeader('X-Auto-Response-Suppress', 'All');
+                $headers->addTextHeader('Precedence', 'bulk');
+            });
+    }
+
     public function build()
     {
-        return $this->subject('Your PeersGlobal Membership Has Been Approved')
-            ->view('emails.membership-approved')
+        return $this->applyMembershipHeaders(
+            $this->from('pravin@peersunity.com', 'Peers Global')
+                ->subject('Your PeersGlobal Membership Has Been Approved')
+                ->view('emails.membership-approved')
+                ->text('emails.membership.text.approved'),
+            'membership_approved'
+        )
             ->with([
                 'user' => $this->user,
                 'userName' => $this->user->name ?: trim((string) (($this->user->first_name ?? '') . ' ' . ($this->user->last_name ?? ''))) ?: ($this->user->display_name ?: 'Peer'),

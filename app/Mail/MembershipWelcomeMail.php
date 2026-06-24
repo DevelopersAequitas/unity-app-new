@@ -29,23 +29,34 @@ class MembershipWelcomeMail extends Mailable
 
     private function senderAddress(): string
     {
-        $address = trim((string) config('mail.from.address'));
-
-        return $address !== '' ? $address : 'pravin@peersunity.com';
+        return 'pravin@peersunity.com';
     }
 
     private function senderName(): string
     {
-        $name = trim((string) config('mail.from.name'));
+        return 'Peers Global';
+    }
 
-        return $name !== '' ? $name : 'Peers Global';
+    private function applyMembershipHeaders(Mailable $mail, string $emailType): Mailable
+    {
+        return $mail->replyTo($this->senderAddress(), $this->senderName())
+            ->withSymfonyMessage(function ($message) use ($emailType): void {
+                $headers = $message->getHeaders();
+                $headers->addTextHeader('X-PeersGlobal-Email-Type', $emailType);
+                $headers->addTextHeader('X-Auto-Response-Suppress', 'All');
+                $headers->addTextHeader('Precedence', 'bulk');
+            });
     }
 
     public function build()
     {
-        $mail = $this->from($this->senderAddress(), $this->senderName())
-            ->subject('Welcome to your Peers Unity Membership')
-            ->view('emails.membership.membership_welcome')
+        $mail = $this->applyMembershipHeaders(
+            $this->from($this->senderAddress(), $this->senderName())
+                ->subject('Welcome to your Peers Unity Membership')
+                ->view('emails.membership.membership_welcome')
+                ->text('emails.membership.text.welcome'),
+            'membership_welcome'
+        )
             ->with([
                 'user' => $this->user,
             ]);

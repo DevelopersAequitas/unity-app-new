@@ -2230,10 +2230,24 @@ class UsersController extends Controller
 
             try {
                 Mail::to($user->email)->send(new MembershipApprovedMail($user, $startDate, $endDate));
+
+                Log::info('Membership approval email sent', [
+                    'user_id' => $user->id,
+                    'from_email' => 'pravin@peersunity.com',
+                    'to_email' => $user->email,
+                    'subject' => 'Your PeersGlobal Membership Has Been Approved',
+                    'mail_status' => 'sent',
+                    'smtp_response' => null,
+                ]);
             } catch (Throwable $throwable) {
                 Log::error('Membership approval email failed', [
                     'user_id' => $user->id,
                     'email' => $user->email,
+                    'from_email' => 'pravin@peersunity.com',
+                    'to_email' => $user->email,
+                    'subject' => 'Your PeersGlobal Membership Has Been Approved',
+                    'mail_status' => 'failed',
+                    'smtp_response' => $throwable->getMessage(),
                     'error' => $throwable->getMessage(),
                 ]);
             }
