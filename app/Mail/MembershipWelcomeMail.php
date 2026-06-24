@@ -6,17 +6,10 @@ use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class MembershipWelcomeMail extends Mailable
 {
     use Queueable, SerializesModels;
-
-    private const PUBLIC_ATTACHMENTS = [
-        'mail-attachments/dummy-pdf_2.pdf',
-        'mail-attachments/dummy-pdf_2_1.pdf',
-    ];
 
     public User $user;
 
@@ -56,26 +49,6 @@ class MembershipWelcomeMail extends Mailable
             ->with([
                 'user' => $this->user,
             ]);
-
-        foreach (self::PUBLIC_ATTACHMENTS as $file) {
-            $path = Storage::disk('public')->path($file);
-
-            if (! Storage::disk('public')->exists($file)) {
-                Log::warning('Membership email attachment missing', [
-                    'email_type' => 'membership_welcome',
-                    'user_id' => (string) $this->user->id,
-                    'file' => $file,
-                    'full_path' => $path,
-                ]);
-
-                continue;
-            }
-
-            $mail->attach($path, [
-                'as' => basename($file),
-                'mime' => 'application/pdf',
-            ]);
-        }
 
         foreach ($this->attachmentsConfig as $attachment) {
             $mail->attach($attachment['path'], [
