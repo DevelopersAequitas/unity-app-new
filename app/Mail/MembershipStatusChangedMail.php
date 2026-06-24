@@ -8,14 +8,15 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class MembershipStatusChangedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
     private const ATTACHMENTS = [
-        'dummy-pdf_2.pdf',
-        'dummy-pdf_2 (1).pdf',
+        'mail-attachments/dummy-pdf_2.pdf',
+        'mail-attachments/dummy-pdf_2_1.pdf',
     ];
 
     public function __construct(
@@ -37,21 +38,22 @@ class MembershipStatusChangedMail extends Mailable
                 'currentYear' => now()->year,
             ]);
 
-        foreach (self::ATTACHMENTS as $fileName) {
-            $path = storage_path('app/public/mail-attachments/' . $fileName);
+        foreach (self::ATTACHMENTS as $file) {
+            $path = Storage::disk('public')->path($file);
 
-            if (! is_file($path)) {
-                Log::error('Membership status email attachment missing', [
+            if (! Storage::disk('public')->exists($file)) {
+                Log::warning('Membership email attachment missing', [
+                    'email_type' => 'membership_status',
                     'user_id' => (string) $this->user->id,
-                    'attachment' => $fileName,
-                    'path' => $path,
+                    'file' => $file,
+                    'full_path' => $path,
                 ]);
 
                 continue;
             }
 
             $mail->attach($path, [
-                'as' => $fileName,
+                'as' => basename($file),
                 'mime' => 'application/pdf',
             ]);
         }
