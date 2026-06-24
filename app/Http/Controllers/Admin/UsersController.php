@@ -2791,8 +2791,10 @@ class UsersController extends Controller
     {
         return match ($reason) {
             'sent' => ['success', 'Welcome email sent successfully.'],
-            'already_sent' => ['info', 'Welcome email was already sent earlier.'],
-            'not_paid' => ['warning', 'User is not eligible for welcome email yet.'],
+            'already_sent' => ['info', 'Welcome email already sent.'],
+            'not_unity_peer' => ['warning', 'Welcome email is only available for Unity Peer users.'],
+            'membership_inactive' => ['warning', 'Membership is not active yet.'],
+            'not_paid' => ['warning', 'Membership is not active yet.'],
             'missing_email' => ['warning', 'User does not have an email address.'],
             'disabled' => ['warning', 'Membership welcome email is currently disabled.'],
             default => ['error', 'Welcome email failed to send.'],

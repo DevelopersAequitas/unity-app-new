@@ -3,11 +3,14 @@
 namespace App\Services\Membership;
 
 use App\Mail\MembershipWelcomeMail;
+use App\Models\Payment;
 use App\Models\User;
+use App\Models\UserMembership;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -63,14 +66,17 @@ class MembershipWelcomeEmailService
             return ['sent' => false, 'reason' => 'missing_email'];
         }
 
-        if (! $this->isEligiblePaidMembershipUser($freshUser)) {
+        $eligibility = $this->welcomeEmailEligibility($freshUser);
+        if (! $eligibility['eligible']) {
             Log::info('membership.welcome_email.skipped', [
                 'user_id' => (string) $freshUser->id,
-                'reason' => 'not_paid',
+                'reason' => $eligibility['reason'],
                 'membership_status' => (string) ($freshUser->membership_status ?? ''),
+                'approval_status' => (string) ($freshUser->approval_status ?? ''),
+                'checks' => $eligibility['checks'],
             ]);
 
-            return ['sent' => false, 'reason' => 'not_paid'];
+            return ['sent' => false, 'reason' => $eligibility['reason']];
         }
 
         $attachments = $this->resolveAttachments();
@@ -142,20 +148,71 @@ class MembershipWelcomeEmailService
         }
     }
 
-    private function isEligiblePaidMembershipUser(User $user): bool
+    /**
+     * @return array{eligible:bool,reason:string,checks:array<string,bool>}
+     */
+    private function welcomeEmailEligibility(User $user): array
     {
-        if (in_array((string) $user->effective_membership_status, [User::STATUS_FREE_TRIAL, User::STATUS_FREE], true)) {
+        $isUnityPeer = (string) ($user->membership_status ?? '') === 'only_unity_peer';
+
+        if (! $isUnityPeer) {
+            return [
+                'eligible' => false,
+                'reason' => 'not_unity_peer',
+                'checks' => ['is_unity_peer' => false],
+            ];
+        }
+
+        $checks = [
+            'is_unity_peer' => true,
+            'has_successful_payment' => $this->hasSuccessfulMembershipPayment($user),
+            'has_active_membership_record' => $this->hasActiveMembershipRecord($user),
+            'approval_status_approved' => in_array(strtolower((string) ($user->approval_status ?? '')), ['approved', 'active'], true),
+            'membership_start_exists' => filled($user->membership_starts_at) || filled($user->membership_start_date),
+            'membership_expiry_exists' => filled($user->membership_ends_at) || filled($user->membership_end_date) || filled($user->membership_expiry),
+        ];
+
+        $hasActiveMembershipSignal = $checks['has_successful_payment']
+            || $checks['has_active_membership_record']
+            || $checks['approval_status_approved']
+            || $checks['membership_start_exists']
+            || $checks['membership_expiry_exists'];
+
+        return [
+            'eligible' => $hasActiveMembershipSignal,
+            'reason' => $hasActiveMembershipSignal ? 'eligible' : 'membership_inactive',
+            'checks' => $checks,
+        ];
+    }
+
+    private function hasSuccessfulMembershipPayment(User $user): bool
+    {
+        if (! Schema::hasTable('payments')) {
             return false;
         }
 
-        if (! $user->isPaidMember()) {
+        return Payment::query()
+            ->where('user_id', $user->id)
+            ->where(function ($query): void {
+                $query->whereIn('status', ['success', 'paid', 'completed', 'captured', 'payment_success'])
+                    ->orWhereNotNull('paid_at');
+            })
+            ->exists();
+    }
+
+    private function hasActiveMembershipRecord(User $user): bool
+    {
+        if (! Schema::hasTable('user_memberships')) {
             return false;
         }
 
-        return filled($user->zoho_subscription_id)
-            || filled($user->zoho_plan_code)
-            || filled($user->membership_starts_at)
-            || filled($user->membership_ends_at);
+        return UserMembership::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', ['active', 'approved'])
+            ->where(function ($query): void {
+                $query->whereNull('ends_at')->orWhere('ends_at', '>=', now());
+            })
+            ->exists();
     }
 
     private function resolveAttachments(): array
