@@ -37,7 +37,7 @@
                 <div class="fw-semibold text-capitalize">{{ str_replace('_', ' ', $welcomeStatus) }}</div>
             </div>
             <div class="col-md-4">
-                <div class="small text-muted">Plan Code At Send</div>
+                <div class="small text-muted">Plan Code Sent</div>
                 <div class="fw-semibold">{{ $welcomePlanCode }}</div>
             </div>
             <div class="col-md-8">

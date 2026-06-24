@@ -46,6 +46,7 @@ class MembershipWelcomeEmailService
 
         $lastPayment = $freshUser->last_payment_at;
         if (! $force && filled($freshUser->welcome_membership_email_sent_at) && ($lastPayment === null || $freshUser->welcome_membership_email_sent_at->greaterThanOrEqualTo($lastPayment))) {
+        if (! $force && filled($freshUser->welcome_membership_email_sent_at)) {
             Log::info('membership.welcome_email.skipped', [
                 'user_id' => (string) $freshUser->id,
                 'reason' => 'already_sent',
@@ -96,7 +97,7 @@ class MembershipWelcomeEmailService
                 'related_type' => 'user',
                 'related_id' => (string) $freshUser->id,
                 'payload' => [
-                    'flow' => 'zoho_membership_activation',
+                    'flow' => $force ? 'manual_admin_resend' : 'zoho_membership_activation',
                     'membership_status' => (string) ($freshUser->membership_status ?? ''),
                     'zoho_plan_code' => (string) ($freshUser->zoho_plan_code ?? ''),
                     'attachments_count' => count($attachments),
@@ -132,7 +133,7 @@ class MembershipWelcomeEmailService
                 'related_type' => 'user',
                 'related_id' => (string) $freshUser->id,
                 'payload' => [
-                    'flow' => 'zoho_membership_activation',
+                    'flow' => $force ? 'manual_admin_resend' : 'zoho_membership_activation',
                     'membership_status' => (string) ($freshUser->membership_status ?? ''),
                     'zoho_plan_code' => (string) ($freshUser->zoho_plan_code ?? ''),
                     'attachments_count' => count($attachments),
