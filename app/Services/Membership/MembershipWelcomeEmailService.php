@@ -80,6 +80,7 @@ class MembershipWelcomeEmailService
         }
 
         $attachments = $this->resolveAttachments();
+        $fromAddress = $this->senderAddress();
         $mailable = new MembershipWelcomeMail($freshUser, $attachments);
 
         try {
@@ -105,6 +106,7 @@ class MembershipWelcomeEmailService
                     'membership_status' => (string) ($freshUser->membership_status ?? ''),
                     'zoho_plan_code' => (string) ($freshUser->zoho_plan_code ?? ''),
                     'attachments_count' => count($attachments),
+                    'from_address' => $fromAddress,
                 ],
             ]);
 
@@ -136,16 +138,40 @@ class MembershipWelcomeEmailService
                     'membership_status' => (string) ($freshUser->membership_status ?? ''),
                     'zoho_plan_code' => (string) ($freshUser->zoho_plan_code ?? ''),
                     'attachments_count' => count($attachments),
+                    'from_address' => $fromAddress,
                 ],
             ], $throwable);
 
+            $isUnauthorizedSender = $this->isUnauthorizedSenderError($message);
+
             Log::warning('membership.welcome_email.failed', [
                 'user_id' => (string) $freshUser->id,
-                'message' => $throwable->getMessage(),
+                'email_type' => 'membership_welcome',
+                'from_address' => $fromAddress,
+                'to_address' => $email,
+                'smtp_error_message' => $throwable->getMessage(),
+                'reason' => $isUnauthorizedSender ? 'sender_unauthorized' : 'failed',
             ]);
 
-            return ['sent' => false, 'reason' => 'failed'];
+            return ['sent' => false, 'reason' => $isUnauthorizedSender ? 'sender_unauthorized' : 'failed'];
         }
+    }
+
+    private function senderAddress(): string
+    {
+        $address = trim((string) config('mail.from.address'));
+
+        return $address !== '' ? $address : 'pravin@peersunity.com';
+    }
+
+    private function isUnauthorizedSenderError(string $message): bool
+    {
+        $normalized = strtolower($message);
+
+        return str_contains($normalized, '553')
+            || str_contains($normalized, 'sender is not allowed to relay')
+            || str_contains($normalized, 'not allowed to relay')
+            || str_contains($normalized, 'sender email is not authorized');
     }
 
     /**

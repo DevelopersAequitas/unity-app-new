@@ -2797,6 +2797,7 @@ class UsersController extends Controller
             'not_paid' => ['warning', 'Membership is not active yet.'],
             'missing_email' => ['warning', 'User does not have an email address.'],
             'disabled' => ['warning', 'Membership welcome email is currently disabled.'],
+            'sender_unauthorized' => ['error', 'Email could not be sent because the sender email is not authorized. Please verify SMTP FROM email configuration.'],
             default => ['error', 'Welcome email failed to send.'],
         };
     }

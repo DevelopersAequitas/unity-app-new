@@ -27,9 +27,23 @@ class MembershipWelcomeMail extends Mailable
         $this->attachmentsConfig = $attachmentsConfig;
     }
 
+    private function senderAddress(): string
+    {
+        $address = trim((string) config('mail.from.address'));
+
+        return $address !== '' ? $address : 'pravin@peersunity.com';
+    }
+
+    private function senderName(): string
+    {
+        $name = trim((string) config('mail.from.name'));
+
+        return $name !== '' ? $name : 'Peers Global';
+    }
+
     public function build()
     {
-        $mail = $this->from('pravin@peersunity.com', 'Peers Global / Unity Peer')
+        $mail = $this->from($this->senderAddress(), $this->senderName())
             ->subject('Welcome to your Peers Unity Membership')
             ->view('emails.membership.membership_welcome')
             ->with([
