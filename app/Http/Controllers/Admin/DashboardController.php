@@ -43,9 +43,12 @@ class DashboardController extends Controller
 
         $supportRequests = $this->safeCountTable('support_requests');
         $reportedPosts = $this->safeReportedPostsCount();
-        $totalContactPosts = ContactPost::count();
-        $todayContactPosts = ContactPost::whereDate('created_at', $today->toDateString())->count();
-        $recentContactPosts = ContactPost::latest('created_at')->take(5)->get();
+        // $totalContactPosts = ContactPost::count();
+        // $todayContactPosts = ContactPost::whereDate('created_at', $today->toDateString())->count();
+        // $recentContactPosts = ContactPost::latest('created_at')->take(5)->get();
+        $totalContactPosts = 0;
+        $todayContactPosts = 0;
+        $recentContactPosts = collect();
 
         $coinsIssued = $this->safeCountTable('coin_ledgers');
         $walletCollections = $this->safeCountTable('wallet_transactions');
