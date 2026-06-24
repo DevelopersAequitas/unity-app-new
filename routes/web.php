@@ -48,6 +48,7 @@ use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
+use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 
 Route::get('/', function () {
@@ -342,6 +343,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/campaign-pamphlets/{pamphlet}', [CampaignPamphletController::class, 'destroy'])->name('campaign-pamphlets.destroy');
 
         Route::get('/email-logs', [EmailLogController::class, 'index'])->name('email-logs.index');
+        Route::get('/daily-notifications', [DailyNotificationController::class, 'index'])->name('daily-notifications.index');
+        Route::put('/daily-notifications/{id}', [DailyNotificationController::class, 'update'])->name('daily-notifications.update');
+        Route::get('/daily-notifications/{id}/eligible-users', [DailyNotificationController::class, 'eligibleUsers'])->name('daily-notifications.eligible-users');
+        Route::post('/daily-notifications/{id}/send', [DailyNotificationController::class, 'sendReminder'])->name('daily-notifications.send');
+        Route::get('/test-notifications', [DailyNotificationController::class, 'testNotifications'])->name('daily-notifications.test');
 
         Route::get('/impacts', [ImpactsController::class, 'index'])->name('impacts.index');
         Route::get('/impacts/export/csv', [ImpactsController::class, 'exportCsv'])->name('impacts.export.csv');

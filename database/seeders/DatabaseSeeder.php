@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(CategorySeeder::class);
         $this->call(AdSeeder::class);
+        $this->call(DailyNotificationReminderSeeder::class);
         $this->call(GreenpreneurAppConfigSeeder::class);
 
         User::query()->updateOrCreate(
