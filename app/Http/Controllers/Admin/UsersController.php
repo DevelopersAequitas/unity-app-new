@@ -110,7 +110,8 @@ class UsersController extends Controller
             'user' => $user,
             'cities' => $cities,
             'membershipStatuses' => $membershipStatuses,
-            'membershipStatusLabels' => $this->membershipFilterOptions(),
+            'membershipSelectedStatus' => $this->canonicalMembershipStatus((string) old('membership_status', $user->membership_status)),
+            'membershipStatusLabels' => $this->membershipStatusLabels(),
             'circles' => $circles,
             'membershipPlanOptions' => $this->membershipPlanOptions(),
         ]);
@@ -365,7 +366,8 @@ class UsersController extends Controller
             'industryDirectorRoleId' => $industryDirectorRoleId,
             'selectedIndustryId' => $industryDirectorAssignment?->industry_id,
             'membershipStatuses' => $membershipStatuses,
-            'membershipStatusLabels' => $this->membershipFilterOptions(),
+            'membershipSelectedStatus' => $this->canonicalMembershipStatus((string) old('membership_status', $user->membership_status)),
+            'membershipStatusLabels' => $this->membershipStatusLabels(),
             'circles' => $circles,
             'joinedCircleId' => $joinedCircleId,
             'effectiveCircleId' => $effectiveCircleId,
@@ -1603,7 +1605,37 @@ class UsersController extends Controller
 
     private function membershipStatuses(): array
     {
-        return config('membership.statuses', []);
+        return collect(config('membership.statuses', []))
+            ->map(fn ($status) => $this->canonicalMembershipStatus((string) $status))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function canonicalMembershipStatus(string $status): string
+    {
+        $trimmed = trim($status);
+
+        return strcasecmp(str_replace('_', ' ', $trimmed), 'Only Unity Peer') === 0
+            ? 'only_unity_peer'
+            : $trimmed;
+    }
+
+    private function membershipStatusLabels(): array
+    {
+        return [
+            'free_trial_peer' => 'Free Trial Peer',
+            'free_peer' => 'Free Peer',
+            'only_unity_peer' => 'Only Unity Peer',
+            'Circle Peer' => 'Circle Peer',
+            'Multi Circle Peer' => 'Multi Circle Peer',
+            'Charter Peer' => 'Charter Peer',
+            'Industry Advisor' => 'Industry Advisor',
+            'Charter Investor' => 'Charter Investor',
+            'Circle Founder' => 'Circle Founder',
+            'Circle Director' => 'Circle Director',
+            'Board Advisor' => 'Board Advisor',
+        ];
     }
 
     private function expireTrialUsersForAdminPanel(): void
