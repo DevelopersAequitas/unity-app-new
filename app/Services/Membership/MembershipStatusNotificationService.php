@@ -14,6 +14,10 @@ use Throwable;
 
 class MembershipStatusNotificationService
 {
+    public function __construct(private readonly MembershipEmailAttachmentService $attachmentService)
+    {
+    }
+
     public function sendIfEligible(User $user, string $oldStatus, string $newStatus): void
     {
         if ($oldStatus === $newStatus) {
@@ -123,7 +127,8 @@ class MembershipStatusNotificationService
         }
 
         try {
-            Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $membershipStatus, $membershipEndsAt));
+            $attachments = $this->attachmentService->resolve('membership_status');
+            Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $membershipStatus, $membershipEndsAt, $attachments));
         } catch (Throwable $throwable) {
             Log::error('membership_status_email_failed', [
                 'user_id' => (string) $user->id,

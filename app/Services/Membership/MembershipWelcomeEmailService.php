@@ -7,7 +7,6 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Models\UserMembership;
 use App\Services\EmailLogs\EmailLogService;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -16,7 +15,7 @@ use Throwable;
 
 class MembershipWelcomeEmailService
 {
-    public function __construct(private readonly EmailLogService $emailLogService)
+    public function __construct(private readonly EmailLogService $emailLogService, private readonly MembershipEmailAttachmentService $attachmentService)
     {
     }
 
@@ -79,7 +78,7 @@ class MembershipWelcomeEmailService
             return ['sent' => false, 'reason' => $eligibility['reason']];
         }
 
-        $attachments = $this->resolveAttachments();
+        $attachments = $this->attachmentService->resolve('membership_welcome');
         $fromAddress = $this->senderAddress();
         $mailable = new MembershipWelcomeMail($freshUser, $attachments);
 
@@ -239,50 +238,5 @@ class MembershipWelcomeEmailService
                 $query->whereNull('ends_at')->orWhere('ends_at', '>=', now());
             })
             ->exists();
-    }
-
-    private function resolveAttachments(): array
-    {
-        $attachmentConfigs = [
-            [
-                'path' => (string) config('membership_welcome.attachment_1_path', ''),
-                'name' => (string) config('membership_welcome.attachment_1_name', ''),
-            ],
-            [
-                'path' => (string) config('membership_welcome.attachment_2_path', ''),
-                'name' => (string) config('membership_welcome.attachment_2_name', ''),
-            ],
-        ];
-
-        $attachments = [];
-
-        foreach ($attachmentConfigs as $index => $attachmentConfig) {
-            $path = trim((string) Arr::get($attachmentConfig, 'path', ''));
-            $name = trim((string) Arr::get($attachmentConfig, 'name', ''));
-
-            if ($path === '') {
-                Log::warning('membership.welcome_email.attachment_missing_path', [
-                    'slot' => $index + 1,
-                ]);
-
-                continue;
-            }
-
-            if (! is_file($path)) {
-                Log::warning('membership.welcome_email.attachment_not_found', [
-                    'slot' => $index + 1,
-                    'path' => $path,
-                ]);
-
-                continue;
-            }
-
-            $attachments[] = [
-                'path' => $path,
-                'name' => $name !== '' ? $name : basename($path),
-            ];
-        }
-
-        return $attachments;
     }
 }

@@ -14,12 +14,12 @@ class MembershipWelcomeMail extends Mailable
     public User $user;
 
     /**
-     * @var array<int, array{path:string,name:string}>
+     * @var array<int, array{file_id:string,disk:string,path:string,name:string,mime?:string|null,resolved_path?:string|null}>
      */
     public array $attachmentsConfig;
 
     /**
-     * @param  array<int, array{path:string,name:string}>  $attachmentsConfig
+     * @param  array<int, array{file_id:string,disk:string,path:string,name:string,mime?:string|null,resolved_path?:string|null}>  $attachmentsConfig
      */
     public function __construct(User $user, array $attachmentsConfig = [])
     {
@@ -51,9 +51,13 @@ class MembershipWelcomeMail extends Mailable
             ]);
 
         foreach ($this->attachmentsConfig as $attachment) {
-            $mail->attach($attachment['path'], [
-                'as' => $attachment['name'],
-            ]);
+            $options = ['as' => $attachment['name']];
+
+            if (! empty($attachment['mime'])) {
+                $options['mime'] = $attachment['mime'];
+            }
+
+            $mail->attachFromStorageDisk($attachment['disk'], $attachment['path'], $attachment['name'], $options);
         }
 
         return $mail;

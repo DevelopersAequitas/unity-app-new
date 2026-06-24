@@ -12,10 +12,14 @@ class MembershipStatusChangedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    /**
+     * @param  array<int, array{file_id:string,disk:string,path:string,name:string,mime?:string|null,resolved_path?:string|null}>  $attachmentsConfig
+     */
     public function __construct(
         public User $user,
         public string $membershipStatus,
         public ?Carbon $membershipEndsAt,
+        public array $attachmentsConfig = [],
     ) {
     }
 
@@ -30,6 +34,16 @@ class MembershipStatusChangedMail extends Mailable
                 'membershipExpiryDate' => $this->membershipEndsAt?->format('d M Y') ?? 'Not available',
                 'currentYear' => now()->year,
             ]);
+
+        foreach ($this->attachmentsConfig as $attachment) {
+            $options = ['as' => $attachment['name']];
+
+            if (! empty($attachment['mime'])) {
+                $options['mime'] = $attachment['mime'];
+            }
+
+            $mail->attachFromStorageDisk($attachment['disk'], $attachment['path'], $attachment['name'], $options);
+        }
 
         return $mail;
     }
