@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 class ContactPost extends Model
@@ -19,29 +20,50 @@ class ContactPost extends Model
     protected $fillable = [
         'user_id',
         'full_name',
-        'phonetic_name',
-        'mobile_number',
-        'alternate_mobile_number',
+        'phone',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'nickname',
         'email',
         'company',
         'job_title',
-        'address',
-        'im',
-        'contact_date',
-        'related_persons',
-        'nickname',
-        'website',
         'notes',
-        'source_accounts',
-        'follow_system',
+        'emails',
+        'phones',
+        'addresses',
+    ];
+
+    protected $visible = [
+        'id',
+        'user_id',
+        'full_name',
+        'phone',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'nickname',
+        'email',
+        'company',
+        'job_title',
+        'notes',
+        'emails',
+        'phones',
+        'addresses',
+        'created_at',
+        'updated_at',
     ];
 
     protected $casts = [
-        'related_persons' => 'array',
-        'source_accounts' => 'array',
-        'follow_system' => 'boolean',
-        'contact_date' => 'date',
+        'emails' => 'array',
+        'phones' => 'array',
+        'addresses' => 'array',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 
     protected static function booted(): void
     {

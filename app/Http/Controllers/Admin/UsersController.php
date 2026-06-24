@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\MembershipApprovedMail;
 use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleCategory;
@@ -14,12 +15,17 @@ use App\Models\City;
 use App\Models\Industry;
 use App\Models\IndustryDirectorAssignment;
 use App\Models\JoinedCircleCategory;
+use App\Models\Notifications\AppNotification;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserPushToken;
+use App\Services\Admin\DedLocationService;
 use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
+use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,7 +35,9 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -43,6 +51,7 @@ class UsersController extends Controller
         private readonly ZohoBillingService $zohoBillingService,
         private readonly PublicProfileSlugService $publicProfileSlugService,
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
+        private readonly DedLocationService $dedLocationService,
     ) {
     }
 
@@ -52,7 +61,7 @@ class UsersController extends Controller
 
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
-        $users = $query->paginate($perPage)->appends($request->query());
+        $users = $query->paginate($perPage)->appends($request->except('approval_status'));
         $canEditUsers = AdminAccess::canEditUsers(Auth::guard('admin')->user());
         $joinedCircleCategoryTreesByUserId = $users->getCollection()
             ->mapWithKeys(function (User $user) {
@@ -63,12 +72,7 @@ class UsersController extends Controller
                 return [(string) $user->id => $this->buildJoinedCircleCategoryTrees($memberships)];
             });
 
-        $membershipStatuses = User::query()
-            ->whereNotNull('membership_status')
-            ->distinct()
-            ->pluck('membership_status')
-            ->sort()
-            ->values();
+        $membershipStatuses = collect($this->membershipFilterOptions())->keys()->values();
 
         $circlesQuery = Circle::query()->orderBy('name');
         $industryScope = app(IndustryScopeService::class);
@@ -84,6 +88,7 @@ class UsersController extends Controller
         return view('admin.users.index', [
             'users' => $users,
             'membershipStatuses' => $membershipStatuses,
+            'membershipStatusLabels' => $this->membershipFilterOptions(),
             'circles' => $circles,
             'q' => $q,
             'circleId' => $circleId,
@@ -104,6 +109,7 @@ class UsersController extends Controller
             'user' => $user,
             'cities' => $cities,
             'membershipStatuses' => $membershipStatuses,
+            'membershipStatusLabels' => $this->membershipFilterOptions(),
             'circles' => $circles,
             'membershipPlanOptions' => $this->membershipPlanOptions(),
         ]);
@@ -226,12 +232,13 @@ class UsersController extends Controller
             ->with('success', 'Member created successfully.');
     }
 
-    public function edit(Request $request, string $userId): View
+    private function industryDirectorAssignmentsTableExists(): bool
     {
-        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
-            abort(403);
-        }
+        return Schema::hasTable('industry_director_assignments');
+    }
 
+    private function getEditViewData(Request $request, string $userId): array
+    {
         $user = User::query()
             ->with(['mainBusinessCategory:id,name', 'businessCategory:id,name'])
             ->findOrFail($userId);
@@ -255,7 +262,17 @@ class UsersController extends Controller
         $assignedAdminRoles = $adminUserForRoles
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
-        $industryDirectorAssignment = $adminUserForRoles
+        $states = $this->dedLocationService->getAvailableStates();
+        $assignedDedMapping = $adminUserForRoles
+            ? $this->dedLocationService->getAssignedDedDistrict((string) $adminUserForRoles->id)
+            : null;
+        $assignedDedStateId = $assignedDedMapping->state_id ?? null;
+        $assignedDedStateName = $assignedDedMapping->state_name ?? null;
+        $assignedDedDistrictId = $assignedDedMapping->district_id ?? null;
+        $assignedDedDistrictName = $assignedDedMapping->district_name ?? null;
+        $assignedDedDistricts = $this->dedLocationService->getAvailableDistrictsByState($assignedDedStateId);
+
+        $industryDirectorAssignment = ($adminUserForRoles && $this->industryDirectorAssignmentsTableExists())
             ? IndustryDirectorAssignment::query()
                 ->where('admin_user_id', $adminUserForRoles->id)
                 ->where('is_active', true)
@@ -333,14 +350,21 @@ class UsersController extends Controller
 
         $hasCoinsRemarkColumn = Schema::hasColumn('users', 'coins_remark');
 
-        return view('admin.users.edit', [
+        return [
             'user' => $user,
             'cities' => $cities,
             'roles' => $roles,
+            'states' => $states,
+            'assignedDedStateId' => $assignedDedStateId,
+            'assignedDedDistrictId' => $assignedDedDistrictId,
+            'assignedDedStateName' => $assignedDedStateName,
+            'assignedDedDistrictName' => $assignedDedDistrictName,
+            'assignedDedDistricts' => $assignedDedDistricts,
             'industries' => $industries,
             'industryDirectorRoleId' => $industryDirectorRoleId,
             'selectedIndustryId' => $industryDirectorAssignment?->industry_id,
             'membershipStatuses' => $membershipStatuses,
+            'membershipStatusLabels' => $this->membershipFilterOptions(),
             'circles' => $circles,
             'joinedCircleId' => $joinedCircleId,
             'effectiveCircleId' => $effectiveCircleId,
@@ -359,7 +383,39 @@ class UsersController extends Controller
             'membershipPlanOptions' => $this->membershipPlanOptions($user->zoho_plan_code),
             'circleCategoryOptionsByCircle' => $circleCategoryOptionsByCircle,
             'hasCoinsRemarkColumn' => $hasCoinsRemarkColumn,
-        ]);
+        ];
+    }
+
+    public function edit(Request $request, string $userId): View
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $data = $this->getEditViewData($request, $userId);
+        $data['isReadOnly'] = false;
+
+        return view('admin.users.edit', $data);
+    }
+
+    public function show(Request $request, string $userId): View
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin !== null, 403);
+
+        $isGlobal = AdminAccess::isGlobalAdmin($admin);
+        $isDed = AdminAccess::isDed($admin);
+
+        abort_unless($isGlobal || $isDed, 403);
+
+        if ($isDed) {
+            abort_unless(AdminCircleScope::userInScope($admin, $userId), 403);
+        }
+
+        $data = $this->getEditViewData($request, $userId);
+        $data['isReadOnly'] = true;
+
+        return view('admin.users.edit', $data);
     }
 
     public function update(Request $request, string $userId)
@@ -458,10 +514,62 @@ class UsersController extends Controller
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
+            'ded_state_id' => ['nullable', 'string', 'max:150'],
+            'ded_state_name' => ['nullable', 'string', 'max:150'],
+            'ded_district_id' => ['nullable', 'uuid'],
+            'ded_district_name' => ['nullable', 'string', 'max:150'],
             'industry_id' => ['nullable', 'uuid', 'exists:industries,id'],
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
+
+        $dedRoleId = Role::query()->where('key', 'ded')->value('id');
+        $isDedSelectedForValidation = $dedRoleId && in_array($dedRoleId, (array) $request->input('role_ids', []), true);
+        if ($isDedSelectedForValidation) {
+            $request->validate([
+                'ded_state_id' => [
+                    'required',
+                    'uuid',
+                    function (string $attribute, mixed $value, \Closure $fail): void {
+                        if (! Schema::hasTable('states')) {
+                            $fail('State data is not available. Please run the provided manual SQL before assigning DED.');
+                            return;
+                        }
+
+                        $exists = DB::table('states')
+                            ->where('id', $value)
+                            ->when(Schema::hasColumn('states', 'status'), fn ($query) => $query->where('status', 'active'))
+                            ->exists();
+
+                        if (! $exists) {
+                            $fail('Please select a valid active state when assigning the DED role.');
+                        }
+                    },
+                ],
+                'ded_district_id' => [
+                    'required',
+                    'uuid',
+                    function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                        if (! Schema::hasTable('districts') || ! Schema::hasColumn('districts', 'state_id')) {
+                            $fail('District data is not available. Please run the provided manual SQL before assigning DED.');
+                            return;
+                        }
+
+                        $exists = $this->dedLocationService->districtBelongsToState(
+                            (string) $value,
+                            (string) $request->input('ded_state_id'),
+                        );
+
+                        if (! $exists) {
+                            $fail('Please select a valid active district for the selected state.');
+                        }
+                    },
+                ],
+            ], [
+                'ded_state_id.required' => 'Please select a state when assigning the DED role.',
+                'ded_district_id.required' => 'Please select a district when assigning the DED role.',
+            ]);
+        }
 
         $selectedRoleIdsForValidation = collect($validated['role_ids'] ?? [])->map(fn ($id) => (string) $id);
         if ($industryDirectorRoleId && $selectedRoleIdsForValidation->contains((string) $industryDirectorRoleId) && blank($validated['industry_id'] ?? null)) {
@@ -529,6 +637,10 @@ class UsersController extends Controller
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
         $updatableExclusions = [
             'role_ids',
+            'ded_state_id',
+            'ded_state_name',
+            'ded_district_id',
+            'ded_district_name',
             'industry_id',
             'profile_photo_file_id',
             'cover_photo_file_id',
@@ -775,6 +887,60 @@ class UsersController extends Controller
                         ->unique()
                         ->values()
                         ->all();
+                    $dedRoleId = Role::query()->where('key', 'ded')->value('id');
+                    $isDedSelected = $dedRoleId && in_array($dedRoleId, $selectedRoleIds, true);
+
+                    $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
+                    $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+
+                    if (Schema::hasTable('admin_ded_districts')) {
+                        if ($isDedSelected) {
+                            $districtId = (string) $request->input('ded_district_id');
+                            $stateId = $this->dedLocationService->canonicalStateIdForDistrict(
+                                $districtId,
+                                (string) $request->input('ded_state_id'),
+                            );
+                            $stateName = $this->dedLocationService->resolveStateName($stateId);
+                            $districtName = DB::table('districts')->where('id', $districtId)->value('name');
+                            $districtName = $this->dedLocationService->normalizeDistrictName($districtName);
+
+                            $payload = [
+                                'user_id' => $user->id,
+                                'updated_at' => now(),
+                            ];
+
+                            foreach ([
+                                'state_id' => $stateId,
+                                'district_id' => $districtId,
+                                'state_name' => $stateName,
+                                'district_name' => $districtName,
+                            ] as $column => $value) {
+                                if (Schema::hasColumn('admin_ded_districts', $column)) {
+                                    $payload[$column] = $value;
+                                }
+                            }
+
+                            $dedAssignmentExists = DB::table('admin_ded_districts')
+                                ->where('admin_user_id', $adminUser->id)
+                                ->exists();
+
+                            if ($dedAssignmentExists) {
+                                DB::table('admin_ded_districts')
+                                    ->where('admin_user_id', $adminUser->id)
+                                    ->update($payload);
+                            } else {
+                                DB::table('admin_ded_districts')->insert(array_merge($payload, [
+                                    'id' => (string) Str::uuid(),
+                                    'admin_user_id' => $adminUser->id,
+                                    'created_at' => now(),
+                                ]));
+                            }
+                        } else {
+                            DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+                        }
+
+                        Cache::forget('admin-access:ded-location:' . $adminUser->id);
+                    }
 
                     DB::table('admin_user_roles')
                         ->where('user_id', $adminUser->id)
@@ -795,7 +961,7 @@ class UsersController extends Controller
 
                     Cache::forget('admin-access:roles:' . $adminUser->id);
 
-                    if ($industryDirectorSelected) {
+                    if ($industryDirectorSelected && $this->industryDirectorAssignmentsTableExists()) {
                         $assignmentExists = DB::table('industry_director_assignments')
                             ->where('admin_user_id', $adminUser->id)
                             ->exists();
@@ -809,7 +975,7 @@ class UsersController extends Controller
                                 'updated_at' => now(),
                             ], $assignmentExists ? [] : ['created_at' => now()]),
                         );
-                    } else {
+                    } elseif ($this->industryDirectorAssignmentsTableExists()) {
                         DB::table('industry_director_assignments')
                             ->where('admin_user_id', $adminUser->id)
                             ->update([
@@ -963,13 +1129,20 @@ class UsersController extends Controller
 
             Cache::forget('admin-access:roles:' . $adminUser->id);
 
-            DB::table('industry_director_assignments')
-                ->where('admin_user_id', $adminUser->id)
-                ->update([
-                    'is_active' => false,
-                    'updated_at' => now(),
-                ]);
+            if ($this->industryDirectorAssignmentsTableExists()) {
+                DB::table('industry_director_assignments')
+                    ->where('admin_user_id', $adminUser->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => now(),
+                    ]);
+            }
         });
+
+        if (Schema::hasTable('admin_ded_districts')) {
+            DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+            Cache::forget('admin-access:ded-location:' . $adminUser->id);
+        }
 
         return back()->with('success', 'Role removed successfully.');
     }
@@ -1131,7 +1304,10 @@ class UsersController extends Controller
             'email',
             'phone',
             'company_name',
+            'approval_status',
             'membership_status',
+            'membership_starts_at',
+            'membership_ends_at',
             'city',
             'coins_balance',
             'status',
@@ -1153,7 +1329,10 @@ class UsersController extends Controller
                     $user->email,
                     $user->phone,
                     $user->company_name,
-                    $user->membership_status,
+                    $user->approval_status ?? null,
+                    $this->membershipLabel($user->membership_status),
+                    optional($user->membership_starts_at)->toDateTimeString(),
+                    optional($user->membership_ends_at)->toDateTimeString(),
                     $user->city?->name ?? $user->city,
                     $user->coins_balance,
                     $status,
@@ -1228,6 +1407,98 @@ class UsersController extends Controller
 
         $validated['active_circle_addon_code'] = $circle?->zoho_addon_code;
         $validated['active_circle_addon_name'] = $circle?->zoho_addon_name;
+    }
+
+    public function approveMembership(Request $request, User $user): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'membership_start_date' => ['nullable', 'date'],
+            'membership_end_date' => ['nullable', 'date', 'after_or_equal:membership_start_date'],
+        ]);
+
+        [$startDate, $endDate] = $this->resolveMembershipApprovalDates($validated);
+        $adminId = Auth::guard('admin')->id();
+
+        $result = DB::transaction(function () use ($user, $startDate, $endDate, $adminId): array {
+            $lockedUser = User::query()->whereKey($user->getKey())->lockForUpdate()->get();
+
+            return $this->approveEligibleUsers($lockedUser, $startDate, $endDate, $adminId ? (string) $adminId : null);
+        });
+
+        if ($result['approved_count'] === 0) {
+            return back()->with('warning', 'Selected peer is not eligible for membership approval.');
+        }
+
+        $this->sendMembershipApprovalNotifications(User::query()->whereKey($user->getKey())->get(), $startDate, $endDate);
+
+        return back()->with('success', 'Peer approved successfully as Only Unity Peer. Membership valid until ' . $endDate->toDateString() . '.');
+    }
+
+    public function bulkApproveMembership(Request $request)
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        if (! $request->filled('user_ids')) {
+            return back()->with('warning', 'Please select at least one peer.');
+        }
+
+        $validated = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['required', 'exists:users,id'],
+            'membership_starts_at' => ['nullable', 'date'],
+            'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at'],
+        ], [
+            'membership_ends_at.after_or_equal' => 'Membership Ends At must be same or after Membership Starts At.',
+        ]);
+
+        $startDate = filled($validated['membership_starts_at'] ?? null)
+            ? Carbon::parse($validated['membership_starts_at'])->startOfDay()
+            : now()->startOfDay();
+        $endDate = filled($validated['membership_ends_at'] ?? null)
+            ? Carbon::parse($validated['membership_ends_at'])->endOfDay()
+            : $startDate->copy()->addYear()->endOfDay();
+
+        if ($endDate->lt($startDate)) {
+            return back()->withErrors([
+                'membership_ends_at' => 'Membership Ends At must be same or after Membership Starts At.',
+            ])->withInput();
+        }
+
+        $adminId = Auth::guard('admin')->id();
+        $userIds = collect($validated['user_ids'])->map(fn ($id) => (string) $id)->unique()->values();
+
+        $result = DB::transaction(function () use ($userIds, $startDate, $endDate, $adminId): array {
+            $users = User::query()
+                ->whereIn('id', $userIds->all())
+                ->lockForUpdate()
+                ->get();
+
+            return $this->approveEligibleUsers($users, $startDate, $endDate, $adminId ? (string) $adminId : null);
+        });
+
+        $this->sendMembershipApprovalNotifications(
+            User::query()->whereIn('id', $userIds->all())->get(),
+            $startDate,
+            $endDate
+        );
+
+        $message = $result['approved_count'] . ' selected peers approved and upgraded successfully.';
+
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => ['updated_count' => $result['approved_count']],
+            ]);
+        }
+
+        return back()->with('success', $message);
     }
 
     private function membershipStatuses(): array
@@ -1532,6 +1803,9 @@ class UsersController extends Controller
         if (Schema::hasColumn('users', 'main_business_category_id')) {
             $userSelectColumns[] = 'main_business_category_id';
         }
+        if (Schema::hasColumn('users', 'approval_status')) {
+            $userSelectColumns[] = 'approval_status';
+        }
 
         $query = User::query()
             ->select($userSelectColumns)
@@ -1555,6 +1829,10 @@ class UsersController extends Controller
                         ->with(['circle:id,name']);
                 },
             ]);
+
+        if (AdminAccess::isDed(Auth::guard('admin')->user())) {
+            AdminCircleScope::applyToUsersQuery($query, Auth::guard('admin')->user());
+        }
 
         $industryScope = app(IndustryScopeService::class);
         $adminUser = Auth::guard('admin')->user();
@@ -1584,6 +1862,9 @@ class UsersController extends Controller
         $joinedFilter = (string) $request->input('joined_filter', 'all');
         $joinedFrom = (string) $request->input('joined_from', '');
         $joinedTo = (string) $request->input('joined_to', '');
+        $approveFilter = (string) $request->input('approve_filter', 'all');
+        $startDate = (string) $request->input('start_date', '');
+        $endDate = (string) $request->input('end_date', '');
         $perPage = $request->integer('per_page') ?: 20;
 
         if ($search !== '') {
@@ -1637,12 +1918,86 @@ class UsersController extends Controller
             });
         }
 
-        if ($membership && $membership !== 'all') {
+        $dedAdmin = Auth::guard('admin')->user();
+        $isDed = AdminAccess::isDed($dedAdmin);
+        $dedCircleIds = $isDed ? AdminCircleScope::getDedCircleIds($dedAdmin) : null;
+
+        $role = $request->query('role');
+        if ($role && $role !== 'all') {
+            if ($role === 'industry_director') {
+                $query->whereExists(function ($q) use ($isDed, $dedCircleIds) {
+                    $q->selectRaw(1)
+                      ->from('circles')
+                      ->whereColumn('circles.industry_director_user_id', 'users.id');
+                    if ($isDed && is_array($dedCircleIds)) {
+                        $q->whereIn('circles.id', $dedCircleIds);
+                    }
+                });
+            } elseif ($role === 'founder') {
+                $query->whereExists(function ($q) use ($isDed, $dedCircleIds) {
+                    $q->selectRaw(1)
+                      ->from('circles')
+                      ->whereColumn('circles.founder_user_id', 'users.id');
+                    if ($isDed && is_array($dedCircleIds)) {
+                        $q->whereIn('circles.id', $dedCircleIds);
+                    }
+                });
+            } elseif ($role === 'director') {
+                $query->whereExists(function ($q) use ($isDed, $dedCircleIds) {
+                    $q->selectRaw(1)
+                      ->from('circles')
+                      ->whereColumn('circles.director_user_id', 'users.id');
+                    if ($isDed && is_array($dedCircleIds)) {
+                        $q->whereIn('circles.id', $dedCircleIds);
+                    }
+                });
+            } elseif (in_array($role, ['chair', 'vice_chair', 'secretary', 'member', 'leadership_team'])) {
+                $query->whereExists(function ($q) use ($role, $joinedStatus, $isDed, $dedCircleIds) {
+                    $q->selectRaw(1)
+                      ->from('circle_members')
+                      ->whereColumn('circle_members.user_id', 'users.id')
+                      ->where('circle_members.status', $joinedStatus)
+                      ->whereNull('circle_members.deleted_at');
+                    
+                    if ($role === 'leadership_team') {
+                        $q->whereIn('circle_members.role', ['chair', 'vice_chair', 'secretary', 'committee_leader']);
+                    } else {
+                        $q->where('circle_members.role', $role);
+                    }
+
+                    if ($isDed && is_array($dedCircleIds)) {
+                        $q->whereIn('circle_members.circle_id', $dedCircleIds);
+                    }
+                });
+            }
+        }
+
+        $allowedMembershipStatuses = array_keys($this->membershipFilterOptions());
+        if ($membership && in_array($membership, $allowedMembershipStatuses, true)) {
             $query->where('membership_status', $membership);
+        } else {
+            $membership = null;
         }
 
         if ($phone) {
             $query->where('phone', 'ILIKE', "%{$phone}%");
+        }
+
+        if ($approveFilter === 'eligible') {
+            $query->whereIn('membership_status', $this->membershipApprovalEligibleStatuses());
+        } elseif ($approveFilter === 'not_eligible') {
+            $query->whereNotIn('membership_status', $this->membershipApprovalEligibleStatuses());
+        } else {
+            $approveFilter = 'all';
+        }
+
+        $startDateColumn = $this->membershipStartFilterColumn();
+        if ($startDateColumn && ($parsedStartDate = $this->parseJoinedFilterDate($startDate)) instanceof Carbon) {
+            $query->whereDate($startDateColumn, '>=', $parsedStartDate->toDateString());
+        }
+
+        if (Schema::hasColumn('users', 'membership_ends_at') && ($parsedEndDate = $this->parseJoinedFilterDate($endDate)) instanceof Carbon) {
+            $query->whereDate('membership_ends_at', '<=', $parsedEndDate->toDateString());
         }
 
         $joinedDateExpression = 'COALESCE(membership_starts_at, created_at)';
@@ -1706,6 +2061,7 @@ class UsersController extends Controller
             || $joinedFilter !== 'all'
             || filled($joinedFrom)
             || filled($joinedTo)
+            || $approveFilter !== 'all'
         ) {
             Log::info('admin.users.index.filters_applied', [
                 'search' => $search,
@@ -1715,6 +2071,9 @@ class UsersController extends Controller
                 'joined_filter' => $joinedFilter,
                 'joined_from' => $joinedFrom,
                 'joined_to' => $joinedTo,
+                'approve_filter' => $approveFilter,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
                 'is_circle_scoped' => $isCircleScoped,
             ]);
         }
@@ -1727,12 +2086,320 @@ class UsersController extends Controller
             'joined_filter' => $joinedFilter,
             'joined_from' => $joinedFrom,
             'joined_to' => $joinedTo,
+            'approve_filter' => $approveFilter,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
             'per_page' => $perPage,
             'sort' => $sort,
             'dir' => $direction,
         ];
 
         return [$query, $filters, $perPage];
+    }
+
+
+    private function membershipFilterOptions(): array
+    {
+        return [
+            'circle_peer' => 'Circle Peer',
+            'multi_circle_peer' => 'Multi Circle Peer',
+            'only_unity_peer' => 'Only Unity Peer',
+            'free_peer' => 'Free Peer',
+            'free_trial_peer' => 'Free Trial Peer',
+        ];
+    }
+
+    private function membershipLabel(?string $value): string
+    {
+        $normalized = $this->normalizeMembershipValue($value);
+
+        return $this->membershipFilterOptions()[$normalized] ?? Str::headline(str_replace('_', ' ', (string) $value));
+    }
+
+    private function normalizeMembershipValue(?string $value): string
+    {
+        return strtolower(trim(str_replace(' ', '_', (string) $value)));
+    }
+
+
+    private function membershipStartFilterColumn(): ?string
+    {
+        foreach (['membership_starts_at', 'membership_start_at', 'joined_at', 'created_at'] as $column) {
+            if (Schema::hasColumn('users', $column)) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    private function approveEligibleUsers(Collection $users, Carbon $startDate, Carbon $endDate, ?string $adminId): array
+    {
+        $approvedCount = 0;
+        $skippedCount = 0;
+        $approvedMembershipStatus = $this->approvedMembershipStatus();
+
+        foreach ($users as $user) {
+            $attributes = [
+                'membership_status' => $approvedMembershipStatus,
+            ];
+
+            if (Schema::hasColumn('users', 'membership_starts_at')) {
+                $attributes['membership_starts_at'] = $startDate->copy();
+            }
+
+            if (Schema::hasColumn('users', 'membership_ends_at')) {
+                $attributes['membership_ends_at'] = $endDate->copy();
+            }
+
+            if (Schema::hasColumn('users', 'approval_status')) {
+                $attributes['approval_status'] = 'approved';
+            }
+
+            if (Schema::hasColumn('users', 'status')) {
+                $attributes['status'] = 'active';
+            }
+
+            if (Schema::hasColumn('users', 'membership_start_date')) {
+                $attributes['membership_start_date'] = $startDate->copy()->toDateString();
+            }
+
+            if (Schema::hasColumn('users', 'membership_end_date')) {
+                $attributes['membership_end_date'] = $endDate->copy()->toDateString();
+            }
+
+            if (Schema::hasColumn('users', 'membership_expiry')) {
+                $attributes['membership_expiry'] = $endDate->copy()->endOfDay();
+            }
+
+            if (Schema::hasColumn('users', 'membership_approved_at')) {
+                $attributes['membership_approved_at'] = now();
+            }
+
+            if ($adminId !== null && Schema::hasColumn('users', 'membership_approved_by')) {
+                $attributes['membership_approved_by'] = $adminId;
+            }
+
+            $user->forceFill($attributes)->save();
+
+            Log::info('Membership approved', [
+                'user_id' => $user->id,
+                'membership_starts_at' => $startDate->toDateString(),
+                'membership_ends_at' => $endDate->toDateString(),
+            ]);
+
+            $approvedCount++;
+        }
+
+        return [
+            'approved_count' => $approvedCount,
+            'skipped_count' => $skippedCount,
+        ];
+    }
+
+
+    private function sendMembershipApprovalNotifications(Collection $users, Carbon $startDate, Carbon $endDate, bool $sendEmail = true): void
+    {
+        $title = 'Membership Approved';
+        $startDateLabel = $startDate->format('d M Y');
+        $endDateLabel = $endDate->format('d M Y');
+        $message = "Congratulations! Your PeersGlobal membership has been upgraded to Only Unity Peer and is valid from {$startDateLabel} to {$endDateLabel}.";
+        $pushMessage = "Your PeersGlobal membership is now Only Unity Peer, valid until {$endDateLabel}.";
+
+        foreach ($users as $user) {
+            $notificationData = [
+                'membership_status' => 'only_unity_peer',
+                'membership_starts_at' => $startDate->toDateString(),
+                'membership_ends_at' => $endDate->toDateString(),
+                'screen' => 'membership',
+                'type' => 'membership_approved',
+            ];
+
+            $this->createMembershipApprovedNotification($user, $startDate, $endDate, $title, $message, $notificationData);
+
+            $this->sendMembershipApprovalPush($user, $title, $pushMessage, $notificationData);
+
+            if (! $sendEmail) {
+                continue;
+            }
+
+            if (blank($user->email)) {
+                Log::info('admin.users.membership_approval_email_missing', ['user_id' => $user->id]);
+                continue;
+            }
+
+            try {
+                Mail::to($user->email)->send(new MembershipApprovedMail($user, $startDate, $endDate));
+            } catch (Throwable $throwable) {
+                Log::error('Membership approval email failed', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'error' => $throwable->getMessage(),
+                ]);
+            }
+        }
+    }
+
+
+    private function createMembershipApprovedNotification(
+        User $user,
+        Carbon $startDate,
+        Carbon $endDate,
+        string $title,
+        string $message,
+        array $notificationData
+    ): void {
+        $recentDuplicate = false;
+
+        try {
+            $recentDuplicate = AppNotification::query()
+                ->where('user_id', $user->id)
+                ->where('type', 'membership_approved')
+                ->where('data->membership_starts_at', $startDate->toDateString())
+                ->where('data->membership_ends_at', $endDate->toDateString())
+                ->where('created_at', '>=', now()->subMinutes(5))
+                ->exists();
+        } catch (Throwable $throwable) {
+            Log::warning('admin.users.membership_approval_notification_duplicate_check_failed', [
+                'user_id' => $user->id,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+
+        if ($recentDuplicate) {
+            Log::info('Membership approval app notification skipped as duplicate', [
+                'user_id' => $user->id,
+                'membership_starts_at' => $startDate->toDateString(),
+                'membership_ends_at' => $endDate->toDateString(),
+            ]);
+
+            return;
+        }
+
+        try {
+            $notification = AppNotification::create([
+                'user_id' => $user->id,
+                'type' => 'membership_approved',
+                'category' => 'membership',
+                'title' => $title,
+                'body' => $message,
+                'channel' => 'in_app',
+                'priority' => 'high',
+                'screen' => 'membership',
+                'data' => $notificationData,
+                'dedupe_key' => 'membership_approved:' . $user->id . ':' . $startDate->toDateString() . ':' . $endDate->toDateString() . ':' . now()->format('YmdHi'),
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+
+            Log::info('Membership approval app notification created', [
+                'user_id' => $user->id,
+                'notification_id' => (string) $notification->id,
+                'membership_starts_at' => $startDate->toDateString(),
+                'membership_ends_at' => $endDate->toDateString(),
+            ]);
+        } catch (Throwable $throwable) {
+            Log::error('Membership approval app notification failed', [
+                'user_id' => $user->id,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+    }
+
+
+    private function sendMembershipApprovalPush(User $user, string $title, string $message, array $notificationData): void
+    {
+        try {
+            if (! Schema::hasTable('user_push_tokens')) {
+                Log::warning('admin.users.membership_approval_push_table_missing', ['user_id' => $user->id]);
+                return;
+            }
+
+            $tokenColumn = null;
+            if (Schema::hasColumn('user_push_tokens', 'fcm_token')) {
+                $tokenColumn = 'fcm_token';
+            } elseif (Schema::hasColumn('user_push_tokens', 'token')) {
+                $tokenColumn = 'token';
+            }
+
+            if ($tokenColumn === null) {
+                Log::warning('admin.users.membership_approval_push_token_column_missing', ['user_id' => $user->id]);
+                return;
+            }
+
+            $pushTokenQuery = UserPushToken::query()->where('user_id', $user->id);
+
+            if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                $pushTokenQuery->where('is_active', true);
+            }
+
+            $pushTokens = $pushTokenQuery
+                ->whereNotNull($tokenColumn)
+                ->where($tokenColumn, '!=', '')
+                ->get();
+
+            if ($pushTokens->isEmpty()) {
+                Log::info('admin.users.membership_approval_push_token_missing', ['user_id' => $user->id]);
+                return;
+            }
+
+            $fcmService = app(FirebaseFcmService::class);
+            foreach ($pushTokens as $pushToken) {
+                $token = (string) $pushToken->{$tokenColumn};
+                try {
+                    $fcmService->sendToDevice(
+                        $token,
+                        $title,
+                        $message,
+                        $notificationData,
+                        null,
+                        1,
+                        [
+                            'user_id' => $user->id,
+                            'device_id' => $pushToken->device_id ?? null,
+                            'platform' => $pushToken->platform ?? null,
+                            'notification_type' => 'membership_approved',
+                        ]
+                    );
+                } catch (Throwable $throwable) {
+                    Log::warning('admin.users.membership_approval_push_failed', [
+                        'user_id' => $user->id,
+                        'push_token_id' => $pushToken->id ?? null,
+                        'error' => $throwable->getMessage(),
+                    ]);
+                }
+            }
+        } catch (Throwable $throwable) {
+            Log::warning('admin.users.membership_approval_push_lookup_failed', [
+                'user_id' => $user->id,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+    }
+
+    private function resolveMembershipApprovalDates(array $validated): array
+    {
+        $startDate = filled($validated['membership_start_date'] ?? null)
+            ? Carbon::parse($validated['membership_start_date'])->startOfDay()
+            : now()->startOfDay();
+
+        $endDate = filled($validated['membership_end_date'] ?? null)
+            ? Carbon::parse($validated['membership_end_date'])->endOfDay()
+            : $startDate->copy()->addYear()->endOfDay();
+
+        return [$startDate, $endDate];
+    }
+
+    private function membershipApprovalEligibleStatuses(): array
+    {
+        return [User::STATUS_FREE, User::STATUS_FREE_TRIAL];
+    }
+
+    private function approvedMembershipStatus(): string
+    {
+        // Database enum membership_status_enum must include only_unity_peer.
+        // Manual SQL: ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'only_unity_peer';
+        return 'only_unity_peer';
     }
 
     private function parseJoinedFilterDate(?string $value): ?Carbon

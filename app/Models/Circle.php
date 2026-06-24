@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Admin\DistrictSyncService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -180,6 +181,12 @@ class Circle extends Model
 
             if (empty($circle->status)) {
                 $circle->status = 'pending';
+            }
+        });
+
+        static::saved(function (Circle $circle): void {
+            if ($circle->wasRecentlyCreated || $circle->wasChanged(['city_id', 'city', 'city_display', 'state', 'district'])) {
+                app(DistrictSyncService::class)->syncFromCircle($circle);
             }
         });
     }
@@ -387,6 +394,12 @@ class Circle extends Model
     {
         return $this->belongsToMany(User::class, 'circle_members', 'circle_id', 'user_id')
             ->withPivot(['role', 'status'])
+            ->withTimestamps();
+    }
+
+    public function selectedEvents(): BelongsToMany
+    {
+        return $this->belongsToMany(Event::class, 'event_circles', 'circle_id', 'event_id')
             ->withTimestamps();
     }
 

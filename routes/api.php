@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\TestimonialController;
 use App\Http\Controllers\Api\UserContactController;
+use App\Http\Controllers\Api\UserContactsController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\InvoiceController;
@@ -50,11 +51,21 @@ use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\ContactPostController;
+use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
+use App\Http\Controllers\Api\V1\Ded\DedAuthController;
+use App\Http\Controllers\Api\V1\Ded\DedCoinsController;
+use App\Http\Controllers\Api\V1\Ded\DedContextController;
+use App\Http\Controllers\Api\V1\Ded\DedDashboardController;
+use App\Http\Controllers\Api\V1\Ded\DedPeersController;
+use App\Http\Controllers\Api\V1\Ded\DedPendingRequestsController;
+use App\Http\Controllers\Api\V1\Ded\DedReportsController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\AdController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
+use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
 use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
+use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
 use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\EventAdminController;
@@ -63,9 +74,11 @@ use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\AppVersionController;
+use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\CircleCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
+use App\Http\Controllers\Api\V1\EventApiController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\Api\V1\FollowController;
@@ -80,7 +93,9 @@ use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
+use App\Http\Controllers\Api\V1\MyEventQrController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
+use App\Http\Controllers\Api\V1\P2PMeetingRescheduleController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
@@ -88,6 +103,8 @@ use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
+use App\Http\Controllers\Api\V1\NotificationEngineController;
+use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
 use App\Http\Controllers\Api\V1\ScanAppAuthController;
 use App\Http\Controllers\Api\V1\ScanAppEventController;
@@ -105,7 +122,11 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
+// Backward-compatible ads endpoint for clients that still call /api/ads.
+Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
+
 Route::prefix('v1')->group(function () {
+    Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::prefix('scan-app')->group(function () {
         Route::post('/login', [ScanAppAuthController::class, 'login']);
 
@@ -113,7 +134,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/me', [ScanAppAuthController::class, 'me']);
             Route::post('/logout', [ScanAppAuthController::class, 'logout']);
             Route::get('/events', [ScanAppEventController::class, 'index']);
-            Route::post('/events/{event}/scan', [ScanAppEventController::class, 'scan'])->whereUuid('event');
+            Route::post('/scan', [ScanAppEventController::class, 'scanAny']);
+            Route::post('/events/{event_id}/scan', [ScanAppEventController::class, 'scan'])->whereUuid('event_id');
             Route::get('/events/{event}/attendance-history', [ScanAppEventController::class, 'attendanceHistory'])->whereUuid('event');
         });
     });
@@ -131,6 +153,97 @@ Route::prefix('v1')->group(function () {
             Route::get('me', [AuthController::class, 'me']);
         });
     });
+
+    Route::prefix('ded/auth')->group(function () {
+        Route::post('/request-otp', [DedAuthController::class, 'requestOtp']);
+        Route::post('/verify-otp', [DedAuthController::class, 'verifyOtp']);
+    });
+
+    Route::middleware(['auth:sanctum', 'ensure.ded.api'])
+        ->prefix('ded')
+        ->group(function () {
+            Route::get('/me', [DedContextController::class, 'me']);
+
+            Route::get('/dashboard', [DedDashboardController::class, 'show']);
+            Route::get('/dashboard/circles', [DedDashboardController::class, 'circles']);
+
+            // DED Drilldown APIs
+            Route::get('/drilldowns/active-members', [DedDashboardController::class, 'activeMembers']);
+            Route::get('/drilldowns/leadership-spots', [DedDashboardController::class, 'leadershipSpots']);
+            Route::get('/drilldowns/membership-conversion', [DedDashboardController::class, 'membershipConversion']);
+            Route::get('/drilldowns/referral-activity', [DedDashboardController::class, 'referralActivity']);
+
+            // DED Industry APIs
+            Route::get('/industries', [DedDashboardController::class, 'industries']);
+            Route::get('/industries/{industry_id}', [DedDashboardController::class, 'industryDetail']);
+
+            // DED Leadership APIs
+            Route::get('/leadership/industry-directors', [DedDashboardController::class, 'industryDirectors']);
+            Route::get('/leadership/founders', [DedDashboardController::class, 'founders']);
+            Route::get('/leadership/directors', [DedDashboardController::class, 'directors']);
+            Route::get('/leadership/chairs', [DedDashboardController::class, 'chairs']);
+            Route::get('/leadership/vice-chairs', [DedDashboardController::class, 'viceChairs']);
+            Route::get('/leadership/secretaries', [DedDashboardController::class, 'secretaries']);
+            Route::get('/leadership/members', [DedDashboardController::class, 'members']);
+
+            Route::get('/circles', [DedPeersController::class, 'circles']);
+            Route::get('/peers', [DedPeersController::class, 'index']);
+            Route::get('/peers/{id}', [DedPeersController::class, 'show'])->whereUuid('id');
+
+            Route::get('/activities/summary', [DedActivitiesController::class, 'summary']);
+            Route::get('/activities/recommend-a-peer', [DedActivitiesController::class, 'recommendPeer']);
+            Route::get('/activities/find-build-collaborations', [DedActivitiesController::class, 'findBuildCollaborations']);
+            Route::get('/activities/register-a-visitor', [DedActivitiesController::class, 'registerVisitor']);
+
+            foreach (['testimonials', 'requirements', 'referrals', 'p2p-meetings', 'business-deals'] as $activityType) {
+                Route::get("/activities/{$activityType}", [DedActivitiesController::class, 'index'])
+                    ->defaults('type', $activityType);
+
+                Route::get("/activities/{$activityType}/{id}", [DedActivitiesController::class, 'show'])
+                    ->defaults('type', $activityType)
+                    ->whereUuid('id');
+            }
+
+            Route::get('/coins', [DedCoinsController::class, 'index']);
+            Route::get('/coins/history', [DedCoinsController::class, 'history']);
+
+            Route::get('/pending-requests/summary', [DedPendingRequestsController::class, 'summary']);
+
+            foreach ([
+                'visitor-registrations' => 'visitor_registrations',
+                'event-joining-requests' => 'event_joining_requests',
+                'coin-claims' => 'coin_claims',
+                'circle-joining-requests' => 'circle_joining_requests',
+                'pending-impacts' => 'pending_impacts',
+            ] as $uri => $type) {
+                Route::get("/pending-requests/{$uri}", [DedPendingRequestsController::class, 'index'])
+                    ->defaults('type', $type);
+
+                Route::get("/pending-requests/{$uri}/{id}", [DedPendingRequestsController::class, 'show'])
+                    ->defaults('type', $type)
+                    ->whereUuid('id');
+
+                Route::post("/pending-requests/{$uri}/{id}/approve", [DedPendingRequestsController::class, 'approve'])
+                    ->defaults('type', $type)
+                    ->whereUuid('id');
+
+                Route::post("/pending-requests/{$uri}/{id}/reject", [DedPendingRequestsController::class, 'reject'])
+                    ->defaults('type', $type)
+                    ->whereUuid('id');
+            }
+
+            Route::post('/pending-requests/circle-joining-requests/{id}/ded-approve', [DedPendingRequestsController::class, 'approve'])
+                ->defaults('type', 'circle_joining_requests')
+                ->whereUuid('id');
+
+            Route::get('/referral-report', [DedReportsController::class, 'referralReport']);
+            Route::get('/life-impact', [DedReportsController::class, 'lifeImpact']);
+
+            Route::get('/reports/referrals', [DedReportsController::class, 'referrals']);
+            Route::get('/reports/activities', [DedReportsController::class, 'activities']);
+            Route::get('/reports/coins', [DedReportsController::class, 'coins']);
+            Route::get('/reports/pending-requests', [DedReportsController::class, 'pendingRequests']);
+        });
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
@@ -152,6 +265,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 
     Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->whereUuid('eventId')->where('filename', '[^/]+\.png');
+    Route::get('/events/all', [EventApiController::class, 'allEvents']);
     Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register', [EventController::class, 'visitorRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
     Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
@@ -160,10 +274,15 @@ Route::prefix('v1')->group(function () {
     Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
     Route::middleware('throttle:60,1')->group(function () {
         Route::get('/public/events/{event_id}/occurrences/{occurrence_id}', [EventController::class, 'publicOccurrence'])->whereUuid('event_id')->whereUuid('occurrence_id');
+        Route::get('/public/events/{event_id}/occurrences/{occurrence_id}/registration-form', [EventController::class, 'publicRegistrationForm'])->whereUuid('event_id')->whereUuid('occurrence_id');
         Route::post('/public/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'publicRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     });
     Route::post('/zoho/events/form-webhook', ZohoEventFormWebhookController::class);
     Route::post('/payments/zoho-billing/payment-link/webhook', [ZohoPaymentLinkWebhookController::class, 'handle']);
+    // Local: use the current ngrok HTTPS URL and update Zoho whenever ngrok restarts.
+    // Live: use https://peersunity.com/api/v1/webhooks/zoho/payments?secret=LIVE_SECRET (never ngrok).
+    Route::get('/webhooks/zoho/payments/health', [ZohoPaymentWebhookController::class, 'health']);
+    Route::get('/webhooks/zoho/payments', [ZohoPaymentWebhookController::class, 'active']);
     Route::post('/webhooks/zoho/payments', [ZohoPaymentWebhookController::class, 'handle']);
     Route::post('/zoho/payments/webhook', [ZohoPaymentWebhookController::class, 'handle']);
 
@@ -175,8 +294,33 @@ Route::prefix('v1')->group(function () {
     Route::patch('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
     Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/user/contacts/permission', [UserContactsController::class, 'permission']);
+        Route::post('/events/checkin/scan', [EventController::class, 'scan']);
+        Route::post('/events/{event}/occurrences/{occurrence}/register', [EventController::class, 'register'])
+            ->whereUuid('event')
+            ->whereUuid('occurrence');
+    });
+
+    Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function () {
+        Route::get('/certifications/{id}/download', [CertificationSubmissionController::class, 'download'])->whereUuid('id');
+    });
+
+    Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
+        // Certification approval API examples:
+        // GET /api/v1/admin/certifications
+        // POST /api/v1/admin/certifications/019ebbde-f5ca-71d8-a236-b6e162b0f4ba/approve
+        // Body: {"admin_note": "Certification approved after review."}
+        Route::get('/certifications', [CertificationSubmissionController::class, 'index']);
+        Route::get('/certifications/counts', [CertificationSubmissionController::class, 'counts']);
+        Route::get('/certifications/{id}', [CertificationSubmissionController::class, 'show'])->whereUuid('id');
+        Route::post('/certifications/{id}/approve', [CertificationSubmissionController::class, 'approve'])->whereUuid('id');
+        Route::post('/certifications/{id}/reject', [CertificationSubmissionController::class, 'reject'])->whereUuid('id');
+    });
+
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
+        Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
 
@@ -273,6 +417,25 @@ Route::prefix('v1')->group(function () {
             Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch']);
             Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
             Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
+
+            Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
+            Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
+            Route::put('/app-config/colors', [AppConfigAdminController::class, 'updateColors']);
+            Route::get('/app-config/icons', [AppConfigAdminController::class, 'icons']);
+            Route::put('/app-config/icons', [AppConfigAdminController::class, 'bulkUpdateIcons']);
+            Route::post('/app-config/icons/upload', [AppConfigAdminController::class, 'uploadIcon']);
+            Route::put('/app-config/icons/{icon_key}', [AppConfigAdminController::class, 'updateIcon']);
+            Route::put('/app-config/labels', [AppConfigAdminController::class, 'bulkUpdateLabels']);
+            Route::put('/app-config/labels/{label_key}', [AppConfigAdminController::class, 'updateLabel']);
+            Route::put('/app-config/features', [AppConfigAdminController::class, 'bulkUpdateFeatures']);
+            Route::put('/app-config/features/{feature_key}', [AppConfigAdminController::class, 'updateFeature']);
+            Route::post('/app-config/navigation', [AppConfigAdminController::class, 'createNavigationItem']);
+            Route::put('/app-config/navigation/{id}', [AppConfigAdminController::class, 'updateNavigationItem'])->whereUuid('id');
+            Route::delete('/app-config/navigation/{id}', [AppConfigAdminController::class, 'deleteNavigationItem'])->whereUuid('id');
+            Route::put('/app-config/dashboard-widgets/{widget_key}', [AppConfigAdminController::class, 'updateDashboardWidget']);
+            Route::put('/app-config/social-links/{platform}', [AppConfigAdminController::class, 'updateSocialLink']);
+            Route::put('/app-config/membership-labels/{membership_key}', [AppConfigAdminController::class, 'updateMembershipLabel']);
+            Route::post('/app-config/clear-cache', [AppConfigAdminController::class, 'clearCache']);
 
             Route::post('/app/version', [AdminAppVersionController::class, 'upsert']);
             Route::get('/circle-join-requests', [CircleJoinRequestAdminController::class, 'index']);
@@ -418,6 +581,15 @@ Route::prefix('v1')->group(function () {
             Route::patch('/post-reports/{id}/resolve', [AdminOpsController::class, 'postReportResolve'])->whereUuid('id');
             Route::patch('/post-reports/{id}/dismiss', [AdminOpsController::class, 'postReportDismiss'])->whereUuid('id');
 
+
+            Route::get('/notification-campaigns', [NotificationCampaignController::class, 'index']);
+            Route::post('/notification-campaigns', [NotificationCampaignController::class, 'store']);
+            Route::put('/notification-campaigns/{id}', [NotificationCampaignController::class, 'update'])->whereUuid('id');
+            Route::patch('/notification-campaigns/{id}/toggle', [NotificationCampaignController::class, 'toggle'])->whereUuid('id');
+            Route::post('/notification-campaigns/{id}/preview', [NotificationCampaignController::class, 'preview'])->whereUuid('id');
+            Route::post('/notification-campaigns/{id}/run', [NotificationCampaignController::class, 'run'])->whereUuid('id');
+            Route::get('/notification-campaigns/{id}/runs', [NotificationCampaignController::class, 'runs'])->whereUuid('id');
+            Route::get('/notification-logs', [NotificationCampaignController::class, 'logs']);
             Route::get('/notifications/logs', [AdminOpsController::class, 'notificationLogs']);
             Route::post('/notifications/broadcast', [AdminOpsController::class, 'notificationBroadcast']);
             Route::get('/notifications/templates', [AdminOpsController::class, 'notificationTemplates']);
@@ -468,7 +640,7 @@ Route::prefix('v1')->group(function () {
         // Posts & feed
         Route::post('/posts/{post}/report', [PostReportController::class, 'store']);
         Route::get('/posts/feed', [PostController::class, 'feed']);
-        Route::get('/ads', [AdController::class, 'index']);
+        Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
         Route::get('/ads/timeline', [AdController::class, 'timeline']);
         Route::get('/ads/{id}', [AdController::class, 'show']);
         Route::get('/posts/saved', [PostSaveController::class, 'index']);
@@ -487,9 +659,9 @@ Route::prefix('v1')->group(function () {
 
         // Events
         Route::get('/events', [EventController::class, 'index']);
+        Route::get('/events/all-with-live-status', [EventController::class, 'allWithLiveStatus']);
         Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
         Route::get('/my/event-registrations', [EventController::class, 'myEventRegistrations']);
-        Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
         Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
         Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
@@ -560,8 +732,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/p2p-meeting-requests/sent', [P2PMeetingRequestController::class, 'sent']);
         Route::get('/p2p-meeting-requests/{id}', [P2PMeetingRequestController::class, 'show']);
         Route::post('/p2p-meeting-requests/{id}/accept', [P2PMeetingRequestController::class, 'accept']);
+        Route::post('/p2p-meeting-requests/{id}/reschedule', [P2PMeetingRequestController::class, 'requestReschedule']);
         Route::post('/p2p-meeting-requests/{id}/reject', [P2PMeetingRequestController::class, 'reject']);
         Route::post('/p2p-meeting-requests/{id}/cancel', [P2PMeetingRequestController::class, 'cancel']);
+        Route::get('/p2p-meeting-reschedule-requests/pending-received', [P2PMeetingRescheduleController::class, 'pendingReceived']);
+        Route::post('/p2p-meeting-reschedule-requests/{id}/approve', [P2PMeetingRescheduleController::class, 'approve']);
+        Route::post('/p2p-meeting-reschedule-requests/{id}/reject', [P2PMeetingRescheduleController::class, 'reject']);
 
         // Admin Activities
         Route::get('/admin/activities', [AdminActivityController::class, 'index']);
@@ -606,9 +782,24 @@ Route::prefix('v1')->group(function () {
         Route::post('/chats/{id}/typing', [ChatController::class, 'typing']);
 
 
+        // Notification debug checks
+        Route::get('/admin/notifications/check', [NotificationEngineController::class, 'check']);
+        Route::get('/admin/notifications/check/post/{postId}', [NotificationEngineController::class, 'checkPost'])->whereUuid('postId');
+        Route::get('/admin/notifications/check-user', [NotificationEngineController::class, 'checkUserForReference']);
+        Route::get('/admin/notifications/check-missing', [NotificationEngineController::class, 'checkMissing']);
+        Route::get('/admin/notifications/check/user/{userId}', [NotificationEngineController::class, 'checkUser'])->whereUuid('userId');
+        Route::get('/admin/notifications/posts/{post}/summary', [NotificationEngineController::class, 'postSummary'])->whereUuid('post');
+        Route::post('/admin/notifications/posts/{post}/send-test', [NotificationEngineController::class, 'sendPostTest'])->whereUuid('post');
+
         // Notifications
-        Route::get('/notifications', [NotificationController::class, 'index']);
-        Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+        Route::post('/notifications/push-token', [NotificationEngineController::class, 'pushToken']);
+        Route::get('/notifications', [NotificationEngineController::class, 'index']);
+        Route::post('/notifications/{id}/read', [NotificationEngineController::class, 'read'])->whereUuid('id');
+        Route::post('/notifications/read-all', [NotificationEngineController::class, 'readAll']);
+        Route::post('/notifications/{id}/clicked', [NotificationEngineController::class, 'click'])->whereUuid('id');
+        Route::post('/notifications/{id}/click', [NotificationEngineController::class, 'click'])->whereUuid('id');
+        Route::get('/notifications/preferences', [NotificationEngineController::class, 'preferences']);
+        Route::put('/notifications/preferences', [NotificationEngineController::class, 'updatePreferences']);
 
         // Push tokens
         Route::post('/push-tokens', [PushTokenController::class, 'store']);

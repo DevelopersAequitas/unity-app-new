@@ -10,13 +10,20 @@ use App\Models\EventRegistrationRequest;
 use App\Models\EventQrScanLog;
 use App\Models\FileModel;
 use App\Services\Events\EventOccurrenceGeneratorService;
+use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class EventManagementController extends Controller
@@ -25,12 +32,13 @@ class EventManagementController extends Controller
         private readonly EventOccurrenceGeneratorService $occurrences,
         private readonly EventService $events,
         private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
+        private readonly EventRegistrationQrService $registrationQr,
     ) {}
 
     public function index(Request $request): View
     {
-        $events = Event::query()
-            ->with('circle')
+        $query = Event::query()
+            ->with(['circle', 'circles'])
             ->withCount(['registrations as registered_count' => fn ($q) => $q->where('status', '!=', 'cancelled')])
             ->withCount(['registrations as checked_in_count' => fn ($q) => $q->where('checkin_status', 'checked_in')])
             ->when($request->event_type, fn ($q, $v) => $q->where('event_type', $v))
@@ -38,7 +46,11 @@ class EventManagementController extends Controller
             ->when($request->mode, fn ($q, $v) => $q->where('mode', $v))
             ->when($request->date_from, fn ($q, $v) => $q->where('start_at', '>=', $v))
             ->when($request->date_to, fn ($q, $v) => $q->where('start_at', '<=', $v))
-            ->when($request->search, fn ($q, $v) => $q->where('title', 'ilike', '%'.$v.'%'))
+            ->when($request->search, fn ($q, $v) => $q->where('title', 'ilike', '%'.$v.'%'));
+
+        AdminCircleScope::applyToEventsQuery($query, Auth::guard('admin')->user());
+
+        $events = $query
             ->latest('start_at')
             ->paginate(20)
             ->withQueryString();
@@ -50,6 +62,25 @@ class EventManagementController extends Controller
     public function joiningRequests(Request $request): View
     {
         $status = $request->input('status', 'pending');
+        $admin = Auth::guard('admin')->user();
+        $requestTable = (new EventRegistrationRequest())->getTable();
+
+        if (! Schema::hasTable($requestTable)) {
+            $summary = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'total' => 0];
+            $requests = new LengthAwarePaginator(
+                collect(),
+                0,
+                (int) $request->input('per_page', 20),
+                (int) $request->input('page', 1),
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+            $eventsQuery = Event::query()->orderBy('title');
+            AdminCircleScope::applyToEventsQuery($eventsQuery, $admin);
+            $events = $eventsQuery->get(['id', 'title']);
+
+            return view('admin.events.joining-requests', compact('requests', 'summary', 'events', 'status'));
+        }
+
         $query = EventRegistrationRequest::query()
             ->with([
                 'user.circleMemberships.circle',
@@ -80,7 +111,10 @@ class EventManagementController extends Controller
                 });
             });
 
+        $this->applyJoiningRequestScope($query, $admin);
+
         $summaryBase = EventRegistrationRequest::query();
+        $this->applyJoiningRequestScope($summaryBase, $admin);
         $summary = [
             'pending' => (clone $summaryBase)->where('status', 'pending')->count(),
             'approved' => (clone $summaryBase)->where('status', 'approved')->count(),
@@ -89,14 +123,18 @@ class EventManagementController extends Controller
         ];
 
         $requests = $query->latest('created_at')->paginate((int) $request->input('per_page', 20))->withQueryString();
-        $events = Event::query()->orderBy('title')->get(['id', 'title']);
+        $eventsQuery = Event::query()->orderBy('title');
+        AdminCircleScope::applyToEventsQuery($eventsQuery, Auth::guard('admin')->user());
+        $events = $eventsQuery->get(['id', 'title']);
 
         return view('admin.events.joining-requests', compact('requests', 'summary', 'events', 'status'));
     }
 
     public function approveJoiningRequest(Request $request, string $id): RedirectResponse
     {
+        abort_unless(Schema::hasTable((new EventRegistrationRequest())->getTable()), 404);
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
+        abort_unless($this->canAccessJoiningRequest($joiningRequest), 403);
         $joiningRequest->forceFill([
             'status' => 'approved',
             'admin_note' => $request->input('admin_note', 'Approved for cross-circle event registration.'),
@@ -110,7 +148,9 @@ class EventManagementController extends Controller
     public function rejectJoiningRequest(Request $request, string $id): RedirectResponse
     {
         $data = $request->validate(['admin_note' => ['required', 'string', 'max:2000']]);
+        abort_unless(Schema::hasTable((new EventRegistrationRequest())->getTable()), 404);
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
+        abort_unless($this->canAccessJoiningRequest($joiningRequest), 403);
         $joiningRequest->forceFill([
             'status' => 'rejected',
             'admin_note' => $data['admin_note'],
@@ -123,24 +163,30 @@ class EventManagementController extends Controller
 
     public function create(): View
     {
-        return view('admin.events.create', ['circles' => Circle::query()->orderBy('name')->get(['id', 'name'])]);
+        abort_if(AdminAccess::isDed(Auth::guard('admin')->user()), 403);
+
+        return view('admin.events.create', ['circles' => Circle::query()->with('cityRef')->orderBy('name')->get()]);
     }
 
     public function edit(string $id): View
     {
-        $event = Event::query()->findOrFail($id);
+        $event = Event::query()->with('circles')->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
 
         return view('admin.events.create', [
             'event' => $event,
-            'circles' => Circle::query()->orderBy('name')->get(['id', 'name']),
+            'circles' => Circle::query()->with('cityRef')->orderBy('name')->get(),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
+        abort_if(AdminAccess::isDed(Auth::guard('admin')->user()), 403);
+
         $data = $this->prepareEventData($request, $this->validated($request));
         $event = DB::transaction(function () use ($data): Event {
             $event = Event::query()->create($this->filterColumns($this->withDefaults($data)));
+            $this->syncEventCircles($event, $data['circle_ids'] ?? null);
             $this->occurrences->generate($event);
 
             return $event;
@@ -152,11 +198,13 @@ class EventManagementController extends Controller
     public function update(Request $request, string $id): RedirectResponse
     {
         $event = Event::query()->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
         $data = $this->prepareEventData($request, $this->validated($request), $event);
 
         DB::transaction(function () use ($event, $data): void {
             $event->fill($this->filterColumns($this->withDefaults($data)));
             $event->save();
+            $this->syncEventCircles($event, $data['circle_ids'] ?? null);
             $this->occurrences->regenerateFuture($event);
         });
 
@@ -165,7 +213,16 @@ class EventManagementController extends Controller
 
     public function show(string $id): View
     {
-        $event = Event::query()->with(['circle', 'occurrences' => fn ($q) => $q->orderBy('start_at'), 'registrations.user', 'registrations.occurrence'])->findOrFail($id);
+        $event = Event::query()->with(['circle', 'circles', 'occurrences' => fn ($q) => $q->orderBy('start_at'), 'registrations.user', 'registrations.occurrence'])->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
+
+        $event->registrations->each(function (EventRegistration $registration): void {
+            if (in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)
+                || ! (bool) ($registration->payment_required ?? false)) {
+                $this->registrationQr->ensureQrGenerated($registration);
+            }
+        });
+        $event->load(['registrations.user', 'registrations.occurrence']);
 
         return view('admin.events.show', compact('event'));
     }
@@ -173,6 +230,7 @@ class EventManagementController extends Controller
     public function attendance(Request $request, string $id): View
     {
         $event = Event::query()->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
         $report = $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search']));
         $scanLogs = EventQrScanLog::query()
             ->with(['user', 'scanner'])
@@ -188,9 +246,50 @@ class EventManagementController extends Controller
     public function syncZohoInvoice(string $registrationId): RedirectResponse
     {
         $registration = EventRegistration::query()->with(['event', 'occurrence', 'user'])->findOrFail($registrationId);
+        abort_unless($this->canAccessEvent((string) $registration->event_id), 403);
         $this->zohoInvoiceSync->sync($registration);
 
         return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
+    }
+
+
+    private function applyJoiningRequestScope($query, $admin): void
+    {
+        if (! AdminAccess::isDed($admin)) {
+            return;
+        }
+
+        $requestTable = (new EventRegistrationRequest())->getTable();
+
+        if (! Schema::hasTable($requestTable) || ! Schema::hasColumn($requestTable, 'user_id')) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->where(function ($scopeQuery) use ($admin, $requestTable) {
+            $scopeQuery->whereHas('event', function ($eventQuery) use ($admin): void {
+                AdminCircleScope::applyToEventsQuery($eventQuery, $admin);
+            })->orWhere(function ($userScope) use ($admin, $requestTable): void {
+                AdminCircleScope::applyToActivityQuery($userScope, $admin, "{$requestTable}.user_id", null);
+            });
+        });
+    }
+
+    private function canAccessJoiningRequest(EventRegistrationRequest $joiningRequest): bool
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (! AdminAccess::isDed($admin)) {
+            return $this->canAccessEvent((string) $joiningRequest->event_id);
+        }
+
+        return AdminCircleScope::eventInScope($admin, (string) $joiningRequest->event_id)
+            || AdminCircleScope::userInScope($admin, (string) $joiningRequest->user_id);
+    }
+
+    private function canAccessEvent(string $eventId): bool
+    {
+        return AdminCircleScope::eventInScope(Auth::guard('admin')->user(), $eventId);
     }
 
     private function validated(Request $request): array
@@ -198,9 +297,12 @@ class EventManagementController extends Controller
         return $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'event_type' => ['required', 'string', 'in:circle_meeting,global_event,public_event,training'],
+            'event_type' => ['required', 'string', 'in:circle_meeting,global_event,state_event,public_event,public_visitor_event,training,training_workshop'],
+            'circle_ids' => [Rule::requiredIf(fn () => in_array($request->input('event_type'), ['global_event', 'state_event'], true)), 'array', 'min:1'],
+            'circle_ids.*' => ['uuid', 'distinct', 'exists:circles,id'],
+            'state_name' => [Rule::requiredIf(fn () => $request->input('event_type') === 'state_event'), 'nullable', 'string', 'max:255'],
             'event_category' => ['nullable', 'string', 'max:100'],
-            'circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
+            'circle_id' => [Rule::requiredIf(fn () => $request->input('event_type') === 'circle_meeting'), 'nullable', 'uuid', 'exists:circles,id'],
             'mode' => ['required', 'string', 'in:offline,online,hybrid'],
             'location_text' => ['nullable', 'string'],
             'venue_name' => ['nullable', 'string', 'max:255'],
@@ -247,6 +349,14 @@ class EventManagementController extends Controller
 
     private function prepareEventData(Request $request, array $data, ?Event $event = null): array
     {
+        $data['event_type'] = match ($data['event_type'] ?? null) {
+            'public_visitor_event' => 'public_event',
+            'training_workshop' => 'training',
+            default => $data['event_type'] ?? null,
+        };
+        if (in_array($data['event_type'] ?? null, ['global_event', 'state_event'], true) && empty($data['circle_id']) && ! empty($data['circle_ids'][0])) {
+            $data['circle_id'] = $data['circle_ids'][0];
+        }
         $data['agenda'] = $this->cleanAgenda($data['agenda'] ?? []);
         $data['speakers'] = $this->cleanSpeakers($data['speakers'] ?? []);
 
@@ -271,6 +381,26 @@ class EventManagementController extends Controller
         unset($data['banner'], $data['what_youll_gain'], $data['organizer_name'], $data['organizer_phone'], $data['organizer_email'], $data['organizer_website']);
 
         return $data;
+    }
+
+    private function syncEventCircles(Event $event, ?array $circleIds): void
+    {
+        if ($circleIds === null || ! Schema::hasTable('event_circles')) {
+            return;
+        }
+        $circleIds = collect($circleIds)->filter()->unique()->values()->all();
+        if ($circleIds === []) {
+            DB::table('event_circles')->where('event_id', $event->id)->delete();
+            return;
+        }
+
+        DB::table('event_circles')->where('event_id', $event->id)->whereNotIn('circle_id', $circleIds)->delete();
+        foreach ($circleIds as $circleId) {
+            DB::table('event_circles')->updateOrInsert(
+                ['event_id' => $event->id, 'circle_id' => $circleId],
+                ['id' => (string) Str::uuid(), 'created_at' => now(), 'updated_at' => now()]
+            );
+        }
     }
 
     private function withDefaults(array $data): array
@@ -299,7 +429,7 @@ class EventManagementController extends Controller
             $data['metadata'] = array_merge((array) ($data['metadata'] ?? []), $locationMeta);
         }
 
-        unset($data['venue_name'], $data['address_line'], $data['city'], $data['state'], $data['google_maps_url']);
+        unset($data['venue_name'], $data['address_line'], $data['city'], $data['state'], $data['google_maps_url'], $data['circle_ids']);
 
         foreach (['is_paid', 'qr_checkin_enabled', 'visitor_registration_enabled', 'member_registration_enabled'] as $key) {
             $data[$key] = (bool) ($data[$key] ?? false);

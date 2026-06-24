@@ -10,8 +10,11 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class EventService
 {
@@ -26,57 +29,325 @@ class EventService
         'committee_leader', 'leadership_team',
     ];
 
+    private const LISTABLE_EVENT_TYPES = [
+        'global_event',
+        'state_event',
+        'city_event',
+        'circle_event',
+        'circle_meeting',
+        'public_event',
+        'public_visitor_event',
+        'training',
+        'training_workshop',
+    ];
+
     public function __construct(private readonly EventOccurrenceGeneratorService $occurrenceGenerator) {}
 
     public function create(array $data, User $actor): Event
     {
         return DB::transaction(function () use ($data, $actor): Event {
+            $circleIds = $this->extractCircleIds($data);
             $data = $this->filterEventColumns($this->normalize($data, $actor));
             $event = Event::query()->create($data);
+            $this->syncEventCircles($event, $circleIds);
             $this->occurrenceGenerator->generate($event);
 
-            return $event->load(['circle', 'occurrences']);
+            return $event->load(['circle', 'circles', 'occurrences']);
         });
     }
 
     public function update(Event $event, array $data): Event
     {
         return DB::transaction(function () use ($event, $data): Event {
+            $circleIds = $this->extractCircleIds($data);
             $event->fill($this->filterEventColumns($this->normalize($data, null, false)));
             $event->save();
+            $this->syncEventCircles($event, $circleIds);
             $this->occurrenceGenerator->regenerateFuture($event);
 
-            return $event->load(['circle', 'occurrences']);
+            return $event->load(['circle', 'circles', 'occurrences']);
         });
     }
 
     public function listOccurrences(array $filters, ?User $user = null, int $perPage = 20): LengthAwarePaginator
     {
+        $eventType = $filters['event_type'] ?? $filters['type'] ?? null;
+        $search = $filters['search'] ?? $filters['title'] ?? null;
+        $status = $filters['status'] ?? null;
+        $timezone = config('app.timezone') ?: 'UTC';
+
+        $this->ensureMissingOneTimeOccurrences($filters, $user, $timezone);
+
+        $totalEventsBeforeFilters = Event::query()->count();
+
         $query = EventOccurrence::query()
-            ->with(['event.circle', 'registrations' => fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0')])
-            ->withCount(['registrations as registered_count' => fn ($q) => $q
-                ->whereNull('deleted_at')
-                ->where(function ($countQuery): void {
-                    $countQuery->where('status', 'registered')
-                        ->orWhere('payment_status', 'paid')
-                        ->orWhere(function ($inner): void {
-                            $inner->where('payment_required', false)->where('status', '!=', 'cancelled');
-                        });
-                })])
-            ->whereHas('event', function (Builder $eventQuery) use ($filters): void {
-                $eventQuery->when($filters['event_type'] ?? null, fn ($q, $v) => $q->where('event_type', $v))
-                    ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where('circle_id', $v))
-                    ->when($filters['mode'] ?? null, fn ($q, $v) => $q->where('mode', $v));
+            ->with(['event.circle', 'event.circles.cityRef', 'registrations' => fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0')])
+            ->withCount([
+                'registrations as registered_count' => fn ($q) => $q
+                    ->whereNull('deleted_at')
+                    ->where(function ($countQuery): void {
+                        $countQuery->where('status', 'registered')
+                            ->orWhere('payment_status', 'paid')
+                            ->orWhere(function ($inner): void {
+                                $inner->where('payment_required', false)->where('status', '!=', 'cancelled');
+                            });
+                    }),
+                'registrations as checked_in_count' => fn ($q) => $q
+                    ->whereNull('deleted_at')
+                    ->where('checkin_status', 'checked_in'),
+            ])
+            ->whereHas('event', function (Builder $eventQuery) use ($filters, $eventType, $search, $user): void {
+                $this->applyEventTypeFilter($eventQuery, $eventType)
+                    ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void { $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v)); }))
+                    ->when($filters['mode'] ?? null, fn ($q, $v) => $this->applyModeFilter($q, $v))
+                    ->when($search, function ($q, $v): void {
+                        $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+                        $q->where('title', $operator, '%'.$v.'%');
+                    });
+
+                $this->applyValidEventStatusScope($eventQuery);
+                $this->applyEventVisibilityScope($eventQuery, $user);
             });
 
-        if (($filters['upcoming'] ?? 'true') !== 'false') {
-            $query->where('start_at', '>=', now());
+        $this->applyValidOccurrenceStatusScope($query);
+        $this->applyOccurrenceStatusFilter($query, $status, $timezone);
+        $totalAfterStatusFilters = (clone $query)->count();
+
+        if (! $this->statusFilterControlsDateWindow($status) && ($filters['upcoming'] ?? null) === 'true') {
+            $query->where('start_at', '>=', Carbon::now($timezone)->startOfDay());
         }
 
-        $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', $v))
-            ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', $v));
+        $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
+            ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
+        $totalAfterDateFilters = (clone $query)->count();
+
+        if (app()->environment(['local', 'staging'])) {
+            Log::info('Events API user', [
+                'user_id' => $user?->id,
+                'role' => $user?->role ?? null,
+                'circle_id' => $user?->circle_id ?? $user?->active_circle_id ?? null,
+                'state_id' => $user?->state_id ?? null,
+                'district_id' => $user?->district_id ?? null,
+                'state' => $user?->state ?? $user?->state_name ?? null,
+                'district' => $user?->district ?? $user?->district_name ?? null,
+            ]);
+            Log::info('Events API SQL', [
+                'sql' => (clone $query)->toSql(),
+                'bindings' => (clone $query)->getBindings(),
+                'filters' => $filters,
+                'event_types_included' => self::LISTABLE_EVENT_TYPES,
+                'total_events_before_filters' => $totalEventsBeforeFilters,
+                'total_occurrences_after_status_visibility_filters' => $totalAfterStatusFilters,
+            ]);
+            Log::info('Events API count', [
+                'count' => $totalAfterDateFilters,
+            ]);
+        }
 
         return $query->orderBy('start_at')->paginate($perPage);
+    }
+
+
+    private function applyEventTypeFilter(Builder $query, ?string $eventType): Builder
+    {
+        $hasEventType = Schema::hasColumn('events', 'event_type');
+        $hasType = Schema::hasColumn('events', 'type');
+
+        if ($eventType) {
+            return $query->where(function (Builder $typeQuery) use ($eventType, $hasEventType, $hasType): void {
+                if ($hasEventType) {
+                    $typeQuery->where('event_type', $eventType);
+                }
+
+                if ($hasType) {
+                    $method = $hasEventType ? 'orWhere' : 'where';
+                    $typeQuery->{$method}('type', $eventType);
+                }
+            });
+        }
+
+        return $query->where(function (Builder $typeQuery) use ($hasEventType, $hasType): void {
+            if ($hasEventType) {
+                $typeQuery->whereIn('event_type', self::LISTABLE_EVENT_TYPES);
+            }
+
+            if ($hasType) {
+                $method = $hasEventType ? 'orWhereIn' : 'whereIn';
+                $typeQuery->{$method}('type', self::LISTABLE_EVENT_TYPES);
+            }
+        });
+    }
+
+    private function applyModeFilter(Builder $query, string $mode): void
+    {
+        if (in_array($mode, ['one_time', 'one-time', 'none'], true)) {
+            $query->where(function (Builder $modeQuery): void {
+                $modeQuery->whereNull('recurrence_type')->orWhere('recurrence_type', 'none');
+            });
+
+            return;
+        }
+
+        if (in_array($mode, ['recurring', 'repeat'], true)) {
+            $query->whereNotNull('recurrence_type')->where('recurrence_type', '!=', 'none');
+
+            return;
+        }
+
+        $query->where('mode', $mode);
+    }
+
+    private function ensureMissingOneTimeOccurrences(array $filters, ?User $user, string $timezone): void
+    {
+        $eventQuery = Event::query()
+            ->whereDoesntHave('occurrences')
+            ->where('start_at', '>=', Carbon::now($timezone)->startOfDay())
+            ->where(function (Builder $recurrenceQuery): void {
+                $recurrenceQuery->whereNull('recurrence_type')->orWhere('recurrence_type', 'none');
+            });
+
+        $eventType = $filters['event_type'] ?? $filters['type'] ?? null;
+        $search = $filters['search'] ?? $filters['title'] ?? null;
+
+        $this->applyEventTypeFilter($eventQuery, $eventType)
+            ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void { $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v)); }))
+            ->when($filters['mode'] ?? null, fn ($q, $v) => $this->applyModeFilter($q, $v))
+            ->when($search, function ($q, $v): void {
+                $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+                $q->where('title', $operator, '%'.$v.'%');
+            });
+
+        $this->applyValidEventStatusScope($eventQuery);
+        $this->applyEventVisibilityScope($eventQuery, $user);
+
+        $eventQuery->limit(100)->get()->each(fn (Event $event) => $this->occurrenceGenerator->generate($event));
+    }
+
+    private function applyOccurrenceStatusFilter(Builder $query, ?string $status, string $timezone): void
+    {
+        if (! $status || $status === 'all') {
+            return;
+        }
+
+        $now = Carbon::now($timezone);
+
+        match ($status) {
+            'today' => $query->whereBetween('start_at', [$now->copy()->startOfDay(), $now->copy()->endOfDay()]),
+            'live' => $query->where('start_at', '<=', $now)->where(function (Builder $liveQuery) use ($now): void {
+                $liveQuery->whereNull('end_at')->orWhere('end_at', '>=', $now);
+            }),
+            'upcoming' => $query->where('start_at', '>', $now),
+            default => $this->applyExactOccurrenceOrEventStatusFilter($query, $status),
+        };
+    }
+
+    private function applyExactOccurrenceOrEventStatusFilter(Builder $query, string $status): void
+    {
+        $query->where(function (Builder $statusQuery) use ($status): void {
+            if (Schema::hasColumn('event_occurrences', 'status')) {
+                $statusQuery->where('status', $status);
+            }
+
+            if (Schema::hasColumn('events', 'status')) {
+                $method = Schema::hasColumn('event_occurrences', 'status') ? 'orWhereHas' : 'whereHas';
+                $statusQuery->{$method}('event', fn (Builder $eventQuery) => $eventQuery->where('status', $status));
+            }
+        });
+    }
+
+    private function statusFilterControlsDateWindow(?string $status): bool
+    {
+        return in_array($status, ['today', 'live', 'upcoming'], true);
+    }
+
+    private function applyValidEventStatusScope(Builder $query): void
+    {
+        if (Schema::hasColumn('events', 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        if (Schema::hasColumn('events', 'status')) {
+            $validStatuses = ['scheduled', 'live', 'upcoming', 'published', 'active'];
+
+            $query->where(function (Builder $statusQuery) use ($validStatuses): void {
+                $statusQuery->whereNull('status')
+                    ->orWhereIn('status', $validStatuses);
+            });
+        }
+    }
+
+    private function applyValidOccurrenceStatusScope(Builder $query): void
+    {
+        if (! Schema::hasColumn('event_occurrences', 'status')) {
+            return;
+        }
+
+        $validStatuses = ['scheduled', 'live', 'upcoming', 'published', 'active'];
+
+        $query->where(function (Builder $statusQuery) use ($validStatuses): void {
+            $statusQuery->whereNull('status')
+                ->orWhereIn('status', $validStatuses);
+        });
+    }
+
+    private function applyEventVisibilityScope(Builder $query, ?User $user): void
+    {
+        if (! $user || $this->isAdmin($user)) {
+            return;
+        }
+
+        if ((bool) config('events.list_all_valid_occurrences', true)) {
+            return;
+        }
+
+        $hasEventType = Schema::hasColumn('events', 'event_type');
+        $hasVisibility = Schema::hasColumn('events', 'visibility');
+        $hasIsPublic = Schema::hasColumn('events', 'is_public');
+        $hasCircleId = Schema::hasColumn('events', 'circle_id');
+
+        if (! $hasEventType && ! $hasVisibility && ! $hasIsPublic) {
+            return;
+        }
+
+        $memberCircleIds = $hasCircleId && Schema::hasTable('circle_members')
+            ? CircleMember::query()
+                ->where('user_id', $user->id)
+                ->whereIn('status', ['approved', 'active'])
+                ->whereNull('deleted_at')
+                ->pluck('circle_id')
+                ->all()
+            : [];
+
+        $query->where(function (Builder $visibilityQuery) use ($hasEventType, $hasVisibility, $hasIsPublic, $hasCircleId, $memberCircleIds): void {
+            if ($hasEventType) {
+                $visibilityQuery->whereIn('event_type', self::LISTABLE_EVENT_TYPES);
+            }
+
+            if ($hasVisibility) {
+                $method = $hasEventType ? 'orWhere' : 'where';
+                $visibilityQuery->{$method}('visibility', 'public');
+            }
+
+            if ($hasIsPublic) {
+                $method = ($hasEventType || $hasVisibility) ? 'orWhere' : 'where';
+                $visibilityQuery->{$method}('is_public', true);
+            }
+
+            if ($hasEventType && $hasCircleId && $memberCircleIds !== []) {
+                $visibilityQuery->orWhere(function (Builder $circleQuery) use ($memberCircleIds): void {
+                    $circleQuery->whereIn('event_type', ['circle_event', 'circle_meeting'])
+                        ->whereIn('circle_id', $memberCircleIds);
+                });
+
+                $visibilityQuery->orWhere(function (Builder $multiCircleQuery) use ($memberCircleIds): void {
+                    $multiCircleQuery->whereIn('event_type', ['global_event', 'state_event'])
+                        ->where(function (Builder $selectedCircleQuery) use ($memberCircleIds): void {
+                            $selectedCircleQuery->whereIn('circle_id', $memberCircleIds)
+                                ->orWhereHas('circles', fn (Builder $eventCircleQuery) => $eventCircleQuery->whereIn('circles.id', $memberCircleIds));
+                        });
+                });
+            }
+        });
     }
 
     public function isEligible(Event $event, ?User $user): bool
@@ -140,6 +411,10 @@ class EventService
 
     private function allowedAdminRoleKeys(): array
     {
+        if (! Schema::hasTable('roles') || ! Schema::hasTable('admin_user_roles')) {
+            return [];
+        }
+
         $validRoleKeys = Role::query()
             ->pluck('key')
             ->map(fn ($key): string => (string) $key)
@@ -398,7 +673,10 @@ class EventService
         }
 
         if ($withDefaults) {
-            $data['event_type'] = $data['event_type'] ?? ($data['circle_id'] ? 'circle_meeting' : 'global_event');
+            $data['event_type'] = $this->normalizeEventType($data['event_type'] ?? ($data['circle_id'] ? 'circle_meeting' : 'global_event'));
+            if (in_array($data['event_type'], ['global_event', 'state_event'], true) && empty($data['circle_id']) && ! empty($data['circle_ids'][0])) {
+                $data['circle_id'] = $data['circle_ids'][0];
+            }
             $data['mode'] = $data['mode'] ?? (($data['is_virtual'] ?? false) ? 'online' : 'offline');
             $data['visibility'] = $data['visibility'] ?? 'public';
             $data['recurrence_type'] = $data['recurrence_type'] ?? 'none';
@@ -410,6 +688,55 @@ class EventService
             $data['member_registration_enabled'] = $data['member_registration_enabled'] ?? true;
         }
 
+        if (array_key_exists('event_type', $data)) {
+            $data['event_type'] = $this->normalizeEventType($data['event_type']);
+        }
+        if (in_array($data['event_type'] ?? null, ['global_event', 'state_event'], true) && empty($data['circle_id']) && ! empty($data['circle_ids'][0])) {
+            $data['circle_id'] = $data['circle_ids'][0];
+        }
+
+        unset($data['circle_ids']);
+
         return $data;
     }
+
+    private function normalizeEventType(?string $eventType): ?string
+    {
+        return match ($eventType) {
+            'public_visitor_event' => 'public_event',
+            'training_workshop' => 'training',
+            default => $eventType,
+        };
+    }
+
+    private function extractCircleIds(array $data): ?array
+    {
+        if (! in_array($this->normalizeEventType($data['event_type'] ?? null), ['global_event', 'state_event'], true)) {
+            return null;
+        }
+
+        return collect($data['circle_ids'] ?? [])->filter()->unique()->values()->all();
+    }
+
+    private function syncEventCircles(Event $event, ?array $circleIds): void
+    {
+        if ($circleIds === null || ! Schema::hasTable('event_circles')) {
+            return;
+        }
+
+        if ($circleIds === []) {
+            DB::table('event_circles')->where('event_id', $event->id)->delete();
+            return;
+        }
+
+        DB::table('event_circles')->where('event_id', $event->id)->whereNotIn('circle_id', $circleIds)->delete();
+        $now = now();
+        foreach ($circleIds as $circleId) {
+            DB::table('event_circles')->updateOrInsert(
+                ['event_id' => $event->id, 'circle_id' => $circleId],
+                ['id' => (string) Str::uuid(), 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+    }
 }
+

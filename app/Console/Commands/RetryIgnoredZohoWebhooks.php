@@ -8,7 +8,7 @@ use Illuminate\Console\Command;
 
 class RetryIgnoredZohoWebhooks extends Command
 {
-    protected $signature = 'zoho:webhooks:retry-ignored {--id=} {--registration_id=} {--limit=50}';
+    protected $signature = 'zoho:webhooks:retry-ignored {--id=} {--registration_id=} {--payment_id=} {--limit=50}';
 
     protected $description = 'Retry ignored or failed Zoho payment webhook events with improved registration lookup.';
 
@@ -23,6 +23,9 @@ class RetryIgnoredZohoWebhooks extends Command
         }
         if ($this->option('registration_id')) {
             $query->where('registration_id', $this->option('registration_id'));
+        }
+        if ($this->option('payment_id')) {
+            $query->where('payment_id', $this->option('payment_id'));
         }
 
         $events = $query->oldest()->limit((int) $this->option('limit'))->get();

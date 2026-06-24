@@ -15,62 +15,126 @@
 @if(session('error'))
     <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
+@if($errors->any())
+    <div class="alert alert-danger">{{ $errors->first() }}</div>
+@endif
+
 
 <div class="card p-3">
-    <form id="usersFiltersForm" method="GET" class="d-none">
-        <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
-        <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
-    </form>
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <div class="d-flex align-items-center gap-2">
-            <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
-            <select id="perPage" name="per_page" class="form-select form-select-sm" style="width: 90px;">
-                @foreach ([10, 20, 25, 50, 100] as $size)
-                    <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="small text-muted">
-            @if($users->total() > 0)
-                Records {{ $users->firstItem() }} to {{ $users->lastItem() }} of {{ $users->total() }}
-            @else
-                No records found
-            @endif
-        </div>
-        <div class="d-flex flex-column align-items-end gap-2 ms-auto">
-            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
-                <a href="{{ route('admin.users.import') }}" class="btn btn-outline-primary btn-sm">Import</a>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn">Export CSV</button>
-                <a href="{{ route('admin.users.create') }}" class="btn btn-primary btn-sm">Add Peer</a>
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-3">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+                <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
+                <select id="perPage" name="per_page" class="form-select form-select-sm" style="width: 90px;">
+                    @foreach ([10, 20, 25, 50, 100] as $size)
+                        <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
+                    @endforeach
+                </select>
             </div>
-            <div class="d-flex align-items-end gap-2 flex-wrap justify-content-end">
-                <div class="d-flex flex-column gap-1" style="min-width: 200px;">
-                    <label for="joinedFilter" class="form-label form-label-sm mb-0 text-muted small">Date Filter</label>
-                    <select name="joined_filter" id="joinedFilter" form="usersFiltersForm" class="form-select form-select-sm">
-                        <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
-                        <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
-                        <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
-                        <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
-                        <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
-                    </select>
+            <div class="small text-muted">
+                @if($users->total() > 0)
+                    Records {{ $users->firstItem() }} to {{ $users->lastItem() }} of {{ $users->total() }}
+                @else
+                    No records found
+                @endif
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+            <a href="{{ route('admin.users.import') }}" class="btn btn-outline-primary btn-sm">Import</a>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn">Export CSV</button>
+            <a href="{{ route('admin.users.create') }}" class="btn btn-primary btn-sm">Add Peer</a>
+        </div>
+    </div>
+
+    <div class="border rounded-3 bg-light-subtle p-3 mb-3">
+        <div class="d-flex flex-column flex-xl-row justify-content-between gap-3">
+            <div class="flex-shrink-0">
+                <div class="fw-semibold text-dark">Membership Approval</div>
+                <div class="small text-muted">Select peers and approve their membership as Only Unity Peer.</div>
+            </div>
+            <div class="d-flex flex-column flex-md-row align-items-md-end gap-2 gap-md-3 flex-grow-1 justify-content-xl-end">
+                <div>
+                    <label for="approvalMembershipStartsAt" class="form-label small text-muted mb-1">Membership Starts At</label>
+                    <input id="approvalMembershipStartsAt" type="date" name="approval_membership_starts_at" class="form-control form-control-sm" value="{{ old('approval_membership_starts_at', '') }}">
                 </div>
-                <div id="joinedCustomRange" class="d-flex gap-2 flex-wrap">
-                    <div class="d-flex flex-column gap-1">
-                        <label for="joinedFrom" class="form-label form-label-sm mb-0 text-muted small">From</label>
-                        <input id="joinedFrom" type="date" name="joined_from" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}">
-                    </div>
-                    <div class="d-flex flex-column gap-1">
-                        <label for="joinedTo" class="form-label form-label-sm mb-0 text-muted small">To</label>
-                        <input id="joinedTo" type="date" name="joined_to" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}">
-                    </div>
+                <div>
+                    <label for="approvalMembershipEndsAt" class="form-label small text-muted mb-1">Membership Ends At</label>
+                    <input id="approvalMembershipEndsAt" type="date" name="approval_membership_ends_at" class="form-control form-control-sm" value="{{ old('approval_membership_ends_at', '') }}">
                 </div>
-                <div class="d-flex gap-2">
-                    <button type="submit" form="usersFiltersForm" class="btn btn-sm btn-primary">Apply</button>
-                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.users.index') }}">Reset</a>
-                </div>
+                <button type="button" class="btn btn-success btn-sm" id="openApproveMembershipModal">
+                    <i class="bi bi-check-circle me-1"></i>Approve Selected
+                </button>
             </div>
         </div>
     </div>
+
+    <form id="usersFiltersForm" method="GET" class="border rounded-3 p-3 mb-3 bg-white">
+        <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
+        <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-6 col-xl-3">
+                <label class="form-label small text-muted" for="peerSearch">Search</label>
+                <input id="peerSearch" type="text" name="q" value="{{ $q ?? '' }}" class="form-control form-control-sm" placeholder="Peer, company, city">
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+                <label class="form-label small text-muted" for="circleFilter">Circle</label>
+                <select id="circleFilter" name="circle_id" class="form-select form-select-sm">
+                    <option value="all">All Circles</option>
+                    @foreach($circles as $c)
+                        <option value="{{ $c->id }}" @selected(($circleId ?? 'all') == $c->id)>{{ $c->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-12 col-md-6 col-xl-2">
+                <label class="form-label small text-muted" for="phoneFilter">Phone</label>
+                <input id="phoneFilter" type="text" name="phone" class="form-control form-control-sm" placeholder="Phone" value="{{ $filters['phone'] }}">
+            </div>
+            <div class="col-12 col-md-6 col-xl-2">
+                <label class="form-label small text-muted" for="membershipFilter">Membership</label>
+                <select id="membershipFilter" name="membership_status" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    @foreach ($membershipStatuses as $status)
+                        <option value="{{ $status }}" @selected(request('membership_status') === $status)>{{ $membershipStatusLabels[$status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $status)) }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-12 col-md-6 col-xl-2">
+                <label class="form-label small text-muted" for="startDateFilter">Start Date</label>
+                <input id="startDateFilter" type="date" name="start_date" class="form-control form-control-sm" value="{{ $filters['start_date'] ?? '' }}">
+            </div>
+            <div class="col-12 col-md-6 col-xl-2">
+                <label class="form-label small text-muted" for="endDateFilter">End Date</label>
+                <input id="endDateFilter" type="date" name="end_date" class="form-control form-control-sm" value="{{ $filters['end_date'] ?? '' }}">
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+                <label class="form-label small text-muted" for="joinedFilter">Date Filter</label>
+                <select name="joined_filter" id="joinedFilter" class="form-select form-select-sm">
+                    <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
+                    <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
+                    <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
+                    <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
+                    <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
+                </select>
+            </div>
+            <div id="joinedCustomRange" class="col-12 col-md-6 col-xl-3">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label for="joinedFrom" class="form-label small text-muted">Joined From</label>
+                        <input id="joinedFrom" type="date" name="joined_from" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}">
+                    </div>
+                    <div class="col-6">
+                        <label for="joinedTo" class="form-label small text-muted">Joined To</label>
+                        <input id="joinedTo" type="date" name="joined_to" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}">
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-xl-2 d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-primary flex-fill">Apply</button>
+                <a class="btn btn-sm btn-outline-secondary flex-fill" id="resetFiltersBtn" href="{{ route('admin.users.index') }}">Reset</a>
+            </div>
+        </div>
+    </form>
     <form id="exportCsvForm" method="POST" action="{{ route('admin.users.export.csv') }}" class="d-none">
         @csrf
         <input type="hidden" name="q" value="{{ $filters['search'] }}">
@@ -80,6 +144,9 @@
         <input type="hidden" name="joined_filter" value="{{ $filters['joined_filter'] ?? 'all' }}">
         <input type="hidden" name="joined_from" value="{{ $filters['joined_from'] ?? '' }}">
         <input type="hidden" name="joined_to" value="{{ $filters['joined_to'] ?? '' }}">
+        <input type="hidden" name="approve_filter" value="{{ $filters['approve_filter'] ?? 'all' }}">
+        <input type="hidden" name="start_date" value="{{ $filters['start_date'] ?? '' }}">
+        <input type="hidden" name="end_date" value="{{ $filters['end_date'] ?? '' }}">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
@@ -88,10 +155,10 @@
             <thead class="table-light">
                 <tr>
                     <th style="width: 40px;">
-                        <input type="checkbox" class="form-check-input" id="select-all">
+                        <input type="checkbox" class="form-check-input" id="selectAllPeers">
                     </th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'display_name', 'dir' => $filters['sort'] === 'display_name' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'display_name', 'dir' => $filters['sort'] === 'display_name' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Peer Name
                             @if ($filters['sort'] === 'display_name')
                                 <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
@@ -100,8 +167,9 @@
                     </th>
                     <th>Phone</th>
                     <th>Membership</th>
+                    <th>Membership Ends At</th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Coins
                             @if ($filters['sort'] === 'coins_balance')
                                 <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
@@ -109,7 +177,7 @@
                         </a>
                     </th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->query(), ['sort' => 'last_login_at', 'dir' => $filters['sort'] === 'last_login_at' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'last_login_at', 'dir' => $filters['sort'] === 'last_login_at' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
                             Last Login
                             @if ($filters['sort'] === 'last_login_at')
                                 <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
@@ -118,43 +186,6 @@
                     </th>
                     <th>Status</th>
                     <th class="text-end">Actions</th>
-                </tr>
-                <tr class="bg-light align-middle">
-                    <th></th>
-                    <th>
-                        <div class="d-flex flex-column gap-2" style="min-width:220px;">
-                            <input type="text" name="q" form="usersFiltersForm" value="{{ $q ?? '' }}" class="form-control form-control-sm" placeholder="Peer/Company/City">
-                            <select name="circle_id" form="usersFiltersForm" class="form-select form-select-sm">
-                                <option value="all">All Circles</option>
-                                @foreach($circles as $c)
-                                    <option value="{{ $c->id }}" @selected(($circleId ?? 'all') == $c->id)>{{ $c->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </th>
-                    <th>
-                        <input type="text" name="phone" form="usersFiltersForm" class="form-control form-control-sm" placeholder="Phone" value="{{ $filters['phone'] }}">
-                    </th>
-                    <th>
-                        <select name="membership_status" form="usersFiltersForm" class="form-select form-select-sm">
-                            <option value="all">All</option>
-                            @foreach ($membershipStatuses as $status)
-                                <option value="{{ $status }}" @selected($filters['membership_status'] === $status)>{{ ucfirst($status) }}</option>
-                            @endforeach
-                        </select>
-                    </th>
-                    <th>
-                        <input type="text" name="coins_balance" class="form-control form-control-sm" placeholder="—" disabled>
-                    </th>
-                    <th>
-                        <select class="form-select form-select-sm" disabled><option>Any</option></select>
-                    </th>
-                    <th>
-                        <select class="form-select form-select-sm" disabled><option>Any</option></select>
-                    </th>
-                    <th class="text-end">
-                        <span class="text-muted small">Use controls above</span>
-                    </th>
                 </tr>
             </thead>
             <tbody>
@@ -168,10 +199,11 @@
                         $statusValue = $user->status ?? 'active';
                         $isActive = $statusValue === 'active';
                         $detailsId = 'details-' . $user->id;
+                        $canApproveMembership = $canEditUsers && in_array((string) $user->membership_status, ['free_peer', 'free_trial_peer'], true);
                     @endphp
                     <tr>
                         <td>
-                            <input type="checkbox" class="form-check-input row-checkbox" value="{{ $user->id }}">
+                            <input type="checkbox" class="form-check-input peer-checkbox" value="{{ $user->id }}">
                         </td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
@@ -192,8 +224,9 @@
                         </td>
                         <td>{{ $user->phone ?? '—' }}</td>
                         <td>
-                            <span class="badge bg-primary-subtle text-primary text-uppercase">{{ $user->membership_status ?? 'Free' }}</span>
+                            <span class="badge bg-primary-subtle text-primary">{{ $membershipStatusLabels[$user->membership_status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', (string) ($user->membership_status ?? 'Free'))) }}</span>
                         </td>
+                        <td>{{ $user->membership_ends_at ? $user->membership_ends_at->format('d M Y') : '—' }}</td>
                         <td>{{ number_format($user->coins_balance ?? 0) }}</td>
                         <td>{{ optional($user->last_login_at)->format('Y-m-d H:i') ?? '—' }}</td>
                         <td>
@@ -205,13 +238,15 @@
                             <div class="btn-group btn-group-sm" role="group">
                                 @if ($canEditUsers)
                                     <a href="{{ route('admin.users.edit', $user->id) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">Edit</a>
+                                @else
+                                    <a href="{{ route('admin.users.show', $user->id) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">View Profile</a>
                                 @endif
                                 <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ $detailsId }}" aria-expanded="false" aria-controls="{{ $detailsId }}">Details</button>
                             </div>
                         </td>
                     </tr>
                     <tr class="collapse-row">
-                        <td colspan="8" class="p-0 border-0">
+                        <td colspan="9" class="p-0 border-0">
                             <div class="collapse" id="{{ $detailsId }}">
                                 <div class="p-3 bg-light border-top">
                                     @php
@@ -460,14 +495,14 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">No users found.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">No users found.</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
     <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
         <div>
-            {{ $users->withQueryString()->links() }}
+            {{ $users->appends(request()->except('approval_status'))->links() }}
         </div>
         <div class="small text-muted">
             @if($users->total() > 0)
@@ -479,37 +514,200 @@
     </div>
 </div>
 
+
+<form id="bulkApproveMembershipDatesForm" method="POST" action="{{ route('admin.users.bulk-approve-membership') }}">
+    @csrf
+    <div class="modal fade" id="approveMembershipDatesModal" tabindex="-1" aria-labelledby="approveMembershipDatesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 560px;">
+            <div class="modal-content border-0 rounded-4 shadow">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title" id="approveMembershipDatesModalLabel">Approve Selected Peers</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <div class="alert alert-success-subtle border-success-subtle mb-3">
+                        <div class="fw-semibold">Selected peers: <span id="selectedPeersCount">0</span></div>
+                        <div class="small text-muted">Membership Upgrade: <strong>Only Unity Peer</strong></div>
+                    </div>
+                    <div class="border rounded-3 p-3 bg-light-subtle mb-3">
+                        <div class="d-flex justify-content-between gap-3 mb-2">
+                            <span class="text-muted">Membership Starts At:</span>
+                            <strong class="text-end" id="modalMembershipStartsAtText">—</strong>
+                        </div>
+                        <div class="d-flex justify-content-between gap-3">
+                            <span class="text-muted">Membership Ends At:</span>
+                            <strong class="text-end" id="modalMembershipEndsAtText">—</strong>
+                        </div>
+                    </div>
+                    <p class="mb-0">Are you sure you want to approve the selected peers?</p>
+                    <input type="hidden" name="membership_starts_at" id="modalMembershipStartsAt">
+                    <input type="hidden" name="membership_ends_at" id="modalMembershipEndsAt">
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Approve</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const selectAll = document.getElementById('select-all');
-        const checkboxes = document.querySelectorAll('.row-checkbox');
+        const selectAll = document.getElementById('selectAllPeers');
         const perPage = document.getElementById('perPage');
         const filterForm = document.getElementById('usersFiltersForm');
         const exportBtn = document.getElementById('exportCsvBtn');
         const exportForm = document.getElementById('exportCsvForm');
         const joinedFilter = document.getElementById('joinedFilter');
         const joinedCustomRange = document.getElementById('joinedCustomRange');
+        const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+        const approveSelectedPeersBtn = document.getElementById('openApproveMembershipModal');
+        const bulkApproveDatesForm = document.getElementById('bulkApproveMembershipDatesForm');
+        const approveMembershipDatesModal = document.getElementById('approveMembershipDatesModal');
+        const selectedCountEl = document.getElementById('selectedPeersCount');
+        const membershipStartDate = document.getElementById('approvalMembershipStartsAt');
+        const membershipEndDate = document.getElementById('approvalMembershipEndsAt');
+        const modalMembershipStartsAt = document.getElementById('modalMembershipStartsAt');
+        const modalMembershipEndsAt = document.getElementById('modalMembershipEndsAt');
+        const modalMembershipStartsAtText = document.getElementById('modalMembershipStartsAtText');
+        const modalMembershipEndsAtText = document.getElementById('modalMembershipEndsAtText');
+        const modal = approveMembershipDatesModal && window.bootstrap ? new bootstrap.Modal(approveMembershipDatesModal) : null;
+        const peerCheckboxes = () => Array.from(document.querySelectorAll('.peer-checkbox'));
+        const selectedPeerIds = () => peerCheckboxes().filter(cb => cb.checked).map(cb => cb.value).filter(Boolean);
+        const updateSelectedCount = () => {
+            const selected = selectedPeerIds();
+            if (selectedCountEl) selectedCountEl.textContent = selected.length;
+            if (selectAll) {
+                const boxes = peerCheckboxes();
+                selectAll.checked = boxes.length > 0 && boxes.every(cb => cb.checked);
+                selectAll.indeterminate = boxes.some(cb => cb.checked) && !selectAll.checked;
+            }
+            return selected.length;
+        };
+        const appendSelectedPeerInputs = (form) => {
+            if (!form) return false;
+            form.querySelectorAll('input[name="user_ids[]"]').forEach(el => el.remove());
+            const selected = selectedPeerIds();
+            if (selected.length === 0) {
+                alert('Please select at least one peer.');
+                return false;
+            }
+            selected.forEach(id => {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'user_ids[]';
+                hidden.value = id;
+                form.appendChild(hidden);
+            });
+            return true;
+        };
         const submitFilters = (form) => {
             const params = new URLSearchParams(window.location.search);
             const formData = new FormData(form);
             for (const [key, value] of formData.entries()) {
-                params.set(key, value);
+                if (value === '') {
+                    params.delete(key);
+                } else {
+                    params.set(key, value);
+                }
             }
             params.delete('page');
-            window.location = `${window.location.pathname}?${params.toString()}`;
+            params.delete('approval_status');
+            const query = params.toString();
+            window.location = query ? `${window.location.pathname}?${query}` : window.location.pathname;
         };
-
-        if (selectAll) {
-            selectAll.addEventListener('change', () => {
-                checkboxes.forEach(cb => cb.checked = selectAll.checked);
-            });
+        function formatDateValue(date) {
+            return date.toISOString().slice(0, 10);
         }
+
+        function getTodayDateValue() {
+            const today = new Date();
+            return formatDateValue(today);
+        }
+
+        function addOneYear(dateValue) {
+            const date = new Date(`${dateValue}T00:00:00`);
+            date.setFullYear(date.getFullYear() + 1);
+            return formatDateValue(date);
+        }
+
+        function formatDisplayDate(dateValue) {
+            if (!dateValue) return '—';
+
+            const date = new Date(`${dateValue}T00:00:00`);
+            return date.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+            }).replace(/ /g, ' ');
+        }
+
+        resetFiltersBtn?.addEventListener('click', () => {
+            if (membershipStartDate) {
+                membershipStartDate.value = '';
+            }
+
+            if (membershipEndDate) {
+                membershipEndDate.value = '';
+            }
+
+        });
+
+        selectAll?.addEventListener('change', () => {
+            peerCheckboxes().forEach(cb => cb.checked = selectAll.checked);
+            updateSelectedCount();
+        });
+        peerCheckboxes().forEach(cb => cb.addEventListener('change', updateSelectedCount));
+        updateSelectedCount();
+
+        approveSelectedPeersBtn?.addEventListener('click', () => {
+            const selectedCount = updateSelectedCount();
+            if (selectedCount === 0) {
+                alert('Please select at least one peer.');
+                return;
+            }
+
+            let startsAt = membershipStartDate?.value || '';
+            let endsAt = membershipEndDate?.value || '';
+
+            if (!startsAt) {
+                startsAt = getTodayDateValue();
+            }
+
+            if (!endsAt) {
+                endsAt = addOneYear(startsAt);
+            }
+
+            if (endsAt < startsAt) {
+                alert('Membership Ends At must be same or after Membership Starts At.');
+                return;
+            }
+
+            if (!appendSelectedPeerInputs(bulkApproveDatesForm)) {
+                return;
+            }
+
+            if (modalMembershipStartsAt) modalMembershipStartsAt.value = startsAt;
+            if (modalMembershipEndsAt) modalMembershipEndsAt.value = endsAt;
+
+            if (modalMembershipStartsAtText) {
+                modalMembershipStartsAtText.textContent = formatDisplayDate(startsAt);
+            }
+            if (modalMembershipEndsAtText) {
+                modalMembershipEndsAtText.textContent = formatDisplayDate(endsAt);
+            }
+
+            modal?.show();
+        });
 
         if (perPage) {
             perPage.addEventListener('change', () => {
                 const params = new URLSearchParams(window.location.search);
                 params.set('per_page', perPage.value);
+                params.delete('page');
+                params.delete('approval_status');
                 window.location = `${window.location.pathname}?${params.toString()}`;
             });
         }
@@ -534,8 +732,7 @@
         exportBtn?.addEventListener('click', () => {
             if (!exportForm) return;
             exportForm.querySelectorAll('input[name="ids[]"]').forEach(el => el.remove());
-            const selected = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value).filter(Boolean);
-            selected.forEach(id => {
+            selectedPeerIds().forEach(id => {
                 const hidden = document.createElement('input');
                 hidden.type = 'hidden';
                 hidden.name = 'ids[]';
@@ -543,6 +740,20 @@
                 exportForm.appendChild(hidden);
             });
             exportForm.submit();
+        });
+
+        bulkApproveDatesForm?.addEventListener('submit', (e) => {
+            if (!appendSelectedPeerInputs(bulkApproveDatesForm)) {
+                e.preventDefault();
+                return;
+            }
+
+            const startsAt = modalMembershipStartsAt?.value || membershipStartDate?.value || '';
+            const endsAt = modalMembershipEndsAt?.value || membershipEndDate?.value || '';
+            if (startsAt && endsAt && endsAt < startsAt) {
+                e.preventDefault();
+                alert('Membership Ends At must be same or after Membership Starts At.');
+            }
         });
 
         const tooltipTriggerList = Array.from(document.querySelectorAll('[data-bs-toggle="tooltip"]'));

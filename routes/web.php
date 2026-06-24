@@ -20,10 +20,12 @@ use App\Http\Controllers\Admin\CirclePeersController;
 use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\LifeImpactController;
 use App\Http\Controllers\Admin\CollaborationPostController;
+use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\CoinClaimsController;
 use App\Http\Controllers\Admin\CircleJoinRequestsController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\LoginHistoryController;
+use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\PostReportsController;
 use App\Http\Controllers\Admin\PostModerationController;
@@ -33,21 +35,34 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\EmailLogController;
 use App\Http\Controllers\Admin\AdminCampaignController;
+use App\Http\Controllers\Admin\NotificationAdminController;
 use App\Http\Controllers\Admin\CampaignPamphletController;
 use App\Http\Controllers\Admin\CampaignEmailTemplateController;
 use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
+use App\Http\Controllers\Admin\CertificationSubmissionsController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 use App\Http\Controllers\Admin\DailyNotificationController;
+use App\Http\Controllers\PublicEventRegistrationFormController;
 
 Route::get('/', function () {
     return view('landing');
 });
+
+Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
+    ->whereUuid('event')
+    ->whereUuid('occurrence')
+    ->name('events.visitor-register');
+Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'submit'])
+    ->whereUuid('event')
+    ->whereUuid('occurrence')
+    ->name('events.visitor-register.submit');
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
@@ -66,7 +81,32 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             return redirect()->route('admin.dashboard');
         })->name('home');
+        Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
+        Route::put('/app-config/branding', [AppConfigPageController::class, 'updateBranding'])->name('app-config.branding');
+        Route::post('/app-config/upload-brand-asset', [AppConfigPageController::class, 'uploadBrandAsset'])->name('app-config.upload-brand-asset');
+        Route::put('/app-config/labels', [AppConfigPageController::class, 'bulkLabels'])->name('app-config.labels');
+        Route::put('/app-config/features', [AppConfigPageController::class, 'bulkFeatures'])->name('app-config.features');
+        Route::put('/app-config/icons', [AppConfigPageController::class, 'bulkIcons'])->name('app-config.icons');
+        Route::post('/app-config/icons/upload', [AppConfigPageController::class, 'uploadIconAsset'])->name('app-config.icons.upload');
+        Route::post('/app-config/navigation', [AppConfigPageController::class, 'saveNavigation'])->name('app-config.navigation.store');
+        Route::put('/app-config/navigation/{id}', [AppConfigPageController::class, 'saveNavigation'])->whereUuid('id')->name('app-config.navigation.update');
+        Route::put('/app-config/navigation/group/{menu_type}', [AppConfigPageController::class, 'bulkUpdateNavigationGroup'])->name('app-config.navigation.group-update');
+        Route::delete('/app-config/navigation/{id}', [AppConfigPageController::class, 'deleteNavigation'])->whereUuid('id')->name('app-config.navigation.destroy');
+        Route::put('/app-config/dashboard-widgets', [AppConfigPageController::class, 'bulkWidgets'])->name('app-config.widgets');
+        Route::put('/app-config/social-links', [AppConfigPageController::class, 'bulkSocial'])->name('app-config.social');
+        Route::put('/app-config/membership-labels', [AppConfigPageController::class, 'membershipLabels'])->name('app-config.membership-labels');
+        Route::post('/app-config/clear-cache', [AppConfigPageController::class, 'clearCache'])->name('app-config.clear-cache');
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/ded-dashboard', [DashboardController::class, 'ded'])->name('ded.dashboard');
+        Route::get('/ded-dashboard/leadership/{role}', [DashboardController::class, 'dedLeadershipDetail'])->name('ded.dashboard.leadership');
+        Route::get('/ded-dashboard/health/active-members', [DashboardController::class, 'dedActiveMembersDetail'])->name('ded.dashboard.health.active-members');
+        Route::get('/ded-dashboard/health/leadership-spots', [DashboardController::class, 'dedLeadershipSpotsDetail'])->name('ded.dashboard.health.leadership-spots');
+        Route::get('/ded-dashboard/health/membership-conversion', [DashboardController::class, 'dedMembershipConversionDetail'])->name('ded.dashboard.health.membership-conversion');
+        Route::get('/ded-dashboard/health/referral-activity', [DashboardController::class, 'dedReferralActivityDetail'])->name('ded.dashboard.health.referral-activity');
+        Route::get('/ded-dashboard/industries', [DashboardController::class, 'dedIndustriesOverview'])->name('ded.dashboard.industries');
+        Route::get('/ded-dashboard/industries/{id}', [DashboardController::class, 'dedIndustryDetail'])->name('ded.dashboard.industries.detail');
+        Route::get('/ded/dashboard', fn () => redirect()->route('admin.ded.dashboard'))->name('ded.dashboard.legacy');
+        Route::get('/location/states/{state}/districts', [LocationController::class, 'districts'])->whereUuid('state')->name('location.states.districts');
         Route::get('/industry-director/dashboard', [IndustryDirectorDashboardController::class, 'index'])
             ->middleware('admin.industry-director')
             ->name('industry-director.dashboard');
@@ -76,6 +116,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
+        Route::get('/users/{user}', [UsersController::class, 'show'])->name('users.show');
+        Route::post('/users/bulk-approve-membership', [UsersController::class, 'bulkApproveMembership'])->name('users.bulk-approve-membership');
+        Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->name('users.approve-membership');
         Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [UsersController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->name('users.circle-members.destroy');
@@ -103,6 +146,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/collaborations', [CollaborationPostController::class, 'index'])->name('collaborations.index');
         Route::get('/collaborations/export', [CollaborationPostController::class, 'export'])->name('collaborations.export');
         Route::get('/collaborations/{id}', [CollaborationPostController::class, 'show'])->name('collaborations.show');
+        Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
+        Route::get('/contacts/import', [ContactController::class, 'import'])->name('contacts.import');
+        Route::post('/contacts/import', [ContactController::class, 'importStore'])->name('contacts.import.store');
+        Route::get('/contacts/export', [ContactController::class, 'export'])->name('contacts.export');
+        Route::get('/contacts/user/{user_id}/export', [ContactController::class, 'exportUserDetails'])->name('contacts.user-details.export');
+        Route::post('/contacts/user/{user_id}/export-selected', [ContactController::class, 'exportSelected'])->name('contacts.user-details.export-selected');
+        Route::get('/contacts/user/{user_id}', [ContactController::class, 'userDetails'])->name('contacts.user-details');
+        Route::get('/contacts/{id}', [ContactController::class, 'show'])->name('contacts.show');
         Route::get('/activities/{peer}/become-a-leader', [ActivitiesLeaderInterestController::class, 'show'])
             ->whereUuid('peer')
             ->name('activities.become-a-leader.show');
@@ -203,6 +254,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/posts', [PostModerationController::class, 'index'])->name('posts.index');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
         Route::post('/posts/impacts/{impact}/deactivate', [PostModerationController::class, 'deactivateImpact'])->whereUuid('impact')->name('posts.impacts.deactivate');
+        Route::post('/posts/impacts/{impact}/activate', [PostModerationController::class, 'activateImpact'])->whereUuid('impact')->name('posts.impacts.activate');
         Route::get('/post-reports', [PostReportsController::class, 'index'])->name('post-reports.index');
         Route::get('/post-reports/{report}', [PostReportsController::class, 'show'])->name('post-reports.show');
         Route::post('/post-reports/{report}/mark-reviewed', [PostReportsController::class, 'markReviewed'])->name('post-reports.mark-reviewed');
@@ -227,8 +279,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-cd', [CircleJoinRequestsController::class, 'approveCd'])->whereUuid('id')->name('circle-joining-requests.approve-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-cd', [CircleJoinRequestsController::class, 'rejectCd'])->whereUuid('id')->name('circle-joining-requests.reject-cd');
         Route::post('/pending-requests/circle-joining-requests/{id}/approve-id', [CircleJoinRequestsController::class, 'approveId'])->whereUuid('id')->name('circle-joining-requests.approve-id');
+        Route::post('/pending-requests/circle-joining-requests/{id}/approve-ded', [CircleJoinRequestsController::class, 'approveDed'])->whereUuid('id')->name('circle-joining-requests.approve-ded');
+        Route::post('/pending-requests/circle-joining-requests/{id}/reject-ded', [CircleJoinRequestsController::class, 'rejectDed'])->whereUuid('id')->name('circle-joining-requests.reject-ded');
         Route::post('/pending-requests/circle-joining-requests/{id}/reject-id', [CircleJoinRequestsController::class, 'rejectId'])->whereUuid('id')->name('circle-joining-requests.reject-id');
+        Route::get('/pending-requests/certifications', [CertificationSubmissionsController::class, 'index'])->name('certifications.index');
+        Route::post('/pending-requests/certifications/{id}/approve', [CertificationSubmissionsController::class, 'approve'])->whereUuid('id')->name('certifications.approve');
+        Route::post('/pending-requests/certifications/{id}/reject', [CertificationSubmissionsController::class, 'reject'])->whereUuid('id')->name('certifications.reject');
+        Route::get('/certificates/{id}/view', [CertificationSubmissionsController::class, 'certificate'])->whereUuid('id')->name('certifications.certificate');
 
+        Route::get('/pending-requests/certifications', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('certifications.index');
         Route::get('/pending-requests/leads/entrepreneur-certification', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('leads.entrepreneur-certification.index');
         Route::get('/pending-requests/leads/entrepreneur-certification/{id}', [LeadSubmissionsController::class, 'entrepreneurCertificationShow'])->name('leads.entrepreneur-certification.show');
         Route::get('/pending-requests/leads/leadership-certification', [LeadSubmissionsController::class, 'leadershipCertification'])->name('leads.leadership-certification.index');
@@ -241,6 +300,28 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/pending-requests/leads/become-mentor/{id}', [LeadSubmissionsController::class, 'becomeMentorShow'])->name('leads.become-mentor.show');
         Route::get('/campaign-email-templates', [CampaignEmailTemplateController::class, 'index'])->name('campaign-email-templates.index');
         Route::get('/campaign-email-templates/list', [CampaignEmailTemplateController::class, 'list'])->name('campaign-email-templates.list');
+        Route::get('/notifications/dashboard', [NotificationAdminController::class, 'dashboard'])->name('notifications.dashboard');
+        Route::get('/notifications/campaigns', [NotificationAdminController::class, 'campaigns'])->name('notifications.campaigns');
+        Route::get('/notifications/campaigns/create', [NotificationAdminController::class, 'createCampaign'])->name('notifications.campaigns.create');
+        Route::post('/notifications/campaigns', [NotificationAdminController::class, 'storeCampaign'])->name('notifications.campaigns.store');
+        Route::post('/notifications/campaigns/seed-defaults', [NotificationAdminController::class, 'seedDefaults'])->name('notifications.campaigns.seed-defaults');
+        Route::get('/notifications/campaigns/{id}/edit', [NotificationAdminController::class, 'editCampaign'])->whereUuid('id')->name('notifications.campaigns.edit');
+        Route::put('/notifications/campaigns/{id}', [NotificationAdminController::class, 'updateCampaign'])->whereUuid('id')->name('notifications.campaigns.update');
+        Route::patch('/notifications/campaigns/{id}/toggle', [NotificationAdminController::class, 'toggleCampaign'])->whereUuid('id')->name('notifications.campaigns.toggle');
+        Route::post('/notifications/campaigns/{id}/preview', [NotificationAdminController::class, 'previewCampaign'])->whereUuid('id')->name('notifications.campaigns.preview');
+        Route::post('/notifications/campaigns/{id}/run', [NotificationAdminController::class, 'runCampaign'])->whereUuid('id')->name('notifications.campaigns.run');
+        Route::get('/notifications/users/search', [NotificationAdminController::class, 'searchUsers'])->name('notifications.users.search');
+        Route::get('/notifications/users/{user}/push-status', [NotificationAdminController::class, 'pushStatus'])->whereUuid('user')->name('notifications.users.push-status');
+        Route::get('/notifications/send-test', [NotificationAdminController::class, 'sendTestForm'])->name('notifications.send-test');
+        Route::post('/notifications/send-test', [NotificationAdminController::class, 'sendTest'])->name('notifications.send-test.store');
+        Route::get('/notifications/logs', [NotificationAdminController::class, 'logs'])->name('notifications.logs');
+        Route::get('/notifications/push-tokens', [NotificationAdminController::class, 'pushTokens'])->name('notifications.push-tokens');
+        Route::patch('/notifications/push-tokens/{id}/deactivate', [NotificationAdminController::class, 'deactivatePushToken'])->whereUuid('id')->name('notifications.push-tokens.deactivate');
+        Route::get('/notifications/user-notifications', [NotificationAdminController::class, 'userNotifications'])->name('notifications.user-notifications');
+        Route::post('/notifications/{id}/mark-read', [NotificationAdminController::class, 'markNotificationRead'])->whereUuid('id')->name('notifications.mark-read');
+        Route::delete('/notifications/{id}', [NotificationAdminController::class, 'deleteNotification'])->whereUuid('id')->name('notifications.destroy');
+        Route::delete('/notifications/clear-user/{userId}', [NotificationAdminController::class, 'clearUserNotifications'])->whereUuid('userId')->name('notifications.clear-user');
+
         Route::get('/campaigns', [AdminCampaignController::class, 'index'])->name('campaigns.index');
         Route::get('/campaigns/create', [AdminCampaignController::class, 'create'])->name('campaigns.create');
         Route::post('/campaigns', [AdminCampaignController::class, 'store'])->name('campaigns.store');

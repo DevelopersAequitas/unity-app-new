@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Admin\DistrictSyncService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Throwable;
@@ -49,6 +51,9 @@ class User extends Authenticatable
         'experience_summary',
         'city_id',
         'city',
+        'status',
+        'approval_status',
+        'contacts_allowed',
         'skills',
         'interests',
         'social_links',
@@ -137,6 +142,10 @@ class User extends Authenticatable
         'zoho_last_invoice_id',
         'membership_starts_at',
         'membership_ends_at',
+        'membership_start_date',
+        'membership_end_date',
+        'membership_approved_at',
+        'membership_approved_by',
         'last_payment_at',
         'active_circle_subscription_id',
         'circle_joined_at',
@@ -170,6 +179,9 @@ class User extends Authenticatable
         'last_seen_at' => 'datetime',
         'membership_starts_at' => 'datetime',
         'membership_ends_at' => 'datetime',
+        'membership_start_date' => 'date',
+        'membership_end_date' => 'date',
+        'membership_approved_at' => 'datetime',
         'last_payment_at' => 'datetime',
         'circle_joined_at' => 'datetime',
         'circle_expires_at' => 'datetime',
@@ -194,6 +206,7 @@ class User extends Authenticatable
         'is_sponsored_member' => 'boolean',
         'life_impacted_count' => 'integer',
         'is_online' => 'boolean',
+        'contacts_allowed' => 'boolean',
     ];
 
     public function getAuthPassword()
@@ -204,6 +217,11 @@ class User extends Authenticatable
     public function getLifeImpactedCountAttribute($value): int
     {
         return (int) ($value ?? 0);
+    }
+
+    public function contactPosts(): HasMany
+    {
+        return $this->hasMany(ContactPost::class, 'user_id');
     }
 
     protected static function booted(): void
@@ -221,6 +239,12 @@ class User extends Authenticatable
 
             if (empty($user->display_name)) {
                 $user->display_name = trim($user->first_name . ' ' . ($user->last_name ?? ''));
+            }
+        });
+
+        static::saved(function (self $user): void {
+            if ($user->wasRecentlyCreated || $user->wasChanged(['city_id', 'city', 'business_city', 'state', 'business_state', 'district'])) {
+                app(DistrictSyncService::class)->syncFromUser($user);
             }
         });
     }
@@ -790,11 +814,25 @@ class User extends Authenticatable
 
     public function getProfilePhotoUrlAttribute(): ?string
     {
-        if (! $this->profile_photo_file_id) {
+        $profilePhotoId = $this->attributes['profile_photo_file_id']
+            ?? $this->attributes['profile_photo_id']
+            ?? null;
+
+        if ($profilePhotoId) {
+            return url('/api/v1/files/' . $profilePhotoId);
+        }
+
+        $storedProfilePhotoUrl = $this->attributes['profile_photo_url'] ?? null;
+
+        if (blank($storedProfilePhotoUrl)) {
             return null;
         }
 
-        return url('/api/v1/files/' . $this->profile_photo_file_id);
+        if (filter_var($storedProfilePhotoUrl, FILTER_VALIDATE_URL)) {
+            return $storedProfilePhotoUrl;
+        }
+
+        return Storage::disk('public')->url($storedProfilePhotoUrl);
     }
 
     public function getProfileVideoUrlAttribute(): ?string

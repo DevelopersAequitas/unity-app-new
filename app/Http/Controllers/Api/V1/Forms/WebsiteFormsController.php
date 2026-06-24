@@ -10,6 +10,7 @@ use App\Http\Requests\Forms\SubmitPartnerWithUsRequest;
 use App\Http\Requests\Forms\SubmitSmeBusinessStoryRequest;
 use App\Mail\WebsiteFormConfirmationMail;
 use App\Models\BecomeSpeakerSubmission;
+use App\Models\CertificationSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\FileModel;
 use App\Models\LeadershipCertificationSubmission;
@@ -18,6 +19,7 @@ use App\Models\SmeBusinessStorySubmission;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -327,6 +329,7 @@ class WebsiteFormsController extends BaseApiController
     public function submitLeadershipCertification(SubmitLeadershipCertificationRequest $request)
     {
         $data = $request->validated();
+        $scoreDetails = $this->calculateLeadershipCertificationScore($data);
 
         Log::info('Leadership certification submission started', [
             'email' => $data['email'] ?? null,
@@ -335,13 +338,31 @@ class WebsiteFormsController extends BaseApiController
         ]);
 
         try {
-            $submission = LeadershipCertificationSubmission::create([
-                'full_name' => $data['full_name'],
-                'business_name' => $data['business_name'],
-                'email' => $data['email'],
-                'contact_no' => $data['contact_no'],
-                'status' => 'new',
-            ]);
+            $submission = DB::transaction(function () use ($data, $scoreDetails, $request) {
+                $legacySubmission = LeadershipCertificationSubmission::create(array_merge(
+                    $data,
+                    $scoreDetails,
+                    ['status' => 'new']
+                ));
+
+                CertificationSubmission::create([
+                    'id' => $legacySubmission->id,
+                    'certification_type' => CertificationSubmission::TYPE_LEADERSHIP,
+                    'user_id' => $request->user()?->id,
+                    'full_name' => $legacySubmission->full_name,
+                    'business_name' => $legacySubmission->business_name,
+                    'email' => $legacySubmission->email,
+                    'contact_no' => $legacySubmission->contact_no,
+                    'total_score' => $legacySubmission->total_score,
+                    'percentage' => (int) $legacySubmission->percentage,
+                    'certification_level' => $legacySubmission->certification_level,
+                    'certification_title' => $legacySubmission->certification_level,
+                    'answers' => $this->extractAnswers($data, LeadershipCertificationSubmission::QUIZ_FIELDS),
+                    'status' => CertificationSubmission::STATUS_NEW,
+                ]);
+
+                return $legacySubmission;
+            });
 
             $this->sendConfirmationEmail(
                 email: $submission->email,
@@ -360,14 +381,19 @@ class WebsiteFormsController extends BaseApiController
 
             return response()->json([
                 'status' => true,
-                'message' => 'Form submitted successfully.',
+                'message' => 'Leadership certification submitted successfully.',
                 'data' => [
                     'id' => $submission->id,
                     'full_name' => $submission->full_name,
                     'business_name' => $submission->business_name,
                     'email' => $submission->email,
                     'contact_no' => $submission->contact_no,
+                    'total_score' => $submission->total_score,
+                    'percentage' => $submission->percentage,
+                    'certification_level' => $submission->certification_level,
+                    'status' => $submission->status,
                     'created_at' => optional($submission->created_at)?->toISOString(),
+                    'updated_at' => optional($submission->updated_at)?->toISOString(),
                 ],
             ], 201);
         } catch (\Throwable $exception) {
@@ -389,6 +415,7 @@ class WebsiteFormsController extends BaseApiController
     public function submitEntrepreneurCertification(SubmitEntrepreneurCertificationRequest $request)
     {
         $data = $request->validated();
+        $scoreDetails = $this->calculateEntrepreneurCertificationScore($data);
 
         Log::info('Entrepreneur certification submission started', [
             'email' => $data['email'] ?? null,
@@ -397,13 +424,31 @@ class WebsiteFormsController extends BaseApiController
         ]);
 
         try {
-            $submission = EntrepreneurCertificationSubmission::create([
-                'full_name' => $data['full_name'],
-                'business_name' => $data['business_name'],
-                'email' => $data['email'],
-                'contact_no' => $data['contact_no'],
-                'status' => 'new',
-            ]);
+            $submission = DB::transaction(function () use ($data, $scoreDetails, $request) {
+                $legacySubmission = EntrepreneurCertificationSubmission::create(array_merge(
+                    $data,
+                    $scoreDetails,
+                    ['status' => 'new']
+                ));
+
+                CertificationSubmission::create([
+                    'id' => $legacySubmission->id,
+                    'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
+                    'user_id' => $request->user()?->id,
+                    'full_name' => $legacySubmission->full_name,
+                    'business_name' => $legacySubmission->business_name,
+                    'email' => $legacySubmission->email,
+                    'contact_no' => $legacySubmission->contact_no,
+                    'total_score' => $legacySubmission->total_score,
+                    'percentage' => (int) $legacySubmission->percentage,
+                    'certification_level' => $legacySubmission->certification_tier,
+                    'certification_title' => $legacySubmission->certification_tier,
+                    'answers' => $this->extractAnswers($data, EntrepreneurCertificationSubmission::QUIZ_FIELDS),
+                    'status' => CertificationSubmission::STATUS_NEW,
+                ]);
+
+                return $legacySubmission;
+            });
 
             $this->sendConfirmationEmail(
                 email: $submission->email,
@@ -422,14 +467,19 @@ class WebsiteFormsController extends BaseApiController
 
             return response()->json([
                 'status' => true,
-                'message' => 'Form submitted successfully.',
+                'message' => 'Entrepreneur certification submitted successfully.',
                 'data' => [
                     'id' => $submission->id,
                     'full_name' => $submission->full_name,
                     'business_name' => $submission->business_name,
                     'email' => $submission->email,
                     'contact_no' => $submission->contact_no,
+                    'total_score' => $submission->total_score,
+                    'percentage' => $submission->percentage,
+                    'certification_tier' => $submission->certification_tier,
+                    'status' => $submission->status,
                     'created_at' => optional($submission->created_at)?->toISOString(),
+                    'updated_at' => optional($submission->updated_at)?->toISOString(),
                 ],
             ], 201);
         } catch (\Throwable $exception) {
@@ -588,6 +638,70 @@ class WebsiteFormsController extends BaseApiController
             'created_at' => optional($item->created_at)?->toISOString(),
             'updated_at' => optional($item->updated_at)?->toISOString(),
         ];
+    }
+
+
+
+    private function extractAnswers(array $data, array $fields): array
+    {
+        return collect($fields)
+            ->mapWithKeys(fn (string $field) => [$field => $data[$field] ?? null])
+            ->all();
+    }
+
+    private function calculateLeadershipCertificationScore(array $data): array
+    {
+        $totalScore = 0;
+
+        foreach (LeadershipCertificationSubmission::CORRECT_ANSWERS as $field => $correctAnswer) {
+            if (($data[$field] ?? null) === $correctAnswer) {
+                $totalScore += 4;
+            }
+        }
+
+        return [
+            'total_score' => $totalScore,
+            'percentage' => $totalScore,
+            'certification_level' => $this->resolveLeadershipCertificationLevel($totalScore),
+        ];
+    }
+
+    private function resolveLeadershipCertificationLevel(int $totalScore): string
+    {
+        return match (true) {
+            $totalScore >= 81 => 'Established Leader',
+            $totalScore >= 61 => 'Growing Leader',
+            $totalScore >= 40 => 'Aspiring Leader',
+            default => 'Needs Improvement',
+        };
+    }
+
+
+    private function calculateEntrepreneurCertificationScore(array $data): array
+    {
+        $totalScore = 0;
+
+        foreach (EntrepreneurCertificationSubmission::CORRECT_ANSWERS as $field => $correctAnswer) {
+            if (($data[$field] ?? null) === $correctAnswer) {
+                $totalScore += 4;
+            }
+        }
+
+        return [
+            'total_score' => $totalScore,
+            'percentage' => $totalScore,
+            'certification_tier' => $this->resolveEntrepreneurCertificationTier($totalScore),
+        ];
+    }
+
+    private function resolveEntrepreneurCertificationTier(int $totalScore): string
+    {
+        return match (true) {
+            $totalScore >= 81 => 'Established Entrepreneur',
+            $totalScore >= 61 => 'Growing Entrepreneur',
+            $totalScore >= 40 => 'Aspiring Entrepreneur',
+            default => 'Needs Improvement',
+        };
     }
 
     private function resolvePerPage(Request $request): int
