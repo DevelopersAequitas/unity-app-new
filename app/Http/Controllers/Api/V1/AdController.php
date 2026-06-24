@@ -37,6 +37,37 @@ class AdController extends BaseApiController
         ]);
     }
 
+    /**
+     * GET /api/ads  — returns ALL currently active/visible ads for every user.
+     * This is the backward-compatible public listing used by the mobile app.
+     */
+    public function allAds(Request $request)
+    {
+        $ads = Ad::query()
+            ->currentlyVisible()
+            ->orderBy('sort_order')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (Ad $ad): array => [
+                'id'          => $ad->id,
+                'user_id'     => $ad->created_by,
+                'title'       => $ad->title,
+                'description' => $ad->description,
+                'image_url'   => $ad->image_url,
+                'status'      => $ad->is_active ? 'active' : 'inactive',
+                'created_at'  => $ad->created_at,
+                'updated_at'  => $ad->updated_at,
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'status'  => true,
+            'message' => $ads->isEmpty() ? 'No ads found.' : 'Ads fetched successfully.',
+            'data'    => $ads->values(),
+            'meta'    => null,
+        ]);
+    }
+
     public function index(IndexAdRequest $request)
     {
         $filters = $request->validated();
