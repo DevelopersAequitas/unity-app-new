@@ -904,29 +904,20 @@ class UsersController extends Controller
                     ]);
 
                     try {
-                                $payload['id'] = (string) Str::uuid();
-                                $payload['admin_user_id'] = $adminUser->id;
-                                $payload['created_at'] = now();
-
-                                DB::table('admin_ded_districts')->insert($payload);
-                        $assignmentValues = [
-                            'industry_id' => $validated['industry_id'],
-                            'assigned_by' => Auth::guard('admin')->id(),
-                            'is_active' => true,
-                            'updated_at' => now(),
-                        ];
-
-                        if (! $assignmentExists) {
-                            $assignmentValues['created_at'] = now();
-                        }
-
-                            $assignmentValues,
-                                'id' => (string) Str::uuid(),
-                                'user_id' => $adminUser->id,
-                                'role_id' => $roleId,
-                                'created_at' => now(),
-                            ]);
-                        }
+                                DB::table('admin_ded_districts')->insert(array_merge($payload, [
+                                    'id' => (string) Str::uuid(),
+                                    'admin_user_id' => $adminUser->id,
+                                    'created_at' => now(),
+                                ]));
+                            array_merge([
+                                'industry_id' => $validated['industry_id'],
+                                'assigned_by' => Auth::guard('admin')->id(),
+                                'is_active' => true,
+                                'updated_at' => now(),
+                            ], $assignmentExists ? [] : ['created_at' => now()]),
+                'exception' => $exception,
+            return redirect()
+                ->route('admin.users.edit', $user->id)
 
                         if (Schema::hasTable('admin_ded_districts')) {
                             if ($isDedSelected) {
@@ -1039,11 +1030,13 @@ class UsersController extends Controller
 
             return redirect()
                 ->route('admin.users.edit', $user->id)
-        return AdminUser::query()->create([
-            'id' => $adminUserId,
-            'email' => $email,
-            'name' => $name,
-        ]);
+        return AdminUser::query()->firstOrCreate(
+            ['email' => $email],
+            [
+                'id' => $adminUserId,
+                'name' => $name,
+            ],
+        );
         if ($originalMembershipStatus !== $updatedMembershipStatus) {
             $membershipLifecycleNotifications = app(MembershipLifecycleNotificationService::class);
             $membershipLifecycleNotifications->sendStatusUpdated($user, $updatedMembershipStatus);
@@ -1151,10 +1144,7 @@ class UsersController extends Controller
         if (Schema::hasTable('joined_circle_categories')) {
             JoinedCircleCategory::query()
                 ->where('circle_member_id', $member->id)
-                'email' => (string) $user->email,
-                'file' => $throwable->getFile(),
-                'line' => $throwable->getLine(),
-            return back()->with('error', 'Welcome email failed to send. Check server logs for details: ' . $throwable->getMessage());
+            return back()->with('error', 'Welcome email failed to send.');
         }
 
         $member->delete();
@@ -2214,22 +2204,6 @@ class UsersController extends Controller
 
         return match ($normalized) {
             'free', 'free_member' => User::STATUS_FREE,
-                Log::info('Sending Membership Email', [
-                    'user_id' => $user->id,
-                    'email' => $user->email,
-                    'subject' => 'Your PeersGlobal Membership Has Been Approved',
-                    'mail_from' => 'pravin@peersunity.com',
-                    'mail_from_name' => 'Peers Global',
-                ]);
-
-
-                Log::info('Membership Email Sent Successfully', [
-                    'user_id' => $user->id,
-                    'email' => $user->email,
-                    'subject' => 'Your PeersGlobal Membership Has Been Approved',
-                ]);
-                    'file' => $throwable->getFile(),
-                    'line' => $throwable->getLine(),
             'free_trial', 'trial_peer', 'free_trial_member' => User::STATUS_FREE_TRIAL,
             default => $normalized,
         };
@@ -2797,7 +2771,7 @@ class UsersController extends Controller
                 ]]);
             }
 
-            default => ['error', 'Welcome email failed to send. Check server logs for details.'],
+            default => ['error', 'Welcome email failed to send.'],
                 'membership' => $membership,
                 'circle' => $circlesById->get($membership->circle_id),
                 'categories' => $singlePathTree,
