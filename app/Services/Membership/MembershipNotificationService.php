@@ -5,8 +5,10 @@ namespace App\Services\Membership;
 use App\Mail\MembershipStatusChangedMail;
 use App\Models\Notifications\AppNotification;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -54,8 +56,78 @@ class MembershipNotificationService
             'action_url' => '/membership',
         ], $extra);
         $dedupe = $type . ':' . $user->id . ':' . md5(json_encode($data)) . ($minuteDedupe ? ':' . now()->format('YmdHi') : '');
-        if (AppNotification::query()->where('dedupe_key', $dedupe)->exists()) return null;
-        return AppNotification::create(['user_id' => $user->id, 'type' => $type, 'category' => 'membership', 'title' => $title, 'body' => $message, 'channel' => 'in_app', 'priority' => 'high', 'screen' => 'membership', 'data' => $data, 'dedupe_key' => $dedupe, 'status' => 'sent', 'sent_at' => now()]);
+
+        try {
+            if (! Schema::hasTable('app_notifications')) {
+                Log::warning('membership.notification_table_missing', ['user_id' => $user->id, 'type' => $type]);
+                return null;
+            }
+
+            if (Schema::hasColumn('app_notifications', 'dedupe_key')
+                && AppNotification::query()->where('dedupe_key', $dedupe)->exists()) {
+                return null;
+            }
+
+            $payload = [
+                'user_id' => $user->id,
+                'type' => $type,
+                'category' => 'membership',
+                'title' => $title,
+                'message' => $message,
+                'body' => $message,
+                'channel' => 'in_app',
+                'priority' => 'high',
+                'screen' => 'membership',
+                'data' => $data,
+                'payload' => $data,
+                'dedupe_key' => $dedupe,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+
+            $insert = ['id' => (string) Str::uuid()];
+            foreach ($payload as $column => $value) {
+                if (! Schema::hasColumn('app_notifications', $column)) {
+                    continue;
+                }
+
+                $insert[$column] = in_array($column, ['data', 'payload'], true) && is_array($value)
+                    ? json_encode($value)
+                    : $value;
+            }
+
+            if (! isset($insert['user_id']) || ! isset($insert['type'])) {
+                Log::warning('membership.notification_required_columns_missing', [
+                    'user_id' => $user->id,
+                    'type' => $type,
+                    'columns' => array_keys($insert),
+                ]);
+
+                return null;
+            }
+
+            DB::table('app_notifications')->insert($insert);
+
+            Log::info('membership.notification_created', [
+                'user_id' => $user->id,
+                'type' => $type,
+                'dedupe_key' => $dedupe,
+            ]);
+
+            return AppNotification::query()->find($insert['id']);
+        } catch (Throwable $exception) {
+            Log::error('membership.notification_create_failed', [
+                'user_id' => $user->id,
+                'type' => $type,
+                'exception_message' => $exception->getMessage(),
+                'exception_file' => $exception->getFile(),
+                'exception_line' => $exception->getLine(),
+            ]);
+
+            return null;
+        }
     }
 
     private function label(?string $status): string { return Str::headline(str_replace('_', ' ', (string) ($status ?: 'unknown'))); }
