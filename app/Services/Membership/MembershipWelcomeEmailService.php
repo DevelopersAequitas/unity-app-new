@@ -45,8 +45,6 @@ class MembershipWelcomeEmailService
         }
 
         $lastPayment = $freshUser->last_payment_at;
-        if (! $force && filled($freshUser->welcome_membership_email_sent_at) && ($lastPayment === null || $freshUser->welcome_membership_email_sent_at->greaterThanOrEqualTo($lastPayment))) {
-        if (! $force && filled($freshUser->welcome_membership_email_sent_at)) {
         if (filled($freshUser->welcome_membership_email_sent_at)) {
             Log::info('membership.welcome_email.skipped', [
                 'user_id' => (string) $freshUser->id,
