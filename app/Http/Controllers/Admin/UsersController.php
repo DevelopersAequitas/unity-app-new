@@ -121,6 +121,7 @@ class UsersController extends Controller
 
         $request->merge([
             'public_profile_slug' => $this->publicProfileSlugService->normalize($request->input('public_profile_slug')),
+            'membership_status' => $this->normalizeMembershipValue($request->input('membership_status')),
             'level_1_category_id' => $request->input('level_1_category_id', $request->input('level1_category_id')),
             'level_2_category_id' => $request->input('level_2_category_id', $request->input('level2_category_id')),
             'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
@@ -438,6 +439,7 @@ class UsersController extends Controller
 
         $request->merge([
             'public_profile_slug' => $this->publicProfileSlugService->normalize($request->input('public_profile_slug')),
+            'membership_status' => $this->normalizeMembershipValue($request->input('membership_status')),
             'level_1_category_id' => $request->input('level_1_category_id', $request->input('level1_category_id')),
             'level_2_category_id' => $request->input('level_2_category_id', $request->input('level2_category_id')),
             'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
@@ -1265,7 +1267,7 @@ class UsersController extends Controller
                 continue;
             }
 
-            $membership = $data['membership_status'] ?? null;
+            $membership = $this->normalizeMembershipValue($data['membership_status'] ?? null);
             if ($membership && ! in_array($membership, $membershipStatuses, true)) {
                 $membership = null;
             }
@@ -1557,7 +1559,12 @@ class UsersController extends Controller
 
     private function membershipStatuses(): array
     {
-        return config('membership.statuses', []);
+        return collect(config('membership.statuses', []))
+            ->map(fn ($status) => $this->normalizeMembershipValue($status))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function expireTrialUsersForAdminPanel(): void
@@ -2160,6 +2167,12 @@ class UsersController extends Controller
             'only_unity_peer' => 'Only Unity Peer',
             'free_peer' => 'Free Peer',
             'free_trial_peer' => 'Free Trial Peer',
+            'charter_peer' => 'Charter Peer',
+            'industry_advisor' => 'Industry Advisor',
+            'charter_investor' => 'Charter Investor',
+            'circle_founder' => 'Circle Founder',
+            'circle_director' => 'Circle Director',
+            'board_advisor' => 'Board Advisor',
         ];
     }
 
@@ -2172,7 +2185,13 @@ class UsersController extends Controller
 
     private function normalizeMembershipValue(?string $value): string
     {
-        return strtolower(trim(str_replace(' ', '_', (string) $value)));
+        $normalized = strtolower(trim(str_replace([' ', '-'], '_', (string) $value)));
+
+        return match ($normalized) {
+            'free', 'free_member' => User::STATUS_FREE,
+            'free_trial', 'trial_peer', 'free_trial_member' => User::STATUS_FREE_TRIAL,
+            default => $normalized,
+        };
     }
 
 
