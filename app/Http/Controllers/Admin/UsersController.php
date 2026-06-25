@@ -1030,16 +1030,13 @@ class UsersController extends Controller
 
             return redirect()
                 ->route('admin.users.edit', $user->id)
-        $adminLookup = [
-            'email' => $email,
-        ];
+        $adminUser = new AdminUser();
+        $adminUser->id = $adminUserId;
+        $adminUser->email = $email;
+        $adminUser->name = $name;
+        $adminUser->save();
 
-        $adminDefaults = [
-            'id' => $adminUserId,
-            'name' => $name,
-        ];
-
-        return AdminUser::query()->firstOrCreate($adminLookup, $adminDefaults);
+        return $adminUser;
         if ($originalMembershipStatus !== $updatedMembershipStatus) {
             $membershipLifecycleNotifications = app(MembershipLifecycleNotificationService::class);
             $membershipLifecycleNotifications->sendStatusUpdated($user, $updatedMembershipStatus);
