@@ -2,6 +2,7 @@
 
 namespace App\Services\Membership;
 
+use App\Jobs\Notifications\SendNotificationChannelJob;
 use App\Mail\MembershipWelcomeMail;
 use App\Models\File;
 use App\Models\Notifications\AppNotification;
@@ -210,8 +211,8 @@ class MembershipWelcomeEmailService
                 'type' => 'membership_welcome',
                 'category' => 'membership',
                 'title' => 'Welcome to Peers Global Unity',
-                'body' => 'Welcome to Peers Global Unity. Your membership has been successfully activated.',
-                'channel' => 'in_app',
+                'body' => 'Dear ' . ((string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: 'Peer')) . ",\n\nWelcome to Peers Global Unity.\n\nYour membership has been successfully activated.\n\nWe are excited to have you as part of our global community and look forward to your active participation.",
+                'channel' => 'push',
                 'priority' => 'high',
                 'screen' => 'membership',
                 'data' => [
@@ -225,6 +226,8 @@ class MembershipWelcomeEmailService
                 'status' => 'sent',
                 'sent_at' => now(),
             ]);
+
+            SendNotificationChannelJob::dispatch((string) $notification->id, 'push');
 
             Log::info('membership.welcome_email.notification_created', [
                 'user_id' => (string) $user->id,

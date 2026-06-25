@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
+use App\Services\Membership\MembershipLifecycleNotificationService;
 use Illuminate\Console\Command;
 
 class MembershipsExpireUsers extends Command
@@ -15,13 +16,23 @@ class MembershipsExpireUsers extends Command
     {
         $freePeerStatus = User::freePeerMembershipStatus();
 
-        $updated = User::query()
+        $expiredUsers = User::query()
             ->whereNotNull('membership_ends_at')
             ->where('membership_ends_at', '<', now())
             ->where('membership_status', '!=', $freePeerStatus)
-            ->update([
+            ->get();
+
+        $updated = 0;
+        $notifications = app(MembershipLifecycleNotificationService::class);
+
+        foreach ($expiredUsers as $user) {
+            $user->forceFill([
                 'membership_status' => $freePeerStatus,
-            ]);
+            ])->save();
+
+            $notifications->sendExpired($user->refresh());
+            $updated++;
+        }
 
         $this->info("Expired users normalized: {$updated}");
 

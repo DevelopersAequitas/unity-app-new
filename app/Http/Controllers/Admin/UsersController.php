@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Admin\DedLocationService;
 use App\Services\IndustryDirector\IndustryScopeService;
+use App\Services\Membership\MembershipLifecycleNotificationService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Users\PublicProfileSlugService;
@@ -436,6 +437,7 @@ class UsersController extends Controller
         $lifeImpactRemark = trim((string) $request->input('life_impact_remark', ''));
 
         $membershipStatuses = $this->membershipStatuses();
+        $originalMembershipStatus = (string) ($user->membership_status ?? '');
 
         $request->merge([
             'public_profile_slug' => $this->publicProfileSlugService->normalize($request->input('public_profile_slug')),
@@ -1030,6 +1032,19 @@ class UsersController extends Controller
                 ->route('admin.users.edit', $user->id)
                 ->withInput()
                 ->withErrors(['roles' => 'Role update failed: ' . $exception->getMessage()]);
+        }
+
+        $user->refresh();
+        $updatedMembershipStatus = (string) ($user->membership_status ?? '');
+
+        if ($originalMembershipStatus !== $updatedMembershipStatus) {
+            $membershipLifecycleNotifications = app(MembershipLifecycleNotificationService::class);
+            $membershipLifecycleNotifications->sendStatusUpdated($user, $updatedMembershipStatus);
+
+            if (in_array($updatedMembershipStatus, ['expired', User::STATUS_FREE], true)
+                && ($user->membership_ends_at?->isPast() || $user->membership_expiry?->isPast())) {
+                $membershipLifecycleNotifications->sendExpired($user);
+            }
         }
 
         $statusMessage = $request->has('add_circle_membership')

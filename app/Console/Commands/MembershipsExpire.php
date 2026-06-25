@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Models\UserMembership;
+use App\Services\Membership\MembershipLifecycleNotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -36,8 +37,10 @@ class MembershipsExpire extends Command
             ->whereIn('id', $membershipIds)
             ->update(['status' => 'expired']);
 
+        $notifications = app(MembershipLifecycleNotificationService::class);
+
         foreach ($userIds as $userId) {
-            DB::transaction(function () use ($userId, $now): void {
+            $expiredUser = DB::transaction(function () use ($userId, $now): ?User {
                 $hasActiveMembership = UserMembership::query()
                     ->where('user_id', $userId)
                     ->where('status', 'active')
@@ -48,15 +51,27 @@ class MembershipsExpire extends Command
                     ->exists();
 
                 if ($hasActiveMembership) {
-                    return;
+                    return null;
                 }
 
-                User::query()->where('id', $userId)->update([
+                $user = User::query()->find($userId);
+
+                if (! $user) {
+                    return null;
+                }
+
+                $user->forceFill([
                     'membership_status' => 'free_peer',
                     'membership_ends_at' => null,
                     'membership_expiry' => null,
-                ]);
+                ])->save();
+
+                return $user;
             });
+
+            if ($expiredUser) {
+                $notifications->sendExpired($expiredUser);
+            }
         }
 
         Log::info('Expired memberships processed', [

@@ -6,6 +6,7 @@ use App\Mail\FreeTrialExpiredMail;
 use App\Models\EmailLog;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\Membership\MembershipLifecycleNotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -33,6 +34,8 @@ class ExpireTrialUsers extends Command
             ])->save();
 
             $updated++;
+
+            app(MembershipLifecycleNotificationService::class)->sendExpired($user->refresh());
 
             if (EmailLog::query()
                 ->where('user_id', (string) $user->id)
