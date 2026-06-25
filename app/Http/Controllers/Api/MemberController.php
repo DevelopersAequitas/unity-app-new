@@ -264,6 +264,52 @@ class MemberController extends BaseApiController
         );
     }
 
+    public function limited(Request $request, PeerBlockService $peerBlockService)
+    {
+        $query = User::query()
+            ->select([
+                'id',
+                'first_name',
+                'last_name',
+                'display_name',
+                'company_name',
+                'profile_photo_file_id',
+                'profile_photo_url',
+                'city_id',
+                'city',
+                'city_of_residence',
+                'life_impacted_count',
+                'status',
+                'deleted_at'
+            ])
+            ->with(['city:id,name']);
+
+        // Exclude inactive members
+        $query->where(function ($statusQuery) {
+            $statusQuery->whereNull('status')->orWhere('status', 'active');
+        });
+
+        // Filter out blocked users if user is authenticated
+        $authUser = auth('sanctum')->user();
+        if ($authUser) {
+            $excludedUserIds = array_values(array_unique(array_filter(array_merge(
+                $peerBlockService->blockedUserIdsFor((string) $authUser->id),
+                $peerBlockService->usersWhoBlockedMeIdsFor((string) $authUser->id)
+            ))));
+
+            if (! empty($excludedUserIds)) {
+                $query->whereNotIn('id', $excludedUserIds);
+            }
+        }
+
+        $users = $query->orderByDesc('created_at')->get();
+
+        return $this->success(
+            \App\Http\Resources\V1\LimitedUserResource::collection($users),
+            'Limited user data fetched successfully.'
+        );
+    }
+
     public function show(Request $request, string $id, PeerBlockService $peerBlockService)
     {
         $user = User::with($this->memberDetailRelations())
