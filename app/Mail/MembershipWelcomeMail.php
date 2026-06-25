@@ -14,14 +14,14 @@ class MembershipWelcomeMail extends Mailable
     public User $user;
 
     /**
-     * @var array<int, array{disk:string,path:string,name:string}>
+     * @var array<int, array{disk:string,path:string,name:string,mime?:string|null}>
      */
     public array $attachmentsConfig;
 
     public ?string $bannerUrl;
 
     /**
-     * @param  array<int, array{disk:string,path:string,name:string}>  $attachmentsConfig
+     * @param  array<int, array{disk:string,path:string,name:string,mime?:string|null}>  $attachmentsConfig
      */
     public function __construct(User $user, array $attachmentsConfig = [], ?string $bannerUrl = null)
     {
@@ -41,7 +41,7 @@ class MembershipWelcomeMail extends Mailable
 
         foreach ($this->attachmentsConfig as $attachment) {
             $mail->attachFromStorageDisk($attachment['disk'], $attachment['path'], $attachment['name'], [
-                'as' => $attachment['name'],
+                'mime' => $attachment['mime'] ?? null,
             ]);
         }
 

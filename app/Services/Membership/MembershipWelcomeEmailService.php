@@ -100,6 +100,11 @@ class MembershipWelcomeEmailService
                 config("membership_welcome.attachment_{$slot}_file_id", '')
             ));
 
+            Log::info('membership.welcome_email.attachment_setting_loaded', [
+                'slot' => $slot,
+                'file_id_configured' => $fileId !== '',
+            ]);
+
             if ($fileId === '') {
                 Log::warning('membership.welcome_email.attachment_missing', ['slot' => $slot, 'reason' => 'not_configured']);
                 continue;
@@ -121,7 +126,15 @@ class MembershipWelcomeEmailService
                 'disk' => $disk,
                 'path' => $file->s3_key,
                 'name' => (string) config("membership_welcome.attachment_{$slot}_name", basename($file->s3_key)),
+                'mime' => $file->mime_type ?: null,
             ];
+
+            Log::info('membership.welcome_email.attachment_attached', [
+                'slot' => $slot,
+                'file_id' => $fileId,
+                'disk' => $disk,
+                'path' => $file->s3_key,
+            ]);
         }
 
         if ($attachments === []) {
