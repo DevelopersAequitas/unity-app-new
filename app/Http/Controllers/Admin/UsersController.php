@@ -941,11 +941,22 @@ class UsersController extends Controller
                                     'state_name' => $stateName,
                                     'district_name' => $districtName,
                                 ] as $column => $value) {
-                                    if (Schema::hasColumn('admin_ded_districts', $column)) {
-                                        $payload[$column] = $value;
-                                    }
-                                }
-
+                        if ($assignmentExists) {
+                            DB::table('industry_director_assignments')
+                                ->where('admin_user_id', $adminUser->id)
+                                ->update([
+                                    'industry_id' => $validated['industry_id'],
+                                    'assigned_by' => Auth::guard('admin')->id(),
+                                    'is_active' => true,
+                                    'updated_at' => now(),
+                                ]);
+                        } else {
+                            DB::table('industry_director_assignments')->insert([
+                                'id' => (string) Str::uuid(),
+                                'admin_user_id' => $adminUser->id,
+                                'created_at' => now(),
+                            ]);
+                        }
                                 $dedAssignmentExists = DB::table('admin_ded_districts')
                                     ->where('admin_user_id', $adminUser->id)
                                     ->exists();
