@@ -65,8 +65,10 @@ class ExpireTrialUsers extends Command
             if (EmailLog::query()
                 ->where('user_id', (string) $user->id)
                 ->where('template_key', 'free_trial_expired')
-                ->exists()) {
-                continue;
+                $failureContext = [
+                ];
+
+                Log::warning('membership.free_trial_expired_email_failed', $failureContext);
             }
 
             $mailable = new FreeTrialExpiredMail($user);

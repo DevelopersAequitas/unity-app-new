@@ -1030,13 +1030,16 @@ class UsersController extends Controller
 
             return redirect()
                 ->route('admin.users.edit', $user->id)
-                ->withInput()
-                ->withErrors(['roles' => 'Role update failed: ' . $exception->getMessage()]);
-        }
+        $adminLookup = [
+            'email' => $email,
+        ];
 
-        $user->refresh();
-        $updatedMembershipStatus = (string) ($user->membership_status ?? '');
+        $adminDefaults = [
+            'id' => $adminUserId,
+            'name' => $name,
+        ];
 
+        return AdminUser::query()->firstOrCreate($adminLookup, $adminDefaults);
         if ($originalMembershipStatus !== $updatedMembershipStatus) {
             $membershipLifecycleNotifications = app(MembershipLifecycleNotificationService::class);
             $membershipLifecycleNotifications->sendStatusUpdated($user, $updatedMembershipStatus);
