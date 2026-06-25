@@ -18,13 +18,16 @@ class MembershipWelcomeMail extends Mailable
      */
     public array $attachmentsConfig;
 
+    public ?string $bannerUrl;
+
     /**
      * @param  array<int, array{path:string,name:string}>  $attachmentsConfig
      */
-    public function __construct(User $user, array $attachmentsConfig = [])
+    public function __construct(User $user, array $attachmentsConfig = [], ?string $bannerUrl = null)
     {
         $this->user = $user;
         $this->attachmentsConfig = $attachmentsConfig;
+        $this->bannerUrl = $bannerUrl;
     }
 
     public function build()
@@ -33,6 +36,7 @@ class MembershipWelcomeMail extends Mailable
             ->view('emails.membership.membership_welcome')
             ->with([
                 'user' => $this->user,
+                'bannerUrl' => $this->bannerUrl,
             ]);
 
         foreach ($this->attachmentsConfig as $attachment) {

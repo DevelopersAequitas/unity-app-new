@@ -8,4 +8,8 @@ return [
 
     'attachment_2_path' => env('MEMBERSHIP_WELCOME_ATTACHMENT_2_PATH', storage_path('app/private/membership-welcome/membership-benefits.pdf')),
     'attachment_2_name' => env('MEMBERSHIP_WELCOME_ATTACHMENT_2_NAME', 'membership-benefits.pdf'),
+
+    'banner_file_id' => env('MEMBERSHIP_WELCOME_BANNER_FILE_ID'),
+    'banner_url' => env('MEMBERSHIP_WELCOME_BANNER_URL'),
+    'support_email' => env('MEMBERSHIP_SUPPORT_EMAIL', 'pravin@peersunity.com'),
 ];

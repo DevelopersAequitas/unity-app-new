@@ -22,6 +22,7 @@ use App\Models\UserPushToken;
 use App\Services\Admin\DedLocationService;
 use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
+use App\Services\Membership\MembershipNotificationService;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
@@ -51,6 +52,7 @@ class UsersController extends Controller
         private readonly ZohoBillingService $zohoBillingService,
         private readonly PublicProfileSlugService $publicProfileSlugService,
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
+        private readonly MembershipNotificationService $membershipNotificationService,
         private readonly DedLocationService $dedLocationService,
     ) {
     }
@@ -659,6 +661,7 @@ class UsersController extends Controller
             $updatableExclusions[] = 'circle_expires_at';
         }
 
+        $previousMembershipStatus = (string) ($user->membership_status ?? '');
         $updatable = Arr::except($validated, $updatableExclusions);
         if ($user->membership_status !== $validated['membership_status']) {
             $updatable['membership_ends_at'] = null;
@@ -999,6 +1002,12 @@ class UsersController extends Controller
                 ->withErrors(['roles' => 'Unable to update user roles right now. Please try again or contact support.']);
         }
 
+        $updatedUser = $user->fresh();
+        if ($updatedUser && $previousMembershipStatus !== (string) ($updatedUser->membership_status ?? '')) {
+            $adminName = Auth::guard('admin')->user()?->name ?? Auth::guard('admin')->user()?->email ?? 'Admin';
+            $this->membershipNotificationService->sendStatusChanged($updatedUser, $previousMembershipStatus, (string) $updatedUser->membership_status, $adminName);
+        }
+
         $statusMessage = $request->has('add_circle_membership')
             ? 'Circle membership added successfully.'
             : 'User updated successfully.';
@@ -1145,6 +1154,15 @@ class UsersController extends Controller
         }
 
         return back()->with('success', 'Role removed successfully.');
+    }
+
+    public function triggerMembershipNotification(Request $request, string $userId): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) abort(403);
+        $user = User::query()->findOrFail($userId);
+        $adminName = Auth::guard('admin')->user()?->name ?? Auth::guard('admin')->user()?->email ?? 'Admin';
+        $this->membershipNotificationService->sendManual($user, $adminName);
+        return back()->with('success', 'Membership notification triggered successfully.');
     }
 
     public function sendWelcomeMembershipEmail(Request $request, string $userId): RedirectResponse
