@@ -94,6 +94,12 @@ class MembershipWelcomeEmailService
     private function resolveAttachments(): array
     {
         $attachments = [];
+
+        Log::info('membership.welcome_email.settings_loaded', [
+            'enabled' => (bool) config('membership_welcome.enabled', true),
+            'attachment_slots' => 2,
+        ]);
+
         foreach ([1, 2] as $slot) {
             $fileId = trim((string) $this->settingValue(
                 "welcome_email_attachment_{$slot}_file_id",
