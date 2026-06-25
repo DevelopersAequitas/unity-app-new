@@ -965,9 +965,12 @@ class UsersController extends Controller
                                     ]));
                                 }
                             } else {
-                                DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
-                            }
+                'message' => $exception->getMessage(),
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
+            $redirect = redirect()->route('admin.users.edit', $user->id);
 
+            return $redirect
                             Cache::forget('admin-access:ded-location:' . $adminUser->id);
                         }
 
