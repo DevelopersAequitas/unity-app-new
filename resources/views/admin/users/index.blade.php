@@ -238,10 +238,6 @@
                             <div class="btn-group btn-group-sm" role="group">
                                 @if ($canEditUsers)
                                     <a href="{{ route('admin.users.edit', $user->id) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">Edit</a>
-                                    <form method="POST" action="{{ route('admin.users.trigger-membership-notification', $user->id) }}" class="d-inline" onsubmit="return confirm('Trigger membership email and app notification for this peer?');">
-                                        @csrf
-                                        <button type="submit" class="btn btn-outline-warning">Trigger Notification</button>
-                                    </form>
                                 @else
                                     <a href="{{ route('admin.users.show', $user->id) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">View Profile</a>
                                 @endif

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,10 +23,20 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
 
-        config([
-            'mail.from.address' => 'pravin@peersunity.com',
-            'mail.from.name' => 'Peers Global',
-        ]);
+        $fromAddress = (string) config('mail.from.address');
+        $fromName = (string) config('mail.from.name', 'Peers Global Unity');
+        $smtpUsername = (string) config('mail.mailers.smtp.username');
+
+        if (
+            (bool) config('mail.force_smtp_username_as_from', true)
+            && config('mail.default') === 'smtp'
+            && filter_var($smtpUsername, FILTER_VALIDATE_EMAIL)
+        ) {
+            $fromAddress = $smtpUsername;
+            config(['mail.from.address' => $fromAddress]);
+        }
+
+        Mail::alwaysFrom($fromAddress, $fromName);
 
         config([
             'mail.mailers.pravin' => [
