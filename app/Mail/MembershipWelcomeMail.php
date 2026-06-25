@@ -6,11 +6,27 @@ use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
-        $mail = $this->from('pravin@peersunity.com', 'Peers Global')
-            ->subject('Welcome to your Peers Unity Membership')
+     * @var array<int, array{path?:string,disk?:string,storage_path?:string,name:string,mime?:string|null}>
+     * @param  array<int, array{path?:string,disk?:string,storage_path?:string,name:string,mime?:string|null}>  $attachmentsConfig
 
-class MembershipWelcomeMail extends Mailable
-{
+            $options = [
+            ];
+
+            if (! empty($attachment['mime'])) {
+                $options['mime'] = $attachment['mime'];
+            }
+
+            if (! empty($attachment['disk']) && ! empty($attachment['storage_path'])) {
+                unset($options['as']);
+
+                $mail->attachFromStorageDisk($attachment['disk'], $attachment['storage_path'], $attachment['name'], $options);
+
+                continue;
+            }
+
+            if (! empty($attachment['path'])) {
+                $mail->attach($attachment['path'], $options);
+            }
     use Queueable, SerializesModels;
 
     public User $user;

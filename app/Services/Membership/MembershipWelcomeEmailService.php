@@ -2,6 +2,8 @@
 
 namespace App\Services\Membership;
 
+use App\Models\File;
+use Illuminate\Support\Facades\Storage;
 use App\Jobs\Notifications\SendNotificationChannelJob;
 use App\Mail\MembershipWelcomeMail;
 use App\Models\File;
@@ -161,6 +163,120 @@ class MembershipWelcomeEmailService
                     'membership_status' => (string) ($freshUser->membership_status ?? ''),
                     'zoho_plan_code' => (string) ($freshUser->zoho_plan_code ?? ''),
                     'attachments_count' => count($attachments),
+        $fileIds = [
+            1 => $this->configuredAttachmentFileId(1),
+            2 => $this->configuredAttachmentFileId(2),
+        ];
+
+        $settings = [
+            'enabled' => (bool) config('membership_welcome.enabled', true),
+            'attachment_1_file_id' => $fileIds[1],
+            'attachment_2_file_id' => $fileIds[2],
+        ];
+
+        Log::info('membership.welcome_email.settings_loaded', $settings);
+
+        $uploadedAttachments = [];
+        $hasConfiguredUploadedAttachments = $fileIds[1] !== '' || $fileIds[2] !== '';
+
+        foreach ($fileIds as $slot => $fileId) {
+            if (! $hasConfiguredUploadedAttachments) {
+                break;
+            }
+
+            if ($fileId === '') {
+                Log::warning('membership.welcome_email.uploaded_attachment_missing', [
+                    'slot' => $slot,
+                    'reason' => 'missing_file_id',
+                ]);
+
+                continue;
+            }
+
+            $attachment = $this->resolveUploadedFileAttachment($fileId, $slot);
+
+            if ($attachment !== null) {
+                $uploadedAttachments[] = $attachment;
+            }
+        }
+
+        if ($hasConfiguredUploadedAttachments) {
+            if (count($uploadedAttachments) < 2) {
+                Log::warning('membership.welcome_email.uploaded_attachments_partial', [
+                    'loaded_count' => count($uploadedAttachments),
+                ]);
+            }
+
+            return $uploadedAttachments;
+        }
+
+    private function configuredAttachmentFileId(int $slot): string
+    {
+        $primaryKey = "membership_welcome.welcome_email_attachment_{$slot}_file_id";
+        $legacyKey = "membership_welcome.attachment_{$slot}_file_id";
+
+        return trim((string) (config($primaryKey) ?: config($legacyKey) ?: ''));
+    }
+
+    private function resolveUploadedFileAttachment(string $fileId, int $slot): ?array
+    {
+        $file = File::query()->find($fileId);
+        $disk = config('filesystems.default', 'public');
+
+        if (! $file) {
+            Log::warning('membership.welcome_email.uploaded_attachment_missing', [
+                'slot' => $slot,
+                'file_id' => $fileId,
+                'reason' => 'file_record_not_found',
+            ]);
+
+            return null;
+        }
+
+        $storagePath = trim((string) ($file->s3_key ?? ''));
+
+        if ($storagePath === '') {
+            Log::warning('membership.welcome_email.uploaded_attachment_missing', [
+                'slot' => $slot,
+                'file_id' => $fileId,
+                'reason' => 'missing_storage_key',
+            ]);
+
+            return null;
+        }
+
+        if (! Storage::disk($disk)->exists($storagePath)) {
+            if (! $file->is_orphaned) {
+                $file->forceFill(['is_orphaned' => true])->save();
+            }
+
+            Log::warning('membership.welcome_email.uploaded_attachment_missing', [
+                'slot' => $slot,
+                'file_id' => $fileId,
+                'disk' => $disk,
+                'storage_path' => $storagePath,
+                'reason' => 'physical_file_missing',
+            ]);
+
+            return null;
+        }
+
+        Log::info('membership.welcome_email.uploaded_attachment_loaded', [
+            'slot' => $slot,
+            'file_id' => $fileId,
+            'disk' => $disk,
+            'storage_path' => $storagePath,
+            'mime_type' => $file->mime_type,
+        ]);
+
+        return [
+            'disk' => $disk,
+            'storage_path' => $storagePath,
+            'name' => basename($storagePath),
+            'mime' => $file->mime_type,
+        ];
+    }
+
                 ],
             ]);
 
