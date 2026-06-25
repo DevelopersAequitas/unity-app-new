@@ -20,7 +20,8 @@ class MembershipPurchaseCongratulationsMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Congratulations! Your Membership Is Now Active')
+        return $this->from('pravin@peersunity.com', 'Peers Global')
+            ->subject('Congratulations! Your Membership Is Now Active')
             ->view('emails.membership.membership_purchase_congratulations')
             ->with([
                 'user' => $this->user,

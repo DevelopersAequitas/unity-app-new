@@ -1144,7 +1144,10 @@ class UsersController extends Controller
         if (Schema::hasTable('joined_circle_categories')) {
             JoinedCircleCategory::query()
                 ->where('circle_member_id', $member->id)
-                ->delete();
+                'email' => (string) $user->email,
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
+            return back()->with('error', 'Welcome email failed to send. Check server logs for details: ' . $throwable->getMessage());
         }
 
         $member->delete();
@@ -2204,6 +2207,22 @@ class UsersController extends Controller
 
         return match ($normalized) {
             'free', 'free_member' => User::STATUS_FREE,
+                Log::info('Sending Membership Email', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'subject' => 'Your PeersGlobal Membership Has Been Approved',
+                    'mail_from' => 'pravin@peersunity.com',
+                    'mail_from_name' => 'Peers Global',
+                ]);
+
+
+                Log::info('Membership Email Sent Successfully', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'subject' => 'Your PeersGlobal Membership Has Been Approved',
+                ]);
+                    'file' => $throwable->getFile(),
+                    'line' => $throwable->getLine(),
             'free_trial', 'trial_peer', 'free_trial_member' => User::STATUS_FREE_TRIAL,
             default => $normalized,
         };
@@ -2771,7 +2790,7 @@ class UsersController extends Controller
                 ]]);
             }
 
-            return [
+            default => ['error', 'Welcome email failed to send. Check server logs for details.'],
                 'membership' => $membership,
                 'circle' => $circlesById->get($membership->circle_id),
                 'categories' => $singlePathTree,

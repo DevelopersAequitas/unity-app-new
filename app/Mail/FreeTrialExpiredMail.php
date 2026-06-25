@@ -20,7 +20,8 @@ class FreeTrialExpiredMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Your Free Trial Has Ended – Continue Your Peers Global Journey')
+        return $this->from('pravin@peersunity.com', 'Peers Global')
+            ->subject('Your Free Trial Has Ended – Continue Your Peers Global Journey')
             ->view('emails.membership.free_trial_expired')
             ->with([
                 'user' => $this->user,

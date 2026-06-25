@@ -54,6 +54,32 @@ class MembershipWelcomeEmailService
                 'reason' => 'already_sent',
             ]);
 
+            Log::info('Sending Membership Email', [
+                'user_id' => (string) $freshUser->id,
+                'email' => $email,
+                'subject' => 'Welcome to your Peers Unity Membership',
+                'attachments_count' => count($attachments),
+                'mail' => $this->mailDiagnostics(),
+            ]);
+
+            Log::info('Membership Email Sent Successfully', [
+                'user_id' => (string) $freshUser->id,
+                'email' => $email,
+                'subject' => 'Welcome to your Peers Unity Membership',
+            ]);
+
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
+                'mail' => $this->mailDiagnostics(),
+            ]);
+
+            Log::error('Membership Email Failed', [
+                'user_id' => (string) $freshUser->id,
+                'email' => $email,
+                'subject' => 'Welcome to your Peers Unity Membership',
+                'message' => $throwable->getMessage(),
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
             return ['sent' => false, 'reason' => 'already_sent'];
         }
 
@@ -177,6 +203,22 @@ class MembershipWelcomeEmailService
                 'message' => $throwable->getMessage(),
                 'file' => $throwable->getFile(),
                 'line' => $throwable->getLine(),
+
+    private function mailDiagnostics(): array
+    {
+        $defaultMailer = (string) config('mail.default');
+        $mailerConfig = (array) config("mail.mailers.{$defaultMailer}", []);
+
+        return [
+            'default_mailer' => $defaultMailer,
+            'transport' => (string) Arr::get($mailerConfig, 'transport', $defaultMailer),
+            'host' => Arr::get($mailerConfig, 'host'),
+            'port' => Arr::get($mailerConfig, 'port'),
+            'username' => filled(Arr::get($mailerConfig, 'username')) ? '[configured]' : null,
+            'from_address' => 'pravin@peersunity.com',
+            'from_name' => 'Peers Global',
+        ];
+    }
                 'trace' => $throwable->getTraceAsString(),
                 'attachments_count' => count($attachments),
                 'queued' => false,

@@ -6,7 +6,8 @@ use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
-use Symfony\Component\Mime\Email;
+        $mail = $this->from('pravin@peersunity.com', 'Peers Global')
+            ->subject('Welcome to your Peers Unity Membership')
 
 class MembershipWelcomeMail extends Mailable
 {

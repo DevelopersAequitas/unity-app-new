@@ -145,6 +145,14 @@ class ZohoBillingWebhookController extends Controller
         $mailable = new MembershipPurchaseCongratulationsMail($user);
 
         try {
+            Log::info('Sending Membership Email', [
+                'user_id' => (string) $user->id,
+                'email' => (string) $user->email,
+                'subject' => 'Congratulations! Your Membership Is Now Active',
+                'mail_from' => 'pravin@peersunity.com',
+                'mail_from_name' => 'Peers Global',
+            ]);
+
             Mail::to($user->email)->send($mailable);
 
             app(EmailLogService::class)->logMailableSent($mailable, [
@@ -159,6 +167,12 @@ class ZohoBillingWebhookController extends Controller
                     'flow' => 'zoho_membership_webhook',
                     'membership_status' => (string) ($user->membership_status ?? ''),
                 ],
+            ]);
+
+            Log::info('Membership Email Sent Successfully', [
+                'user_id' => (string) $user->id,
+                'email' => (string) $user->email,
+                'subject' => 'Congratulations! Your Membership Is Now Active',
             ]);
         } catch (Throwable $exception) {
             app(EmailLogService::class)->logMailableFailed($mailable, [
@@ -178,6 +192,17 @@ class ZohoBillingWebhookController extends Controller
             Log::warning('billing.membership_purchase_congratulations_email_failed', [
                 'user_id' => (string) $user->id,
                 'message' => $exception->getMessage(),
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
+            ]);
+
+            Log::error('Membership Email Failed', [
+                'user_id' => (string) $user->id,
+                'email' => (string) $user->email,
+                'subject' => 'Congratulations! Your Membership Is Now Active',
+                'message' => $exception->getMessage(),
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
             ]);
         }
     }

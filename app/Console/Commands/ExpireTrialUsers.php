@@ -19,6 +19,31 @@ class ExpireTrialUsers extends Command
 
     public function handle(): int
     {
+                Log::info('Sending Membership Email', [
+                    'user_id' => (string) $user->id,
+                    'email' => (string) $user->email,
+                    'subject' => 'Your Free Trial Has Ended – Continue Your Peers Global Journey',
+                    'mail_from' => 'pravin@peersunity.com',
+                    'mail_from_name' => 'Peers Global',
+                ]);
+
+
+                Log::info('Membership Email Sent Successfully', [
+                    'user_id' => (string) $user->id,
+                    'email' => (string) $user->email,
+                    'subject' => 'Your Free Trial Has Ended – Continue Your Peers Global Journey',
+                ]);
+                    'file' => $exception->getFile(),
+                    'line' => $exception->getLine(),
+                ]);
+
+                Log::error('Membership Email Failed', [
+                    'user_id' => (string) $user->id,
+                    'email' => (string) $user->email,
+                    'subject' => 'Your Free Trial Has Ended – Continue Your Peers Global Journey',
+                    'message' => $exception->getMessage(),
+                    'file' => $exception->getFile(),
+                    'line' => $exception->getLine(),
         $expiredUsers = User::query()
             ->where('membership_status', User::STATUS_FREE_TRIAL)
             ->whereNotNull('membership_ends_at')
