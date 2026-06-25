@@ -890,98 +890,129 @@ class UsersController extends Controller
                     $dedRoleId = Role::query()->where('key', 'ded')->value('id');
                     $isDedSelected = $dedRoleId && in_array($dedRoleId, $selectedRoleIds, true);
 
-                    $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
-                    $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+                    Log::info('Updating user roles', [
+                        'user_id' => (string) $user->id,
+                        'admin_user_id' => (string) $adminUser->id,
+                        'requested_roles' => $request->input('role_ids', []),
+                        'selected_role_ids' => $selectedRoleIds,
+                        'available_admin_role_ids' => $adminRoleIds,
+                        'pivot_table_exists' => Schema::hasTable('admin_user_roles'),
+                    ]);
 
-                    if (Schema::hasTable('admin_ded_districts')) {
-                        if ($isDedSelected) {
-                            $districtId = (string) $request->input('ded_district_id');
-                            $stateId = $this->dedLocationService->canonicalStateIdForDistrict(
-                                $districtId,
-                                (string) $request->input('ded_state_id'),
-                            );
-                            $stateName = $this->dedLocationService->resolveStateName($stateId);
-                            $districtName = DB::table('districts')->where('id', $districtId)->value('name');
-                            $districtName = $this->dedLocationService->normalizeDistrictName($districtName);
+                    try {
+                        if (! Schema::hasTable('admin_user_roles')) {
+                            throw new \RuntimeException('Role assignment table admin_user_roles does not exist.');
+                        }
 
-                            $payload = [
-                                'user_id' => $user->id,
-                                'updated_at' => now(),
-                            ];
+                        DB::table('admin_user_roles')
+                            ->where('user_id', $adminUser->id)
+                            ->whereIn('role_id', $adminRoleIds)
+                            ->delete();
 
-                            foreach ([
-                                'state_id' => $stateId,
-                                'district_id' => $districtId,
-                                'state_name' => $stateName,
-                                'district_name' => $districtName,
-                            ] as $column => $value) {
-                                if (Schema::hasColumn('admin_ded_districts', $column)) {
-                                    $payload[$column] = $value;
+                        foreach ($selectedRoleIds as $roleId) {
+                            DB::table('admin_user_roles')->insert([
+                                'id' => (string) Str::uuid(),
+                                'user_id' => $adminUser->id,
+                                'role_id' => $roleId,
+                                'created_at' => now(),
+                            ]);
+                        }
+
+                        if (Schema::hasTable('admin_ded_districts')) {
+                            if ($isDedSelected) {
+                                $districtId = (string) $request->input('ded_district_id');
+                                $stateId = $this->dedLocationService->canonicalStateIdForDistrict(
+                                    $districtId,
+                                    (string) $request->input('ded_state_id'),
+                                );
+                                $stateName = $this->dedLocationService->resolveStateName($stateId);
+                                $districtName = DB::table('districts')->where('id', $districtId)->value('name');
+                                $districtName = $this->dedLocationService->normalizeDistrictName($districtName);
+
+                                $payload = [
+                                    'user_id' => $user->id,
+                                    'updated_at' => now(),
+                                ];
+
+                                foreach ([
+                                    'state_id' => $stateId,
+                                    'district_id' => $districtId,
+                                    'state_name' => $stateName,
+                                    'district_name' => $districtName,
+                                ] as $column => $value) {
+                                    if (Schema::hasColumn('admin_ded_districts', $column)) {
+                                        $payload[$column] = $value;
+                                    }
                                 }
+
+                                $dedAssignmentExists = DB::table('admin_ded_districts')
+                                    ->where('admin_user_id', $adminUser->id)
+                                    ->exists();
+
+                                if ($dedAssignmentExists) {
+                                    DB::table('admin_ded_districts')
+                                        ->where('admin_user_id', $adminUser->id)
+                                        ->update($payload);
+                                } else {
+                                    DB::table('admin_ded_districts')->insert(array_merge($payload, [
+                                        'id' => (string) Str::uuid(),
+                                        'admin_user_id' => $adminUser->id,
+                                        'created_at' => now(),
+                                    ]));
+                                }
+                            } else {
+                                DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
                             }
 
-                            $dedAssignmentExists = DB::table('admin_ded_districts')
+                            Cache::forget('admin-access:ded-location:' . $adminUser->id);
+                        }
+
+                        $industryDirectorSelected = $industryDirectorRoleId
+                            && in_array((string) $industryDirectorRoleId, array_map('strval', $selectedRoleIds), true);
+
+                        Cache::forget('admin-access:roles:' . $adminUser->id);
+
+                        if ($industryDirectorSelected && $this->industryDirectorAssignmentsTableExists()) {
+                            $assignmentExists = DB::table('industry_director_assignments')
                                 ->where('admin_user_id', $adminUser->id)
                                 ->exists();
 
-                            if ($dedAssignmentExists) {
-                                DB::table('admin_ded_districts')
-                                    ->where('admin_user_id', $adminUser->id)
-                                    ->update($payload);
-                            } else {
-                                DB::table('admin_ded_districts')->insert(array_merge($payload, [
-                                    'id' => (string) Str::uuid(),
-                                    'admin_user_id' => $adminUser->id,
-                                    'created_at' => now(),
-                                ]));
-                            }
-                        } else {
-                            DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+                            DB::table('industry_director_assignments')->updateOrInsert(
+                                ['admin_user_id' => $adminUser->id],
+                                array_merge([
+                                    'industry_id' => $validated['industry_id'],
+                                    'assigned_by' => Auth::guard('admin')->id(),
+                                    'is_active' => true,
+                                    'updated_at' => now(),
+                                ], $assignmentExists ? [] : ['created_at' => now()]),
+                            );
+                        } elseif ($this->industryDirectorAssignmentsTableExists()) {
+                            DB::table('industry_director_assignments')
+                                ->where('admin_user_id', $adminUser->id)
+                                ->update([
+                                    'is_active' => false,
+                                    'updated_at' => now(),
+                                ]);
                         }
 
-                        Cache::forget('admin-access:ded-location:' . $adminUser->id);
-                    }
-
-                    DB::table('admin_user_roles')
-                        ->where('user_id', $adminUser->id)
-                        ->whereIn('role_id', $adminRoleIds)
-                        ->delete();
-
-                    foreach ($selectedRoleIds as $roleId) {
-                        DB::table('admin_user_roles')->insert([
-                            'id' => (string) Str::uuid(),
-                            'user_id' => $adminUser->id,
-                            'role_id' => $roleId,
-                            'created_at' => now(),
+                        Log::info('User roles updated', [
+                            'user_id' => (string) $user->id,
+                            'admin_user_id' => (string) $adminUser->id,
+                            'selected_role_ids' => $selectedRoleIds,
                         ]);
-                    }
+                    } catch (Throwable $e) {
+                        Log::error('User Role Update Failed', [
+                            'user_id' => (string) ($user->id ?? null),
+                            'admin_user_id' => (string) ($adminUser->id ?? null),
+                            'roles' => $request->input('role_ids', []),
+                            'selected_role_ids' => $selectedRoleIds,
+                            'message' => $e->getMessage(),
+                            'file' => $e->getFile(),
+                            'line' => $e->getLine(),
+                            'trace' => $e->getTraceAsString(),
+                        ]);
 
-                    $industryDirectorSelected = $industryDirectorRoleId
-                        && in_array((string) $industryDirectorRoleId, array_map('strval', $selectedRoleIds), true);
-
-                    Cache::forget('admin-access:roles:' . $adminUser->id);
-
-                    if ($industryDirectorSelected && $this->industryDirectorAssignmentsTableExists()) {
-                        $assignmentExists = DB::table('industry_director_assignments')
-                            ->where('admin_user_id', $adminUser->id)
-                            ->exists();
-
-                        DB::table('industry_director_assignments')->updateOrInsert(
-                            ['admin_user_id' => $adminUser->id],
-                            array_merge([
-                                'industry_id' => $validated['industry_id'],
-                                'assigned_by' => Auth::guard('admin')->id(),
-                                'is_active' => true,
-                                'updated_at' => now(),
-                            ], $assignmentExists ? [] : ['created_at' => now()]),
-                        );
-                    } elseif ($this->industryDirectorAssignmentsTableExists()) {
-                        DB::table('industry_director_assignments')
-                            ->where('admin_user_id', $adminUser->id)
-                            ->update([
-                                'is_active' => false,
-                                'updated_at' => now(),
-                            ]);
+                        throw $e;
                     }
                 }
             });
@@ -996,7 +1027,7 @@ class UsersController extends Controller
             return redirect()
                 ->route('admin.users.edit', $user->id)
                 ->withInput()
-                ->withErrors(['roles' => 'Unable to update user roles right now. Please try again or contact support.']);
+                ->withErrors(['roles' => 'Role update failed: ' . $exception->getMessage()]);
         }
 
         $statusMessage = $request->has('add_circle_membership')
