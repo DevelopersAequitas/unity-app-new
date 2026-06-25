@@ -904,17 +904,23 @@ class UsersController extends Controller
                     ]);
 
                     try {
-                        if (! Schema::hasTable('admin_user_roles')) {
-                            throw new \RuntimeException('Role assignment table admin_user_roles does not exist.');
+                                $payload['id'] = (string) Str::uuid();
+                                $payload['admin_user_id'] = $adminUser->id;
+                                $payload['created_at'] = now();
+
+                                DB::table('admin_ded_districts')->insert($payload);
+                        $assignmentValues = [
+                            'industry_id' => $validated['industry_id'],
+                            'assigned_by' => Auth::guard('admin')->id(),
+                            'is_active' => true,
+                            'updated_at' => now(),
+                        ];
+
+                        if (! $assignmentExists) {
+                            $assignmentValues['created_at'] = now();
                         }
 
-                        DB::table('admin_user_roles')
-                            ->where('user_id', $adminUser->id)
-                            ->whereIn('role_id', $adminRoleIds)
-                            ->delete();
-
-                        foreach ($selectedRoleIds as $roleId) {
-                            DB::table('admin_user_roles')->insert([
+                            $assignmentValues,
                                 'id' => (string) Str::uuid(),
                                 'user_id' => $adminUser->id,
                                 'role_id' => $roleId,
