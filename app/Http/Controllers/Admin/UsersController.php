@@ -1441,6 +1441,7 @@ class UsersController extends Controller
             'attachments.*.url' => ['required_with:attachments', 'url'],
             'attachments.*.mime_type' => ['nullable', 'string', 'max:255'],
             'attachments.*.original_name' => ['nullable', 'string', 'max:255'],
+            'attachments.*.s3_key' => ['nullable', 'string', 'max:2048'],
         ]);
 
         [$startDate, $endDate] = $this->resolveMembershipApprovalDates($validated);
@@ -1481,6 +1482,7 @@ class UsersController extends Controller
             'attachments.*.url' => ['required_with:attachments', 'url'],
             'attachments.*.mime_type' => ['nullable', 'string', 'max:255'],
             'attachments.*.original_name' => ['nullable', 'string', 'max:255'],
+            'attachments.*.s3_key' => ['nullable', 'string', 'max:2048'],
         ], [
             'membership_ends_at.after_or_equal' => 'Membership Ends At must be same or after Membership Starts At.',
         ]);
@@ -2253,6 +2255,8 @@ class UsersController extends Controller
 
             $this->sendMembershipApprovalPush($user, $title, $pushMessage, $notificationData);
 
+            app(MembershipNotificationService::class)->sendMembershipWelcome($user->fresh() ?: $user, 'admin_membership_approval', $attachments);
+
             if (! $sendEmail) {
                 continue;
             }
@@ -2285,6 +2289,7 @@ class UsersController extends Controller
                 'url' => (string) $attachment['url'],
                 'mime_type' => $attachment['mime_type'] ?? null,
                 'original_name' => $attachment['original_name'] ?? $attachment['name'] ?? null,
+                's3_key' => $attachment['s3_key'] ?? null,
             ], fn ($value): bool => $value !== null && $value !== ''))
             ->values()
             ->all();

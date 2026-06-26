@@ -67,6 +67,7 @@ class UserManagementController extends BaseApiController
             'attachments.*.url' => ['required_with:attachments', 'url'],
             'attachments.*.mime_type' => ['nullable', 'string', 'max:255'],
             'attachments.*.original_name' => ['nullable', 'string', 'max:255'],
+            'attachments.*.s3_key' => ['nullable', 'string', 'max:2048'],
         ]);
 
         $oldStatus = (string) ($target->membership_status ?? '');
@@ -86,6 +87,7 @@ class UserManagementController extends BaseApiController
 
         $fresh = $target->fresh();
         if ($fresh && $this->becameActiveMembership($oldStatus, (string) ($fresh->membership_status ?? ''))) {
+            app(\App\Services\Membership\MembershipNotificationService::class)->sendMembershipWelcome($fresh, 'api_admin_membership_update', $attachments);
             app(\App\Services\Membership\MembershipWelcomeEmailService::class)->sendIfEligible($fresh, true, 'api_admin_membership_update', $attachments);
         }
 
@@ -110,6 +112,7 @@ class UserManagementController extends BaseApiController
                 'url' => (string) $attachment['url'],
                 'mime_type' => $attachment['mime_type'] ?? null,
                 'original_name' => $attachment['original_name'] ?? $attachment['name'] ?? null,
+                's3_key' => $attachment['s3_key'] ?? null,
             ], fn ($value): bool => $value !== null && $value !== ''))
             ->values()
             ->all();

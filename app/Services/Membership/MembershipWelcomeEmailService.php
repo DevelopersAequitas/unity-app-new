@@ -197,16 +197,68 @@ class MembershipWelcomeEmailService
     {
         return collect($uploadedAttachments)
             ->filter(fn ($attachment): bool => is_array($attachment) && filled($attachment['id'] ?? null) && filled($attachment['url'] ?? null))
-            ->map(function (array $attachment): array {
-                return [
-                    'id' => (string) $attachment['id'],
-                    'url' => (string) $attachment['url'],
-                    'mime' => $attachment['mime_type'] ?? $attachment['mime'] ?? null,
-                    'name' => (string) ($attachment['original_name'] ?? $attachment['name'] ?? basename(parse_url((string) $attachment['url'], PHP_URL_PATH) ?: 'membership-document.pdf')),
-                ];
-            })
+            ->map(fn (array $attachment): array => $this->resolveUploadedAttachment($attachment))
             ->values()
             ->all();
+    }
+
+    private function resolveUploadedAttachment(array $attachment): array
+    {
+        $fileId = (string) $attachment['id'];
+        $url = (string) $attachment['url'];
+        $file = FileModel::query()->find($fileId);
+        $disk = (string) ($attachment['disk'] ?? config('filesystems.default', 'public'));
+        $s3Key = (string) ($attachment['s3_key'] ?? $file?->s3_key ?? '');
+        $name = (string) ($attachment['original_name'] ?? $attachment['name'] ?? ($s3Key !== '' ? basename($s3Key) : basename(parse_url($url, PHP_URL_PATH) ?: 'membership-document.pdf')));
+        $mime = $attachment['mime_type'] ?? $attachment['mime'] ?? $file?->mime_type ?? null;
+        $exists = false;
+        $resolvedPath = null;
+        $isReadable = false;
+
+        try {
+            if ($s3Key !== '') {
+                $exists = Storage::disk($disk)->exists($s3Key);
+                try {
+                    $resolvedPath = Storage::disk($disk)->path($s3Key);
+                    $isReadable = is_string($resolvedPath) && is_readable($resolvedPath);
+                } catch (Throwable) {
+                    $resolvedPath = null;
+                    $isReadable = $exists;
+                }
+            }
+        } catch (Throwable $throwable) {
+            Log::warning('membership.welcome_email.uploaded_attachment_lookup_failed', [
+                'file_id' => $fileId,
+                'url' => $url,
+                's3_key' => $s3Key,
+                'disk' => $disk,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+
+        Log::info('membership.welcome_email.uploaded_attachment_resolved', [
+            'file_id' => $fileId,
+            'url' => $url,
+            's3_key' => $s3Key,
+            'disk' => $disk,
+            'resolved_path' => $resolvedPath,
+            'storage_exists' => $exists,
+            'is_readable' => $isReadable,
+            'will_attach_from_storage' => $s3Key !== '' && $exists,
+        ]);
+
+        return array_filter([
+            'id' => $fileId,
+            'url' => $url,
+            'disk' => $s3Key !== '' && $exists ? $disk : null,
+            'path' => $s3Key !== '' && $exists ? $s3Key : null,
+            's3_key' => $s3Key !== '' ? $s3Key : null,
+            'mime' => $mime,
+            'name' => $name,
+            'resolved_path' => $resolvedPath,
+            'storage_exists' => $exists,
+            'is_readable' => $isReadable,
+        ], fn ($value): bool => $value !== null && $value !== '');
     }
 
     private function publicAttachmentPayload(array $attachments): array
@@ -218,6 +270,7 @@ class MembershipWelcomeEmailService
                 'url' => $attachment['url'] ?? null,
                 'mime_type' => $attachment['mime'] ?? null,
                 'original_name' => $attachment['name'] ?? null,
+                's3_key' => $attachment['s3_key'] ?? $attachment['path'] ?? null,
             ], fn ($value): bool => $value !== null && $value !== ''))
             ->values()
             ->all();

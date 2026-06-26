@@ -30,6 +30,9 @@ class MembershipNotificationService
             'notification_type' => 'membership_welcome',
             'membership_status' => $status,
             'membership_expiry' => $expiry,
+            'membership_plan_name' => (string) ($user->zoho_plan_code ?? 'Peers Global Unity Membership'),
+            'membership_type' => (string) ($user->membership_type ?? $user->membership_status ?? ''),
+            'transaction_id' => (string) ($user->zoho_last_invoice_id ?? ''),
             'uploaded_file_ids' => collect($attachments)->pluck('id')->filter()->values()->all(),
             'uploaded_file_urls' => collect($attachments)->pluck('url')->filter()->values()->all(),
             'attachments' => $attachments,
@@ -123,6 +126,12 @@ class MembershipNotificationService
         ], $extra);
         $dedupe = $type . ':' . $user->id . ':' . md5(json_encode($data)) . ($minuteDedupe ? ':' . now()->format('YmdHi') : '');
 
+        Log::info('membership.notification_create_attempt', [
+            'user_id' => (string) $user->id,
+            'type' => $type,
+            'payload' => $data,
+        ]);
+
         try {
             if (! Schema::hasTable('app_notifications')) {
                 Log::warning('membership.notification_table_missing', ['user_id' => $user->id, 'type' => $type]);
@@ -177,9 +186,11 @@ class MembershipNotificationService
             DB::table('app_notifications')->insert($insert);
 
             Log::info('membership.notification_created', [
-                'user_id' => $user->id,
+                'user_id' => (string) $user->id,
                 'type' => $type,
+                'notification_id' => $insert['id'],
                 'dedupe_key' => $dedupe,
+                'payload' => $data,
             ]);
 
             return AppNotification::query()->find($insert['id']);
