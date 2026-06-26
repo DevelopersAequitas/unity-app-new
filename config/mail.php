@@ -45,6 +45,7 @@ return [
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
+            'encryption' => env('MAIL_ENCRYPTION', 'tls'),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
@@ -111,8 +112,13 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', 'Example'),
+        'address' => filter_var(env('MAIL_FORCE_SMTP_USERNAME_AS_FROM', true), FILTER_VALIDATE_BOOLEAN)
+            && filter_var(env('MAIL_USERNAME'), FILTER_VALIDATE_EMAIL)
+                ? env('MAIL_USERNAME')
+                : env('MAIL_FROM_ADDRESS', env('MAIL_USERNAME', 'pravin@peersunity.com')),
+        'name' => env('MAIL_FROM_NAME', 'Peers Global Unity'),
     ],
+
+    'force_smtp_username_as_from' => env('MAIL_FORCE_SMTP_USERNAME_AS_FROM', true),
 
 ];

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,13 +23,28 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
 
+        $fromAddress = (string) config('mail.from.address');
+        $fromName = (string) config('mail.from.name', 'Peers Global Unity');
+        $smtpUsername = (string) config('mail.mailers.smtp.username');
+
+        if (
+            (bool) config('mail.force_smtp_username_as_from', true)
+            && config('mail.default') === 'smtp'
+            && filter_var($smtpUsername, FILTER_VALIDATE_EMAIL)
+        ) {
+            $fromAddress = $smtpUsername;
+            config(['mail.from.address' => $fromAddress]);
+        }
+
+        Mail::alwaysFrom($fromAddress, $fromName);
+
         config([
             'mail.mailers.pravin' => [
                 'transport' => 'smtp',
                 'host' => env('MAIL_HOST_PRAVIN', 'smtppro.zoho.in'),
                 'port' => env('MAIL_PORT_PRAVIN', 587),
                 'encryption' => env('MAIL_ENCRYPTION_PRAVIN', 'tls'),
-                'username' => env('MAIL_USERNAME_PRAVIN', 'pravin@peersglobal.com'),
+                'username' => env('MAIL_USERNAME_PRAVIN', 'pravin@peersunity.com'),
                 'password' => env('MAIL_PASSWORD_PRAVIN'),
                 'timeout' => null,
             ]

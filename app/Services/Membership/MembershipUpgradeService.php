@@ -87,7 +87,10 @@ class MembershipUpgradeService
                 'membership_expires_at' => $expiresAt->toDateTimeString(),
             ]);
 
-            return $lockedUser->fresh();
+            $fresh = $lockedUser->fresh();
+            app(MembershipWelcomeEmailService::class)->sendIfEligible($fresh);
+
+            return $fresh;
         });
     }
 
