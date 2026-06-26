@@ -1436,6 +1436,12 @@ class UsersController extends Controller
         $validated = $request->validate([
             'membership_start_date' => ['nullable', 'date'],
             'membership_end_date' => ['nullable', 'date', 'after_or_equal:membership_start_date'],
+            'attachments' => ['nullable', 'array'],
+            'attachments.*.id' => ['required_with:attachments', 'string'],
+            'attachments.*.url' => ['required_with:attachments', 'url'],
+            'attachments.*.mime_type' => ['nullable', 'string', 'max:255'],
+            'attachments.*.original_name' => ['nullable', 'string', 'max:255'],
+            'attachments.*.s3_key' => ['nullable', 'string', 'max:2048'],
         ]);
 
         [$startDate, $endDate] = $this->resolveMembershipApprovalDates($validated);
@@ -1451,7 +1457,7 @@ class UsersController extends Controller
             return back()->with('warning', 'Selected peer is not eligible for membership approval.');
         }
 
-        $this->sendMembershipApprovalNotifications(User::query()->whereKey($user->getKey())->get(), $startDate, $endDate);
+        $this->sendMembershipApprovalNotifications(User::query()->whereKey($user->getKey())->get(), $startDate, $endDate, true, $this->normalizeMembershipApprovalAttachments($validated['attachments'] ?? []));
 
         return back()->with('success', 'Peer approved successfully as Only Unity Peer. Membership valid until ' . $endDate->toDateString() . '.');
     }
@@ -1471,6 +1477,12 @@ class UsersController extends Controller
             'user_ids.*' => ['required', 'exists:users,id'],
             'membership_starts_at' => ['nullable', 'date'],
             'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at'],
+            'attachments' => ['nullable', 'array'],
+            'attachments.*.id' => ['required_with:attachments', 'string'],
+            'attachments.*.url' => ['required_with:attachments', 'url'],
+            'attachments.*.mime_type' => ['nullable', 'string', 'max:255'],
+            'attachments.*.original_name' => ['nullable', 'string', 'max:255'],
+            'attachments.*.s3_key' => ['nullable', 'string', 'max:2048'],
         ], [
             'membership_ends_at.after_or_equal' => 'Membership Ends At must be same or after Membership Starts At.',
         ]);
@@ -1503,7 +1515,9 @@ class UsersController extends Controller
         $this->sendMembershipApprovalNotifications(
             User::query()->whereIn('id', $userIds->all())->get(),
             $startDate,
-            $endDate
+            $endDate,
+            true,
+            $this->normalizeMembershipApprovalAttachments($validated['attachments'] ?? [])
         );
 
         $message = $result['approved_count'] . ' selected peers approved and upgraded successfully.';
@@ -2216,7 +2230,7 @@ class UsersController extends Controller
     }
 
 
-    private function sendMembershipApprovalNotifications(Collection $users, Carbon $startDate, Carbon $endDate, bool $sendEmail = true): void
+    private function sendMembershipApprovalNotifications(Collection $users, Carbon $startDate, Carbon $endDate, bool $sendEmail = true, array $attachments = []): void
     {
         $title = 'Membership Approved';
         $startDateLabel = $startDate->format('d M Y');
@@ -2231,11 +2245,17 @@ class UsersController extends Controller
                 'membership_ends_at' => $endDate->toDateString(),
                 'screen' => 'membership',
                 'type' => 'membership_approved',
+                'membership_expiry' => $endDate->toDateString(),
+                'uploaded_file_ids' => collect($attachments)->pluck('id')->filter()->values()->all(),
+                'uploaded_file_urls' => collect($attachments)->pluck('url')->filter()->values()->all(),
+                'attachments' => $attachments,
             ];
 
             $this->createMembershipApprovedNotification($user, $startDate, $endDate, $title, $message, $notificationData);
 
             $this->sendMembershipApprovalPush($user, $title, $pushMessage, $notificationData);
+
+            app(MembershipNotificationService::class)->sendMembershipWelcome($user->fresh() ?: $user, 'admin_membership_approval', $attachments);
 
             if (! $sendEmail) {
                 continue;
@@ -2247,7 +2267,7 @@ class UsersController extends Controller
             }
 
             try {
-                Mail::to($user->email)->send(new MembershipApprovedMail($user, $startDate, $endDate));
+                app(MembershipWelcomeEmailService::class)->sendIfEligible($user->fresh() ?: $user, true, 'admin_membership_approval', $attachments);
             } catch (Throwable $throwable) {
                 Log::error('Membership approval email failed', [
                     'user_id' => $user->id,
@@ -2258,6 +2278,22 @@ class UsersController extends Controller
         }
     }
 
+
+
+    private function normalizeMembershipApprovalAttachments(array $attachments): array
+    {
+        return collect($attachments)
+            ->filter(fn ($attachment): bool => is_array($attachment) && filled($attachment['id'] ?? null) && filled($attachment['url'] ?? null))
+            ->map(fn (array $attachment): array => array_filter([
+                'id' => (string) $attachment['id'],
+                'url' => (string) $attachment['url'],
+                'mime_type' => $attachment['mime_type'] ?? null,
+                'original_name' => $attachment['original_name'] ?? $attachment['name'] ?? null,
+                's3_key' => $attachment['s3_key'] ?? null,
+            ], fn ($value): bool => $value !== null && $value !== ''))
+            ->values()
+            ->all();
+    }
 
     private function createMembershipApprovedNotification(
         User $user,

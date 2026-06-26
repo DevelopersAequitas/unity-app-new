@@ -16,7 +16,7 @@
 
     Welcome to <strong>Peers Global Unity</strong>.<br /><br />
 
-    We are pleased to confirm that your membership has been successfully activated. Your welcome kit and membership documents are attached for your reference.<br /><br />
+    We are pleased to confirm that your membership has been successfully activated. @if(! empty($attachmentLinks)) Your welcome kit and membership documents are attached below and also available through the links below. @else Your welcome kit and membership documents will be shared with you separately. @endif<br /><br />
 
     <strong>User Name:</strong> {{ $peerName }}<br />
     <strong>Membership Type:</strong> {{ $label($user->membership_type ?? $user->membership_status) }}<br />
@@ -27,6 +27,12 @@
     <strong>Membership Status:</strong> {{ $label($user->membership_status) }}<br />
     <strong>Membership ID:</strong> {{ $user->id }}<br />
     <strong>Transaction ID:</strong> {{ $user->zoho_last_invoice_id ?: '—' }}<br />
+    @if(! empty($attachmentLinks))
+        <strong>Membership Documents:</strong><br />
+        @foreach($attachmentLinks as $attachment)
+            &bull; {{ $attachment['name'] ?? 'Document' }}: <a href="{{ $attachment['url'] }}" style="color:#38bdf8; text-decoration:underline;">{{ $attachment['url'] }}</a><br />
+        @endforeach
+    @endif
     <strong>Support Contact:</strong> <a href="mailto:{{ config('membership_welcome.support_email', 'pravin@peersunity.com') }}" style="color:#38bdf8; text-decoration:underline;">{{ config('membership_welcome.support_email', 'pravin@peersunity.com') }}</a><br /><br />
 
     Thank you for joining the Peers Global community. We look forward to your active participation and growth journey with us.<br /><br />
