@@ -344,6 +344,7 @@ Route::prefix('v1')->group(function () {
 
         // Members & connections
         Route::get('members/names', [MemberController::class, 'names']);
+        Route::get('members/limited', [MemberController::class, 'limited']);
 
         Route::get('/members/profile/{slug}', [MemberController::class, 'publicProfileBySlug']);
         Route::get('/members/public/{slug}', [MemberController::class, 'publicProfileBySlug']);
