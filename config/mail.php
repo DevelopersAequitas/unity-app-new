@@ -119,6 +119,11 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Peers Global Unity'),
     ],
 
+    'membership_from' => [
+        'address' => env('MEMBERSHIP_MAIL_FROM_ADDRESS', 'pravin@peersunity.com'),
+        'name' => env('MEMBERSHIP_MAIL_FROM_NAME', env('MAIL_FROM_NAME', 'Peers Global Unity')),
+    ],
+
     'force_smtp_username_as_from' => env('MAIL_FORCE_SMTP_USERNAME_AS_FROM', true),
 
 ];
