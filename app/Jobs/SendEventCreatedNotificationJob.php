@@ -35,6 +35,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
 
         Log::info("SendEventCreatedNotificationJob started for event: " . $event->id);
 
+<<<<<<< Updated upstream
         $logRecord = null;
         if (Schema::hasTable('event_notification_logs')) {
             try {
@@ -54,6 +55,23 @@ class SendEventCreatedNotificationJob implements ShouldQueue
             } catch (Throwable $e) {
                 Log::warning("Failed to create EventNotificationLog: " . $e->getMessage());
             }
+=======
+        // Create the event notification log record in 'processing' status if table exists
+        $logRecord = null;
+        if (Schema::hasTable('event_notification_logs')) {
+            $logRecord = EventNotificationLog::create([
+                'event_id' => $event->id,
+                'notification_type' => 'event_created',
+                'status' => 'processing',
+                'total_users' => 0,
+                'in_app_notifications_created' => 0,
+                'active_push_tokens' => 0,
+                'push_sent_successfully' => 0,
+                'push_failed' => 0,
+                'failed_details' => [],
+                'started_at' => now(),
+            ]);
+>>>>>>> Stashed changes
         }
 
         try {
@@ -74,8 +92,12 @@ class SendEventCreatedNotificationJob implements ShouldQueue
             $bannerUrl = $event->banner_url;
             if (is_string($bannerUrl) && trim($bannerUrl) !== '') {
                 $bannerUrl = trim($bannerUrl);
-                if (!str_starts_with($bannerUrl, 'http://') && !str_starts_with($bannerUrl, 'https://') && !str_starts_with($bannerUrl, '/')) {
-                    $bannerUrl = url('/api/v1/files/' . $bannerUrl);
+                if (!str_starts_with($bannerUrl, 'http://') && !str_starts_with($bannerUrl, 'https://')) {
+                    if (str_starts_with($bannerUrl, '/')) {
+                        $bannerUrl = url($bannerUrl);
+                    } else {
+                        $bannerUrl = url('/api/v1/files/' . $bannerUrl);
+                    }
                 }
             } else {
                 $bannerUrl = null;
@@ -87,7 +109,11 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                 'event_title' => (string) $event->title,
                 'event_date' => $event->start_at ? $event->start_at->toDateString() : '',
                 'event_banner' => $bannerUrl,
+<<<<<<< Updated upstream
                 'image_url' => $bannerUrl,  // Used by FCM service to set notification image
+=======
+                'image_url' => $bannerUrl,
+>>>>>>> Stashed changes
                 'screen' => 'event_detail',
                 'tap_destination' => 'event_detail',
                 'reference_type' => 'event',
@@ -289,6 +315,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                 }
             });
 
+<<<<<<< Updated upstream
             // Update the log record in 'completed' status
             if ($logRecord) {
                 try {
@@ -305,6 +332,20 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                 } catch (Throwable $e) {
                     Log::warning("Failed to update EventNotificationLog to completed: " . $e->getMessage());
                 }
+=======
+            // Update the log record in 'completed' status if it exists
+            if ($logRecord) {
+                $logRecord->update([
+                    'status' => 'completed',
+                    'total_users' => $totalUsersTargeted,
+                    'in_app_notifications_created' => $totalInAppCreated,
+                    'active_push_tokens' => $totalPushTokensFound,
+                    'push_sent_successfully' => $totalPushSentSuccess,
+                    'push_failed' => $totalPushFailed,
+                    'failed_details' => $failedDetails,
+                    'completed_at' => now(),
+                ]);
+>>>>>>> Stashed changes
             }
 
             $mainFailureReason = null;
@@ -333,6 +374,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
             ]);
 
             if ($logRecord) {
+<<<<<<< Updated upstream
                 try {
                     $logRecord->update([
                         'status' => 'failed',
@@ -342,6 +384,13 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                 } catch (Throwable $e) {
                     Log::warning("Failed to update EventNotificationLog to failed: " . $e->getMessage());
                 }
+=======
+                $logRecord->update([
+                    'status' => 'failed',
+                    'failed_details' => [['error' => $throwable->getMessage()]],
+                    'completed_at' => now(),
+                ]);
+>>>>>>> Stashed changes
             }
 
             throw $throwable;

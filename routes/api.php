@@ -950,3 +950,112 @@ Route::middleware(['auth:sanctum', 'unity.user'])->prefix('admin')->group(functi
     Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
     Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
 });
+
+Route::get('/debug-notifications', function () {
+    try {
+        $users = \App\Models\User::query()
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('users.deleted_at'))
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($query) => $query->whereNull('users.gdpr_deleted_at'))
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.status')->orWhereRaw("LOWER(users.status::text) NOT IN ('inactive', 'suspended', 'blocked', 'banned', 'deleted', 'rejected')")))
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'membership_status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.membership_status')->orWhere('users.membership_status', '!=', 'suspended')))
+            ->get();
+
+        $debugData = [];
+        foreach ($users as $user) {
+            $tokens = \Illuminate\Support\Facades\DB::table('user_push_tokens')
+                ->where('user_id', $user->id)
+                ->get();
+
+            $activeQuery = \Illuminate\Support\Facades\DB::table('user_push_tokens')
+                ->where('user_id', $user->id)
+                ->whereNotNull('token')
+                ->where('token', '!=', '');
+
+            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+                $activeQuery->whereNull('deleted_at');
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'status')) {
+                $activeQuery->where('status', 'active');
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'token_status')) {
+                $activeQuery->where('token_status', 'active');
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'is_active')) {
+                $activeQuery->where('is_active', true);
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'platform')) {
+                $activeQuery->where(function ($platformQuery): void {
+                    $platformQuery->whereNull('platform')
+                        ->orWhere('platform', '')
+                        ->orWhereRaw("LOWER(platform::text) IN ('android', 'ios', 'web')");
+                });
+            }
+
+            $activeCount = $activeQuery->count();
+
+            $debugData[] = [
+                'user_id' => $user->id,
+                'name' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                'email' => $user->email,
+                'status' => $user->status,
+                'membership_status' => $user->membership_status,
+                'total_push_tokens_in_db' => $tokens->count(),
+                'active_push_tokens_resolved' => $activeCount,
+                'tokens' => $tokens->map(fn($t) => [
+                    'id' => $t->id,
+                    'token_preview' => substr($t->token, 0, 15) . '...',
+                    'platform' => $t->platform ?? null,
+                    'is_active' => $t->is_active ?? null,
+                ]),
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'targeted_users_count' => $users->count(),
+            'users' => $debugData,
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+    }
+});
+
+Route::get('/debug-logs', function () {
+    try {
+        $logPath = storage_path('logs/laravel.log');
+        if (!file_exists($logPath)) {
+            return response()->json(['success' => false, 'message' => 'Log file does not exist']);
+        }
+        
+        $lines = [];
+        $file = new SplFileObject($logPath, 'r');
+        $file->seek(PHP_INT_MAX);
+        $totalLines = $file->key();
+        
+        $start = max(0, $totalLines - 150);
+        $file->seek($start);
+        
+        while (!$file->eof()) {
+            $line = trim($file->current());
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+            $file->next();
+        }
+        
+        return response()->json([
+            'success' => true,
+            'total_lines' => $totalLines,
+            'recent_lines' => array_reverse($lines),
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ]);
+    }
+});

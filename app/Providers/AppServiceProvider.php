@@ -13,6 +13,24 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         require_once app_path('Support/helpers.php');
+
+        // Load newly created models manually to prevent Class Not Found errors
+        // when composer optimized autoloader has not been refreshed on staging.
+        foreach ([
+            'Models/UserPushToken.php',
+            'Models/EventNotificationLog.php',
+            'Models/Notifications/AppNotification.php',
+            'Models/Notifications/NotificationCampaign.php',
+            'Models/Notifications/NotificationCampaignRun.php',
+            'Models/Notifications/NotificationDeliveryLog.php',
+            'Models/Notifications/NotificationPreference.php',
+            'Models/Notifications/NotificationSuppressionLog.php',
+        ] as $file) {
+            $path = app_path($file);
+            if (file_exists($path)) {
+                require_once $path;
+            }
+        }
     }
 
     /**
