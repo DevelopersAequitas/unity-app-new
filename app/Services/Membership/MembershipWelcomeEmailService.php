@@ -56,7 +56,7 @@ class MembershipWelcomeEmailService
             Log::info('membership.welcome_email.sent', [
                 'user_id' => (string) $freshUser->id,
                 'to_email' => $email,
-                'from_address' => config('mail.membership_from.address', 'pravin@peersunity.com'),
+                'from_address' => config('mail.membership_from.address', 'support@peersglobal.com'),
             ]);
             return ['sent' => true, 'reason' => 'sent'];
         } catch (Throwable $throwable) {
@@ -77,8 +77,10 @@ class MembershipWelcomeEmailService
             Log::warning('membership.welcome_email.failed', [
                 'user_id' => $freshUser->id,
                 'error' => $throwable->getMessage(),
-                'from_address' => config('mail.from.address'),
+                'from_address' => config('mail.membership_from.address', 'support@peersglobal.com'),
                 'smtp_username' => config('mail.mailers.smtp.username'),
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
             ]);
             return ['sent' => false, 'reason' => 'failed'];
         }

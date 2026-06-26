@@ -36,6 +36,8 @@ class MembershipNotificationService
             'source_event' => $emailType,
             'email_type' => $emailType,
             'sent_email_address' => $sentTo,
+            'recipient_email' => $sentTo,
+            'sender_email' => config('mail.membership_from.address', 'support@peersglobal.com'),
             'sent_at' => now()->toIso8601String(),
             'related_type' => 'user',
             'related_id' => (string) $user->id,
@@ -53,7 +55,16 @@ class MembershipNotificationService
                 Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $previousStatus, $newStatus, $updatedBy));
                 $this->recordEmailSent($user, 'membership_status_email_sent', (string) $user->email, $source);
             }
-            catch (Throwable $e) { Log::warning('membership.status_email_failed', ['user_id' => $user->id, 'error' => $e->getMessage()]); }
+            catch (Throwable $e) {
+                Log::warning('membership.status_email_failed', [
+                    'user_id' => $user->id,
+                    'to_email' => $user->email,
+                    'from_address' => config('mail.membership_from.address', 'support@peersglobal.com'),
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
+            }
         }
         return $this->store($user, 'membership_status_changed', $title, $message, $data, false);
     }
@@ -67,7 +78,16 @@ class MembershipNotificationService
                 Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $user->membership_status, $user->membership_status, $triggeredBy, true));
                 $this->recordEmailSent($user, 'membership_status_email_sent', (string) $user->email, 'manual_membership_notification');
             }
-            catch (Throwable $e) { Log::warning('membership.manual_email_failed', ['user_id' => $user->id, 'error' => $e->getMessage()]); }
+            catch (Throwable $e) {
+                Log::warning('membership.manual_email_failed', [
+                    'user_id' => $user->id,
+                    'to_email' => $user->email,
+                    'from_address' => config('mail.membership_from.address', 'support@peersglobal.com'),
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
+            }
         }
         return $this->store($user, 'membership_manual_trigger', $title, $message, ['triggered_by' => $triggeredBy, 'triggered_at' => now()->toIso8601String()], true);
     }

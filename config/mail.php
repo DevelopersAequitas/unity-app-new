@@ -120,7 +120,7 @@ return [
     ],
 
     'membership_from' => [
-        'address' => env('MEMBERSHIP_MAIL_FROM_ADDRESS', 'pravin@peersunity.com'),
+        'address' => env('MEMBERSHIP_MAIL_FROM_ADDRESS', 'support@peersglobal.com'),
         'name' => env('MEMBERSHIP_MAIL_FROM_NAME', env('MAIL_FROM_NAME', 'Peers Global Unity')),
     ],
 
