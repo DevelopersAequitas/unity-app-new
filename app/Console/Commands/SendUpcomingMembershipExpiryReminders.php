@@ -9,6 +9,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Notifications\UpcomingMembershipExpiryNotification;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\Membership\MembershipNotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -143,6 +144,13 @@ class SendUpcomingMembershipExpiryReminders extends Command
                         'email_status' => 'sent',
                         'notification_status' => 'sent',
                     ]);
+
+                    app(MembershipNotificationService::class)->recordEmailSent(
+                        $user,
+                        'membership_expiry_email_sent',
+                        (string) $user->email,
+                        'upcoming_membership_expiry_reminder_command'
+                    );
 
                     $sentEmails[] = $email;
                     $sentCount++;

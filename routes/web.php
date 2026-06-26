@@ -124,6 +124,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->name('users.circle-members.destroy');
         Route::post('/users/{user}/roles/remove', [UsersController::class, 'removeRole'])->name('users.roles.remove');
         Route::post('/users/{user}/membership-welcome-email/send', [UsersController::class, 'sendWelcomeMembershipEmail'])->name('users.membership-welcome-email.send');
+        Route::post('/users/{user}/trigger-membership-notification', [UsersController::class, 'triggerMembershipNotification'])->name('users.trigger-membership-notification');
         Route::get('/activities', [ActivitiesController::class, 'index'])->name('activities.index');
         Route::post('/activities/export', [ActivitiesController::class, 'export'])->name('activities.export');
         Route::get('/activities/testimonials', [ActivitiesTestimonialsController::class, 'index'])->name('activities.testimonials.index');

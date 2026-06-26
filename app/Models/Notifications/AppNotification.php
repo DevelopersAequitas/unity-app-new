@@ -12,17 +12,20 @@ class AppNotification extends Model
 {
     use HasUuids;
 
+    protected $table = 'app_notifications';
+
     protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [
-        'user_id', 'campaign_id', 'type', 'category', 'title', 'body', 'channel', 'priority',
+        'user_id', 'campaign_id', 'type', 'category', 'title', 'message', 'body', 'channel', 'priority',
         'reference_type', 'reference_id', 'screen', 'data', 'dedupe_key', 'status', 'sent_at',
-        'read_at', 'clicked_at', 'failed_at', 'failure_reason',
+        'read_at', 'clicked_at', 'failed_at', 'failure_reason', 'payload',
     ];
 
     protected $casts = [
         'data' => 'array',
+        'payload' => 'array',
         'sent_at' => 'datetime',
         'read_at' => 'datetime',
         'clicked_at' => 'datetime',
