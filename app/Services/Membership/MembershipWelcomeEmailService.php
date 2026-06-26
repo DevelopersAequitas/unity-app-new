@@ -51,7 +51,13 @@ class MembershipWelcomeEmailService
                 'related_id' => (string) $freshUser->id,
                 'payload' => ['flow' => $flow, 'membership_status' => $freshUser->membership_status],
             ]);
+            $this->notifications->recordEmailSent($freshUser, 'membership_welcome_email_sent', $email, $flow);
             $this->notifications->sendFirstPurchase($freshUser, $flow);
+            Log::info('membership.welcome_email.sent', [
+                'user_id' => (string) $freshUser->id,
+                'to_email' => $email,
+                'from_address' => config('mail.membership_from.address', 'pravin@peersunity.com'),
+            ]);
             return ['sent' => true, 'reason' => 'sent'];
         } catch (Throwable $throwable) {
             $message = Str::limit($throwable->getMessage(), 2000, '');

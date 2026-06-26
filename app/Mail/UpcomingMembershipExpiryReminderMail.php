@@ -22,12 +22,13 @@ class UpcomingMembershipExpiryReminderMail extends Mailable implements ShouldQue
         $this->formattedExpiryDate = $user->membership_ends_at
             ? $user->membership_ends_at->format('d M Y')
             : '';
-        $this->support_email = config('mail.from.address') ?: 'support@peersglobal.com';
+        $this->support_email = config('mail.membership_from.address', 'pravin@peersunity.com');
     }
 
     public function build()
     {
         return $this->subject('Upcoming Membership Expiry – Renewal Reminder')
+            ->from(config('mail.membership_from.address', 'pravin@peersunity.com'), config('mail.membership_from.name', 'Peers Global Unity'))
             ->view('emails.membership.upcoming_expiry_reminder')
             ->with([
                 'user' => $this->user,

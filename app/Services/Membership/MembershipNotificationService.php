@@ -19,6 +19,29 @@ class MembershipNotificationService
         return $this->store($user, 'membership_first_purchase', 'Welcome to Peers Global Unity', 'Your membership has been activated successfully.', ['source' => $source]);
     }
 
+    public function recordEmailSent(User $user, string $emailType, string $sentTo, string $source = 'membership_email'): ?AppNotification
+    {
+        $titles = [
+            'membership_welcome_email_sent' => 'Membership Welcome Email Sent',
+            'membership_expiry_email_sent' => 'Membership Expiry Email Sent',
+            'membership_status_email_sent' => 'Membership Status Email Sent',
+        ];
+
+        $title = $titles[$emailType] ?? 'Membership Email Sent';
+        $message = $title . ' to ' . $sentTo . '.';
+
+        return $this->store($user, $emailType, $title, $message, [
+            'source' => $source,
+            'source_type' => 'membership_email',
+            'source_event' => $emailType,
+            'email_type' => $emailType,
+            'sent_email_address' => $sentTo,
+            'sent_at' => now()->toIso8601String(),
+            'related_type' => 'user',
+            'related_id' => (string) $user->id,
+        ], true);
+    }
+
     public function sendStatusChanged(User $user, ?string $previousStatus, ?string $newStatus, ?string $updatedBy = null, bool $email = true, string $source = 'admin_status_change'): ?AppNotification
     {
         if ((string) $previousStatus === (string) $newStatus) return null;
@@ -26,7 +49,10 @@ class MembershipNotificationService
         $message = 'Your membership status changed from ' . $this->label($previousStatus) . ' to ' . $this->label($newStatus) . '.';
         $data = ['previous_status' => $previousStatus, 'updated_by_admin' => $updatedBy, 'source' => $source, 'updated_at' => now()->toIso8601String()];
         if ($email && filled($user->email)) {
-            try { Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $previousStatus, $newStatus, $updatedBy)); }
+            try {
+                Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $previousStatus, $newStatus, $updatedBy));
+                $this->recordEmailSent($user, 'membership_status_email_sent', (string) $user->email, $source);
+            }
             catch (Throwable $e) { Log::warning('membership.status_email_failed', ['user_id' => $user->id, 'error' => $e->getMessage()]); }
         }
         return $this->store($user, 'membership_status_changed', $title, $message, $data, false);
@@ -37,7 +63,10 @@ class MembershipNotificationService
         $title = 'Membership Notification';
         $message = 'Here is your latest membership information.';
         if (filled($user->email)) {
-            try { Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $user->membership_status, $user->membership_status, $triggeredBy, true)); }
+            try {
+                Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $user->membership_status, $user->membership_status, $triggeredBy, true));
+                $this->recordEmailSent($user, 'membership_status_email_sent', (string) $user->email, 'manual_membership_notification');
+            }
             catch (Throwable $e) { Log::warning('membership.manual_email_failed', ['user_id' => $user->id, 'error' => $e->getMessage()]); }
         }
         return $this->store($user, 'membership_manual_trigger', $title, $message, ['triggered_by' => $triggeredBy, 'triggered_at' => now()->toIso8601String()], true);
