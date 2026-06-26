@@ -48,9 +48,20 @@ class MembershipWelcomeMail extends Mailable
             }
 
             try {
-                $mail->attachFromStorageDisk($attachment['disk'], $attachment['path'], $attachment['name'], [
-                    'mime' => $attachment['mime'] ?? null,
-                ]);
+                $resolvedPath = $attachment['resolved_path'] ?? null;
+                $attachedVia = 'storage_disk';
+
+                if (is_string($resolvedPath) && file_exists($resolvedPath) && is_readable($resolvedPath)) {
+                    $mail->attach($resolvedPath, [
+                        'as' => $attachment['name'],
+                        'mime' => $attachment['mime'] ?? null,
+                    ]);
+                    $attachedVia = 'local_path';
+                } else {
+                    $mail->attachFromStorageDisk($attachment['disk'], $attachment['path'], $attachment['name'], [
+                        'mime' => $attachment['mime'] ?? null,
+                    ]);
+                }
 
                 Log::info('membership.welcome_mail.attachment_added', [
                     'file_id' => $attachment['id'] ?? null,
@@ -62,6 +73,7 @@ class MembershipWelcomeMail extends Mailable
                     'storage_exists' => $attachment['storage_exists'] ?? null,
                     'is_readable' => $attachment['is_readable'] ?? null,
                     'name' => $attachment['name'],
+                    'attached_via' => $attachedVia,
                 ]);
             } catch (\Throwable $throwable) {
                 Log::warning('membership.welcome_mail.attachment_failed', [

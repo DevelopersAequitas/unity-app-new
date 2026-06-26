@@ -3,6 +3,7 @@
 namespace App\Services\Membership;
 
 use App\Mail\MembershipStatusChangedMail;
+use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,7 @@ class MembershipNotificationService
     {
         $status = (string) ($user->membership_status ?? '');
         $expiry = optional($user->membership_ends_at ?? $user->membership_expiry)->toDateString();
-        $message = 'Welcome to Peers Global Unity. Your membership is ' . $this->label($status) . ($expiry ? ' and is valid until ' . $expiry . '.' : '.');
+        $message = 'Your membership has been activated successfully.';
 
         return $this->store($user, 'membership_welcome', 'Membership Activated', $message, [
             'source' => $source,
@@ -134,7 +135,8 @@ class MembershipNotificationService
 
         try {
             if (! Schema::hasTable('app_notifications')) {
-                Log::warning('membership.notification_table_missing', ['user_id' => $user->id, 'type' => $type]);
+                Log::warning('membership.app_notification_table_missing', ['user_id' => $user->id, 'type' => $type]);
+                $this->storeLegacyNotification($user, $type, $title, $message, $data);
                 return null;
             }
 
@@ -183,6 +185,8 @@ class MembershipNotificationService
                 return null;
             }
 
+            $this->storeLegacyNotification($user, $type, $title, $message, $data);
+
             DB::table('app_notifications')->insert($insert);
 
             Log::info('membership.notification_created', [
@@ -198,6 +202,86 @@ class MembershipNotificationService
             Log::error('membership.notification_create_failed', [
                 'user_id' => $user->id,
                 'type' => $type,
+                'exception_message' => $exception->getMessage(),
+                'exception_file' => $exception->getFile(),
+                'exception_line' => $exception->getLine(),
+            ]);
+
+            return null;
+        }
+    }
+
+
+    private function storeLegacyNotification(User $user, string $type, string $title, string $message, array $data): ?Notification
+    {
+        if (! Schema::hasTable('notifications')) {
+            Log::warning('membership.legacy_notification_table_missing', ['user_id' => (string) $user->id, 'type' => $type]);
+            return null;
+        }
+
+        $payload = array_merge([
+            'title' => $title,
+            'body' => $message,
+            'notification_type' => $type === 'membership_welcome' ? 'membership_welcome' : $type,
+            'to_user_id' => (string) $user->id,
+        ], $data);
+
+        try {
+            $recentDuplicate = Notification::query()
+                ->where('user_id', $user->id)
+                ->where('type', 'activity_update')
+                ->where('created_at', '>=', now()->subMinutes(5))
+                ->where('payload->notification_type', $payload['notification_type'])
+                ->where('payload->to_user_id', (string) $user->id)
+                ->first();
+
+            if ($recentDuplicate) {
+                Log::info('membership.legacy_notification_duplicate_skipped', [
+                    'user_id' => (string) $user->id,
+                    'type' => $type,
+                    'notification_id' => (string) $recentDuplicate->id,
+                    'payload' => $payload,
+                ]);
+
+                return $recentDuplicate;
+            }
+
+            $row = [
+                'user_id' => $user->id,
+                'type' => 'activity_update',
+                'payload' => $payload,
+                'is_read' => false,
+                'created_at' => now(),
+                'read_at' => null,
+            ];
+
+            foreach ([
+                'title' => $title,
+                'message' => $message,
+                'source_type' => 'membership',
+                'source_id' => (string) $user->id,
+                'source_event' => $type,
+            ] as $column => $value) {
+                if (Schema::hasColumn('notifications', $column)) {
+                    $row[$column] = $value;
+                }
+            }
+
+            $notification = Notification::create($row);
+
+            Log::info('membership.legacy_notification_created', [
+                'user_id' => (string) $user->id,
+                'type' => $type,
+                'notification_id' => (string) $notification->id,
+                'payload' => $payload,
+            ]);
+
+            return $notification;
+        } catch (Throwable $exception) {
+            Log::error('membership.legacy_notification_create_failed', [
+                'user_id' => (string) $user->id,
+                'type' => $type,
+                'payload' => $payload,
                 'exception_message' => $exception->getMessage(),
                 'exception_file' => $exception->getFile(),
                 'exception_line' => $exception->getLine(),
