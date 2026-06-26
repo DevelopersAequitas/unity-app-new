@@ -211,9 +211,31 @@ class FcmService
             'visibility' => 'PUBLIC',
         ];
 
+        $apns = [
+            'headers' => [
+                'apns-priority' => '10',
+                'apns-push-type' => 'alert',
+            ],
+            'payload' => [
+                'aps' => [
+                    'alert' => [
+                        'title' => $title,
+                        'body' => $body,
+                    ],
+                    'sound' => 'default',
+                    'badge' => $badge,
+                    'mutable-content' => 1,
+                    'content-available' => 1,
+                ],
+            ],
+        ];
+
         if ($resolvedImageUrl !== null) {
             $notification['image'] = $resolvedImageUrl;
             $androidNotification['image'] = $resolvedImageUrl;
+            $apns['fcm_options'] = [
+                'image' => $resolvedImageUrl,
+            ];
         }
 
         $normalizedData = $this->normalizeData($data);
@@ -228,24 +250,7 @@ class FcmService
                     'ttl' => '86400s',
                     'notification' => $androidNotification,
                 ],
-                'apns' => [
-                    'headers' => [
-                        'apns-priority' => '10',
-                        'apns-push-type' => 'alert',
-                    ],
-                    'payload' => [
-                        'aps' => [
-                            'alert' => [
-                                'title' => $title,
-                                'body' => $body,
-                            ],
-                            'sound' => 'default',
-                            'badge' => $badge,
-                            'mutable-content' => 1,
-                            'content-available' => 1,
-                        ],
-                    ],
-                ],
+                'apns' => $apns,
             ],
         ];
     }

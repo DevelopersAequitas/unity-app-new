@@ -176,7 +176,8 @@ class FcmService
         if (Schema::hasColumn('user_push_tokens', 'platform')) {
             $query->where(function ($platformQuery): void {
                 $platformQuery->whereNull('platform')
-                    ->orWhereRaw("LOWER(platform::text) IN ('android', 'ios')");
+                    ->orWhere('platform', '')
+                    ->orWhereRaw("LOWER(platform::text) IN ('android', 'ios', 'web')");
             });
         }
 
