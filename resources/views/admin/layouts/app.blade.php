@@ -9,12 +9,13 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ filemtime(public_path('css/admin.css')) }}">
     @stack('styles')
 </head>
 <body>
     <div class="admin-shell d-flex">
         @include('admin.partials.sidebar')
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
         <div class="admin-main flex-grow-1">
             @include('admin.partials.topbar')
             <main class="admin-content container-fluid py-4">
@@ -71,6 +72,23 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Sidebar mobile toggle functionality
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            const adminShell = document.querySelector('.admin-shell');
+
+            if (sidebarToggle && adminShell) {
+                sidebarToggle.addEventListener('click', function() {
+                    adminShell.classList.toggle('sidebar-open');
+                });
+            }
+
+            if (sidebarOverlay && adminShell) {
+                sidebarOverlay.addEventListener('click', function() {
+                    adminShell.classList.remove('sidebar-open');
+                });
+            }
+
             // Intercept clicks on links that reference files API
             document.addEventListener('click', function(e) {
                 const link = e.target.closest('a[href*="/api/v1/files/"]');

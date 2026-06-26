@@ -26,6 +26,40 @@ class MembershipWelcomeEmailService
         if (! $freshUser) return ['sent' => false, 'reason' => 'user_not_found'];
         if (! config('membership_welcome.enabled', true)) return ['sent' => false, 'reason' => 'disabled'];
         if (! $force && filled($freshUser->welcome_membership_email_sent_at)) return ['sent' => false, 'reason' => 'already_sent'];
+
+        if (! $freshUser) {
+            Log::warning('membership.welcome_email.user_not_found', [
+                'user_id' => (string) $user->id,
+            ]);
+
+            return ['sent' => false, 'reason' => 'user_not_found'];
+        }
+
+        Log::info('membership.welcome_email.check_started', [
+            'user_id' => (string) $freshUser->id,
+            'membership_status' => (string) ($freshUser->membership_status ?? ''),
+            'zoho_plan_code' => (string) ($freshUser->zoho_plan_code ?? ''),
+        ]);
+
+        if (! config('membership_welcome.enabled', true)) {
+            Log::info('membership.welcome_email.skipped', [
+                'user_id' => (string) $freshUser->id,
+                'reason' => 'disabled',
+            ]);
+
+            return ['sent' => false, 'reason' => 'disabled'];
+        }
+
+        $lastPayment = $freshUser->last_payment_at;
+        if (filled($freshUser->welcome_membership_email_sent_at)) {
+            Log::info('membership.welcome_email.skipped', [
+                'user_id' => (string) $freshUser->id,
+                'reason' => 'already_sent',
+            ]);
+
+            return ['sent' => false, 'reason' => 'already_sent'];
+        }
+
         $email = trim((string) ($freshUser->email ?? ''));
         if ($email === '') return ['sent' => false, 'reason' => 'missing_email'];
         if (! $this->isEligiblePaidMembershipUser($freshUser) && ! $force) return ['sent' => false, 'reason' => 'not_paid'];
