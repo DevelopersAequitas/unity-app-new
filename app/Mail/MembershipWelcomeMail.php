@@ -38,9 +38,14 @@ class MembershipWelcomeMail extends Mailable
             ->with([
                 'user' => $this->user,
                 'bannerUrl' => $this->bannerUrl,
+                'attachmentLinks' => collect($this->attachmentsConfig)->filter(fn ($attachment) => ! empty($attachment['url']))->values()->all(),
             ]);
 
         foreach ($this->attachmentsConfig as $attachment) {
+            if (empty($attachment['disk']) || empty($attachment['path'])) {
+                continue;
+            }
+
             $mail->attachFromStorageDisk($attachment['disk'], $attachment['path'], $attachment['name'], [
                 'mime' => $attachment['mime'] ?? null,
             ]);

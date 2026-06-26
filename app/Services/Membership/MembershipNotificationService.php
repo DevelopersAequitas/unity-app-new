@@ -19,6 +19,23 @@ class MembershipNotificationService
         return $this->store($user, 'membership_first_purchase', 'Welcome to Peers Global Unity', 'Your membership has been activated successfully.', ['source' => $source]);
     }
 
+    public function sendMembershipWelcome(User $user, string $source = 'membership_purchase', array $attachments = []): ?AppNotification
+    {
+        $status = (string) ($user->membership_status ?? '');
+        $expiry = optional($user->membership_ends_at ?? $user->membership_expiry)->toDateString();
+        $message = 'Welcome to Peers Global Unity. Your membership is ' . $this->label($status) . ($expiry ? ' and is valid until ' . $expiry . '.' : '.');
+
+        return $this->store($user, 'membership_welcome', 'Membership Activated', $message, [
+            'source' => $source,
+            'notification_type' => 'membership_welcome',
+            'membership_status' => $status,
+            'membership_expiry' => $expiry,
+            'uploaded_file_ids' => collect($attachments)->pluck('id')->filter()->values()->all(),
+            'uploaded_file_urls' => collect($attachments)->pluck('url')->filter()->values()->all(),
+            'attachments' => $attachments,
+        ]);
+    }
+
     public function recordEmailSent(User $user, string $emailType, string $sentTo, string $source = 'membership_email'): ?AppNotification
     {
         $titles = [

@@ -27,6 +27,12 @@
     <strong>Membership Status:</strong> {{ $label($user->membership_status) }}<br />
     <strong>Membership ID:</strong> {{ $user->id }}<br />
     <strong>Transaction ID:</strong> {{ $user->zoho_last_invoice_id ?: '—' }}<br />
+    @if(! empty($attachmentLinks))
+        <strong>Membership Documents:</strong><br />
+        @foreach($attachmentLinks as $attachment)
+            <a href="{{ $attachment['url'] }}" style="color:#38bdf8; text-decoration:underline;">{{ $attachment['name'] ?? $attachment['url'] }}</a><br />
+        @endforeach
+    @endif
     <strong>Support Contact:</strong> <a href="mailto:{{ config('membership_welcome.support_email', 'pravin@peersunity.com') }}" style="color:#38bdf8; text-decoration:underline;">{{ config('membership_welcome.support_email', 'pravin@peersunity.com') }}</a><br /><br />
 
     Thank you for joining the Peers Global community. We look forward to your active participation and growth journey with us.<br /><br />

@@ -20,7 +20,7 @@ class MembershipWelcomeEmailService
     {
     }
 
-    public function sendIfEligible(User $user, bool $force = false, string $flow = 'membership_purchase'): array
+    public function sendIfEligible(User $user, bool $force = false, string $flow = 'membership_purchase', array $uploadedAttachments = []): array
     {
         $freshUser = User::query()->find($user->id);
         if (! $freshUser) return ['sent' => false, 'reason' => 'user_not_found'];
@@ -64,7 +64,7 @@ class MembershipWelcomeEmailService
         if ($email === '') return ['sent' => false, 'reason' => 'missing_email'];
         if (! $this->isEligiblePaidMembershipUser($freshUser) && ! $force) return ['sent' => false, 'reason' => 'not_paid'];
 
-        $attachments = $this->resolveAttachments();
+        $attachments = $this->resolveAttachments($uploadedAttachments);
         $mailable = new MembershipWelcomeMail($freshUser, $attachments, $this->resolveBannerUrl());
 
         try {
@@ -83,10 +83,10 @@ class MembershipWelcomeEmailService
                 'source_module' => 'membership',
                 'related_type' => 'user',
                 'related_id' => (string) $freshUser->id,
-                'payload' => ['flow' => $flow, 'membership_status' => $freshUser->membership_status],
+                'payload' => ['flow' => $flow, 'membership_status' => $freshUser->membership_status, 'membership_expiry' => optional($freshUser->membership_ends_at ?? $freshUser->membership_expiry)->toDateString(), 'attachments' => $this->publicAttachmentPayload($attachments)],
             ]);
             $this->notifications->recordEmailSent($freshUser, 'membership_welcome_email_sent', $email, $flow);
-            $this->notifications->sendFirstPurchase($freshUser, $flow);
+            $this->notifications->sendMembershipWelcome($freshUser, $flow, $this->publicAttachmentPayload($attachments));
             Log::info('membership.welcome_email.sent', [
                 'user_id' => (string) $freshUser->id,
                 'to_email' => $email,
@@ -133,9 +133,9 @@ class MembershipWelcomeEmailService
         return $fileId !== '' ? url('/api/v1/files/' . $fileId) : null;
     }
 
-    private function resolveAttachments(): array
+    private function resolveAttachments(array $uploadedAttachments = []): array
     {
-        $attachments = [];
+        $attachments = $this->normalizeUploadedAttachments($uploadedAttachments);
 
         Log::info('membership.welcome_email.settings_loaded', [
             'enabled' => (bool) config('membership_welcome.enabled', true),
@@ -190,6 +190,37 @@ class MembershipWelcomeEmailService
         }
 
         return $attachments;
+    }
+
+
+    private function normalizeUploadedAttachments(array $uploadedAttachments): array
+    {
+        return collect($uploadedAttachments)
+            ->filter(fn ($attachment): bool => is_array($attachment) && filled($attachment['id'] ?? null) && filled($attachment['url'] ?? null))
+            ->map(function (array $attachment): array {
+                return [
+                    'id' => (string) $attachment['id'],
+                    'url' => (string) $attachment['url'],
+                    'mime' => $attachment['mime_type'] ?? $attachment['mime'] ?? null,
+                    'name' => (string) ($attachment['original_name'] ?? $attachment['name'] ?? basename(parse_url((string) $attachment['url'], PHP_URL_PATH) ?: 'membership-document.pdf')),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function publicAttachmentPayload(array $attachments): array
+    {
+        return collect($attachments)
+            ->filter(fn (array $attachment): bool => filled($attachment['url'] ?? null) || filled($attachment['id'] ?? null))
+            ->map(fn (array $attachment): array => array_filter([
+                'id' => $attachment['id'] ?? null,
+                'url' => $attachment['url'] ?? null,
+                'mime_type' => $attachment['mime'] ?? null,
+                'original_name' => $attachment['name'] ?? null,
+            ], fn ($value): bool => $value !== null && $value !== ''))
+            ->values()
+            ->all();
     }
 
     private function settingValue(string $key, mixed $default = null): mixed

@@ -13,6 +13,7 @@ use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class UserManagementController extends BaseApiController
 {
@@ -59,14 +60,59 @@ class UserManagementController extends BaseApiController
             'phone' => ['sometimes', 'nullable', 'string', 'max:25'],
             'company_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'membership_status' => ['sometimes', 'string'],
+            'membership_expiry' => ['sometimes', 'nullable', 'date'],
+            'membership_ends_at' => ['sometimes', 'nullable', 'date'],
+            'attachments' => ['sometimes', 'array'],
+            'attachments.*.id' => ['required_with:attachments', 'string'],
+            'attachments.*.url' => ['required_with:attachments', 'url'],
+            'attachments.*.mime_type' => ['nullable', 'string', 'max:255'],
+            'attachments.*.original_name' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $oldStatus = (string) ($target->membership_status ?? '');
+        $attachments = $this->normalizeMembershipAttachments($validated['attachments'] ?? []);
+        unset($validated['attachments']);
+
+        if (array_key_exists('membership_expiry', $validated) && Schema::hasColumn('users', 'membership_ends_at')) {
+            $validated['membership_ends_at'] = $validated['membership_expiry'];
+        } elseif (array_key_exists('membership_ends_at', $validated) && Schema::hasColumn('users', 'membership_expiry')) {
+            $validated['membership_expiry'] = $validated['membership_ends_at'];
+        }
 
         $old = $target->only(array_keys($validated));
         $target->fill($validated)->save();
 
         $this->audit->log($request->user(), 'admin.user.update', 'users', $target->id, $old, $validated, $request);
 
-        return $this->success($target->fresh());
+        $fresh = $target->fresh();
+        if ($fresh && $this->becameActiveMembership($oldStatus, (string) ($fresh->membership_status ?? ''))) {
+            app(\App\Services\Membership\MembershipWelcomeEmailService::class)->sendIfEligible($fresh, true, 'api_admin_membership_update', $attachments);
+        }
+
+        return $this->success($fresh);
+    }
+
+
+    private function becameActiveMembership(string $oldStatus, string $newStatus): bool
+    {
+        $inactive = ['', 'visitor', 'free_peer', 'free_trial_peer', 'inactive', 'rejected', 'cancelled', 'canceled', 'suspended'];
+
+        return ! in_array(strtolower($newStatus), $inactive, true)
+            && strtolower($oldStatus) !== strtolower($newStatus);
+    }
+
+    private function normalizeMembershipAttachments(array $attachments): array
+    {
+        return collect($attachments)
+            ->filter(fn ($attachment): bool => is_array($attachment) && filled($attachment['id'] ?? null) && filled($attachment['url'] ?? null))
+            ->map(fn (array $attachment): array => array_filter([
+                'id' => (string) $attachment['id'],
+                'url' => (string) $attachment['url'],
+                'mime_type' => $attachment['mime_type'] ?? null,
+                'original_name' => $attachment['original_name'] ?? $attachment['name'] ?? null,
+            ], fn ($value): bool => $value !== null && $value !== ''))
+            ->values()
+            ->all();
     }
 
     public function patchStatus(Request $request, string $id): JsonResponse
