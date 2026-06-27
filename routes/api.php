@@ -94,6 +94,7 @@ use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
+use App\Http\Controllers\Api\V1\MutualConnectionController;
 use App\Http\Controllers\Api\V1\MyEventQrController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\P2PMeetingRescheduleController;
@@ -361,6 +362,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/members/{id}/connections', [MemberController::class, 'sendConnectionRequest']);
         Route::post('/members/{id}/connections/accept', [MemberController::class, 'acceptConnection']);
         Route::delete('/members/{id}/connections', [MemberController::class, 'deleteConnection']);
+        Route::get('/network/mutual-connections/{user_uuid}', [MutualConnectionController::class, 'index']);
         Route::get('/connections', [MyConnectionsController::class, 'index']);
         Route::get('/connections/sent', [MyConnectionsController::class, 'sent']);
         Route::delete('/connections/sent/{addresseeId}', [MyConnectionsController::class, 'cancelSent']);
