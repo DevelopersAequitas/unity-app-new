@@ -177,6 +177,7 @@ class ProfileController extends BaseApiController
             'city_of_residence',
             'state',
             'country',
+            'timezone',
             'preferred_language',
             'skills',
             'interests',

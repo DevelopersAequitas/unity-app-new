@@ -35,6 +35,7 @@ class LimitedUserResource extends JsonResource
             'business_name' => $user->company_name,
             'total_life_impact' => (int) ($user->life_impacted_count ?? 0),
             'company_name' => $user->company_name,
+            'timezone' => $user->timezone ?? null,
         ];
     }
 }

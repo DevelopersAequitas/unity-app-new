@@ -63,6 +63,7 @@ class User extends Authenticatable
         'business_logo_id',
         'state',
         'country',
+        'timezone',
         'preferred_language',
         'business_category_id',
         'business_sub_category',

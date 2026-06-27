@@ -49,6 +49,7 @@ class UpdateProfileRequest extends FormRequest
 
             'state'                       => ['sometimes', 'nullable', 'string', 'max:100'],
             'country'                     => ['sometimes', 'nullable', 'string', 'max:100'],
+            'timezone'                    => ['sometimes', 'nullable', 'string', 'max:100'],
             'preferred_language'          => ['sometimes', 'nullable', 'string', 'max:50'],
             'business_logo_id'            => ['sometimes', 'nullable'],
             'business_category_id'        => ['sometimes', 'nullable'],
