@@ -56,16 +56,30 @@ class MutualConnectionResource extends JsonResource
     /**
      * Resolve the best available location string.
      */
-    private function locationName(): string
+    private function locationName(): ?string
     {
-        if ($this->relationLoaded('city') && $this->city) {
-            return (string) $this->city->name;
+        if ($this->relationLoaded('city')) {
+            $cityRelation = $this->getRelation('city');
+
+            if (is_object($cityRelation)) {
+                return $cityRelation->name ?? null;
+            }
         }
 
-        if (is_array($this->getAttribute('city'))) {
-            return (string) ($this->getAttribute('city')['name'] ?? '');
+        $city = $this->getAttribute('city');
+
+        if (is_object($city)) {
+            return $city->name ?? null;
         }
 
-        return (string) ($this->getAttribute('city') ?? '');
+        if (is_array($city)) {
+            return $city['name'] ?? null;
+        }
+
+        if (is_string($city)) {
+            return $city;
+        }
+
+        return null;
     }
 }
