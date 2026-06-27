@@ -114,6 +114,7 @@ use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController
 use App\Http\Controllers\Api\V1\RequirementInterestController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
+use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\SupportTicketController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
@@ -323,6 +324,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
+        Route::post('/users/bulk', [UserController::class, 'bulkUsers']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
 
