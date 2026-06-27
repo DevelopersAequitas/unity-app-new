@@ -39,6 +39,7 @@ class MutualConnectionService
                 'users.membership_status',
                 'users.deleted_at',
             ])
+            ->selectRaw("COALESCE(NULLIF(users.display_name, ''), TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, ''))) AS sort_name")
             ->with('city:id,name')
             ->whereIn('users.id', $authConnectionIds)
             ->whereIn('users.id', $targetConnectionIds)
@@ -70,7 +71,7 @@ class MutualConnectionService
                 $query->whereNotIn('users.id', $excludedIds);
             })
             ->distinct()
-            ->orderByRaw("COALESCE(NULLIF(users.display_name, ''), TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, ''))) ASC");
+            ->orderBy('sort_name', 'asc');
 
         return $query->paginate($perPage);
     }
