@@ -20,7 +20,6 @@ class MutualConnectionService
      */
     public function paginate(User $authUser, User $targetUser, int $perPage = 20): LengthAwarePaginator
     {
-        $authConnectionIds = $this->acceptedConnectionPeerIdsSubquery((string) $authUser->id);
         $targetConnectionIds = $this->acceptedConnectionPeerIdsSubquery((string) $targetUser->id);
 
         $query = User::query()
@@ -41,7 +40,6 @@ class MutualConnectionService
             ])
             ->selectRaw("COALESCE(NULLIF(users.display_name, ''), TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, ''))) AS sort_name")
             ->with('city:id,name')
-            ->whereIn('users.id', $authConnectionIds)
             ->whereIn('users.id', $targetConnectionIds)
             ->whereNotIn('users.id', [(string) $authUser->id, (string) $targetUser->id])
             ->whereNull('users.deleted_at')

@@ -12,14 +12,15 @@ use Tests\TestCase;
 
 class MutualConnectionsApiTest extends TestCase
 {
-    public function test_authenticated_request_returns_mutual_connections(): void
+    public function test_authenticated_request_returns_target_users_accepted_connections(): void
     {
         $this->createSchema();
 
         [$authUser, $targetUser] = $this->createUserPair();
-        $mutual = $this->createUser('Charlie Mutual');
-        $this->connect($authUser, $mutual);
-        $this->connect($targetUser, $mutual);
+        $targetConnection = $this->createUser('Charlie Connection');
+        $authOnlyConnection = $this->createUser('Auth Only Connection');
+        $this->connect($authUser, $authOnlyConnection);
+        $this->connect($targetUser, $targetConnection);
 
         Sanctum::actingAs($authUser);
 
@@ -29,8 +30,8 @@ class MutualConnectionsApiTest extends TestCase
             ->assertJsonPath('message', 'Mutual connections fetched successfully.')
             ->assertJsonPath('data.total', 1)
             ->assertJsonPath('data.target_user.uuid', $targetUser->id)
-            ->assertJsonPath('data.connections.0.uuid', $mutual->id)
-            ->assertJsonPath('data.connections.0.name', 'Charlie Mutual');
+            ->assertJsonPath('data.connections.0.uuid', $targetConnection->id)
+            ->assertJsonPath('data.connections.0.name', 'Charlie Connection');
     }
 
     public function test_unauthenticated_request_returns_401(): void
@@ -66,15 +67,15 @@ class MutualConnectionsApiTest extends TestCase
             ->assertJsonPath('message', 'Target user not found.');
     }
 
-    public function test_no_mutual_connections_returns_empty_payload(): void
+    public function test_no_target_user_accepted_connections_returns_empty_payload(): void
     {
         $this->createSchema();
 
         [$authUser, $targetUser] = $this->createUserPair();
         $authOnly = $this->createUser('Auth Only');
-        $targetOnly = $this->createUser('Target Only');
+        $pendingTargetConnection = $this->createUser('Pending Target Only');
         $this->connect($authUser, $authOnly);
-        $this->connect($targetUser, $targetOnly);
+        $this->connect($targetUser, $pendingTargetConnection, false);
 
         Sanctum::actingAs($authUser);
 
@@ -86,7 +87,7 @@ class MutualConnectionsApiTest extends TestCase
             ->assertJsonPath('data.connections', []);
     }
 
-    public function test_multiple_mutual_connections_are_sorted_and_filtered(): void
+    public function test_multiple_target_connections_are_sorted_and_filtered(): void
     {
         $this->createSchema();
 
@@ -95,10 +96,6 @@ class MutualConnectionsApiTest extends TestCase
         $amy = $this->createUser('Amy Mutual');
         $inactive = $this->createUser('Inactive Mutual', ['status' => 'inactive']);
         $pending = $this->createUser('Pending Mutual');
-
-        foreach ([$zoe, $amy, $inactive, $pending] as $user) {
-            $this->connect($authUser, $user);
-        }
 
         $this->connect($targetUser, $zoe);
         $this->connect($targetUser, $amy);
