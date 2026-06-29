@@ -717,6 +717,7 @@ class AuthController extends BaseApiController
         $this->fillIfUserColumnExists($user, 'state', $data['state'] ?? null);
         $this->fillIfUserColumnExists($user, 'district', $data['district'] ?? null);
         $this->fillIfUserColumnExists($user, 'country', $data['country'] ?? null);
+        $this->fillIfUserColumnExists($user, 'timezone', $data['timezone'] ?? null);
         $this->fillIfUserColumnExists($user, 'business_website', $data['business_website'] ?? null);
         $this->fillIfUserColumnExists($user, 'business_description', $data['business_description'] ?? null);
         $this->fillIfUserColumnExists($user, 'business_address', $data['company_address'] ?? null);
@@ -840,6 +841,7 @@ class AuthController extends BaseApiController
         $credentials = $request->validate([
             'email'    => ['required', 'email'],
             'password' => ['required', 'string'],
+            'timezone' => ['nullable', 'string', 'max:100'],
         ]);
 
         // Find user by email
@@ -860,6 +862,11 @@ class AuthController extends BaseApiController
                 'message' => 'Invalid credentials.',
                 'data'    => null,
             ], 401);
+        }
+
+        if (array_key_exists('timezone', $credentials) && Schema::hasColumn('users', 'timezone')) {
+            $user->timezone = $credentials['timezone'];
+            $user->save();
         }
 
         $user->expireFreeTrialIfNeeded();
@@ -883,7 +890,7 @@ class AuthController extends BaseApiController
             'message' => 'Login successful.',
             'data'    => [
                 'token' => $token,
-                'user'  => $user,
+                'user'  => new UserResource($user),
             ],
         ]);
     }
