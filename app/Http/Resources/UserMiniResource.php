@@ -25,6 +25,7 @@ class UserMiniResource extends JsonResource
             'profile_image_url' => $this->buildProfileImageUrl(),
             'company_name' => $user->company_name,
             'city' => $user->city,
+            'timezone' => $user->timezone ?? null,
             'industry' => $user->industry ?? null,
             'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
         ];

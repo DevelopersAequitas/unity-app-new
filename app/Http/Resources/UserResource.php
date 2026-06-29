@@ -131,6 +131,7 @@ class UserResource extends JsonResource
             'address'             => $this->address ?? null,
             'state'               => $this->state ?? null,
             'country'             => $this->country ?? null,
+            'timezone'            => $this->timezone ?? null,
             'pincode'             => $this->pincode ?? null,
             'is_verified'         => $this->is_verified ?? null,
             'is_sponsored_member' => $this->is_sponsored_member ?? null,
