@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1\Profile;
 
+use App\Support\ContactVisibility;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -9,6 +10,12 @@ class UpdateProfileRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
+        if ($this->has('contact_visibility')) {
+            $this->merge([
+                'contact_visibility' => ContactVisibility::normalize($this->input('contact_visibility')),
+            ]);
+        }
+
         if ($this->has('first_name') && $this->input('first_name') !== null) {
             $this->merge([
                 'first_name' => trim((string) $this->input('first_name')),
@@ -78,7 +85,8 @@ class UpdateProfileRequest extends FormRequest
             'facebook_profile' => ['sometimes', 'nullable', 'url', 'max:500'],
             'youtube_channel' => ['sometimes', 'nullable', 'url', 'max:500'],
             'other_website' => ['sometimes', 'nullable', 'url', 'max:500'],
-            'contact_visibility' => ['sometimes', 'nullable', Rule::in(['everyone', 'connections', 'circle_members', 'leadership_only', 'private'])],
+            'profile_visibility'         => ['sometimes', 'nullable', Rule::in(['everyone', 'connected_only', 'circle_only', 'hidden'])],
+            'contact_visibility' => ['sometimes', 'nullable', Rule::in(ContactVisibility::allowedValues())],
             'business_address' => ['sometimes', 'nullable', 'string'],
             'business_city' => ['sometimes', 'nullable', 'string', 'max:100'],
             'business_state' => ['sometimes', 'nullable', 'string', 'max:100'],
