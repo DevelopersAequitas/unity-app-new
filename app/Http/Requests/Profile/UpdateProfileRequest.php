@@ -75,6 +75,7 @@ class UpdateProfileRequest extends FormRequest
             'facebook_profile'            => ['sometimes', 'nullable', 'url', 'max:500'],
             'youtube_channel'             => ['sometimes', 'nullable', 'url', 'max:500'],
             'other_website'               => ['sometimes', 'nullable', 'url', 'max:500'],
+            'profile_visibility'         => ['sometimes', 'nullable', Rule::in(['everyone', 'connected_only', 'circle_only', 'hidden'])],
             'contact_visibility'          => ['sometimes', 'nullable', Rule::in(['everyone', 'connections', 'circle_members', 'leadership_only', 'private'])],
             'business_address'            => ['sometimes', 'nullable', 'string'],
             'business_city'               => ['sometimes', 'nullable', 'string', 'max:100'],

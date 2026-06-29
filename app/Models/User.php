@@ -86,6 +86,7 @@ class User extends Authenticatable
         'youtube_channel',
         'other_website',
         'contact_visibility',
+        'profile_visibility',
         'business_address',
         'business_city',
         'business_state',
