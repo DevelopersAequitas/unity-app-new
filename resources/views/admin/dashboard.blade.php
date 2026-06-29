@@ -67,7 +67,9 @@
                     <p class="text-muted mb-1">Admin Directory</p>
                     <h6 class="mb-0">Contacts</h6>
                 </div>
-                <a href="{{ route('admin.contacts.index') }}" class="btn btn-sm btn-primary">View</a>
+                @if(Route::has('admin.contacts.index'))
+                    <a href="{{ route('admin.contacts.index') }}" class="btn btn-sm btn-primary">View</a>
+                @endif
             </div>
             <div class="row g-3">
                 <div class="col-sm-6">
