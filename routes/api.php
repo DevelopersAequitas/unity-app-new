@@ -333,6 +333,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 
         Route::get('/profile', [ProfileController::class, 'show']);
+        Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
 

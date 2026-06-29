@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Profile\StoreUserLinkRequest;
 use App\Http\Requests\Profile\UpdateProfileRequest;
+use App\Http\Requests\Profile\UpdateTimezoneRequest;
 use App\Http\Requests\Profile\UpdateUserLinkRequest;
 use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserProfileResource;
@@ -24,6 +25,21 @@ class ProfileController extends BaseApiController
         ]);
 
         return $this->success(new UserProfileResource($user), 'Profile fetched successfully');
+    }
+
+    public function updateTimezone(UpdateTimezoneRequest $request)
+    {
+        $user = $request->user();
+        $timezone = $request->validated('timezone');
+
+        if ($user->timezone !== $timezone) {
+            $user->timezone = $timezone;
+            $user->saveOrFail();
+        }
+
+        return $this->success([
+            'timezone' => $timezone,
+        ], 'Timezone updated successfully.');
     }
 
     public function update(UpdateProfileRequest $request, PublicProfileSlugService $publicProfileSlugService)
