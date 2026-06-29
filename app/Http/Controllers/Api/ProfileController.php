@@ -13,6 +13,7 @@ use App\Services\Users\PublicProfileSlugService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ProfileController extends BaseApiController
 {
@@ -176,7 +177,7 @@ class ProfileController extends BaseApiController
      */
     private function profileUpdateFields(): array
     {
-        return [
+        $fields = [
             'first_name',
             'last_name',
             'phone',
@@ -238,6 +239,12 @@ class ProfileController extends BaseApiController
             'open_to_cross_city_collaboration',
             'open_to_speaking_at_events',
         ];
+
+        if (! Schema::hasColumn('users', 'profile_visibility')) {
+            $fields = array_values(array_diff($fields, ['profile_visibility']));
+        }
+
+        return $fields;
     }
 
     /**
