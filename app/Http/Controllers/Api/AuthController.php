@@ -718,6 +718,10 @@ class AuthController extends BaseApiController
         $this->fillIfUserColumnExists($user, 'district', $data['district'] ?? null);
         $this->fillIfUserColumnExists($user, 'country', $data['country'] ?? null);
         $this->fillIfUserColumnExists($user, 'timezone', $data['timezone'] ?? null);
+        $this->fillIfUserColumnExists($user, 'utc_offset', $data['utc_offset'] ?? null);
+        $this->fillIfUserColumnExists($user, 'timezone_abbreviation', $data['timezone_abbreviation'] ?? null);
+        $this->fillIfUserColumnExists($user, 'current_local_time', $data['current_local_time'] ?? null);
+        $this->fillIfUserColumnExists($user, 'timezone_updated_at', $data['timezone_updated_at'] ?? null);
         $this->fillIfUserColumnExists($user, 'business_website', $data['business_website'] ?? null);
         $this->fillIfUserColumnExists($user, 'business_description', $data['business_description'] ?? null);
         $this->fillIfUserColumnExists($user, 'business_address', $data['company_address'] ?? null);

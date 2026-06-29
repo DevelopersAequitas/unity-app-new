@@ -26,6 +26,8 @@ class UserMiniResource extends JsonResource
             'company_name' => $user->company_name,
             'city' => $user->city,
             'timezone' => $user->timezone ?? null,
+            'utc_offset' => $user->utc_offset ?? null,
+            'timezone_abbreviation' => $user->timezone_abbreviation ?? null,
             'industry' => $user->industry ?? null,
             'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
         ];

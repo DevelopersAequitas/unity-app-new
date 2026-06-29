@@ -48,6 +48,10 @@ class UserProfileResource extends JsonResource
             'state'              => $this->state,
             'country'            => $this->country,
             'timezone'           => $this->timezone,
+            'utc_offset'         => $this->utc_offset,
+            'timezone_abbreviation' => $this->timezone_abbreviation,
+            'current_local_time' => $this->current_local_time,
+            'timezone_updated_at' => $this->timezone_updated_at,
             'preferred_language' => $this->preferred_language,
 
             'skills'             => $this->skills ?? [],
