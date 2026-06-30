@@ -41,8 +41,11 @@ class MemberController extends BaseApiController
             'city_id',
             'city',
             'business_type',
-            'profile_visibility',
         ];
+
+        if (Schema::hasColumn('users', 'profile_visibility')) {
+            $selectColumns[] = 'profile_visibility';
+        }
 
         $profileMatchColumns = [
             'city_of_residence',
@@ -287,8 +290,10 @@ class MemberController extends BaseApiController
                 'life_impacted_count',
                 'status',
                 'deleted_at',
-                'profile_visibility'
             ])
+            ->when(Schema::hasColumn('users', 'profile_visibility'), function ($query): void {
+                $query->addSelect('profile_visibility');
+            })
             ->with(['city:id,name']);
 
         // Exclude inactive members
