@@ -361,7 +361,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/impacts/{id}', [ImpactsController::class, 'show'])->whereUuid('id')->name('impacts.show');
         Route::post('/impacts/{id}/approve', [ImpactsController::class, 'approve'])->whereUuid('id')->name('impacts.approve');
         Route::post('/impacts/{id}/reject', [ImpactsController::class, 'reject'])->whereUuid('id')->name('impacts.reject');
-        Route::get('/email-logs/{id}', [EmailLogController::class, 'show'])->name('email-logs.show');
+        Route::get('/email-logs/{emailLog}', [EmailLogController::class, 'show'])->name('email-logs.show');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');

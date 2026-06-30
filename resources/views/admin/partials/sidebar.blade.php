@@ -151,8 +151,10 @@
     ];
 
     $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*');
-    $bottomNavItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) === 'Email Logs'));
-    $bottomNavItems = (! $isCircleScoped && ! $isDed && ! $isIndustryDirector) ? [] : $bottomNavItems;
+    $emailLogsMoreItem = (! $isDed && ! $isIndustryDirector)
+        ? ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']]
+        : null;
+    $bottomNavItems = [];
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs'], true)));
     $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*') || request()->routeIs('admin.event-scan-credentials.*');
     $navItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) !== 'Events Management'));
@@ -333,6 +335,14 @@
 
             @if ($bottomNavItems || ! $isDed)
                 <li class="nav-item mt-3 pt-2 border-top small text-muted px-3">More</li>
+            @endif
+
+            @if ($emailLogsMoreItem)
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs(...$emailLogsMoreItem['active_routes']) ? 'active' : '' }}" href="{{ route($emailLogsMoreItem['route']) }}">
+                        <i class="bi {{ $emailLogsMoreItem['icon'] }} me-2"></i>{{ $emailLogsMoreItem['label'] }}
+                    </a>
+                </li>
             @endif
 
             @foreach ($bottomNavItems as $item)
