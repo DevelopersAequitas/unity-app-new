@@ -149,6 +149,7 @@ CREATE TABLE users (
     leadership_roles        JSONB,
     is_sponsored_member     BOOLEAN NOT NULL DEFAULT FALSE,
     public_profile_slug     VARCHAR(80),
+    profile_visibility      VARCHAR(50) NOT NULL DEFAULT 'everyone',
     special_recognitions    JSONB,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -168,6 +169,7 @@ CREATE INDEX idx_users_membership_status ON users(membership_status);
 CREATE INDEX idx_users_search_vector ON users USING GIN (search_vector);
 CREATE INDEX idx_users_industry_tags_gin ON users USING GIN (industry_tags);
 CREATE INDEX idx_users_display_name_trgm ON users USING GIN (display_name gin_trgm_ops);
+CREATE INDEX idx_users_profile_visibility ON users(profile_visibility);
 
 CREATE TABLE user_links (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

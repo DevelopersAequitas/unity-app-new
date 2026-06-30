@@ -174,6 +174,7 @@ class ProfileController extends Controller
             'facebook_profile',
             'youtube_channel',
             'other_website',
+            'profile_visibility',
             'contact_visibility',
             'business_address',
             'business_city',
