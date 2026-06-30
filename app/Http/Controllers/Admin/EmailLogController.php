@@ -124,18 +124,55 @@ class EmailLogController extends Controller
                     })
                     : $builder->where('source_type', $filters['triggered_by']);
             })
-            ->when(! empty($filters['admin']), fn ($builder) => $builder->where('source_type', 'admin')->where('source_id', $filters['admin']))
-            ->when(! empty($filters['user']), fn ($builder) => $builder->where('user_id', $filters['user']))
+            ->when(! empty($filters['admin_id']), fn ($builder) => $builder->where('source_type', 'admin')->where('source_id', $filters['admin_id']))
+            ->when(! empty($filters['user_id']), fn ($builder) => $builder->where('user_id', $filters['user_id']))
             ->when(! empty($filters['date_from']), fn ($builder) => $builder->whereDate('created_at', '>=', $filters['date_from']))
             ->when(! empty($filters['date_to']), fn ($builder) => $builder->whereDate('created_at', '<=', $filters['date_to']));
     }
 
     private function cleanFilters(Request $request): array
     {
-        $filters = collect($request->only([
-            'search', 'recipient_email', 'subject', 'template_key', 'source_module', 'status',
-            'date_from', 'date_to', 'triggered_by', 'admin', 'user', 'per_page', 'sort', 'direction',
-        ]))->map(fn ($value) => is_string($value) && trim($value) === '' ? null : $value)->toArray();
+        $filters = array_merge([
+            'search' => null,
+            'recipient_email' => null,
+            'subject' => null,
+            'template_key' => null,
+            'source_module' => null,
+            'status' => 'all',
+            'date_from' => null,
+            'date_to' => null,
+            'triggered_by' => null,
+            'admin_id' => null,
+            'user_id' => null,
+            'sort' => 'created_at',
+            'direction' => 'desc',
+            'per_page' => 20,
+        ], $request->only([
+            'search',
+            'recipient_email',
+            'subject',
+            'template_key',
+            'source_module',
+            'status',
+            'date_from',
+            'date_to',
+            'triggered_by',
+            'admin_id',
+            'user_id',
+            'admin',
+            'user',
+            'sort',
+            'direction',
+            'per_page',
+        ]));
+
+        $filters['admin_id'] = $filters['admin_id'] ?? $filters['admin'] ?? null;
+        $filters['user_id'] = $filters['user_id'] ?? $filters['user'] ?? null;
+        unset($filters['admin'], $filters['user']);
+
+        foreach ($filters as $key => $value) {
+            $filters[$key] = is_string($value) && trim($value) === '' ? null : $value;
+        }
 
         foreach (['date_from', 'date_to'] as $dateField) {
             $filters[$dateField] = $this->validDate($filters[$dateField] ?? null);
@@ -143,12 +180,23 @@ class EmailLogController extends Controller
 
         $perPage = (int) ($filters['per_page'] ?? 20);
         $filters['per_page'] = in_array($perPage, self::PER_PAGE_OPTIONS, true) ? $perPage : 20;
-        $filters['status'] = in_array(($filters['status'] ?? 'all'), ['all', 'queued', 'sent', 'failed', 'pending'], true) ? ($filters['status'] ?? 'all') : 'all';
-        $filters['triggered_by'] = in_array(($filters['triggered_by'] ?? 'all'), ['all', 'admin', 'user', 'system', 'scheduled_job', 'queue_worker'], true) ? ($filters['triggered_by'] ?? 'all') : 'all';
-        $filters['sort'] = array_key_exists(($filters['sort'] ?? 'created_at'), self::SORT_COLUMNS) ? $filters['sort'] : 'created_at';
-        $filters['direction'] = ($filters['direction'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
 
-        foreach (['search', 'recipient_email', 'subject', 'template_key', 'source_module', 'admin', 'user'] as $field) {
+        $filters['status'] = in_array(($filters['status'] ?: 'all'), ['all', 'queued', 'sent', 'failed', 'pending'], true)
+            ? ($filters['status'] ?: 'all')
+            : 'all';
+
+        $filters['triggered_by'] = in_array(($filters['triggered_by'] ?? null), ['admin', 'user', 'system', 'scheduled_job', 'queue_worker'], true)
+            ? $filters['triggered_by']
+            : null;
+
+        $filters['sort'] = array_key_exists(($filters['sort'] ?? 'created_at'), self::SORT_COLUMNS)
+            ? ($filters['sort'] ?? 'created_at')
+            : 'created_at';
+
+        $direction = strtolower((string) ($filters['direction'] ?? 'desc'));
+        $filters['direction'] = in_array($direction, ['asc', 'desc'], true) ? $direction : 'desc';
+
+        foreach (['search', 'recipient_email', 'subject', 'template_key', 'source_module', 'admin_id', 'user_id'] as $field) {
             $filters[$field] = isset($filters[$field]) ? trim((string) $filters[$field]) : null;
         }
 
