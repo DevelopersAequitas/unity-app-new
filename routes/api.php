@@ -322,8 +322,9 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
-        Route::get('network/mutual-connections/{user_uuid}', [MutualConnectionController::class, 'index'])
-            ->whereUuid('user_uuid');
+        Route::get('/network/mutual-connections/{user_uuid}', [MutualConnectionController::class, 'index'])
+            ->whereUuid('user_uuid')
+            ->name('network.mutual-connections.index');
 
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);

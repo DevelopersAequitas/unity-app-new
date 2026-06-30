@@ -12,6 +12,17 @@ use Tests\TestCase;
 
 class MutualConnectionsApiTest extends TestCase
 {
+    public function test_mutual_connections_route_is_registered_with_expected_uri_and_middleware(): void
+    {
+        $route = app('router')->getRoutes()->getByName('network.mutual-connections.index');
+
+        $this->assertNotNull($route);
+        $this->assertSame(['GET', 'HEAD'], $route->methods());
+        $this->assertSame('api/v1/network/mutual-connections/{user_uuid}', $route->uri());
+        $this->assertContains('auth:sanctum', $route->gatherMiddleware());
+        $this->assertContains('unity.user', $route->gatherMiddleware());
+    }
+
     public function test_authenticated_request_returns_target_users_accepted_connections(): void
     {
         $this->createSchema();
