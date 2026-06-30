@@ -80,10 +80,8 @@ class EmailLogController extends Controller
         ]);
     }
 
-    public function show(string $id): View
+    public function show(EmailLog $emailLog): View
     {
-        $emailLog = EmailLog::query()->where('id', $id)->firstOrFail();
-
         return view('admin.email_logs.show', [
             'emailLog' => $emailLog,
         ]);
