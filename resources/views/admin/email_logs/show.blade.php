@@ -1,86 +1,26 @@
 @extends('admin.layouts.app')
-
 @section('title', 'Email Log Detail')
-
 @section('content')
-    @php
-        $statusBadgeClass = match ((string) $emailLog->status) {
-            'sent' => 'bg-success-subtle text-success border border-success-subtle',
-            'failed' => 'bg-danger-subtle text-danger border border-danger-subtle',
-            'pending' => 'bg-warning-subtle text-warning border border-warning-subtle',
-            default => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
-        };
-    @endphp
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-0">Email Log #{{ $emailLog->id }}</h1>
-        <a href="{{ route('admin.email-logs.index', request()->query()) }}" class="btn btn-sm btn-outline-secondary">Back</a>
-    </div>
-
-    <div class="card shadow-sm mb-3">
-        <div class="card-header"><strong>Basic Info</strong></div>
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-3"><span class="text-muted small d-block">Status</span><span class="badge {{ $statusBadgeClass }}">{{ ucfirst((string) $emailLog->status) }}</span></div>
-                <div class="col-md-3"><span class="text-muted small d-block">Sent At</span>{{ optional($emailLog->sent_at)->format('Y-m-d H:i:s') ?? '—' }}</div>
-                <div class="col-md-3"><span class="text-muted small d-block">Template Key</span>{{ $emailLog->template_key ?: '—' }}</div>
-                <div class="col-md-3"><span class="text-muted small d-block">Source Module</span>{{ $emailLog->source_module ?: '—' }}</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm mb-3">
-        <div class="card-header"><strong>Recipient</strong></div>
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-6"><span class="text-muted small d-block">To Name</span>{{ $emailLog->to_name ?: '—' }}</div>
-                <div class="col-md-6"><span class="text-muted small d-block">To Email</span>{{ $emailLog->to_email }}</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm mb-3">
-        <div class="card-header"><strong>Subject</strong></div>
-        <div class="card-body">{{ $emailLog->subject ?: '—' }}</div>
-    </div>
-
-    <div class="card shadow-sm mb-3">
-        <div class="card-header"><strong>Email Body</strong></div>
-        <div class="card-body">
-            @if (! empty($emailLog->body_html))
-                <div class="border rounded mb-3" style="min-height: 400px; overflow: hidden;">
-                    <iframe
-                        title="Email HTML Preview"
-                        sandbox
-                        srcdoc="{{ $emailLog->body_html }}"
-                        style="width: 100%; min-height: 400px; border: 0;"
-                    ></iframe>
-                </div>
-            @elseif ($emailLog->payload)
-                <pre class="bg-light border rounded p-3 small mb-0" style="max-height: 360px; overflow:auto;">{{ json_encode($emailLog->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre>
-            @else
-                <div class="text-muted">No body content available.</div>
-            @endif
-        </div>
-    </div>
-
-    <div class="card shadow-sm mb-3">
-        <div class="card-header"><strong>Payload</strong></div>
-        <div class="card-body">
-            @if ($emailLog->payload)
-                <pre class="bg-light border rounded p-3 small mb-0" style="max-height: 360px; overflow:auto;">{{ json_encode($emailLog->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre>
-            @else
-                <div class="text-muted">No payload available.</div>
-            @endif
-        </div>
-    </div>
-
-    @if ($emailLog->status === 'failed' && ! empty($emailLog->error_message))
-        <div class="card shadow-sm border-danger mb-3">
-            <div class="card-header text-danger"><strong>Error</strong></div>
-            <div class="card-body">
-                <pre class="bg-light border rounded p-3 small mb-0" style="white-space: pre-wrap;">{{ $emailLog->error_message }}</pre>
-            </div>
-        </div>
-    @endif
+@php
+    $value = fn($v) => filled($v) ? $v : '—';
+    $date = fn($v) => $v ? $v->format('Y-m-d H:i:s') : '—';
+    $json = fn($v) => $v ? json_encode($v, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : null;
+    $maskedHost = $emailLog->smtp_host ? preg_replace('/(^.).*?(\.[^.]+$)/', '$1***$2', $emailLog->smtp_host) : '—';
+    $section = function ($title, $items) use ($value) { echo '<div class="card shadow-sm mb-3"><div class="card-header"><strong>'.e($title).'</strong></div><div class="card-body"><div class="row g-3">'; foreach ($items as $label => $val) { echo '<div class="col-md-4"><span class="text-muted small d-block">'.e($label).'</span>'.e($value($val)).'</div>'; } echo '</div></div></div>'; };
+@endphp
+<div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h4 mb-0">Email Log #{{ $emailLog->id }}</h1><a href="{{ route('admin.email-logs.index') }}" class="btn btn-sm btn-outline-secondary">Back</a></div>
+@php($section('Email Information', ['Log ID'=>$emailLog->id,'Subject'=>$emailLog->subject,'Template Key'=>$emailLog->template_key,'Source Module'=>$emailLog->source_module,'Status'=>ucfirst((string)$emailLog->status),'Mail Provider'=>$emailLog->mail_provider,'Queue ID'=>$emailLog->queue_id,'Message ID'=>$emailLog->message_id,'Sent At'=>$date($emailLog->sent_at),'Created At'=>$date($emailLog->created_at),'Updated At'=>$date($emailLog->updated_at)]))
+@php($section('Recipient Information', ['Recipient Name'=>$emailLog->to_name ?: optional($emailLog->user)->display_name,'Recipient Email'=>$emailLog->to_email,'User ID'=>$emailLog->user_id,'User Type'=>$emailLog->recipient_user_type ?: $emailLog->trigger_user_type]))
+@php($section('Trigger Information', ['Triggered By'=>$emailLog->triggered_by ?: 'System','Trigger User Name'=>$emailLog->trigger_user_name,'Trigger User Email'=>$emailLog->trigger_user_email,'Trigger User Role'=>$emailLog->trigger_user_role,'Trigger User ID'=>$emailLog->trigger_user_id,'IP Address'=>$emailLog->ip_address,'User Agent'=>$emailLog->user_agent]))
+@if($emailLog->triggered_by === 'Admin' || $emailLog->admin_id)
+    @php($section('Admin Information', ['Admin Name'=>$emailLog->admin_name,'Admin Email'=>$emailLog->admin_email,'Admin Role'=>$emailLog->admin_role,'Admin ID'=>$emailLog->admin_id,'Admin Login Time'=>$date($emailLog->admin_login_time),'Admin Last Activity'=>$date($emailLog->admin_last_activity),'Admin IP Address'=>$emailLog->admin_ip_address]))
+@else
+    <div class="card shadow-sm mb-3"><div class="card-header"><strong>Admin Information</strong></div><div class="card-body text-muted">System</div></div>
+@endif
+<div class="card shadow-sm mb-3"><div class="card-header"><strong>Email Content</strong></div><div class="card-body"><h6>Subject</h6><p>{{ $value($emailLog->subject) }}</p><h6>HTML Body (rendered preview)</h6>@if($emailLog->body_html)<div class="border rounded mb-3"><iframe title="Email HTML Preview" sandbox srcdoc="{{ $emailLog->body_html }}" style="width:100%;min-height:420px;border:0"></iframe></div><h6>Raw HTML</h6><pre class="bg-light border rounded p-3 small" style="max-height:360px;overflow:auto">{{ $emailLog->body_html }}</pre>@else <p class="text-muted">No HTML available.</p>@endif<h6>Plain Text Version</h6><pre class="bg-light border rounded p-3 small mb-0" style="white-space:pre-wrap">{{ $emailLog->plain_text ?: '—' }}</pre></div></div>
+<div class="card shadow-sm mb-3"><div class="card-header"><strong>Template Information</strong></div><div class="card-body"><div class="row g-3"><div class="col-md-4"><span class="text-muted small d-block">Template Name</span>{{ $value($emailLog->template_name) }}</div><div class="col-md-4"><span class="text-muted small d-block">Template Key</span>{{ $value($emailLog->template_key) }}</div><div class="col-md-4"><span class="text-muted small d-block">Template Version</span>{{ $value($emailLog->template_version) }}</div><div class="col-12"><span class="text-muted small d-block">Variables Used</span><pre class="bg-light border rounded p-3 small mb-0">{{ $json($emailLog->variables_used ?: $emailLog->payload) ?: '—' }}</pre></div></div></div></div>
+<div class="card shadow-sm mb-3"><div class="card-header"><strong>Attachments</strong></div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Attachment Name</th><th>File Size</th><th>MIME Type</th><th>Download Link</th></tr></thead><tbody>@forelse(($emailLog->attachments ?? []) as $attachment)<tr><td>{{ $attachment['name'] ?? '—' }}</td><td>{{ $attachment['size'] ?? '—' }}</td><td>{{ $attachment['mime_type'] ?? '—' }}</td><td>@if(!empty($attachment['url']))<a href="{{ $attachment['url'] }}">Download</a>@else — @endif</td></tr>@empty<tr><td colspan="4" class="text-center text-muted">No attachments.</td></tr>@endforelse</tbody></table></div></div>
+@php($section('Delivery Information', ['Mail Driver'=>$emailLog->mail_driver,'SMTP Host (masked)'=>$maskedHost,'Queue Name'=>$emailLog->queue_name,'Queue Job ID'=>$emailLog->queue_job_id,'Attempts'=>$emailLog->attempts,'Processing Time'=>$emailLog->processing_time_ms ? $emailLog->processing_time_ms.' ms' : null,'Response from Mail Provider'=>$emailLog->provider_response]))
+@if($emailLog->status === 'failed')<div class="card shadow-sm border-danger mb-3"><div class="card-header text-danger"><strong>Failure Details</strong></div><div class="card-body"><div class="row g-3"><div class="col-md-6"><span class="text-muted small d-block">Error Message</span>{{ $value($emailLog->error_message) }}</div><div class="col-md-3"><span class="text-muted small d-block">Exception</span>{{ $value($emailLog->exception_class) }}</div><div class="col-md-3"><span class="text-muted small d-block">Retry Count</span>{{ $value($emailLog->retry_count) }}</div><div class="col-md-3"><span class="text-muted small d-block">Last Retry</span>{{ $date($emailLog->last_retry_at) }}</div><div class="col-12"><details><summary>Stack Trace</summary><pre class="bg-light border rounded p-3 small mt-2" style="white-space:pre-wrap;max-height:420px;overflow:auto">{{ $emailLog->stack_trace ?: '—' }}</pre></details></div></div></div></div>@endif
+@php($section('Audit Information', ['Created By'=>$emailLog->created_by,'Updated By'=>$emailLog->updated_by,'Created At'=>$date($emailLog->created_at),'Updated At'=>$date($emailLog->updated_at)]))
 @endsection

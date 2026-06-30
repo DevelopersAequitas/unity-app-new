@@ -343,7 +343,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/campaign-pamphlets/{pamphlet}', [CampaignPamphletController::class, 'update'])->name('campaign-pamphlets.update');
         Route::delete('/campaign-pamphlets/{pamphlet}', [CampaignPamphletController::class, 'destroy'])->name('campaign-pamphlets.destroy');
 
-        Route::get('/email-logs', [EmailLogController::class, 'index'])->name('email-logs.index');
+        Route::get('/email-logs', [EmailLogController::class, 'index'])->middleware('admin.role:global_admin,ded')->name('email-logs.index');
+        Route::get('/email-logs/export/{format}', [EmailLogController::class, 'export'])->middleware('admin.role:global_admin,ded')->whereIn('format', ['csv', 'xlsx'])->name('email-logs.export');
         Route::get('/daily-notifications', [DailyNotificationController::class, 'index'])->name('daily-notifications.index');
         Route::put('/daily-notifications/{id}', [DailyNotificationController::class, 'update'])->name('daily-notifications.update');
         Route::get('/daily-notifications/{id}/eligible-users', [DailyNotificationController::class, 'eligibleUsers'])->name('daily-notifications.eligible-users');
@@ -361,7 +362,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/impacts/{id}', [ImpactsController::class, 'show'])->whereUuid('id')->name('impacts.show');
         Route::post('/impacts/{id}/approve', [ImpactsController::class, 'approve'])->whereUuid('id')->name('impacts.approve');
         Route::post('/impacts/{id}/reject', [ImpactsController::class, 'reject'])->whereUuid('id')->name('impacts.reject');
-        Route::get('/email-logs/{id}', [EmailLogController::class, 'show'])->name('email-logs.show');
+        Route::get('/email-logs/{id}', [EmailLogController::class, 'show'])->middleware('admin.role:global_admin,ded')->name('email-logs.show');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');

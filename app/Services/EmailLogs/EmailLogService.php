@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -38,7 +39,7 @@ class EmailLogService
             'error_message' => Str::limit($message, 5000, ''),
             'sent_at' => Arr::get($data, 'sent_at', now()),
             'created_at' => Arr::get($data, 'created_at', now()),
-        ]));
+        ]), $error);
     }
 
     public function logMailableSent(Mailable $mailable, array $data): ?EmailLog
@@ -75,7 +76,7 @@ class EmailLogService
         ]), $error);
     }
 
-    private function persist(array $data): ?EmailLog
+    private function persist(array $data, Throwable|string|null $error = null): ?EmailLog
     {
         try {
             $toEmail = trim((string) Arr::get($data, 'to_email', ''));
@@ -107,7 +108,12 @@ class EmailLogService
                 'error_message' => Arr::get($data, 'error_message'),
                 'sent_at' => Arr::get($data, 'sent_at', now()),
                 'created_at' => Arr::get($data, 'created_at', now()),
+                'updated_at' => Arr::get($data, 'updated_at', now()),
             ];
+
+            $record = array_merge($record, $this->extendedRecord($data, $error));
+            $columns = Schema::getColumnListing('email_logs');
+            $record = array_intersect_key($record, array_flip($columns));
 
             return EmailLog::query()->create($record);
         } catch (Throwable $exception) {
@@ -117,6 +123,61 @@ class EmailLogService
 
             return null;
         }
+    }
+
+    private function extendedRecord(array $data, mixed $error = null): array
+    {
+        $request = app()->bound('request') ? request() : null;
+        $session = $request?->hasSession() ? $request->session() : null;
+        $admin = auth('admin')->user();
+        $adminRole = null;
+
+        if ($admin) {
+            $admin->loadMissing('roles:id,key,name');
+            $adminRole = $admin->roles->pluck('name')->filter()->implode(', ') ?: $admin->roles->pluck('key')->implode(', ');
+        }
+
+        return [
+            'recipient_user_type' => Arr::get($data, 'recipient_user_type', Arr::get($data, 'user_type')),
+            'triggered_by' => Arr::get($data, 'triggered_by', $admin ? 'Admin' : 'System'),
+            'trigger_user_id' => Arr::get($data, 'trigger_user_id', $admin?->id),
+            'trigger_user_type' => Arr::get($data, 'trigger_user_type', $admin ? 'admin' : null),
+            'trigger_user_name' => Arr::get($data, 'trigger_user_name', $admin?->name),
+            'trigger_user_email' => Arr::get($data, 'trigger_user_email', $admin?->email),
+            'trigger_user_role' => Arr::get($data, 'trigger_user_role', $adminRole),
+            'ip_address' => Arr::get($data, 'ip_address', $request?->ip()),
+            'user_agent' => Arr::get($data, 'user_agent', $request?->userAgent()),
+            'admin_id' => Arr::get($data, 'admin_id', $admin?->id),
+            'admin_name' => Arr::get($data, 'admin_name', $admin?->name),
+            'admin_email' => Arr::get($data, 'admin_email', $admin?->email),
+            'admin_role' => Arr::get($data, 'admin_role', $adminRole),
+            'admin_session_id' => Arr::get($data, 'admin_session_id', $session?->getId()),
+            'admin_login_time' => Arr::get($data, 'admin_login_time', $session?->get('admin_login_time')),
+            'admin_last_activity' => Arr::get($data, 'admin_last_activity', now()),
+            'admin_ip_address' => Arr::get($data, 'admin_ip_address', $request?->ip()),
+            'admin_user_agent' => Arr::get($data, 'admin_user_agent', $request?->userAgent()),
+            'mail_provider' => Arr::get($data, 'mail_provider', config('mail.default')),
+            'mail_driver' => Arr::get($data, 'mail_driver', config('mail.default')),
+            'smtp_host' => Arr::get($data, 'smtp_host', config('mail.mailers.smtp.host')),
+            'queue_id' => Arr::get($data, 'queue_id'),
+            'message_id' => Arr::get($data, 'message_id'),
+            'queue_name' => Arr::get($data, 'queue_name', config('queue.default')),
+            'queue_job_id' => Arr::get($data, 'queue_job_id'),
+            'attempts' => Arr::get($data, 'attempts'),
+            'processing_time_ms' => Arr::get($data, 'processing_time_ms'),
+            'provider_response' => Arr::get($data, 'provider_response'),
+            'plain_text' => Arr::get($data, 'plain_text'),
+            'template_name' => Arr::get($data, 'template_name'),
+            'template_version' => Arr::get($data, 'template_version'),
+            'variables_used' => Arr::get($data, 'variables_used'),
+            'attachments' => Arr::get($data, 'attachments'),
+            'exception_class' => $error instanceof Throwable ? $error::class : Arr::get($data, 'exception_class'),
+            'stack_trace' => $error instanceof Throwable ? Str::limit($error->getTraceAsString(), 20000, '') : Arr::get($data, 'stack_trace'),
+            'retry_count' => Arr::get($data, 'retry_count'),
+            'last_retry_at' => Arr::get($data, 'last_retry_at'),
+            'created_by' => Arr::get($data, 'created_by', $admin?->email ?: 'System'),
+            'updated_by' => Arr::get($data, 'updated_by'),
+        ];
     }
 
     private function renderMailableSafely(Mailable $mailable): ?string

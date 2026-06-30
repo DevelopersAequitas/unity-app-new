@@ -168,9 +168,12 @@ class AdminAuthController extends Controller
         }
 
         Auth::guard('admin')->login($adminUser);
+        $request->session()->regenerate();
         $request->session()->put('admin_user_id', $adminUser->id);
         $request->session()->put('admin_login_email', $adminUser->email);
-        $request->session()->regenerate();
+        $request->session()->put('admin_login_time', now()->toDateTimeString());
+        $request->session()->put('admin_login_ip', $request->ip());
+        $request->session()->put('admin_login_user_agent', $request->userAgent());
 
         return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
         if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
