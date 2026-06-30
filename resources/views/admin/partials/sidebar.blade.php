@@ -157,8 +157,8 @@
     <div class="text-center mb-2">
         <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
-                src="{{ asset('images/greenpreneur-logo.png') }}"
-                alt="Greenpreneur"
+                src="{{ asset('images/peersglobal-logo.png') }}"
+                alt="PeersGlobal"
                 style="max-height:68px; width:auto;"
                 class="d-block mx-auto my-3"
                 loading="lazy"
