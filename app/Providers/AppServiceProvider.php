@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\AdminCampaign;
+use App\Policies\AdminCampaignPolicy;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Gate;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -40,6 +43,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Paginator::useBootstrapFive();
+        Gate::policy(AdminCampaign::class, AdminCampaignPolicy::class);
+
+
 
         $fromAddress = (string) config('mail.from.address');
         $fromName = (string) config('mail.from.name', 'Peers Global Unity');

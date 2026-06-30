@@ -55,8 +55,8 @@
                         <input type="text" name="phone" class="form-control" value="{{ old('phone', $user->phone) }}">
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Designation</label>
-                        <input type="text" name="designation" class="form-control" value="{{ old('designation', $user->designation) }}">
+                        <label class="form-label">Designation <span class="text-danger">*</span></label>
+                        <input type="text" name="designation" class="form-control" value="{{ old('designation', $user->designation) }}" required>
                     </div>
                 </div>
             </div>
@@ -67,8 +67,8 @@
                 <div class="card-header fw-semibold">Business & Profile</div>
                 <div class="card-body row g-3">
                     <div class="col-md-4">
-                        <label class="form-label">Company Name</label>
-                        <input type="text" name="company_name" class="form-control" value="{{ old('company_name', $user->company_name) }}">
+                        <label class="form-label">Company Name <span class="text-danger">*</span></label>
+                        <input type="text" name="company_name" class="form-control" value="{{ old('company_name', $user->company_name) }}" required>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Business Type</label>
@@ -144,6 +144,7 @@
                             $membershipStatusLabels = [
                                 'free_trial_peer' => 'Free Trial Peer',
                                 'free_peer' => 'Free Peer',
+                                'Only Green Peer' => 'Only Green Peer',
                                 'only_unity_peer' => 'Only Unity Peer',
                                 'Circle Peer' => 'Circle Peer',
                                 'Multi Circle Peer' => 'Multi Circle Peer',
@@ -252,8 +253,8 @@
                 <div class="card-header fw-semibold">Location</div>
                 <div class="card-body row g-3">
                     <div class="col-md-12">
-                        <label class="form-label">City (string fallback)</label>
-                        <input type="text" name="city" class="form-control" value="{{ old('city', $user->city) }}">
+                        <label class="form-label">City <span class="text-danger">*</span></label>
+                        <input type="text" name="city" class="form-control" value="{{ old('city', $user->city) }}" required>
                     </div>
                 </div>
             </div>

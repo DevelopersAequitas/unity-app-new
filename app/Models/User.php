@@ -22,6 +22,8 @@ class User extends Authenticatable
 {
     public const STATUS_FREE_TRIAL = 'free_trial_peer';
     public const STATUS_FREE = 'free_peer';
+    public const STATUS_GREEN_PEER = 'Only Green Peer';
+    public const STATUS_GREEN_PEER_LABEL = 'Only Green Peer';
 
     private const FREE_PEER_STATUS_CANDIDATES = [self::STATUS_FREE, 'Free Peer', 'Free_peer'];
 
@@ -159,6 +161,11 @@ class User extends Authenticatable
         'welcome_membership_email_status',
         'welcome_membership_email_error',
         'welcome_membership_email_plan_code',
+        'website',
+        'sustainability_contribution',
+        'sustainability_areas',
+        'greenpreneur_goals',
+        'community_directory_listing',
     ];
 
     protected $hidden = [
@@ -208,6 +215,8 @@ class User extends Authenticatable
         'is_sponsored_member' => 'boolean',
         'life_impacted_count' => 'integer',
         'is_online' => 'boolean',
+        'sustainability_areas' => 'array',
+        'greenpreneur_goals' => 'array',
         'contacts_allowed' => 'boolean',
     ];
 

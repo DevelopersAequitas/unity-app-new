@@ -6,11 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
 class AdminCampaign extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     public const DEFAULT_SENDER_EMAIL = 'noreply@peersunity.com';
 
@@ -25,8 +27,14 @@ class AdminCampaign extends Model
     public const TYPE_EMAIL_AND_NOTIFICATION = 'email_and_notification';
 
     public const STATUS_DRAFT = 'draft';
+    public const STATUS_SCHEDULED = 'scheduled';
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_PAUSED = 'paused';
     public const STATUS_SENT = 'sent';
+    public const STATUS_COMPLETED = 'completed';
     public const STATUS_FAILED = 'failed';
+    public const STATUS_STOPPED = 'stopped';
+    public const STATUS_DELETED = 'deleted';
     public const STATUS_PARTIALLY_SENT = 'partially_sent';
 
     protected $table = 'admin_campaigns';
@@ -44,7 +52,6 @@ class AdminCampaign extends Model
         'filters' => 'array',
         'pamphlet_snapshot' => 'array',
         'email_template_snapshot' => 'array',
-        'sent_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -56,6 +63,16 @@ class AdminCampaign extends Model
                 $campaign->id = (string) Str::uuid();
             }
         });
+    }
+
+    public function schedule(): HasOne
+    {
+        return $this->hasOne(CampaignSchedule::class, 'campaign_id');
+    }
+
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(CampaignDelivery::class, 'campaign_id');
     }
 
     public function recipients(): HasMany
@@ -73,6 +90,45 @@ class AdminCampaign extends Model
         return $this->belongsTo(CampaignEmailTemplate::class, 'email_template_id');
     }
 
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(AdminUser::class, 'created_by');
+    }
+
+    public function getDisplayTimezone(): string
+    {
+        $schedule = $this->schedule;
+        if (!$schedule || $schedule->schedule_type === 'immediately' || empty($schedule->timezone)) {
+            return 'Asia/Kolkata'; // Fallback to local IST
+        }
+        return $schedule->timezone;
+    }
+
+    public function formatTimestamp(?\Carbon\Carbon $dateTime): ?string
+    {
+        if (!$dateTime) {
+            return null;
+        }
+        return $dateTime->copy()->setTimezone($this->getDisplayTimezone())->format('d M Y H:i');
+    }
+
+    public function getSentAtAttribute($value)
+    {
+        if (!$value) {
+            return null;
+        }
+        return \Carbon\Carbon::parse($value, 'UTC');
+    }
+
+    public function setSentAtAttribute($value)
+    {
+        if (!$value) {
+            $this->attributes['sent_at'] = null;
+        } else {
+            $this->attributes['sent_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+        }
+    }
+
     public function includesEmail(): bool
     {
         return in_array($this->campaign_type, [self::TYPE_EMAIL_ONLY, self::TYPE_EMAIL_AND_NOTIFICATION], true);
@@ -85,7 +141,7 @@ class AdminCampaign extends Model
 
     public function isEditable(): bool
     {
-        return $this->status === self::STATUS_DRAFT;
+        return in_array($this->status, [self::STATUS_DRAFT, self::STATUS_SCHEDULED, self::STATUS_ACTIVE], true);
     }
 
     public function getSenderEmailAttribute(): string

@@ -58,6 +58,7 @@
                 ['icon' => 'bi-calendar-event', 'label' => 'Events', 'route' => 'admin.execution.events'],
                 ['icon' => 'bi-people-fill', 'label' => 'Referrals & Visitors', 'route' => '#'],
                 ['icon' => 'bi-life-preserver', 'label' => 'Support & Feedback', 'route' => '#'],
+                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.execution.communications']],
                 ['icon' => 'bi-bell-fill', 'label' => 'Daily Notification Reminder', 'route' => 'admin.daily-notifications.index'],
                 ['icon' => 'bi-calendar2-week', 'label' => 'Meetings & Warnings', 'route' => 'admin.execution.meetings'],
                 ['icon' => 'bi-shield-lock', 'label' => 'Audit & Compliance', 'route' => 'admin.execution.reports'],
@@ -104,6 +105,7 @@
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
         ]
         : [
+            ['label' => 'Inactive Registrations', 'route' => 'admin.pending-registrations.index'],
             ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
             ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
             ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
@@ -114,6 +116,7 @@
 
     $leadsActive = request()->routeIs('admin.leads.*');
     $pendingRequestsActive =
+        request()->routeIs('admin.pending-registrations.*') ||
         request()->routeIs('admin.visitor-registrations.*') ||
         request()->routeIs('admin.coin-claims.*') ||
         request()->routeIs('admin.event-joining-requests.*') ||
@@ -160,14 +163,25 @@
     $navItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) !== 'Events Management'));
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     $eventsManagementMenu = $isIndustryDirector ? [] : $eventsManagementMenu;
+    
+    $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
+    $brandPartnersMenu = [
+        ['label' => 'Dashboard', 'route' => 'admin.brand-partners.dashboard'],
+        ['label' => 'All Partners', 'route' => 'admin.brand-partners.index'],
+        ['label' => 'Categories', 'route' => 'admin.brand-partners.categories.index'],
+        ['label' => 'Offers', 'route' => 'admin.brand-partners.offers'],
+        ['label' => 'Analytics', 'route' => 'admin.brand-partners.analytics'],
+        ['label' => 'Settings', 'route' => 'admin.brand-partners.settings'],
+    ];
+    $hasBrandPartnersRole = $adminUser?->roles?->pluck('key')->intersect(['global_admin', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false;
 @endphp
 
 <aside class="admin-sidebar d-flex flex-column">
     <div class="text-center mb-2">
         <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
-                src="/api/v1/files/019bd9d7-7e13-71fc-8395-0e1dd20a268b"
-                alt="Peers Global Unity"
+                src="{{ asset('images/peersglobal-logo.png') }}"
+                alt="PeersGlobal"
                 style="max-height:68px; width:auto;"
                 class="d-block mx-auto my-3"
                 loading="lazy"
@@ -269,23 +283,50 @@
                 </li>
             @endif
 
-            @foreach ($navItems as $item)
-                @if ($item['label'] === 'Notifications & Email')
-                    <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
-                        <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
-                            <span><i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}</span>
-                            <i class="bi bi-chevron-right menu-arrow"></i>
-                        </a>
-                        <div class="collapse {{ $campaignsActive ? 'show' : '' }}" id="campaignsSubmenu">
-                            <ul class="nav flex-column ms-3">
-                                @foreach ($campaignsMenu as $campaignItem)
+            @if ($hasBrandPartnersRole)
+                <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
+                        <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
+                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    </a>
+                    <div class="collapse {{ $brandPartnersActive ? 'show' : '' }}" id="brandPartnersSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            @foreach ($brandPartnersMenu as $item)
+                                @if (Route::has($item['route']))
                                     <li class="nav-item">
+                                        <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                            {{ $item['label'] }}
+                                        </a>
                                         <a class="nav-link {{ (isset($campaignItem['active_routes']) ? request()->routeIs(...$campaignItem['active_routes']) : request()->routeIs($campaignItem['route'])) ? 'active' : '' }}" href="{{ route($campaignItem['route']) }}">{{ $campaignItem['label'] }}</a>
                                     </li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    </li>
+                                @endif
+                            @endforeach
+                        </ul>
+                    </div>
+                </li>
+            @endif
+
+            @foreach ($navItems as $item)
+                @if ($item['label'] === 'Notifications & Email')
+                    @if (Route::has($item['route']))
+                        <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
+                            <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
+                                <span><i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}</span>
+                                <i class="bi bi-chevron-right menu-arrow"></i>
+                            </a>
+                            <div class="collapse {{ $campaignsActive ? 'show' : '' }}" id="campaignsSubmenu">
+                                <ul class="nav flex-column ms-3">
+                                    @foreach ($campaignsMenu as $campaignItem)
+                                        @if (Route::has($campaignItem['route']))
+                                            <li class="nav-item">
+                                                <a class="nav-link {{ request()->routeIs($campaignItem['route']) ? 'active' : '' }}" href="{{ route($campaignItem['route']) }}">{{ $campaignItem['label'] }}</a>
+                                            </li>
+                                        @endif
+                                    @endforeach
+                                </ul>
+                            </div>
+                        </li>
+                    @endif
                 @else
                     <li class="nav-item">
                         @if ($item['route'] === '#')
@@ -293,9 +334,11 @@
                                 <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                             </span>
                         @else
-                            <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                                <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
-                            </a>
+                            @if (Route::has($item['route']))
+                                <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                                </a>
+                            @endif
                         @endif
                     </li>
                 @endif

@@ -30,6 +30,7 @@ use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\PostReportsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\AdController;
@@ -50,6 +51,10 @@ use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
+use App\Http\Controllers\Admin\BrandPartnerController;
+use App\Http\Controllers\Admin\BrandPartnerCategoryController;
+use App\Http\Controllers\Admin\BrandPartnerAnalyticsController;
+use App\Http\Controllers\Admin\BrandPartnerSettingsController;
 
 Route::get('/', function () {
     return view('landing');
@@ -264,6 +269,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/posts/{post}', [PostModerationController::class, 'destroy'])->name('posts.destroy');
         Route::post('/posts/{post}/deactivate', [PostModerationController::class, 'deactivate'])->name('posts.deactivate');
         Route::post('/posts/{post}/restore', [PostModerationController::class, 'restore'])->name('posts.restore');
+        Route::get('/pending-requests/pending-registrations', [PendingRegistrationsController::class, 'index'])->name('pending-registrations.index');
+        Route::post('/pending-requests/pending-registrations/{user}/approve', [PendingRegistrationsController::class, 'approve'])->name('pending-registrations.approve');
+        Route::post('/pending-requests/pending-registrations/{user}/reject', [PendingRegistrationsController::class, 'reject'])->name('pending-registrations.reject');
+
         Route::get('/visitor-registrations', [VisitorRegistrationsController::class, 'index'])->name('visitor-registrations.index');
         Route::post('/visitor-registrations/{id}/approve', [VisitorRegistrationsController::class, 'approve'])
             ->whereUuid('id')
@@ -335,6 +344,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/campaigns/{campaign}/edit', [AdminCampaignController::class, 'edit'])->name('campaigns.edit');
         Route::put('/campaigns/{campaign}', [AdminCampaignController::class, 'update'])->name('campaigns.update');
         Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->name('campaigns.send');
+        Route::delete('/campaigns/{campaign}', [AdminCampaignController::class, 'destroy'])->name('campaigns.destroy');
+        Route::post('/campaigns/{campaign}/pause', [AdminCampaignController::class, 'pause'])->name('campaigns.pause');
+        Route::post('/campaigns/{campaign}/resume', [AdminCampaignController::class, 'resume'])->name('campaigns.resume');
+        Route::post('/campaigns/{campaign}/stop', [AdminCampaignController::class, 'stop'])->name('campaigns.stop');
+        Route::post('/campaigns/{campaign}/duplicate', [AdminCampaignController::class, 'duplicate'])->name('campaigns.duplicate');
+        Route::post('/campaigns/{campaign}/retry', [AdminCampaignController::class, 'retry'])->name('campaigns.retry');
         Route::get('/campaign-pamphlets/select-list', [CampaignPamphletController::class, 'selectList'])->name('campaign-pamphlets.select-list');
         Route::get('/campaign-pamphlets', [CampaignPamphletController::class, 'index'])->name('campaign-pamphlets.index');
         Route::get('/campaign-pamphlets/create', [CampaignPamphletController::class, 'create'])->name('campaign-pamphlets.create');
@@ -371,5 +386,51 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/execution/communications/broadcast', [AdminExecutionController::class, 'sendBroadcast'])->name('execution.broadcast.send');
         Route::get('/execution/meetings', [AdminExecutionController::class, 'meetings'])->name('execution.meetings');
         Route::get('/execution/reports', [AdminExecutionController::class, 'reports'])->name('execution.reports');
+
+        // Brand Partners Module
+        Route::middleware('admin.role:global_admin,marketing_team,analytics_team,content_team,read_only')->group(function () {
+            Route::get('/brand-partners/dashboard', [BrandPartnerAnalyticsController::class, 'index'])->name('brand-partners.dashboard');
+            Route::get('/brand-partners/analytics', [BrandPartnerAnalyticsController::class, 'detailedReport'])->name('brand-partners.analytics');
+            Route::get('/brand-partners/offers', [BrandPartnerController::class, 'offers'])->name('brand-partners.offers');
+            Route::get('/brand-partners/settings', [BrandPartnerSettingsController::class, 'index'])->name('brand-partners.settings');
+            Route::get('/brand-partners', [BrandPartnerController::class, 'index'])->name('brand-partners.index');
+        });
+
+        Route::middleware('admin.role:global_admin,marketing_team,content_team')->group(function () {
+            Route::get('/brand-partners/create', [BrandPartnerController::class, 'create'])->name('brand-partners.create');
+            Route::post('/brand-partners', [BrandPartnerController::class, 'store'])->name('brand-partners.store');
+            Route::get('/brand-partners/{brand_partner}/edit', [BrandPartnerController::class, 'edit'])->name('brand-partners.edit');
+            Route::put('/brand-partners/{brand_partner}', [BrandPartnerController::class, 'update'])->name('brand-partners.update');
+            Route::post('/brand-partners/{brand_partner}/duplicate', [BrandPartnerController::class, 'duplicate'])->name('brand-partners.duplicate');
+            Route::patch('/brand-partners/{brand_partner}/status', [BrandPartnerController::class, 'toggleStatus'])->name('brand-partners.toggle-status');
+            Route::patch('/brand-partners/{brand_partner}/featured', [BrandPartnerController::class, 'toggleFeatured'])->name('brand-partners.toggle-featured');
+            Route::patch('/brand-partners/{brand_partner}/sponsored', [BrandPartnerController::class, 'toggleSponsored'])->name('brand-partners.toggle-sponsored');
+            Route::post('/brand-partners/reorder', [BrandPartnerController::class, 'reorderPriority'])->name('brand-partners.reorder');
+            Route::post('/brand-partners/{brand_partner}/priority-up', [BrandPartnerController::class, 'movePriorityUp'])->name('brand-partners.priority-up');
+            Route::post('/brand-partners/{brand_partner}/priority-down', [BrandPartnerController::class, 'movePriorityDown'])->name('brand-partners.priority-down');
+            Route::post('/brand-partners/{brand_partner}/send-notification', [BrandPartnerController::class, 'sendManualNotification'])->name('brand-partners.send-notification');
+        });
+
+        Route::middleware('admin.role:global_admin')->group(function () {
+            Route::delete('/brand-partners/{brand_partner}', [BrandPartnerController::class, 'destroy'])->name('brand-partners.destroy');
+            Route::post('/brand-partners/settings', [BrandPartnerSettingsController::class, 'update'])->name('brand-partners.settings.update');
+        });
+
+        Route::middleware('admin.role:global_admin,content_team')->group(function () {
+            Route::get('/brand-partners/categories', [BrandPartnerCategoryController::class, 'index'])->name('brand-partners.categories.index');
+            Route::post('/brand-partners/categories', [BrandPartnerCategoryController::class, 'store'])->name('brand-partners.categories.store');
+            Route::put('/brand-partners/categories/{brand_partner_category}', [BrandPartnerCategoryController::class, 'update'])->name('brand-partners.categories.update');
+            Route::delete('/brand-partners/categories/{brand_partner_category}', [BrandPartnerCategoryController::class, 'destroy'])->name('brand-partners.categories.destroy');
+            Route::post('/brand-partners/categories/reorder', [BrandPartnerCategoryController::class, 'reorder'])->name('brand-partners.categories.reorder');
+        });
+
+        Route::middleware('admin.role:global_admin,analytics_team')->group(function () {
+            Route::get('/brand-partners/export', [BrandPartnerController::class, 'export'])->name('brand-partners.export');
+        });
+
+        // Wildcard route defined at the bottom to avoid intercepting concrete paths
+        Route::middleware('admin.role:global_admin,marketing_team,analytics_team,content_team,read_only')->group(function () {
+            Route::get('/brand-partners/{brand_partner}', [BrandPartnerController::class, 'show'])->name('brand-partners.show');
+        });
     });
 });

@@ -79,7 +79,7 @@ class RegisterRequest extends FormRequest
 
             'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
 
-            'email' => ['required', 'email:rfc,dns', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'email:rfc', 'max:255', 'unique:users,email'],
 
             // PHONE IS REQUIRED + UNIQUE TO AVOID DB UNIQUE VIOLATION
             'phone' => ['required', 'string', 'max:20', 'unique:users,phone'],
@@ -93,7 +93,7 @@ class RegisterRequest extends FormRequest
             'company_name' => ['nullable', 'string', 'max:255'],
             'designation'  => ['nullable', 'string', 'max:255'],
             'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
-            'city' => ['nullable', 'string', 'max:150'],
+            'city' => ['nullable', 'string', 'max:255'],
             'city_of_residence' => ['nullable', 'string', 'max:150'],
             'state' => ['nullable', 'string', 'max:100'],
             'district' => ['nullable', 'string', 'max:150'],
@@ -123,6 +123,12 @@ class RegisterRequest extends FormRequest
                 'max:32',
                 'regex:/^[A-Z0-9]{8,32}$/',
             ],
+            'website' => ['nullable', 'url', 'max:255'],
+            'sustainability_contribution' => ['nullable', 'string'],
+            'sustainability_areas' => ['nullable', 'array'],
+            'greenpreneur_goals' => ['nullable', 'array'],
+            'interests' => ['nullable', 'array'],
+            'community_directory_listing' => ['sometimes', 'required', 'in:Yes,No'],
         ];
     }
 

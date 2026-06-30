@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\MemberWithCircleController;
 use App\Http\Controllers\Api\MasterPositionController;
 use App\Http\Controllers\Api\MyCircleController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\NotificationFeatureController;
 use App\Http\Controllers\Api\OnlineStatusController;
 use App\Http\Controllers\Api\P2pMeetingController;
 use App\Http\Controllers\Api\PostController;
@@ -105,6 +106,7 @@ use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
+use App\Http\Controllers\Api\V1\BrandPartnerApiController;
 use App\Http\Controllers\Api\V1\NotificationEngineController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
@@ -125,6 +127,8 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
+// Backward-compatible ads endpoint for clients that still call /api/ads.
+Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
@@ -303,6 +307,13 @@ Route::prefix('v1')->group(function () {
         Route::post('/events/{event}/occurrences/{occurrence}/register', [EventController::class, 'register'])
             ->whereUuid('event')
             ->whereUuid('occurrence');
+
+        Route::get('/activities/daily-summary', [NotificationFeatureController::class, 'dailySummary']);
+        Route::get('/insights/industry', [NotificationFeatureController::class, 'industryInsight']);
+        Route::get('/rewards/store/items', [NotificationFeatureController::class, 'rewardItems']);
+        Route::get('/newsletter/latest', [NotificationFeatureController::class, 'latestNewsletter']);
+        Route::get('/circle-categories', [NotificationFeatureController::class, 'circleCategories']);
+        Route::get('/life-impact/cycles/active', [NotificationFeatureController::class, 'activeLifeImpactCycle']);
     });
 
     Route::middleware(['web', 'admin.auth'])->prefix('admin')->group(function () {
@@ -341,6 +352,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
         Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
         Route::get('/geo/nearby-peers', [GeoLocationController::class, 'nearbyPeers']);
+        Route::get('/geo/peers-count-500km', [GeoLocationController::class, 'getPeersCountWithin500km']);
 
         Route::get('/blocked-peers', [PeerBlockController::class, 'index']);
         Route::post('/peers/{user}/block', [PeerBlockController::class, 'store'])->whereUuid('user');
@@ -356,6 +368,7 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('members', MemberController::class)
             ->only(['index', 'show']);
+        Route::get('/members-summary', [MemberController::class, 'summary']);
         Route::post('/members/online-heartbeat', [OnlineStatusController::class, 'heartbeat']);
         Route::post('/members/update-online-status', [OnlineStatusController::class, 'updateStatus']);
         Route::post('/members/online-offline', [OnlineStatusController::class, 'offline']);
@@ -425,6 +438,19 @@ Route::prefix('v1')->group(function () {
             Route::get('/campaigns/member-search', [AdminCampaignController::class, 'memberSearch']);
             Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
             Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
+
+    // Brand Partners Admin APIs
+    Route::post('/brand-partners', [BrandPartnerApiController::class, 'store']);
+    Route::put('/brand-partners/{id}', [BrandPartnerApiController::class, 'update'])->whereUuid('id');
+    Route::delete('/brand-partners/{id}', [BrandPartnerApiController::class, 'destroy'])->whereUuid('id');
+    Route::get('/brand-partners/analytics', [BrandPartnerApiController::class, 'analytics']);
+    Route::post('/brand-partner-categories', [BrandPartnerApiController::class, 'storeCategory']);
+    Route::put('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'updateCategory'])->whereUuid('id');
+    Route::delete('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'destroyCategory'])->whereUuid('id');
+    Route::patch('/brand-partners/{id}/status', [BrandPartnerApiController::class, 'toggleStatus'])->whereUuid('id');
+    Route::patch('/brand-partners/{id}/featured', [BrandPartnerApiController::class, 'toggleFeatured'])->whereUuid('id');
+    Route::patch('/brand-partners/{id}/sponsored', [BrandPartnerApiController::class, 'toggleSponsored'])->whereUuid('id');
+    Route::post('/brand-partners/reorder', [BrandPartnerApiController::class, 'reorder']);
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
@@ -909,6 +935,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/billing/invoices/{invoiceId}/pdf', [InvoiceController::class, 'pdf']);
         Route::get('/circles/{circle}/package', [CircleSubscriptionController::class, 'package']);
         Route::post('/billing/circle-checkout/{circle}', [CircleSubscriptionController::class, 'checkout']);
+
+        // Authenticated Brand Partner bookmarks
+        Route::post('/brand-partners/{id}/save', [BrandPartnerApiController::class, 'save'])->whereUuid('id');
+        Route::delete('/brand-partners/{id}/save', [BrandPartnerApiController::class, 'unsave'])->whereUuid('id');
+        Route::get('/my-saved-brand-partners', [BrandPartnerApiController::class, 'mySaved']);
     });
 
     Route::get('/membership-plans', [MembershipPlanController::class, 'index']);
@@ -941,6 +972,17 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/circulars', [CircularController::class, 'index']);
     Route::get('/circulars/{id}', [CircularController::class, 'show']);
+
+    // Public Brand Partner APIs
+    Route::get('/brand-partners', [BrandPartnerApiController::class, 'index']);
+    Route::get('/brand-partners/home', [BrandPartnerApiController::class, 'home']);
+    Route::get('/brand-partners/search', [BrandPartnerApiController::class, 'search']);
+    Route::get('/brand-partners/offers', [BrandPartnerApiController::class, 'offers']);
+    Route::get('/brand-partners/{id}', [BrandPartnerApiController::class, 'show'])->whereUuid('id');
+    Route::get('/brand-partner-categories', [BrandPartnerApiController::class, 'categories']);
+    Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
+    Route::post('/brand-partners/{id}/click', [BrandPartnerApiController::class, 'click'])->whereUuid('id');
+    Route::get('/featured-brand-partners', [BrandPartnerApiController::class, 'featured']);
 
 
     // Other module routes (members, circles, posts, etc.) will be added here later.
@@ -1063,4 +1105,5 @@ Route::get('/debug-logs', function () {
             'error' => $e->getMessage(),
         ]);
     }
+});
 });
