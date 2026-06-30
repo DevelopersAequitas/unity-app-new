@@ -344,6 +344,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/campaign-pamphlets/{pamphlet}', [CampaignPamphletController::class, 'destroy'])->name('campaign-pamphlets.destroy');
 
         Route::get('/email-logs', [EmailLogController::class, 'index'])->name('email-logs.index');
+        Route::get('/email-logs/export/csv', [EmailLogController::class, 'export'])->name('email-logs.export.csv');
         Route::get('/daily-notifications', [DailyNotificationController::class, 'index'])->name('daily-notifications.index');
         Route::put('/daily-notifications/{id}', [DailyNotificationController::class, 'update'])->name('daily-notifications.update');
         Route::get('/daily-notifications/{id}/eligible-users', [DailyNotificationController::class, 'eligibleUsers'])->name('daily-notifications.eligible-users');

@@ -6,6 +6,7 @@ use App\Models\EmailLog;
 use App\Models\User;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -84,9 +85,12 @@ class EmailLogService
             }
 
             $payload = Arr::get($data, 'payload');
-            if (is_array($payload)) {
-                $payload = $this->sanitizePayload($payload);
+            if (! is_array($payload)) {
+                $payload = [];
             }
+
+            $context = $this->resolveTriggerContext($data);
+            $payload = $this->sanitizePayload(array_replace_recursive($payload, $context['payload']));
 
             $record = [
                 'id' => Arr::get($data, 'id', (string) Str::uuid()),
@@ -98,12 +102,12 @@ class EmailLogService
                 'source_module' => Arr::get($data, 'source_module'),
                 'related_type' => Arr::get($data, 'related_type'),
                 'related_id' => $this->stringValue(Arr::get($data, 'related_id')),
-                'source_type' => Arr::get($data, 'source_type'),
-                'source_id' => $this->stringValue(Arr::get($data, 'source_id')),
+                'source_type' => Arr::get($data, 'source_type', $context['source_type']),
+                'source_id' => $this->stringValue(Arr::get($data, 'source_id', $context['source_id'])),
                 'source_event' => Arr::get($data, 'source_event'),
                 'status' => Arr::get($data, 'status', 'sent'),
                 'body_html' => Arr::get($data, 'body_html'),
-                'payload' => is_array($payload) ? $payload : null,
+                'payload' => $payload ?: null,
                 'error_message' => Arr::get($data, 'error_message'),
                 'sent_at' => Arr::get($data, 'sent_at', now()),
                 'created_at' => Arr::get($data, 'created_at', now()),
@@ -117,6 +121,57 @@ class EmailLogService
 
             return null;
         }
+    }
+
+
+    private function resolveTriggerContext(array $data): array
+    {
+        $context = [
+            'source_type' => Arr::get($data, 'source_type'),
+            'source_id' => Arr::get($data, 'source_id'),
+            'payload' => [],
+        ];
+
+        if (Auth::guard('admin')->check()) {
+            $admin = Auth::guard('admin')->user();
+            $admin?->loadMissing('roles:id,key,name');
+
+            $context['source_type'] = $context['source_type'] ?: 'admin';
+            $context['source_id'] = $context['source_id'] ?: $admin?->id;
+            $context['payload']['admin'] = array_filter([
+                'id' => $admin?->id,
+                'name' => $admin?->name,
+                'email' => $admin?->email,
+                'role' => $admin?->roles?->pluck('key')->filter()->implode(', '),
+                'session_id' => request()?->hasSession() ? request()->session()->getId() : null,
+                'login_time' => request()?->hasSession() ? request()->session()->get('login_time') : null,
+                'last_activity' => now()->toDateTimeString(),
+                'ip_address' => request()?->ip(),
+            ], fn ($value) => $value !== null && $value !== '');
+            $context['payload']['ip_address'] = request()?->ip();
+            $context['payload']['user_agent'] = request()?->userAgent();
+
+            return $context;
+        }
+
+        if (Auth::guard('web')->check()) {
+            $user = Auth::guard('web')->user();
+            $context['source_type'] = $context['source_type'] ?: 'user';
+            $context['source_id'] = $context['source_id'] ?: $user?->id;
+            $context['payload']['user'] = array_filter([
+                'id' => $user?->id,
+                'name' => $user?->name,
+                'email' => $user?->email,
+            ], fn ($value) => $value !== null && $value !== '');
+            $context['payload']['ip_address'] = request()?->ip();
+            $context['payload']['user_agent'] = request()?->userAgent();
+
+            return $context;
+        }
+
+        $context['source_type'] = $context['source_type'] ?: 'system';
+
+        return $context;
     }
 
     private function renderMailableSafely(Mailable $mailable): ?string
