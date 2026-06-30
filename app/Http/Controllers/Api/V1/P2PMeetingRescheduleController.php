@@ -10,6 +10,7 @@ use App\Models\P2PMeetingRequest;
 use App\Models\P2PMeetingRescheduleRequest;
 use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
+use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -210,9 +211,25 @@ class P2PMeetingRescheduleController extends BaseApiController
             return;
         }
 
+        $mailable = new P2PMeetingWorkflowMail($eventType, $meetingRequest, $recipient, $actor, $rescheduleRequest, $responseReason);
+        $logData = [
+            'user_id' => (string) $recipient->id,
+            'to_email' => $email,
+            'to_name' => (string) ($recipient->display_name ?: trim(($recipient->first_name ?? '') . ' ' . ($recipient->last_name ?? ''))),
+            'template_key' => 'p2p_meeting_' . $eventType,
+            'source_module' => 'P2P Meetings',
+            'related_type' => P2PMeetingRequest::class,
+            'related_id' => (string) $meetingRequest->id,
+            'triggered_user_id' => (string) $actor->id,
+            'triggered_by' => (string) ($actor->display_name ?: $actor->email ?: $actor->id),
+            'payload' => ['event_type' => $eventType],
+        ];
+
         try {
-            Mail::to($email)->send(new P2PMeetingWorkflowMail($eventType, $meetingRequest, $recipient, $actor, $rescheduleRequest, $responseReason));
+            Mail::to($email)->send($mailable);
+            app(EmailLogService::class)->logMailableSent($mailable, $logData);
         } catch (\Throwable $exception) {
+            app(EmailLogService::class)->logMailableFailed($mailable, $logData, $exception);
             Log::error('P2P meeting workflow email failed', [
                 'event_type' => $eventType,
                 'meeting_request_id' => (string) $meetingRequest->id,

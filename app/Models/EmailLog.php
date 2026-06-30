@@ -32,6 +32,12 @@ class EmailLog extends Model
         'body_html',
         'payload',
         'error_message',
+        'triggered_by',
+        'triggered_user_id',
+        'mail_provider',
+        'queue_id',
+        'message_id',
+        'body_text',
         'sent_at',
         'created_at',
     ];

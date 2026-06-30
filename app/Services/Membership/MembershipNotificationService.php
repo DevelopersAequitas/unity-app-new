@@ -6,6 +6,7 @@ use App\Mail\MembershipStatusChangedMail;
 use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
 use App\Models\User;
+use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -73,10 +74,35 @@ class MembershipNotificationService
         $data = ['previous_status' => $previousStatus, 'updated_by_admin' => $updatedBy, 'source' => $source, 'updated_at' => now()->toIso8601String()];
         if ($email && filled($user->email)) {
             try {
-                Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $previousStatus, $newStatus, $updatedBy));
+                $mailable = new MembershipStatusChangedMail($user, $previousStatus, $newStatus, $updatedBy);
+                Mail::to($user->email)->send($mailable);
+                app(EmailLogService::class)->logMailableSent($mailable, [
+                    'user_id' => (string) $user->id,
+                    'to_email' => (string) $user->email,
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'template_key' => 'membership_status_changed',
+                    'source_module' => 'Membership',
+                    'related_type' => User::class,
+                    'related_id' => (string) $user->id,
+                    'triggered_by' => $updatedBy,
+                    'payload' => ['previous_status' => $previousStatus, 'new_status' => $newStatus, 'source' => $source],
+                ]);
                 $this->recordEmailSent($user, 'membership_status_email_sent', (string) $user->email, $source);
             }
             catch (Throwable $e) {
+                if (isset($mailable)) {
+                    app(EmailLogService::class)->logMailableFailed($mailable, [
+                        'user_id' => (string) $user->id,
+                        'to_email' => (string) $user->email,
+                        'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                        'template_key' => 'membership_status_changed',
+                        'source_module' => 'Membership',
+                        'related_type' => User::class,
+                        'related_id' => (string) $user->id,
+                        'triggered_by' => $updatedBy,
+                    ], $e);
+                }
+
                 Log::warning('membership.status_email_failed', [
                     'user_id' => $user->id,
                     'to_email' => $user->email,
@@ -96,10 +122,35 @@ class MembershipNotificationService
         $message = 'Here is your latest membership information.';
         if (filled($user->email)) {
             try {
-                Mail::to($user->email)->send(new MembershipStatusChangedMail($user, $user->membership_status, $user->membership_status, $triggeredBy, true));
+                $mailable = new MembershipStatusChangedMail($user, $user->membership_status, $user->membership_status, $triggeredBy, true);
+                Mail::to($user->email)->send($mailable);
+                app(EmailLogService::class)->logMailableSent($mailable, [
+                    'user_id' => (string) $user->id,
+                    'to_email' => (string) $user->email,
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'template_key' => 'membership_manual_notification',
+                    'source_module' => 'Membership',
+                    'related_type' => User::class,
+                    'related_id' => (string) $user->id,
+                    'triggered_by' => $triggeredBy,
+                    'payload' => ['source' => 'manual_membership_notification'],
+                ]);
                 $this->recordEmailSent($user, 'membership_status_email_sent', (string) $user->email, 'manual_membership_notification');
             }
             catch (Throwable $e) {
+                if (isset($mailable)) {
+                    app(EmailLogService::class)->logMailableFailed($mailable, [
+                        'user_id' => (string) $user->id,
+                        'to_email' => (string) $user->email,
+                        'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                        'template_key' => 'membership_manual_notification',
+                        'source_module' => 'Membership',
+                        'related_type' => User::class,
+                        'related_id' => (string) $user->id,
+                        'triggered_by' => $triggeredBy,
+                    ], $e);
+                }
+
                 Log::warning('membership.manual_email_failed', [
                     'user_id' => $user->id,
                     'to_email' => $user->email,
