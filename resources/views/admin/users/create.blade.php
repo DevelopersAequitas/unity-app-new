@@ -145,6 +145,7 @@
                                 'free_trial_peer' => 'Free Trial Peer',
                                 'free_peer' => 'Free Peer',
                                 'Only Green Peer' => 'Only Green Peer',
+                                'only_unity_peer' => 'Only Unity Peer',
                                 'Circle Peer' => 'Circle Peer',
                                 'Multi Circle Peer' => 'Multi Circle Peer',
                                 'Charter Peer' => 'Charter Peer',
@@ -154,10 +155,19 @@
                                 'Circle Director' => 'Circle Director',
                                 'Board Advisor' => 'Board Advisor',
                             ];
+                            $currentMembershipStatus = old('membership_status', $user->membership_status);
+                            $membershipStatusOptions = collect($membershipStatuses)
+                                ->reduce(function (array $options, string $status) use ($membershipStatusLabels, $currentMembershipStatus): array {
+                                    $label = $membershipStatusLabels[$status] ?? $status;
+                                    if (! isset($options[$label]) || $status === $currentMembershipStatus) {
+                                        $options[$label] = $status;
+                                    }
+                                    return $options;
+                                }, []);
                         @endphp
                         <select name="membership_status" class="form-select">
-                            @foreach ($membershipStatuses as $status)
-                                <option value="{{ $status }}" @selected(old('membership_status', $user->membership_status) === $status)>{{ $membershipStatusLabels[$status] ?? $status }}</option>
+                            @foreach ($membershipStatusOptions as $label => $status)
+                                <option value="{{ $status }}" @selected($currentMembershipStatus === $status)>{{ $membershipStatusLabels[$status] ?? $status }}</option>
                             @endforeach
                         </select>
                     </div>

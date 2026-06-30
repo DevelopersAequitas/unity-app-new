@@ -33,6 +33,7 @@
         $customUnit = old('schedule.custom_unit', $schedule ? $schedule->custom_unit : 'day');
         $cycleSendDays = old('schedule.cycle_send_days', $schedule ? $schedule->cycle_send_days : 2);
         $cyclePauseDays = old('schedule.cycle_pause_days', $schedule ? $schedule->cycle_pause_days : 2);
+        $selectedSenderEmail = old('sender_email', $campaign->sender_email);
     @endphp
 
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -72,6 +73,16 @@
                             <label class="form-label">Campaign Title</label>
                             <input type="text" name="title" class="form-control" value="{{ old('title', $campaign->title) }}" placeholder="e.g. June Monthly Newsletter" required>
                             <div class="form-text">A friendly name to identify this campaign in the list.</div>
+                            <label class="form-label" for="campaignSenderEmail">Sender Email</label>
+                            <select name="sender_email" id="campaignSenderEmail" class="form-select" required>
+                                @foreach ($senderEmails as $senderEmail)
+                                    <option value="{{ $senderEmail }}" @selected($selectedSenderEmail === $senderEmail)>{{ $senderEmail }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="campaignSubject">Subject</label>
+                            <input type="text" id="campaignSubject" name="subject" class="form-control" value="{{ old('subject', $campaign->subject ?? '') }}" @required($showEmailFields)>
                         </div>
                         
                         <div class="mb-3">

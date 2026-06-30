@@ -95,6 +95,7 @@ use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
+use App\Http\Controllers\Api\V1\MutualConnectionController;
 use App\Http\Controllers\Api\V1\MyEventQrController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\P2PMeetingRescheduleController;
@@ -128,6 +129,8 @@ use Illuminate\Support\Facades\Route;
 
 // Backward-compatible ads endpoint for clients that still call /api/ads.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
+// Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
+Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
 Route::prefix('v1')->group(function () {
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
@@ -330,6 +333,9 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
+        Route::get('network/mutual-connections/{user_uuid}', [MutualConnectionController::class, 'index'])
+            ->whereUuid('user_uuid');
+
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
@@ -338,6 +344,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 
         Route::get('/profile', [ProfileController::class, 'show']);
+        Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
 
@@ -354,6 +361,7 @@ Route::prefix('v1')->group(function () {
 
         // Members & connections
         Route::get('members/names', [MemberController::class, 'names']);
+        Route::get('members/limited', [MemberController::class, 'limited']);
 
         Route::get('/members/profile/{slug}', [MemberController::class, 'publicProfileBySlug']);
         Route::get('/members/public/{slug}', [MemberController::class, 'publicProfileBySlug']);
@@ -1097,4 +1105,5 @@ Route::get('/debug-logs', function () {
             'error' => $e->getMessage(),
         ]);
     }
+});
 });

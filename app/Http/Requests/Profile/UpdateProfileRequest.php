@@ -2,11 +2,21 @@
 
 namespace App\Http\Requests\Profile;
 
+use App\Support\ContactVisibility;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdateProfileRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('contact_visibility')) {
+            $this->merge([
+                'contact_visibility' => ContactVisibility::normalize($this->input('contact_visibility')),
+            ]);
+        }
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -49,6 +59,7 @@ class UpdateProfileRequest extends FormRequest
 
             'state'                       => ['sometimes', 'nullable', 'string', 'max:100'],
             'country'                     => ['sometimes', 'nullable', 'string', 'max:100'],
+            'timezone'                    => ['sometimes', 'nullable', 'string', 'max:100'],
             'preferred_language'          => ['sometimes', 'nullable', 'string', 'max:50'],
             'business_logo_id'            => ['sometimes', 'nullable'],
             'business_category_id'        => ['sometimes', 'nullable'],
@@ -74,7 +85,8 @@ class UpdateProfileRequest extends FormRequest
             'facebook_profile'            => ['sometimes', 'nullable', 'url', 'max:500'],
             'youtube_channel'             => ['sometimes', 'nullable', 'url', 'max:500'],
             'other_website'               => ['sometimes', 'nullable', 'url', 'max:500'],
-            'contact_visibility'          => ['sometimes', 'nullable', Rule::in(['everyone', 'connections', 'circle_members', 'leadership_only', 'private'])],
+            'profile_visibility'         => ['sometimes', 'nullable', Rule::in(['everyone', 'connected_only', 'circle_only', 'hidden'])],
+            'contact_visibility'          => ['sometimes', 'nullable', Rule::in(ContactVisibility::allowedValues())],
             'business_address'            => ['sometimes', 'nullable', 'string'],
             'business_city'               => ['sometimes', 'nullable', 'string', 'max:100'],
             'business_state'              => ['sometimes', 'nullable', 'string', 'max:100'],

@@ -1,0 +1,23 @@
+@include('admin.notifications._flash')
+@php($selectedConfig = old('config', json_encode($campaign->config ?: new stdClass(), JSON_PRETTY_PRINT)))
+<div class="card shadow-sm"><div class="card-body"><div class="row g-3">
+<div class="col-md-3"><label class="form-label">Code *</label><input name="code" class="form-control" value="{{ old('code', $campaign->code) }}" required></div>
+<div class="col-md-5"><label class="form-label">Name *</label><input name="name" class="form-control" value="{{ old('name', $campaign->name) }}" required></div>
+<div class="col-md-3"><label class="form-label">Category *</label><input name="category" class="form-control" value="{{ old('category', $campaign->category) }}" required></div>
+<div class="col-md-1 d-flex align-items-end"><div class="form-check form-switch mb-2"><input type="checkbox" class="form-check-input" name="is_active" value="1" @checked(old('is_active', $campaign->is_active ?? true))><label class="form-check-label">Active</label></div></div>
+<div class="col-12"><label class="form-label">Description</label><textarea name="description" class="form-control" rows="2">{{ old('description', $campaign->description) }}</textarea></div>
+<div class="col-md-4"><label class="form-label">Channel *</label><select name="channel" class="form-select" required>@foreach(['push'=>'Push','email'=>'Email','push_email'=>'Push + Email'] as $v=>$l)<option value="{{ $v }}" @selected(old('channel',$campaign->channel)===$v)>{{ $l }}</option>@endforeach</select></div>
+<div class="col-md-4"><label class="form-label">Priority *</label><select name="priority" class="form-select" required>@foreach(['low','medium','high','urgent'] as $v)<option value="{{ $v }}" @selected(old('priority',$campaign->priority)===$v)>{{ Str::headline($v) }}</option>@endforeach</select></div>
+<div class="col-md-4"><label class="form-label">Tap Screen</label><select name="tap_screen" class="form-select"><option value="">None</option>@foreach($screens as $screen)<option value="{{ $screen }}" @selected(old('tap_screen',$campaign->tap_screen)===$screen)>{{ $screen }}</option>@endforeach</select></div>
+<div class="col-md-4"><label class="form-label">Trigger Type *</label><input name="trigger_type" class="form-control" value="{{ old('trigger_type', $campaign->trigger_type) }}" required></div>
+<div class="col-md-4"><label class="form-label">Frequency</label><input name="frequency" class="form-control" value="{{ old('frequency', $campaign->frequency) }}" placeholder="hourly, daily, weekly"></div>
+<div class="col-md-4"><label class="form-label">Audience Type</label><input name="audience_type" class="form-control" value="{{ old('audience_type', $campaign->audience_type) }}"></div>
+<div class="col-md-6"><label class="form-label">Title Template *</label><input name="title_template" class="form-control" value="{{ old('title_template', $campaign->title_template) }}" required></div>
+<div class="col-md-6"><label class="form-label">Email Subject Template</label><input name="email_subject_template" class="form-control" value="{{ old('email_subject_template', $campaign->email_subject_template) }}"></div>
+<div class="col-md-6"><label class="form-label">Body Template *</label><textarea name="body_template" class="form-control" rows="5" required>{{ old('body_template', $campaign->body_template) }}</textarea></div>
+<div class="col-md-6"><label class="form-label">Email Body Template</label><textarea name="email_body_template" class="form-control" rows="5">{{ old('email_body_template', $campaign->email_body_template) }}</textarea></div>
+<div class="col-md-4"><label class="form-label">Daily Limit</label><input type="number" min="0" name="daily_limit" class="form-control" value="{{ old('daily_limit', $campaign->daily_limit) }}"></div>
+<div class="col-md-4"><label class="form-label">Cooldown Hours</label><input type="number" min="0" name="cooldown_hours" class="form-control" value="{{ old('cooldown_hours', $campaign->cooldown_hours) }}"></div>
+<div class="col-md-4"><label class="form-label">Stop Rule</label><textarea name="stop_rule" class="form-control" rows="1">{{ old('stop_rule', $campaign->stop_rule) }}</textarea></div>
+<div class="col-12"><label class="form-label">Config JSON</label><textarea name="config" class="form-control font-monospace" rows="6">{{ $selectedConfig }}</textarea></div>
+</div></div><div class="card-footer bg-white d-flex gap-2 justify-content-end"><a href="{{ route('admin.notifications.campaigns') }}" class="btn btn-outline-secondary">Cancel</a><button name="action" value="preview" class="btn btn-outline-primary">Save & Preview</button><button class="btn btn-primary">Save</button></div></div>

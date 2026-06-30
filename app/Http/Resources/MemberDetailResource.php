@@ -64,7 +64,7 @@ class MemberDetailResource extends UserResource
             'facebook_profile' => $this->facebook_profile,
             'youtube_channel' => $this->youtube_channel,
             'other_website' => $this->other_website,
-            'contact_visibility' => $this->contact_visibility ?? 'connections',
+            'contact_visibility' => $this->contact_visibility ?? 'connected_only',
             'social_links' => $this->socialLinksObject(),
             'business_address' => $this->business_address,
             'business_city' => $this->business_city,

@@ -7,6 +7,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
 
@@ -25,7 +26,7 @@ class FcmService
         $notificationType = $context['notification_type'] ?? ($data['notification_type'] ?? ($data['type'] ?? null));
 
         try {
-            $projectId = (string) config('firebase.project_id');
+            $projectId = $this->projectId();
 
             if ($projectId === '') {
                 throw new RuntimeException('Firebase project id is not configured.');
@@ -72,8 +73,46 @@ class FcmService
                 ];
             }
 
+            if ($this->isAuthenticationErrorResponse($firebaseResponse, $response->status())) {
+                Log::error('FCM HTTP v1 authentication/configuration error', [
+                    'token_masked' => $this->maskToken($deviceToken),
+                    'user_id' => $context['user_id'] ?? null,
+                    'device_id' => $context['device_id'] ?? null,
+                    'platform' => $context['platform'] ?? null,
+                    'notification_type' => $notificationType,
+                    'firebase_error' => $response->body(),
+                    'diagnostics' => $this->diagnostics(),
+                ]);
+
+                return [
+                    'success' => false,
+                    'firebase_response' => $firebaseResponse,
+                    'error' => 'Firebase authentication error',
+                    'firebase_status' => Arr::get($firebaseResponse, 'error.status'),
+                    'firebase_error_code' => Arr::get($firebaseResponse, 'error.details.0.errorCode'),
+                ];
+            }
+
             if ($this->isInvalidTokenResponse($firebaseResponse)) {
-                UserPushToken::where('token', $deviceToken)->delete();
+                $tokenUpdates = [];
+                if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+                    $tokenUpdates['is_active'] = false;
+                }
+                if (Schema::hasColumn('user_push_tokens', 'status')) {
+                    $tokenUpdates['status'] = 'deactivated';
+                }
+                if (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                    $tokenUpdates['token_status'] = 'deactivated';
+                }
+                if (Schema::hasColumn('user_push_tokens', 'failed_at')) {
+                    $tokenUpdates['failed_at'] = now();
+                }
+                if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
+                    $tokenUpdates['failure_reason'] = $message ?: 'Invalid Firebase token';
+                }
+                if ($tokenUpdates !== []) {
+                    UserPushToken::where('token', $deviceToken)->update($tokenUpdates);
+                }
 
                 Log::warning('FCM token removed after invalid token response', [
                     'token_masked' => $this->maskToken($deviceToken),
@@ -106,6 +145,8 @@ class FcmService
                 'success' => false,
                 'firebase_response' => $firebaseResponse,
                 'error' => 'FCM send failed with HTTP status '.$response->status().'.',
+                'firebase_status' => Arr::get($firebaseResponse, 'error.status'),
+                'firebase_error_code' => Arr::get($firebaseResponse, 'error.details.0.errorCode'),
             ];
         } catch (Throwable $throwable) {
             report($throwable);
@@ -170,9 +211,31 @@ class FcmService
             'visibility' => 'PUBLIC',
         ];
 
+        $apns = [
+            'headers' => [
+                'apns-priority' => '10',
+                'apns-push-type' => 'alert',
+            ],
+            'payload' => [
+                'aps' => [
+                    'alert' => [
+                        'title' => $title,
+                        'body' => $body,
+                    ],
+                    'sound' => 'default',
+                    'badge' => $badge,
+                    'mutable-content' => 1,
+                    'content-available' => 1,
+                ],
+            ],
+        ];
+
         if ($resolvedImageUrl !== null) {
             $notification['image'] = $resolvedImageUrl;
             $androidNotification['image'] = $resolvedImageUrl;
+            $apns['fcm_options'] = [
+                'image' => $resolvedImageUrl,
+            ];
         }
 
         $normalizedData = $this->normalizeData($data);
@@ -187,34 +250,89 @@ class FcmService
                     'ttl' => '86400s',
                     'notification' => $androidNotification,
                 ],
-                'apns' => [
-                    'headers' => [
-                        'apns-priority' => '10',
-                        'apns-push-type' => 'alert',
-                    ],
-                    'payload' => [
-                        'aps' => [
-                            'alert' => [
-                                'title' => $title,
-                                'body' => $body,
-                            ],
-                            'sound' => 'default',
-                            'badge' => $badge,
-                            'mutable-content' => 1,
-                            'content-available' => 1,
-                        ],
-                    ],
-                ],
+                'apns' => $apns,
             ],
         ];
+    }
+
+
+    public function credentialsAvailable(): bool
+    {
+        return $this->resolveFirebaseCredentialsPath() !== null;
+    }
+
+    public function diagnostics(): array
+    {
+        $configuredPath = $this->configuredCredentialsPath();
+        $candidates = $configuredPath ? $this->credentialPathCandidates($configuredPath) : [];
+        $resolvedPath = $this->resolveFirebaseCredentialsPath() ?: ($candidates[0] ?? null);
+
+        return [
+            'project_id' => $this->projectId(),
+            'credentials_configured' => $configuredPath !== null,
+            'resolved_credentials_path' => $resolvedPath,
+            'file_exists' => $resolvedPath !== null && file_exists($resolvedPath),
+            'file_readable' => $resolvedPath !== null && is_readable($resolvedPath),
+        ];
+    }
+
+    private function projectId(): string
+    {
+        return (string) (config('services.firebase.project_id') ?: config('firebase.project_id') ?: env('FIREBASE_PROJECT_ID', ''));
+    }
+
+    private function configuredCredentialsPath(): ?string
+    {
+        $path = config('services.firebase.credentials') ?: config('firebase.credentials_path') ?: config('firebase.credentials') ?: env('FIREBASE_CREDENTIALS');
+
+        if (! $path) {
+            return null;
+        }
+
+        $path = trim((string) $path);
+        $path = trim($path, "\"'");
+
+        return $path !== '' ? $path : null;
+    }
+
+    private function credentialPathCandidates(string $path): array
+    {
+        $candidates = [];
+
+        if (str_starts_with($path, '/') || (strlen($path) > 2 && ctype_alpha($path[0]) && $path[1] === ':' && in_array($path[2], ['/', '\\'], true))) {
+            $candidates[] = $path;
+        }
+
+        $candidates[] = base_path($path);
+        $candidates[] = storage_path($path);
+        $candidates[] = storage_path('app/' . ltrim($path, '/\\'));
+
+        return array_values(array_unique($candidates));
+    }
+
+    private function resolveFirebaseCredentialsPath(): ?string
+    {
+        $path = $this->configuredCredentialsPath();
+
+        if ($path === null) {
+            return null;
+        }
+
+        foreach ($this->credentialPathCandidates($path) as $candidate) {
+            if ($candidate && file_exists($candidate) && is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function getAccessToken(): string
     {
         return Cache::remember('firebase.fcm.access_token', now()->addMinutes(50), function (): string {
-            $credentialsPath = (string) config('firebase.credentials_path');
+            $credentialsPath = $this->resolveFirebaseCredentialsPath();
 
-            if ($credentialsPath === '' || ! is_file($credentialsPath)) {
+            if ($credentialsPath === null) {
                 throw new RuntimeException('Firebase credentials file is not available.');
             }
 
@@ -318,6 +436,24 @@ class FcmService
         return substr($token, 0, 8).'****';
     }
 
+    private function isAuthenticationErrorResponse(mixed $response, int $httpStatus): bool
+    {
+        if (! is_array($response)) {
+            return $httpStatus === 401 || $httpStatus === 403;
+        }
+
+        $status = strtoupper((string) Arr::get($response, 'error.status', ''));
+        $errorCode = strtoupper((string) Arr::get($response, 'error.details.0.errorCode', ''));
+        $message = strtolower((string) Arr::get($response, 'error.message', ''));
+
+        return in_array($httpStatus, [401, 403], true)
+            || in_array($status, ['UNAUTHENTICATED', 'PERMISSION_DENIED'], true)
+            || $errorCode === 'THIRD_PARTY_AUTH_ERROR'
+            || str_contains($message, 'third_party_auth_error')
+            || str_contains($message, 'permission')
+            || str_contains($message, 'credential');
+    }
+
     private function isInvalidTokenResponse(mixed $response): bool
     {
         if (! is_array($response)) {
@@ -329,6 +465,11 @@ class FcmService
 
         return in_array($errorCode, ['UNREGISTERED', 'INVALID_ARGUMENT'], true)
             || str_contains($message, 'registration token is not a valid fcm registration token')
-            || str_contains($message, 'requested entity was not found');
+            || str_contains($message, 'requested entity was not found')
+            || str_contains($message, 'invalid')
+            || str_contains($message, 'unregistered')
+            || str_contains($message, 'not registered')
+            || str_contains($message, 'not-registered')
+            || str_contains($message, 'invalid-argument');
     }
 }

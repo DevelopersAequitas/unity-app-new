@@ -9,6 +9,9 @@
 @endphp
 <header class="admin-topbar d-flex align-items-center justify-content-between px-4 py-3 border-bottom bg-white">
     <div class="d-flex align-items-center gap-3 flex-grow-1">
+        <button class="btn btn-light d-lg-none" id="sidebarToggle" type="button" aria-label="Toggle Sidebar">
+            <i class="bi bi-list fs-4"></i>
+        </button>
         <div class="search-box flex-grow-1">
             <form class="w-100">
                 <div class="input-group">

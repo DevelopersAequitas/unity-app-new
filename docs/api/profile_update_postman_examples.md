@@ -51,7 +51,7 @@ Partial updates are supported. Send only the fields that should change.
   "facebook_profile": "https://facebook.com/example",
   "youtube_channel": "https://youtube.com/@example",
   "other_website": "https://example.com",
-  "contact_visibility": "connections",
+  "contact_visibility": "connected_only",
   "business_address": "Full business address here",
   "business_city": "Ahmedabad",
   "business_state": "Gujarat",
@@ -99,5 +99,5 @@ Mapping:
 - `year_of_establishment` must be between `1800` and the current year.
 - `google_maps_latitude` must be between `-90` and `90`.
 - `google_maps_longitude` must be between `-180` and `180`.
-- `contact_visibility`: `everyone`, `connections`, `circle_members`, `leadership_only`, or `private`.
+- `contact_visibility`: `everyone`, `connected_only`, `circle_only`, or `hidden`. Legacy values such as `connections`, `circle_members`, and `private` are normalized for backward compatibility.
 - `preferred_meeting_format`: `in_person`, `virtual`, or `both`.

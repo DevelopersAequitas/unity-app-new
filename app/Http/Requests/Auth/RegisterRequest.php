@@ -98,6 +98,7 @@ class RegisterRequest extends FormRequest
             'state' => ['nullable', 'string', 'max:100'],
             'district' => ['nullable', 'string', 'max:150'],
             'country' => ['nullable', 'string', 'max:100'],
+            'timezone' => ['nullable', 'string', 'max:100'],
             'business_category_main_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
             'business_category_sub_id' => ['nullable', 'integer', Rule::exists($this->level4CategoriesTable(), 'id')],
             'main_business_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
