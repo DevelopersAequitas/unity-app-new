@@ -265,6 +265,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/posts/{post}/deactivate', [PostModerationController::class, 'deactivate'])->name('posts.deactivate');
         Route::post('/posts/{post}/restore', [PostModerationController::class, 'restore'])->name('posts.restore');
         Route::get('/visitor-registrations', [VisitorRegistrationsController::class, 'index'])->name('visitor-registrations.index');
+        Route::get('/pending-registrations', [VisitorRegistrationsController::class, 'index'])->name('pending-registrations.index');
         Route::post('/visitor-registrations/{id}/approve', [VisitorRegistrationsController::class, 'approve'])
             ->whereUuid('id')
             ->name('visitor-registrations.approve');

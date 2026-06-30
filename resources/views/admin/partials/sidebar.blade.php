@@ -6,6 +6,9 @@
     $isDed = \App\Support\AdminAccess::isDed($adminUser);
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
     $isIndustryDirector = $adminUser?->roles?->pluck('key')->contains('industry_director') ?? false;
+    $sidebarRouteUrl = fn (?string $routeName) => $routeName && $routeName !== '#' && Route::has($routeName)
+        ? route($routeName)
+        : '#';
 
     $dashboardItem = $isIndustryDirector
         ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.industry-director.dashboard']
@@ -162,7 +165,7 @@
 
 <aside class="admin-sidebar d-flex flex-column">
     <div class="text-center mb-2">
-        <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
+        <a href="{{ $sidebarRouteUrl($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
                 src="/api/v1/files/019bd9d7-7e13-71fc-8395-0e1dd20a268b"
                 alt="Peers Global Unity"
@@ -177,7 +180,7 @@
         <ul class="nav flex-column">
             @if ($dashboardItem)
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs($dashboardItem['route']) ? 'active' : '' }}" href="{{ route($dashboardItem['route']) }}">
+                    <a class="nav-link {{ request()->routeIs($dashboardItem['route']) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($dashboardItem['route']) }}">
                         <i class="bi {{ $dashboardItem['icon'] }} me-2"></i>{{ $dashboardItem['label'] }}
                     </a>
                 </li>
@@ -193,7 +196,7 @@
                         <ul class="nav flex-column ms-3">
                             @foreach ($activityMenu as $item)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($item['route']) }}">
                                         {{ $item['label'] }}
                                     </a>
                                 </li>
@@ -205,7 +208,7 @@
 
             @if ($referralReportItem)
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs(...$referralReportItem['active_routes']) ? 'active' : '' }}" href="{{ route($referralReportItem['route']) }}">
+                    <a class="nav-link {{ request()->routeIs(...$referralReportItem['active_routes']) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($referralReportItem['route']) }}">
                         <i class="bi {{ $referralReportItem['icon'] }} me-2"></i>{{ $referralReportItem['label'] }}
                     </a>
                 </li>
@@ -221,7 +224,7 @@
                         <ul class="nav flex-column ms-3">
                             @foreach ($postsMenu as $item)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($item['route']) }}">
                                         {{ $item['label'] }}
                                     </a>
                                 </li>
@@ -240,7 +243,7 @@
                     <ul class="nav flex-column ms-3">
                         @foreach ($pendingRequestsMenu as $item)
                             <li class="nav-item">
-                                <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($item['route']) }}">
                                     {{ $item['label'] }}
                                 </a>
                             </li>
@@ -259,7 +262,7 @@
                         <ul class="nav flex-column ms-3">
                             @foreach ($eventsManagementMenu as $eventItem)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
+                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
                                 </li>
                             @endforeach
                         </ul>
@@ -278,7 +281,7 @@
                             <ul class="nav flex-column ms-3">
                                 @foreach ($campaignsMenu as $campaignItem)
                                     <li class="nav-item">
-                                        <a class="nav-link {{ (isset($campaignItem['active_routes']) ? request()->routeIs(...$campaignItem['active_routes']) : request()->routeIs($campaignItem['route'])) ? 'active' : '' }}" href="{{ route($campaignItem['route']) }}">{{ $campaignItem['label'] }}</a>
+                                        <a class="nav-link {{ (isset($campaignItem['active_routes']) ? request()->routeIs(...$campaignItem['active_routes']) : request()->routeIs($campaignItem['route'])) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($campaignItem['route']) }}">{{ $campaignItem['label'] }}</a>
                                     </li>
                                 @endforeach
                             </ul>
@@ -291,7 +294,7 @@
                                 <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                             </span>
                         @else
-                            <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                            <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($item['route']) }}">
                                 <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                             </a>
                         @endif
@@ -312,7 +315,7 @@
                             @foreach ($notificationsMenu as $notificationItem)
                                 @php($notificationItemActive = request()->routeIs(...$notificationItem['active_routes']))
                                 <li class="nav-item">
-                                    <a class="nav-link {{ $notificationItemActive ? 'active' : '' }}" href="{{ route($notificationItem['route']) }}">
+                                    <a class="nav-link {{ $notificationItemActive ? 'active' : '' }}" href="{{ $sidebarRouteUrl($notificationItem['route']) }}">
                                         <i class="bi {{ $notificationItem['icon'] }} me-2"></i>
                                         <span>{{ $notificationItem['label'] }}</span>
                                     </a>
@@ -325,7 +328,7 @@
 
             @if ($isGlobalAdmin)
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
+                    <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ $sidebarRouteUrl('admin.app-config.index') }}">
                         <i class="bi bi-sliders me-2"></i>App Configuration
                     </a>
                 </li>
@@ -337,7 +340,7 @@
 
             @foreach ($bottomNavItems as $item)
                 <li class="nav-item">
-                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($item['route']) }}">
                         <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
                     </a>
                 </li>
@@ -353,7 +356,7 @@
                     <ul class="nav flex-column ms-3">
                         @foreach ($leadsMenu as $item)
                             <li class="nav-item">
-                                <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($item['route']) }}">
                                     {{ $item['label'] }}
                                 </a>
                             </li>
@@ -374,7 +377,7 @@
                         <ul class="nav flex-column ms-3">
                             @foreach ($eventsManagementMenu as $eventItem)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
+                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ $sidebarRouteUrl($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
                                 </li>
                             @endforeach
                         </ul>
@@ -385,7 +388,7 @@
     </nav>
 
     <div class="sidebar-footer">
-        <form method="POST" action="{{ route('admin.logout') }}">
+        <form method="POST" action="{{ $sidebarRouteUrl('admin.logout') }}">
             @csrf
             <button class="btn btn-outline-secondary w-100">
                 <i class="bi bi-box-arrow-right me-2"></i>Logout
