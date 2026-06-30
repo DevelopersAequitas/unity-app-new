@@ -10,6 +10,7 @@ use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\AdminAccess;
+use App\Services\Auth\AdminLoginOtpEmailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +19,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -85,12 +85,7 @@ class AdminAuthController extends Controller
         $otpRecord->used_at = null;
         $otpRecord->save();
 
-        Mail::raw(
-            "Your admin login OTP is {$otp}. It expires in 5 minutes.",
-            static function ($message) use ($email): void {
-                $message->to($email)->subject('Your Admin Login OTP');
-            }
-        );
+        app(AdminLoginOtpEmailService::class)->send($adminUser, $otp);
 
         $request->session()->forget('errors');
         $request->session()->put('admin_login_email', $email);

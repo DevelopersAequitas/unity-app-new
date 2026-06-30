@@ -32,6 +32,8 @@ class EmailLog extends Model
         'body_html',
         'payload',
         'error_message',
+        'provider',
+        'message_id',
         'sent_at',
         'created_at',
     ];

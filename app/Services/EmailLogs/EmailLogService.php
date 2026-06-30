@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -108,6 +109,14 @@ class EmailLogService
                 'sent_at' => Arr::get($data, 'sent_at', now()),
                 'created_at' => Arr::get($data, 'created_at', now()),
             ];
+
+            if (Schema::hasColumn('email_logs', 'provider')) {
+                $record['provider'] = Arr::get($data, 'provider', config('mail.default'));
+            }
+
+            if (Schema::hasColumn('email_logs', 'message_id')) {
+                $record['message_id'] = Arr::get($data, 'message_id');
+            }
 
             return EmailLog::query()->create($record);
         } catch (Throwable $exception) {

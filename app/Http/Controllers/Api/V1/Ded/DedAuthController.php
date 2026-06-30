@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminLoginOtp;
 use App\Models\AdminUser;
 use App\Support\AdminAccess;
+use App\Services\Auth\AdminLoginOtpEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class DedAuthController extends Controller
@@ -53,12 +53,7 @@ class DedAuthController extends Controller
         $otpRecord->used_at = null;
         $otpRecord->save();
 
-        Mail::raw(
-            "Your DED API login OTP is {$otp}. It expires in 5 minutes.",
-            static function ($message) use ($email): void {
-                $message->to($email)->subject('Your DED API Login OTP');
-            }
-        );
+        app(AdminLoginOtpEmailService::class)->send($admin, $otp, 'Your DED API Login OTP', 'ded_admin_login_otp');
 
         return $this->success([], 'OTP sent successfully.');
     }
