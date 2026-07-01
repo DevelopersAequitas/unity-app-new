@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EmailLog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class EmailLogController extends Controller
 {
@@ -29,16 +30,18 @@ class EmailLogController extends Controller
         $dateTo = (string) ($validated['date_to'] ?? '');
         $perPage = (int) ($validated['per_page'] ?? 20);
 
+        $likeOp = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
         $emailLogs = EmailLog::query()
-            ->when($search !== '', function ($builder) use ($search) {
+            ->when($search !== '', function ($builder) use ($search, $likeOp) {
                 $likeQuery = '%' . $search . '%';
 
-                $builder->where(function ($inner) use ($likeQuery) {
-                    $inner->where('to_email', 'ilike', $likeQuery)
-                        ->orWhere('to_name', 'ilike', $likeQuery)
-                        ->orWhere('subject', 'ilike', $likeQuery)
-                        ->orWhere('template_key', 'ilike', $likeQuery)
-                        ->orWhere('source_module', 'ilike', $likeQuery);
+                $builder->where(function ($inner) use ($likeQuery, $likeOp) {
+                    $inner->where('to_email', $likeOp, $likeQuery)
+                        ->orWhere('to_name', $likeOp, $likeQuery)
+                        ->orWhere('subject', $likeOp, $likeQuery)
+                        ->orWhere('template_key', $likeOp, $likeQuery)
+                        ->orWhere('source_module', $likeOp, $likeQuery);
                 });
             })
             ->when($templateKey !== '', fn ($builder) => $builder->where('template_key', $templateKey))
