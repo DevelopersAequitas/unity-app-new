@@ -42,6 +42,28 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Illuminate\Database\Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) {
+            return new class($connection, $database, $prefix, $config) extends \Illuminate\Database\SQLiteConnection {
+                public function statement($query, $bindings = []) {
+                    $query = \App\Support\SqliteMigrator::translate($query);
+                    $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
+                    if (empty(trim($query))) return true;
+                    return parent::statement($query, $bindings);
+                }
+                public function unprepared($query) {
+                    $query = \App\Support\SqliteMigrator::translate($query);
+                    $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
+                    if (empty(trim($query))) return true;
+                    return parent::unprepared($query);
+                }
+                protected function run($query, $bindings, \Closure $callback) {
+                    $query = \App\Support\SqliteMigrator::translate($query);
+                    $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
+                    return parent::run($query, $bindings, $callback);
+                }
+            };
+        });
+
         Paginator::useBootstrapFive();
         Gate::policy(AdminCampaign::class, AdminCampaignPolicy::class);
 

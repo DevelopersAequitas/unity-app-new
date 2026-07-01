@@ -7,7 +7,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::unprepared(<<<'SQL'
+        \App\Support\SqliteMigrator::run(<<<'SQL'
 ALTER TYPE p2p_meeting_status_enum ADD VALUE IF NOT EXISTS 'scheduled';
 ALTER TYPE p2p_meeting_status_enum ADD VALUE IF NOT EXISTS 'reschedule_requested';
 ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_reschedule_requested';
@@ -15,7 +15,7 @@ ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_reschedule_approv
 ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_reschedule_rejected';
 SQL);
 
-        DB::unprepared(<<<'SQL'
+        \App\Support\SqliteMigrator::run(<<<'SQL'
 CREATE TABLE IF NOT EXISTS p2p_meeting_reschedule_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     p2p_meeting_request_id UUID NOT NULL REFERENCES p2p_meeting_requests(id) ON DELETE CASCADE,

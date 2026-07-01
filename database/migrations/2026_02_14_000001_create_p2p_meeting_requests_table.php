@@ -7,7 +7,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::unprepared(<<<'SQL'
+        \App\Support\SqliteMigrator::run(<<<'SQL'
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'p2p_meeting_status_enum') THEN

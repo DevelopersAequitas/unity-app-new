@@ -135,6 +135,10 @@ return new class extends Migration
 
     private function columnDataType(string $table, string $column): ?string
     {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            return 'uuid';
+        }
+
         if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
             return null;
         }
@@ -153,6 +157,10 @@ return new class extends Migration
 
     private function foreignKeyExists(string $constraint): bool
     {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            return false;
+        }
+
         $schema = config('database.connections.' . config('database.default') . '.schema', 'public');
 
         return DB::table('information_schema.table_constraints')

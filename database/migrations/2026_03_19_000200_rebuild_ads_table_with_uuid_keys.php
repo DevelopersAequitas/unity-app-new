@@ -62,6 +62,10 @@ return new class extends Migration {
 
     private function columnType(string $column): ?string
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return 'uuid';
+        }
+
         $connection = Schema::getConnection();
         $table = $connection->getTablePrefix() . 'ads';
 
