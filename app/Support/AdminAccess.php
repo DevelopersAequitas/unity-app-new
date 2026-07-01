@@ -335,11 +335,11 @@ class AdminAccess
         }
 
         $roleKeys = self::adminRoleKeys($admin);
-        if ((bool) array_intersect(['chair', 'vice_chair', 'secretary'], $roleKeys)) {
+        if ((bool) array_intersect(['circle_leader', 'chair', 'vice_chair', 'secretary'], $roleKeys)) {
             return true;
         }
 
-        return in_array(self::primaryCircleRoleKey($admin), ['chair', 'vice_chair', 'secretary'], true);
+        return in_array(self::primaryCircleRoleKey($admin), ['circle_leader', 'chair', 'vice_chair', 'secretary'], true);
     }
 
     public static function canEditUsers(?AdminUser $admin): bool
