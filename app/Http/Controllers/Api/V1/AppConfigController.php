@@ -117,7 +117,6 @@ class AppConfigController extends Controller
         ];
     }
 
-
     private static function appInfo(?AppConfigSetting $branding): array
     {
         $defaults = self::defaultAppInfo();
@@ -238,7 +237,7 @@ class AppConfigController extends Controller
                     ->values();
 
                 return $keys
-                    ->flatMap(fn (string $key) => [$key => $isEnabled, 'drawer_' . $key => $isEnabled])
+                    ->flatMap(fn (string $key) => [$key => $isEnabled, 'drawer_'.$key => $isEnabled])
                     ->all();
             })
             ->all();
@@ -304,7 +303,6 @@ class AppConfigController extends Controller
             ])
             ->toArray();
     }
-
 
     private static function defaultPublicConfig(): array
     {

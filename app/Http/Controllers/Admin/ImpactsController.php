@@ -13,18 +13,17 @@ use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ImpactsController extends Controller
 {
     public function __construct(
         private readonly ImpactService $impactService,
         private readonly ImpactActionService $impactActionService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -191,7 +190,6 @@ class ImpactsController extends Controller
         return redirect()->route('admin.impacts.index')->with('success', 'Impact action added successfully.');
     }
 
-
     public function updateAction(Request $request, string $id): RedirectResponse
     {
         $this->ensureGlobalAdmin();
@@ -336,8 +334,8 @@ class ImpactsController extends Controller
             ]);
 
             foreach ($impacts as $impact) {
-                $impactedPeer = $impact->impactedPeer?->display_name ?: trim(($impact->impactedPeer?->first_name ?? '') . ' ' . ($impact->impactedPeer?->last_name ?? ''));
-                $submittedBy = $impact->user?->display_name ?: trim(($impact->user?->first_name ?? '') . ' ' . ($impact->user?->last_name ?? ''));
+                $impactedPeer = $impact->impactedPeer?->display_name ?: trim(($impact->impactedPeer?->first_name ?? '').' '.($impact->impactedPeer?->last_name ?? ''));
+                $submittedBy = $impact->user?->display_name ?: trim(($impact->user?->first_name ?? '').' '.($impact->user?->last_name ?? ''));
 
                 fputcsv($handle, [
                     optional($impact->impact_date)->toDateString(),
@@ -400,7 +398,6 @@ class ImpactsController extends Controller
 
         return redirect()->back()->with('success', 'Impact rejected successfully.');
     }
-
 
     private function ensureCanAccessImpactsModule(): void
     {

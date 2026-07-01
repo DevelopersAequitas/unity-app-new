@@ -42,7 +42,7 @@ class FeedbackController extends BaseApiController
         }
 
         if ($request->filled('search')) {
-            $search = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $request->string('search')->toString()) . '%';
+            $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $request->string('search')->toString()).'%';
 
             $query->where(function ($q) use ($search): void {
                 $q->where('subject', 'ILIKE', $search)
@@ -67,7 +67,7 @@ class FeedbackController extends BaseApiController
                 'last_page' => $feedbacks->lastPage(),
                 'items' => $feedbacks->getCollection()->map(function (FeedbackForm $feedback): array {
                     $displayName = $feedback->user?->display_name
-                        ?: trim(($feedback->user?->first_name ?? '') . ' ' . ($feedback->user?->last_name ?? ''));
+                        ?: trim(($feedback->user?->first_name ?? '').' '.($feedback->user?->last_name ?? ''));
 
                     return [
                         'id' => $feedback->id,
@@ -155,7 +155,7 @@ class FeedbackController extends BaseApiController
                     $media = FeedbackMedia::query()->create([
                         'feedback_form_id' => $feedback->id,
                         'file_path' => $path,
-                        'file_url' => asset('storage/' . $path),
+                        'file_url' => asset('storage/'.$path),
                         'file_type' => $fileType,
                         'mime_type' => $mimeType,
                         'original_name' => $file->getClientOriginalName(),

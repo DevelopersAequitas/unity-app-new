@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class MembershipPlan extends Model
 {
     protected $table = 'membership_plans';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

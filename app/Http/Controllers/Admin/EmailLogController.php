@@ -31,7 +31,7 @@ class EmailLogController extends Controller
 
         $emailLogs = EmailLog::query()
             ->when($search !== '', function ($builder) use ($search) {
-                $likeQuery = '%' . $search . '%';
+                $likeQuery = '%'.$search.'%';
 
                 $builder->where(function ($inner) use ($likeQuery) {
                     $inner->where('to_email', 'ilike', $likeQuery)

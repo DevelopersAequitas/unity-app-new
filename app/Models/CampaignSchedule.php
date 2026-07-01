@@ -13,7 +13,9 @@ class CampaignSchedule extends Model
     use HasFactory;
 
     protected $table = 'campaign_schedules';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -68,15 +70,16 @@ class CampaignSchedule extends Model
 
     public function getNextRunAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
+
         return \Carbon\Carbon::parse($value, 'UTC');
     }
 
     public function setNextRunAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['next_run_at'] = null;
         } elseif ($value instanceof \DateTimeInterface) {
             $this->attributes['next_run_at'] = $value->format('Y-m-d H:i:s');
@@ -87,15 +90,16 @@ class CampaignSchedule extends Model
 
     public function getLastRunAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
+
         return \Carbon\Carbon::parse($value, 'UTC');
     }
 
     public function setLastRunAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['last_run_at'] = null;
         } elseif ($value instanceof \DateTimeInterface) {
             $this->attributes['last_run_at'] = $value->format('Y-m-d H:i:s');

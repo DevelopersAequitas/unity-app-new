@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Services\LifeImpact\LifeImpactService;
 use Illuminate\Http\JsonResponse;
-use App\Models\User;
 use Illuminate\Support\Str;
 
 class BaseApiController extends Controller
@@ -39,9 +39,9 @@ class BaseApiController extends Controller
         return match ($normalizedType) {
             'testimonial' => $this->buildTestimonialPostMessage($peerName, $testimonialMessage),
             'business_deal' => "Hey Peers, another business connection and handshake turned into real results.\n"
-                . $actorName . ' made a deal with ' . $peerName . ' of amount ' . $amountText . '.',
-            'p2p_meeting' => 'Hey Peers, I have connected with ' . $peerName
-                . ', exchanged ideas, and discussed to have collaboration.',
+                .$actorName.' made a deal with '.$peerName.' of amount '.$amountText.'.',
+            'p2p_meeting' => 'Hey Peers, I have connected with '.$peerName
+                .', exchanged ideas, and discussed to have collaboration.',
             default => '',
         };
     }
@@ -56,17 +56,17 @@ class BaseApiController extends Controller
             return $user->display_name;
         }
 
-        $fullName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
 
         return $fullName !== '' ? $fullName : 'Peer';
     }
 
     protected function buildTestimonialPostMessage(string $peerName, string $testimonialMessage): string
     {
-        $message = 'Hey Peers, sharing a moment of gratitude to ' . $peerName . '.';
+        $message = 'Hey Peers, sharing a moment of gratitude to '.$peerName.'.';
 
         if ($testimonialMessage !== '') {
-            $message .= ' ' . ltrim($testimonialMessage);
+            $message .= ' '.ltrim($testimonialMessage);
         }
 
         return $message;
@@ -81,8 +81,7 @@ class BaseApiController extends Controller
         ?string $activityId = null,
         ?string $description = null,
         ?array $meta = null,
-    ): int
-    {
+    ): int {
         return app(LifeImpactService::class)->addLifeImpact(
             $userId,
             $triggeredByUserId,

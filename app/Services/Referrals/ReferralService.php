@@ -12,12 +12,12 @@ use App\Services\EmailLogs\EmailLogService;
 use App\Services\LifeImpact\LifeImpactService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
 
 class ReferralService
@@ -27,8 +27,7 @@ class ReferralService
         private readonly CoinsService $coinsService,
         private readonly LifeImpactService $lifeImpactService,
         private readonly NotifyUserService $notifyUserService,
-    ) {
-    }
+    ) {}
 
     public function generateOrGetReferral(User $user): array
     {
@@ -93,7 +92,7 @@ class ReferralService
         }
 
         if (Schema::hasColumn('referral_links', 'stats')) {
-            $insertPayload['stats'] = json_encode(new \stdClass());
+            $insertPayload['stats'] = json_encode(new \stdClass);
         }
 
         if (Schema::hasColumn('referral_links', 'expires_at')) {
@@ -122,11 +121,11 @@ class ReferralService
         $codeColumn = $this->referralLinksCodeColumn();
 
         $row = DB::table('referral_links as rl')
-            ->join('users as u', 'u.id', '=', 'rl.' . $userColumn)
-            ->where('rl.' . $codeColumn, $normalized)
+            ->join('users as u', 'u.id', '=', 'rl.'.$userColumn)
+            ->where('rl.'.$codeColumn, $normalized)
             ->select([
-                DB::raw('rl."' . $userColumn . '" as "user_id"'),
-                DB::raw('rl."' . $codeColumn . '" as "referral_code"'),
+                DB::raw('rl."'.$userColumn.'" as "user_id"'),
+                DB::raw('rl."'.$codeColumn.'" as "referral_code"'),
                 'u.first_name',
                 'u.last_name',
                 'u.display_name',
@@ -148,7 +147,7 @@ class ReferralService
             'referrer_user_id' => (string) $row->user_id,
             'referral_code' => (string) $row->referral_code,
             'referral_link' => $this->buildReferralLinkFromToken((string) $row->referral_code),
-            'referrer_name' => trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '') . ' ' . ($row->last_name ?? '')))),
+            'referrer_name' => trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '').' '.($row->last_name ?? '')))),
             'referrer_email' => (string) ($row->email ?? ''),
         ];
     }
@@ -182,202 +181,202 @@ class ReferralService
 
         try {
             return DB::transaction(function () use ($newUser, $normalized, $userColumn, $codeColumn) {
-            $link = DB::table('referral_links')
-                ->where($codeColumn, $normalized)
-                ->lockForUpdate()
-                ->first();
+                $link = DB::table('referral_links')
+                    ->where($codeColumn, $normalized)
+                    ->lockForUpdate()
+                    ->first();
 
-            if (! $link) {
-                throw ValidationException::withMessages([
-                    'referral_code' => ['The selected referral code is invalid.'],
+                if (! $link) {
+                    throw ValidationException::withMessages([
+                        'referral_code' => ['The selected referral code is invalid.'],
+                    ]);
+                }
+
+                $referrerUserId = (string) $link->{$userColumn};
+                $newUserId = (string) $newUser->id;
+
+                Log::info('referral.registration.link_resolved', [
+                    'referrer_user_id' => $referrerUserId,
+                    'referral_code' => $normalized,
                 ]);
-            }
 
-            $referrerUserId = (string) $link->{$userColumn};
-            $newUserId = (string) $newUser->id;
+                if ($referrerUserId === $newUserId) {
+                    throw ValidationException::withMessages([
+                        'referral_code' => ['A user cannot refer themselves.'],
+                    ]);
+                }
 
-            Log::info('referral.registration.link_resolved', [
-                'referrer_user_id' => $referrerUserId,
-                'referral_code' => $normalized,
-            ]);
+                $alreadyReferred = ReferralData::query()
+                    ->where('referred_user_id', $newUserId)
+                    ->exists();
+                $alreadyGrantedForReferredUser = ReferralData::query()
+                    ->where('referred_user_id', $newUserId)
+                    ->where('reward_status', 'granted')
+                    ->exists();
 
-            if ($referrerUserId === $newUserId) {
-                throw ValidationException::withMessages([
-                    'referral_code' => ['A user cannot refer themselves.'],
-                ]);
-            }
-
-            $alreadyReferred = ReferralData::query()
-                ->where('referred_user_id', $newUserId)
-                ->exists();
-            $alreadyGrantedForReferredUser = ReferralData::query()
-                ->where('referred_user_id', $newUserId)
-                ->where('reward_status', 'granted')
-                ->exists();
-
-            Log::info('referral.registration.referred_lookup', [
-                'referred_user_id' => $newUserId,
-                'already_referred' => $alreadyReferred,
-                'referral_code' => $normalized,
-            ]);
-
-            if ($alreadyReferred) {
-                Log::warning('referral.registration.duplicate_referred_user', [
+                Log::info('referral.registration.referred_lookup', [
                     'referred_user_id' => $newUserId,
+                    'already_referred' => $alreadyReferred,
+                    'referral_code' => $normalized,
                 ]);
 
-                throw ValidationException::withMessages([
-                    'referral_code' => ['Referral already applied for this user.'],
-                ]);
-            }
-
-            $alreadyRewarded = CoinsLedger::query()
-                ->where('reference', 'referral_signup:' . $newUserId)
-                ->exists();
-
-            if ($alreadyRewarded) {
-                throw ValidationException::withMessages([
-                    'referral_code' => ['Referral reward already processed for this user.'],
-                ]);
-            }
-
-            $rewardCoins = (int) config('coins.activity_rewards.referral_signup', 100);
-
-            $referrer = User::query()->find($referrerUserId);
-
-            Log::info('referral.registration.referrer_resolved', [
-                'referrer_user_id' => $referrerUserId,
-                'found' => $referrer !== null,
-            ]);
-
-            $insertPayload = [
-                'referrer_user_id' => $referrerUserId,
-                'referred_user_id' => $newUserId,
-                'referral_code' => $normalized,
-                'referrer_email' => $referrer?->email,
-                'coins' => $rewardCoins,
-                'reward_status' => 'granted',
-                'used_at' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-
-            Log::info('referral.registration.before_insert', [
-                'referrer_user_id' => $referrerUserId,
-                'referred_user_id' => $newUserId,
-                'referral_code' => $normalized,
-                'coins' => $rewardCoins,
-                'payload' => $insertPayload,
-            ]);
-
-            $data = ReferralData::query()->create($insertPayload);
-
-            if (! $data->exists || ! $data->id) {
-                throw new \RuntimeException('Referral registration failed: referraldata row was not created.');
-            }
-
-            Log::info('referral.registration.insert_success', [
-                'referral_data_id' => (int) $data->id,
-                'referred_user_id' => $newUserId,
-                'referrer_user_id' => $referrerUserId,
-            ]);
-
-            if ($referrer && blank($data->referrer_email)) {
-                $data->referrer_email = $referrer->email;
-                $data->save();
-            }
-
-            if ($referrer && $rewardCoins > 0) {
-                $this->coinsService->reward(
-                    $referrer,
-                    $rewardCoins,
-                    'referral_signup:' . $newUserId,
-                    [
-                        'source' => 'referral_signup',
-                        'referral_code' => $normalized,
+                if ($alreadyReferred) {
+                    Log::warning('referral.registration.duplicate_referred_user', [
                         'referred_user_id' => $newUserId,
-                        'referrer_user_id' => $referrerUserId,
-                        'coins' => $rewardCoins,
-                    ],
-                    (string) $newUserId
-                );
+                    ]);
 
-                Log::info('referral.reward.granted', [
-                    'referrer_user_id' => (string) $referrer->id,
-                    'referred_user_id' => $newUserId,
-                    'coins' => $rewardCoins,
-                    'referral_data_id' => (int) $data->id,
+                    throw ValidationException::withMessages([
+                        'referral_code' => ['Referral already applied for this user.'],
+                    ]);
+                }
+
+                $alreadyRewarded = CoinsLedger::query()
+                    ->where('reference', 'referral_signup:'.$newUserId)
+                    ->exists();
+
+                if ($alreadyRewarded) {
+                    throw ValidationException::withMessages([
+                        'referral_code' => ['Referral reward already processed for this user.'],
+                    ]);
+                }
+
+                $rewardCoins = (int) config('coins.activity_rewards.referral_signup', 100);
+
+                $referrer = User::query()->find($referrerUserId);
+
+                Log::info('referral.registration.referrer_resolved', [
+                    'referrer_user_id' => $referrerUserId,
+                    'found' => $referrer !== null,
                 ]);
-            }
 
-            if (! $alreadyGrantedForReferredUser) {
-                $lifeImpactActivityId = (is_string($data->id) && Str::isUuid($data->id))
-                    ? (string) $data->id
-                    : null;
-
-                $updatedLifeImpacted = $this->lifeImpactService->addLifeImpact(
-                    $referrerUserId,
-                    $newUserId,
-                    'referral_registration',
-                    $lifeImpactActivityId,
-                    5,
-                    'New referral joined successfully',
-                    'Life impact added for successful referral-based registration.',
-                    [
-                        'to_user_id' => $newUserId,
-                        'referred_user_id' => $newUserId,
-                        'referrer_user_id' => $referrerUserId,
-                        'referral_code' => $normalized,
-                        'coins' => $rewardCoins,
-                    ]
-                );
-
-                Log::info('referral.life_impacted.incremented', [
+                $insertPayload = [
                     'referrer_user_id' => $referrerUserId,
                     'referred_user_id' => $newUserId,
-                    'increment_by' => 5,
-                    'updated_total' => $updatedLifeImpacted,
-                    'referral_data_id' => (int) $data->id,
+                    'referral_code' => $normalized,
+                    'referrer_email' => $referrer?->email,
+                    'coins' => $rewardCoins,
+                    'reward_status' => 'granted',
+                    'used_at' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                Log::info('referral.registration.before_insert', [
+                    'referrer_user_id' => $referrerUserId,
+                    'referred_user_id' => $newUserId,
+                    'referral_code' => $normalized,
+                    'coins' => $rewardCoins,
+                    'payload' => $insertPayload,
                 ]);
-            }
 
-            $referrerLifeImpactedCount = (int) (User::query()
-                ->whereKey($referrerUserId)
-                ->value('life_impacted_count') ?? 0);
+                $data = ReferralData::query()->create($insertPayload);
 
-            if ($referrer) {
-                $this->notifyUserService->notifyUser(
-                    $referrer,
-                    $newUser,
-                    'referral_signup',
-                    [
-                        'title' => 'New Referral Joined',
-                        'body' => 'A new peer has joined using your referral code.',
+                if (! $data->exists || ! $data->id) {
+                    throw new \RuntimeException('Referral registration failed: referraldata row was not created.');
+                }
+
+                Log::info('referral.registration.insert_success', [
+                    'referral_data_id' => (int) $data->id,
+                    'referred_user_id' => $newUserId,
+                    'referrer_user_id' => $referrerUserId,
+                ]);
+
+                if ($referrer && blank($data->referrer_email)) {
+                    $data->referrer_email = $referrer->email;
+                    $data->save();
+                }
+
+                if ($referrer && $rewardCoins > 0) {
+                    $this->coinsService->reward(
+                        $referrer,
+                        $rewardCoins,
+                        'referral_signup:'.$newUserId,
+                        [
+                            'source' => 'referral_signup',
+                            'referral_code' => $normalized,
+                            'referred_user_id' => $newUserId,
+                            'referrer_user_id' => $referrerUserId,
+                            'coins' => $rewardCoins,
+                        ],
+                        (string) $newUserId
+                    );
+
+                    Log::info('referral.reward.granted', [
+                        'referrer_user_id' => (string) $referrer->id,
                         'referred_user_id' => $newUserId,
-                        'referred_user_name' => trim((string) ($newUser->display_name ?: ($newUser->first_name . ' ' . $newUser->last_name))),
-                        'referral_code_used' => $normalized,
-                    ],
-                    $data
-                );
+                        'coins' => $rewardCoins,
+                        'referral_data_id' => (int) $data->id,
+                    ]);
+                }
 
-                $this->sendReferralEmail($referrer, $newUser, $normalized);
-            }
+                if (! $alreadyGrantedForReferredUser) {
+                    $lifeImpactActivityId = (is_string($data->id) && Str::isUuid($data->id))
+                        ? (string) $data->id
+                        : null;
 
-            Log::info('referral.registration.applied', [
-                'referral_data_id' => (int) $data->id,
-                'referrer_user_id' => $referrerUserId,
-                'referred_user_id' => $newUserId,
-                'referral_code' => $normalized,
-            ]);
+                    $updatedLifeImpacted = $this->lifeImpactService->addLifeImpact(
+                        $referrerUserId,
+                        $newUserId,
+                        'referral_registration',
+                        $lifeImpactActivityId,
+                        5,
+                        'New referral joined successfully',
+                        'Life impact added for successful referral-based registration.',
+                        [
+                            'to_user_id' => $newUserId,
+                            'referred_user_id' => $newUserId,
+                            'referrer_user_id' => $referrerUserId,
+                            'referral_code' => $normalized,
+                            'coins' => $rewardCoins,
+                        ]
+                    );
 
-            return [
-                'referrer_user_id' => $referrerUserId,
-                'referrer_email' => (string) ($data->referrer_email ?? ''),
-                'referral_code' => $normalized,
-                'coins' => (int) $rewardCoins,
-                'reward_status' => 'granted',
-                'referrer_life_impacted_count' => $referrerLifeImpactedCount,
-            ];
+                    Log::info('referral.life_impacted.incremented', [
+                        'referrer_user_id' => $referrerUserId,
+                        'referred_user_id' => $newUserId,
+                        'increment_by' => 5,
+                        'updated_total' => $updatedLifeImpacted,
+                        'referral_data_id' => (int) $data->id,
+                    ]);
+                }
+
+                $referrerLifeImpactedCount = (int) (User::query()
+                    ->whereKey($referrerUserId)
+                    ->value('life_impacted_count') ?? 0);
+
+                if ($referrer) {
+                    $this->notifyUserService->notifyUser(
+                        $referrer,
+                        $newUser,
+                        'referral_signup',
+                        [
+                            'title' => 'New Referral Joined',
+                            'body' => 'A new peer has joined using your referral code.',
+                            'referred_user_id' => $newUserId,
+                            'referred_user_name' => trim((string) ($newUser->display_name ?: ($newUser->first_name.' '.$newUser->last_name))),
+                            'referral_code_used' => $normalized,
+                        ],
+                        $data
+                    );
+
+                    $this->sendReferralEmail($referrer, $newUser, $normalized);
+                }
+
+                Log::info('referral.registration.applied', [
+                    'referral_data_id' => (int) $data->id,
+                    'referrer_user_id' => $referrerUserId,
+                    'referred_user_id' => $newUserId,
+                    'referral_code' => $normalized,
+                ]);
+
+                return [
+                    'referrer_user_id' => $referrerUserId,
+                    'referrer_email' => (string) ($data->referrer_email ?? ''),
+                    'referral_code' => $normalized,
+                    'coins' => (int) $rewardCoins,
+                    'reward_status' => 'granted',
+                    'referrer_life_impacted_count' => $referrerLifeImpactedCount,
+                ];
             });
         } catch (\Throwable $exception) {
             Log::error('referral.registration.failed', [
@@ -472,7 +471,7 @@ class ReferralService
 
     private function generateReferralPrefixSource(User $user): string
     {
-        $fullName = trim(trim((string) ($user->first_name ?? '')) . ' ' . trim((string) ($user->last_name ?? '')));
+        $fullName = trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? '')));
 
         if ($fullName !== '') {
             return $fullName;
@@ -493,8 +492,8 @@ class ReferralService
             return;
         }
 
-        $referrerName = trim((string) (($referrer->display_name ?: '') ?: (($referrer->first_name ?? '') . ' ' . ($referrer->last_name ?? ''))));
-        $peerName = trim((string) (($referredUser->display_name ?: '') ?: (($referredUser->first_name ?? '') . ' ' . ($referredUser->last_name ?? ''))));
+        $referrerName = trim((string) (($referrer->display_name ?: '') ?: (($referrer->first_name ?? '').' '.($referrer->last_name ?? ''))));
+        $peerName = trim((string) (($referredUser->display_name ?: '') ?: (($referredUser->first_name ?? '').' '.($referredUser->last_name ?? ''))));
         $mailable = new ReferralJoinedMail(
             $referrerName !== '' ? $referrerName : 'Peer',
             $peerName !== '' ? $peerName : 'New Peer',
@@ -572,7 +571,7 @@ class ReferralService
             ->orderBy('id', 'asc')
             ->select([
                 'id',
-                DB::raw('"' . $codeColumn . '" as "referral_code"'),
+                DB::raw('"'.$codeColumn.'" as "referral_code"'),
                 'referral_link',
             ])
             ->first();

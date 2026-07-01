@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleMember;
-use App\Models\User;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -23,7 +23,7 @@ class DedCommandCenterTest extends TestCase
 
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;
@@ -146,7 +146,7 @@ class DedCommandCenterTest extends TestCase
         $response = $this->get('/admin/ded-dashboard');
         $response->assertOk();
         $response->assertViewHas('districtName', 'Ahmedabad');
-        
+
         // Assert we see Ahmedabad Circle but NOT Bengaluru Circle
         $circles = $response->viewData('districtCircles');
         $this->assertTrue($circles->contains('id', $ahmedabadCircle->id));
@@ -155,13 +155,13 @@ class DedCommandCenterTest extends TestCase
         $dashboardData = $response->viewData('dashboardData');
         $this->assertArrayHasKey('master_overview', $dashboardData);
         $overview = $dashboardData['master_overview'];
-        
+
         $this->assertArrayHasKey('total_members', $overview);
         $this->assertArrayHasKey('trend', $overview['total_members']);
         $peersTrend = $overview['total_members']['trend'];
         $this->assertTrue(
-            $peersTrend === 'No Change' || 
-            str_starts_with($peersTrend, '↑') || 
+            $peersTrend === 'No Change' ||
+            str_starts_with($peersTrend, '↑') ||
             str_starts_with($peersTrend, '↓')
         );
         $this->assertStringNotContainsString('%', $peersTrend);
@@ -233,7 +233,7 @@ class DedCommandCenterTest extends TestCase
                 'health_score',
                 'activity_feed',
                 'leadership_quick_finder',
-            ]
+            ],
         ]);
     }
 
@@ -500,7 +500,7 @@ class DedCommandCenterTest extends TestCase
         $editInScope->assertStatus(403);
 
         // 4. DED user should be able to access leadership details drilldown
-        $drilldown = $this->get("/admin/ded-dashboard/leadership/member");
+        $drilldown = $this->get('/admin/ded-dashboard/leadership/member');
         $drilldown->assertOk();
         $drilldown->assertViewHas('records');
         $records = $drilldown->viewData('records');
@@ -668,7 +668,7 @@ class DedCommandCenterTest extends TestCase
         $response->assertOk();
         $response->assertViewHas('records');
         $response->assertViewHas('summary');
-        
+
         $records = $response->viewData('records');
         $this->assertNotEmpty($records);
         $this->assertEquals('Manufacturing & Engineering Circles', $records[0]['name']);
@@ -747,7 +747,7 @@ class DedCommandCenterTest extends TestCase
         \App\Support\AdminCircleScope::resetCache();
         \Illuminate\Support\Facades\Cache::flush();
 
-        $response = $this->get('/admin/ded-dashboard/industries/' . $catId);
+        $response = $this->get('/admin/ded-dashboard/industries/'.$catId);
         $response->assertOk();
         $response->assertViewHas('summary');
         $response->assertViewHas('members');
@@ -851,7 +851,7 @@ class DedCommandCenterTest extends TestCase
             ->assertOk()
             ->assertJsonStructure(['success', 'message', 'data', 'meta' => ['summary']]);
 
-        $this->getJson('/api/v1/ded/industries/' . $catId)
+        $this->getJson('/api/v1/ded/industries/'.$catId)
             ->assertOk()
             ->assertJsonStructure(['success', 'message', 'data' => ['summary', 'members', 'circles']]);
 
@@ -868,10 +868,10 @@ class DedCommandCenterTest extends TestCase
                             'revenue_contribution',
                             'members_managed',
                             'circles_covered',
-                            'district_coverage'
+                            'district_coverage',
                         ],
-                        'records'
-                    ]
+                        'records',
+                    ],
                 ]);
         }
     }

@@ -12,8 +12,7 @@ class OfferExpiryReminderNotification extends Notification
 
     public function __construct(
         private readonly BrandPartner $partner
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {

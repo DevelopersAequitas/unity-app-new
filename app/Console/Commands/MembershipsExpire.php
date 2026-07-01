@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 class MembershipsExpire extends Command
 {
     protected $signature = 'memberships:expire';
+
     protected $description = 'Expire memberships and downgrade users when needed.';
 
     public function handle(): int

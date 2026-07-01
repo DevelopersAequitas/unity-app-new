@@ -38,6 +38,7 @@ class ZohoPaymentWebhookController extends Controller
                 'payment_id' => $request->input('payment_id') ?? data_get($request->all(), 'payment.payment_id'),
                 'status' => $request->input('status'),
             ]);
+
             return response()->json(['success' => false, 'message' => 'Unauthorized webhook request.'], 401);
         }
 

@@ -10,7 +10,6 @@ use App\Models\Event;
 use App\Models\Impact;
 use App\Models\Industry;
 use App\Models\Payment;
-use App\Models\Role;
 use App\Models\User;
 use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
@@ -20,9 +19,7 @@ use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends BaseApiController
 {
-    public function __construct(private readonly AdminScopeService $scope)
-    {
-    }
+    public function __construct(private readonly AdminScopeService $scope) {}
 
     public function summary(Request $request): JsonResponse
     {
@@ -41,7 +38,7 @@ class DashboardController extends BaseApiController
             'total_circles' => $circlesQuery->count(),
             'total_industries' => Industry::query()->when(! $this->scope->isGlobal($user), fn ($q) => $q->whereIn('id', $this->scope->visibleIndustryIds($user)))->count(),
             'total_districts' => count($this->scope->visibleDistrictIds($user)),
-            'total_leaders' => User::query()->whereHas('roles', fn ($q) => $q->whereIn('key', ['ded','industry_director','circle_leader','founder','director','chair','vice_chair','secretary']))->count(),
+            'total_leaders' => User::query()->whereHas('roles', fn ($q) => $q->whereIn('key', ['ded', 'industry_director', 'circle_leader', 'founder', 'director', 'chair', 'vice_chair', 'secretary']))->count(),
             'upcoming_events_count' => Event::query()->whereDate('start_at', '>=', now()->toDateString())->when($circleIds !== [], fn ($q) => $q->whereIn('circle_id', $circleIds))->count(),
         ]);
     }
@@ -138,6 +135,7 @@ class DashboardController extends BaseApiController
     {
         $query = User::query()->selectRaw("to_char(created_at, 'YYYY-MM') as month, COUNT(*) as total")->groupBy('month')->orderBy('month');
         $this->scope->applyUserScope($query, $request->user());
+
         return $this->success($query->get());
     }
 
@@ -157,7 +155,7 @@ class DashboardController extends BaseApiController
         return $this->success([
             'pending_impacts' => Impact::query()->where('status', 'pending')->count(),
             'pending_coin_claims' => CoinClaimRequest::query()->where('status', 'pending')->count(),
-            'pending_circle_join_requests' => CircleJoinRequest::query()->whereIn('status', ['pending_cd_approval','pending_id_approval','pending_circle_fee'])->when(! $this->scope->isGlobal($user), fn ($q) => $q->whereIn('circle_id', $circleIds))->count(),
+            'pending_circle_join_requests' => CircleJoinRequest::query()->whereIn('status', ['pending_cd_approval', 'pending_id_approval', 'pending_circle_fee'])->when(! $this->scope->isGlobal($user), fn ($q) => $q->whereIn('circle_id', $circleIds))->count(),
             'pending_approvals_count' => Impact::query()->where('status', 'pending')->count() + CoinClaimRequest::query()->where('status', 'pending')->count(),
         ]);
     }

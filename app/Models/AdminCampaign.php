@@ -23,22 +23,35 @@ class AdminCampaign extends Model
     ];
 
     public const TYPE_EMAIL_ONLY = 'email_only';
+
     public const TYPE_NOTIFICATION_ONLY = 'notification_only';
+
     public const TYPE_EMAIL_AND_NOTIFICATION = 'email_and_notification';
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_SCHEDULED = 'scheduled';
+
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_PAUSED = 'paused';
+
     public const STATUS_SENT = 'sent';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_FAILED = 'failed';
+
     public const STATUS_STOPPED = 'stopped';
+
     public const STATUS_DELETED = 'deleted';
+
     public const STATUS_PARTIALLY_SENT = 'partially_sent';
 
     protected $table = 'admin_campaigns';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -98,31 +111,34 @@ class AdminCampaign extends Model
     public function getDisplayTimezone(): string
     {
         $schedule = $this->schedule;
-        if (!$schedule || $schedule->schedule_type === 'immediately' || empty($schedule->timezone)) {
+        if (! $schedule || $schedule->schedule_type === 'immediately' || empty($schedule->timezone)) {
             return 'Asia/Kolkata'; // Fallback to local IST
         }
+
         return $schedule->timezone;
     }
 
     public function formatTimestamp(?\Carbon\Carbon $dateTime): ?string
     {
-        if (!$dateTime) {
+        if (! $dateTime) {
             return null;
         }
+
         return $dateTime->copy()->setTimezone($this->getDisplayTimezone())->format('d M Y H:i');
     }
 
     public function getSentAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
+
         return \Carbon\Carbon::parse($value, 'UTC');
     }
 
     public function setSentAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['sent_at'] = null;
         } else {
             $this->attributes['sent_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');

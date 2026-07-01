@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('testimonials')) {
+        if (! Schema::hasTable('testimonials')) {
             Schema::create('testimonials', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->uuid('from_user_id');
@@ -25,7 +25,7 @@ return new class extends Migration
             });
         } else {
             Schema::table('testimonials', function (Blueprint $table) {
-                if (!Schema::hasColumn('testimonials', 'rating')) {
+                if (! Schema::hasColumn('testimonials', 'rating')) {
                     $table->integer('rating')->nullable()->after('media');
                 }
             });

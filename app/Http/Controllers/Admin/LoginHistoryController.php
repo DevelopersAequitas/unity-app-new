@@ -33,17 +33,17 @@ class LoginHistoryController extends Controller
         $perPage = (int) ($validated['per_page'] ?? 20);
 
         $from = $fromInput !== ''
-            ? Carbon::createFromFormat('Y-m-d H:i:s', str_replace('T', ' ', $fromInput) . ':00')
+            ? Carbon::createFromFormat('Y-m-d H:i:s', str_replace('T', ' ', $fromInput).':00')
             : null;
         $to = $toInput !== ''
-            ? Carbon::createFromFormat('Y-m-d H:i:s', str_replace('T', ' ', $toInput) . ':00')
+            ? Carbon::createFromFormat('Y-m-d H:i:s', str_replace('T', ' ', $toInput).':00')
             : null;
 
         $dayStart = null;
         $dayEnd = null;
         if ($lastLoginDate !== '') {
-            $dayStart = Carbon::createFromFormat('Y-m-d H:i:s', $lastLoginDate . ' 00:00:00');
-            $dayEnd = Carbon::createFromFormat('Y-m-d H:i:s', $lastLoginDate . ' 23:59:59');
+            $dayStart = Carbon::createFromFormat('Y-m-d H:i:s', $lastLoginDate.' 00:00:00');
+            $dayEnd = Carbon::createFromFormat('Y-m-d H:i:s', $lastLoginDate.' 23:59:59');
         }
 
         $hasUsersName = Schema::hasColumn('users', 'name');
@@ -88,7 +88,7 @@ class LoginHistoryController extends Controller
             })
             ->leftJoin('circles', 'circles.id', '=', 'circle_members.circle_id')
             ->when($q !== '', function ($query) use ($q, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
-                $likeQuery = '%' . $q . '%';
+                $likeQuery = '%'.$q.'%';
 
                 $query->where(function ($innerQuery) use ($likeQuery, $hasUsersName, $hasUsersCompany, $hasUsersBusinessName) {
                     $innerQuery->where('users.display_name', 'ilike', $likeQuery)

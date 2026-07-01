@@ -12,35 +12,36 @@ use Throwable;
 
 class ResendEventPushNotificationsCommand extends Command
 {
-    protected $signature = "notifications:resend-event-push
+    protected $signature = 'notifications:resend-event-push
                             {event_id : The UUID of the event to re-send push notifications for}
                             {--dry-run : Preview what would be sent without actually sending}
-                            {--force : Force re-send even if push logs already exist}";
+                            {--force : Force re-send even if push logs already exist}';
 
-    protected $description = "Re-send FCM push notifications for an event where in-app notifications were created but push was not sent";
+    protected $description = 'Re-send FCM push notifications for an event where in-app notifications were created but push was not sent';
 
     public function handle(FcmService $fcmService): int
     {
-        $eventId = $this->argument("event_id");
-        $dryRun = $this->option("dry-run");
-        $force = $this->option("force");
+        $eventId = $this->argument('event_id');
+        $dryRun = $this->option('dry-run');
+        $force = $this->option('force');
 
         $event = Event::find($eventId);
-        if (!$event) {
+        if (! $event) {
             $this->error("Event not found: {$eventId}");
+
             return self::FAILURE;
         }
 
         $this->info("Event: {$event->title} (ID: {$event->id})");
         if ($dryRun) {
-            $this->warn("DRY RUN MODE — no notifications will actually be sent.");
+            $this->warn('DRY RUN MODE — no notifications will actually be sent.');
         }
 
         // Find all in-app notifications for this event
-        $notifications = AppNotification::whereIn("type", ["event", "event_created"])
+        $notifications = AppNotification::whereIn('type', ['event', 'event_created'])
             ->where(function ($q) use ($event) {
-                $q->whereJsonContains("data->event_id", (string) $event->id)
-                  ->orWhere("reference_id", (string) $event->id);
+                $q->whereJsonContains('data->event_id', (string) $event->id)
+                    ->orWhere('reference_id', (string) $event->id);
             })
             ->get();
 
@@ -48,17 +49,17 @@ class ResendEventPushNotificationsCommand extends Command
 
         // Resolve banner URL
         $bannerUrl = $event->banner_url;
-        if (is_string($bannerUrl) && trim($bannerUrl) !== "") {
+        if (is_string($bannerUrl) && trim($bannerUrl) !== '') {
             $bannerUrl = trim($bannerUrl);
-            if (!str_starts_with($bannerUrl, "http://") && !str_starts_with($bannerUrl, "https://") && !str_starts_with($bannerUrl, "/")) {
-                $bannerUrl = url("/api/v1/files/" . $bannerUrl);
+            if (! str_starts_with($bannerUrl, 'http://') && ! str_starts_with($bannerUrl, 'https://') && ! str_starts_with($bannerUrl, '/')) {
+                $bannerUrl = url('/api/v1/files/'.$bannerUrl);
             }
         } else {
             $bannerUrl = null;
         }
 
-        $title = "New Event Created";
-        $body = "A new event has been added. Tap to view event details.";
+        $title = 'New Event Created';
+        $body = 'A new event has been added. Tap to view event details.';
 
         $sent = 0;
         $skipped = 0;
@@ -73,15 +74,16 @@ class ResendEventPushNotificationsCommand extends Command
 
             try {
                 // Check if push already sent for this notification (unless --force)
-                if (!$force) {
+                if (! $force) {
                     try {
-                        $pushAlreadySent = NotificationDeliveryLog::where("notification_id", $notification->id)
-                            ->where("channel", "push")
-                            ->whereIn("status", ["sent", "failed", "pending"])
+                        $pushAlreadySent = NotificationDeliveryLog::where('notification_id', $notification->id)
+                            ->where('channel', 'push')
+                            ->whereIn('status', ['sent', 'failed', 'pending'])
                             ->exists();
 
                         if ($pushAlreadySent) {
                             $skipped++;
+
                             continue;
                         }
                     } catch (Throwable $e) {
@@ -94,11 +96,13 @@ class ResendEventPushNotificationsCommand extends Command
 
                 if ($tokens->isEmpty()) {
                     $noToken++;
+
                     continue;
                 }
 
                 if ($dryRun) {
                     $sent += $tokens->count();
+
                     continue;
                 }
 
@@ -107,36 +111,36 @@ class ResendEventPushNotificationsCommand extends Command
 
                 // Ensure banner image is included
                 if ($bannerUrl) {
-                    $data["event_banner"] = $bannerUrl;
-                    $data["image_url"] = $bannerUrl;
+                    $data['event_banner'] = $bannerUrl;
+                    $data['image_url'] = $bannerUrl;
                 }
 
                 // Send push to each active token
                 foreach ($tokens as $token) {
                     try {
                         $result = $fcmService->sendToToken($token, $title, $body, $data, $notification, $bannerUrl);
-                        if ($result["success"] ?? false) {
+                        if ($result['success'] ?? false) {
                             $sent++;
                         } else {
                             $failed++;
-                            Log::warning("ResendEventPush: FCM send failed", [
-                                "user_id" => $notification->user_id,
-                                "error" => $result["error"] ?? "Unknown",
+                            Log::warning('ResendEventPush: FCM send failed', [
+                                'user_id' => $notification->user_id,
+                                'error' => $result['error'] ?? 'Unknown',
                             ]);
                         }
                     } catch (Throwable $e) {
                         $failed++;
-                        Log::error("ResendEventPush: Exception sending FCM", [
-                            "user_id" => $notification->user_id,
-                            "error" => $e->getMessage(),
+                        Log::error('ResendEventPush: Exception sending FCM', [
+                            'user_id' => $notification->user_id,
+                            'error' => $e->getMessage(),
                         ]);
                     }
                 }
             } catch (Throwable $e) {
                 $failed++;
-                Log::error("ResendEventPush: Exception processing notification", [
-                    "notification_id" => $notification->id,
-                    "error" => $e->getMessage(),
+                Log::error('ResendEventPush: Exception processing notification', [
+                    'notification_id' => $notification->id,
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
@@ -144,26 +148,26 @@ class ResendEventPushNotificationsCommand extends Command
         $bar->finish();
         $this->newLine(2);
 
-        $this->table(["Metric", "Count"], [
-            ["Push Sent" . ($dryRun ? " (dry run)" : ""), $sent],
-            ["Skipped (already sent)", $skipped],
-            ["No Active Token", $noToken],
-            ["Failed", $failed],
+        $this->table(['Metric', 'Count'], [
+            ['Push Sent'.($dryRun ? ' (dry run)' : ''), $sent],
+            ['Skipped (already sent)', $skipped],
+            ['No Active Token', $noToken],
+            ['Failed', $failed],
         ]);
 
         if ($dryRun) {
-            $this->warn("Dry run complete. Run without --dry-run to actually send.");
+            $this->warn('Dry run complete. Run without --dry-run to actually send.');
         } else {
             $this->info("Re-send complete. Sent: {$sent}, Failed: {$failed}, No token: {$noToken}");
         }
 
-        Log::info("ResendEventPushNotificationsCommand completed", [
-            "event_id" => $eventId,
-            "dry_run" => $dryRun,
-            "sent" => $sent,
-            "skipped" => $skipped,
-            "no_token" => $noToken,
-            "failed" => $failed,
+        Log::info('ResendEventPushNotificationsCommand completed', [
+            'event_id' => $eventId,
+            'dry_run' => $dryRun,
+            'sent' => $sent,
+            'skipped' => $skipped,
+            'no_token' => $noToken,
+            'failed' => $failed,
         ]);
 
         return self::SUCCESS;

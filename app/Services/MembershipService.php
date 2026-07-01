@@ -10,9 +10,7 @@ use Illuminate\Support\Str;
 
 class MembershipService
 {
-    public function __construct(private readonly MembershipUpgradeService $membershipUpgradeService)
-    {
-    }
+    public function __construct(private readonly MembershipUpgradeService $membershipUpgradeService) {}
 
     public function calculateAmounts(MembershipPlan $plan): array
     {

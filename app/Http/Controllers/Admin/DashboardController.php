@@ -6,14 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\ContactPost;
 use App\Models\User;
-use App\Support\AdminAccess;
-use App\Support\AdminCircleScope;
 use App\Services\Api\Ded\DashboardAggregationService;
 use App\Services\Api\Ded\DistrictAnalyticsService;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -85,7 +85,6 @@ class DashboardController extends Controller
             'recentContactPosts' => $recentContactPosts,
         ]);
     }
-
 
     public function ded(Request $request): View
     {
@@ -505,7 +504,6 @@ class DashboardController extends Controller
 
         return (int) $query->count();
     }
-
 
     private function applyCircleFilterToUsersQuery($query, string $circleId): void
     {

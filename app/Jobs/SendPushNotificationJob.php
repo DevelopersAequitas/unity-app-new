@@ -24,8 +24,7 @@ class SendPushNotificationJob implements ShouldQueue
         public string $title,
         public string $body,
         public array $data = []
-    ) {
-    }
+    ) {}
 
     public function handle(FcmService $fcmService): void
     {
@@ -51,9 +50,9 @@ class SendPushNotificationJob implements ShouldQueue
             foreach ($tokens as $token) {
                 try {
                     Log::info('Sending push to token', [
-                        'token_masked' => substr((string) $token->token, 0, 8) . '****',
+                        'token_masked' => substr((string) $token->token, 0, 8).'****',
                         'has_image' => $hasImage,
-                        'image_url_prefix' => $hasImage ? substr((string) $imageUrl, 0, 40) . '...' : null,
+                        'image_url_prefix' => $hasImage ? substr((string) $imageUrl, 0, 40).'...' : null,
                     ]);
 
                     $result = $fcmService->sendToDevice(
@@ -94,7 +93,7 @@ class SendPushNotificationJob implements ShouldQueue
                 } catch (Throwable $e) {
                     Log::error('Push send failed', [
                         'error' => $e->getMessage(),
-                        'token_masked' => substr((string) $token->token, 0, 8) . '****',
+                        'token_masked' => substr((string) $token->token, 0, 8).'****',
                         'user_id' => (string) $this->user->id,
                         'platform' => $token->platform,
                         'device_type' => $token->platform,

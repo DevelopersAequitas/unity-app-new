@@ -28,27 +28,27 @@ class PostResource extends JsonResource
         return [
             'id' => $this->id,
 
-            'content_text'   => $this->content_text,
-            'content'        => $this->content_text,
-            'media'          => $this->media
+            'content_text' => $this->content_text,
+            'content' => $this->content_text,
+            'media' => $this->media
                 ? collect($this->media)->map(function ($item) {
-                    if (!is_array($item)) {
+                    if (! is_array($item)) {
                         return null;
                     }
 
                     $id = $item['id'] ?? null;
 
                     return [
-                        'id'   => $id,
+                        'id' => $id,
                         'type' => $item['type'] ?? null,
-                        'url'  => $id
+                        'url' => $id
                             ? url("/api/v1/files/{$id}")
                             : null,
                     ];
                 })->filter()->values()->all()
                 : null,
-            'tags'           => $this->tags,
-            'visibility'     => $this->visibility,
+            'tags' => $this->tags,
+            'visibility' => $this->visibility,
             'moderation_status' => $this->moderation_status ?? null,
 
             'author' => $this->when(
@@ -58,11 +58,11 @@ class PostResource extends JsonResource
                     $author = $this->user ?? $this->author;
 
                     return [
-                        'id'               => $author?->id,
-                        'display_name'     => $author?->display_name,
-                        'first_name'       => $author?->first_name,
-                        'last_name'        => $author?->last_name,
-                        'profile_photo_url'=> $author?->profile_photo_url,
+                        'id' => $author?->id,
+                        'display_name' => $author?->display_name,
+                        'first_name' => $author?->first_name,
+                        'last_name' => $author?->last_name,
+                        'profile_photo_url' => $author?->profile_photo_url,
                     ];
                 }
             ),
@@ -71,18 +71,18 @@ class PostResource extends JsonResource
                 $this->relationLoaded('circle') && $this->circle,
                 function () {
                     return [
-                        'id'   => $this->circle->id,
+                        'id' => $this->circle->id,
                         'name' => $this->circle->name,
                     ];
                 }
             ),
 
-            'likes_count'    => isset($this->likes_count) ? (int) $this->likes_count : 0,
+            'likes_count' => isset($this->likes_count) ? (int) $this->likes_count : 0,
             'comments_count' => isset($this->comments_count) ? (int) $this->comments_count : 0,
 
             'is_liked_by_me' => (bool) ($this->is_liked_by_me ?? false),
-            'saves_count'    => $savesCount,
-            'is_saved'       => $isSaved,
+            'saves_count' => $savesCount,
+            'is_saved' => $isSaved,
 
             'created_at' => $this->formatToIstDateTime($this->created_at),
             'updated_at' => $this->formatToIstDateTime($this->updated_at),

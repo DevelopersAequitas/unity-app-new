@@ -17,7 +17,7 @@ class LimitedUserResource extends JsonResource
         $user = $this->resource;
 
         $name = $user->display_name
-            ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+            ?? trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
 
         $cityName = null;
         $cityRelation = $user->relationLoaded('city') ? $user->getRelation('city') : null;

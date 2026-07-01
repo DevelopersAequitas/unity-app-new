@@ -7,8 +7,8 @@ use App\Http\Requests\Admin\Circles\StoreCircleMemberRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleMemberRequest;
 use App\Models\Circle;
 use App\Models\CircleMember;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
 class CircleMemberController extends Controller

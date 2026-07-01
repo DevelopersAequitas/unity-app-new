@@ -55,8 +55,8 @@ class LimitedUserApiTest extends TestCase
                     'business_name',
                     'total_life_impact',
                     'company_name',
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $data = $response->json('data');

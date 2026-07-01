@@ -5,9 +5,9 @@ namespace App\Providers;
 use App\Models\AdminCampaign;
 use App\Policies\AdminCampaignPolicy;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Gate;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -43,22 +43,35 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         \Illuminate\Database\Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) {
-            return new class($connection, $database, $prefix, $config) extends \Illuminate\Database\SQLiteConnection {
-                public function statement($query, $bindings = []) {
+            return new class($connection, $database, $prefix, $config) extends \Illuminate\Database\SQLiteConnection
+            {
+                public function statement($query, $bindings = [])
+                {
                     $query = \App\Support\SqliteMigrator::translate($query);
                     $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
-                    if (empty(trim($query))) return true;
+                    if (empty(trim($query))) {
+                        return true;
+                    }
+
                     return parent::statement($query, $bindings);
                 }
-                public function unprepared($query) {
+
+                public function unprepared($query)
+                {
                     $query = \App\Support\SqliteMigrator::translate($query);
                     $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
-                    if (empty(trim($query))) return true;
+                    if (empty(trim($query))) {
+                        return true;
+                    }
+
                     return parent::unprepared($query);
                 }
-                protected function run($query, $bindings, \Closure $callback) {
+
+                protected function run($query, $bindings, \Closure $callback)
+                {
                     $query = \App\Support\SqliteMigrator::translate($query);
                     $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
+
                     return parent::run($query, $bindings, $callback);
                 }
             };
@@ -66,8 +79,6 @@ class AppServiceProvider extends ServiceProvider
 
         Paginator::useBootstrapFive();
         Gate::policy(AdminCampaign::class, AdminCampaignPolicy::class);
-
-
 
         $fromAddress = (string) config('mail.from.address');
         $fromName = (string) config('mail.from.name', 'Peers Global Unity');
@@ -93,7 +104,7 @@ class AppServiceProvider extends ServiceProvider
                 'username' => env('MAIL_USERNAME_PRAVIN', 'pravin@peersunity.com'),
                 'password' => env('MAIL_PASSWORD_PRAVIN'),
                 'timeout' => null,
-            ]
+            ],
         ]);
     }
 }

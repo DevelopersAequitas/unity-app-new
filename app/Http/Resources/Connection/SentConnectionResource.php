@@ -35,7 +35,7 @@ class SentConnectionResource extends JsonResource
             return null;
         }
 
-        return 'https://peersunity.com/api/v1/files/' . $fileId;
+        return 'https://peersunity.com/api/v1/files/'.$fileId;
     }
 
     private function resolveCity($user): ?string

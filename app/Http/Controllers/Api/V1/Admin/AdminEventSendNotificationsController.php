@@ -29,51 +29,51 @@ class AdminEventSendNotificationsController extends BaseApiController
     public function send(Request $request, string $eventId, FcmService $fcmService): JsonResponse
     {
         $event = Event::find($eventId);
-        if (!$event) {
+        if (! $event) {
             return $this->error('Event not found', 404);
         }
 
-        $force   = (bool) $request->query('force', false);
-        $dryRun  = (bool) $request->query('dry_run', false);
+        $force = (bool) $request->query('force', false);
+        $dryRun = (bool) $request->query('dry_run', false);
 
         Log::info('AdminEventSendNotifications: started', [
             'event_id' => $event->id,
-            'force'    => $force,
-            'dry_run'  => $dryRun,
+            'force' => $force,
+            'dry_run' => $dryRun,
         ]);
 
         // ── Resolve banner URL ──────────────────────────────────────────────
         $bannerUrl = $event->banner_url;
         if (is_string($bannerUrl) && trim($bannerUrl) !== '') {
             $bannerUrl = trim($bannerUrl);
-            if (!str_starts_with($bannerUrl, 'http://') && !str_starts_with($bannerUrl, 'https://') && !str_starts_with($bannerUrl, '/')) {
-                $bannerUrl = url('/api/v1/files/' . $bannerUrl);
+            if (! str_starts_with($bannerUrl, 'http://') && ! str_starts_with($bannerUrl, 'https://') && ! str_starts_with($bannerUrl, '/')) {
+                $bannerUrl = url('/api/v1/files/'.$bannerUrl);
             }
         } else {
             $bannerUrl = null;
         }
 
         $title = 'New Event Created';
-        $body  = 'A new event has been added. Tap to view event details.';
+        $body = 'A new event has been added. Tap to view event details.';
 
         $notificationData = [
-            'type'           => 'event',
-            'event_id'       => (string) $event->id,
-            'event_title'    => (string) $event->title,
-            'event_date'     => $event->start_at ? $event->start_at->toDateString() : '',
-            'event_banner'   => $bannerUrl,
-            'image_url'      => $bannerUrl,
-            'screen'         => 'event_detail',
-            'tap_destination'=> 'event_detail',
+            'type' => 'event',
+            'event_id' => (string) $event->id,
+            'event_title' => (string) $event->title,
+            'event_date' => $event->start_at ? $event->start_at->toDateString() : '',
+            'event_banner' => $bannerUrl,
+            'image_url' => $bannerUrl,
+            'screen' => 'event_detail',
+            'tap_destination' => 'event_detail',
             'reference_type' => 'event',
-            'reference_id'   => (string) $event->id,
+            'reference_id' => (string) $event->id,
         ];
 
         // ── Get existing in-app notifications for this event ────────────────
         $existingNotifications = AppNotification::whereIn('type', ['event', 'event_created'])
             ->where(function ($q) use ($event) {
                 $q->whereJsonContains('data->event_id', (string) $event->id)
-                  ->orWhere('reference_id', (string) $event->id);
+                    ->orWhere('reference_id', (string) $event->id);
             })
             ->get()
             ->keyBy('user_id');
@@ -82,21 +82,19 @@ class AdminEventSendNotificationsController extends BaseApiController
         $userQuery = \App\Models\User::query()
             ->when(Schema::hasColumn('users', 'deleted_at'), fn ($q) => $q->whereNull('users.deleted_at'))
             ->when(Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($q) => $q->whereNull('users.gdpr_deleted_at'))
-            ->when(Schema::hasColumn('users', 'status'), fn ($q) => $q->where(fn ($sq) =>
-                $sq->whereNull('users.status')
-                   ->orWhereRaw("LOWER(users.status::text) NOT IN ('inactive','suspended','blocked','banned','deleted','rejected')")))
-            ->when(Schema::hasColumn('users', 'membership_status'), fn ($q) => $q->where(fn ($sq) =>
-                $sq->whereNull('users.membership_status')
-                   ->orWhere('users.membership_status', '!=', 'suspended')));
+            ->when(Schema::hasColumn('users', 'status'), fn ($q) => $q->where(fn ($sq) => $sq->whereNull('users.status')
+                ->orWhereRaw("LOWER(users.status::text) NOT IN ('inactive','suspended','blocked','banned','deleted','rejected')")))
+            ->when(Schema::hasColumn('users', 'membership_status'), fn ($q) => $q->where(fn ($sq) => $sq->whereNull('users.membership_status')
+                ->orWhere('users.membership_status', '!=', 'suspended')));
 
-        $totalUsers        = 0;
-        $inAppCreated      = 0;
+        $totalUsers = 0;
+        $inAppCreated = 0;
         $inAppAlreadyExist = 0;
-        $pushSent          = 0;
-        $pushFailed        = 0;
-        $pushSkipped       = 0;
-        $noTokenUsers      = 0;
-        $errors            = [];
+        $pushSent = 0;
+        $pushFailed = 0;
+        $pushSkipped = 0;
+        $noTokenUsers = 0;
+        $errors = [];
 
         $userQuery->chunkById(100, function ($users) use (
             $event, $title, $body, $notificationData, $bannerUrl, $fcmService,
@@ -114,26 +112,26 @@ class AdminEventSendNotificationsController extends BaseApiController
                     if ($notification) {
                         $inAppAlreadyExist++;
                     } else {
-                        if (!$dryRun) {
+                        if (! $dryRun) {
                             $notification = AppNotification::create([
-                                'user_id'        => $user->id,
-                                'type'           => 'event',
-                                'category'       => 'event',
-                                'title'          => $title,
-                                'body'           => $body,
-                                'channel'        => 'push',
-                                'priority'       => 'high',
+                                'user_id' => $user->id,
+                                'type' => 'event',
+                                'category' => 'event',
+                                'title' => $title,
+                                'body' => $body,
+                                'channel' => 'push',
+                                'priority' => 'high',
                                 'reference_type' => 'event',
-                                'reference_id'   => $event->id,
-                                'screen'         => 'event_detail',
-                                'data'           => $notificationData,
-                                'status'         => 'pending',
+                                'reference_id' => $event->id,
+                                'screen' => 'event_detail',
+                                'data' => $notificationData,
+                                'status' => 'pending',
                             ]);
                         }
                         $inAppCreated++;
                     }
 
-                    if (!$notification && $dryRun) {
+                    if (! $notification && $dryRun) {
                         // In dry run, still count push tokens
                         $tokens = $fcmService->activeTokensForUser($user->id);
                         if ($tokens->isNotEmpty()) {
@@ -141,15 +139,16 @@ class AdminEventSendNotificationsController extends BaseApiController
                         } else {
                             $noTokenUsers++;
                         }
+
                         continue;
                     }
 
-                    if (!$notification) {
+                    if (! $notification) {
                         continue;
                     }
 
                     // ── Step 2: Check if push already sent (unless force) ──
-                    if (!$force && !$dryRun) {
+                    if (! $force && ! $dryRun) {
                         try {
                             $pushExists = NotificationDeliveryLog::where('notification_id', $notification->id)
                                 ->where('channel', 'push')
@@ -158,6 +157,7 @@ class AdminEventSendNotificationsController extends BaseApiController
 
                             if ($pushExists) {
                                 $pushSkipped++;
+
                                 continue;
                             }
                         } catch (Throwable $e) {
@@ -170,27 +170,29 @@ class AdminEventSendNotificationsController extends BaseApiController
 
                     if ($tokens->isEmpty()) {
                         $noTokenUsers++;
-                        if (!$dryRun) {
+                        if (! $dryRun) {
                             // Mark skipped
                             try {
                                 NotificationDeliveryLog::create([
                                     'notification_id' => $notification->id,
-                                    'user_id'         => $user->id,
-                                    'channel'         => 'push',
-                                    'provider'        => 'firebase',
-                                    'status'          => 'skipped',
-                                    'error_message'   => 'No active push token',
-                                    'attempted_at'    => now(),
+                                    'user_id' => $user->id,
+                                    'channel' => 'push',
+                                    'provider' => 'firebase',
+                                    'status' => 'skipped',
+                                    'error_message' => 'No active push token',
+                                    'attempted_at' => now(),
                                 ]);
                             } catch (Throwable $e) {
                                 // ignore
                             }
                         }
+
                         continue;
                     }
 
                     if ($dryRun) {
                         $pushSent += $tokens->count();
+
                         continue;
                     }
 
@@ -198,7 +200,7 @@ class AdminEventSendNotificationsController extends BaseApiController
                     $data = $notification->dataPayload();
                     if ($bannerUrl) {
                         $data['event_banner'] = $bannerUrl;
-                        $data['image_url']    = $bannerUrl;
+                        $data['image_url'] = $bannerUrl;
                     }
 
                     foreach ($tokens as $token) {
@@ -210,14 +212,14 @@ class AdminEventSendNotificationsController extends BaseApiController
                                 $pushFailed++;
                                 $errors[] = [
                                     'user_id' => $user->id,
-                                    'error'   => $result['error'] ?? 'Unknown FCM error',
+                                    'error' => $result['error'] ?? 'Unknown FCM error',
                                 ];
                             }
                         } catch (Throwable $e) {
                             $pushFailed++;
                             $errors[] = [
                                 'user_id' => $user->id,
-                                'error'   => $e->getMessage(),
+                                'error' => $e->getMessage(),
                             ];
                         }
                     }
@@ -225,30 +227,30 @@ class AdminEventSendNotificationsController extends BaseApiController
                 } catch (Throwable $e) {
                     $errors[] = [
                         'user_id' => $user->id,
-                        'error'   => $e->getMessage(),
+                        'error' => $e->getMessage(),
                     ];
                     Log::error('AdminEventSendNotifications: user error', [
                         'event_id' => $event->id,
-                        'user_id'  => $user->id,
-                        'error'    => $e->getMessage(),
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }
         });
 
         $result = [
-            'event_id'                 => (string) $event->id,
-            'event_title'              => (string) $event->title,
-            'dry_run'                  => $dryRun,
-            'force'                    => $force,
-            'total_users_processed'    => $totalUsers,
-            'in_app_created_now'       => $inAppCreated,
-            'in_app_already_existed'   => $inAppAlreadyExist,
-            'push_sent_successfully'   => $pushSent,
-            'push_failed'              => $pushFailed,
-            'push_skipped_already_sent'=> $pushSkipped,
-            'users_with_no_token'      => $noTokenUsers,
-            'errors'                   => array_slice($errors, 0, 20), // max 20 error samples
+            'event_id' => (string) $event->id,
+            'event_title' => (string) $event->title,
+            'dry_run' => $dryRun,
+            'force' => $force,
+            'total_users_processed' => $totalUsers,
+            'in_app_created_now' => $inAppCreated,
+            'in_app_already_existed' => $inAppAlreadyExist,
+            'push_sent_successfully' => $pushSent,
+            'push_failed' => $pushFailed,
+            'push_skipped_already_sent' => $pushSkipped,
+            'users_with_no_token' => $noTokenUsers,
+            'errors' => array_slice($errors, 0, 20), // max 20 error samples
         ];
 
         Log::info('AdminEventSendNotifications: completed', array_merge($result, ['total_errors' => count($errors)]));
@@ -269,16 +271,16 @@ class AdminEventSendNotificationsController extends BaseApiController
     public function dispatch(string $eventId): JsonResponse
     {
         $event = Event::find($eventId);
-        if (!$event) {
+        if (! $event) {
             return $this->error('Event not found', 404);
         }
 
         SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
 
         return $this->success([
-            'event_id'    => (string) $event->id,
+            'event_id' => (string) $event->id,
             'event_title' => (string) $event->title,
-            'dispatched'  => true,
+            'dispatched' => true,
         ], 'Notification job dispatched. It will run when queue worker processes it.');
     }
 }

@@ -85,8 +85,6 @@ class AppConfigAdminController extends Controller
         return $this->changed($model, 'Branding updated successfully.');
     }
 
-
-
     public function icons(): JsonResponse
     {
         $icons = AppIconAsset::query()
@@ -151,12 +149,12 @@ class AppConfigAdminController extends Controller
         }
 
         $filename = Str::of($data['icon_key'])->replace('_', '-')->slug('-')
-            . '-' . $data['target_field']
-            . '-' . now()->format('Ymd-His')
-            . '-' . Str::lower(Str::random(8))
-            . '.' . $extension;
+            .'-'.$data['target_field']
+            .'-'.now()->format('Ymd-His')
+            .'-'.Str::lower(Str::random(8))
+            .'.'.$extension;
         $path = $request->file('file')->storeAs('app-config/greenpreneur/icons', $filename, 'public');
-        $url = asset('storage/' . $path);
+        $url = asset('storage/'.$path);
 
         AppIconAsset::query()
             ->where('app_instance_id', $this->appInstanceId())

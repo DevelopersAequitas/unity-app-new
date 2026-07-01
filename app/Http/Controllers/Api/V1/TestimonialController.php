@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Events\ActivityCreated;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Api\V1\StorePeerTestimonialRequest;
 use App\Http\Resources\V1\TestimonialResource;
-use App\Events\ActivityCreated;
 use App\Models\Post;
 use App\Models\Testimonial;
 use App\Models\User;
@@ -25,13 +25,13 @@ class TestimonialController extends BaseApiController
         }
 
         return collect($media)->map(function ($item) {
-            $id   = $item['id']   ?? null;
+            $id = $item['id'] ?? null;
             $type = $item['type'] ?? 'image';
 
             return [
-                'id'   => $id,
+                'id' => $id,
                 'type' => $type,
-                'url'  => $id ? url('/api/v1/files/' . $id) : null,
+                'url' => $id ? url('/api/v1/files/'.$id) : null,
             ];
         })->all();
     }
@@ -47,20 +47,20 @@ class TestimonialController extends BaseApiController
             ]);
 
             Post::create([
-                'user_id'           => $testimonial->from_user_id,
-                'circle_id'         => null,
-                'content_text'      => $contentText,
-                'media'             => $mediaForPost,
-                'tags'              => ['testimonial'],
-                'visibility'        => 'public',
+                'user_id' => $testimonial->from_user_id,
+                'circle_id' => null,
+                'content_text' => $contentText,
+                'media' => $mediaForPost,
+                'tags' => ['testimonial'],
+                'visibility' => 'public',
                 'moderation_status' => 'pending',
-                'sponsored'         => false,
-                'is_deleted'        => false,
+                'sponsored' => false,
+                'is_deleted' => false,
             ]);
         } catch (Throwable $e) {
             Log::error('Failed to create post for testimonial', [
                 'testimonial_id' => $testimonial->id,
-                'error'          => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -137,7 +137,7 @@ class TestimonialController extends BaseApiController
                         'activity_type' => 'testimonial',
                         'activity_id' => (string) $testimonial->id,
                         'title' => 'New Testimonial',
-                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' sent you a testimonial',
+                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' sent you a testimonial',
                     ],
                     $testimonial
                 );
@@ -173,6 +173,7 @@ class TestimonialController extends BaseApiController
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return $this->error('Something went wrong', 500);
         }
     }

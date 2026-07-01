@@ -19,6 +19,7 @@ class SyncPaidMembershipPayments extends Command
     {
         if (! Schema::hasTable('payments') || ! Schema::hasColumn('payments', 'user_id') || ! Schema::hasColumn('payments', 'status')) {
             $this->warn('payments table, payments.user_id, or payments.status is missing; nothing to sync.');
+
             return self::SUCCESS;
         }
 
@@ -54,6 +55,7 @@ class SyncPaidMembershipPayments extends Command
 
             if ($dryRun) {
                 $this->line("Would sync payment {$payment->id} for user {$user->id}");
+
                 return;
             }
 

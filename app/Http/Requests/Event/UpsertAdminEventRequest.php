@@ -90,6 +90,7 @@ class UpsertAdminEventRequest extends FormRequest
                 $circleState = $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null;
                 if ($circleState && strcasecmp((string) $circleState, $state) !== 0) {
                     $validator->errors()->add('circle_ids', 'Selected circles must belong to the selected state.');
+
                     return;
                 }
             }

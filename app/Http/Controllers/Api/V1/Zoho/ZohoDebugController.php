@@ -12,8 +12,7 @@ class ZohoDebugController extends Controller
     public function __construct(
         private readonly ZohoBillingTokenService $tokenService,
         private readonly ZohoBillingService $zohoBillingService,
-    ) {
-    }
+    ) {}
 
     public function testToken()
     {

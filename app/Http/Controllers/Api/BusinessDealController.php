@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
-use App\Http\Requests\Activity\StoreBusinessDealRequest;
 use App\Events\ActivityCreated;
-use App\Models\Post;
+use App\Http\Requests\Activity\StoreBusinessDealRequest;
 use App\Models\BusinessDeal;
+use App\Models\Post;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
@@ -24,13 +23,13 @@ class BusinessDealController extends BaseApiController
         }
 
         return collect($media)->map(function ($item) {
-            $id   = $item['id']   ?? null;
+            $id = $item['id'] ?? null;
             $type = $item['type'] ?? 'image';
 
             return [
-                'id'   => $id,
+                'id' => $id,
                 'type' => $type,
-                'url'  => $id ? url('/api/v1/files/' . $id) : null,
+                'url' => $id ? url('/api/v1/files/'.$id) : null,
             ];
         })->all();
     }
@@ -53,22 +52,22 @@ class BusinessDealController extends BaseApiController
             ]);
 
             Post::create([
-                'user_id'           => $deal->from_user_id ?? $deal->user_id ?? $deal->created_by ?? $deal->to_user_id,
-                'circle_id'         => null,
-                'content_text'      => $contentText,
-                'media'             => $mediaForPost,
-                'tags'              => ['business_deal'],
-                'visibility'        => 'public',
+                'user_id' => $deal->from_user_id ?? $deal->user_id ?? $deal->created_by ?? $deal->to_user_id,
+                'circle_id' => null,
+                'content_text' => $contentText,
+                'media' => $mediaForPost,
+                'tags' => ['business_deal'],
+                'visibility' => 'public',
                 'moderation_status' => 'pending',
-                'sponsored'         => false,
-                'is_deleted'        => false,
-                'source_type'       => 'business_deal',
-                'source_id'         => $deal->id,
+                'sponsored' => false,
+                'is_deleted' => false,
+                'source_type' => 'business_deal',
+                'source_id' => $deal->id,
             ]);
         } catch (Throwable $e) {
             Log::error('Failed to create post for business deal', [
                 'business_deal_id' => $deal->id,
-                'error'            => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -173,7 +172,7 @@ class BusinessDealController extends BaseApiController
                         'activity_type' => 'business_deal',
                         'activity_id' => (string) $businessDeal->id,
                         'title' => 'New Business Deal',
-                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' recorded a business deal with you',
+                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' recorded a business deal with you',
                     ],
                     $businessDeal
                 );

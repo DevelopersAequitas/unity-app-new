@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
-use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Events\ActivityCreated;
+use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Http\Requests\Api\GenerateReferralCodeRequest;
 use App\Http\Resources\ReferralMemberResource;
 use App\Models\Referral;
@@ -82,17 +81,17 @@ class ReferralController extends BaseApiController
 
         $referralCodeColumn = $this->referralLinksCodeColumn();
         $referralUserColumn = $this->referralLinksUserColumn();
-        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $queryText) . '%';
+        $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $queryText).'%';
 
         $query = User::query()
-            ->leftJoin('referral_links as rl', 'rl.' . $referralUserColumn, '=', 'users.id')
+            ->leftJoin('referral_links as rl', 'rl.'.$referralUserColumn, '=', 'users.id')
             ->select([
                 'users.id as user_id',
                 'users.display_name',
                 'users.first_name',
                 'users.last_name',
                 'users.company_name',
-                DB::raw('rl."' . $referralCodeColumn . '" as referral_code'),
+                DB::raw('rl."'.$referralCodeColumn.'" as referral_code'),
             ])
             ->where(function ($query) use ($like, $referralCodeColumn): void {
                 $query->where('users.display_name', 'ILIKE', $like)
@@ -100,14 +99,14 @@ class ReferralController extends BaseApiController
                     ->orWhere('users.last_name', 'ILIKE', $like)
                     ->orWhere('users.email', 'ILIKE', $like)
                     ->orWhere('users.phone', 'ILIKE', $like)
-                    ->orWhere('rl.' . $referralCodeColumn, 'ILIKE', $like);
+                    ->orWhere('rl.'.$referralCodeColumn, 'ILIKE', $like);
             })
             ->orderBy('users.display_name')
             ->limit(20);
 
         $items = $query->get()
             ->map(function ($row): array {
-                $displayName = trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '') . ' ' . ($row->last_name ?? ''))));
+                $displayName = trim((string) (($row->display_name ?: '') ?: (($row->first_name ?? '').' '.($row->last_name ?? ''))));
 
                 return [
                     'user_id' => (string) $row->user_id,
@@ -128,7 +127,7 @@ class ReferralController extends BaseApiController
         $payload = $referralService->generateOrGetReferral($user);
         $user->loadMissing(['activeCircle:id,name']);
 
-        $resolvedName = trim((string) (($user->display_name ?: '') ?: (($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))));
+        $resolvedName = trim((string) (($user->display_name ?: '') ?: (($user->first_name ?? '').' '.($user->last_name ?? ''))));
         $resolvedCity = is_string($user->city)
             ? $user->city
             : data_get($user, 'city.name');
@@ -163,7 +162,6 @@ class ReferralController extends BaseApiController
             ],
         ]);
     }
-
 
     private function referralLinksUserColumn(): string
     {
@@ -290,7 +288,7 @@ class ReferralController extends BaseApiController
                         'activity_type' => 'referral',
                         'activity_id' => (string) $referral->id,
                         'title' => 'New Referral',
-                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' sent you a referral',
+                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' sent you a referral',
                     ],
                     $referral
                 );

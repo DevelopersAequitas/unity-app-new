@@ -11,7 +11,7 @@
     $dashboardItem = $isIndustryDirector
         ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.industry-director.dashboard']
         : (($isCircleScoped || $isDed)
-            ? ($isDed ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.ded.dashboard'] : null)
+            ? ($isDed ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.ded.dashboard'] : ['icon' => 'bi-speedometer2', 'label' => 'Circle Dashboard', 'route' => 'admin.circle-member.dashboard'])
             : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard']);
 
     $navItems = $isIndustryDirector

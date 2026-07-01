@@ -14,9 +14,7 @@ use Illuminate\Support\Facades\Schema;
 
 class IndustryManagementController extends BaseApiController
 {
-    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit)
-    {
-    }
+    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -72,12 +70,14 @@ class IndustryManagementController extends BaseApiController
         $validated = $request->validate(['user_id' => ['required', 'uuid', 'exists:users,id']]);
         $industry = Industry::query()->findOrFail($id);
         $this->circleIndustryQuery($id, (string) $industry->name)->update(['industry_director_user_id' => $validated['user_id']]);
+
         return $this->success(['assigned' => true]);
     }
 
     public function circles(string $id): JsonResponse
     {
         $industry = Industry::query()->findOrFail($id);
+
         return $this->success($this->circleIndustryQuery($id, (string) $industry->name)->paginate(20));
     }
 

@@ -21,8 +21,11 @@ use Throwable;
 class User extends Authenticatable
 {
     public const STATUS_FREE_TRIAL = 'free_trial_peer';
+
     public const STATUS_FREE = 'free_peer';
+
     public const STATUS_GREEN_PEER = 'Only Green Peer';
+
     public const STATUS_GREEN_PEER_LABEL = 'Only Green Peer';
 
     private const FREE_PEER_STATUS_CANDIDATES = [self::STATUS_FREE, 'Free Peer', 'Free_peer'];
@@ -33,7 +36,9 @@ class User extends Authenticatable
     use SoftDeletes;
 
     protected $table = 'users';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -249,7 +254,7 @@ class User extends Authenticatable
             }
 
             if (empty($user->display_name)) {
-                $user->display_name = trim($user->first_name . ' ' . ($user->last_name ?? ''));
+                $user->display_name = trim($user->first_name.' '.($user->last_name ?? ''));
             }
         });
 
@@ -439,7 +444,7 @@ class User extends Authenticatable
         }
 
         $fullName = trim(
-            trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
+            trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? ''))
         );
 
         return $fullName !== '' ? $fullName : 'Unknown';
@@ -450,7 +455,7 @@ class User extends Authenticatable
         $firstName = trim($this->first_name ?? '');
         $lastName = trim($this->last_name ?? '');
 
-        $fullName = trim($firstName . ' ' . $lastName);
+        $fullName = trim($firstName.' '.$lastName);
 
         if ($fullName !== '') {
             return $fullName;
@@ -483,11 +488,13 @@ class User extends Authenticatable
     {
         if ($this->relationLoaded('circleMembers')) {
             $name = trim((string) optional($this->circleMembers->first()?->circle)->name);
+
             return $name !== '' ? $name : 'No Circle';
         }
 
         if ($this->relationLoaded('circles')) {
             $name = trim((string) optional($this->circles->first())->name);
+
             return $name !== '' ? $name : 'No Circle';
         }
 
@@ -526,7 +533,7 @@ class User extends Authenticatable
         }
 
         $fullName = trim(
-            trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
+            trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? ''))
         );
 
         if ($fullName !== '') {
@@ -830,7 +837,7 @@ class User extends Authenticatable
             ?? null;
 
         if ($profilePhotoId) {
-            return url('/api/v1/files/' . $profilePhotoId);
+            return url('/api/v1/files/'.$profilePhotoId);
         }
 
         $storedProfilePhotoUrl = $this->attributes['profile_photo_url'] ?? null;
@@ -852,7 +859,7 @@ class User extends Authenticatable
             return null;
         }
 
-        return url('/api/v1/files/' . $this->profile_video_id);
+        return url('/api/v1/files/'.$this->profile_video_id);
     }
 
     public function isFreeMember(): bool
@@ -869,7 +876,7 @@ class User extends Authenticatable
     {
         $name = (string) ($this->getAttribute('name')
             ?? $this->display_name
-            ?? trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? '')));
+            ?? trim(($this->first_name ?? '').' '.($this->last_name ?? '')));
 
         $companyName = (string) ($this->getAttribute('company_name') ?? '');
         $city = (string) ($this->getAttribute('city') ?? '');

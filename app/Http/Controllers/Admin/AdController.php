@@ -20,7 +20,7 @@ class AdController extends Controller
 
         $ads = Ad::query()
             ->when($search !== '', function ($query) use ($search) {
-                $query->where('title', 'ILIKE', '%' . $search . '%');
+                $query->where('title', 'ILIKE', '%'.$search.'%');
             })
             ->orderByDesc('created_at')
             ->paginate(20)

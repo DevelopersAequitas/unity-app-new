@@ -134,7 +134,7 @@ class PeerMonthlyImpactScriptService
     private function totalLivesImpacted(string $userId, Carbon $start, Carbon $end): int
     {
         if (Schema::hasTable('life_impact_histories')) {
-            $table = (new LifeImpactHistory())->getTable();
+            $table = (new LifeImpactHistory)->getTable();
             $query = DB::table($table)->where('user_id', $userId);
             $this->applyHistoryCountableFilters($query, $table);
             $this->applyDateRange($query, $table, ['created_at'], $start, $end);
@@ -166,7 +166,7 @@ class PeerMonthlyImpactScriptService
             return 0;
         }
 
-        $table = (new LifeImpactHistory())->getTable();
+        $table = (new LifeImpactHistory)->getTable();
         $query = DB::table($table)->where('user_id', $userId);
         $this->applyHistoryCountableFilters($query, $table);
 
@@ -303,7 +303,7 @@ class PeerMonthlyImpactScriptService
                 return $items;
             }
 
-            $table = (new LifeImpactHistory())->getTable();
+            $table = (new LifeImpactHistory)->getTable();
             $query = LifeImpactHistory::query()->where('user_id', $userId);
             $this->applyHistoryCountableFilters($query, $table);
             $this->applyDateRange($query, $table, ['created_at'], $start, $end);
@@ -396,7 +396,7 @@ class PeerMonthlyImpactScriptService
             return collect();
         }
 
-        $table = (new LifeImpactHistory())->getTable();
+        $table = (new LifeImpactHistory)->getTable();
         $query = LifeImpactHistory::query()->where('user_id', $userId);
         $this->applyHistoryCountableFilters($query, $table);
         $this->applyDateRange($query, $table, ['created_at'], $start, $end);
@@ -939,7 +939,7 @@ class PeerMonthlyImpactScriptService
             'company_name' => $this->stringOrNull($peer?->company_name),
             'amount' => $amount,
             'deal_date' => $this->formatDate($deal->deal_date ?? null),
-            'display_text' => 'I completed business worth ' . $this->formatCurrencyAmount((float) ($amount ?? 0)) . ' with ' . $peerName,
+            'display_text' => 'I completed business worth '.$this->formatCurrencyAmount((float) ($amount ?? 0)).' with '.$peerName,
         ];
     }
 
@@ -951,16 +951,16 @@ class PeerMonthlyImpactScriptService
 
         $categoryPhrase = $category === 'your category'
             ? 'your category'
-            : 'the ' . $category . ' category';
+            : 'the '.$category.' category';
 
         return [
             'greeting_text' => 'Hello Peers,',
             'introduction_text' => "My name is {$displayName}. I run {$companyName} in {$categoryPhrase}.",
-            'monthly_lives_impacted_text' => 'This month I impacted ' . (int) $summary['total_lives_impacted_this_month'] . ' lives through Peers activities.',
-            'monthly_business_done_text' => 'This month I did business worth ' . $this->formatCurrencyAmount((float) $summary['total_business_done_with_peers_this_month']) . ' with Peers.',
+            'monthly_lives_impacted_text' => 'This month I impacted '.(int) $summary['total_lives_impacted_this_month'].' lives through Peers activities.',
+            'monthly_business_done_text' => 'This month I did business worth '.$this->formatCurrencyAmount((float) $summary['total_business_done_with_peers_this_month']).' with Peers.',
             'checklist_items' => $checklistItems,
-            'lifetime_impact_text' => 'My lifetime lives impacted count is ' . (int) $summary['lifetime_total_lives_impacted'] . '.',
-            'business_deals_text' => 'I recorded ' . (int) $businessDeals['deals_count'] . ' business deal(s) this month totalling ' . $this->formatCurrencyAmount((float) $businessDeals['total_amount']) . '.',
+            'lifetime_impact_text' => 'My lifetime lives impacted count is '.(int) $summary['lifetime_total_lives_impacted'].'.',
+            'business_deals_text' => 'I recorded '.(int) $businessDeals['deals_count'].' business deal(s) this month totalling '.$this->formatCurrencyAmount((float) $businessDeals['total_amount']).'.',
             'meaningful_progress_label' => 'Meaningful progress I made this month',
             'next_month_goal_label' => 'My goal for next month',
             'story_label' => 'Experience or story I would like to share (optional)',
@@ -983,7 +983,7 @@ class PeerMonthlyImpactScriptService
             'label' => $label,
             'count' => $count,
             'related_items' => $relatedItems,
-            'display_text' => $count > 0 ? $label . ': ' . $count : $label,
+            'display_text' => $count > 0 ? $label.': '.$count : $label,
             'is_available' => $isAvailable,
         ];
     }
@@ -1096,7 +1096,7 @@ class PeerMonthlyImpactScriptService
                 $id = (string) ($item['id'] ?? '');
 
                 if ($id !== '') {
-                    return $source . ':' . $id;
+                    return $source.':'.$id;
                 }
 
                 return md5((string) ($item['display_text'] ?? json_encode($item)));
@@ -1207,7 +1207,7 @@ class PeerMonthlyImpactScriptService
             ?? $this->stringOrNull($user->getAttribute('profile_photo_id'));
 
         if ($fileId !== null) {
-            return url('/api/v1/files/' . $fileId);
+            return url('/api/v1/files/'.$fileId);
         }
 
         $photoUrl = $this->stringOrNull($user->profile_photo_url ?? null);
@@ -1219,7 +1219,7 @@ class PeerMonthlyImpactScriptService
             return $photoUrl;
         }
 
-        return url('/' . ltrim($photoUrl, '/'));
+        return url('/'.ltrim($photoUrl, '/'));
     }
 
     private function displayName(?User $user): ?string
@@ -1233,7 +1233,7 @@ class PeerMonthlyImpactScriptService
             return $displayName;
         }
 
-        $fullName = trim((string) ($user->first_name ?? '') . ' ' . (string) ($user->last_name ?? ''));
+        $fullName = trim((string) ($user->first_name ?? '').' '.(string) ($user->last_name ?? ''));
 
         return $fullName !== '' ? $fullName : null;
     }
@@ -1286,7 +1286,7 @@ class PeerMonthlyImpactScriptService
 
     private function formatCurrencyAmount(float $amount): string
     {
-        return '₹ ' . number_format($amount, 2, '.', '');
+        return '₹ '.number_format($amount, 2, '.', '');
     }
 
     private function normalizeKey(mixed $value): string

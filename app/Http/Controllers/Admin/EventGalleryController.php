@@ -21,7 +21,7 @@ class EventGalleryController extends Controller
 
         $events = EventGallery::query()
             ->when($search !== '', function ($query) use ($search) {
-                $query->where('event_name', 'ILIKE', '%' . $search . '%');
+                $query->where('event_name', 'ILIKE', '%'.$search.'%');
             })
             ->withCount([
                 'media',
@@ -154,7 +154,7 @@ class EventGalleryController extends Controller
         $thumbnailFileId = null;
 
         if ($request->hasFile('thumbnail_file')) {
-            $thumbRequest = new Request();
+            $thumbRequest = new Request;
             $thumbRequest->files->set('file', $request->file('thumbnail_file'));
             $thumbRequest->setUserResolver($request->getUserResolver());
 

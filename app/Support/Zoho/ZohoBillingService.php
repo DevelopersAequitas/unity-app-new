@@ -21,8 +21,7 @@ class ZohoBillingService
         private readonly ZohoBillingClient $client,
         private readonly MembershipUpdater $membershipUpdater,
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
-    ) {
-    }
+    ) {}
 
     public function listActivePlans(): array
     {
@@ -48,7 +47,6 @@ class ZohoBillingService
             ->values()
             ->all();
     }
-
 
     public function listAddons(bool $activeOnly = true): array
     {
@@ -158,7 +156,7 @@ class ZohoBillingService
             'addon_code' => $addonCode,
         ]);
 
-        $referenceId = 'CIR' . now()->format('YmdHis') . random_int(100, 999);
+        $referenceId = 'CIR'.now()->format('YmdHis').random_int(100, 999);
         $payload = [
             'subscription_id' => $subscriptionId,
             'addons' => [[
@@ -260,7 +258,6 @@ class ZohoBillingService
             });
     }
 
-
     private function resolveAddonAmount(array $addon): mixed
     {
         return data_get($addon, 'price_brackets.0.price')
@@ -324,7 +321,7 @@ class ZohoBillingService
             return $existingCustomerId;
         }
 
-        $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))));
+        $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
 
         $payload = [
             'display_name' => $name !== '' ? $name : ($user->company_name ?: $email),
@@ -353,7 +350,6 @@ class ZohoBillingService
 
         return $customerId;
     }
-
 
     public function ensureCustomerForContact(array $contact): string
     {
@@ -512,8 +508,8 @@ class ZohoBillingService
                 'zoho_message' => $zohoMessage,
             ]);
 
-            $formattedCode = $zohoCode !== '' ? ' code ' . $zohoCode : '';
-            throw new RuntimeException('Failed to generate checkout URL' . $formattedCode . ': ' . $zohoMessage);
+            $formattedCode = $zohoCode !== '' ? ' code '.$zohoCode : '';
+            throw new RuntimeException('Failed to generate checkout URL'.$formattedCode.': '.$zohoMessage);
         }
 
         return [
@@ -532,9 +528,9 @@ class ZohoBillingService
             }
             $token = app(ZohoBillingTokenService::class)->getAccessToken();
             $orgId = (string) (config('services.zoho.billing_org_id') ?: config('zoho_billing.org_id') ?: env('ZOHO_BILLING_ORG_ID'));
-            $url = rtrim((string) config('zoho_billing.base_url'), '/') . '/payments';
+            $url = rtrim((string) config('zoho_billing.base_url'), '/').'/payments';
             $response = Http::withHeaders([
-                'Authorization' => 'Zoho-oauthtoken ' . $token,
+                'Authorization' => 'Zoho-oauthtoken '.$token,
                 'X-com-zoho-subscriptions-organizationid' => $orgId,
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -542,13 +538,14 @@ class ZohoBillingService
             if (! $response->successful()) {
                 throw new RuntimeException('Zoho API request failed code '.(data_get($response->json(), 'code') ?? '').': '.(data_get($response->json(), 'message') ?? $response->body()));
             }
+
             return $response->json() ?? [];
         }
     }
 
     public function getHostedPage(string $hostedpageId): array
     {
-        $response = $this->client->request('GET', '/hostedpages/' . $hostedpageId);
+        $response = $this->client->request('GET', '/hostedpages/'.$hostedpageId);
         $normalized = $this->normalizeHostedPageResponse($response);
 
         Log::info('Zoho hosted page response shape', [
@@ -562,12 +559,12 @@ class ZohoBillingService
 
     public function getSubscription(string $subscriptionId): array
     {
-        return $this->client->request('GET', '/subscriptions/' . $subscriptionId);
+        return $this->client->request('GET', '/subscriptions/'.$subscriptionId);
     }
 
     public function getInvoice(string $invoiceId): array
     {
-        return $this->client->request('GET', '/invoices/' . $invoiceId);
+        return $this->client->request('GET', '/invoices/'.$invoiceId);
     }
 
     public function listInvoicesBySubscription(string $subscriptionId, int $page = 1, int $perPage = 10): array
@@ -649,7 +646,7 @@ class ZohoBillingService
             return null;
         }
 
-        $pdf = $this->client->requestPdf('/invoices/' . $invoiceId, ['accept' => 'pdf']);
+        $pdf = $this->client->requestPdf('/invoices/'.$invoiceId, ['accept' => 'pdf']);
 
         return [
             'content' => $pdf['content'] ?? '',
@@ -1129,7 +1126,7 @@ class ZohoBillingService
 
     private function ensurePortalEnabled(User $user, string $customerId, string $email, string $phone): void
     {
-        $this->client->request('PUT', '/customers/' . $customerId, [
+        $this->client->request('PUT', '/customers/'.$customerId, [
             'is_portal_enabled' => true,
             'email' => $email,
             'mobile' => $phone,

@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class UserMembership extends Model
 {
     protected $table = 'user_memberships';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

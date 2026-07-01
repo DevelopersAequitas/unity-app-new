@@ -21,15 +21,18 @@ use Throwable;
 class CollaborationNotificationService
 {
     private const SOURCE_TYPE = 'collaboration_post';
+
     private const CREATED_NOTIFICATION_ALL = 'created_notification_all';
+
     private const CREATED_NOTIFICATION_SELF = 'created_notification_self';
+
     private const COMPLETED_NOTIFICATION_ALL = 'completed_notification_all';
+
     private const CREATED_EMAIL_CREATOR = 'created_email_creator';
+
     private const COMPLETED_EMAIL_RELATED = 'completed_email_related';
 
-    public function __construct(private readonly EmailLogService $emailLogService)
-    {
-    }
+    public function __construct(private readonly EmailLogService $emailLogService) {}
 
     public function sendCreatedNotificationsAndEmail(CollaborationPost $collaboration): void
     {
@@ -143,7 +146,7 @@ class CollaborationNotificationService
                     self::COMPLETED_EMAIL_RELATED,
                     new CollaborationCompletedMail($collaboration, $recipient),
                     'collaboration_completed',
-                    'Collaboration completed: ' . $collaboration->title
+                    'Collaboration completed: '.$collaboration->title
                 );
             }
         } catch (Throwable $exception) {
@@ -350,7 +353,7 @@ class CollaborationNotificationService
             return 'A peer';
         }
 
-        $name = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+        $name = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
 
         return $name !== '' ? $name : 'A peer';
     }

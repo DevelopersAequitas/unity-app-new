@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\AdsBannerResource;
 use App\Models\AdsBanner;
 use Illuminate\Http\Request;

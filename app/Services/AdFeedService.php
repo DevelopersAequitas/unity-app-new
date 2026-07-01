@@ -98,7 +98,7 @@ class AdFeedService
 
     private function nextGap(int &$seed): int
     {
-        $seed = (int) (($seed * 1103515245 + 12345) & 0x7fffffff);
+        $seed = (int) (($seed * 1103515245 + 12345) & 0x7FFFFFFF);
         $range = self::MAX_AUTO_AD_GAP - self::MIN_AUTO_AD_GAP + 1;
 
         return self::MIN_AUTO_AD_GAP + ($seed % $range);

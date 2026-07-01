@@ -2,6 +2,4 @@
 
 namespace App\Models;
 
-class NotificationCampaign extends \App\Models\Notifications\NotificationCampaign
-{
-}
+class NotificationCampaign extends \App\Models\Notifications\NotificationCampaign {}

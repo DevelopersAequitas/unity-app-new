@@ -1,14 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Admin\Auth\AdminAuthController;
-use App\Http\Controllers\Admin\DashboardController;
-use App\Http\Controllers\Admin\UsersController;
-use App\Http\Controllers\Admin\Circles\CircleController;
-use App\Http\Controllers\Admin\Circles\CircleMemberController;
-use App\Http\Controllers\Admin\Users\UserSearchController;
-use App\Http\Controllers\Admin\ActivitiesController;
 use App\Http\Controllers\Admin\ActivitiesBusinessDealsController;
+use App\Http\Controllers\Admin\ActivitiesController;
 use App\Http\Controllers\Admin\ActivitiesLeaderInterestController;
 use App\Http\Controllers\Admin\ActivitiesP2PMeetingsController;
 use App\Http\Controllers\Admin\ActivitiesPeerRecommendationController;
@@ -16,45 +9,53 @@ use App\Http\Controllers\Admin\ActivitiesReferralsController;
 use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
+use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\AdController;
+use App\Http\Controllers\Admin\AdminCampaignController;
+use App\Http\Controllers\Admin\AdminExecutionController;
+use App\Http\Controllers\Admin\AppConfigPageController;
+use App\Http\Controllers\Admin\Auth\AdminAuthController;
+use App\Http\Controllers\Admin\BrandPartnerAnalyticsController;
+use App\Http\Controllers\Admin\BrandPartnerCategoryController;
+use App\Http\Controllers\Admin\BrandPartnerController;
+use App\Http\Controllers\Admin\BrandPartnerSettingsController;
+use App\Http\Controllers\Admin\CampaignEmailTemplateController;
+use App\Http\Controllers\Admin\CampaignPamphletController;
+use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CertificationSubmissionsController;
+use App\Http\Controllers\Admin\CircleJoinRequestsController;
+use App\Http\Controllers\Admin\CircleMemberDashboardController;
 use App\Http\Controllers\Admin\CirclePeersController;
+use App\Http\Controllers\Admin\Circles\CircleController;
+use App\Http\Controllers\Admin\Circles\CircleMemberController;
+use App\Http\Controllers\Admin\CircularController;
+use App\Http\Controllers\Admin\CoinClaimsController;
 use App\Http\Controllers\Admin\CoinsController;
-use App\Http\Controllers\Admin\LifeImpactController;
 use App\Http\Controllers\Admin\CollaborationPostController;
 use App\Http\Controllers\Admin\ContactController;
-use App\Http\Controllers\Admin\CoinClaimsController;
-use App\Http\Controllers\Admin\CircleJoinRequestsController;
-use App\Http\Controllers\Admin\EventGalleryController;
-use App\Http\Controllers\Admin\LoginHistoryController;
-use App\Http\Controllers\Admin\LocationController;
-use App\Http\Controllers\Admin\MembershipPlanController;
-use App\Http\Controllers\Admin\PostReportsController;
-use App\Http\Controllers\Admin\PostModerationController;
-use App\Http\Controllers\Admin\VisitorRegistrationsController;
-use App\Http\Controllers\Admin\PendingRegistrationsController;
-use App\Http\Controllers\Admin\CircularController;
-use App\Http\Controllers\Admin\CategoryController;
-use App\Http\Controllers\Admin\AdController;
+use App\Http\Controllers\Admin\DailyNotificationController;
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailLogController;
-use App\Http\Controllers\Admin\AdminCampaignController;
-use App\Http\Controllers\Admin\NotificationAdminController;
-use App\Http\Controllers\Admin\CampaignPamphletController;
-use App\Http\Controllers\Admin\CampaignEmailTemplateController;
-use App\Http\Controllers\Admin\ImpactsController;
-use App\Http\Controllers\Admin\LeadSubmissionsController;
-use App\Http\Controllers\Admin\CertificationSubmissionsController;
-use App\Http\Controllers\Admin\ReferralReportController;
-use App\Http\Controllers\Admin\AdminExecutionController;
+use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
-use App\Http\Controllers\Admin\ActivityCreativeController;
-use App\Http\Controllers\Admin\AppConfigPageController;
+use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
-use App\Http\Controllers\Admin\DailyNotificationController;
+use App\Http\Controllers\Admin\LeadSubmissionsController;
+use App\Http\Controllers\Admin\LifeImpactController;
+use App\Http\Controllers\Admin\LocationController;
+use App\Http\Controllers\Admin\LoginHistoryController;
+use App\Http\Controllers\Admin\MembershipPlanController;
+use App\Http\Controllers\Admin\NotificationAdminController;
+use App\Http\Controllers\Admin\PendingRegistrationsController;
+use App\Http\Controllers\Admin\PostModerationController;
+use App\Http\Controllers\Admin\PostReportsController;
+use App\Http\Controllers\Admin\ReferralReportController;
+use App\Http\Controllers\Admin\Users\UserSearchController;
+use App\Http\Controllers\Admin\UsersController;
+use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
-use App\Http\Controllers\Admin\BrandPartnerController;
-use App\Http\Controllers\Admin\BrandPartnerCategoryController;
-use App\Http\Controllers\Admin\BrandPartnerAnalyticsController;
-use App\Http\Controllers\Admin\BrandPartnerSettingsController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('landing');
@@ -84,6 +85,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 return redirect()->route('admin.industry-director.dashboard');
             }
 
+            if (\App\Support\AdminAccess::isCircleScoped($admin)) {
+                return redirect()->route('admin.circle-member.dashboard');
+            }
+
             return redirect()->route('admin.dashboard');
         })->name('home');
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
@@ -102,6 +107,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/app-config/membership-labels', [AppConfigPageController::class, 'membershipLabels'])->name('app-config.membership-labels');
         Route::post('/app-config/clear-cache', [AppConfigPageController::class, 'clearCache'])->name('app-config.clear-cache');
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/circle-member/dashboard', [CircleMemberDashboardController::class, 'index'])->name('circle-member.dashboard');
         Route::get('/ded-dashboard', [DashboardController::class, 'ded'])->name('ded.dashboard');
         Route::get('/ded-dashboard/leadership/{role}', [DashboardController::class, 'dedLeadershipDetail'])->name('ded.dashboard.leadership');
         Route::get('/ded-dashboard/health/active-members', [DashboardController::class, 'dedActiveMembersDetail'])->name('ded.dashboard.health.active-members');
@@ -200,7 +206,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users/import', [UsersController::class, 'import'])->name('users.import.submit');
         Route::post('/users/export/csv', [UsersController::class, 'exportCsv'])->name('users.export.csv');
         Route::get('/users/search', UserSearchController::class)->name('users.search');
-        
+
         Route::get('/circulars', [CircularController::class, 'index'])->name('circulars.index');
         Route::get('/circulars/create', [CircularController::class, 'create'])->name('circulars.create');
         Route::post('/circulars', [CircularController::class, 'store'])->name('circulars.store');

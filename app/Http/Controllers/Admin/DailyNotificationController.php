@@ -2,28 +2,28 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Events\UserNotificationCreated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateDailyNotificationReminderRequest;
-use App\Services\DailyNotificationReminderService;
-use App\Models\DailyNotificationReminder;
-use App\Models\User;
-use App\Models\Notification;
+use App\Jobs\SendFcmNotificationJob;
 use App\Models\Ad;
 use App\Models\Category;
 use App\Models\Circle;
 use App\Models\CollaborationPost;
+use App\Models\DailyNotificationReminder;
 use App\Models\Event;
-use App\Events\UserNotificationCreated;
-use App\Jobs\SendFcmNotificationJob;
 use App\Models\LifeImpactHistory;
+use App\Models\Notification;
+use App\Models\User;
+use App\Services\DailyNotificationReminderService;
 use Illuminate\Contracts\View\View;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class DailyNotificationController extends Controller
@@ -64,7 +64,7 @@ class DailyNotificationController extends Controller
 
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Failed to update daily notification reminder: ' . $e->getMessage());
+                ->with('error', 'Failed to update daily notification reminder: '.$e->getMessage());
         }
     }
 
@@ -79,7 +79,7 @@ class DailyNotificationController extends Controller
 
             $usersCollection = $query->get();
 
-            if ($reminder->activity === "Streak/engagement reminder") {
+            if ($reminder->activity === 'Streak/engagement reminder') {
                 $usersCollection = $usersCollection->filter(function ($user) {
                     return $this->calculateStreak($user) >= 2;
                 });
@@ -88,7 +88,7 @@ class DailyNotificationController extends Controller
             $users = $usersCollection->map(function ($user) {
                 return [
                     'id' => $user->id,
-                    'name' => $user->first_name . ' ' . $user->last_name,
+                    'name' => $user->first_name.' '.$user->last_name,
                     'company_name' => $user->company_name ?? 'N/A',
                     'city' => $user->city?->name ?? 'N/A',
                     'business_category' => $user->businessCategory?->name ?? $user->business_type ?? 'N/A',
@@ -98,17 +98,17 @@ class DailyNotificationController extends Controller
             return response()->json([
                 'success' => true,
                 'activity' => $reminder->activity,
-                'users' => $users
+                'users' => $users,
             ]);
         } catch (Throwable $e) {
             Log::error('failed_to_fetch_eligible_users', [
                 'id' => $id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to fetch eligible users: ' . $e->getMessage()
+                'error' => 'Failed to fetch eligible users: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -123,7 +123,7 @@ class DailyNotificationController extends Controller
             $query = $this->getEligibleUsersQuery($reminder->activity);
 
             $users = $query->get();
-            if ($reminder->activity === "Streak/engagement reminder") {
+            if ($reminder->activity === 'Streak/engagement reminder') {
                 $users = $users->filter(function ($user) {
                     return $this->calculateStreak($user) >= 2;
                 });
@@ -154,7 +154,7 @@ class DailyNotificationController extends Controller
                 if ($activity === 'Daily peer discovery suggestion') {
                     $peer = User::query()->where('id', '!=', $user->id)->where('status', 'active')->inRandomOrder()->first() ?? $randomPeer;
                     $placeholders = [
-                        '{Suggested Peer Name}' => $peer ? ($peer->first_name . ' ' . $peer->last_name) : 'A Peer',
+                        '{Suggested Peer Name}' => $peer ? ($peer->first_name.' '.$peer->last_name) : 'A Peer',
                         '{Industry}' => $peer?->designation ?: 'Business',
                     ];
                 } elseif ($activity === 'Trending circle highlight') {
@@ -178,7 +178,7 @@ class DailyNotificationController extends Controller
                         'Networking boosts local trade opportunities up to 40%.',
                         'Collaborative marketing can reduce customer acquisition costs by 30%.',
                         'Regular updates with peers improve collaboration success rates.',
-                        'Cross-industry partnerships are the key source of 2026 innovation.'
+                        'Cross-industry partnerships are the key source of 2026 innovation.',
                     ];
                     $placeholders = [
                         '{Industry}' => $user->designation ?: 'Professional Development',
@@ -196,7 +196,7 @@ class DailyNotificationController extends Controller
                 } elseif ($activity === 'Showcase a leader success story') {
                     $leader = User::query()->whereNotNull('leadership_roles')->where('membership_status', 'premium')->inRandomOrder()->first();
                     $placeholders = [
-                        '{Leader Name}' => $leader ? ($leader->first_name . ' ' . $leader->last_name) : 'Tan Hars',
+                        '{Leader Name}' => $leader ? ($leader->first_name.' '.$leader->last_name) : 'Tan Hars',
                     ];
                 } elseif ($activity === 'Daily curated offer/deal highlight') {
                     $placeholders = [
@@ -259,11 +259,11 @@ class DailyNotificationController extends Controller
         } catch (Throwable $e) {
             Log::error('failed_to_manually_dispatch_reminder', [
                 'id' => $id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return redirect()->route('admin.daily-notifications.index')
-                ->with('error', 'Failed to manually dispatch reminder: ' . $e->getMessage());
+                ->with('error', 'Failed to manually dispatch reminder: '.$e->getMessage());
         }
     }
 
@@ -281,18 +281,18 @@ class DailyNotificationController extends Controller
                 $user = User::query()->find($userId);
             }
 
-            if (!$user) {
+            if (! $user) {
                 $user = User::query()->where('email', 'missurvashi300@gmail.com')->first();
             }
 
-            if (!$user) {
+            if (! $user) {
                 $user = User::query()->first();
             }
 
-            if (!$user) {
+            if (! $user) {
                 return response()->json([
                     'success' => false,
-                    'error' => 'No active user found in the database to target.'
+                    'error' => 'No active user found in the database to target.',
                 ], 404);
             }
 
@@ -301,16 +301,16 @@ class DailyNotificationController extends Controller
             if ($reminders->isEmpty()) {
                 return response()->json([
                     'success' => false,
-                    'error' => 'No reminder templates found in daily_notifications_reminder table.'
+                    'error' => 'No reminder templates found in daily_notifications_reminder table.',
                 ], 400);
             }
 
             // Ensure the user has at least one push token for FCM testing
-            if (!$user->pushTokens()->exists()) {
+            if (! $user->pushTokens()->exists()) {
                 $user->pushTokens()->create([
-                    'token' => 'dummy_fcm_token_for_testing_' . Str::random(10),
+                    'token' => 'dummy_fcm_token_for_testing_'.Str::random(10),
                     'platform' => 'android',
-                    'device_id' => 'device_id_' . Str::random(8),
+                    'device_id' => 'device_id_'.Str::random(8),
                     'app_version' => '1.0.0',
                     'last_seen_at' => now(),
                 ]);
@@ -335,7 +335,7 @@ class DailyNotificationController extends Controller
 
                 if ($activity === 'Daily peer discovery suggestion') {
                     $placeholders = [
-                        '{Suggested Peer Name}' => $randomPeer ? ($randomPeer->first_name . ' ' . $randomPeer->last_name) : 'A Peer',
+                        '{Suggested Peer Name}' => $randomPeer ? ($randomPeer->first_name.' '.$randomPeer->last_name) : 'A Peer',
                         '{Industry}' => $randomPeer?->designation ?: 'Business',
                     ];
                 } elseif ($activity === 'Trending circle highlight') {
@@ -438,7 +438,7 @@ class DailyNotificationController extends Controller
                 'target_user' => [
                     'id' => $user->id,
                     'email' => $user->email,
-                    'name' => $user->first_name . ' ' . $user->last_name,
+                    'name' => $user->first_name.' '.$user->last_name,
                 ],
                 'sent_count' => count($dispatched),
                 'notifications' => $dispatched,
@@ -452,7 +452,7 @@ class DailyNotificationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to trigger test notifications: ' . $e->getMessage(),
+                'error' => 'Failed to trigger test notifications: '.$e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ], 500);
         }
@@ -466,29 +466,29 @@ class DailyNotificationController extends Controller
         $counts = [];
         $activities = [
             "User hasn't opened the app today",
-            "Daily peer discovery suggestion",
-            "Trending circle highlight",
-            "Daily leaderboard teaser",
-            "Reminder of unused wallet balance",
-            "Encouragement to refer more peers",
-            "Highlight upcoming events nearby",
-            "Inspire users to log a business deal",
-            "Prompt to give a testimonial",
-            "Inspire users to share their story",
-            "Daily activity digest",
-            "Highlight open collaboration opportunities",
-            "Industry-specific trending news/tip",
-            "Reward redemption nudge",
-            "Throwback to a past event photo",
-            "Inspire users to apply for leadership",
-            "Weekly community newsletter teaser",
-            "Streak/engagement reminder",
-            "Showcase a leader success story",
-            "Daily curated offer/deal highlight",
-            "Explore new category prompt",
-            "Cycle progress reminder",
-            "Re-engagement after prolonged inactivity",
-            "Prompt to recommend someone"
+            'Daily peer discovery suggestion',
+            'Trending circle highlight',
+            'Daily leaderboard teaser',
+            'Reminder of unused wallet balance',
+            'Encouragement to refer more peers',
+            'Highlight upcoming events nearby',
+            'Inspire users to log a business deal',
+            'Prompt to give a testimonial',
+            'Inspire users to share their story',
+            'Daily activity digest',
+            'Highlight open collaboration opportunities',
+            'Industry-specific trending news/tip',
+            'Reward redemption nudge',
+            'Throwback to a past event photo',
+            'Inspire users to apply for leadership',
+            'Weekly community newsletter teaser',
+            'Streak/engagement reminder',
+            'Showcase a leader success story',
+            'Daily curated offer/deal highlight',
+            'Explore new category prompt',
+            'Cycle progress reminder',
+            'Re-engagement after prolonged inactivity',
+            'Prompt to recommend someone',
         ];
 
         foreach ($activities as $act) {
@@ -497,7 +497,7 @@ class DailyNotificationController extends Controller
 
         try {
             foreach ($activities as $act) {
-                if ($act === "Streak/engagement reminder") {
+                if ($act === 'Streak/engagement reminder') {
                     $counts[$act] = $this->getEligibleUsersQuery($act)->get()->filter(function ($user) {
                         return $this->calculateStreak($user) >= 2;
                     })->count();
@@ -507,7 +507,7 @@ class DailyNotificationController extends Controller
             }
         } catch (Throwable $e) {
             Log::warning('failed_to_calculate_eligible_notification_counts_defaulting_to_zero', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -525,21 +525,21 @@ class DailyNotificationController extends Controller
             case "User hasn't opened the app today":
                 $query->where(function ($q) {
                     $q->whereNull('last_login_at')
-                      ->orWhere('last_login_at', '<', today());
+                        ->orWhere('last_login_at', '<', today());
                 });
                 break;
 
-            case "Reminder of unused wallet balance":
+            case 'Reminder of unused wallet balance':
                 $query->where('coins_balance', '>', 0)
-                      ->whereNotExists(function ($sub) {
-                          $sub->select(DB::raw(1))
-                              ->from('coins_ledger')
-                              ->whereColumn('coins_ledger.user_id', 'users.id')
-                              ->where('created_at', '>', now()->subDays(3));
-                      });
+                    ->whereNotExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('coins_ledger')
+                            ->whereColumn('coins_ledger.user_id', 'users.id')
+                            ->where('created_at', '>', now()->subDays(3));
+                    });
                 break;
 
-            case "Encouragement to refer more peers":
+            case 'Encouragement to refer more peers':
                 $query->whereNotExists(function ($sub) {
                     $sub->select(DB::raw(1))
                         ->from('referrals')
@@ -548,7 +548,7 @@ class DailyNotificationController extends Controller
                 });
                 break;
 
-            case "Inspire users to log a business deal":
+            case 'Inspire users to log a business deal':
                 $query->whereNotExists(function ($sub) {
                     $sub->select(DB::raw(1))
                         ->from('business_deals')
@@ -557,7 +557,7 @@ class DailyNotificationController extends Controller
                 });
                 break;
 
-            case "Prompt to give a testimonial":
+            case 'Prompt to give a testimonial':
                 $query->whereNotExists(function ($sub) {
                     $sub->select(DB::raw(1))
                         ->from('testimonials')
@@ -566,7 +566,7 @@ class DailyNotificationController extends Controller
                 });
                 break;
 
-            case "Inspire users to share their story":
+            case 'Inspire users to share their story':
                 $query->whereNotExists(function ($sub) {
                     $sub->select(DB::raw(1))
                         ->from((new LifeImpactHistory)->getTable())
@@ -575,24 +575,24 @@ class DailyNotificationController extends Controller
                 });
                 break;
 
-            case "Reward redemption nudge":
+            case 'Reward redemption nudge':
                 $query->where('coins_balance', '>=', 100);
                 break;
 
-            case "Inspire users to apply for leadership":
+            case 'Inspire users to apply for leadership':
                 $query->where(function ($sub) {
                     $sub->whereNull('leadership_roles')
                         ->orWhere('leadership_roles', '[]')
                         ->orWhere('leadership_roles', '{}');
                 })
-                ->whereNotExists(function ($sub) {
-                    $sub->select(DB::raw(1))
-                        ->from('leader_interest_submissions')
-                        ->whereColumn('leader_interest_submissions.user_id', 'users.id');
-                });
+                    ->whereNotExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('leader_interest_submissions')
+                            ->whereColumn('leader_interest_submissions.user_id', 'users.id');
+                    });
                 break;
 
-            case "Streak/engagement reminder":
+            case 'Streak/engagement reminder':
                 $query->whereExists(function ($sub) {
                     $sub->select(DB::raw(1))
                         ->from('user_login_histories')
@@ -601,7 +601,7 @@ class DailyNotificationController extends Controller
                 });
                 break;
 
-            case "Re-engagement after prolonged inactivity":
+            case 'Re-engagement after prolonged inactivity':
                 $query->whereBetween('last_login_at', [now()->subDays(10), now()->subDays(5)]);
                 break;
 
@@ -623,7 +623,7 @@ class DailyNotificationController extends Controller
             ->where('logged_in_at', '>=', now()->subDays(10))
             ->orderByDesc('logged_in_at')
             ->pluck('logged_in_at')
-            ->map(fn($t) => Carbon::parse($t)->toDateString())
+            ->map(fn ($t) => Carbon::parse($t)->toDateString())
             ->unique()
             ->values();
 

@@ -9,8 +9,8 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\User;
 use App\Services\ProfileMatchService;
-use Illuminate\Support\Collection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
 class UserResource extends JsonResource
@@ -19,11 +19,11 @@ class UserResource extends JsonResource
     {
         $profilePhotoId = $this->profile_photo_file_id ?? $this->profile_photo_id;
         $profilePhotoUrl = $profilePhotoId
-            ? url('/api/v1/files/' . $profilePhotoId)
+            ? url('/api/v1/files/'.$profilePhotoId)
             : null;
         $coverPhotoId = $this->cover_photo_file_id;
         $coverPhotoUrl = $coverPhotoId
-            ? url('/api/v1/files/' . $coverPhotoId)
+            ? url('/api/v1/files/'.$coverPhotoId)
             : null;
         $profileVideoId = $this->profile_video_id;
         $profileVideoUrl = $this->resolveProfileVideoUrl();
@@ -40,27 +40,27 @@ class UserResource extends JsonResource
         }
 
         return [
-            'id'                  => $this->id,
+            'id' => $this->id,
             'public_profile_slug' => $this->public_profile_slug,
-            'profile_photo_id'    => $profilePhotoId,
-            'cover_photo_id'      => $coverPhotoId,
-            'profile_video_id'    => $profileVideoId,
-            'profile_video'       => $profileVideoId ? [
+            'profile_photo_id' => $profilePhotoId,
+            'cover_photo_id' => $coverPhotoId,
+            'profile_video_id' => $profileVideoId,
+            'profile_video' => $profileVideoId ? [
                 'id' => (string) $profileVideoId,
                 'url' => $profileVideoUrl,
             ] : null,
-            'profile_video_url'   => $profileVideoUrl,
-            'first_name'          => $this->first_name,
-            'last_name'           => $this->last_name,
-            'display_name'        => $this->display_name,
-            'company_name'        => $this->company_name,
-            'designation'         => $this->designation,
-            'email'               => $this->email,
-            'phone'               => $this->phone,
-            'city'                => $resolvedCity ? new CityResource($resolvedCity) : null,
-            'city_of_residence'   => $this->city_of_residence,
-            'membership_status'   => $membershipStatus,
-            'membership_expiry'   => $this->membership_ends_at,
+            'profile_video_url' => $profileVideoUrl,
+            'first_name' => $this->first_name,
+            'last_name' => $this->last_name,
+            'display_name' => $this->display_name,
+            'company_name' => $this->company_name,
+            'designation' => $this->designation,
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'city' => $resolvedCity ? new CityResource($resolvedCity) : null,
+            'city_of_residence' => $this->city_of_residence,
+            'membership_status' => $membershipStatus,
+            'membership_expiry' => $this->membership_ends_at,
             'membership_status_label' => match ($membershipStatus) {
                 User::STATUS_FREE_TRIAL => 'Free Trial Peer',
                 User::STATUS_FREE => 'Free Peer',
@@ -104,46 +104,46 @@ class UserResource extends JsonResource
                     ];
                 }),
             'circle_memberships' => $this->resolveCircleMemberships(),
-            'followers_count'     => (int) ($this->followers_count ?? 0),
-            'following_count'     => (int) ($this->following_count ?? 0),
-            'coins_balance'       => $this->coins_balance,
+            'followers_count' => (int) ($this->followers_count ?? 0),
+            'following_count' => (int) ($this->following_count ?? 0),
+            'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
-            'business_type'       => $this->business_type,
-            'turnover_range'      => $this->turnover_range,
-            'gender'              => $this->gender,
-            'dob'                 => optional($this->dob)?->format('Y-m-d'),
-            'experience_years'    => $this->experience_years,
-            'experience_summary'  => $this->experience_summary,
-            'bio'                 => $this->short_bio,
-            'long_bio_html'       => $this->long_bio_html,
-            'industry_tags'       => $this->industry_tags ?? [],
-            'skills'              => $this->skills ?? [],
-            'interests'           => $this->interests ?? [],
-            'target_regions'      => $this->target_regions ?? [],
+            'business_type' => $this->business_type,
+            'turnover_range' => $this->turnover_range,
+            'gender' => $this->gender,
+            'dob' => optional($this->dob)?->format('Y-m-d'),
+            'experience_years' => $this->experience_years,
+            'experience_summary' => $this->experience_summary,
+            'bio' => $this->short_bio,
+            'long_bio_html' => $this->long_bio_html,
+            'industry_tags' => $this->industry_tags ?? [],
+            'skills' => $this->skills ?? [],
+            'interests' => $this->interests ?? [],
+            'target_regions' => $this->target_regions ?? [],
             'target_business_categories' => $this->target_business_categories ?? [],
-            'hobbies_interests'   => $this->hobbies_interests ?? [],
-            'leadership_roles'    => $this->leadership_roles ?? [],
-            'special_recognitions'=> $this->special_recognitions ?? [],
-            'social_links'        => $this->resolveSocialLinks(),
-            'media'               => $this->mediaValue(),
-            'profile_photo_url'   => $profilePhotoUrl,
-            'cover_photo_url'     => $coverPhotoUrl,
-            'address'             => $this->address ?? null,
-            'state'               => $this->state ?? null,
-            'country'             => $this->country ?? null,
-            'timezone'            => $this->timezone ?? null,
-            'pincode'             => $this->pincode ?? null,
-            'is_verified'         => $this->is_verified ?? null,
+            'hobbies_interests' => $this->hobbies_interests ?? [],
+            'leadership_roles' => $this->leadership_roles ?? [],
+            'special_recognitions' => $this->special_recognitions ?? [],
+            'social_links' => $this->resolveSocialLinks(),
+            'media' => $this->mediaValue(),
+            'profile_photo_url' => $profilePhotoUrl,
+            'cover_photo_url' => $coverPhotoUrl,
+            'address' => $this->address ?? null,
+            'state' => $this->state ?? null,
+            'country' => $this->country ?? null,
+            'timezone' => $this->timezone ?? null,
+            'pincode' => $this->pincode ?? null,
+            'is_verified' => $this->is_verified ?? null,
             'is_sponsored_member' => $this->is_sponsored_member ?? null,
-            'last_login_at'       => $this->last_login_at,
-            'created_at'          => $this->created_at,
-            'updated_at'          => $this->updated_at,
-            'website'                     => $this->website,
+            'last_login_at' => $this->last_login_at,
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+            'website' => $this->website,
             'sustainability_contribution' => $this->sustainability_contribution,
-            'sustainability_areas'        => $this->sustainability_areas ?? [],
-            'greenpreneur_goals'          => $this->greenpreneur_goals ?? [],
+            'sustainability_areas' => $this->sustainability_areas ?? [],
+            'greenpreneur_goals' => $this->greenpreneur_goals ?? [],
             'community_directory_listing' => $this->community_directory_listing,
-            'profile_match'       => $this->when(
+            'profile_match' => $this->when(
                 $request->attributes->get('profile_match_enabled', false),
                 fn () => $this->resolveProfileMatch($request)
             ),
@@ -213,7 +213,7 @@ class UserResource extends JsonResource
         }
 
         if (! blank($firstMedia['id'] ?? null)) {
-            return url('/api/v1/files/' . $firstMedia['id']);
+            return url('/api/v1/files/'.$firstMedia['id']);
         }
 
         return null;
@@ -234,7 +234,7 @@ class UserResource extends JsonResource
             ->filter(fn ($item): bool => is_array($item) && ! blank($item['id'] ?? null) && ! blank($item['type'] ?? null))
             ->map(fn (array $item): array => [
                 'id' => (string) $item['id'],
-                'url' => url('/api/v1/files/' . $item['id']),
+                'url' => url('/api/v1/files/'.$item['id']),
                 'type' => (string) $item['type'],
             ])
             ->values()

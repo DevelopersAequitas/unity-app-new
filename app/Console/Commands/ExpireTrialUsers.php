@@ -49,7 +49,7 @@ class ExpireTrialUsers extends Command
                 app(EmailLogService::class)->logMailableSent($mailable, [
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'free_trial_expired',
                     'source_module' => 'membership',
                     'related_type' => 'user',
@@ -65,7 +65,7 @@ class ExpireTrialUsers extends Command
                 app(EmailLogService::class)->logMailableFailed($mailable, [
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'free_trial_expired',
                     'source_module' => 'membership',
                     'related_type' => 'user',

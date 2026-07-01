@@ -9,7 +9,6 @@ use App\Models\Circle;
 use App\Models\CircleJoinRequest;
 use App\Models\CoinClaimRequest;
 use App\Models\CoinLedger;
-use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
 use App\Models\Impact;
@@ -23,7 +22,6 @@ use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
-use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -158,6 +156,7 @@ class DedApiService
 
         if (! $primaryColumn && ! $peerColumn) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -193,7 +192,6 @@ class DedApiService
         });
     }
 
-
     private function qualifiedColumnExists(string $qualifiedColumn): bool
     {
         if (! str_contains($qualifiedColumn, '.')) {
@@ -226,6 +224,7 @@ class DedApiService
     {
         if ($qualifiedColumns === []) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -261,6 +260,7 @@ class DedApiService
 
         if ($districtName === '') {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -275,6 +275,7 @@ class DedApiService
 
         if ($districtColumns === []) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -378,7 +379,7 @@ class DedApiService
     {
         return [
             'id' => $user->id,
-            'name' => $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+            'name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
             'email' => $user->email,
             'phone' => $user->phone,
             'company' => $user->company_name,
@@ -390,7 +391,6 @@ class DedApiService
             'created_at' => optional($user->created_at)->toISOString(),
         ];
     }
-
 
     private function userCityLabel(User $user): ?string
     {
@@ -404,7 +404,7 @@ class DedApiService
         $query = $this->circlesQuery($admin)
             ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v))
             ->when($request->query('search'), function ($q, $term): void {
-                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], (string) $term) . '%';
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], (string) $term).'%';
                 $q->where(function ($inner) use ($like): void {
                     $inner->where('name', 'ILIKE', $like)
                         ->orWhere('city', 'ILIKE', $like)
@@ -423,7 +423,7 @@ class DedApiService
         $query->when($request->query('membership_status'), fn ($q, $v) => $q->where('membership_status', $v))
             ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v))
             ->when($request->query('search'), function ($q, $term): void {
-                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], (string) $term) . '%';
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], (string) $term).'%';
                 $q->where(function ($inner) use ($like): void {
                     $inner->where('display_name', 'ILIKE', $like)
                         ->orWhere('first_name', 'ILIKE', $like)
@@ -523,14 +523,14 @@ class DedApiService
         $this->applyActivityScope($query, $admin, $primary, $peer, $request->query('circle_id'));
         $this->applyDateFilters($query, $request, $dateColumn);
         $this->applyGenericSearch($query, $request->query('search'));
-        if ($request->query('status') && Schema::hasColumn((new $model())->getTable(), 'status')) {
+        if ($request->query('status') && Schema::hasColumn((new $model)->getTable(), 'status')) {
             $query->where('status', $request->query('status'));
         }
         if ($request->query('referral_type') && $type === 'referrals') {
             $query->where('referral_type', $request->query('referral_type'));
         }
         if ($request->query('category') && $type === 'requirements') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], (string) $request->query('category')) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], (string) $request->query('category')).'%';
             $query->where(function ($categoryQuery) use ($like): void {
                 $categoryQuery->whereRaw('category_filter::text ILIKE ?', [$like])
                     ->orWhereRaw('region_filter::text ILIKE ?', [$like]);
@@ -561,7 +561,7 @@ class DedApiService
         if ($term === '') {
             return;
         }
-        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $term) . '%';
+        $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
         $model = $query->getModel();
         $table = $model->getTable();
         $query->where(function ($inner) use ($like, $model, $table): void {
@@ -650,7 +650,7 @@ class DedApiService
 
     public function eventJoiningRequestsQuery(AdminUser $admin, ?string $circleId = null): EloquentBuilder
     {
-        if (Schema::hasTable((new EventRegistrationRequest())->getTable())) {
+        if (Schema::hasTable((new EventRegistrationRequest)->getTable())) {
             $query = EventRegistrationRequest::query()->with(['user', 'event.circle', 'occurrence', 'registration', 'approvedBy', 'rejectedBy']);
             $this->applyEventRegistrationRequestScope($query, $admin);
             if ($circleId && $circleId !== 'all') {
@@ -675,7 +675,7 @@ class DedApiService
             return $query;
         }
 
-        if (! Schema::hasTable((new EventRegistration())->getTable())) {
+        if (! Schema::hasTable((new EventRegistration)->getTable())) {
             abort(500, 'Event registration table is not available.');
         }
 
@@ -724,7 +724,6 @@ class DedApiService
             }
         });
     }
-
 
     public function applyEventRegistrationFallbackScope(EloquentBuilder $query, AdminUser $admin): void
     {
@@ -864,7 +863,7 @@ class DedApiService
             $this->applyDateFilters($query, $request, $referralDateColumn);
         }
         $query->when($request->query('search'), function ($q, $term): void {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], (string) $term) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], (string) $term).'%';
             $q->where(function ($inner) use ($like): void {
                 $inner->where('referrer.email', 'ILIKE', $like)
                     ->orWhere('referred.email', 'ILIKE', $like)
@@ -895,7 +894,7 @@ class DedApiService
         $query = $this->usersQuery($admin);
         $this->applyCircleFilterToUsers($query, $request->query('circle_id'));
         $query->when($request->query('search'), function ($q, $term): void {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], (string) $term) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], (string) $term).'%';
             $q->where(function ($inner) use ($like): void {
                 $inner->where('display_name', 'ILIKE', $like)
                     ->orWhere('first_name', 'ILIKE', $like)
@@ -960,7 +959,7 @@ class DedApiService
             $record->reviewed_at = now();
         }
         $record->save();
-        $this->audit($admin, AdminAccess::resolveAppUser($admin) ?: $record->user, 'visitor_registration.' . $action, $record->id, ['status' => $record->status]);
+        $this->audit($admin, AdminAccess::resolveAppUser($admin) ?: $record->user, 'visitor_registration.'.$action, $record->id, ['status' => $record->status]);
 
         return $record->fresh(['user', 'invitedByUser']);
     }
@@ -991,7 +990,7 @@ class DedApiService
             }
         }
         $record->save();
-        $this->audit($admin, $actor, 'event_joining_request.' . $action, $record->id, ['status' => $record->status]);
+        $this->audit($admin, $actor, 'event_joining_request.'.$action, $record->id, ['status' => $record->status]);
 
         return $record->fresh(['user', 'event.circle', 'occurrence']);
     }
@@ -1010,7 +1009,7 @@ class DedApiService
             $record->admin_notes = $note;
         }
         $record->save();
-        $this->audit($admin, AdminAccess::resolveAppUser($admin) ?: $record->user, 'coin_claim.' . $action, $record->id, ['status' => $record->status]);
+        $this->audit($admin, AdminAccess::resolveAppUser($admin) ?: $record->user, 'coin_claim.'.$action, $record->id, ['status' => $record->status]);
 
         return $record->fresh('user');
     }
@@ -1037,7 +1036,7 @@ class DedApiService
             }
         }
         $record->save();
-        $this->audit($admin, $actor, 'circle_join_request.ded_' . $action, $record->id, ['status' => $record->status]);
+        $this->audit($admin, $actor, 'circle_join_request.ded_'.$action, $record->id, ['status' => $record->status]);
 
         return $record->fresh(['user', 'circle', 'dedApprovedBy']);
     }
@@ -1057,7 +1056,7 @@ class DedApiService
             $record->review_remarks = $note;
         }
         $record->save();
-        $this->audit($admin, AdminAccess::resolveAppUser($admin) ?: $record->user, 'impact.' . $action, $record->id, ['status' => $record->status]);
+        $this->audit($admin, AdminAccess::resolveAppUser($admin) ?: $record->user, 'impact.'.$action, $record->id, ['status' => $record->status]);
 
         return $record->fresh(['user', 'impactedPeer']);
     }

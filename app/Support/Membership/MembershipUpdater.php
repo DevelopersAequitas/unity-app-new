@@ -30,7 +30,7 @@ class MembershipUpdater
     public function applyPaidMembership(User $user, array $attributes = []): bool
     {
         $membershipEndsAt = $attributes['membership_ends_at'] ?? $attributes['membership_expiry'] ?? null;
-        $table = (new User())->getTable();
+        $table = (new User)->getTable();
 
         $fields = [];
 
@@ -114,7 +114,6 @@ class MembershipUpdater
         return 'free_peer';
     }
 
-
     private function dateOnly(mixed $value): ?string
     {
         if ($value === null) {
@@ -130,7 +129,7 @@ class MembershipUpdater
 
     private function resolveMembershipColumn(): ?string
     {
-        $table = (new User())->getTable();
+        $table = (new User)->getTable();
 
         foreach (['membership_status', 'membership_type', 'membership'] as $candidate) {
             if (Schema::hasColumn($table, $candidate)) {

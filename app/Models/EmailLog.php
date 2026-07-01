@@ -11,8 +11,11 @@ class EmailLog extends Model
     use HasFactory;
 
     protected $table = 'email_logs';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
+
     public $timestamps = false;
 
     protected $fillable = [

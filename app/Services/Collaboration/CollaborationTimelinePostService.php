@@ -8,7 +8,9 @@ use App\Models\Post;
 class CollaborationTimelinePostService
 {
     private const SOURCE_TYPE = 'collaboration_post';
+
     private const EVENT_CREATED = 'created';
+
     private const EVENT_COMPLETED = 'completed';
 
     public function createCreatedPost(CollaborationPost $collaboration): bool
@@ -16,7 +18,7 @@ class CollaborationTimelinePostService
         return (bool) $this->createTimelinePost(
             $collaboration,
             self::EVENT_CREATED,
-            trim($collaboration->title . "\n\n" . $collaboration->description)
+            trim($collaboration->title."\n\n".$collaboration->description)
         );
     }
 

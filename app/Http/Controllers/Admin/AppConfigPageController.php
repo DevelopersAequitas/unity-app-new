@@ -54,7 +54,6 @@ class AppConfigPageController extends Controller
         return view('admin.app-config.index', compact('app', 'branding', 'labels', 'labelGroups', 'features', 'navigation', 'widgets', 'socialLinks', 'membershipLabels', 'icons', 'lastUpdated'));
     }
 
-
     public function uploadBrandAsset(Request $request)
     {
         $data = $request->validate([
@@ -69,9 +68,9 @@ class AppConfigPageController extends Controller
         }
 
         $filename = Str::of($data['field'])->replace('_', '-')->slug('-')
-            . '-' . now()->format('Ymd-His')
-            . '-' . Str::lower(Str::random(8))
-            . '.' . $extension;
+            .'-'.now()->format('Ymd-His')
+            .'-'.Str::lower(Str::random(8))
+            .'.'.$extension;
 
         $path = $request->file('file')->storeAs('app-config/greenpreneur/branding', $filename, 'public');
 
@@ -80,7 +79,7 @@ class AppConfigPageController extends Controller
             'message' => 'Brand asset uploaded successfully.',
             'data' => [
                 'field' => $data['field'],
-                'url' => asset('storage/' . $path),
+                'url' => asset('storage/'.$path),
             ],
         ]);
     }
@@ -97,6 +96,7 @@ class AppConfigPageController extends Controller
         ]);
         $data = $this->applyColorFallbacks($data);
         DB::table('app_config_settings')->updateOrInsert(['app_instance_id' => $this->appId(), 'app_key' => 'greenpreneur'], $data + ['is_active' => true, 'updated_at' => now(), 'created_at' => now()]);
+
         return $this->done('Branding updated successfully.', 'branding');
     }
 
@@ -106,6 +106,7 @@ class AppConfigPageController extends Controller
         foreach ($data['labels'] as $key => $row) {
             DB::table('app_labels')->updateOrInsert(['app_instance_id' => $this->appId(), 'label_key' => $key], ['label_value' => $row['label_value'], 'group_name' => $row['group_name'] ?? null, 'description' => $row['description'] ?? null, 'is_active' => $request->boolean("labels.$key.is_active"), 'updated_at' => now(), 'created_at' => now()]);
         }
+
         return $this->done('Labels updated successfully.', 'labels');
     }
 
@@ -115,19 +116,28 @@ class AppConfigPageController extends Controller
         foreach ($data['features'] as $key => $row) {
             DB::table('app_features')->where('app_instance_id', $this->appId())->where('feature_key', $key)->update(['is_enabled' => $request->boolean("features.$key.is_enabled"), 'sort_order' => $row['sort_order'] ?? 0, 'updated_at' => now()]);
         }
+
         return $this->done('Features updated successfully.', 'features');
     }
 
     public function saveNavigation(Request $request, ?string $id = null)
     {
-        $data = $request->validate(['menu_type' => ['required', Rule::in(['bottom_nav','plus_menu','impact_menu','drawer'])], 'item_key' => ['required','string','max:150'], 'label_key' => ['nullable','string','max:150'], 'display_label' => ['required','string','max:255'], 'icon' => ['nullable','string','max:100'], 'route_name' => ['nullable','string','max:150'], 'feature_key' => ['nullable','string','max:150'], 'is_enabled' => ['nullable'], 'sort_order' => ['required','integer','min:0']]);
+        $data = $request->validate(['menu_type' => ['required', Rule::in(['bottom_nav', 'plus_menu', 'impact_menu', 'drawer'])], 'item_key' => ['required', 'string', 'max:150'], 'label_key' => ['nullable', 'string', 'max:150'], 'display_label' => ['required', 'string', 'max:255'], 'icon' => ['nullable', 'string', 'max:100'], 'route_name' => ['nullable', 'string', 'max:150'], 'feature_key' => ['nullable', 'string', 'max:150'], 'is_enabled' => ['nullable'], 'sort_order' => ['required', 'integer', 'min:0']]);
         $payload = $data + ['app_instance_id' => $this->appId()];
-        $payload['nav_key'] = $payload['v_key'] = $data['item_key']; $payload['nav_label'] = $payload['v_label'] = $data['display_label']; $payload['position'] = $data['sort_order']; $payload['is_enabled'] = $request->boolean('is_enabled'); $payload['updated_at'] = now();
-        if ($id) DB::table('app_navigation_items')->where('app_instance_id', $this->appId())->where('id', $id)->update($payload); else DB::table('app_navigation_items')->insert($payload + ['id' => (string) \Illuminate\Support\Str::uuid(), 'created_at' => now()]);
+        $payload['nav_key'] = $payload['v_key'] = $data['item_key'];
+        $payload['nav_label'] = $payload['v_label'] = $data['display_label'];
+        $payload['position'] = $data['sort_order'];
+        $payload['is_enabled'] = $request->boolean('is_enabled');
+        $payload['updated_at'] = now();
+        if ($id) {
+            DB::table('app_navigation_items')->where('app_instance_id', $this->appId())->where('id', $id)->update($payload);
+        } else {
+            DB::table('app_navigation_items')->insert($payload + ['id' => (string) \Illuminate\Support\Str::uuid(), 'created_at' => now()]);
+        }
         $this->syncDrawerIconActiveState($payload['menu_type'], $payload['item_key'], $payload['feature_key'] ?? null, $payload['is_enabled']);
+
         return $this->done('Navigation item saved successfully.', 'navigation');
     }
-
 
     public function bulkUpdateNavigationGroup(Request $request, string $menuType)
     {
@@ -172,7 +182,7 @@ class AppConfigPageController extends Controller
                 ];
 
                 $query = DB::table('app_navigation_items')->where('app_instance_id', $appId);
-                if (!empty($item['id'])) {
+                if (! empty($item['id'])) {
                     $query->where('id', $item['id']);
                 } else {
                     $query->where('menu_type', $menuType)->where('item_key', $item['item_key']);
@@ -188,7 +198,7 @@ class AppConfigPageController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => $this->navigationGroupLabel($menuType) . ' saved successfully.',
+            'message' => $this->navigationGroupLabel($menuType).' saved successfully.',
             'data' => [
                 'menu_type' => $menuType,
                 'updated_count' => $updatedCount,
@@ -196,23 +206,37 @@ class AppConfigPageController extends Controller
         ]);
     }
 
-    public function deleteNavigation(string $id) { DB::table('app_navigation_items')->where('app_instance_id', $this->appId())->where('id', $id)->delete(); return $this->done('Navigation item deleted successfully.', 'navigation'); }
+    public function deleteNavigation(string $id)
+    {
+        DB::table('app_navigation_items')->where('app_instance_id', $this->appId())->where('id', $id)->delete();
+
+        return $this->done('Navigation item deleted successfully.', 'navigation');
+    }
 
     public function bulkWidgets(Request $request)
     {
-        $data = $request->validate(['widgets' => ['required','array'], 'widgets.*.sort_order' => ['nullable','integer','min:0'], 'widgets.*.is_enabled' => ['nullable']]);
-        foreach ($data['widgets'] as $key => $row) { $payload = ['sort_order' => $row['sort_order'] ?? 0, 'updated_at' => now()]; if (Schema::hasColumn('app_dashboard_widgets','is_enabled')) $payload['is_enabled'] = $request->boolean("widgets.$key.is_enabled"); if (Schema::hasColumn('app_dashboard_widgets','is_enable')) $payload['is_enable'] = $request->boolean("widgets.$key.is_enabled"); DB::table('app_dashboard_widgets')->where('app_instance_id', $this->appId())->where('widget_key', $key)->update($payload); }
+        $data = $request->validate(['widgets' => ['required', 'array'], 'widgets.*.sort_order' => ['nullable', 'integer', 'min:0'], 'widgets.*.is_enabled' => ['nullable']]);
+        foreach ($data['widgets'] as $key => $row) {
+            $payload = ['sort_order' => $row['sort_order'] ?? 0, 'updated_at' => now()];
+            if (Schema::hasColumn('app_dashboard_widgets', 'is_enabled')) {
+                $payload['is_enabled'] = $request->boolean("widgets.$key.is_enabled");
+            } if (Schema::hasColumn('app_dashboard_widgets', 'is_enable')) {
+                $payload['is_enable'] = $request->boolean("widgets.$key.is_enabled");
+            } DB::table('app_dashboard_widgets')->where('app_instance_id', $this->appId())->where('widget_key', $key)->update($payload);
+        }
+
         return $this->done('Dashboard widgets updated successfully.', 'widgets');
     }
 
     public function bulkSocial(Request $request)
     {
-        $data = $request->validate(['social_links' => ['required','array'], 'social_links.*.display_name' => ['required','string','max:255'], 'social_links.*.url' => ['nullable','url'], 'social_links.*.icon' => ['nullable','string','max:100'], 'social_links.*.is_enabled' => ['nullable'], 'social_links.*.sort_order' => ['nullable','integer','min:0']]);
-        foreach ($data['social_links'] as $platform => $row) { DB::table('app_social_links')->updateOrInsert(['app_instance_id' => $this->appId(), 'platform' => $platform], ['platform_key' => $platform, 'label' => $row['display_name'], 'display_name' => $row['display_name'], 'url' => $row['url'] ?? null, 'icon' => $row['icon'] ?? null, 'is_enabled' => $request->boolean("social_links.$platform.is_enabled"), 'sort_order' => $row['sort_order'] ?? 0, 'updated_at' => now(), 'created_at' => now()]); }
+        $data = $request->validate(['social_links' => ['required', 'array'], 'social_links.*.display_name' => ['required', 'string', 'max:255'], 'social_links.*.url' => ['nullable', 'url'], 'social_links.*.icon' => ['nullable', 'string', 'max:100'], 'social_links.*.is_enabled' => ['nullable'], 'social_links.*.sort_order' => ['nullable', 'integer', 'min:0']]);
+        foreach ($data['social_links'] as $platform => $row) {
+            DB::table('app_social_links')->updateOrInsert(['app_instance_id' => $this->appId(), 'platform' => $platform], ['platform_key' => $platform, 'label' => $row['display_name'], 'display_name' => $row['display_name'], 'url' => $row['url'] ?? null, 'icon' => $row['icon'] ?? null, 'is_enabled' => $request->boolean("social_links.$platform.is_enabled"), 'sort_order' => $row['sort_order'] ?? 0, 'updated_at' => now(), 'created_at' => now()]);
+        }
+
         return $this->done('Social links updated successfully.', 'social');
     }
-
-
 
     public function uploadIconAsset(Request $request)
     {
@@ -229,12 +253,12 @@ class AppConfigPageController extends Controller
         }
 
         $filename = Str::of($data['icon_key'])->replace('_', '-')->slug('-')
-            . '-' . $data['target_field']
-            . '-' . now()->format('Ymd-His')
-            . '-' . Str::lower(Str::random(8))
-            . '.' . $extension;
+            .'-'.$data['target_field']
+            .'-'.now()->format('Ymd-His')
+            .'-'.Str::lower(Str::random(8))
+            .'.'.$extension;
         $path = $request->file('file')->storeAs('app-config/greenpreneur/icons', $filename, 'public');
-        $url = asset('storage/' . $path);
+        $url = asset('storage/'.$path);
 
         DB::table('app_icon_assets')
             ->where('app_instance_id', $this->appId())
@@ -256,14 +280,17 @@ class AppConfigPageController extends Controller
 
     public function bulkIcons(Request $request)
     {
-        $data = $request->validate(['icons' => ['required','array'], 'icons.*.icon_name' => ['nullable','string','max:255'], 'icons.*.icon_url' => ['nullable','url'], 'icons.*.selected_icon_url' => ['nullable','url'], 'icons.*.fallback_asset' => ['nullable','string','max:255'], 'icons.*.feature_key' => ['nullable','string','max:100'], 'icons.*.menu_key' => ['nullable','string','max:100'], 'icons.*.is_active' => ['nullable'], 'icons.*.sort_order' => ['nullable','integer','min:0']]);
-        foreach ($data['icons'] as $key => $row) { DB::table('app_icon_assets')->updateOrInsert(['app_instance_id' => $this->appId(), 'icon_key' => $key], ['icon_name' => $row['icon_name'] ?? null, 'icon_url' => $row['icon_url'] ?? null, 'selected_icon_url' => $row['selected_icon_url'] ?? null, 'fallback_asset' => $row['fallback_asset'] ?? null, 'feature_key' => $row['feature_key'] ?? null, 'menu_key' => $row['menu_key'] ?? null, 'is_active' => $request->boolean("icons.$key.is_active"), 'sort_order' => $row['sort_order'] ?? 0, 'updated_at' => now(), 'created_at' => now()]); }
+        $data = $request->validate(['icons' => ['required', 'array'], 'icons.*.icon_name' => ['nullable', 'string', 'max:255'], 'icons.*.icon_url' => ['nullable', 'url'], 'icons.*.selected_icon_url' => ['nullable', 'url'], 'icons.*.fallback_asset' => ['nullable', 'string', 'max:255'], 'icons.*.feature_key' => ['nullable', 'string', 'max:100'], 'icons.*.menu_key' => ['nullable', 'string', 'max:100'], 'icons.*.is_active' => ['nullable'], 'icons.*.sort_order' => ['nullable', 'integer', 'min:0']]);
+        foreach ($data['icons'] as $key => $row) {
+            DB::table('app_icon_assets')->updateOrInsert(['app_instance_id' => $this->appId(), 'icon_key' => $key], ['icon_name' => $row['icon_name'] ?? null, 'icon_url' => $row['icon_url'] ?? null, 'selected_icon_url' => $row['selected_icon_url'] ?? null, 'fallback_asset' => $row['fallback_asset'] ?? null, 'feature_key' => $row['feature_key'] ?? null, 'menu_key' => $row['menu_key'] ?? null, 'is_active' => $request->boolean("icons.$key.is_active"), 'sort_order' => $row['sort_order'] ?? 0, 'updated_at' => now(), 'created_at' => now()]);
+        }
+
         return $this->done('Icons updated successfully.', 'icons');
     }
 
     public function membershipLabels(Request $request)
     {
-        $data = $request->validate(['membership_labels' => ['required','array'], 'membership_labels.*.display_label' => ['required','string','max:255'], 'membership_labels.*.description' => ['nullable','string']]);
+        $data = $request->validate(['membership_labels' => ['required', 'array'], 'membership_labels.*.display_label' => ['required', 'string', 'max:255'], 'membership_labels.*.description' => ['nullable', 'string']]);
         foreach ($data['membership_labels'] as $key => $row) {
             $query = DB::table('app_membership_labels')->where('membership_key', $key);
             if (Schema::hasColumn('app_membership_labels', 'app_instance_id')) {
@@ -271,10 +298,14 @@ class AppConfigPageController extends Controller
             }
             $query->update(['display_label' => $row['display_label'], 'description' => $row['description'] ?? null, 'updated_at' => now()]);
         }
+
         return $this->done('Membership labels updated successfully.', 'membership');
     }
 
-    public function clearCache() { return $this->done('App configuration cache cleared successfully.', request('tab', 'overview')); }
+    public function clearCache()
+    {
+        return $this->done('App configuration cache cleared successfully.', request('tab', 'overview'));
+    }
 
     private function syncDrawerIconActiveState(string $menuType, ?string $itemKey, ?string $featureKey, bool $isEnabled): void
     {
@@ -298,12 +329,21 @@ class AppConfigPageController extends Controller
             ->where(function ($query) use ($keys) {
                 $query->whereIn('menu_key', $keys)
                     ->orWhereIn('feature_key', $keys)
-                    ->orWhereIn('icon_key', $keys->map(fn ($key) => 'drawer_' . $key));
+                    ->orWhereIn('icon_key', $keys->map(fn ($key) => 'drawer_'.$key));
             })
             ->update(['is_active' => $isEnabled, 'updated_at' => now()]);
     }
-    private function appId(): string { return $this->appConfigService->getGreenpreneurAppInstance()->id; }
-    private function navigationGroupLabel(string $menuType): string { return ['bottom_nav' => 'Bottom Navigation', 'plus_menu' => 'Plus Menu', 'impact_menu' => 'Impact Menu', 'drawer' => 'Drawer Menu'][$menuType] ?? 'Navigation group'; }
+
+    private function appId(): string
+    {
+        return $this->appConfigService->getGreenpreneurAppInstance()->id;
+    }
+
+    private function navigationGroupLabel(string $menuType): string
+    {
+        return ['bottom_nav' => 'Bottom Navigation', 'plus_menu' => 'Plus Menu', 'impact_menu' => 'Impact Menu', 'drawer' => 'Drawer Menu'][$menuType] ?? 'Navigation group';
+    }
+
     private function applyColorFallbacks(array $data): array
     {
         if (array_key_exists('primary_ultra_light_color', $data)) {
@@ -322,5 +362,10 @@ class AppConfigPageController extends Controller
         return $data;
     }
 
-    private function done(string $message, string $tab) { AppConfigController::clearCache(); return redirect()->route('admin.app-config.index', ['tab' => $tab])->with('success', $message); }
+    private function done(string $message, string $tab)
+    {
+        AppConfigController::clearCache();
+
+        return redirect()->route('admin.app-config.index', ['tab' => $tab])->with('success', $message);
+    }
 }

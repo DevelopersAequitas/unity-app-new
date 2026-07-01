@@ -12,7 +12,9 @@ class CampaignLog extends Model
     use HasFactory;
 
     protected $table = 'campaign_logs';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -55,15 +57,16 @@ class CampaignLog extends Model
 
     public function getSentAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
+
         return \Carbon\Carbon::parse($value, 'UTC');
     }
 
     public function setSentAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['sent_at'] = null;
         } else {
             $this->attributes['sent_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');

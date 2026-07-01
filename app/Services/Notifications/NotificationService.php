@@ -3,11 +3,11 @@
 namespace App\Services\Notifications;
 
 use App\Jobs\Notifications\SendNotificationChannelJob;
+use App\Models\CircleMember;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationCampaign;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\Notifications\NotificationPreference;
-use App\Models\CircleMember;
 use App\Models\Notifications\NotificationSuppressionLog;
 use App\Models\Post;
 use App\Models\User;
@@ -61,7 +61,6 @@ class NotificationService
         });
     }
 
-
     public function sendPostPublishedNotification(Post $post, bool $force = false): array
     {
         $post->loadMissing('user', 'circle');
@@ -99,7 +98,7 @@ class NotificationService
 
         $authorName = $this->displayName($author);
         $body = $this->postPreview($post) ?: 'A new post has been published';
-        $dedupeKeyPrefix = 'new_post:' . $post->id . ($force ? ':force:' . now()->timestamp : '');
+        $dedupeKeyPrefix = 'new_post:'.$post->id.($force ? ':force:'.now()->timestamp : '');
         $summary = [
             'recipients_count' => 0,
             'in_app_created' => 0,
@@ -119,7 +118,7 @@ class NotificationService
                     $notification = $this->sendToUser(
                         $user,
                         'new_post',
-                        'New post by ' . $authorName,
+                        'New post by '.$authorName,
                         $body,
                         [
                             'post_id' => (string) $post->id,
@@ -134,7 +133,7 @@ class NotificationService
                             'channel' => 'push',
                             'reference_type' => 'post',
                             'reference_id' => (string) $post->id,
-                            'dedupe_key' => $dedupeKeyPrefix . ':' . $user->id,
+                            'dedupe_key' => $dedupeKeyPrefix.':'.$user->id,
                             'bypass_daily_limit' => true,
                         ]
                     );
@@ -200,7 +199,7 @@ class NotificationService
     private function displayName(User $user): string
     {
         return trim((string) ($user->display_name ?? ''))
-            ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? '')))
+            ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? '')))
             ?: (string) ($user->name ?? 'A member');
     }
 
@@ -214,6 +213,7 @@ class NotificationService
             ->reject(fn ($user) => $actor && (string) ($user instanceof User ? $user->id : $user) === (string) $actor && empty($options['send_to_actor']))
             ->map(function ($user) use ($type, $title, $body, $data, $options): ?AppNotification {
                 $model = $user instanceof User ? $user : User::find($user);
+
                 return $model ? $this->sendToUser($model, $type, $title, $body, $data, $options) : null;
             })
             ->filter()
@@ -251,29 +251,52 @@ class NotificationService
         ]);
     }
 
-    public function sendPushNotification(AppNotification $n): void { SendNotificationChannelJob::dispatch($n->id, 'push'); }
-    public function sendEmailNotification(AppNotification $n): void { SendNotificationChannelJob::dispatch($n->id, 'email'); }
+    public function sendPushNotification(AppNotification $n): void
+    {
+        SendNotificationChannelJob::dispatch($n->id, 'push');
+    }
+
+    public function sendEmailNotification(AppNotification $n): void
+    {
+        SendNotificationChannelJob::dispatch($n->id, 'email');
+    }
 
     public function renderTemplate(string $template, array $placeholders): string
     {
         foreach ($placeholders as $k => $v) {
             $template = str_replace(['{{'.$k.'}}', '{'.$k.'}'], (string) $v, $template);
         }
+
         return $template;
     }
 
     public function shouldSendToUser(User $user, string $type, ?string $dedupeKey, ?NotificationCampaign $campaign): bool
     {
-        if ($campaign && ! $campaign->is_active) return false;
-        if ($type === 'new_post') return true;
+        if ($campaign && ! $campaign->is_active) {
+            return false;
+        }
+        if ($type === 'new_post') {
+            return true;
+        }
         $p = NotificationPreference::firstOrCreate(['user_id' => $user->id]);
-        if (! $p->push_enabled && ! $p->email_enabled) return false;
-        if ($campaign && ! $p->campaign_enabled) return false;
-        if ($type === 'chat_message' && ! $p->chat_enabled) return false;
-        if ($dedupeKey && AppNotification::where('user_id', $user->id)->where('dedupe_key', $dedupeKey)->where('created_at', '>=', now()->subDay())->exists()) return false;
+        if (! $p->push_enabled && ! $p->email_enabled) {
+            return false;
+        }
+        if ($campaign && ! $p->campaign_enabled) {
+            return false;
+        }
+        if ($type === 'chat_message' && ! $p->chat_enabled) {
+            return false;
+        }
+        if ($dedupeKey && AppNotification::where('user_id', $user->id)->where('dedupe_key', $dedupeKey)->where('created_at', '>=', now()->subDay())->exists()) {
+            return false;
+        }
         $priority = $campaign?->priority ?? 'medium';
-        if ($priority === 'urgent') return true;
+        if ($priority === 'urgent') {
+            return true;
+        }
         $limit = ['high' => 5, 'medium' => 3, 'low' => 1][$priority] ?? 3;
+
         return AppNotification::where('user_id', $user->id)->where('priority', $priority)->whereDate('created_at', today())->count() < ($campaign?->daily_limit ?? $limit);
     }
 
@@ -283,6 +306,7 @@ class NotificationService
         if (! $n->read_at) {
             $n->update(['read_at' => now(), 'status' => $n->status === 'pending' ? 'sent' : $n->status]);
         }
+
         return $n->refresh();
     }
 
@@ -295,6 +319,7 @@ class NotificationService
     {
         $n = AppNotification::where('user_id', $user->id)->findOrFail($notificationId);
         $n->update(['clicked_at' => now(), 'read_at' => $n->read_at ?? now()]);
+
         return $n->refresh();
     }
 

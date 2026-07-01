@@ -2,28 +2,26 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\AdminUser;
 use App\Models\AdminCampaign;
-use App\Models\CampaignSchedule;
+use App\Models\AdminUser;
 use App\Models\CampaignDelivery;
-use App\Models\CampaignLog;
 use App\Models\Notification;
-use App\Models\User;
 use App\Models\Role;
-use App\Jobs\ProcessCampaignDeliveryJob;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Str;
+use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Tests\TestCase;
 
 class AdminCampaignE2ETest extends TestCase
 {
     use DatabaseTransactions;
 
     protected AdminUser $admin;
+
     protected User $user1;
+
     protected User $user2;
 
     protected function setUp(): void
@@ -42,7 +40,7 @@ class AdminCampaignE2ETest extends TestCase
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
         $globalAdminRoleId = null;
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;
@@ -324,7 +322,7 @@ class AdminCampaignE2ETest extends TestCase
             ->andReturn([
                 'success' => true,
                 'firebase_response' => ['name' => 'mock-message-id'],
-                'error' => null
+                'error' => null,
             ]);
 
         // Submit form data for sending immediately
@@ -342,8 +340,8 @@ class AdminCampaignE2ETest extends TestCase
                 'schedule_type' => 'immediately',
                 // recurrence settings that should be ignored:
                 'monthly_basis' => 'date',
-                'monthly_day_of_month' => '', 
-            ]
+                'monthly_day_of_month' => '',
+            ],
         ]);
 
         // Assert validation passes and redirects to show page
@@ -403,7 +401,7 @@ class AdminCampaignE2ETest extends TestCase
                 'start_date' => '2026-06-20',
                 'send_time' => '10:00:00',
                 'timezone' => 'UTC',
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Once Campaign E2E')->first();
@@ -438,7 +436,7 @@ class AdminCampaignE2ETest extends TestCase
                 'end_type' => 'never',
                 'recurrence_type' => 'daily',
                 'frequency_interval' => 1,
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Daily Campaign E2E')->first();
@@ -475,7 +473,7 @@ class AdminCampaignE2ETest extends TestCase
                 'recurrence_type' => 'weekly',
                 'frequency_interval' => 1,
                 'weekdays' => ['Monday', 'Friday'],
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Weekly Campaign E2E')->first();
@@ -513,7 +511,7 @@ class AdminCampaignE2ETest extends TestCase
                 'frequency_interval' => 1,
                 'monthly_basis' => 'date',
                 'monthly_day_of_month' => 15,
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Monthly Campaign E2E')->first();
@@ -551,7 +549,7 @@ class AdminCampaignE2ETest extends TestCase
                 'frequency_interval' => 1,
                 'yearly_month' => 6,
                 'yearly_day' => 15,
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Yearly Campaign E2E')->first();
@@ -578,12 +576,12 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Specific Body',
             'audience_type' => 'specific_members',
             'filters' => [
-                'user_ids' => [$this->user1->id]
+                'user_ids' => [$this->user1->id],
             ],
             'action' => 'draft',
             'schedule' => [
                 'schedule_type' => 'immediately',
-            ]
+            ],
         ]);
 
         $campaign = AdminCampaign::where('title', 'Specific Members Campaign E2E')->first();

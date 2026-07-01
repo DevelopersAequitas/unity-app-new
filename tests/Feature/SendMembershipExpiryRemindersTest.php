@@ -2,16 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Console\Commands\SendMembershipExpiryReminders;
-use App\Console\Commands\SendUpcomingMembershipExpiryReminders;
-use App\Console\Commands\SendCircleMembershipExpiryReminders;
+use App\Mail\CircleMembershipExpiryReminderMail;
 use App\Mail\MembershipExpiryReminderMail;
 use App\Mail\UpcomingMembershipExpiryReminderMail;
-use App\Mail\CircleMembershipExpiryReminderMail;
-use App\Models\User;
+use App\Models\CircleMember;
 use App\Models\EmailLog;
 use App\Models\Notification;
-use App\Models\CircleMember;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;

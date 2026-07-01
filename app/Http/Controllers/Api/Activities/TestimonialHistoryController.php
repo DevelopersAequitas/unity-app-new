@@ -7,7 +7,6 @@ use App\Http\Resources\TableRowResource;
 use App\Models\Testimonial;
 use App\Support\ActivityHistory\OtherUserNameResolver;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 
 class TestimonialHistoryController extends BaseApiController
 {
@@ -32,10 +31,10 @@ class TestimonialHistoryController extends BaseApiController
 
         if ($filter === 'received') {
             $query->where('to_user_id', $authUserId);
-            $whereParts[] = 'to_user_id = "' . $authUserId . '"';
+            $whereParts[] = 'to_user_id = "'.$authUserId.'"';
         } else {
             $query->where('from_user_id', $authUserId);
-            $whereParts[] = 'from_user_id = "' . $authUserId . '"';
+            $whereParts[] = 'from_user_id = "'.$authUserId.'"';
             $filter = 'given';
         }
 
@@ -84,7 +83,7 @@ class TestimonialHistoryController extends BaseApiController
         $query = Testimonial::query();
 
         $query->where('id', $id);
-        $whereParts[] = 'id = "' . $id . '"';
+        $whereParts[] = 'id = "'.$id.'"';
 
         $query->where(function ($q) use (&$whereParts) {
             $q->where('is_deleted', false)
@@ -100,7 +99,7 @@ class TestimonialHistoryController extends BaseApiController
             $q->where('from_user_id', $authUserId)
                 ->orWhere('to_user_id', $authUserId);
 
-            $whereParts[] = '(from_user_id = "' . $authUserId . '" OR to_user_id = "' . $authUserId . '")';
+            $whereParts[] = '(from_user_id = "'.$authUserId.'" OR to_user_id = "'.$authUserId.'")';
             $filterUsed = 'all';
         });
 

@@ -6,13 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Circles\StoreCircleRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleRequest;
 use App\Models\Circle;
-use App\Models\CircleMember;
 use App\Models\CircleCategory;
+use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
+use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
-use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,8 +29,7 @@ class CircleController extends Controller
     public function __construct(
         private readonly ZohoBillingService $zohoBillingService,
         private readonly IndustryScopeService $industryScope,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -265,7 +264,7 @@ class CircleController extends Controller
             ->get();
 
         return view('admin.circles.create', [
-            'circle' => new Circle(),
+            'circle' => new Circle,
             'countries' => $countries,
             'selectedCountry' => $selectedCountry,
             'cities' => $cities,
@@ -323,7 +322,7 @@ class CircleController extends Controller
         $payload = array_merge($payload, $this->buildCirclePackagePayload($circlePackage));
         $payload = $this->pruneEmptyPayload($payload);
 
-        $circle = new Circle();
+        $circle = new Circle;
         $circle->forceFill($this->filterCircleDataByExistingColumns($payload));
 
         $calendar = is_array($circle->calendar) ? $circle->calendar : [];
@@ -432,7 +431,6 @@ class CircleController extends Controller
             'peerFilters' => $peerFilters,
         ]);
     }
-
 
     private function authorizeCircleView(Request $request, Circle $circle): void
     {
@@ -626,6 +624,7 @@ class CircleController extends Controller
 
         if (is_string($tags)) {
             $trimmed = array_filter(array_map('trim', explode(',', $tags)));
+
             return $trimmed ? array_values($trimmed) : null;
         }
 
@@ -860,6 +859,7 @@ class CircleController extends Controller
         foreach ($payload as $key => $value) {
             if ($value === null) {
                 unset($payload[$key]);
+
                 continue;
             }
 

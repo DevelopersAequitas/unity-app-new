@@ -18,7 +18,7 @@ class UpdateBrandPartnerRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'max:255', 'unique:brand_partners,slug,' . $partnerId],
+            'slug' => ['required', 'string', 'max:255', 'unique:brand_partners,slug,'.$partnerId],
             'logo' => ['nullable', 'file', 'image', 'mimes:jpeg,png,webp,jpg', 'max:5120'],
             'cover_image' => ['nullable', 'file', 'image', 'mimes:jpeg,png,webp,jpg', 'max:10240'],
             'short_description' => ['nullable', 'string', 'max:500'],

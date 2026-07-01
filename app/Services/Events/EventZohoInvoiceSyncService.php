@@ -167,6 +167,7 @@ class EventZohoInvoiceSyncService
             ];
         } catch (\Throwable $e) {
             Log::error('zoho_invoice_finalize_failed', $context + ['error' => $e->getMessage()]);
+
             return ['sync_error' => $e->getMessage()];
         }
     }
@@ -261,7 +262,6 @@ class EventZohoInvoiceSyncService
         ];
     }
 
-
     private function convertInvoiceToOpen(string $invoiceId): void
     {
         $this->zohoBillingClient->postZohoAction('/invoices/'.$invoiceId.'/converttoopen', []);
@@ -272,6 +272,7 @@ class EventZohoInvoiceSyncService
         Log::info('zoho_payment_fetch_start', ['payment_id' => $paymentId]);
         $response = $this->zohoBillingClient->request('GET', '/payments/'.$paymentId);
         Log::info('zoho_payment_fetch_response', ['payment_id' => $paymentId, 'response' => $response]);
+
         return is_array($response['payment'] ?? null) ? $response['payment'] : $response;
     }
 
@@ -317,6 +318,7 @@ class EventZohoInvoiceSyncService
             try {
                 $r = $this->zohoBillingClient->putZohoJsonString('/payments/'.$paymentId, $payload);
                 Log::info('zoho_payment_update_existing_success', $context + ['response' => $r, 'payment_mode' => $mode]);
+
                 return ['payment_applied' => true];
             } catch (\Throwable $e) {
                 Log::error('zoho_payment_update_existing_failed', $context + ['payment_mode' => $mode, 'error' => $e->getMessage()]);
@@ -328,9 +330,11 @@ class EventZohoInvoiceSyncService
             Log::info('zoho_payment_create_for_invoice_payload', $context + ['payload' => $payload]);
             $created = $this->zohoBillingService->createPaymentForInvoice($payload);
             Log::info('zoho_payment_create_for_invoice_success', $context + ['response' => $created]);
+
             return ['payment_applied' => true];
         } catch (\Throwable $e) {
             Log::error('zoho_payment_create_for_invoice_failed', $context + ['error' => $e->getMessage()]);
+
             return ['payment_applied' => false, 'error' => ($e->getMessage() ?: $lastError)];
         }
     }
@@ -338,13 +342,14 @@ class EventZohoInvoiceSyncService
     private function normalizePaymentMode(array $payment): string
     {
         $mode = strtolower((string) data_get($payment, 'payment_mode', 'others'));
-        $allowed = ['check','cash','creditcard','banktransfer','bankremittance','autotransaction','others'];
+        $allowed = ['check', 'cash', 'creditcard', 'banktransfer', 'bankremittance', 'autotransaction', 'others'];
         if (data_get($payment, 'autotransaction')) {
             return 'autotransaction';
         }
         if ($mode === 'upi') {
             return 'others';
         }
+
         return in_array($mode, $allowed, true) ? $mode : 'others';
     }
 

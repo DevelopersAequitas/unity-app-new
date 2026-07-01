@@ -9,8 +9,8 @@ use App\Models\Notification;
 use App\Models\P2PMeetingRequest;
 use App\Models\P2PMeetingRescheduleRequest;
 use App\Models\User;
-use App\Services\Notifications\NotifyUserService;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -215,8 +215,8 @@ class P2PMeetingRescheduleController extends BaseApiController
         $logData = [
             'user_id' => (string) $recipient->id,
             'to_email' => $email,
-            'to_name' => (string) ($recipient->display_name ?: trim(($recipient->first_name ?? '') . ' ' . ($recipient->last_name ?? ''))),
-            'template_key' => 'p2p_meeting_' . $eventType,
+            'to_name' => (string) ($recipient->display_name ?: trim(($recipient->first_name ?? '').' '.($recipient->last_name ?? ''))),
+            'template_key' => 'p2p_meeting_'.$eventType,
             'source_module' => 'P2P Meetings',
             'related_type' => P2PMeetingRequest::class,
             'related_id' => (string) $meetingRequest->id,

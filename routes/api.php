@@ -8,29 +8,28 @@ use App\Http\Controllers\Api\Activities\RequirementHistoryController;
 use App\Http\Controllers\Api\Activities\TestimonialHistoryController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\ActivityCreativeController;
-use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\AdminActivityController;
-use App\Http\Controllers\Api\AuthController; 
+use App\Http\Controllers\Api\AdsController;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BusinessDealController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ChatTypingController;
 use App\Http\Controllers\Api\CircleChatController;
 use App\Http\Controllers\Api\CircleController;
-use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\CircleJoinRequestController;
 use App\Http\Controllers\Api\CircleLeadershipController;
+use App\Http\Controllers\Api\CircularController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\FeedbackController;
-use App\Http\Controllers\Api\GeoLocationController;
 use App\Http\Controllers\Api\FileController;
+use App\Http\Controllers\Api\GeoLocationController;
+use App\Http\Controllers\Api\MasterPositionController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MembershipSummaryController;
-use App\Http\Controllers\Api\MessageDeletionController;
 use App\Http\Controllers\Api\MemberWithCircleController;
-use App\Http\Controllers\Api\MasterPositionController;
+use App\Http\Controllers\Api\MessageDeletionController;
 use App\Http\Controllers\Api\MyCircleController;
-use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationFeatureController;
 use App\Http\Controllers\Api\OnlineStatusController;
 use App\Http\Controllers\Api\P2pMeetingController;
@@ -39,19 +38,41 @@ use App\Http\Controllers\Api\PostSaveController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\TestimonialController;
-use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\UserContactsController;
+use App\Http\Controllers\Api\V1\AdController;
+use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
+use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
+use App\Http\Controllers\Api\V1\Admin\AdminEventSendNotificationsController;
+use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
+use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
+use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
+use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
+use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
+use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\EventAdminController;
+use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
+use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
+use App\Http\Controllers\Api\V1\Admin\LeadershipController;
+use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
+use App\Http\Controllers\Api\V1\Admin\UserManagementController;
+use App\Http\Controllers\Api\V1\AppConfigController;
+use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\InvoiceController;
 use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
+use App\Http\Controllers\Api\V1\BrandPartnerApiController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
+use App\Http\Controllers\Api\V1\CircleCategoryController;
+use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
+use App\Http\Controllers\Api\V1\CollaborationTypeController;
+use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
 use App\Http\Controllers\Api\V1\ContactPostController;
 use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
 use App\Http\Controllers\Api\V1\Ded\DedAuthController;
@@ -61,43 +82,24 @@ use App\Http\Controllers\Api\V1\Ded\DedDashboardController;
 use App\Http\Controllers\Api\V1\Ded\DedPeersController;
 use App\Http\Controllers\Api\V1\Ded\DedPendingRequestsController;
 use App\Http\Controllers\Api\V1\Ded\DedReportsController;
-use App\Http\Controllers\Api\V1\CollaborationTypeController;
-use App\Http\Controllers\Api\V1\AdController;
-use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
-use App\Http\Controllers\Api\V1\Admin\AppConfigAdminController;
-use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
-use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
-use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
-use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
-use App\Http\Controllers\Api\V1\Admin\DashboardController;
-use App\Http\Controllers\Api\V1\Admin\EventAdminController;
-use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
-use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
-use App\Http\Controllers\Api\V1\Admin\LeadershipController;
-use App\Http\Controllers\Api\V1\Admin\AdminEventSendNotificationsController;
-use App\Http\Controllers\Api\V1\Admin\UserManagementController;
-use App\Http\Controllers\Api\V1\AppVersionController;
-use App\Http\Controllers\Api\V1\AppConfigController;
-use App\Http\Controllers\Api\V1\Connections\MyConnectionsController;
-use App\Http\Controllers\Api\V1\CircleCategoryController;
-use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\EventApiController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\Api\V1\FollowController;
-use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
 use App\Http\Controllers\Api\V1\Forms\BecomeMentorController;
+use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
 use App\Http\Controllers\Api\V1\Forms\PeerRecommendationController;
 use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
-use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\ImpactController;
+use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
-use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\MutualConnectionController;
 use App\Http\Controllers\Api\V1\MyEventQrController;
+use App\Http\Controllers\Api\V1\NotificationEngineController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\P2PMeetingRescheduleController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -107,24 +109,21 @@ use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
-use App\Http\Controllers\Api\V1\BrandPartnerApiController;
-use App\Http\Controllers\Api\V1\NotificationEngineController;
-use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
-use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
-use App\Http\Controllers\Api\V1\ScanAppAuthController;
-use App\Http\Controllers\Api\V1\ScanAppEventController;
 use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController;
 use App\Http\Controllers\Api\V1\RequirementInterestController;
+use App\Http\Controllers\Api\V1\ScanAppAuthController;
+use App\Http\Controllers\Api\V1\ScanAppEventController;
+use App\Http\Controllers\Api\V1\SupportTicketController;
+use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
-use App\Http\Controllers\Api\V1\SupportTicketController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
-use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
-use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentWebhookController;
-use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -355,7 +354,6 @@ Route::prefix('v1')->group(function () {
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
 
-
         Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
         Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
         Route::get('/geo/nearby-peers', [GeoLocationController::class, 'nearbyPeers']);
@@ -446,18 +444,18 @@ Route::prefix('v1')->group(function () {
             Route::get('/campaigns/{campaign}', [AdminCampaignController::class, 'show'])->whereUuid('campaign');
             Route::post('/campaigns/{campaign}/send', [AdminCampaignController::class, 'send'])->whereUuid('campaign');
 
-    // Brand Partners Admin APIs
-    Route::post('/brand-partners', [BrandPartnerApiController::class, 'store']);
-    Route::put('/brand-partners/{id}', [BrandPartnerApiController::class, 'update'])->whereUuid('id');
-    Route::delete('/brand-partners/{id}', [BrandPartnerApiController::class, 'destroy'])->whereUuid('id');
-    Route::get('/brand-partners/analytics', [BrandPartnerApiController::class, 'analytics']);
-    Route::post('/brand-partner-categories', [BrandPartnerApiController::class, 'storeCategory']);
-    Route::put('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'updateCategory'])->whereUuid('id');
-    Route::delete('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'destroyCategory'])->whereUuid('id');
-    Route::patch('/brand-partners/{id}/status', [BrandPartnerApiController::class, 'toggleStatus'])->whereUuid('id');
-    Route::patch('/brand-partners/{id}/featured', [BrandPartnerApiController::class, 'toggleFeatured'])->whereUuid('id');
-    Route::patch('/brand-partners/{id}/sponsored', [BrandPartnerApiController::class, 'toggleSponsored'])->whereUuid('id');
-    Route::post('/brand-partners/reorder', [BrandPartnerApiController::class, 'reorder']);
+            // Brand Partners Admin APIs
+            Route::post('/brand-partners', [BrandPartnerApiController::class, 'store']);
+            Route::put('/brand-partners/{id}', [BrandPartnerApiController::class, 'update'])->whereUuid('id');
+            Route::delete('/brand-partners/{id}', [BrandPartnerApiController::class, 'destroy'])->whereUuid('id');
+            Route::get('/brand-partners/analytics', [BrandPartnerApiController::class, 'analytics']);
+            Route::post('/brand-partner-categories', [BrandPartnerApiController::class, 'storeCategory']);
+            Route::put('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'updateCategory'])->whereUuid('id');
+            Route::delete('/brand-partner-categories/{id}', [BrandPartnerApiController::class, 'destroyCategory'])->whereUuid('id');
+            Route::patch('/brand-partners/{id}/status', [BrandPartnerApiController::class, 'toggleStatus'])->whereUuid('id');
+            Route::patch('/brand-partners/{id}/featured', [BrandPartnerApiController::class, 'toggleFeatured'])->whereUuid('id');
+            Route::patch('/brand-partners/{id}/sponsored', [BrandPartnerApiController::class, 'toggleSponsored'])->whereUuid('id');
+            Route::post('/brand-partners/reorder', [BrandPartnerApiController::class, 'reorder']);
 
             Route::get('/app-config', [AppConfigAdminController::class, 'adminConfig']);
             Route::put('/app-config/branding', [AppConfigAdminController::class, 'updateBranding']);
@@ -612,7 +610,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/forms/recommend-peer', [AdminOpsController::class, 'recommendPeerForms']);
             Route::get('/forms/recommend-peer/{id}', [AdminOpsController::class, 'recommendPeerFormShow'])->whereUuid('id');
             Route::patch('/forms/recommend-peer/{id}/status', [AdminOpsController::class, 'recommendPeerStatus'])->whereUuid('id');
-  
+
             Route::get('/posts', [AdminOpsController::class, 'posts']);
             Route::get('/posts/{id}', [AdminOpsController::class, 'postShow'])->whereUuid('id');
             Route::patch('/posts/{id}/status', [AdminOpsController::class, 'postStatus'])->whereUuid('id');
@@ -621,7 +619,6 @@ Route::prefix('v1')->group(function () {
             Route::get('/post-reports/{id}', [AdminOpsController::class, 'postReportShow'])->whereUuid('id');
             Route::patch('/post-reports/{id}/resolve', [AdminOpsController::class, 'postReportResolve'])->whereUuid('id');
             Route::patch('/post-reports/{id}/dismiss', [AdminOpsController::class, 'postReportDismiss'])->whereUuid('id');
-
 
             Route::get('/notification-campaigns', [NotificationCampaignController::class, 'index']);
             Route::post('/notification-campaigns', [NotificationCampaignController::class, 'store']);
@@ -713,8 +710,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
         Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
         Route::get('/events/registrations/{registration_id}/invoice', [EventController::class, 'invoice'])->whereUuid('registration_id');
-    Route::get('/events/invoices', [EventController::class, 'invoices']);
-    Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
+        Route::get('/events/invoices', [EventController::class, 'invoices']);
+        Route::get('/events/invoices/{registration_id}', [EventController::class, 'invoiceDetails'])->whereUuid('registration_id');
         Route::get('/events/{event_id}/attendance', [EventController::class, 'attendance'])->whereUuid('event_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'register'])->whereUuid('event_id')->whereUuid('occurrence_id');
         Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register-as-user', [EventController::class, 'visitorRegisterAsUser'])->whereUuid('event_id')->whereUuid('occurrence_id');
@@ -827,7 +824,6 @@ Route::prefix('v1')->group(function () {
         Route::post('/chats/{id}/mark-read', [ChatController::class, 'markRead']);
         Route::post('/chats/{id}/typing', [ChatController::class, 'typing']);
 
-
         // Notification debug checks
         Route::get('/admin/notifications/check', [NotificationEngineController::class, 'check']);
         Route::get('/admin/notifications/check/post/{postId}', [NotificationEngineController::class, 'checkPost'])->whereUuid('postId');
@@ -888,7 +884,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/referrals/links', [ReferralController::class, 'listLinks']);
         Route::get('/referrals/visitors', [ReferralController::class, 'listVisitors']);
         Route::patch('/referrals/visitors/{id}', [ReferralController::class, 'updateVisitor']);
-
 
         Route::get('/my/activity-creatives', [ActivityCreativeController::class, 'myCreatives']);
         Route::get('/activity-creatives', [ActivityCreativeController::class, 'index']);
@@ -976,7 +971,6 @@ Route::prefix('v1')->group(function () {
     // Ads banners (public)
     Route::get('/ads/banners', [AdsController::class, 'index']);
 
-
     Route::get('/circulars', [CircularController::class, 'index']);
     Route::get('/circulars/{id}', [CircularController::class, 'show']);
 
@@ -990,7 +984,6 @@ Route::prefix('v1')->group(function () {
     Route::post('/brand-partners/{id}/view', [BrandPartnerApiController::class, 'view'])->whereUuid('id');
     Route::post('/brand-partners/{id}/click', [BrandPartnerApiController::class, 'click'])->whereUuid('id');
     Route::get('/featured-brand-partners', [BrandPartnerApiController::class, 'featured']);
-
 
     // Other module routes (members, circles, posts, etc.) will be added here later.
 });
@@ -1049,15 +1042,15 @@ Route::get('/debug-notifications', function () {
 
             $debugData[] = [
                 'user_id' => $user->id,
-                'name' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                'name' => trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
                 'email' => $user->email,
                 'status' => $user->status,
                 'membership_status' => $user->membership_status,
                 'total_push_tokens_in_db' => $tokens->count(),
                 'active_push_tokens_resolved' => $activeCount,
-                'tokens' => $tokens->map(fn($t) => [
+                'tokens' => $tokens->map(fn ($t) => [
                     'id' => $t->id,
-                    'token_preview' => substr($t->token, 0, 15) . '...',
+                    'token_preview' => substr($t->token, 0, 15).'...',
                     'platform' => $t->platform ?? null,
                     'is_active' => $t->is_active ?? null,
                 ]),
@@ -1081,26 +1074,26 @@ Route::get('/debug-notifications', function () {
 Route::get('/debug-logs', function () {
     try {
         $logPath = storage_path('logs/laravel.log');
-        if (!file_exists($logPath)) {
+        if (! file_exists($logPath)) {
             return response()->json(['success' => false, 'message' => 'Log file does not exist']);
         }
-        
+
         $lines = [];
         $file = new SplFileObject($logPath, 'r');
         $file->seek(PHP_INT_MAX);
         $totalLines = $file->key();
-        
+
         $start = max(0, $totalLines - 150);
         $file->seek($start);
-        
-        while (!$file->eof()) {
+
+        while (! $file->eof()) {
             $line = trim($file->current());
             if ($line !== '') {
                 $lines[] = $line;
             }
             $file->next();
         }
-        
+
         return response()->json([
             'success' => true,
             'total_lines' => $totalLines,

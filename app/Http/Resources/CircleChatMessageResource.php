@@ -22,7 +22,7 @@ class CircleChatMessageResource extends JsonResource
             'reply_to_message' => $replyTo ? new self($replyTo) : null,
             'sender' => [
                 'id' => (string) optional($sender)->id,
-                'name' => trim((string) (optional($sender)->display_name ?: ((optional($sender)->first_name ?? '') . ' ' . (optional($sender)->last_name ?? '')))),
+                'name' => trim((string) (optional($sender)->display_name ?: ((optional($sender)->first_name ?? '').' '.(optional($sender)->last_name ?? '')))),
                 'company_name' => optional($sender)->company_name,
                 'profile_photo_url' => optional($sender)->profile_photo_url,
             ],

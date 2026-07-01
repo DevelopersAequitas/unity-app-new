@@ -28,7 +28,7 @@ class CategoryController extends Controller
             ->where('level', 1)
             ->where('is_active', true)
             ->when($search !== '', function ($query) use ($search) {
-                $query->where('name', 'ILIKE', '%' . $search . '%');
+                $query->where('name', 'ILIKE', '%'.$search.'%');
             })
             ->orderBy('sort_order')
             ->orderBy('id')
@@ -313,7 +313,7 @@ class CategoryController extends Controller
 
             return redirect()
                 ->route('admin.categories.index')
-                ->with('error', 'Something went wrong: ' . $e->getMessage());
+                ->with('error', 'Something went wrong: '.$e->getMessage());
         }
     }
 
@@ -337,7 +337,7 @@ class CategoryController extends Controller
                 ->where('level', 1)
                 ->where('is_active', true)
                 ->when($search !== '', function ($query) use ($search) {
-                    $query->where('name', 'ILIKE', '%' . $search . '%');
+                    $query->where('name', 'ILIKE', '%'.$search.'%');
                 })
                 ->orderBy('sort_order')
                 ->orderBy('id')
@@ -378,7 +378,7 @@ class CategoryController extends Controller
         } catch (\Throwable $e) {
             return redirect()
                 ->back()
-                ->with('error', 'Unable to export categories: ' . $e->getMessage());
+                ->with('error', 'Unable to export categories: '.$e->getMessage());
         }
     }
 
@@ -389,11 +389,11 @@ class CategoryController extends Controller
         ]);
 
         try {
-            $result = (new CategoriesImport())->import($request->file('file'));
+            $result = (new CategoriesImport)->import($request->file('file'));
         } catch (\Throwable $e) {
             return redirect()
                 ->back()
-                ->with('error', 'Unable to import categories: ' . $e->getMessage());
+                ->with('error', 'Unable to import categories: '.$e->getMessage());
         }
 
         return redirect()

@@ -108,7 +108,6 @@ class ScanAppEventScanFlowTest extends TestCase
         $this->assertSame('android', $scanLog->device_info['platform']);
     }
 
-
     public function test_scan_app_login_token_scans_extracted_qr_token_without_unity_login(): void
     {
         [$attendee, $event, $scanner] = $this->createScanReadyRegistration('LOGIN_FLOW_QR_TOKEN');
@@ -158,7 +157,6 @@ class ScanAppEventScanFlowTest extends TestCase
         $this->assertSame('URL_FLOW_QR_TOKEN', $scanLog->qr_token);
         $this->assertSame('success', $scanLog->scan_status);
     }
-
 
     public function test_legacy_checkin_scan_accepts_scan_app_token_without_event_id(): void
     {
@@ -390,7 +388,6 @@ class ScanAppEventScanFlowTest extends TestCase
             ->assertJsonPath('success', false)
             ->assertJsonPath('message', 'Scanner is not assigned to this event.');
     }
-
 
     private function createScanReadyRegistration(string $qrToken): array
     {

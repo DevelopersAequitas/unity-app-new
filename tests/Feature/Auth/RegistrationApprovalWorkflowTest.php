@@ -2,17 +2,16 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Models\AdminUser;
-use App\Models\EmailLog;
 use App\Models\AdminAuditLog;
-use App\Models\User;
+use App\Models\AdminUser;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class RegistrationApprovalWorkflowTest extends TestCase
 {
@@ -36,7 +35,7 @@ class RegistrationApprovalWorkflowTest extends TestCase
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
         $globalAdminRoleId = null;
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;

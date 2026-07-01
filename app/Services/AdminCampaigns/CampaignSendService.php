@@ -26,8 +26,7 @@ class CampaignSendService
         private readonly CampaignRecipientResolverService $resolver,
         private readonly EmailLogService $emailLogService,
         private readonly CampaignEmailTemplateRenderer $emailTemplateRenderer,
-    ) {
-    }
+    ) {}
 
     public function send(AdminCampaign $campaign): AdminCampaign
     {

@@ -10,8 +10,8 @@ use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventPaymentSyncService;
-use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventRegistrationQrService;
+use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -109,7 +109,6 @@ class PublicEventRegistrationFormController extends Controller
 
         return redirect()->to($this->registrations->visitorRegistrationFormUrl($registration));
     }
-
 
     private function occurrenceUnavailableMessage(Event $event, EventOccurrence $occurrence): ?string
     {

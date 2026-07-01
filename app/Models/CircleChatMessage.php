@@ -68,7 +68,6 @@ class CircleChatMessage extends Model
         return $this->hasMany(CircleChatMessageRead::class, 'message_id');
     }
 
-
     public function replyTo(): BelongsTo
     {
         return $this->belongsTo(self::class, 'reply_to_message_id');

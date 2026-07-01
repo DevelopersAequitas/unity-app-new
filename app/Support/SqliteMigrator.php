@@ -10,7 +10,7 @@ class SqliteMigrator
     {
         if (DB::getDriverName() === 'sqlite') {
             $translatedSql = self::translate($sql);
-            
+
             // Execute statements individually
             $statements = explode(';', $translatedSql);
             foreach ($statements as $statement) {
@@ -41,7 +41,8 @@ class SqliteMigrator
                 if (\Illuminate\Support\Facades\Schema::hasTable($table) && \Illuminate\Support\Facades\Schema::hasColumn($table, $column)) {
                     return '';
                 }
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
         }
 
         // Check for ALTER TABLE DROP COLUMN and skip if column does not exist
@@ -49,51 +50,52 @@ class SqliteMigrator
             $table = $matches[1];
             $column = $matches[2];
             try {
-                if (\Illuminate\Support\Facades\Schema::hasTable($table) && !\Illuminate\Support\Facades\Schema::hasColumn($table, $column)) {
+                if (\Illuminate\Support\Facades\Schema::hasTable($table) && ! \Illuminate\Support\Facades\Schema::hasColumn($table, $column)) {
                     return '';
                 }
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
         }
 
         // 1. Remove PostgreSQL extensions
         $sql = preg_replace('/CREATE EXTENSION.*/i', '', $sql);
-        
+
         // 2. Remove DO blocks (used to declare enum types in pgsql)
         $sql = preg_replace('/DO\s+\$\$.*?END\s+\$\$;/is', '', $sql);
-        
+
         // 3. Remove ALTER TYPE commands (which don't apply to SQLite)
         $sql = preg_replace('/ALTER TYPE.*/i', '', $sql);
-        
+
         // 4. Remove custom enum creation statements
         $sql = preg_replace('/CREATE TYPE [a-z0-9_]+ AS ENUM\s*\([^)]*\);/is', '', $sql);
-        
+
         // 5. Remove USING GIN or USING GIST method specifiers, keeping the index columns
         $sql = preg_replace('/USING\s+(GIN|GIST|BTREE|HASH)\b/is', '', $sql);
         // Remove operator classes like gin_trgm_ops inside indexes
         $sql = preg_replace('/\((.*?)\s+[a-z0-9_]+_ops\)/is', '($1)', $sql);
-        
+
         // 6. Remove plpgsql functions and triggers
         $sql = preg_replace('/CREATE OR REPLACE FUNCTION.*?\$\$ LANGUAGE plpgsql;/is', '', $sql);
         $sql = preg_replace('/CREATE TRIGGER.*?;/is', '', $sql);
-        
+
         // 7. Convert Materialized Views to standard Tables in SQLite to avoid alter/rename locks
         $sql = preg_replace('/CREATE MATERIALIZED VIEW\s+([a-z0-9_]+)\s+AS/is', 'CREATE TABLE $1 AS', $sql);
         $sql = preg_replace('/CREATE UNIQUE INDEX [a-z0-9_]+ ON [a-z0-9_]+\([^)]*\);/is', '', $sql);
-        
+
         // Remove PostgreSQL type casting syntax (e.g. '[]'::jsonb or '[]'::text)
         $sql = preg_replace('/::[a-z0-9_]+/i', '', $sql);
-        
+
         // 8. SQLite does not support IF NOT EXISTS in ADD COLUMN/DROP COLUMN.
         $sql = preg_replace('/ADD COLUMN IF NOT EXISTS\s+([a-z0-9_]+)/i', 'ADD COLUMN $1', $sql);
         $sql = preg_replace('/ADD IF NOT EXISTS\s+([a-z0-9_]+)/i', 'ADD COLUMN $1', $sql);
         $sql = preg_replace('/DROP COLUMN IF EXISTS\s+([a-z0-9_]+)/i', 'DROP COLUMN $1', $sql);
-        
+
         // 9. Remove other ALTER COLUMN/ALTER TYPE syntax that SQLite doesn't support
         // SQLite doesn't support ALTER COLUMN SET DEFAULT, so we can ignore those statements.
         if (stripos($sql, 'ALTER COLUMN') !== false && (stripos($sql, 'SET DEFAULT') !== false || stripos($sql, 'TYPE') !== false)) {
             return '';
         }
-        
+
         // 10. Replace types and default values
         $replacements = [
             'UUID PRIMARY KEY DEFAULT gen_random_uuid()' => 'TEXT PRIMARY KEY',
@@ -122,11 +124,11 @@ class SqliteMigrator
             'visitor_status_enum' => 'TEXT',
             'admin_role_key_enum' => 'TEXT',
         ];
-        
+
         foreach ($replacements as $search => $replace) {
             $sql = str_ireplace($search, $replace, $sql);
         }
-        
+
         return $sql;
     }
 }
