@@ -112,7 +112,9 @@ class AdminAuthController extends Controller
                 'payload' => ['purpose' => 'admin_login_otp'],
             ], $exception);
 
-            throw $exception;
+            return back()
+                ->withInput(['email' => $email])
+                ->withErrors(['email' => 'Failed to send OTP: ' . $exception->getMessage()]);
         }
 
         $request->session()->forget('errors');
