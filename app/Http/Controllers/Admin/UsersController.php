@@ -418,10 +418,11 @@ class UsersController extends Controller
         $admin = Auth::guard('admin')->user();
         abort_unless($admin !== null, 403);
 
-        $isGlobal = AdminAccess::isGlobalAdmin($admin);
+        $isSuper = AdminAccess::isSuper($admin);
         $isDed = AdminAccess::isDed($admin);
+        $isCircleScoped = AdminAccess::isCircleScoped($admin);
 
-        abort_unless($isGlobal || $isDed, 403);
+        abort_unless($isSuper || $isDed || $isCircleScoped, 403);
 
         if ($isDed) {
             abort_unless(AdminCircleScope::userInScope($admin, $userId), 403);
