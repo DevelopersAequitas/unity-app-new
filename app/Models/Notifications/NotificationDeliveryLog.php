@@ -12,6 +12,7 @@ class NotificationDeliveryLog extends Model
     use HasUuids;
 
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

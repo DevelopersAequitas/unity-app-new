@@ -1,7 +1,8 @@
 <?php
+
 // Run: php scratch/check_enum.php
-require __DIR__ . '/../vendor/autoload.php';
-$app = require __DIR__ . '/../bootstrap/app.php';
+require __DIR__.'/../vendor/autoload.php';
+$app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 $rows = \DB::select(
@@ -23,7 +24,7 @@ if (empty($rows)) {
     }
 
     echo "\nDistinct values currently in DB:\n";
-    $vals = \DB::select("SELECT DISTINCT membership_status, COUNT(*) as cnt FROM users GROUP BY membership_status ORDER BY cnt DESC");
+    $vals = \DB::select('SELECT DISTINCT membership_status, COUNT(*) as cnt FROM users GROUP BY membership_status ORDER BY cnt DESC');
     foreach ($vals as $v) {
         echo "  '{$v->membership_status}' => {$v->cnt} users\n";
     }

@@ -19,8 +19,7 @@ class ImpactService
         private readonly ImpactUserNotificationService $notificationService,
         private readonly ImpactEmailService $emailService,
         private readonly LifeImpactService $lifeImpactService,
-    ) {
-    }
+    ) {}
 
     public function submitImpact(User $user, array $data): Impact
     {
@@ -190,7 +189,6 @@ class ImpactService
         });
     }
 
-
     private function resolveSubmittedImpactScore(array $data): int
     {
         $fallback = max(1, (int) ($data['life_impacted'] ?? 1));
@@ -249,7 +247,7 @@ class ImpactService
     {
         $userId = $userOrId instanceof User ? (string) $userOrId->id : (string) $userOrId;
 
-        $historyTable = (new LifeImpactHistory())->getTable();
+        $historyTable = (new LifeImpactHistory)->getTable();
         $sumExpression = Schema::hasColumn($historyTable, 'impact_value')
             ? 'COALESCE(impact_value, 0)'
             : (Schema::hasColumn($historyTable, 'life_impacted')

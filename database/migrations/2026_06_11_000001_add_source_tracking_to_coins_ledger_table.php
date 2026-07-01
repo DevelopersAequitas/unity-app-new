@@ -32,8 +32,8 @@ return new class extends Migration
         if ($driver === 'pgsql') {
             DB::statement(
                 'CREATE UNIQUE INDEX IF NOT EXISTS coins_ledger_user_source_unique '
-                . 'ON coins_ledger (user_id, source_type, source_id) '
-                . 'WHERE source_type IS NOT NULL AND source_id IS NOT NULL'
+                .'ON coins_ledger (user_id, source_type, source_id) '
+                .'WHERE source_type IS NOT NULL AND source_id IS NOT NULL'
             );
 
             return;
@@ -42,8 +42,8 @@ return new class extends Migration
         if ($driver === 'sqlite') {
             DB::statement(
                 'CREATE UNIQUE INDEX IF NOT EXISTS coins_ledger_user_source_unique '
-                . 'ON coins_ledger (user_id, source_type, source_id) '
-                . 'WHERE source_type IS NOT NULL AND source_id IS NOT NULL'
+                .'ON coins_ledger (user_id, source_type, source_id) '
+                .'WHERE source_type IS NOT NULL AND source_id IS NOT NULL'
             );
 
             return;

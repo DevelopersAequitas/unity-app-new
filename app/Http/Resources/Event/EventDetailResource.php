@@ -98,6 +98,7 @@ class EventDetailResource extends JsonResource
     {
         if (is_string($metadata)) {
             $decoded = json_decode($metadata, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 

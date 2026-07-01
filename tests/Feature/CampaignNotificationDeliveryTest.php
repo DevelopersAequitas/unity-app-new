@@ -2,31 +2,29 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\AdminUser;
 use App\Models\AdminCampaign;
-use App\Models\CampaignSchedule;
+use App\Models\AdminUser;
 use App\Models\CampaignDelivery;
 use App\Models\CampaignLog;
 use App\Models\Notification;
+use App\Models\Role;
 use App\Models\User;
 use App\Models\UserPushToken;
-use App\Models\Role;
-use App\Jobs\ProcessCampaignDeliveryJob;
 use App\Services\Firebase\FcmService;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Str;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Mockery;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Tests\TestCase;
 
 class CampaignNotificationDeliveryTest extends TestCase
 {
     use DatabaseTransactions;
 
     protected AdminUser $admin;
+
     protected User $userWithToken;
+
     protected User $userWithoutToken;
 
     protected function setUp(): void
@@ -45,7 +43,7 @@ class CampaignNotificationDeliveryTest extends TestCase
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
         $globalAdminRoleId = null;
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;
@@ -137,7 +135,6 @@ class CampaignNotificationDeliveryTest extends TestCase
             $table->softDeletes();
         });
 
-
         Schema::create('users', function ($table) {
             $table->uuid('id')->primary();
             $table->string('first_name')->nullable();
@@ -165,7 +162,6 @@ class CampaignNotificationDeliveryTest extends TestCase
             $table->text('user_agent')->nullable();
             $table->timestamps();
         });
-
 
         Schema::create('user_push_tokens', function ($table) {
             $table->uuid('id')->primary();
@@ -200,7 +196,6 @@ class CampaignNotificationDeliveryTest extends TestCase
             $table->timestamp('expires_at')->nullable();
             $table->timestamps();
         });
-
 
         Schema::create('admin_users', function ($table) {
             $table->uuid('id')->primary();
@@ -420,7 +415,7 @@ class CampaignNotificationDeliveryTest extends TestCase
             ->andReturn([
                 'success' => true,
                 'firebase_response' => ['name' => 'mock-message-id'],
-                'error' => null
+                'error' => null,
             ]);
 
         // Create campaign targetted only to userWithToken (use filter)
@@ -471,7 +466,7 @@ class CampaignNotificationDeliveryTest extends TestCase
             ->andReturn([
                 'success' => true,
                 'firebase_response' => ['name' => 'mock-message-id-2'],
-                'error' => null
+                'error' => null,
             ]);
 
         $campaign = AdminCampaign::create([
@@ -530,7 +525,7 @@ class CampaignNotificationDeliveryTest extends TestCase
             ->andReturn([
                 'success' => false,
                 'firebase_response' => ['error' => 'InvalidRegistration'],
-                'error' => 'Invalid or unregistered Firebase device token.'
+                'error' => 'Invalid or unregistered Firebase device token.',
             ]);
 
         $campaign = AdminCampaign::create([
@@ -672,12 +667,12 @@ class CampaignNotificationDeliveryTest extends TestCase
         ]);
 
         \App\Models\OtpCode::create([
-            'user_id'    => $user->id,
-            'email'      => $user->email,
-            'purpose'    => 'login_otp',
-            'code'       => \Illuminate\Support\Facades\Hash::make('1234'),
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'purpose' => 'login_otp',
+            'code' => \Illuminate\Support\Facades\Hash::make('1234'),
             'expires_at' => now()->addMinutes(5),
-            'used_at'    => null,
+            'used_at' => null,
         ]);
 
         $payload = [
@@ -826,4 +821,3 @@ class CampaignNotificationDeliveryTest extends TestCase
         ]);
     }
 }
-

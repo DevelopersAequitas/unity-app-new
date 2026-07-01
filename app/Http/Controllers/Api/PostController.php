@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\Post\StorePostCommentRequest;
 use App\Http\Requests\Post\StorePostRequest;
-use App\Http\Resources\PostResource;
 use App\Http\Resources\PostCommentResource;
+use App\Http\Resources\PostResource;
 use App\Models\ActivityCreative;
 use App\Models\Circle;
 use App\Models\File;
@@ -16,14 +16,14 @@ use App\Models\PostComment;
 use App\Models\PostLike;
 use App\Models\User;
 use App\Services\AdFeedService;
-use App\Services\Notifications\NotifyUserService;
 use App\Services\Notifications\NotificationDispatchService;
 use App\Services\Notifications\NotificationService;
+use App\Services\Notifications\NotifyUserService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -203,6 +203,7 @@ class PostController extends BaseApiController
                     $bestMeeting = $authorMeetings
                         ->filter(function (P2pMeeting $meeting) use ($rowCreatedAt): bool {
                             $diff = abs($meeting->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+
                             return $diff <= 120;
                         })
                         ->sortBy(function (P2pMeeting $meeting) use ($rowCreatedAt): int {
@@ -240,7 +241,7 @@ class PostController extends BaseApiController
                     'first_name' => $author->first_name,
                     'last_name' => $author->last_name,
                     'profile_photo_url' => $author->profile_photo_file_id
-                        ? url('/api/v1/files/' . $author->profile_photo_file_id)
+                        ? url('/api/v1/files/'.$author->profile_photo_file_id)
                         : null,
                 ] : null,
                 'circle' => $circle ? [
@@ -262,7 +263,7 @@ class PostController extends BaseApiController
                 && (string) ($row->post_source_event ?? '') === 'completed'
             ) {
                 $acceptedByName = trim((string) ($row->accepted_by_display_name
-                    ?: trim(((string) ($row->accepted_by_first_name ?? '')) . ' ' . ((string) ($row->accepted_by_last_name ?? '')))));
+                    ?: trim(((string) ($row->accepted_by_first_name ?? '')).' '.((string) ($row->accepted_by_last_name ?? '')))));
 
                 $item['accepted_by'] = $row->accepted_by_id ? [
                     'id' => (string) $row->accepted_by_id,
@@ -378,11 +379,11 @@ class PostController extends BaseApiController
         }
 
         $tags = $this->decodeJsonColumn($row->tags ?? null);
+
         return in_array('p2p_meeting', $tags, true);
     }
 
     /**
-     * @param  mixed  $rawMedia
      * @return array<int, array<string, mixed>>
      */
     private function expandP2pMedia(mixed $rawMedia): array
@@ -410,7 +411,7 @@ class PostController extends BaseApiController
                 return [
                     'file_id' => $fileId,
                     'media_type' => $mediaType,
-                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/' . $fileId) : null,
+                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/'.$fileId) : null,
                     'mime_type' => $file->mime_type ?? $file->mime ?? $file->type ?? null,
                     'original_name' => $file->original_name ?? $file->original_filename ?? $file->name ?? null,
                     'size' => $file->size ?? $file->size_bytes ?? null,
@@ -427,6 +428,7 @@ class PostController extends BaseApiController
     {
         if (is_string($rawMedia)) {
             $decoded = json_decode($rawMedia, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 
@@ -500,14 +502,14 @@ class PostController extends BaseApiController
         $user = Auth::user();
 
         $data = $request->validate([
-            'content_text'   => ['required', 'string', 'max:5000'],
-            'media'          => ['nullable', 'array'],
-            'media.*.id'     => ['required_with:media', 'uuid', 'exists:files,id'],
-            'media.*.type'   => ['required_with:media', 'string', 'max:50'],
-            'tags'           => ['nullable', 'array'],
-            'tags.*'         => ['string', 'max:100'],
-            'visibility'     => ['required', 'in:public,connections,members,circle,private'],
-            'circle_id'      => ['nullable', 'uuid'],
+            'content_text' => ['required', 'string', 'max:5000'],
+            'media' => ['nullable', 'array'],
+            'media.*.id' => ['required_with:media', 'uuid', 'exists:files,id'],
+            'media.*.type' => ['required_with:media', 'string', 'max:50'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:100'],
+            'visibility' => ['required', 'in:public,connections,members,circle,private'],
+            'circle_id' => ['nullable', 'uuid'],
         ]);
 
         $mediaItems = [];
@@ -524,23 +526,23 @@ class PostController extends BaseApiController
                 }
 
                 $mediaItems[] = [
-                    'id'   => $file->id,
+                    'id' => $file->id,
                     'type' => $item['type'],
-                    'url'  => url("/api/v1/files/{$file->id}"),
+                    'url' => url("/api/v1/files/{$file->id}"),
                 ];
             }
         }
 
         $post = Post::create([
-            'user_id'           => $user->id,
-            'circle_id'         => $data['circle_id'] ?? null,
-            'content_text'      => $data['content_text'],
-            'media'             => $mediaItems ?: [],
-            'tags'              => $data['tags'] ?? [],
-            'visibility'        => $data['visibility'],
+            'user_id' => $user->id,
+            'circle_id' => $data['circle_id'] ?? null,
+            'content_text' => $data['content_text'],
+            'media' => $mediaItems ?: [],
+            'tags' => $data['tags'] ?? [],
+            'visibility' => $data['visibility'],
             'moderation_status' => 'pending',
-            'sponsored'         => false,
-            'is_deleted'        => false,
+            'sponsored' => false,
+            'is_deleted' => false,
         ]);
 
         $this->dispatchNewPostNotifications($notificationService, $post);
@@ -584,30 +586,30 @@ class PostController extends BaseApiController
         }
 
         return $this->success([
-            'id'                => $post->id,
-            'content_text'      => $post->content_text,
-            'media'             => $post->media ?? [],
-            'tags'              => $post->tags ?? [],
-            'visibility'        => $post->visibility,
+            'id' => $post->id,
+            'content_text' => $post->content_text,
+            'media' => $post->media ?? [],
+            'tags' => $post->tags ?? [],
+            'visibility' => $post->visibility,
             'moderation_status' => $post->moderation_status,
-            'author'            => $post->relationLoaded('user') && $post->user ? [
-                'id'               => $post->user->id,
-                'display_name'     => $post->user->display_name,
-                'first_name'       => $post->user->first_name,
-                'last_name'        => $post->user->last_name,
-                'profile_photo_url'=> $post->user->profile_photo_url,
+            'author' => $post->relationLoaded('user') && $post->user ? [
+                'id' => $post->user->id,
+                'display_name' => $post->user->display_name,
+                'first_name' => $post->user->first_name,
+                'last_name' => $post->user->last_name,
+                'profile_photo_url' => $post->user->profile_photo_url,
             ] : null,
-            'circle'            => $post->relationLoaded('circle') && $post->circle ? [
-                'id'   => $post->circle->id,
+            'circle' => $post->relationLoaded('circle') && $post->circle ? [
+                'id' => $post->circle->id,
                 'name' => $post->circle->name,
             ] : null,
-            'likes_count'       => isset($post->likes_count) ? (int) $post->likes_count : 0,
-            'comments_count'    => isset($post->comments_count) ? (int) $post->comments_count : 0,
-            'is_liked_by_me'    => (bool) ($post->is_liked_by_me ?? false),
-            'saves_count'       => isset($post->saves_count) ? (int) $post->saves_count : 0,
-            'is_saved'          => (bool) ($post->is_saved_by_me ?? false),
-            'created_at'        => $post->created_at,
-            'updated_at'        => $post->updated_at,
+            'likes_count' => isset($post->likes_count) ? (int) $post->likes_count : 0,
+            'comments_count' => isset($post->comments_count) ? (int) $post->comments_count : 0,
+            'is_liked_by_me' => (bool) ($post->is_liked_by_me ?? false),
+            'saves_count' => isset($post->saves_count) ? (int) $post->saves_count : 0,
+            'is_saved' => (bool) ($post->is_saved_by_me ?? false),
+            'created_at' => $post->created_at,
+            'updated_at' => $post->updated_at,
         ]);
     }
 
@@ -654,8 +656,8 @@ class PostController extends BaseApiController
                     $notifications->sendToUser(
                         $postOwner,
                         'post_like',
-                        $likerName . ' liked your post',
-                        $likerName . ' liked your post',
+                        $likerName.' liked your post',
+                        $likerName.' liked your post',
                         [
                             'post_id' => (string) $post->id,
                             'like_id' => (string) $like->id,
@@ -670,7 +672,7 @@ class PostController extends BaseApiController
                             'channel' => 'push',
                             'reference_type' => 'post',
                             'reference_id' => (string) $post->id,
-                            'dedupe_key' => 'post_like:' . $post->id . ':' . $authUser->id,
+                            'dedupe_key' => 'post_like:'.$post->id.':'.$authUser->id,
                         ]
                     );
                 }
@@ -721,7 +723,7 @@ class PostController extends BaseApiController
 
         $data = $request->validated();
 
-        $comment = new PostComment();
+        $comment = new PostComment;
         $comment->post_id = $post->id;
         $comment->user_id = $authUser->id;
         $comment->content = $data['content'];
@@ -732,11 +734,11 @@ class PostController extends BaseApiController
             try {
                 if ($postOwner = User::find($post->user_id)) {
                     $commenterName = $this->displayName($authUser);
-                    $preview = Str::limit(trim((string) $comment->content), 120) ?: ($commenterName . ' commented on your post');
+                    $preview = Str::limit(trim((string) $comment->content), 120) ?: ($commenterName.' commented on your post');
                     $notifications->sendToUser(
                         $postOwner,
                         'post_comment',
-                        $commenterName . ' commented on your post',
+                        $commenterName.' commented on your post',
                         $preview,
                         [
                             'post_id' => (string) $post->id,
@@ -752,7 +754,7 @@ class PostController extends BaseApiController
                             'channel' => 'push',
                             'reference_type' => 'post',
                             'reference_id' => (string) $post->id,
-                            'dedupe_key' => 'post_comment:' . $comment->id,
+                            'dedupe_key' => 'post_comment:'.$comment->id,
                         ]
                     );
                 }
@@ -823,7 +825,7 @@ class PostController extends BaseApiController
                 ['screen' => 'post_details', 'post_id' => (string) $post->id, 'comment_id' => $comment?->id, 'mentioned_by' => (string) $actor->id, 'type' => 'mention'],
                 $actor,
                 $comment ?: $post,
-                ['type' => 'mention', 'reference_type' => $comment ? 'post_comment' : 'post', 'reference_id' => (string) ($comment?->id ?? $post->id), 'dedupe_key' => 'mention:' . ($comment?->id ?? $post->id)]
+                ['type' => 'mention', 'reference_type' => $comment ? 'post_comment' : 'post', 'reference_id' => (string) ($comment?->id ?? $post->id), 'dedupe_key' => 'mention:'.($comment?->id ?? $post->id)]
             );
         } catch (Throwable $e) {
             Log::warning('Mention notification failed', ['post_id' => (string) $post->id, 'error' => $e->getMessage()]);
@@ -840,7 +842,7 @@ class PostController extends BaseApiController
 
         return User::query()->where(function ($query) use ($handles): void {
             foreach ($handles as $handle) {
-                $query->orWhere('display_name', 'ilike', $handle)->orWhere('name', 'ilike', $handle)->orWhere('email', 'ilike', $handle . '@%');
+                $query->orWhere('display_name', 'ilike', $handle)->orWhere('name', 'ilike', $handle)->orWhere('email', 'ilike', $handle.'@%');
             }
         })->get();
     }
@@ -852,7 +854,6 @@ class PostController extends BaseApiController
 
     private function displayName(User $user): string
     {
-        return trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? ''))) ?: (string) ($user->name ?? 'A member');
+        return trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? ''))) ?: (string) ($user->name ?? 'A member');
     }
-
 }

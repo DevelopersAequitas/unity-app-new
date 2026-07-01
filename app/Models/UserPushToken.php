@@ -47,12 +47,14 @@ class UserPushToken extends Model
         if ($column === null) {
             $column = \Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'usr_id') ? 'usr_id' : 'user_id';
         }
+
         return $column;
     }
 
     public function getUserIdAttribute()
     {
         $col = self::getUserIdColumn();
+
         return $this->attributes[$col] ?? null;
     }
 

@@ -8,11 +8,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Payment extends Model
 {
     public const STATUS_CREATED = 'created';
+
     public const STATUS_SUCCESS = 'success';
+
     public const STATUS_FAILED = 'failed';
 
     protected $table = 'payments';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

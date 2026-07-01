@@ -17,12 +17,11 @@ class CircleChatMessageSent implements ShouldBroadcastNow
     public function __construct(
         public string $circleId,
         public array $message,
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): PresenceChannel
     {
-        return new PresenceChannel('presence-circle-chat.' . $this->circleId);
+        return new PresenceChannel('presence-circle-chat.'.$this->circleId);
     }
 
     public function broadcastAs(): string

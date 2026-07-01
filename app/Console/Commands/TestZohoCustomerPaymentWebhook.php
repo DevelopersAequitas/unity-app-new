@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 class TestZohoCustomerPaymentWebhook extends Command
 {
     protected $signature = 'zoho:webhook:test-customer-payment {registration_id}';
+
     protected $description = 'Simulate a Zoho Billing Customer Payment workflow webhook for an event registration.';
 
     public function handle(ZohoPaymentWebhookService $service): int

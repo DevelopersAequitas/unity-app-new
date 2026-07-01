@@ -9,8 +9,8 @@ use App\Mail\WebsiteFormConfirmationMail;
 use App\Models\BecomeMentorSubmission;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class BecomeMentorController extends BaseApiController
 {
@@ -20,10 +20,10 @@ class BecomeMentorController extends BaseApiController
 
         if ($search = trim((string) $request->query('search', ''))) {
             $query->where(function ($subQuery) use ($search) {
-                $subQuery->where('first_name', 'ilike', '%' . $search . '%')
-                    ->orWhere('last_name', 'ilike', '%' . $search . '%')
-                    ->orWhere('email', 'ilike', '%' . $search . '%')
-                    ->orWhere('city', 'ilike', '%' . $search . '%');
+                $subQuery->where('first_name', 'ilike', '%'.$search.'%')
+                    ->orWhere('last_name', 'ilike', '%'.$search.'%')
+                    ->orWhere('email', 'ilike', '%'.$search.'%')
+                    ->orWhere('city', 'ilike', '%'.$search.'%');
             });
         }
 
@@ -117,7 +117,7 @@ class BecomeMentorController extends BaseApiController
 
             $this->sendConfirmationEmail(
                 email: $submission->email,
-                recipientName: trim($submission->first_name . ' ' . $submission->last_name) ?: $submission->first_name,
+                recipientName: trim($submission->first_name.' '.$submission->last_name) ?: $submission->first_name,
                 subject: 'Your Mentor Application Has Been Received',
                 formTitle: 'Become a Mentor',
                 confirmationMessage: 'We have successfully received your “Become a Mentor” form submission on Peers Global. Our team will review your details and connect with you soon.',

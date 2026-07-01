@@ -39,7 +39,7 @@ class OtherUserNameResolver
             return $displayName;
         }
 
-        $fullName = trim(trim((string) $user->first_name) . ' ' . trim((string) $user->last_name));
+        $fullName = trim(trim((string) $user->first_name).' '.trim((string) $user->last_name));
         if ($fullName !== '') {
             return $fullName;
         }

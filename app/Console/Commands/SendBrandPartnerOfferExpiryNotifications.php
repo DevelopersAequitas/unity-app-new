@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Notification;
 class SendBrandPartnerOfferExpiryNotifications extends Command
 {
     protected $signature = 'PGU:brand-partner-expiry-alerts';
+
     protected $description = 'Send expiry warning notifications to users who saved brand partners with offers expiring in 2 days';
 
     public function handle(): int
@@ -31,10 +32,11 @@ class SendBrandPartnerOfferExpiryNotifications extends Command
 
         if ($expiringPartners->isEmpty()) {
             $this->info('No brand partner offers are expiring in 2 days.');
+
             return Command::SUCCESS;
         }
 
-        $this->info('Found ' . $expiringPartners->count() . ' partner offers expiring in 2 days.');
+        $this->info('Found '.$expiringPartners->count().' partner offers expiring in 2 days.');
 
         foreach ($expiringPartners as $partner) {
             // Find users who bookmarked this partner
@@ -44,7 +46,8 @@ class SendBrandPartnerOfferExpiryNotifications extends Command
                 ->toArray();
 
             if (empty($savedUserIds)) {
-                $this->info('No users have bookmarked partner: ' . $partner->name);
+                $this->info('No users have bookmarked partner: '.$partner->name);
+
                 continue;
             }
 
@@ -56,10 +59,11 @@ class SendBrandPartnerOfferExpiryNotifications extends Command
                     Notification::send($users, new OfferExpiryReminderNotification($partner));
                 });
 
-            $this->info('Dispatched expiry notifications to ' . count($savedUserIds) . ' bookmarking users for: ' . $partner->name);
+            $this->info('Dispatched expiry notifications to '.count($savedUserIds).' bookmarking users for: '.$partner->name);
         }
 
         $this->info('Expiry alert checks completed successfully!');
+
         return Command::SUCCESS;
     }
 }

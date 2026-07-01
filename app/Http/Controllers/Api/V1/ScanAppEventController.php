@@ -190,5 +190,4 @@ class ScanAppEventController extends BaseApiController
 
         return $payload;
     }
-
 }

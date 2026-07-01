@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\Testimonial;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -144,7 +144,7 @@ class TestimonialApiTest extends TestCase
             'first_name' => strtok($name, ' ') ?: $name,
             'last_name' => trim(strstr($name, ' ') ?: ''),
             'display_name' => $name,
-            'email' => Str::slug($name) . '-' . Str::random(6) . '@example.com',
+            'email' => Str::slug($name).'-'.Str::random(6).'@example.com',
             'status' => 'active',
             'membership_status' => 'premium',
             'coins_balance' => 100,
@@ -216,7 +216,7 @@ class TestimonialApiTest extends TestCase
                         'designation',
                         'profile_photo_url',
                     ],
-                ]
+                ],
             ]);
 
         $this->assertDatabaseHas('testimonials', [

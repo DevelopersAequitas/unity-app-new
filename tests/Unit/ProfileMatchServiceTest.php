@@ -91,7 +91,7 @@ class ProfileMatchServiceTest extends TestCase
             (object) ['circle_id' => 'circle-2'],
         ]));
 
-        $match = (new ProfileMatchService())->calculate($authUser, $member);
+        $match = (new ProfileMatchService)->calculate($authUser, $member);
 
         $this->assertNotNull($match);
         $this->assertGreaterThanOrEqual(80, $match['score']);
@@ -109,7 +109,7 @@ class ProfileMatchServiceTest extends TestCase
     {
         $user = new User(['id' => 'same-user-id']);
 
-        $match = (new ProfileMatchService())->calculate($user, $user);
+        $match = (new ProfileMatchService)->calculate($user, $user);
 
         $this->assertSame(100, $match['score']);
         $this->assertSame(100, $match['percentage']);
@@ -120,7 +120,7 @@ class ProfileMatchServiceTest extends TestCase
 
     public function test_normalize_array_field_handles_malformed_json_and_empty_values(): void
     {
-        $service = new ProfileMatchService();
+        $service = new ProfileMatchService;
 
         $this->assertSame(['healthcare', 'retail'], $service->normalizeArrayField('Healthcare, Retail'));
         $this->assertSame(['not-json'], $service->normalizeArrayField('[not-json'));
@@ -129,7 +129,7 @@ class ProfileMatchServiceTest extends TestCase
 
     public function test_text_helpers_are_case_insensitive_and_trimmed(): void
     {
-        $service = new ProfileMatchService();
+        $service = new ProfileMatchService;
 
         $this->assertTrue($service->textEquals('  Private Limited ', 'private limited'));
         $this->assertFalse($service->textEquals('', 'private limited'));

@@ -44,6 +44,7 @@ class BrandPartnerSettingsController extends Controller
     {
         if (Storage::disk('local')->exists(self::SETTINGS_FILE)) {
             $content = Storage::disk('local')->get(self::SETTINGS_FILE);
+
             return json_decode($content, true) ?? $this->defaultSettings();
         }
 

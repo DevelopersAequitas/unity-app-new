@@ -9,9 +9,7 @@ use Illuminate\Http\JsonResponse;
 
 class MembershipPlanController extends Controller
 {
-    public function __construct(private readonly MembershipService $membershipService)
-    {
-    }
+    public function __construct(private readonly MembershipService $membershipService) {}
 
     public function index(): JsonResponse
     {

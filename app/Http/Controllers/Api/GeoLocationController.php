@@ -126,9 +126,9 @@ class GeoLocationController extends BaseApiController
             ])
             ->selectRaw('user_geo_locations.last_seen_at as geo_last_seen_at')
             ->selectRaw('user_geo_locations.latitude as geo_latitude, user_geo_locations.longitude as geo_longitude')
-            ->selectRaw($distanceExpression . ' as distance_km', $distanceBindings)
+            ->selectRaw($distanceExpression.' as distance_km', $distanceBindings)
             ->when($radiusKm !== null, function ($query) use ($distanceExpression, $distanceBindings, $radiusKm) {
-                $query->whereRaw($distanceExpression . ' <= ?', [...$distanceBindings, $radiusKm]);
+                $query->whereRaw($distanceExpression.' <= ?', [...$distanceBindings, $radiusKm]);
             })
             ->orderBy('distance_km', 'asc')
             ->when($limit !== null, fn ($query) => $query->limit($limit))
@@ -143,13 +143,47 @@ class GeoLocationController extends BaseApiController
         ], 'Nearby peers fetched successfully.');
     }
 
+    public function getPeersCountWithin500km(Request $request): JsonResponse
+    {
+        $authUser = $request->user();
+
+        $myLocation = UserGeoLocation::query()
+            ->where('user_id', (string) $authUser->id)
+            ->first();
+
+        if (! $myLocation) {
+            return $this->error(
+                'Please update your location first.',
+                422,
+                ['location' => ['Please update your location first.']]
+            );
+        }
+
+        $distanceExpression = $this->distanceExpression();
+        $distanceBindings = [
+            $myLocation->latitude,
+            $myLocation->longitude,
+            $myLocation->latitude,
+        ];
+
+        $count = UserGeoLocation::query()
+            ->where('is_visible', true)
+            ->where('user_id', '!=', (string) $authUser->id)
+            ->whereRaw($distanceExpression . ' <= ?', [...$distanceBindings, 500])
+            ->count();
+
+        return $this->success([
+            'count' => $count,
+        ], 'Peers count fetched successfully within 500km radius.');
+    }
+
     private function distanceExpression(): string
     {
         return '6371 * acos(LEAST(1, GREATEST(-1, '
-            . 'cos(radians(?)) * cos(radians(user_geo_locations.latitude)) * '
-            . 'cos(radians(user_geo_locations.longitude) - radians(?)) + '
-            . 'sin(radians(?)) * sin(radians(user_geo_locations.latitude))'
-            . ')))';
+            .'cos(radians(?)) * cos(radians(user_geo_locations.latitude)) * '
+            .'cos(radians(user_geo_locations.longitude) - radians(?)) + '
+            .'sin(radians(?)) * sin(radians(user_geo_locations.latitude))'
+            .')))';
     }
 
     private function attachConnectionState($peers, string $authUserId): void

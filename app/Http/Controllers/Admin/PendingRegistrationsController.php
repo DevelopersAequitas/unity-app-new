@@ -3,18 +3,18 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\RegistrationApprovedMail;
+use App\Mail\RegistrationRejectedMail;
 use App\Models\User;
 use App\Services\Admin\AdminAuditService;
 use App\Services\EmailLogs\EmailLogService;
-use App\Mail\RegistrationApprovedMail;
-use App\Mail\RegistrationRejectedMail;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class PendingRegistrationsController extends Controller
@@ -22,8 +22,7 @@ class PendingRegistrationsController extends Controller
     public function __construct(
         private readonly AdminAuditService $auditService,
         private readonly EmailLogService $emailLogService
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -116,7 +115,7 @@ class PendingRegistrationsController extends Controller
                 $this->emailLogService->logMailableSent($mailable, [
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'registration_approved',
                     'source_module' => 'Auth',
                     'related_type' => User::class,
@@ -138,7 +137,7 @@ class PendingRegistrationsController extends Controller
                 'error' => $exception->getMessage(),
             ]);
 
-            return redirect()->back()->with('error', 'Failed to approve registration: ' . $exception->getMessage());
+            return redirect()->back()->with('error', 'Failed to approve registration: '.$exception->getMessage());
         }
     }
 
@@ -181,7 +180,7 @@ class PendingRegistrationsController extends Controller
                 $this->emailLogService->logMailableSent($mailable, [
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'registration_rejected',
                     'source_module' => 'Auth',
                     'related_type' => User::class,
@@ -203,7 +202,7 @@ class PendingRegistrationsController extends Controller
                 'error' => $exception->getMessage(),
             ]);
 
-            return redirect()->back()->with('error', 'Failed to reject registration: ' . $exception->getMessage());
+            return redirect()->back()->with('error', 'Failed to reject registration: '.$exception->getMessage());
         }
     }
 }

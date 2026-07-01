@@ -91,7 +91,7 @@ class LeaderboardController extends Controller
                 'category' => $member->business_type,
                 'profile_photo' => [
                     'file_id' => $profilePhotoFileId,
-                    'url' => $profilePhotoFileId ? rtrim((string) config('app.url'), '/') . '/api/v1/files/' . $profilePhotoFileId : null,
+                    'url' => $profilePhotoFileId ? rtrim((string) config('app.url'), '/').'/api/v1/files/'.$profilePhotoFileId : null,
                 ],
                 'coins_balance' => (int) ($member->coins_balance ?? 0),
                 'life_impacted_count' => (int) ($member->life_impacted_count ?? 0),

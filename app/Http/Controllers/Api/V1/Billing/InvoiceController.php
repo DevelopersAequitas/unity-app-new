@@ -14,9 +14,7 @@ use Throwable;
 
 class InvoiceController extends BaseApiController
 {
-    public function __construct(private readonly ZohoBillingService $zohoBillingService)
-    {
-    }
+    public function __construct(private readonly ZohoBillingService $zohoBillingService) {}
 
     public function index(Request $request)
     {
@@ -110,14 +108,14 @@ class InvoiceController extends BaseApiController
 
             $invoiceNumber = (string) ($pdf['invoice_number'] ?? $invoiceId);
             $safeInvoiceNumber = Str::of($invoiceNumber)->replaceMatches('/[^A-Za-z0-9\\-_]/', '-')->toString();
-            $filename = 'invoice-' . trim($safeInvoiceNumber, '-') . '.pdf';
+            $filename = 'invoice-'.trim($safeInvoiceNumber, '-').'.pdf';
 
             return response()->stream(
-                fn () => print($pdf['content']),
+                fn () => print ($pdf['content']),
                 200,
                 [
                     'Content-Type' => 'application/pdf',
-                    'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                    'Content-Disposition' => 'inline; filename="'.$filename.'"',
                     'Content-Length' => (string) strlen((string) $pdf['content']),
                 ]
             );

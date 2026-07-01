@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EventRegistrationRequest extends Model
 {
@@ -13,8 +13,8 @@ class EventRegistrationRequest extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'event_id','occurrence_id','user_id','user_circle_id','event_circle_id','status','request_reason','admin_note',
-        'approved_by_user_id','approved_at','rejected_by_user_id','rejected_at','registration_id','metadata',
+        'event_id', 'occurrence_id', 'user_id', 'user_circle_id', 'event_circle_id', 'status', 'request_reason', 'admin_note',
+        'approved_by_user_id', 'approved_at', 'rejected_by_user_id', 'rejected_at', 'registration_id', 'metadata',
     ];
 
     protected $casts = [
@@ -38,7 +38,6 @@ class EventRegistrationRequest extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-
     public function registration(): BelongsTo
     {
         return $this->belongsTo(EventRegistration::class, 'registration_id');
@@ -53,5 +52,4 @@ class EventRegistrationRequest extends Model
     {
         return $this->belongsTo(User::class, 'rejected_by_user_id');
     }
-
 }

@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
+use App\Events\ActivityCreated;
 use App\Http\Requests\Activity\StoreP2pMeetingRequest;
+use App\Models\FileModel;
 use App\Models\P2pMeeting;
 use App\Models\Post;
 use App\Models\User;
-use App\Events\ActivityCreated;
-use App\Models\FileModel;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
@@ -29,23 +28,23 @@ class P2pMeetingController extends BaseApiController
             $contentText = $this->buildActivityPostMessage('p2p_meeting', $peerUser);
 
             Post::create([
-                'user_id'           => $meeting->initiator_user_id,
-                'circle_id'         => null,
-                'content_text'      => $contentText,
-                'media'             => [],
-                'tags'              => ['p2p_meeting'],
-                'source_type'       => 'p2p_meeting',
-                'source_id'         => $meeting->id,
-                'source_event'      => 'p2p_meeting_created',
-                'visibility'        => 'public',
+                'user_id' => $meeting->initiator_user_id,
+                'circle_id' => null,
+                'content_text' => $contentText,
+                'media' => [],
+                'tags' => ['p2p_meeting'],
+                'source_type' => 'p2p_meeting',
+                'source_id' => $meeting->id,
+                'source_event' => 'p2p_meeting_created',
+                'visibility' => 'public',
                 'moderation_status' => 'pending',
-                'sponsored'         => false,
-                'is_deleted'        => false,
+                'sponsored' => false,
+                'is_deleted' => false,
             ]);
         } catch (Throwable $e) {
             Log::error('Failed to create post for P2P meeting', [
                 'p2p_meeting_id' => $meeting->id,
-                'error'          => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -176,7 +175,7 @@ class P2pMeetingController extends BaseApiController
                         'activity_type' => 'p2p_meeting',
                         'activity_id' => (string) $meeting->id,
                         'title' => 'New P2P Meeting',
-                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' scheduled a P2P meeting with you',
+                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' scheduled a P2P meeting with you',
                     ],
                     $meeting
                 );
@@ -217,7 +216,6 @@ class P2pMeetingController extends BaseApiController
 
         return $this->success($this->buildP2pMeetingResponse($meeting));
     }
-
 
     /**
      * @return array<string, mixed>
@@ -300,7 +298,6 @@ class P2pMeetingController extends BaseApiController
     }
 
     /**
-     * @param  mixed  $rawMedia
      * @return array<int, array<string, mixed>>
      */
     private function expandP2pMedia(mixed $rawMedia): array
@@ -332,7 +329,7 @@ class P2pMeetingController extends BaseApiController
                 return [
                     'file_id' => $fileId,
                     'media_type' => $mediaType,
-                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/' . $fileId) : null,
+                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/'.$fileId) : null,
                     'mime_type' => $file->mime_type ?? $file->mime ?? $file->type ?? null,
                     'original_name' => $file->original_name ?? $file->original_filename ?? $file->name ?? null,
                     'size' => $file->size ?? $file->size_bytes ?? null,
@@ -349,6 +346,7 @@ class P2pMeetingController extends BaseApiController
     {
         if (is_string($rawMedia)) {
             $decoded = json_decode($rawMedia, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 

@@ -5,7 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         if (! Schema::hasTable('ads')) {
@@ -22,7 +23,7 @@ return new class extends Migration {
             return;
         }
 
-        $legacyTable = 'ads_legacy_bigint_' . now()->format('YmdHis');
+        $legacyTable = 'ads_legacy_bigint_'.now()->format('YmdHis');
         Schema::rename('ads', $legacyTable);
 
         Schema::create('ads', function (Blueprint $table) {
@@ -67,7 +68,7 @@ return new class extends Migration {
         }
 
         $connection = Schema::getConnection();
-        $table = $connection->getTablePrefix() . 'ads';
+        $table = $connection->getTablePrefix().'ads';
 
         $result = DB::table('information_schema.columns')
             ->select('data_type')

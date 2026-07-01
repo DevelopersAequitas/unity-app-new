@@ -43,7 +43,7 @@ class OtherUserProfilePhotoUrlResolver
             return null;
         }
 
-        return url('/api/v1/files/' . $profilePhotoFileId);
+        return url('/api/v1/files/'.$profilePhotoFileId);
     }
 
     private function extractAttributes(mixed $row): array

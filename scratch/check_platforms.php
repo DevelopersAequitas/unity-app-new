@@ -1,6 +1,7 @@
 <?php
-require __DIR__ . '/../vendor/autoload.php';
-$app = require __DIR__ . '/../bootstrap/app.php';
+
+require __DIR__.'/../vendor/autoload.php';
+$app = require __DIR__.'/../bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 try {
@@ -10,5 +11,5 @@ try {
         ->get();
     print_r($platforms->toArray());
 } catch (\Throwable $e) {
-    echo "Error: " . $e->getMessage() . PHP_EOL;
+    echo 'Error: '.$e->getMessage().PHP_EOL;
 }

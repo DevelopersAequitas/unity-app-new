@@ -14,9 +14,7 @@ use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestAdminController extends BaseApiController
 {
-    public function __construct(private readonly CircleJoinRequestService $service)
-    {
-    }
+    public function __construct(private readonly CircleJoinRequestService $service) {}
 
     public function index(AdminListCircleJoinRequests $request): JsonResponse
     {
@@ -28,7 +26,7 @@ class CircleJoinRequestAdminController extends BaseApiController
         $validated = $request->validated();
 
         if (! empty($validated['search'])) {
-            $search = '%' . str_replace(['%', '_'], ['\%', '\_'], (string) $validated['search']) . '%';
+            $search = '%'.str_replace(['%', '_'], ['\%', '\_'], (string) $validated['search']).'%';
             $query->whereHas('user', fn ($q) => $q->where('display_name', 'ILIKE', $search)
                 ->orWhere('first_name', 'ILIKE', $search)
                 ->orWhere('last_name', 'ILIKE', $search)

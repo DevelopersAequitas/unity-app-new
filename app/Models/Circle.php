@@ -17,9 +17,13 @@ class Circle extends Model
     use SoftDeletes;
 
     public const STATUS_OPTIONS = ['pending', 'active', 'archived'];
+
     public const TYPE_OPTIONS = ['public', 'private'];
+
     public const MEETING_MODE_OPTIONS = ['online', 'offline', 'hybrid'];
+
     public const MEETING_FREQUENCY_OPTIONS = ['monthly', 'quarterly'];
+
     public const STAGE_OPTIONS = [
         'Conceptualized Circle',
         'Foundation Circle',
@@ -41,6 +45,7 @@ class Circle extends Model
     ];
 
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -191,7 +196,6 @@ class Circle extends Model
         });
     }
 
-
     public function calendarGet(string $path, $default = null)
     {
         $calendar = is_array($this->calendar) ? $this->calendar : [];
@@ -209,12 +213,14 @@ class Circle extends Model
     public function getMeetingModeAttribute(): ?string
     {
         $value = $this->calendarGet('settings.meeting_mode');
+
         return is_string($value) && trim($value) !== '' ? trim($value) : null;
     }
 
     public function getMeetingFrequencyAttribute(): ?string
     {
         $value = $this->calendarGet('settings.meeting_frequency');
+
         return is_string($value) && trim($value) !== '' ? trim($value) : null;
     }
 
@@ -362,12 +368,10 @@ class Circle extends Model
         return $this->belongsTo(City::class, 'city_id');
     }
 
-
     public function cityRef(): BelongsTo
     {
         return $this->belongsTo(City::class, 'city_id');
     }
-
 
     public function chatMessages(): HasMany
     {
@@ -389,7 +393,6 @@ class Circle extends Model
         return $this->hasMany(CircleSubscription::class, 'circle_id');
     }
 
-
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'circle_members', 'circle_id', 'user_id')
@@ -410,7 +413,6 @@ class Circle extends Model
             ->withTimestamps();
     }
 
-
     public function coverFile(): BelongsTo
     {
         return $this->belongsTo(File::class, 'cover_file_id');
@@ -426,7 +428,7 @@ class Circle extends Model
             return $this->coverFile->url;
         }
 
-        return url('/api/v1/files/' . $this->cover_file_id);
+        return url('/api/v1/files/'.$this->cover_file_id);
     }
 
     public static function generateUniqueSlug(string $name, ?string $ignoreId = null): string
@@ -446,7 +448,7 @@ class Circle extends Model
                 ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
                 ->exists()
         ) {
-            $slug = $base . '-' . $i;
+            $slug = $base.'-'.$i;
             $i++;
         }
 

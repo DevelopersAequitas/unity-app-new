@@ -9,7 +9,6 @@ use App\Models\P2pMeeting;
 use App\Support\ActivityHistory\OtherUserNameResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 
 class P2pMeetingHistoryController extends BaseApiController
 {
@@ -35,10 +34,10 @@ class P2pMeetingHistoryController extends BaseApiController
 
         if ($filter === 'received') {
             $query->where('peer_user_id', $authUserId);
-            $whereParts[] = 'peer_user_id = "' . $authUserId . '"';
+            $whereParts[] = 'peer_user_id = "'.$authUserId.'"';
         } else {
             $query->where('initiator_user_id', $authUserId);
-            $whereParts[] = 'initiator_user_id = "' . $authUserId . '"';
+            $whereParts[] = 'initiator_user_id = "'.$authUserId.'"';
             $filter = 'given';
         }
 
@@ -54,7 +53,7 @@ class P2pMeetingHistoryController extends BaseApiController
 
         $items = TableRowResource::collection(
             $items->map(function (P2pMeeting $meeting) use ($nameMap, $authUserId) {
-$attributes = $meeting->toArray();
+                $attributes = $meeting->toArray();
                 $otherUserId = $this->resolveOtherUserId($meeting, $authUserId);
                 $attributes['other_user_name'] = $otherUserId ? ($nameMap[$otherUserId] ?? null) : null;
                 $attributes['media'] = $this->expandP2pMedia($meeting->media);
@@ -77,7 +76,6 @@ $attributes = $meeting->toArray();
 
         return $this->success($response);
     }
-
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -106,7 +104,6 @@ $attributes = $meeting->toArray();
     }
 
     /**
-     * @param  mixed  $rawMedia
      * @return array<int, array<string, mixed>>
      */
     private function expandP2pMedia(mixed $rawMedia): array
@@ -138,7 +135,7 @@ $attributes = $meeting->toArray();
                 return [
                     'file_id' => $fileId,
                     'media_type' => $mediaType,
-                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/' . $fileId) : null,
+                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/'.$fileId) : null,
                     'mime_type' => $file->mime_type ?? $file->mime ?? $file->type ?? null,
                     'original_name' => $file->original_name ?? $file->original_filename ?? $file->name ?? null,
                     'size' => $file->size ?? $file->size_bytes ?? null,
@@ -155,6 +152,7 @@ $attributes = $meeting->toArray();
     {
         if (is_string($rawMedia)) {
             $decoded = json_decode($rawMedia, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 

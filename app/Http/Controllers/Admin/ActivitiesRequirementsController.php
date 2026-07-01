@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\Requirement;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ActivitiesRequirementsController extends Controller
 {
@@ -69,9 +69,9 @@ class ActivitiesRequirementsController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->buildFilters($request);
-        $filename = 'requirements_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'requirements_'.now()->format('Ymd_His').'.csv';
 
-        return response()->streamDownload(function () use ($request, $filters) {
+        return response()->streamDownload(function () use ($filters) {
             @ini_set('zlib.output_compression', '0');
             @ini_set('output_buffering', '0');
             while (ob_get_level() > 0) {
@@ -183,7 +183,7 @@ class ActivitiesRequirementsController extends Controller
 
         if ($filters['q'] !== '') {
             $query->leftJoin('cities as actor_city', 'actor_city.id', '=', 'actor.city_id');
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['q']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['q']).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -195,7 +195,7 @@ class ActivitiesRequirementsController extends Controller
         }
 
         if ($filters['from_user'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['from_user']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['from_user']).'%';
             $query->where(function ($inner) use ($like) {
                 $inner->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -205,17 +205,17 @@ class ActivitiesRequirementsController extends Controller
         }
 
         if ($filters['subject'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['subject']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['subject']).'%';
             $query->where('activity.subject', 'ILIKE', $like);
         }
 
         if ($filters['region'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['region']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['region']).'%';
             $query->whereRaw("coalesce(nullif(activity.region_filter->>'region_label', ''), nullif(activity.region_filter->>'region_name', ''), nullif(activity.region_filter->>'city_name', '')) ILIKE ?", [$like]);
         }
 
         if ($filters['category'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['category']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['category']).'%';
             $query->whereRaw("coalesce(nullif(activity.category_filter->>'category', ''), nullif(activity.category_filter->>'name', '')) ILIKE ?", [$like]);
         }
 
@@ -309,7 +309,6 @@ class ActivitiesRequirementsController extends Controller
             ->get();
     }
 
-
     private function statusOptions()
     {
         return Requirement::query()
@@ -351,7 +350,7 @@ class ActivitiesRequirementsController extends Controller
             return $displayName;
         }
 
-        $name = trim(($firstName ?? '') . ' ' . ($lastName ?? ''));
+        $name = trim(($firstName ?? '').' '.($lastName ?? ''));
 
         return $name !== '' ? $name : '—';
     }
@@ -415,7 +414,7 @@ class ActivitiesRequirementsController extends Controller
             }
 
             if ($id && Str::isUuid($id)) {
-                return url('/api/v1/files/' . $id);
+                return url('/api/v1/files/'.$id);
             }
 
             return $id ?: null;
@@ -427,7 +426,7 @@ class ActivitiesRequirementsController extends Controller
             }
 
             if (Str::isUuid($item)) {
-                return url('/api/v1/files/' . $item);
+                return url('/api/v1/files/'.$item);
             }
 
             return $item;

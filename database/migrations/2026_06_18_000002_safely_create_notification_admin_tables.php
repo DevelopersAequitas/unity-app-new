@@ -5,7 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         $this->ensureUserPushTokens();
@@ -37,6 +38,7 @@ return new class extends Migration {
                 $table->timestamp('last_used_at')->nullable();
                 $table->timestamps();
             });
+
             return;
         }
 
@@ -157,6 +159,7 @@ return new class extends Migration {
                 $table->timestamp('delivered_at')->nullable();
                 $table->timestamps();
             });
+
             return;
         }
 

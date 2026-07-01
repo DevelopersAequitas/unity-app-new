@@ -12,7 +12,7 @@ class IncompleteRequirementResource extends JsonResource
         $user = $this->whenLoaded('user');
         $firstName = (string) data_get($user, 'first_name', '');
         $lastName = (string) data_get($user, 'last_name', '');
-        $fullName = trim($firstName . ' ' . $lastName);
+        $fullName = trim($firstName.' '.$lastName);
 
         return [
             'id' => (string) $this->id,
@@ -23,7 +23,7 @@ class IncompleteRequirementResource extends JsonResource
                     'id' => data_get($item, 'id'),
                     'type' => data_get($item, 'type'),
                     'url' => data_get($item, 'id')
-                        ? url('/api/v1/files/' . data_get($item, 'id'))
+                        ? url('/api/v1/files/'.data_get($item, 'id'))
                         : null,
                 ];
             })->values()->all(),
@@ -57,7 +57,7 @@ class IncompleteRequirementResource extends JsonResource
         $photoFileId = data_get($user, 'profile_photo_file_id');
 
         if ($photoFileId) {
-            return url('/api/v1/files/' . $photoFileId);
+            return url('/api/v1/files/'.$photoFileId);
         }
 
         return data_get($user, 'profile_photo_url') ?: $user->getRawOriginal('profile_photo_url');

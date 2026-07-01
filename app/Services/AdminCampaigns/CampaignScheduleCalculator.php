@@ -19,13 +19,13 @@ class CampaignScheduleCalculator
         }
 
         // Early return for once schedules that have already run
-        if ($schedule->schedule_type === 'once' && !empty($schedule->last_run_at)) {
+        if ($schedule->schedule_type === 'once' && ! empty($schedule->last_run_at)) {
             return null;
         }
 
         // 1. Convert "from" time to schedule timezone
         $tz = filled($schedule->timezone) ? $schedule->timezone : 'UTC';
-        
+
         try {
             $localFrom = $from->copy()->setTimezone($tz);
         } catch (\Exception $e) {
@@ -33,7 +33,7 @@ class CampaignScheduleCalculator
             $tz = 'UTC';
             $localFrom = $from->copy()->setTimezone('UTC');
         }
-        
+
         $startDateStr = $schedule->start_date;
         if ($startDateStr instanceof \Carbon\Carbon) {
             $startDateStr = $startDateStr->toDateString();
@@ -41,35 +41,35 @@ class CampaignScheduleCalculator
         if (empty($startDateStr)) {
             $startDateStr = now()->toDateString();
         }
-        
+
         try {
-            $localStartDate = Carbon::createFromFormat('Y-m-d H:i:s', $startDateStr . ' 00:00:00', $tz);
+            $localStartDate = Carbon::createFromFormat('Y-m-d H:i:s', $startDateStr.' 00:00:00', $tz);
         } catch (\Exception $e) {
             Log::error("Invalid start_date '{$startDateStr}' in schedule calculation, falling back to today.");
-            $localStartDate = Carbon::createFromFormat('Y-m-d H:i:s', now()->toDateString() . ' 00:00:00', $tz);
+            $localStartDate = Carbon::createFromFormat('Y-m-d H:i:s', now()->toDateString().' 00:00:00', $tz);
         }
-        
+
         // Ensure candidate starts at or after the schedule start date
         if ($localFrom->lt($localStartDate)) {
             $candidate = $localStartDate->copy();
         } else {
             $candidate = $localFrom->copy();
         }
-        
+
         // Set candidate's time to the scheduled send time (handling missing or shorter formats defensively)
         if (filled($schedule->send_time)) {
             $timeParts = explode(':', $schedule->send_time);
-            $hours = isset($timeParts[0]) ? (int)$timeParts[0] : 9;
-            $minutes = isset($timeParts[1]) ? (int)$timeParts[1] : 0;
-            $seconds = isset($timeParts[2]) ? (int)$timeParts[2] : 0;
+            $hours = isset($timeParts[0]) ? (int) $timeParts[0] : 9;
+            $minutes = isset($timeParts[1]) ? (int) $timeParts[1] : 0;
+            $seconds = isset($timeParts[2]) ? (int) $timeParts[2] : 0;
             $candidate->setTime($hours, $minutes, $seconds);
         } else {
             $candidate->setTime(9, 0, 0); // Default to 9:00 AM if send time is missing
         }
-        
+
         // 1. Ensure candidate satisfies the recurrence rules.
         // If not, advance until we find the first candidate that does.
-        if (!$this->matchesRule($schedule, $candidate, $localStartDate)) {
+        if (! $this->matchesRule($schedule, $candidate, $localStartDate)) {
             $candidate = $this->advanceCycle($schedule, $candidate, $localStartDate);
         }
 
@@ -89,7 +89,7 @@ class CampaignScheduleCalculator
                 $candidate = $this->advanceCycle($schedule, $candidate, $localStartDate);
             }
         }
-        
+
         // Check end date boundaries in local timezone
         if ($schedule->end_type === 'date' && filled($schedule->end_date)) {
             try {
@@ -101,7 +101,7 @@ class CampaignScheduleCalculator
                 Log::error("Invalid end_date '{$schedule->end_date}' in schedule calculation.");
             }
         }
-        
+
         // Return final candidate converted to UTC for DB storage
         return $candidate->setTimezone('UTC');
     }
@@ -122,15 +122,16 @@ class CampaignScheduleCalculator
 
         switch ($schedule->recurrence_type) {
             case 'daily':
-                $interval = (int)($schedule->frequency_interval ?? 1);
+                $interval = (int) ($schedule->frequency_interval ?? 1);
                 if ($interval <= 0) {
                     $interval = 1;
                 }
                 $diff = abs($dateUtc->diffInDays($startDateUtc, false));
+
                 return ($diff % $interval) === 0;
-                
+
             case 'weekly':
-                $interval = (int)($schedule->frequency_interval ?? 1);
+                $interval = (int) ($schedule->frequency_interval ?? 1);
                 if ($interval <= 0) {
                     $interval = 1;
                 }
@@ -142,10 +143,11 @@ class CampaignScheduleCalculator
                     return true;
                 }
                 $allowedDays = array_map('trim', explode(',', $schedule->weekdays));
+
                 return in_array($date->format('l'), $allowedDays, true);
-                
+
             case 'monthly':
-                $interval = (int)($schedule->frequency_interval ?? 1);
+                $interval = (int) ($schedule->frequency_interval ?? 1);
                 if ($interval <= 0) {
                     $interval = 1;
                 }
@@ -153,58 +155,65 @@ class CampaignScheduleCalculator
                 if (($diff % $interval) !== 0) {
                     return false;
                 }
-                
+
                 $basis = filled($schedule->monthly_basis) ? $schedule->monthly_basis : 'date';
                 if ($basis === 'date') {
                     // E.g. Monthly by Day of Month (1st, 15th, 28th)
-                    $targetDay = (int)($schedule->monthly_day_of_month ?? 1);
+                    $targetDay = (int) ($schedule->monthly_day_of_month ?? 1);
                     if ($targetDay <= 0) {
                         $targetDay = 1;
                     }
                     $maxDaysInMonth = $date->daysInMonth;
                     $actualTargetDay = min($targetDay, $maxDaysInMonth);
+
                     return $date->day === $actualTargetDay;
                 } else {
                     // E.g. Monthly by Position (First Monday, Last Friday, etc.)
                     return $this->matchesMonthlyPosition($schedule, $date);
                 }
-                
+
             case 'yearly':
-                $targetMonth = (int)($schedule->yearly_month ?? 1);
-                $targetDay = (int)($schedule->yearly_day ?? 1);
+                $targetMonth = (int) ($schedule->yearly_month ?? 1);
+                $targetDay = (int) ($schedule->yearly_day ?? 1);
                 if ($targetMonth < 1 || $targetMonth > 12) {
                     $targetMonth = 1;
                 }
                 if ($targetDay < 1 || $targetDay > 31) {
                     $targetDay = 1;
                 }
-                return (int)$date->month === $targetMonth && (int)$date->day === $targetDay;
-                
+
+                return (int) $date->month === $targetMonth && (int) $date->day === $targetDay;
+
             case 'custom':
                 $unit = filled($schedule->custom_unit) ? $schedule->custom_unit : 'day';
-                $interval = (int)($schedule->frequency_interval ?? 1);
+                $interval = (int) ($schedule->frequency_interval ?? 1);
                 if ($interval <= 0) {
                     $interval = 1;
                 }
                 switch ($unit) {
                     case 'day':
                         $diff = abs($dateUtc->diffInDays($startDateUtc, false));
+
                         return ($diff % $interval) === 0;
                     case 'week':
                         $diff = abs($dateUtc->diffInWeeks($startDateUtc, false));
+
                         return ($diff % $interval) === 0;
                     case 'month':
                         $diff = abs($dateUtc->diffInMonths($startDateUtc, false));
+
                         return ($diff % $interval) === 0;
                     case 'year':
                         $diff = abs($dateUtc->diffInYears($startDateUtc, false));
+
                         return ($diff % $interval) === 0;
                 }
+
                 return false;
 
             case 'cycle':
-                $sendDays = (int)($schedule->cycle_send_days ?? 1);
-                $pauseDays = (int)($schedule->cycle_pause_days ?? 0);
+                $sendDays = (int) ($schedule->cycle_send_days ?? 1);
+                $pauseDays = (int) ($schedule->cycle_pause_days ?? 0);
                 if ($sendDays <= 0) {
                     $sendDays = 1;
                 }
@@ -217,13 +226,14 @@ class CampaignScheduleCalculator
                 }
                 $diff = abs($date->copy()->startOfDay()->diffInDays($startDate->copy()->startOfDay(), false));
                 $position = $diff % $cycleLength;
+
                 return $position < $sendDays;
-                
+
             default:
                 return true;
         }
     }
-    
+
     /**
      * Advance the date iteratively until we match the recurrence rule.
      */
@@ -231,15 +241,15 @@ class CampaignScheduleCalculator
     {
         $candidate = $date->copy();
         $safety = 0;
-        
+
         do {
             $candidate->addDay();
             $safety++;
-        } while (!$this->matchesRule($schedule, $candidate, $startDate) && $safety < 2000);
-        
+        } while (! $this->matchesRule($schedule, $candidate, $startDate) && $safety < 2000);
+
         return $candidate;
     }
-    
+
     /**
      * Match first/second/third/fourth/last weekday of the month.
      */
@@ -250,9 +260,9 @@ class CampaignScheduleCalculator
         if ($date->format('l') !== $targetDayOfWeek) {
             return false;
         }
-        
+
         $pos = filled($schedule->monthly_position) ? $schedule->monthly_position : 'first'; // first, second, third, fourth, last
-        
+
         switch ($pos) {
             case 'first':
                 return $date->day <= 7;
@@ -264,9 +274,10 @@ class CampaignScheduleCalculator
                 return $date->day > 21 && $date->day <= 28;
             case 'last':
                 $temp = $date->copy()->addWeek();
+
                 return $temp->month !== $date->month;
         }
-        
+
         return false;
     }
 }

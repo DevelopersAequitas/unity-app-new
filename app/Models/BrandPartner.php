@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
@@ -108,7 +108,7 @@ class BrandPartner extends Model
     // Logo URL Accessor
     public function getLogoUrlAttribute(): ?string
     {
-        if (!$this->logo) {
+        if (! $this->logo) {
             return null;
         }
 
@@ -122,7 +122,7 @@ class BrandPartner extends Model
     // Cover Image URL Accessor
     public function getCoverImageUrlAttribute(): ?string
     {
-        if (!$this->cover_image) {
+        if (! $this->cover_image) {
             return null;
         }
 

@@ -75,7 +75,7 @@ class ProfileController extends Controller
         }
 
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
-            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '') . ' ' . ($data['last_name'] ?? $user->last_name ?? ''));
+            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '').' '.($data['last_name'] ?? $user->last_name ?? ''));
             $data['display_name'] = $displayName !== '' ? $displayName : $user->email;
         }
 
@@ -215,5 +215,4 @@ class ProfileController extends Controller
             'collaboration_goals',
         ];
     }
-
 }

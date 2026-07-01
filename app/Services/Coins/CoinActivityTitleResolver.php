@@ -15,7 +15,7 @@ class CoinActivityTitleResolver
     /**
      * Build a map of activity_id => human-readable title.
      *
-     * @param \Illuminate\Support\Collection<int, mixed> $activities
+     * @param  \Illuminate\Support\Collection<int, mixed>  $activities
      */
     public function resolveTitles(Collection $activities): array
     {

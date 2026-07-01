@@ -10,8 +10,11 @@ use Illuminate\Support\Facades\Schema;
 class ProfileVisibilityService
 {
     public const EVERYONE = 'everyone';
+
     public const CONNECTED_ONLY = 'connected_only';
+
     public const CIRCLE_ONLY = 'circle_only';
+
     public const HIDDEN = 'hidden';
 
     public function canView(?User $viewer, User $profileOwner): bool

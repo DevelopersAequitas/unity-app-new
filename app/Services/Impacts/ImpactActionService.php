@@ -2,8 +2,8 @@
 
 namespace App\Services\Impacts;
 
-use App\Models\ImpactAction;
 use App\Models\Impact;
+use App\Models\ImpactAction;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -71,7 +71,6 @@ class ImpactActionService
             'sort_order' => 0,
         ]);
     }
-
 
     public function updateAction(string $id, string $name, int $impactScore = 1, ?bool $isActive = null): ImpactAction
     {

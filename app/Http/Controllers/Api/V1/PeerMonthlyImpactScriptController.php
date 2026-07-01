@@ -11,9 +11,7 @@ use Throwable;
 
 class PeerMonthlyImpactScriptController extends BaseApiController
 {
-    public function __construct(private readonly PeerMonthlyImpactScriptService $service)
-    {
-    }
+    public function __construct(private readonly PeerMonthlyImpactScriptService $service) {}
 
     public function __invoke(Request $request): JsonResponse
     {

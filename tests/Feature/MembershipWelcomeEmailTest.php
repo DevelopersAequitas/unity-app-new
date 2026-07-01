@@ -2,14 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Payment;
-use App\Models\User;
 use App\Models\AdminUser;
+use App\Models\Payment;
 use App\Models\Role;
-use App\Models\EmailLog;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -265,7 +263,7 @@ class MembershipWelcomeEmailTest extends TestCase
             'membership_status' => 'free_peer',
         ]);
 
-        $payment = new Payment();
+        $payment = new Payment;
         $payment->id = (string) Str::uuid();
         $payment->forceFill([
             'user_id' => $user->id,

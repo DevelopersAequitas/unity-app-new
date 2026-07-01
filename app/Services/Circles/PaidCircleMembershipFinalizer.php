@@ -98,4 +98,3 @@ class PaidCircleMembershipFinalizer
         return (string) config('circle.member_joined_status', 'approved');
     }
 }
-

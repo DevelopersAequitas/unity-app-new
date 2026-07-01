@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Circle\StoreCircleRequest;
 use App\Http\Requests\Circle\UpdateCircleMemberRequest;
 use App\Http\Resources\CircleMemberResource;
@@ -74,7 +73,7 @@ class CircleController extends BaseApiController
 
         if ($search = trim((string) ($request->input('search') ?? $request->input('q', '')))) {
             $query->where(function ($q) use ($search) {
-                $like = '%' . $search . '%';
+                $like = '%'.$search.'%';
                 $q->where('name', 'ILIKE', $like)
                     ->orWhere('description', 'ILIKE', $like)
                     ->orWhere('purpose', 'ILIKE', $like)
@@ -160,7 +159,7 @@ class CircleController extends BaseApiController
         $data = $request->validated();
 
         return DB::transaction(function () use ($data, $authUser) {
-            $circle = new Circle();
+            $circle = new Circle;
             $circle->fill($data);
             $circle->slug = Circle::generateUniqueSlug((string) ($data['name'] ?? 'circle'));
             $circle->founder_user_id = $authUser->id;
@@ -314,7 +313,7 @@ class CircleController extends BaseApiController
 
         if ($search = trim((string) $request->input('search', ''))) {
             $membersQuery->whereHas('user', function ($query) use ($search) {
-                $like = '%' . $search . '%';
+                $like = '%'.$search.'%';
                 $query->where('display_name', 'ILIKE', $like)
                     ->orWhere('first_name', 'ILIKE', $like)
                     ->orWhere('last_name', 'ILIKE', $like)

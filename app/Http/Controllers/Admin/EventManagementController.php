@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\Event;
+use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
-use App\Models\EventQrScanLog;
 use App\Models\FileModel;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventRegistrationQrService;
@@ -18,10 +18,10 @@ use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -58,12 +58,11 @@ class EventManagementController extends Controller
         return view('admin.events.index', ['events' => $events, 'circles' => Circle::query()->orderBy('name')->get(['id', 'name'])]);
     }
 
-
     public function joiningRequests(Request $request): View
     {
         $status = $request->input('status', 'pending');
         $admin = Auth::guard('admin')->user();
-        $requestTable = (new EventRegistrationRequest())->getTable();
+        $requestTable = (new EventRegistrationRequest)->getTable();
 
         if (! Schema::hasTable($requestTable)) {
             $summary = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'total' => 0];
@@ -132,7 +131,7 @@ class EventManagementController extends Controller
 
     public function approveJoiningRequest(Request $request, string $id): RedirectResponse
     {
-        abort_unless(Schema::hasTable((new EventRegistrationRequest())->getTable()), 404);
+        abort_unless(Schema::hasTable((new EventRegistrationRequest)->getTable()), 404);
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
         abort_unless($this->canAccessJoiningRequest($joiningRequest), 403);
         $joiningRequest->forceFill([
@@ -148,7 +147,7 @@ class EventManagementController extends Controller
     public function rejectJoiningRequest(Request $request, string $id): RedirectResponse
     {
         $data = $request->validate(['admin_note' => ['required', 'string', 'max:2000']]);
-        abort_unless(Schema::hasTable((new EventRegistrationRequest())->getTable()), 404);
+        abort_unless(Schema::hasTable((new EventRegistrationRequest)->getTable()), 404);
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
         abort_unless($this->canAccessJoiningRequest($joiningRequest), 403);
         $joiningRequest->forceFill([
@@ -244,7 +243,6 @@ class EventManagementController extends Controller
         return view('admin.events.attendance', compact('event', 'report', 'scanLogs'));
     }
 
-
     public function syncZohoInvoice(string $registrationId): RedirectResponse
     {
         $registration = EventRegistration::query()->with(['event', 'occurrence', 'user'])->findOrFail($registrationId);
@@ -254,17 +252,17 @@ class EventManagementController extends Controller
         return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
     }
 
-
     private function applyJoiningRequestScope($query, $admin): void
     {
         if (! AdminAccess::isDed($admin) && ! AdminAccess::isCircleScoped($admin)) {
             return;
         }
 
-        $requestTable = (new EventRegistrationRequest())->getTable();
+        $requestTable = (new EventRegistrationRequest)->getTable();
 
         if (! Schema::hasTable($requestTable) || ! Schema::hasColumn($requestTable, 'user_id')) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -393,6 +391,7 @@ class EventManagementController extends Controller
         $circleIds = collect($circleIds)->filter()->unique()->values()->all();
         if ($circleIds === []) {
             DB::table('event_circles')->where('event_id', $event->id)->delete();
+
             return;
         }
 
@@ -475,6 +474,7 @@ class EventManagementController extends Controller
     {
         if (is_string($metadata)) {
             $decoded = json_decode($metadata, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 
@@ -489,7 +489,7 @@ class EventManagementController extends Controller
     {
         $path = $request->file('banner')->store('events/banners', 'public');
 
-        $file = new FileModel();
+        $file = new FileModel;
         $file->s3_key = $path;
         $file->mime_type = Storage::disk('public')->mimeType($path);
         $file->size_bytes = Storage::disk('public')->size($path);

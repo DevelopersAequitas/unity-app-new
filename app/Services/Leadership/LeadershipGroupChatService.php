@@ -7,10 +7,10 @@ use App\Models\CircleMember;
 use App\Models\LeadershipGroupMessage;
 use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Collection;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -18,9 +18,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class LeadershipGroupChatService
 {
-    public function __construct(private readonly NotifyUserService $notifyUserService)
-    {
-    }
+    public function __construct(private readonly NotifyUserService $notifyUserService) {}
 
     private const CHAT_ALLOWED_ROLES = [
         'founder',
@@ -361,7 +359,7 @@ class LeadershipGroupChatService
                 $role = (string) $participant['leader_role'];
 
                 return [
-                    'id' => $circle->id . ':' . $role . ':' . $userId,
+                    'id' => $circle->id.':'.$role.':'.$userId,
                     'user_id' => $userId,
                     'leader_role' => $role,
                     'title' => self::ROLE_TITLES[$role] ?? ucfirst(str_replace('_', ' ', $role)),
@@ -372,13 +370,12 @@ class LeadershipGroupChatService
             ->values();
     }
 
-
     private function storeAttachment(UploadedFile $file): array
     {
         $disk = config('filesystems.default', 'public');
-        $folder = 'uploads/circle-chat/' . now()->format('Y/m/d');
+        $folder = 'uploads/circle-chat/'.now()->format('Y/m/d');
         $safeName = preg_replace('/[^A-Za-z0-9\.\-_]/', '_', $file->getClientOriginalName()) ?: 'attachment';
-        $storedPath = $file->storeAs($folder, (string) Str::uuid() . '_' . $safeName, $disk);
+        $storedPath = $file->storeAs($folder, (string) Str::uuid().'_'.$safeName, $disk);
 
         return [
             'id' => null,
@@ -424,10 +421,10 @@ class LeadershipGroupChatService
     {
         $participants = $this->getLeadershipChatParticipants($circle);
         $senderId = (string) $sender->id;
-        $senderName = trim((string) ($sender->display_name ?: trim(($sender->first_name ?? '') . ' ' . ($sender->last_name ?? ''))));
+        $senderName = trim((string) ($sender->display_name ?: trim(($sender->first_name ?? '').' '.($sender->last_name ?? ''))));
         $senderName = $senderName !== '' ? $senderName : 'Peer';
         $preview = Str::limit((string) $message->message_text, 120);
-        $body = $senderName . ': ' . $preview;
+        $body = $senderName.': '.$preview;
 
         $data = [
             'title' => 'New leadership group message',

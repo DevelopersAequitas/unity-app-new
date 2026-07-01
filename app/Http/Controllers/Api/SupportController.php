@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Support\StoreSupportRequest;
 use App\Http\Requests\Support\UpdateSupportRequest;
 use App\Http\Resources\SupportRequestResource;
@@ -16,7 +15,7 @@ class SupportController extends BaseApiController
         $authUser = $request->user();
         $data = $request->validated();
 
-        $ticket = new SupportRequest();
+        $ticket = new SupportRequest;
         $ticket->user_id = $authUser->id;
         $ticket->support_type = $data['support_type'];
         $ticket->details = $data['details'] ?? null;

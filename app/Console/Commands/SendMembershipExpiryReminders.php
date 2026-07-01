@@ -34,8 +34,6 @@ class SendMembershipExpiryReminders extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return int
      */
     public function handle(): int
     {
@@ -48,7 +46,7 @@ class SendMembershipExpiryReminders extends Command
             ->where('membership_ends_at', '<', now())
             ->get();
 
-        $this->info('Found ' . $expiredUsers->count() . ' expired users.');
+        $this->info('Found '.$expiredUsers->count().' expired users.');
 
         $sentCount = 0;
         $failedCount = 0;
@@ -61,6 +59,7 @@ class SendMembershipExpiryReminders extends Command
             // Prevent duplicate emails within the same scheduled execution
             if ($email === '' || in_array($email, $sentEmails, true)) {
                 $skippedCount++;
+
                 continue;
             }
 

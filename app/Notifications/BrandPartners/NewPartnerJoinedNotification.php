@@ -12,8 +12,7 @@ class NewPartnerJoinedNotification extends Notification
 
     public function __construct(
         private readonly BrandPartner $partner
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -31,7 +30,7 @@ class NewPartnerJoinedNotification extends Notification
         return [
             'notification_type' => 'brand_partner_joined',
             'title' => '🎉 New Brand Partner Joined',
-            'body' => 'Welcome ' . $this->partner->name . '! Enjoy exclusive benefits now.',
+            'body' => 'Welcome '.$this->partner->name.'! Enjoy exclusive benefits now.',
             'partner_id' => $this->partner->id,
             'partner_name' => $this->partner->name,
             'partner_slug' => $this->partner->slug,

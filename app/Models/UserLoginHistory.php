@@ -11,7 +11,9 @@ class UserLoginHistory extends Model
     use HasFactory;
 
     protected $table = 'user_login_histories';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

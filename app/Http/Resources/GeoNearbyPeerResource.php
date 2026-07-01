@@ -30,7 +30,7 @@ class GeoNearbyPeerResource extends JsonResource
     private function resolveProfilePhotoUrl(): ?string
     {
         return $this->profile_photo_file_id
-            ? url('/api/v1/files/' . $this->profile_photo_file_id)
+            ? url('/api/v1/files/'.$this->profile_photo_file_id)
             : null;
     }
 

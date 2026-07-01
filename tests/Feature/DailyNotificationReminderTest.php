@@ -53,7 +53,7 @@ class DailyNotificationReminderTest extends TestCase
         // Create all core roles to satisfy middleware check
         $coreRoles = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $globalAdminRoleId = null;
-        
+
         foreach ($coreRoles as $roleKey) {
             $uuid = Str::uuid()->toString();
             if ($roleKey === 'global_admin') {
@@ -151,7 +151,7 @@ class DailyNotificationReminderTest extends TestCase
             'Showcase a leader success story',
             'Daily curated offer/deal highlight',
             'Explore new category prompt',
-            'Cycle progress reminder'
+            'Cycle progress reminder',
         ];
 
         foreach ($activities as $activity) {
@@ -178,7 +178,7 @@ class DailyNotificationReminderTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->admin, 'admin')
-            ->get(route('admin.daily-notifications.test') . '?user_id=' . $testUser->id);
+            ->get(route('admin.daily-notifications.test').'?user_id='.$testUser->id);
 
         if ($response->status() !== 200) {
             $response->dump();
@@ -465,4 +465,3 @@ class DailyNotificationReminderTest extends TestCase
         });
     }
 }
-

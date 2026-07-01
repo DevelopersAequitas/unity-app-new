@@ -20,20 +20,20 @@ class RegisterTest extends TestCase
     public function test_users_with_same_name_can_register(): void
     {
         $firstPayload = [
-            'first_name'   => 'Pravin',
-            'last_name'    => 'Parmar',
-            'email'        => 'user1@example.com',
-            'phone'        => '1111111111',
-            'password'     => 'password123',
+            'first_name' => 'Pravin',
+            'last_name' => 'Parmar',
+            'email' => 'user1@example.com',
+            'phone' => '1111111111',
+            'password' => 'password123',
             'password_confirmation' => 'password123',
         ];
 
         $secondPayload = [
-            'first_name'   => 'Pravin',
-            'last_name'    => 'Parmar',
-            'email'        => 'user2@example.com',
-            'phone'        => '2222222222',
-            'password'     => 'password123',
+            'first_name' => 'Pravin',
+            'last_name' => 'Parmar',
+            'email' => 'user2@example.com',
+            'phone' => '2222222222',
+            'password' => 'password123',
             'password_confirmation' => 'password123',
         ];
 
@@ -49,7 +49,6 @@ class RegisterTest extends TestCase
             'Users with the same name should receive different profile slugs.'
         );
     }
-
 
     public function test_registration_assigns_free_trial_membership_for_new_users(): void
     {
@@ -89,11 +88,11 @@ class RegisterTest extends TestCase
     public function test_registration_rejects_duplicate_email(): void
     {
         $payload = [
-            'first_name'   => 'Alex',
-            'last_name'    => 'Smith',
-            'email'        => 'duplicate@example.com',
-            'phone'        => '3333333333',
-            'password'     => 'password123',
+            'first_name' => 'Alex',
+            'last_name' => 'Smith',
+            'email' => 'duplicate@example.com',
+            'phone' => '3333333333',
+            'password' => 'password123',
             'password_confirmation' => 'password123',
         ];
 

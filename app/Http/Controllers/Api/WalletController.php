@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Wallet\WalletTopupRequest;
 use App\Http\Resources\WalletTransactionResource;
 use App\Models\WalletTransaction;
@@ -52,14 +51,14 @@ class WalletController extends BaseApiController
         $amount = (float) $data['amount'];
         $currency = $data['currency'] ?? 'INR';
 
-        $paymentRef = 'PGW_' . Str::upper(Str::random(16));
-        $gatewayOrderId = 'DUMMY_GATEWAY_ORDER_' . Str::upper(Str::random(12));
+        $paymentRef = 'PGW_'.Str::upper(Str::random(16));
+        $gatewayOrderId = 'DUMMY_GATEWAY_ORDER_'.Str::upper(Str::random(12));
 
         $metadata = $data['metadata'] ?? [];
         $metadata['currency'] = $currency;
         $metadata['gateway_order_id'] = $gatewayOrderId;
 
-        $tx = new WalletTransaction();
+        $tx = new WalletTransaction;
         $tx->user_id = $authUser->id;
         $tx->amount = $amount;
         $tx->type = 'topup';

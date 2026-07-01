@@ -1,10 +1,14 @@
 <?php
+
 // Scan all directories recursively for references to com.unity.greenpreneur
-function search_pkg($dir) {
+function search_pkg($dir)
+{
     $results = [];
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir));
     foreach ($iterator as $file) {
-        if ($file->isDir()) continue;
+        if ($file->isDir()) {
+            continue;
+        }
         $path = $file->getPathname();
         if (strpos($path, 'vendor') !== false || strpos($path, 'node_modules') !== false || strpos($path, '.git') !== false) {
             continue;
@@ -14,6 +18,7 @@ function search_pkg($dir) {
             $results[] = $path;
         }
     }
+
     return $results;
 }
 

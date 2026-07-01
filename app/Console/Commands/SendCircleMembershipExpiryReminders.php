@@ -5,8 +5,8 @@ namespace App\Console\Commands;
 use App\Events\UserNotificationCreated;
 use App\Jobs\SendFcmNotificationJob;
 use App\Mail\CircleMembershipExpiryReminderMail;
-use App\Models\Notification;
 use App\Models\CircleMember;
+use App\Models\Notification;
 use App\Models\User;
 use App\Notifications\CircleMembershipExpiryNotification;
 use App\Services\EmailLogs\EmailLogService;
@@ -34,8 +34,6 @@ class SendCircleMembershipExpiryReminders extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return int
      */
     public function handle(): int
     {
@@ -52,7 +50,7 @@ class SendCircleMembershipExpiryReminders extends Command
             ->where('expires_at', '<=', now()->addDays(30))
             ->get();
 
-        $this->info('Found ' . $circleMembers->count() . ' circle member records approaching expiry.');
+        $this->info('Found '.$circleMembers->count().' circle member records approaching expiry.');
 
         $sentCount = 0;
         $failedCount = 0;
@@ -63,6 +61,7 @@ class SendCircleMembershipExpiryReminders extends Command
             $user = $circleMember->user;
             if (! $user) {
                 $skippedCount++;
+
                 continue;
             }
 
@@ -71,6 +70,7 @@ class SendCircleMembershipExpiryReminders extends Command
             // Prevent duplicate emails/notifications within the same scheduled execution
             if ($email === '' || in_array($email, $sentEmails, true)) {
                 $skippedCount++;
+
                 continue;
             }
 

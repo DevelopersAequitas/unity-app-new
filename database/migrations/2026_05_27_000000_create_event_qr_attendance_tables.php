@@ -11,50 +11,50 @@ return new class extends Migration
         // 1. Add columns to events table if they do not exist
         if (Schema::hasTable('events')) {
             Schema::table('events', function (Blueprint $table) {
-                if (!Schema::hasColumn('events', 'event_category')) {
+                if (! Schema::hasColumn('events', 'event_category')) {
                     $table->string('event_category', 100)->nullable();
                 }
-                if (!Schema::hasColumn('events', 'mode')) {
+                if (! Schema::hasColumn('events', 'mode')) {
                     $table->string('mode', 20)->default('offline');
                 }
-                if (!Schema::hasColumn('events', 'recurrence_type')) {
+                if (! Schema::hasColumn('events', 'recurrence_type')) {
                     $table->string('recurrence_type', 20)->default('none');
                 }
-                if (!Schema::hasColumn('events', 'recurrence_interval')) {
+                if (! Schema::hasColumn('events', 'recurrence_interval')) {
                     $table->integer('recurrence_interval')->default(1);
                 }
-                if (!Schema::hasColumn('events', 'recurrence_day_of_week')) {
+                if (! Schema::hasColumn('events', 'recurrence_day_of_week')) {
                     $table->integer('recurrence_day_of_week')->nullable();
                 }
-                if (!Schema::hasColumn('events', 'recurrence_week_of_month')) {
+                if (! Schema::hasColumn('events', 'recurrence_week_of_month')) {
                     $table->integer('recurrence_week_of_month')->nullable();
                 }
-                if (!Schema::hasColumn('events', 'recurrence_day_of_month')) {
+                if (! Schema::hasColumn('events', 'recurrence_day_of_month')) {
                     $table->integer('recurrence_day_of_month')->nullable();
                 }
-                if (!Schema::hasColumn('events', 'recurrence_month')) {
+                if (! Schema::hasColumn('events', 'recurrence_month')) {
                     $table->integer('recurrence_month')->nullable();
                 }
-                if (!Schema::hasColumn('events', 'recurrence_ends_at')) {
+                if (! Schema::hasColumn('events', 'recurrence_ends_at')) {
                     $table->timestamp('recurrence_ends_at')->nullable();
                 }
-                if (!Schema::hasColumn('events', 'visitor_registration_enabled')) {
+                if (! Schema::hasColumn('events', 'visitor_registration_enabled')) {
                     $table->boolean('visitor_registration_enabled')->default(false);
                 }
-                if (!Schema::hasColumn('events', 'member_registration_enabled')) {
+                if (! Schema::hasColumn('events', 'member_registration_enabled')) {
                     $table->boolean('member_registration_enabled')->default(true);
                 }
-                if (!Schema::hasColumn('events', 'online_meeting_url')) {
+                if (! Schema::hasColumn('events', 'online_meeting_url')) {
                     $table->text('online_meeting_url')->nullable();
                 }
-                if (!Schema::hasColumn('events', 'zoho_form_url')) {
+                if (! Schema::hasColumn('events', 'zoho_form_url')) {
                     $table->text('zoho_form_url')->nullable();
                 }
             });
         }
 
         // 2. Create event_occurrences table
-        if (!Schema::hasTable('event_occurrences')) {
+        if (! Schema::hasTable('event_occurrences')) {
             Schema::create('event_occurrences', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->foreignUuid('event_id')->constrained('events')->cascadeOnDelete();
@@ -78,7 +78,7 @@ return new class extends Migration
         }
 
         // 3. Create event_registrations table
-        if (!Schema::hasTable('event_registrations')) {
+        if (! Schema::hasTable('event_registrations')) {
             Schema::create('event_registrations', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->foreignUuid('event_id')->constrained('events')->cascadeOnDelete();
@@ -107,7 +107,7 @@ return new class extends Migration
                 $table->string('zoho_payment_id')->nullable();
                 $table->string('zoho_payment_status', 100)->nullable();
                 $table->json('metadata')->nullable();
-                
+
                 // Razorpay and Zoho extensions
                 $table->boolean('payment_required')->default(false);
                 $table->string('payment_status', 30)->default('not_required');

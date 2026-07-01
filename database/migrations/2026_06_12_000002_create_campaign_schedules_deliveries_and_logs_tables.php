@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('campaign_schedules')) {
+        if (! Schema::hasTable('campaign_schedules')) {
             Schema::create('campaign_schedules', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->uuid('campaign_id');
@@ -43,7 +43,7 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('campaign_deliveries')) {
+        if (! Schema::hasTable('campaign_deliveries')) {
             Schema::create('campaign_deliveries', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->uuid('campaign_id');
@@ -67,7 +67,7 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('campaign_logs')) {
+        if (! Schema::hasTable('campaign_logs')) {
             Schema::create('campaign_logs', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->uuid('delivery_id');

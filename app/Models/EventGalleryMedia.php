@@ -39,7 +39,7 @@ class EventGalleryMedia extends Model
             return null;
         }
 
-        return '/api/v1/files/' . $this->file_id;
+        return '/api/v1/files/'.$this->file_id;
     }
 
     public function getThumbnailUrlAttribute(): ?string
@@ -48,6 +48,6 @@ class EventGalleryMedia extends Model
             return null;
         }
 
-        return '/api/v1/files/' . $this->thumbnail_file_id;
+        return '/api/v1/files/'.$this->thumbnail_file_id;
     }
 }

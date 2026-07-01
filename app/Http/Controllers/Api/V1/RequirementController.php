@@ -18,10 +18,7 @@ use Throwable;
 
 class RequirementController extends Controller
 {
-    public function __construct(private readonly RequirementNotificationService $requirementNotificationService)
-    {
-    }
-
+    public function __construct(private readonly RequirementNotificationService $requirementNotificationService) {}
 
     private function createRequirementPostIfMissing(Requirement $requirement): void
     {
@@ -33,7 +30,7 @@ class RequirementController extends Controller
             return;
         }
 
-        $contentText = trim((string) $requirement->subject . ' ' . (string) $requirement->description);
+        $contentText = trim((string) $requirement->subject.' '.(string) $requirement->description);
 
         Post::create([
             'user_id' => $requirement->user_id,
@@ -163,7 +160,6 @@ class RequirementController extends Controller
         ]);
     }
 
-
     public function incompleted(Request $request): JsonResponse
     {
         $perPage = max(1, min((int) $request->query('per_page', 15), 100));
@@ -207,6 +203,7 @@ class RequirementController extends Controller
             'meta' => $pagination,
         ]);
     }
+
     public function show(Request $request, $id): JsonResponse
     {
         try {

@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BrandPartnerView extends Model
@@ -20,6 +20,7 @@ class BrandPartnerView extends Model
 
     // Map viewed_at to the created_at event
     const CREATED_AT = 'viewed_at';
+
     const UPDATED_AT = null;
 
     protected $fillable = [

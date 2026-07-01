@@ -4,10 +4,8 @@ namespace App\Services\Admin;
 
 use App\Models\Circle;
 use App\Models\CircleMember;
-use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 
 class AdminScopeService
 {

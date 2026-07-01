@@ -5,10 +5,10 @@ namespace App\Events\Chat;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\User;
+use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
 
@@ -22,12 +22,11 @@ class MessageSent implements ShouldBroadcastNow
         public Chat $chat,
         public Message $message,
         public User $sender
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): array
     {
-        return [new PrivateChannel('private-chat.' . $this->chat->id)];
+        return [new PrivateChannel('private-chat.'.$this->chat->id)];
     }
 
     public function broadcastAs(): string
@@ -47,7 +46,7 @@ class MessageSent implements ShouldBroadcastNow
                 'sender' => [
                     'id' => (string) $this->sender->id,
                     'display_name' => $this->sender->display_name
-                        ?? trim(($this->sender->first_name ?? '') . ' ' . ($this->sender->last_name ?? '')),
+                        ?? trim(($this->sender->first_name ?? '').' '.($this->sender->last_name ?? '')),
                     'profile_photo_url' => $this->sender->profile_photo_url,
                 ],
                 'created_at' => $this->message->created_at,

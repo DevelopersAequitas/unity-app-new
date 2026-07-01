@@ -13,8 +13,11 @@ class ActivityAdminMail extends Mailable
     use SerializesModels;
 
     public string $activityType;
+
     public string $activityTitle;
+
     public ?User $actor;
+
     public array $activityAttributes;
 
     public function __construct(string $activityType, string $activityTitle, ?User $actor, array $activityAttributes)

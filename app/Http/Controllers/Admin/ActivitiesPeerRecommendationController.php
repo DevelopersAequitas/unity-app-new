@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\PeerRecommendation;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +42,7 @@ class ActivitiesPeerRecommendationController extends Controller
             ]);
 
         if ($search !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('peer.display_name', 'ILIKE', $like)
                     ->orWhere('peer.first_name', 'ILIKE', $like)
@@ -52,9 +52,8 @@ class ActivitiesPeerRecommendationController extends Controller
             });
         }
 
-
         if ($peerNameFilter !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $peerNameFilter) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $peerNameFilter).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('peer.display_name', 'ILIKE', $like)
                     ->orWhere('peer.first_name', 'ILIKE', $like)
@@ -63,19 +62,19 @@ class ActivitiesPeerRecommendationController extends Controller
         }
 
         if ($peerPhone !== '') {
-            $query->where('peer.phone', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $peerPhone) . '%');
+            $query->where('peer.phone', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $peerPhone).'%');
         }
 
         if ($recommendedName !== '') {
-            $query->where('peer_recommendations.peer_name', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $recommendedName) . '%');
+            $query->where('peer_recommendations.peer_name', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $recommendedName).'%');
         }
 
         if ($recommendedMobile !== '') {
-            $query->where('peer_recommendations.peer_mobile', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $recommendedMobile) . '%');
+            $query->where('peer_recommendations.peer_mobile', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $recommendedMobile).'%');
         }
 
         if ($howWellKnown !== '') {
-            $query->where('peer_recommendations.how_well_known', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $howWellKnown) . '%');
+            $query->where('peer_recommendations.how_well_known', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $howWellKnown).'%');
         }
 
         if ($isAwareFilter === 'yes') {
@@ -143,7 +142,7 @@ class ActivitiesPeerRecommendationController extends Controller
 
     private function circleOptions()
     {
-        return DB::table('circles')->select(['id','name'])->orderBy('name')->get();
+        return DB::table('circles')->select(['id', 'name'])->orderBy('name')->get();
     }
 
     private function parseDayBoundary($value, bool $endOfDay): ?Carbon
