@@ -118,7 +118,7 @@
     if ($isCircleCommittee) {
         $pendingRequestsMenu = array_values(array_filter(
             $pendingRequestsMenu,
-            fn ($item) => ! in_array(($item['label'] ?? null), ['Circle Joining Requests', 'Certifications'], true)
+            fn ($item) => ! in_array(($item['label'] ?? null), ['Inactive Registrations', 'Circle Joining Requests', 'Certifications'], true)
         ));
     }
 
