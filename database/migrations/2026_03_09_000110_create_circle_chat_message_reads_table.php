@@ -10,7 +10,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('circle_chat_message_reads', function (Blueprint $table): void {
-            $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
+            $table->uuid('id')->primary()->default(DB::connection()->getDriverName() === 'sqlite' ? null : DB::raw('gen_random_uuid()'));
             $table->uuid('message_id');
             $table->uuid('user_id');
             $table->timestampTz('read_at');

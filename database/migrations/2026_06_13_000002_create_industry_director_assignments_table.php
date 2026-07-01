@@ -9,11 +9,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+        }
 
         if (! Schema::hasTable('industry_director_assignments')) {
             Schema::create('industry_director_assignments', function (Blueprint $table): void {
-                $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
+                $table->uuid('id')->primary()->default(DB::connection()->getDriverName() === 'sqlite' ? null : DB::raw('gen_random_uuid()'));
                 $table->uuid('admin_user_id');
                 $table->uuid('industry_id')->nullable();
                 $table->string('industry_name')->nullable();
