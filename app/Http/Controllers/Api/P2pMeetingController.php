@@ -352,4 +352,104 @@ class P2pMeetingController extends BaseApiController
 
         return is_array($rawMedia) ? $rawMedia : [];
     }
+
+    public function userMeetings(Request $request, string $userId): \Illuminate\Http\JsonResponse
+    {
+        $user = User::find($userId);
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null,
+            ], 404);
+        }
+
+        $baseQuery = P2pMeeting::query()
+            ->where(function ($q) {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at');
+
+        $totalCount = (clone $baseQuery)
+            ->where(function ($q) use ($userId) {
+                $q->where('initiator_user_id', $userId)
+                  ->orWhere('peer_user_id', $userId);
+            })
+            ->count();
+
+        $initiatedCount = (clone $baseQuery)
+            ->where('initiator_user_id', $userId)
+            ->count();
+
+        $peerCount = (clone $baseQuery)
+            ->where('peer_user_id', $userId)
+            ->count();
+
+        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
+
+        $paginator = (clone $baseQuery)
+            ->with(['initiator', 'peer'])
+            ->where(function ($q) use ($userId) {
+                $q->where('initiator_user_id', $userId)
+                  ->orWhere('peer_user_id', $userId);
+            })
+            ->orderBy('meeting_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        $items = collect($paginator->items())->map(function (P2pMeeting $meeting): array {
+            $initiatedBy = $meeting->initiator;
+            $initiatedTo = $meeting->peer;
+
+            return [
+                'id' => (string) $meeting->id,
+                'initiated_by_user_id' => (string) $meeting->initiator_user_id,
+                'initiated_to_user_id' => (string) $meeting->peer_user_id,
+                'meeting_title' => $meeting->remarks ?? '',
+                'meeting_date' => $meeting->meeting_date ? Carbon::parse($meeting->meeting_date)->format('Y-m-d') : '',
+                'meeting_time' => '',
+                'status' => 'completed',
+                'created_at' => $meeting->created_at ? Carbon::parse($meeting->created_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'updated_at' => $meeting->updated_at ? Carbon::parse($meeting->updated_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'initiated_by' => $initiatedBy ? [
+                    'id' => (string) $initiatedBy->id,
+                    'display_name' => $initiatedBy->display_name ?? trim(($initiatedBy->first_name ?? '') . ' ' . ($initiatedBy->last_name ?? '')),
+                    'first_name' => $initiatedBy->first_name,
+                    'last_name' => $initiatedBy->last_name,
+                    'email' => $initiatedBy->email,
+                    'phone' => $initiatedBy->phone,
+                    'company_name' => $initiatedBy->company_name,
+                    'designation' => $initiatedBy->designation,
+                    'profile_photo_url' => $initiatedBy->profile_photo_url,
+                ] : null,
+                'initiated_to' => $initiatedTo ? [
+                    'id' => (string) $initiatedTo->id,
+                    'display_name' => $initiatedTo->display_name ?? trim(($initiatedTo->first_name ?? '') . ' ' . ($initiatedTo->last_name ?? '')),
+                    'first_name' => $initiatedTo->first_name,
+                    'last_name' => $initiatedTo->last_name,
+                    'email' => $initiatedTo->email,
+                    'phone' => $initiatedTo->phone,
+                    'company_name' => $initiatedTo->company_name,
+                    'designation' => $initiatedTo->designation,
+                    'profile_photo_url' => $initiatedTo->profile_photo_url,
+                ] : null,
+            ];
+        })->values()->all();
+
+        return $this->success([
+            'user_id' => $userId,
+            'total' => $totalCount,
+            'i_initiated' => $initiatedCount,
+            'peer_initiated' => $peerCount,
+            'items' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ]);
+    }
 }
