@@ -240,6 +240,17 @@ class User extends Authenticatable
         return $this->hasMany(ContactPost::class, 'user_id');
     }
 
+    public function approvedSentConnections(): HasMany
+    {
+        return $this->hasMany(Connection::class, 'requester_id')->where('is_approved', true);
+    }
+
+    public function approvedReceivedConnections(): HasMany
+    {
+        return $this->hasMany(Connection::class, 'addressee_id')->where('is_approved', true);
+    }
+
+
     protected static function booted(): void
     {
         static::saving(function (self $user): void {

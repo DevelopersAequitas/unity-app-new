@@ -77,6 +77,88 @@ class MemberListApiTest extends TestCase
         $this->assertSame(0, $memberPayload['life_impacted_count']);
     }
 
+    public function test_members_index_returns_contact_visibility_and_connection_count(): void
+    {
+        $this->createSchema();
+
+        $authUser = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Auth',
+            'display_name' => 'Auth User',
+            'email' => 'auth@example.com',
+            'status' => 'active',
+            'contact_visibility' => 'everyone',
+        ]);
+
+        $memberWithConnections = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Connected',
+            'display_name' => 'Connected User',
+            'email' => 'connected@example.com',
+            'status' => 'active',
+            'contact_visibility' => null,
+        ]);
+
+        $memberWithoutConnections = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Lonely',
+            'display_name' => 'Lonely User',
+            'email' => 'lonely@example.com',
+            'status' => 'active',
+            'contact_visibility' => 'circle_only',
+        ]);
+
+        \App\Models\Connection::create([
+            'requester_id' => $memberWithConnections->id,
+            'addressee_id' => $authUser->id,
+            'is_approved' => true,
+        ]);
+
+        $otherUser = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Other',
+            'display_name' => 'Other User',
+            'email' => 'other@example.com',
+            'status' => 'active',
+        ]);
+
+        \App\Models\Connection::create([
+            'requester_id' => $otherUser->id,
+            'addressee_id' => $memberWithConnections->id,
+            'is_approved' => true,
+        ]);
+
+        \App\Models\Connection::create([
+            'requester_id' => $memberWithConnections->id,
+            'addressee_id' => $memberWithoutConnections->id,
+            'is_approved' => false,
+        ]);
+
+        Sanctum::actingAs($authUser);
+
+        $response = $this->getJson('/api/v1/members?per_page=10')
+            ->assertOk();
+
+        $data = $response->json('data');
+
+        $authPayload = collect($data)->firstWhere('id', $authUser->id);
+        $connectedPayload = collect($data)->firstWhere('id', $memberWithConnections->id);
+        $lonelyPayload = collect($data)->firstWhere('id', $memberWithoutConnections->id);
+
+        $this->assertNotNull($authPayload);
+        $this->assertSame('everyone', $authPayload['contact_visibility']);
+        $this->assertSame(1, $authPayload['connection_count']);
+
+        $this->assertNotNull($connectedPayload);
+        $this->assertSame('public', $connectedPayload['contact_visibility']);
+        $this->assertSame(2, $connectedPayload['connection_count']);
+
+        $this->assertNotNull($lonelyPayload);
+        $this->assertSame('circle_only', $lonelyPayload['contact_visibility']);
+        $this->assertSame(0, $lonelyPayload['connection_count']);
+    }
+
+
     private function createSchema(): void
     {
         Schema::dropIfExists('circle_subscriptions');
@@ -85,6 +167,7 @@ class MemberListApiTest extends TestCase
         Schema::dropIfExists('peer_blocks');
         Schema::dropIfExists('user_follows');
         Schema::dropIfExists('cities');
+        Schema::dropIfExists('connections');
         Schema::dropIfExists('users');
 
         Schema::create('users', function (Blueprint $table): void {
@@ -107,6 +190,7 @@ class MemberListApiTest extends TestCase
             $table->string('city')->nullable();
             $table->string('business_type')->nullable();
             $table->string('status')->nullable();
+            $table->string('contact_visibility', 50)->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -144,6 +228,7 @@ class MemberListApiTest extends TestCase
             $table->string('status')->nullable();
             $table->string('role')->nullable();
             $table->timestamp('left_at')->nullable();
+            $table->timestamp('paid_starts_at')->nullable();
             $table->timestamp('paid_ends_at')->nullable();
             $table->timestamp('joined_at')->nullable();
             $table->string('joined_via')->nullable();
@@ -166,5 +251,15 @@ class MemberListApiTest extends TestCase
             $table->timestamp('paid_at')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('connections', function (Blueprint $table): void {
+            $table->uuid('requester_id');
+            $table->uuid('addressee_id');
+            $table->boolean('is_approved')->default(false);
+            $table->timestamp('created_at')->nullable();
+            $table->timestamp('approved_at')->nullable();
+            $table->primary(['requester_id', 'addressee_id']);
+        });
     }
+
 }

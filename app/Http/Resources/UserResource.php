@@ -104,6 +104,8 @@ class UserResource extends JsonResource
                     ];
                 }),
             'circle_memberships' => $this->resolveCircleMemberships(),
+            'contact_visibility' => $this->contact_visibility ?? 'public',
+            'connection_count' => $this->resolveConnectionCount(),
             'followers_count' => (int) ($this->followers_count ?? 0),
             'following_count' => (int) ($this->following_count ?? 0),
             'coins_balance' => $this->coins_balance,
@@ -438,5 +440,22 @@ class UserResource extends JsonResource
         return collect($links)->filter(fn ($link) => ! blank($link))->isNotEmpty()
             ? $links
             : null;
+    }
+
+    private function resolveConnectionCount(): int
+    {
+        if (! Schema::hasTable('connections')) {
+            return 0;
+        }
+
+        if (isset($this->approved_sent_count) && isset($this->approved_received_count)) {
+            return (int) ($this->approved_sent_count + $this->approved_received_count);
+        }
+
+        return (int) (\App\Models\Connection::where('is_approved', true)
+            ->where(function ($query) {
+                $query->where('requester_id', $this->id)
+                    ->orWhere('addressee_id', $this->id);
+            })->count());
     }
 }
