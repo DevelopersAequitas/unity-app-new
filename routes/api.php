@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\PostSaveController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\TestimonialController;
+use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\UserContactsController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
@@ -340,6 +341,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
+
+        // V1 Testimonials API
+        Route::post('/testimonials', [V1TestimonialController::class, 'store']);
+        Route::get('/testimonials/given', [V1TestimonialController::class, 'given']);
+        Route::get('/testimonials/received', [V1TestimonialController::class, 'received']);
+        Route::get('/users/{user}/testimonials', [V1TestimonialController::class, 'userTestimonials'])->whereUuid('user');
 
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 

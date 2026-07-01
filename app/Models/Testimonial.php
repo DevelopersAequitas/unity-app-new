@@ -26,11 +26,13 @@ class Testimonial extends Model
         'to_user_id',
         'content',
         'media',
+        'rating',
     ];
 
     protected $casts = [
         'media' => 'array',
         'is_deleted' => 'boolean',
+        'rating' => 'integer',
     ];
 
     protected static function booted(): void
