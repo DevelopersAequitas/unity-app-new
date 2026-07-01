@@ -3,15 +3,15 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\AdminUser;
-use App\Models\User;
-use App\Models\Role;
 use App\Models\City;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class UsersValidationTest extends TestCase
 {
@@ -62,7 +62,7 @@ class UsersValidationTest extends TestCase
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $globalAdminRoleId = null;
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;

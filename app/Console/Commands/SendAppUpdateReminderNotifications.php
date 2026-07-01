@@ -69,11 +69,13 @@ class SendAppUpdateReminderNotifications extends Command
         foreach ($outdatedTokens as $pushToken) {
             if (! $pushToken->user) {
                 $missingUserSkippedCount++;
+
                 continue;
             }
 
             if ($pushToken->last_update_notification_sent_at?->greaterThan($cutoff)) {
                 $recentlySkippedCount++;
+
                 continue;
             }
 
@@ -128,7 +130,7 @@ class SendAppUpdateReminderNotifications extends Command
 
                 Log::error('App update reminder failed for token', [
                     'user_id' => (string) $pushToken->user_id,
-                    'token_prefix' => substr((string) $pushToken->token, 0, 12) . '...',
+                    'token_prefix' => substr((string) $pushToken->token, 0, 12).'...',
                     'error' => $exception->getMessage(),
                 ]);
 

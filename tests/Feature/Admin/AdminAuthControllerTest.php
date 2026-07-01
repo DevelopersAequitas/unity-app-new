@@ -3,17 +3,13 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\AdminUser;
-use App\Models\Role;
-use App\Models\AdminLoginOtp;
-use App\Models\EmailLog;
-use App\Models\User;
+use Exception;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Support\Facades\Mail;
-use Exception;
 
 class AdminAuthControllerTest extends TestCase
 {

@@ -18,12 +18,11 @@ class ChatTyping implements ShouldBroadcastNow
         public string $chatId,
         public string $userId,
         public bool $isTyping
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): PrivateChannel
     {
-        return new PrivateChannel('private-chat.' . $this->chatId);
+        return new PrivateChannel('private-chat.'.$this->chatId);
     }
 
     public function broadcastAs(): string

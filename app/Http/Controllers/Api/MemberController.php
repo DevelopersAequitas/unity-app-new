@@ -112,7 +112,6 @@ class MemberController extends BaseApiController
             $statusQuery->whereNull('status')->orWhere('status', 'active');
         });
 
-
         $authUser = auth('sanctum')->user();
 
         if ($authUser) {
@@ -195,15 +194,13 @@ class MemberController extends BaseApiController
         ]);
     }
 
-
     private function applyProfileMatchOrdering(
         Collection $members,
         User $authUser,
         ProfileMatchService $profileMatchService,
         array $selectColumns,
         bool $includeAuthUserWhenMissing = true
-    ): Collection
-    {
+    ): Collection {
         $authUserId = (string) $authUser->id;
 
         if ($includeAuthUserWhenMissing && ! $members->contains(fn (User $member): bool => (string) $member->id === $authUserId)) {
@@ -337,7 +334,6 @@ class MemberController extends BaseApiController
             return $this->error('Member not found', 404);
         }
 
-
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
         }
@@ -362,7 +358,6 @@ class MemberController extends BaseApiController
         if (! $user) {
             return $this->error('Public profile not found', 404);
         }
-
 
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
@@ -440,7 +435,7 @@ class MemberController extends BaseApiController
             'life_impacted_count' => (int) ($follower->life_impacted_count ?? 0),
             'profile_photo_id' => $profilePhotoId,
             'profile_photo_url' => $profilePhotoId
-                ? url('/api/v1/files/' . $profilePhotoId)
+                ? url('/api/v1/files/'.$profilePhotoId)
                 : null,
         ];
     }
@@ -505,15 +500,14 @@ class MemberController extends BaseApiController
             return $this->error('Member not found', 404);
         }
 
-
         if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, (string) $target->id)) {
             return $this->error('You cannot interact with this peer.', 422);
         }
 
         $existing = Connection::where(function ($q) use ($authUser, $target) {
-                $q->where('requester_id', $authUser->id)
-                    ->where('addressee_id', $target->id);
-            })
+            $q->where('requester_id', $authUser->id)
+                ->where('addressee_id', $target->id);
+        })
             ->orWhere(function ($q) use ($authUser, $target) {
                 $q->where('requester_id', $target->id)
                     ->where('addressee_id', $authUser->id);
@@ -543,7 +537,7 @@ class MemberController extends BaseApiController
             [
                 'request_id' => (string) $connection->id,
                 'title' => 'New Connection Request',
-                'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' sent you a connection request',
+                'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' sent you a connection request',
             ],
             $connection
         );
@@ -587,7 +581,7 @@ class MemberController extends BaseApiController
                     'from_user_id' => (string) $authUser->id,
                     'to_user_id' => (string) $requesterUser->id,
                     'title' => 'Connection Accepted',
-                    'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' accepted your connection request',
+                    'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' accepted your connection request',
                 ],
                 $connection
             );
@@ -606,9 +600,9 @@ class MemberController extends BaseApiController
         $authUser = $request->user();
 
         $connection = Connection::where(function ($q) use ($authUser, $id) {
-                $q->where('requester_id', $authUser->id)
-                    ->where('addressee_id', $id);
-            })
+            $q->where('requester_id', $authUser->id)
+                ->where('addressee_id', $id);
+        })
             ->orWhere(function ($q) use ($authUser, $id) {
                 $q->where('requester_id', $id)
                     ->where('addressee_id', $authUser->id);

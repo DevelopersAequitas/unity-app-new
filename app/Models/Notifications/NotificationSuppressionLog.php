@@ -12,6 +12,7 @@ class NotificationSuppressionLog extends Model
     use HasUuids;
 
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = ['user_id', 'campaign_id', 'type', 'dedupe_key', 'last_sent_at', 'send_count'];

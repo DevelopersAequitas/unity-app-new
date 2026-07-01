@@ -12,8 +12,7 @@ class NewOfferAddedNotification extends Notification
 
     public function __construct(
         private readonly BrandPartner $partner
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -30,7 +29,7 @@ class NewOfferAddedNotification extends Notification
         return [
             'notification_type' => 'brand_offer_added',
             'title' => '🔥 Limited Time Offer',
-            'body' => $this->partner->offer_title . ' Grab before expiry.',
+            'body' => $this->partner->offer_title.' Grab before expiry.',
             'partner_id' => $this->partner->id,
             'partner_name' => $this->partner->name,
             'offer_title' => $this->partner->offer_title,

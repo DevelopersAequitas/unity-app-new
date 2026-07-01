@@ -9,16 +9,14 @@ use App\Models\FileModel;
 use App\Models\SupportTicket;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class SupportTicketController extends BaseApiController
 {
-    public function __construct(private readonly EmailLogService $emailLogService)
-    {
-    }
+    public function __construct(private readonly EmailLogService $emailLogService) {}
 
     public function store(Request $request): JsonResponse
     {
@@ -66,7 +64,7 @@ class SupportTicketController extends BaseApiController
         }
 
         if ($request->filled('search')) {
-            $term = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $request->string('search')->toString()) . '%';
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $request->string('search')->toString()).'%';
             $query->where(function ($q) use ($term): void {
                 $q->where('ticket_number', 'ILIKE', $term)
                     ->orWhere('contact_name', 'ILIKE', $term)
@@ -123,7 +121,6 @@ class SupportTicketController extends BaseApiController
         return $this->success($ticket->fresh('user'), 'Support ticket updated successfully.');
     }
 
-
     private function uploadSupportMedia(Request $request): ?array
     {
         if (! $request->hasFile('media')) {
@@ -142,7 +139,7 @@ class SupportTicketController extends BaseApiController
 
         try {
             $disk = config('filesystems.default', 'public');
-            $path = $media->store('uploads/' . now()->format('Y/m/d'), $disk);
+            $path = $media->store('uploads/'.now()->format('Y/m/d'), $disk);
 
             $file = FileModel::create([
                 'uploader_user_id' => optional($request->user())->id,
@@ -158,7 +155,7 @@ class SupportTicketController extends BaseApiController
             return [
                 'file_id' => (string) $file->id,
                 'type' => $mediaType,
-                'url' => $baseUrl . '/api/v1/files/' . $file->id,
+                'url' => $baseUrl.'/api/v1/files/'.$file->id,
             ];
         } catch (\Throwable $e) {
             Log::error('Support media upload failed.', [
@@ -177,10 +174,10 @@ class SupportTicketController extends BaseApiController
     private function generateTicketNumber(): string
     {
         $datePart = now()->format('Ymd');
-        $prefix = 'SUP-' . $datePart . '-';
+        $prefix = 'SUP-'.$datePart.'-';
 
         $latestTicket = SupportTicket::query()
-            ->where('ticket_number', 'like', $prefix . '%')
+            ->where('ticket_number', 'like', $prefix.'%')
             ->orderByDesc('ticket_number')
             ->first();
 
@@ -190,7 +187,7 @@ class SupportTicketController extends BaseApiController
             $nextNumber = ((int) end($parts)) + 1;
         }
 
-        return $prefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+        return $prefix.str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
     private function sendResolvedEmail(SupportTicket $ticket): void

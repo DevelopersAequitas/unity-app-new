@@ -198,13 +198,13 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
         $response = $this->actingAs($user, 'sanctum')
             ->getJson('/api/v1/peer-monthly-impact-script');
 
-        $expectedUrl = url('/api/v1/files/' . $fileId);
+        $expectedUrl = url('/api/v1/files/'.$fileId);
 
         $response->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.user.profile_photo_url', $expectedUrl);
 
-        $this->assertStringContainsString('"profile_photo_url":"' . $expectedUrl . '"', $response->getContent());
+        $this->assertStringContainsString('"profile_photo_url":"'.$expectedUrl.'"', $response->getContent());
         $this->assertStringNotContainsString('http:\/\/', $response->getContent());
     }
 
@@ -300,7 +300,7 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
             'first_name' => 'Test',
             'last_name' => 'User',
             'display_name' => 'Test User',
-            'email' => $id . '@example.com',
+            'email' => $id.'@example.com',
             'password_hash' => 'password',
             'company_name' => 'Test Co',
             'business_type' => null,

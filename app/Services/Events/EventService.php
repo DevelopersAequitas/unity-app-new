@@ -12,8 +12,8 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class EventService
@@ -104,7 +104,9 @@ class EventService
             ])
             ->whereHas('event', function (Builder $eventQuery) use ($filters, $eventType, $search, $user): void {
                 $this->applyEventTypeFilter($eventQuery, $eventType)
-                    ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void { $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v)); }))
+                    ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void {
+                        $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v));
+                    }))
                     ->when($filters['mode'] ?? null, fn ($q, $v) => $this->applyModeFilter($q, $v))
                     ->when($search, function ($q, $v): void {
                         $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
@@ -152,7 +154,6 @@ class EventService
 
         return $query->orderBy('start_at')->paginate($perPage);
     }
-
 
     private function applyEventTypeFilter(Builder $query, ?string $eventType): Builder
     {
@@ -216,7 +217,9 @@ class EventService
         $search = $filters['search'] ?? $filters['title'] ?? null;
 
         $this->applyEventTypeFilter($eventQuery, $eventType)
-            ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void { $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v)); }))
+            ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void {
+                $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v));
+            }))
             ->when($filters['mode'] ?? null, fn ($q, $v) => $this->applyModeFilter($q, $v))
             ->when($search, function ($q, $v): void {
                 $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
@@ -564,7 +567,6 @@ class EventService
         ];
     }
 
-
     private function invitedByUserPayload(?User $user): ?array
     {
         if (! $user) {
@@ -586,6 +588,7 @@ class EventService
     {
         if (is_string($metadata)) {
             $decoded = json_decode($metadata, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 
@@ -600,6 +603,7 @@ class EventService
     {
         if (is_string($rows)) {
             $decoded = json_decode($rows, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 
@@ -732,6 +736,7 @@ class EventService
 
         if ($circleIds === []) {
             DB::table('event_circles')->where('event_id', $event->id)->delete();
+
             return;
         }
 
@@ -745,4 +750,3 @@ class EventService
         }
     }
 }
-

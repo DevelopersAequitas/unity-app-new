@@ -3,27 +3,23 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Jobs\SendBulkPartnerNotificationJob;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerCategory;
 use App\Models\BrandPartnerClick;
-use App\Models\BrandPartnerView;
 use App\Models\BrandPartnerSaved;
+use App\Models\BrandPartnerView;
 use App\Services\BrandPartners\BrandPartnerAnalyticsService;
 use App\Services\Media\FileUploadService;
-use App\Jobs\SendBulkPartnerNotificationJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class BrandPartnerApiController extends BaseApiController
 {
     public function __construct(
         private readonly BrandPartnerAnalyticsService $analyticsService,
         private readonly FileUploadService $fileUploadService
-    ) {
-    }
+    ) {}
 
     // -------------------------------------------------------------
     // Member & Public APIs
@@ -42,9 +38,9 @@ class BrandPartnerApiController extends BaseApiController
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'ILIKE', '%' . $search . '%')
-                  ->orWhere('short_description', 'ILIKE', '%' . $search . '%')
-                  ->orWhere('offer_title', 'ILIKE', '%' . $search . '%');
+                $q->where('name', 'ILIKE', '%'.$search.'%')
+                    ->orWhere('short_description', 'ILIKE', '%'.$search.'%')
+                    ->orWhere('offer_title', 'ILIKE', '%'.$search.'%');
             });
         }
 
@@ -87,7 +83,7 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::with('category')->find($id);
 
-        if (!$partner || !$partner->is_active) {
+        if (! $partner || ! $partner->is_active) {
             return $this->error('Brand partner not found.', 404);
         }
 
@@ -107,7 +103,7 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::find($id);
 
-        if (!$partner) {
+        if (! $partner) {
             return $this->error('Brand partner not found.', 404);
         }
 
@@ -119,7 +115,8 @@ class BrandPartnerApiController extends BaseApiController
             if ($request->hasSession()) {
                 $sessionId = $request->session()->getId();
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+        }
 
         // Skip logging if identical interaction occurred within 24 hours
         $exists = BrandPartnerView::where('brand_partner_id', $partner->id)
@@ -138,7 +135,7 @@ class BrandPartnerApiController extends BaseApiController
             })
             ->exists();
 
-        if (!$exists) {
+        if (! $exists) {
             BrandPartnerView::create([
                 'user_id' => $userId,
                 'brand_partner_id' => $partner->id,
@@ -155,15 +152,15 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::find($id);
 
-        if (!$partner) {
+        if (! $partner) {
             return $this->error('Brand partner not found.', 404);
         }
 
         $clickType = $request->input('click_type', 'website');
         $validTypes = ['visit', 'redeem', 'share', 'call', 'email', 'website'];
 
-        if (!in_array($clickType, $validTypes, true)) {
-            return $this->error('Invalid click type. Allowed types: ' . implode(', ', $validTypes), 422);
+        if (! in_array($clickType, $validTypes, true)) {
+            return $this->error('Invalid click type. Allowed types: '.implode(', ', $validTypes), 422);
         }
 
         $user = auth()->user() ?? auth('admin')->user();
@@ -174,7 +171,8 @@ class BrandPartnerApiController extends BaseApiController
             if ($request->hasSession()) {
                 $sessionId = $request->session()->getId();
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+        }
 
         // Skip logging if identical interaction occurred within 24 hours
         $exists = BrandPartnerClick::where('brand_partner_id', $partner->id)
@@ -193,7 +191,7 @@ class BrandPartnerApiController extends BaseApiController
             })
             ->exists();
 
-        if (!$exists) {
+        if (! $exists) {
             BrandPartnerClick::create([
                 'user_id' => $userId,
                 'brand_partner_id' => $partner->id,
@@ -213,7 +211,7 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::find($id);
 
-        if (!$partner) {
+        if (! $partner) {
             return $this->error('Brand partner not found.', 404);
         }
 
@@ -231,7 +229,7 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::find($id);
 
-        if (!$partner) {
+        if (! $partner) {
             return $this->error('Brand partner not found.', 404);
         }
 
@@ -251,9 +249,9 @@ class BrandPartnerApiController extends BaseApiController
         $savedPartners = BrandPartner::whereHas('saves', function ($query) use ($userId) {
             $query->where('user_id', $userId);
         })
-        ->where('is_active', true)
-        ->orderByDesc('created_at')
-        ->paginate(15);
+            ->where('is_active', true)
+            ->orderByDesc('created_at')
+            ->paginate(15);
 
         return $this->success($savedPartners, 'Your saved brand partners.');
     }
@@ -282,9 +280,9 @@ class BrandPartnerApiController extends BaseApiController
 
         if ($q !== '') {
             $query->where(function ($query) use ($q) {
-                $query->where('name', 'ILIKE', '%' . $q . '%')
-                      ->orWhere('short_description', 'ILIKE', '%' . $q . '%')
-                      ->orWhere('description', 'ILIKE', '%' . $q . '%');
+                $query->where('name', 'ILIKE', '%'.$q.'%')
+                    ->orWhere('short_description', 'ILIKE', '%'.$q.'%')
+                    ->orWhere('description', 'ILIKE', '%'.$q.'%');
             });
         }
 
@@ -376,7 +374,7 @@ class BrandPartnerApiController extends BaseApiController
 
         if ($partner->is_active) {
             SendBulkPartnerNotificationJob::dispatch($partner, 'joined');
-            if (!empty($partner->offer_title)) {
+            if (! empty($partner->offer_title)) {
                 SendBulkPartnerNotificationJob::dispatch($partner, 'offer');
             }
         }
@@ -388,13 +386,13 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::find($id);
 
-        if (!$partner) {
+        if (! $partner) {
             return $this->error('Brand partner not found.', 404);
         }
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'max:255', 'unique:brand_partners,slug,' . $partner->id],
+            'slug' => ['required', 'string', 'max:255', 'unique:brand_partners,slug,'.$partner->id],
             'logo_file' => ['nullable', 'file', 'image', 'max:5120'],
             'cover_file' => ['nullable', 'file', 'image', 'max:10240'],
             'short_description' => ['nullable', 'string', 'max:500'],
@@ -450,14 +448,14 @@ class BrandPartnerApiController extends BaseApiController
         $data['is_sponsored'] = $request->boolean('is_sponsored', false);
 
         $wasActive = $partner->is_active;
-        $hadOffer = !empty($partner->offer_title);
+        $hadOffer = ! empty($partner->offer_title);
 
         $partner->update($data);
 
-        if (!$wasActive && $partner->is_active) {
+        if (! $wasActive && $partner->is_active) {
             SendBulkPartnerNotificationJob::dispatch($partner, 'joined');
         }
-        if ($partner->is_active && !$hadOffer && !empty($partner->offer_title)) {
+        if ($partner->is_active && ! $hadOffer && ! empty($partner->offer_title)) {
             SendBulkPartnerNotificationJob::dispatch($partner, 'offer');
         }
 
@@ -468,7 +466,7 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::find($id);
 
-        if (!$partner) {
+        if (! $partner) {
             return $this->error('Brand partner not found.', 404);
         }
 
@@ -507,7 +505,7 @@ class BrandPartnerApiController extends BaseApiController
     {
         $category = BrandPartnerCategory::find($id);
 
-        if (!$category) {
+        if (! $category) {
             return $this->error('Category not found.', 404);
         }
 
@@ -528,7 +526,7 @@ class BrandPartnerApiController extends BaseApiController
     {
         $category = BrandPartnerCategory::find($id);
 
-        if (!$category) {
+        if (! $category) {
             return $this->error('Category not found.', 404);
         }
 
@@ -541,11 +539,11 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::find($id);
 
-        if (!$partner) {
+        if (! $partner) {
             return $this->error('Brand partner not found.', 404);
         }
 
-        $partner->update(['is_active' => !$partner->is_active]);
+        $partner->update(['is_active' => ! $partner->is_active]);
 
         return $this->success($partner, 'Brand partner status toggled.');
     }
@@ -554,11 +552,11 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::find($id);
 
-        if (!$partner) {
+        if (! $partner) {
             return $this->error('Brand partner not found.', 404);
         }
 
-        $partner->update(['is_featured' => !$partner->is_featured]);
+        $partner->update(['is_featured' => ! $partner->is_featured]);
 
         return $this->success($partner, 'Brand partner featured toggled.');
     }
@@ -567,11 +565,11 @@ class BrandPartnerApiController extends BaseApiController
     {
         $partner = BrandPartner::find($id);
 
-        if (!$partner) {
+        if (! $partner) {
             return $this->error('Brand partner not found.', 404);
         }
 
-        $partner->update(['is_sponsored' => !$partner->is_sponsored]);
+        $partner->update(['is_sponsored' => ! $partner->is_sponsored]);
 
         return $this->success($partner, 'Brand partner sponsored toggled.');
     }

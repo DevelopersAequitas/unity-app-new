@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api\V1\Leadership;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Leadership\MarkLeadershipMessagesReadRequest;
 use App\Http\Requests\Leadership\SendLeadershipMessageRequest;
-use App\Http\Resources\Leadership\LeadershipMessageResource;
 use App\Http\Resources\Leadership\LeadershipMemberResource;
+use App\Http\Resources\Leadership\LeadershipMessageResource;
 use App\Models\Circle;
 use App\Models\LeadershipGroupMessage;
 use App\Services\Leadership\LeadershipGroupChatService;
@@ -16,9 +16,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class LeadershipGroupChatController extends BaseApiController
 {
-    public function __construct(private readonly LeadershipGroupChatService $leadershipGroupChatService)
-    {
-    }
+    public function __construct(private readonly LeadershipGroupChatService $leadershipGroupChatService) {}
 
     public function members(Request $request, Circle $circle): JsonResponse
     {

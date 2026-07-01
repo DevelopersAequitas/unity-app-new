@@ -12,7 +12,9 @@ class AppIconAsset extends Model
     use HasUuids;
 
     protected $table = 'app_icon_assets';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [

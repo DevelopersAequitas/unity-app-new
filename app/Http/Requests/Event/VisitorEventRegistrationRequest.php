@@ -8,7 +8,10 @@ use Illuminate\Validation\Rule;
 
 class VisitorEventRegistrationRequest extends FormRequest
 {
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return true;
+    }
 
     protected function prepareForValidation(): void
     {

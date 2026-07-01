@@ -6,8 +6,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-return new class extends Migration {
+return new class extends Migration
+{
     private const APP_INSTANCE_TABLE = 'app_instances';
+
     private const GREENPRENEUR_SLUG = 'greenpreneur';
 
     public function up(): void

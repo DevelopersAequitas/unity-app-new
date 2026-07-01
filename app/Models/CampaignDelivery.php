@@ -13,7 +13,9 @@ class CampaignDelivery extends Model
     use HasFactory;
 
     protected $table = 'campaign_deliveries';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -58,15 +60,16 @@ class CampaignDelivery extends Model
 
     public function getScheduledAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
+
         return \Carbon\Carbon::parse($value, 'UTC');
     }
 
     public function setScheduledAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['scheduled_at'] = null;
         } else {
             $this->attributes['scheduled_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
@@ -75,15 +78,16 @@ class CampaignDelivery extends Model
 
     public function getStartedAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
+
         return \Carbon\Carbon::parse($value, 'UTC');
     }
 
     public function setStartedAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['started_at'] = null;
         } else {
             $this->attributes['started_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
@@ -92,15 +96,16 @@ class CampaignDelivery extends Model
 
     public function getCompletedAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
+
         return \Carbon\Carbon::parse($value, 'UTC');
     }
 
     public function setCompletedAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['completed_at'] = null;
         } else {
             $this->attributes['completed_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
@@ -114,13 +119,14 @@ class CampaignDelivery extends Model
 
     public function formatTimestamp(?\Carbon\Carbon $dateTime): ?string
     {
-        if (!$dateTime) {
+        if (! $dateTime) {
             return null;
         }
         $campaign = $this->campaign;
         if ($campaign) {
             return $campaign->formatTimestamp($dateTime);
         }
+
         return $dateTime->copy()->setTimezone('Asia/Kolkata')->format('d M Y H:i');
     }
 }

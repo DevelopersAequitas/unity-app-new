@@ -12,14 +12,11 @@ use App\Services\Admin\AdminAuditService;
 use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class UserManagementController extends BaseApiController
 {
-    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit)
-    {
-    }
+    public function __construct(private readonly AdminScopeService $scope, private readonly AdminAuditService $audit) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -27,7 +24,7 @@ class UserManagementController extends BaseApiController
         $this->scope->applyUserScope($q, $request->user());
 
         if ($search = $request->string('search')->toString()) {
-            $term = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search) . '%';
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
             $q->where(fn ($x) => $x->where('first_name', 'ILIKE', $term)->orWhere('last_name', 'ILIKE', $term)->orWhere('display_name', 'ILIKE', $term)->orWhere('email', 'ILIKE', $term)->orWhere('phone', 'ILIKE', $term));
         }
 
@@ -94,7 +91,6 @@ class UserManagementController extends BaseApiController
         return $this->success($fresh);
     }
 
-
     private function becameActiveMembership(string $oldStatus, string $newStatus): bool
     {
         $inactive = ['', 'visitor', 'free_peer', 'free_trial_peer', 'inactive', 'rejected', 'cancelled', 'canceled', 'suspended'];
@@ -121,12 +117,14 @@ class UserManagementController extends BaseApiController
     public function patchStatus(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate(['is_active' => ['required', 'boolean']]);
+
         return $this->update($request->merge($validated), $id);
     }
 
     public function patchMembershipStatus(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate(['membership_status' => ['required', 'string']]);
+
         return $this->update($request->merge($validated), $id);
     }
 

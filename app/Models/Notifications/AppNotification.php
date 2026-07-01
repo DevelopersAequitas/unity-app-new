@@ -15,6 +15,7 @@ class AppNotification extends Model
     protected $table = 'app_notifications';
 
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

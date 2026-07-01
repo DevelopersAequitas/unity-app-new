@@ -20,6 +20,7 @@ class SyncZohoSubscriptionPayment extends Command
 
         if ($paymentId === '' && $invoiceId === '') {
             $this->error('Provide --payment_id or --invoice_id.');
+
             return self::FAILURE;
         }
 
@@ -44,6 +45,7 @@ class SyncZohoSubscriptionPayment extends Command
             return self::SUCCESS;
         } catch (\Throwable $throwable) {
             $this->error($throwable->getMessage());
+
             return self::FAILURE;
         }
     }

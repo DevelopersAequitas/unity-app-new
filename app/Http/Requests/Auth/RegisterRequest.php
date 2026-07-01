@@ -91,7 +91,7 @@ class RegisterRequest extends FormRequest
             'business_name' => ['nullable', 'string', 'max:255'],
             'position' => ['nullable', 'string', 'max:255'],
             'company_name' => ['nullable', 'string', 'max:255'],
-            'designation'  => ['nullable', 'string', 'max:255'],
+            'designation' => ['nullable', 'string', 'max:255'],
             'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
             'city' => ['nullable', 'string', 'max:255'],
             'city_of_residence' => ['nullable', 'string', 'max:150'],
@@ -131,8 +131,6 @@ class RegisterRequest extends FormRequest
             'community_directory_listing' => ['sometimes', 'required', 'in:Yes,No'],
         ];
     }
-
-
 
     private function level2CategoriesTable(): string
     {

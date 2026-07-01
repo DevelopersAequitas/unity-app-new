@@ -5,13 +5,12 @@ namespace App\Http\Controllers\Admin\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\AdminLoginOtp;
 use App\Models\AdminUser;
-use App\Models\IndustryDirectorAssignment;
 use App\Models\CircleMember;
+use App\Models\IndustryDirectorAssignment;
 use App\Models\Role;
 use App\Models\User;
-use App\Support\AdminAccess;
 use App\Services\EmailLogs\EmailLogService;
-use Illuminate\Http\JsonResponse;
+use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -74,7 +73,7 @@ class AdminAuthController extends Controller
         $otpRecord = AdminLoginOtp::query()->where('email', $email)->first();
 
         if (! $otpRecord) {
-            $otpRecord = new AdminLoginOtp();
+            $otpRecord = new AdminLoginOtp;
             $otpRecord->id = (string) Str::uuid();
             $otpRecord->email = $email;
         }
@@ -114,7 +113,7 @@ class AdminAuthController extends Controller
 
             return back()
                 ->withInput(['email' => $email])
-                ->withErrors(['email' => 'Failed to send OTP: ' . $exception->getMessage()]);
+                ->withErrors(['email' => 'Failed to send OTP: '.$exception->getMessage()]);
         }
 
         $request->session()->forget('errors');
@@ -295,7 +294,7 @@ class AdminAuthController extends Controller
                     'created_at' => now(),
                 ]);
 
-                Cache::forget('admin-access:roles:' . $adminUser->id);
+                Cache::forget('admin-access:roles:'.$adminUser->id);
             }
 
             return $adminUser;
@@ -308,7 +307,7 @@ class AdminAuthController extends Controller
             return $user->display_name;
         }
 
-        $fullName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
 
         return $fullName !== '' ? $fullName : $user->email;
     }

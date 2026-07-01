@@ -16,7 +16,7 @@ class ReferralCodeService
         do {
             $attempts++;
             $randomDigits = str_pad((string) random_int(0, 99999), 5, '0', STR_PAD_LEFT);
-            $code = $prefix . $randomDigits;
+            $code = $prefix.$randomDigits;
             $exists = DB::table('referral_links')->where($column, $code)->exists();
         } while ($exists && $attempts < 100);
 
@@ -29,10 +29,10 @@ class ReferralCodeService
 
     public function buildReferralLink(string $code): string
     {
-        $base = (string) config('referrals.register_url', rtrim((string) config('app.url'), '/') . '/register');
+        $base = (string) config('referrals.register_url', rtrim((string) config('app.url'), '/').'/register');
         $param = (string) config('referrals.query_param', 'ref');
 
-        return rtrim($base, '?&') . '?' . http_build_query([$param => $code]);
+        return rtrim($base, '?&').'?'.http_build_query([$param => $code]);
     }
 
     private function buildPrefix(string $name): string

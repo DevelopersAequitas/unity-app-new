@@ -167,11 +167,13 @@ class EmailLogService
 
             if ($this->isSensitiveKey($normalizedKey)) {
                 $sanitized[$key] = '***';
+
                 continue;
             }
 
             if (is_array($value)) {
                 $sanitized[$key] = $this->sanitizePayload($value);
+
                 continue;
             }
 

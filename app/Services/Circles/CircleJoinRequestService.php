@@ -20,8 +20,7 @@ class CircleJoinRequestService
     public function __construct(
         private readonly NotifyUserService $notifyUserService,
         private readonly CircleJoinRequestNotificationService $circleJoinRequestNotificationService,
-    ) {
-    }
+    ) {}
 
     public function submitRequest(User $user, Circle $circle, ?string $reason, array $categoryIds = []): CircleJoinRequest
     {

@@ -14,9 +14,7 @@ use Throwable;
 
 class CircleSubscriptionController extends BaseApiController
 {
-    public function __construct(private readonly ZohoBillingService $zohoBillingService)
-    {
-    }
+    public function __construct(private readonly ZohoBillingService $zohoBillingService) {}
 
     public function package(Circle $circle)
     {

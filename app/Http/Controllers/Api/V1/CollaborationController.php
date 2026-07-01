@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreCollaborationInterestRequest;
-use App\Http\Requests\Api\V1\StoreCollaborationPostRequest;
 use App\Http\Requests\Api\V1\StoreCollaborationMeetingRequestRequest;
+use App\Http\Requests\Api\V1\StoreCollaborationPostRequest;
 use App\Http\Requests\Api\V1\UpdateCollaborationPostRequest;
 use App\Http\Resources\CollaborationMeetingRequestResource;
 use App\Http\Resources\CollaborationPostListResource;
@@ -13,7 +13,6 @@ use App\Http\Resources\CollaborationPostResource;
 use App\Models\CollaborationPost;
 use App\Models\CollaborationPostInterest;
 use App\Models\CollaborationPostMeetingRequest;
-use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -185,14 +184,14 @@ class CollaborationController extends Controller
                 'collaboration_interest_received',
                 [
                     'title' => 'New collaboration interest',
-                    'body' => $authUser->display_name . ' showed interest in your collaboration post.',
+                    'body' => $authUser->display_name.' showed interest in your collaboration post.',
                     'post_id' => $post->id,
                     'post_title' => $post->title,
                     'from_user' => [
                         'id' => $authUser->id,
                         'name' => $authUser->display_name,
                         'city' => $authUser->city,
-                        'profile_photo_url' => $authUser->profile_photo_file_id ? url('/api/v1/files/' . $authUser->profile_photo_file_id) : $authUser->profile_photo_url,
+                        'profile_photo_url' => $authUser->profile_photo_file_id ? url('/api/v1/files/'.$authUser->profile_photo_file_id) : $authUser->profile_photo_url,
                     ],
                 ],
                 $post
@@ -228,7 +227,7 @@ class CollaborationController extends Controller
             'collaboration_meeting_requested',
             [
                 'title' => 'New collaboration meeting request',
-                'body' => $authUser->display_name . ' requested a collaboration meeting.',
+                'body' => $authUser->display_name.' requested a collaboration meeting.',
                 'post_id' => $post->id,
                 'post_title' => $post->title,
                 'meeting_request_id' => $meeting->id,

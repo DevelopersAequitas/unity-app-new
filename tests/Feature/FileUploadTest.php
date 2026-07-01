@@ -65,7 +65,7 @@ class FileUploadTest extends TestCase
         Storage::fake('public');
 
         $user = $this->makeUser();
-        $videoPath = sys_get_temp_dir() . '/upload-source-video.mp4';
+        $videoPath = sys_get_temp_dir().'/upload-source-video.mp4';
 
         $generator = new Process([
             'ffmpeg',
@@ -82,7 +82,7 @@ class FileUploadTest extends TestCase
         $generator->run();
 
         if (! $generator->isSuccessful()) {
-            $this->fail('Failed to generate test video: ' . $generator->getErrorOutput());
+            $this->fail('Failed to generate test video: '.$generator->getErrorOutput());
         }
 
         $video = new UploadedFile($videoPath, 'sample.mov', 'video/mp4', null, true);
@@ -108,7 +108,7 @@ class FileUploadTest extends TestCase
         return User::factory()->create([
             'first_name' => 'Test',
             'last_name' => 'User',
-            'email' => Str::uuid() . '@example.com',
+            'email' => Str::uuid().'@example.com',
             'password_hash' => Hash::make('password'),
         ]);
     }

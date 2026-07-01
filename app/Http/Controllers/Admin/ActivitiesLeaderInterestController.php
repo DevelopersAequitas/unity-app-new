@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\LeaderInterestSubmission;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -48,7 +48,7 @@ class ActivitiesLeaderInterestController extends Controller
         }
 
         if ($search !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('peer.display_name', 'ILIKE', $like)
                     ->orWhere('peer.first_name', 'ILIKE', $like)
@@ -58,9 +58,8 @@ class ActivitiesLeaderInterestController extends Controller
             });
         }
 
-
         if ($peerName !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $peerName) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $peerName).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('peer.display_name', 'ILIKE', $like)
                     ->orWhere('peer.first_name', 'ILIKE', $like)
@@ -71,31 +70,31 @@ class ActivitiesLeaderInterestController extends Controller
         }
 
         if ($peerPhone !== '') {
-            $query->where('peer.phone', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $peerPhone) . '%');
+            $query->where('peer.phone', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $peerPhone).'%');
         }
 
         if ($applyingForText !== '') {
-            $query->where('applying_for', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $applyingForText) . '%');
+            $query->where('applying_for', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $applyingForText).'%');
         }
 
         if ($referredName !== '') {
-            $query->where('referred_name', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $referredName) . '%');
+            $query->where('referred_name', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $referredName).'%');
         }
 
         if ($referredMobile !== '') {
-            $query->where('referred_mobile', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $referredMobile) . '%');
+            $query->where('referred_mobile', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $referredMobile).'%');
         }
 
         if ($leadershipRoles !== '') {
-            $query->whereRaw("COALESCE(leadership_roles::text, '') ILIKE ?", ['%' . str_replace(['%', '_'], ['\%', '\_'], $leadershipRoles) . '%']);
+            $query->whereRaw("COALESCE(leadership_roles::text, '') ILIKE ?", ['%'.str_replace(['%', '_'], ['\%', '\_'], $leadershipRoles).'%']);
         }
 
         if ($cityRegion !== '') {
-            $query->where('contribute_city', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $cityRegion) . '%');
+            $query->where('contribute_city', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $cityRegion).'%');
         }
 
         if ($primaryDomain !== '') {
-            $query->where('primary_domain', 'ILIKE', '%' . str_replace(['%', '_'], ['\%', '\_'], $primaryDomain) . '%');
+            $query->where('primary_domain', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $primaryDomain).'%');
         }
 
         if ($fromAt) {
@@ -148,7 +147,7 @@ class ActivitiesLeaderInterestController extends Controller
 
     private function circleOptions()
     {
-        return DB::table('circles')->select(['id','name'])->orderBy('name')->get();
+        return DB::table('circles')->select(['id', 'name'])->orderBy('name')->get();
     }
 
     private function parseDayBoundary($value, bool $endOfDay): ?Carbon

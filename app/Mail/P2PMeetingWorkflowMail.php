@@ -21,8 +21,7 @@ class P2PMeetingWorkflowMail extends Mailable
         public ?User $actor = null,
         public ?P2PMeetingRescheduleRequest $rescheduleRequest = null,
         public ?string $responseReason = null,
-    ) {
-    }
+    ) {}
 
     public function build(): self
     {

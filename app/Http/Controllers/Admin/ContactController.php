@@ -78,6 +78,7 @@ class ContactController extends Controller
         $header = fgetcsv($handle);
         if ($header === false) {
             fclose($handle);
+
             return back()->withErrors(['csv_file' => 'CSV file is empty.'])->withInput();
         }
 
@@ -85,6 +86,7 @@ class ContactController extends Controller
         $unknownColumns = array_diff($header, self::CSV_COLUMNS);
         if ($unknownColumns !== []) {
             fclose($handle);
+
             return back()->withErrors(['csv_file' => 'Unsupported CSV columns: '.implode(', ', $unknownColumns).'.'])->withInput();
         }
 
@@ -102,12 +104,14 @@ class ContactController extends Controller
             $fullName = trim((string) ($rowData['full_name'] ?? ''));
             if ($fullName === '') {
                 fclose($handle);
+
                 return back()->withErrors(['csv_file' => "Row {$rowNumber}: Full name is required."])->withInput();
             }
 
             $email = trim((string) ($rowData['email'] ?? ''));
             if ($email !== '' && ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 fclose($handle);
+
                 return back()->withErrors(['csv_file' => "Row {$rowNumber}: Email must be a valid email address."])->withInput();
             }
 
@@ -115,6 +119,7 @@ class ContactController extends Controller
                 $parsed = $this->parseJsonCsvValue($rowData[$jsonField] ?? null, $rowNumber, $jsonField);
                 if (is_string($parsed)) {
                     fclose($handle);
+
                     return back()->withErrors(['csv_file' => $parsed])->withInput();
                 }
                 $rowData[$jsonField] = $parsed;
@@ -129,6 +134,7 @@ class ContactController extends Controller
             }
             if ($userId !== '' && ! User::query()->whereKey($userId)->exists()) {
                 fclose($handle);
+
                 return back()->withErrors(['csv_file' => "Row {$rowNumber}: user_id must be a valid user ID."])->withInput();
             }
             $payload['user_id'] = $userId !== '' ? $userId : null;
@@ -139,6 +145,7 @@ class ContactController extends Controller
                     $contact->fill($payload);
                     $contact->save();
                     $imported++;
+
                     continue;
                 }
             }
@@ -254,7 +261,6 @@ class ContactController extends Controller
             fclose($output);
         }, $fileName, ['Content-Type' => 'text/csv']);
     }
-
 
     public function exportSelected(Request $request, string $userId): StreamedResponse
     {

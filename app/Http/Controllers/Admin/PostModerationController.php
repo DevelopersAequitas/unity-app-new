@@ -8,10 +8,10 @@ use App\Models\Impact;
 use App\Models\Post;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminAccess;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -61,7 +61,6 @@ class PostModerationController extends Controller
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
-
         $industryScope->applyToActivityQuery($query, $admin, ['posts.user_id']);
 
         if (filled($filters['visibility']) && $filters['visibility'] !== 'any') {
@@ -80,9 +79,8 @@ class PostModerationController extends Controller
             $query->where('posts.moderation_status', $inlineModerationStatus);
         }
 
-
         if ($filters['search']) {
-            $search = '%' . $filters['search'] . '%';
+            $search = '%'.$filters['search'].'%';
             $query->where(function ($subQuery) use ($search) {
                 $subQuery->where('posts.content_text', 'ILIKE', $search)
                     ->orWhereHas('user', function ($userQuery) use ($search) {
@@ -94,9 +92,8 @@ class PostModerationController extends Controller
             });
         }
 
-
         if (filled($peer)) {
-            $peerQuery = '%' . $peer . '%';
+            $peerQuery = '%'.$peer.'%';
             $query->whereHas('user', function ($userQuery) use ($peerQuery) {
                 $userQuery->where(function ($subQuery) use ($peerQuery) {
                     $subQuery->where('name', 'ILIKE', $peerQuery)
@@ -188,7 +185,7 @@ class PostModerationController extends Controller
         }
 
         if ($filters['search']) {
-            $search = '%' . $filters['search'] . '%';
+            $search = '%'.$filters['search'].'%';
             $impactQuery->where(function ($subQuery) use ($search) {
                 $subQuery->where('story_to_share', 'ILIKE', $search)
                     ->orWhereHas('user', function ($userQuery) use ($search) {
@@ -201,7 +198,7 @@ class PostModerationController extends Controller
         }
 
         if (filled($peer)) {
-            $peerQuery = '%' . $peer . '%';
+            $peerQuery = '%'.$peer.'%';
             $impactQuery->whereHas('user', function ($userQuery) use ($peerQuery) {
                 $userQuery->where(function ($subQuery) use ($peerQuery) {
                     $subQuery->where('display_name', 'ILIKE', $peerQuery)

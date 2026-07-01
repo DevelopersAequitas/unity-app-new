@@ -49,7 +49,9 @@ class EventApiController extends BaseApiController
                 'circles.cityRef',
                 'occurrences' => fn ($query) => $query->orderBy('start_at'),
             ])
-            ->when($circleId, fn ($query) => $query->where(function ($circleQuery) use ($circleId): void { $circleQuery->where('circle_id', $circleId)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $circleId)); }));
+            ->when($circleId, fn ($query) => $query->where(function ($circleQuery) use ($circleId): void {
+                $circleQuery->where('circle_id', $circleId)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $circleId));
+            }));
 
         $this->applyActiveEventScope($events);
 
@@ -131,12 +133,14 @@ class EventApiController extends BaseApiController
             if ($isLive) {
                 $payload['group_status'] = 'live';
                 $liveEvents[] = $payload;
+
                 continue;
             }
 
             if ($startAt->toDateString() === $today) {
                 $payload['group_status'] = 'today';
                 $todayEvents[] = $payload;
+
                 continue;
             }
 
@@ -268,7 +272,7 @@ class EventApiController extends BaseApiController
             return $bannerUrl;
         }
 
-        return url('/api/v1/files/' . $bannerUrl);
+        return url('/api/v1/files/'.$bannerUrl);
     }
 
     private function circlePayload(Circle $circle): array

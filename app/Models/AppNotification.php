@@ -2,6 +2,4 @@
 
 namespace App\Models;
 
-class AppNotification extends \App\Models\Notifications\AppNotification
-{
-}
+class AppNotification extends \App\Models\Notifications\AppNotification {}

@@ -20,8 +20,8 @@ use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class WebsiteFormsController extends BaseApiController
@@ -212,7 +212,7 @@ class WebsiteFormsController extends BaseApiController
 
             $this->sendConfirmationEmail(
                 email: $submission->email,
-                recipientName: trim($submission->first_name . ' ' . $submission->last_name) ?: $submission->first_name,
+                recipientName: trim($submission->first_name.' '.$submission->last_name) ?: $submission->first_name,
                 subject: 'Your Speaker Application Has Been Received',
                 formTitle: 'Become a Speaker',
                 confirmationMessage: 'Your speaker application has been received successfully.',
@@ -240,7 +240,7 @@ class WebsiteFormsController extends BaseApiController
                     'brief_bio' => $submission->brief_bio,
                     'topics_to_speak_on' => $submission->topics_to_speak_on,
                     'image_file_id' => $submission->image_file_id,
-                    'image_url' => $storedImage ? url('/api/v1/files/' . $storedImage->id) : null,
+                    'image_url' => $storedImage ? url('/api/v1/files/'.$storedImage->id) : null,
                     'created_at' => optional($submission->created_at)?->toISOString(),
                 ],
             ], 201);
@@ -575,9 +575,9 @@ class WebsiteFormsController extends BaseApiController
     private function storeWebsiteFormImage(UploadedFile $file): FileModel
     {
         $disk = config('filesystems.default', 'public');
-        $folder = 'uploads/' . now()->format('Y/m/d');
+        $folder = 'uploads/'.now()->format('Y/m/d');
         $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
-        $filename = (string) Str::uuid() . '.' . $extension;
+        $filename = (string) Str::uuid().'.'.$extension;
         $path = $file->storeAs($folder, $filename, $disk);
 
         return FileModel::create([
@@ -597,9 +597,9 @@ class WebsiteFormsController extends BaseApiController
             $query->where(function ($subQuery) use ($search, $searchColumns) {
                 foreach ($searchColumns as $index => $column) {
                     if ($index === 0) {
-                        $subQuery->where($column, 'ilike', '%' . $search . '%');
+                        $subQuery->where($column, 'ilike', '%'.$search.'%');
                     } else {
-                        $subQuery->orWhere($column, 'ilike', '%' . $search . '%');
+                        $subQuery->orWhere($column, 'ilike', '%'.$search.'%');
                     }
                 }
             });
@@ -634,13 +634,11 @@ class WebsiteFormsController extends BaseApiController
             'status' => $item->status,
             'notes' => $item->notes,
             'image_file_id' => $item->image_file_id,
-            'image_url' => $item->image_file_id ? url('/api/v1/files/' . $item->image_file_id) : null,
+            'image_url' => $item->image_file_id ? url('/api/v1/files/'.$item->image_file_id) : null,
             'created_at' => optional($item->created_at)?->toISOString(),
             'updated_at' => optional($item->updated_at)?->toISOString(),
         ];
     }
-
-
 
     private function extractAnswers(array $data, array $fields): array
     {
@@ -675,7 +673,6 @@ class WebsiteFormsController extends BaseApiController
             default => 'Needs Improvement',
         };
     }
-
 
     private function calculateEntrepreneurCertificationScore(array $data): array
     {

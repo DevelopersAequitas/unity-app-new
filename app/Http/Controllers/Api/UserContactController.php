@@ -39,11 +39,13 @@ class UserContactController extends BaseApiController
 
             if ($mobileNormalized === '') {
                 $skipped++;
+
                 continue;
             }
 
             if (isset($prepared[$mobileNormalized])) {
                 $skipped++;
+
                 continue;
             }
 

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Profile\StoreUserLinkRequest;
 use App\Http\Requests\Profile\UpdateProfileRequest;
 use App\Http\Requests\Profile\UpdateTimezoneRequest;
@@ -102,7 +101,7 @@ class ProfileController extends BaseApiController
         }
 
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
-            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '') . ' ' . ($data['last_name'] ?? $user->last_name ?? ''));
+            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '').' '.($data['last_name'] ?? $user->last_name ?? ''));
             $data['display_name'] = $displayName !== '' ? $displayName : $user->email;
         }
 
@@ -157,7 +156,7 @@ class ProfileController extends BaseApiController
     }
 
     /**
-     * @param array<int, array<string, mixed>> $media
+     * @param  array<int, array<string, mixed>>  $media
      * @return array<int, array{id: string, url: string, type: string}>
      */
     private function formatMediaPayload(array $media): array
@@ -165,7 +164,7 @@ class ProfileController extends BaseApiController
         return collect($media)
             ->map(fn (array $item): array => [
                 'id' => (string) $item['id'],
-                'url' => url('/api/v1/files/' . $item['id']),
+                'url' => url('/api/v1/files/'.$item['id']),
                 'type' => (string) $item['type'],
             ])
             ->values()

@@ -93,7 +93,6 @@ class Event extends Model
         'recurrence_month' => 'integer',
     ];
 
-
     protected static function booted(): void
     {
         static::creating(function (Event $event): void {

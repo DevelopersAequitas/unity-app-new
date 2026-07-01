@@ -39,7 +39,6 @@ class DedReportsController extends Controller
         return $this->ded->success($this->ded->pendingRequestCounts($this->ded->admin($request)), 'DED pending requests report loaded.');
     }
 
-
     public function referralReport(Request $request)
     {
         $data = $this->ded->referralReport($request, $this->ded->admin($request));

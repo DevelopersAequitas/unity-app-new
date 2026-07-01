@@ -67,7 +67,7 @@ class CollaborationPostController extends Controller
             'filters' => $filters,
             'statuses' => $statuses,
             'types' => $types,
-            'circles' => DB::table('circles')->select(['id','name'])->orderBy('name')->get(),
+            'circles' => DB::table('circles')->select(['id', 'name'])->orderBy('name')->get(),
             'rowsPerPage' => $rowsPerPage,
             'total' => $posts->total(),
             'from' => $posts->firstItem(),
@@ -105,7 +105,7 @@ class CollaborationPostController extends Controller
             $query->whereIn('id', $selectedIds);
         }
 
-        $filename = 'collaborations_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'collaborations_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($query) {
             $out = fopen('php://output', 'w');
@@ -223,7 +223,7 @@ class CollaborationPostController extends Controller
 
         if ($filters['q'] !== '') {
             $value = $filters['q'];
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $value) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $value).'%';
 
             $query->where(function (Builder $inner) use ($like) {
                 $inner->where('peer.display_name', 'ILIKE', $like)
@@ -235,7 +235,7 @@ class CollaborationPostController extends Controller
         }
 
         if ($filters['peer_name'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['peer_name']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['peer_name']).'%';
             $query->where(function (Builder $inner) use ($like) {
                 $inner->where('peer.display_name', 'ILIKE', $like)
                     ->orWhere('peer.first_name', 'ILIKE', $like)
@@ -269,14 +269,14 @@ class CollaborationPostController extends Controller
             $typeInput = $filters['collaboration_type'];
 
             if (Schema::hasColumn('collaboration_posts', 'collaboration_type')) {
-                $query->where('collaboration_posts.collaboration_type', 'ILIKE', '%' . $this->escapeLike($typeInput) . '%');
+                $query->where('collaboration_posts.collaboration_type', 'ILIKE', '%'.$this->escapeLike($typeInput).'%');
             } elseif (Schema::hasColumn('collaboration_posts', 'collaboration_type_id')) {
                 if (Str::isUuid($typeInput)) {
                     $query->where('collaboration_posts.collaboration_type_id', $typeInput);
                 } elseif (class_exists(CollaborationType::class)) {
                     $typeIds = CollaborationType::query()
-                        ->where('name', 'ILIKE', '%' . $this->escapeLike($typeInput) . '%')
-                        ->orWhere('slug', 'ILIKE', '%' . $this->escapeLike($typeInput) . '%')
+                        ->where('name', 'ILIKE', '%'.$this->escapeLike($typeInput).'%')
+                        ->orWhere('slug', 'ILIKE', '%'.$this->escapeLike($typeInput).'%')
                         ->pluck('id')
                         ->all();
 
@@ -339,11 +339,12 @@ class CollaborationPostController extends Controller
         foreach (array_values($columns) as $index => $column) {
             $method = $this->pickMethod($useOr, $index);
             if ($castAsText) {
-                $query->{$method . 'Raw'}("CAST({$column} AS TEXT) ILIKE ?", ['%' . $this->escapeLike($value) . '%']);
+                $query->{$method.'Raw'}("CAST({$column} AS TEXT) ILIKE ?", ['%'.$this->escapeLike($value).'%']);
+
                 continue;
             }
 
-            $query->{$method}($column, 'ILIKE', '%' . $this->escapeLike($value) . '%');
+            $query->{$method}($column, 'ILIKE', '%'.$this->escapeLike($value).'%');
         }
     }
 

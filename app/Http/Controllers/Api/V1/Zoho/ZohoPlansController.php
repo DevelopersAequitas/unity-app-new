@@ -10,9 +10,7 @@ use Throwable;
 
 class ZohoPlansController extends Controller
 {
-    public function __construct(private readonly ZohoBillingService $zohoBillingService)
-    {
-    }
+    public function __construct(private readonly ZohoBillingService $zohoBillingService) {}
 
     public function index()
     {

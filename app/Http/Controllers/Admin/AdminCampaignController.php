@@ -3,30 +3,31 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessCampaignDeliveryJob;
 use App\Models\AdminCampaign;
+use App\Models\CampaignDelivery;
 use App\Models\CampaignEmailTemplate;
+use App\Models\CampaignLog;
 use App\Models\CampaignPamphlet;
 use App\Models\CampaignSchedule;
-use App\Models\CampaignDelivery;
-use App\Models\CampaignLog;
 use App\Services\AdminCampaigns\CampaignAudienceImportService;
 use App\Services\AdminCampaigns\CampaignEmailTemplateRenderer;
 use App\Services\AdminCampaigns\CampaignRecipientResolverService;
-use App\Services\AdminCampaigns\CampaignSendService;
 use App\Services\AdminCampaigns\CampaignScheduleCalculator;
-use App\Jobs\ProcessCampaignDeliveryJob;
+use App\Services\AdminCampaigns\CampaignSendService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class AdminCampaignController extends Controller
 {
     private const CAMPAIGN_TYPES = ['email_only', 'notification_only', 'email_and_notification'];
+
     private const AUDIENCE_TYPES = ['all_members', 'city', 'circle', 'company', 'category', 'membership_status', 'specific_members', 'custom_filter'];
 
     public function __construct(
@@ -34,8 +35,7 @@ class AdminCampaignController extends Controller
         private readonly CampaignSendService $sendService,
         private readonly CampaignAudienceImportService $audienceImportService,
         private readonly CampaignEmailTemplateRenderer $emailTemplateRenderer,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -45,8 +45,8 @@ class AdminCampaignController extends Controller
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
-                $q->where('title', 'ilike', '%' . $search . '%')
-                  ->orWhere('title', 'like', '%' . $search . '%');
+                $q->where('title', 'ilike', '%'.$search.'%')
+                    ->orWhere('title', 'like', '%'.$search.'%');
             });
         }
 
@@ -69,7 +69,6 @@ class AdminCampaignController extends Controller
 
         return view('admin.campaigns.index', compact('campaigns', 'stats', 'status'));
     }
-
 
     public function create(): View
     {
@@ -125,6 +124,7 @@ class AdminCampaignController extends Controller
         }
 
         $msg = ($action === 'send') ? 'Campaign activated and scheduled.' : 'Campaign draft saved.';
+
         return redirect()->route('admin.campaigns.show', $campaign)->with('success', $msg);
     }
 
@@ -137,7 +137,7 @@ class AdminCampaignController extends Controller
         }]);
 
         $deliveryIds = $campaign->deliveries->pluck('id')->all();
-        if (!empty($deliveryIds)) {
+        if (! empty($deliveryIds)) {
             $recipients = CampaignLog::with(['user', 'delivery'])
                 ->whereIn('delivery_id', $deliveryIds)
                 ->latest('created_at')
@@ -159,7 +159,7 @@ class AdminCampaignController extends Controller
 
             $paginator = $query->paginate(50);
             $paginator->getCollection()->transform(function ($user) use ($campaign) {
-                $recipient = new \stdClass();
+                $recipient = new \stdClass;
                 $recipient->id = $user->id;
                 $recipient->user_id = $user->id;
                 $recipient->user = $user;
@@ -169,6 +169,7 @@ class AdminCampaignController extends Controller
                 $recipient->error_message = null;
                 $recipient->sent_at = null;
                 $recipient->scheduled_at = $campaign->schedule?->next_run_at;
+
                 return $recipient;
             });
             $recipients = $paginator;
@@ -182,7 +183,7 @@ class AdminCampaignController extends Controller
 
         foreach ($campaign->deliveries as $del) {
             $executionHistory[] = [
-                'run_number' => 'Run #' . $runIndex++,
+                'run_number' => 'Run #'.$runIndex++,
                 'scheduled_time' => $campaign->formatTimestamp($del->scheduled_at),
                 'actual_time' => $del->started_at ? $campaign->formatTimestamp($del->started_at) : '-',
                 'status' => $del->status === 'sent' || $del->status === 'completed' ? 'Success' : \Illuminate\Support\Str::headline($del->status),
@@ -199,7 +200,7 @@ class AdminCampaignController extends Controller
             $nextRun1 = $campaign->schedule->next_run_at;
             if ($nextRun1) {
                 $executionHistory[] = [
-                    'run_number' => 'Run #' . $runIndex++,
+                    'run_number' => 'Run #'.$runIndex++,
                     'scheduled_time' => $campaign->formatTimestamp($nextRun1),
                     'actual_time' => 'Pending',
                     'status' => 'Pending',
@@ -214,7 +215,7 @@ class AdminCampaignController extends Controller
                     $nextRun2 = $calculator->calculateNextRunAt($campaign->schedule, $nextRun1);
                     if ($nextRun2) {
                         $executionHistory[] = [
-                            'run_number' => 'Run #' . $runIndex++,
+                            'run_number' => 'Run #'.$runIndex++,
                             'scheduled_time' => $campaign->formatTimestamp($nextRun2),
                             'actual_time' => 'Pending',
                             'status' => 'Pending',
@@ -243,7 +244,7 @@ class AdminCampaignController extends Controller
         }
 
         $campaign->load('schedule');
-        if (!$campaign->schedule) {
+        if (! $campaign->schedule) {
             $campaign->setRelation('schedule', new CampaignSchedule([
                 'schedule_type' => 'immediately',
                 'timezone' => 'UTC',
@@ -301,6 +302,7 @@ class AdminCampaignController extends Controller
         }
 
         $msg = ($action === 'send') ? 'Campaign activated and scheduled.' : 'Campaign draft updated.';
+
         return redirect()->route('admin.campaigns.show', $campaign)->with('success', $msg);
     }
 
@@ -338,11 +340,12 @@ class AdminCampaignController extends Controller
 
         if ($scheduleType === 'immediately') {
             $campaign->update(['status' => 'queued']);
+
             return $this->executeImmediateSend($campaign);
         }
 
         $campaign->update(['status' => 'active']);
-        
+
         if ($schedule) {
             $nextRun = app(CampaignScheduleCalculator::class)->calculateNextRunAt($schedule, now());
             $schedule->update(['next_run_at' => $nextRun]);
@@ -382,7 +385,7 @@ class AdminCampaignController extends Controller
                 $rules['schedule.weekdays.*'] = ['string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'];
             } elseif ($recurrenceType === 'monthly') {
                 $rules['schedule.monthly_basis'] = ['required', 'string', 'in:date,position'];
-                
+
                 $monthlyBasis = $request->input('schedule.monthly_basis');
                 if ($monthlyBasis === 'date') {
                     $rules['schedule.monthly_day_of_month'] = ['required', 'integer', 'min:1', 'max:31'];
@@ -417,7 +420,7 @@ class AdminCampaignController extends Controller
             $scheduleData['timezone'] = 'UTC';
         }
 
-        $schedule = $campaign->schedule ?: new CampaignSchedule();
+        $schedule = $campaign->schedule ?: new CampaignSchedule;
         $schedule->fill([
             'campaign_id' => $campaign->id,
             'schedule_type' => $scheduleType,
@@ -427,17 +430,17 @@ class AdminCampaignController extends Controller
             'send_time' => $scheduleData['send_time'] ?? now()->toTimeString(),
             'timezone' => $scheduleData['timezone'] ?? 'UTC',
             'recurrence_type' => $scheduleData['recurrence_type'] ?? null,
-            'frequency_interval' => isset($scheduleData['frequency_interval']) ? (int)$scheduleData['frequency_interval'] : null,
+            'frequency_interval' => isset($scheduleData['frequency_interval']) ? (int) $scheduleData['frequency_interval'] : null,
             'weekdays' => $weekdays,
             'monthly_basis' => $scheduleData['monthly_basis'] ?? null,
-            'monthly_day_of_month' => isset($scheduleData['monthly_day_of_month']) ? (int)$scheduleData['monthly_day_of_month'] : null,
+            'monthly_day_of_month' => isset($scheduleData['monthly_day_of_month']) ? (int) $scheduleData['monthly_day_of_month'] : null,
             'monthly_position' => $scheduleData['monthly_position'] ?? null,
             'monthly_day_of_week' => $scheduleData['monthly_day_of_week'] ?? null,
-            'yearly_month' => isset($scheduleData['yearly_month']) ? (int)$scheduleData['yearly_month'] : null,
-            'yearly_day' => isset($scheduleData['yearly_day']) ? (int)$scheduleData['yearly_day'] : null,
+            'yearly_month' => isset($scheduleData['yearly_month']) ? (int) $scheduleData['yearly_month'] : null,
+            'yearly_day' => isset($scheduleData['yearly_day']) ? (int) $scheduleData['yearly_day'] : null,
             'custom_unit' => $scheduleData['custom_unit'] ?? null,
-            'cycle_send_days' => isset($scheduleData['cycle_send_days']) ? (int)$scheduleData['cycle_send_days'] : null,
-            'cycle_pause_days' => isset($scheduleData['cycle_pause_days']) ? (int)$scheduleData['cycle_pause_days'] : null,
+            'cycle_send_days' => isset($scheduleData['cycle_send_days']) ? (int) $scheduleData['cycle_send_days'] : null,
+            'cycle_pause_days' => isset($scheduleData['cycle_pause_days']) ? (int) $scheduleData['cycle_pause_days'] : null,
         ]);
 
         if (in_array($campaign->status, ['active', 'scheduled', 'sent', 'queued'], true)) {
@@ -516,11 +519,11 @@ class AdminCampaignController extends Controller
             $this->sampleValues($audienceType, $columns, 2),
         ];
 
-        $csv = collect($rows)->map(fn (array $row): string => collect($row)->map(fn (string $value): string => '"' . str_replace('"', '""', $value) . '"')->implode(','))->implode("\n");
+        $csv = collect($rows)->map(fn (array $row): string => collect($row)->map(fn (string $value): string => '"'.str_replace('"', '""', $value).'"')->implode(','))->implode("\n");
 
-        return response($csv . "\n", 200, [
+        return response($csv."\n", 200, [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="campaign-' . str_replace('_', '-', $audienceType) . '-sample.csv"',
+            'Content-Disposition' => 'attachment; filename="campaign-'.str_replace('_', '-', $audienceType).'-sample.csv"',
         ]);
     }
 
@@ -549,7 +552,7 @@ class AdminCampaignController extends Controller
             default => 'audience values',
         };
 
-        return $count . ' ' . $label . ' imported successfully.';
+        return $count.' '.$label.' imported successfully.';
     }
 
     private function sampleColumns(): array
@@ -716,7 +719,7 @@ class AdminCampaignController extends Controller
 
         $newCampaign = DB::transaction(function () use ($campaign) {
             $duplicate = $campaign->replicate();
-            $duplicate->title = 'Copy of ' . $campaign->title;
+            $duplicate->title = 'Copy of '.$campaign->title;
             $duplicate->status = AdminCampaign::STATUS_DRAFT;
             $duplicate->total_recipients = 0;
             $duplicate->total_email_sent = 0;
@@ -734,6 +737,7 @@ class AdminCampaignController extends Controller
             }
 
             $this->logCampaignAction($duplicate, 'duplicated', ['original_campaign_id' => $campaign->id]);
+
             return $duplicate;
         });
 
@@ -758,6 +762,7 @@ class AdminCampaignController extends Controller
                 ]);
                 $this->logCampaignAction($campaign, 'retried');
             });
+
             return $this->executeImmediateSend($campaign);
         }
 
@@ -779,7 +784,6 @@ class AdminCampaignController extends Controller
         return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign retried and activated.');
     }
 
-
     private function logCampaignAction(AdminCampaign $campaign, string $action, array $extraDetails = []): void
     {
         try {
@@ -787,7 +791,7 @@ class AdminCampaignController extends Controller
             $ipAddress = request()->ip();
             $userAgent = request()->userAgent();
 
-            $log = new \App\Models\AdminAuditLog();
+            $log = new \App\Models\AdminAuditLog;
             $log->id = (string) \Illuminate\Support\Str::uuid();
             $log->admin_user_id = $admin?->id;
             $log->action = $action;
@@ -802,7 +806,7 @@ class AdminCampaignController extends Controller
             $log->created_at = now();
             $log->save();
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('Failed to log campaign action: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::warning('Failed to log campaign action: '.$e->getMessage());
         }
     }
 }

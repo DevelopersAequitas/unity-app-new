@@ -36,7 +36,7 @@ class CircleMemberResource extends JsonResource
 
                 $name = $user?->name
                     ?? $user?->display_name
-                    ?? trim(($user?->first_name ?? '') . ' ' . ($user?->last_name ?? ''))
+                    ?? trim(($user?->first_name ?? '').' '.($user?->last_name ?? ''))
                     ?: $user?->email;
 
                 return [
@@ -151,5 +151,4 @@ class CircleMemberResource extends JsonResource
             ->values()
             ->all();
     }
-
 }

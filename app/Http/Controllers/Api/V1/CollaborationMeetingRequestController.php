@@ -54,7 +54,7 @@ class CollaborationMeetingRequestController extends Controller
                 'collaboration_meeting_accepted',
                 [
                     'title' => 'Meeting request accepted',
-                    'body' => $meeting->toUser->display_name . ' accepted your meeting request.',
+                    'body' => $meeting->toUser->display_name.' accepted your meeting request.',
                     'post_id' => $meeting->post_id,
                     'post_title' => $meeting->post?->title,
                     'meeting_request_id' => $meeting->id,
@@ -70,7 +70,7 @@ class CollaborationMeetingRequestController extends Controller
                 'collaboration_meeting_rejected',
                 [
                     'title' => 'Meeting request rejected',
-                    'body' => $meeting->toUser->display_name . ' rejected your meeting request.',
+                    'body' => $meeting->toUser->display_name.' rejected your meeting request.',
                     'post_id' => $meeting->post_id,
                     'post_title' => $meeting->post?->title,
                     'meeting_request_id' => $meeting->id,

@@ -21,8 +21,7 @@ class ImpactController extends BaseApiController
     public function __construct(
         private readonly ImpactService $impactService,
         private readonly ImpactActionService $impactActionService,
-    ) {
-    }
+    ) {}
 
     public function actions(): JsonResponse
     {
@@ -79,7 +78,7 @@ class ImpactController extends BaseApiController
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
-        $historyTable = (new LifeImpactHistory())->getTable();
+        $historyTable = (new LifeImpactHistory)->getTable();
         $sumExpression = Schema::hasColumn($historyTable, 'impact_value')
             ? 'COALESCE(impact_value, 0)'
             : (Schema::hasColumn($historyTable, 'life_impacted')
@@ -106,7 +105,7 @@ class ImpactController extends BaseApiController
 
         $histories = LifeImpactHistory::query()
             ->where('user_id', $user->id)
-            ->when(Schema::hasColumn((new LifeImpactHistory())->getTable(), 'status'), fn ($query) => $query->where('status', 'approved'))
+            ->when(Schema::hasColumn((new LifeImpactHistory)->getTable(), 'status'), fn ($query) => $query->where('status', 'approved'))
             ->with([
                 'user:id,first_name,last_name,display_name,email,life_impacted_count',
                 'triggeredByUser:id,first_name,last_name,display_name,email,life_impacted_count',

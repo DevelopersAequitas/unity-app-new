@@ -32,31 +32,31 @@ class TestimonialResource extends JsonResource
         }
 
         return collect($media)->map(function ($item) {
-            $id   = $item['id']   ?? null;
+            $id = $item['id'] ?? null;
             $type = $item['type'] ?? 'image';
 
             return [
-                'id'   => $id,
+                'id' => $id,
                 'type' => $type,
-                'url'  => $id ? url('/api/v1/files/' . $id) : null,
+                'url' => $id ? url('/api/v1/files/'.$id) : null,
             ];
         })->all();
     }
 
     protected function formatUser($user): ?array
     {
-        if (!$user) {
+        if (! $user) {
             return null;
         }
 
         $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id;
         $profilePhotoUrl = $profilePhotoId
-            ? url('/api/v1/files/' . $profilePhotoId)
+            ? url('/api/v1/files/'.$profilePhotoId)
             : ($user->profile_photo_url ?? null);
 
         return [
             'id' => $user->id,
-            'display_name' => $user->display_name ?? $user->first_name . ' ' . $user->last_name,
+            'display_name' => $user->display_name ?? $user->first_name.' '.$user->last_name,
             'company_name' => $user->company_name,
             'designation' => $user->designation,
             'profile_photo_url' => $profilePhotoUrl,

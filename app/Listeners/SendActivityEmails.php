@@ -8,16 +8,14 @@ use App\Mail\ActivityAdminMail;
 use App\Mail\ActivityOtherUserMail;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Throwable;
 
 class SendActivityEmails
 {
-    public function __construct(private readonly EmailLogService $emailLogService)
-    {
-    }
+    public function __construct(private readonly EmailLogService $emailLogService) {}
 
     public function handle(ActivityCreated $event): void
     {
@@ -75,7 +73,7 @@ class SendActivityEmails
                 'user_id' => (string) $actor->id,
                 'to_email' => (string) $actor->email,
                 'to_name' => (string) $this->displayName($actor),
-                'template_key' => 'activity_actor_' . $activityTypeNormalized,
+                'template_key' => 'activity_actor_'.$activityTypeNormalized,
                 'source_module' => 'Activities',
                 'related_type' => get_class($event->activityModel),
                 'related_id' => (string) $event->activityModel->getKey(),
@@ -89,7 +87,7 @@ class SendActivityEmails
                 'user_id' => $actor?->id,
                 'to_email' => (string) ($actor->email ?? ''),
                 'to_name' => (string) $this->displayName($actor),
-                'template_key' => 'activity_actor_' . $activityTypeNormalized,
+                'template_key' => 'activity_actor_'.$activityTypeNormalized,
                 'source_module' => 'Activities',
                 'related_type' => get_class($event->activityModel),
                 'related_id' => (string) $event->activityModel->getKey(),
@@ -142,7 +140,7 @@ class SendActivityEmails
                 'user_id' => (string) $otherUser->id,
                 'to_email' => (string) $otherUser->email,
                 'to_name' => (string) $this->displayName($otherUser),
-                'template_key' => 'activity_other_user_' . $activityTypeNormalized,
+                'template_key' => 'activity_other_user_'.$activityTypeNormalized,
                 'source_module' => 'Activities',
                 'related_type' => get_class($event->activityModel),
                 'related_id' => (string) $event->activityModel->getKey(),
@@ -156,7 +154,7 @@ class SendActivityEmails
                 'user_id' => $otherUser?->id,
                 'to_email' => (string) ($otherUser->email ?? ''),
                 'to_name' => (string) $this->displayName($otherUser),
-                'template_key' => 'activity_other_user_' . $activityTypeNormalized,
+                'template_key' => 'activity_other_user_'.$activityTypeNormalized,
                 'source_module' => 'Activities',
                 'related_type' => get_class($event->activityModel),
                 'related_id' => (string) $event->activityModel->getKey(),
@@ -303,7 +301,7 @@ class SendActivityEmails
             return null;
         }
 
-        $fullName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
 
         return $user->display_name
             ?: ($fullName !== '' ? $fullName : ($user->email ?? null));

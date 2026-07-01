@@ -1,8 +1,8 @@
 <?php
 
+use App\Services\OnlineStatusService;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
-use App\Services\OnlineStatusService;
 
 Broadcast::channel('chat.{chatId}', function ($user, string $chatId) {
     return DB::table('chats')
@@ -40,7 +40,7 @@ Broadcast::channel('presence-chat.{chatId}', function ($user, string $chatId) {
     return [
         'id' => (string) $user->id,
         'display_name' => $user->display_name
-            ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+            ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
     ];
 });
 
@@ -48,11 +48,9 @@ Broadcast::channel('App.Models.User.{id}', function ($user, string $id) {
     return (string) $user->id === (string) $id;
 });
 
-
 Broadcast::channel('user.{userId}', function ($user, string $userId) {
     return (string) $user->id === (string) $userId;
 });
-
 
 Broadcast::channel('presence-circle-chat.{circleId}', function ($user, string $circleId) {
     $isMember = DB::table('circle_members')
@@ -69,7 +67,7 @@ Broadcast::channel('presence-circle-chat.{circleId}', function ($user, string $c
     return [
         'id' => (string) $user->id,
         'name' => $user->display_name
-            ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+            ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
     ];
 });
 
@@ -79,7 +77,7 @@ Broadcast::channel('presence-member-status', function ($user) {
     return [
         'id' => (string) $user->id,
         'name' => $user->display_name
-            ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+            ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
     ];
 });
 

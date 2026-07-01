@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api\V1\Ded;
 
 use App\Http\Controllers\Controller;
-use App\Services\Api\Ded\DedApiService;
 use App\Services\Api\Ded\DashboardAggregationService;
+use App\Services\Api\Ded\DedApiService;
 use App\Services\Api\Ded\DistrictAnalyticsService;
 use Illuminate\Http\Request;
 
@@ -124,7 +124,7 @@ class DedDashboardController extends Controller
         $data = $this->analytics->getActiveMembersDetail($admin, $filters);
 
         return $this->ded->success($data['records'], 'Active members loaded.', [
-            'summary' => $data['summary']
+            'summary' => $data['summary'],
         ]);
     }
 
@@ -152,7 +152,7 @@ class DedDashboardController extends Controller
         $data = $this->analytics->getLeadershipSpotsFilledDetail($admin, $filters);
 
         return $this->ded->success($data['records'], 'Leadership spots loaded.', [
-            'summary' => $data['summary']
+            'summary' => $data['summary'],
         ]);
     }
 
@@ -186,7 +186,7 @@ class DedDashboardController extends Controller
         ];
 
         return $this->ded->success($response, 'Membership conversion loaded.', [
-            'summary' => $data['summary']
+            'summary' => $data['summary'],
         ]);
     }
 
@@ -212,7 +212,7 @@ class DedDashboardController extends Controller
         $data = $this->analytics->getReferralActivityDetail($admin, $filters);
 
         return $this->ded->success($data['records'], 'Referral activity loaded.', [
-            'summary' => $data['summary']
+            'summary' => $data['summary'],
         ]);
     }
 
@@ -266,7 +266,7 @@ class DedDashboardController extends Controller
         })->all();
 
         return $this->ded->success($formatted, 'Industries overview loaded.', [
-            'summary' => $data['summary']
+            'summary' => $data['summary'],
         ]);
     }
 
@@ -361,6 +361,6 @@ class DedDashboardController extends Controller
         return $this->ded->success([
             'summary' => $summary,
             'records' => $data['records'],
-        ], ucfirst(str_replace('_', ' ', $role)) . ' details loaded.');
+        ], ucfirst(str_replace('_', ' ', $role)).' details loaded.');
     }
 }

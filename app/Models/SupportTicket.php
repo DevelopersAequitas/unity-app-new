@@ -12,7 +12,9 @@ class SupportTicket extends Model
     use HasFactory;
 
     protected $table = 'support_tickets';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -45,7 +47,6 @@ class SupportTicket extends Model
             }
         });
     }
-
 
     public function getMediaAttribute(): ?array
     {

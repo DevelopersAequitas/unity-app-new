@@ -26,8 +26,7 @@ class CoinClaimsController extends Controller
         private readonly CoinClaimActivityRegistry $registry,
         private readonly CoinsService $coinsService,
         private readonly CoinClaimEmailService $emailService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -248,7 +247,7 @@ class CoinClaimsController extends Controller
                     $this->coinsService->reward(
                         $claim->user,
                         $coins,
-                        'Coin claim approved: ' . $claim->activity_code . ' #' . $claim->id,
+                        'Coin claim approved: '.$claim->activity_code.' #'.$claim->id,
                         [
                             'source' => 'coin_claim_approved',
                             'claim_id' => (string) $claim->id,

@@ -60,7 +60,7 @@ class ImportIndiaDistricts extends Command
             }
 
             $stateKey = Str::lower($stateName);
-            $districtKey = $stateKey . '|' . Str::lower($districtName);
+            $districtKey = $stateKey.'|'.Str::lower($districtName);
             $stateRows[$stateKey] = $stateName;
             $districtRows[$districtKey] = [
                 'state_name' => $stateName,
@@ -170,6 +170,7 @@ class ImportIndiaDistricts extends Command
 
             if ($index === 0) {
                 $headers = array_map(fn ($header) => $this->normalizeHeader((string) $header), $columns);
+
                 continue;
             }
 

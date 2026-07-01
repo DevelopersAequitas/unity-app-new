@@ -10,10 +10,13 @@ class CertificationSubmission extends Model
     use HasUuids;
 
     public const TYPE_LEADERSHIP = 'leadership';
+
     public const TYPE_ENTREPRENEUR = 'entrepreneur';
 
     public const STATUS_NEW = 'new';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_REJECTED = 'rejected';
 
     protected $table = 'certification_submissions';

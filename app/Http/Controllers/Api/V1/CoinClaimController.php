@@ -22,8 +22,7 @@ class CoinClaimController extends BaseApiController
     public function __construct(
         private readonly CoinClaimActivityRegistry $registry,
         private readonly CoinClaimEmailService $emailService,
-    ) {
-    }
+    ) {}
 
     public function activities(): JsonResponse
     {
@@ -55,7 +54,7 @@ class CoinClaimController extends BaseApiController
 
             foreach ($fieldMap as $fieldKey => $fieldDefinition) {
                 if (($fieldDefinition['type'] ?? null) === 'phone' && isset($normalizedFields[$fieldKey])) {
-                    $normalizedFields[$fieldKey . '_normalized'] = preg_replace('/\D+/', '', (string) $normalizedFields[$fieldKey]);
+                    $normalizedFields[$fieldKey.'_normalized'] = preg_replace('/\D+/', '', (string) $normalizedFields[$fieldKey]);
                 }
 
                 $file = $uploaded[$fieldKey] ?? null;
@@ -154,7 +153,7 @@ class CoinClaimController extends BaseApiController
     private function storeClaimFile(UploadedFile $file, string $userId): string
     {
         $disk = config('filesystems.default', 'public');
-        $path = $file->store('uploads/' . now()->format('Y/m/d'), $disk);
+        $path = $file->store('uploads/'.now()->format('Y/m/d'), $disk);
 
         $record = FileModel::create([
             'uploader_user_id' => $userId,

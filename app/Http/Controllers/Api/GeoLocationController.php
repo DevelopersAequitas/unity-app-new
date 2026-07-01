@@ -126,9 +126,9 @@ class GeoLocationController extends BaseApiController
             ])
             ->selectRaw('user_geo_locations.last_seen_at as geo_last_seen_at')
             ->selectRaw('user_geo_locations.latitude as geo_latitude, user_geo_locations.longitude as geo_longitude')
-            ->selectRaw($distanceExpression . ' as distance_km', $distanceBindings)
+            ->selectRaw($distanceExpression.' as distance_km', $distanceBindings)
             ->when($radiusKm !== null, function ($query) use ($distanceExpression, $distanceBindings, $radiusKm) {
-                $query->whereRaw($distanceExpression . ' <= ?', [...$distanceBindings, $radiusKm]);
+                $query->whereRaw($distanceExpression.' <= ?', [...$distanceBindings, $radiusKm]);
             })
             ->orderBy('distance_km', 'asc')
             ->when($limit !== null, fn ($query) => $query->limit($limit))
@@ -146,10 +146,10 @@ class GeoLocationController extends BaseApiController
     private function distanceExpression(): string
     {
         return '6371 * acos(LEAST(1, GREATEST(-1, '
-            . 'cos(radians(?)) * cos(radians(user_geo_locations.latitude)) * '
-            . 'cos(radians(user_geo_locations.longitude) - radians(?)) + '
-            . 'sin(radians(?)) * sin(radians(user_geo_locations.latitude))'
-            . ')))';
+            .'cos(radians(?)) * cos(radians(user_geo_locations.latitude)) * '
+            .'cos(radians(user_geo_locations.longitude) - radians(?)) + '
+            .'sin(radians(?)) * sin(radians(user_geo_locations.latitude))'
+            .')))';
     }
 
     private function attachConnectionState($peers, string $authUserId): void

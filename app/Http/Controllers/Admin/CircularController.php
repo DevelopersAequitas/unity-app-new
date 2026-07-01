@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreCircularRequest;
 use App\Http\Requests\Admin\UpdateCircularRequest;
-use App\Models\Circular;
 use App\Models\Circle;
+use App\Models\Circular;
 use App\Models\City;
 use App\Services\Circulars\CircularNotificationService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -70,7 +70,7 @@ class CircularController extends Controller
 
     public function create(): View
     {
-        return $this->formView(new Circular(), 'admin.circulars.create');
+        return $this->formView(new Circular, 'admin.circulars.create');
     }
 
     public function store(StoreCircularRequest $request): RedirectResponse

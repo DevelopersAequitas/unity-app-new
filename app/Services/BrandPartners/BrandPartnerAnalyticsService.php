@@ -5,8 +5,8 @@ namespace App\Services\BrandPartners;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerCategory;
 use App\Models\BrandPartnerClick;
-use App\Models\BrandPartnerView;
 use App\Models\BrandPartnerSaved;
+use App\Models\BrandPartnerView;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +20,7 @@ class BrandPartnerAnalyticsService
         $totalPartners = BrandPartner::count();
         $featuredPartners = BrandPartner::where('is_featured', true)->count();
         $sponsoredPartners = BrandPartner::where('is_sponsored', true)->count();
-        
+
         $activeOffers = BrandPartner::where('is_active', true)
             ->whereNotNull('offer_title')
             ->where(function ($query) use ($now) {
@@ -34,7 +34,7 @@ class BrandPartnerAnalyticsService
             ->count();
 
         $inactivePartners = BrandPartner::where('is_active', false)->count();
-        
+
         // Views tracking
         $totalViews = BrandPartnerView::count();
         $uniqueViews = BrandPartnerView::selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
@@ -156,7 +156,7 @@ class BrandPartnerAnalyticsService
             ->orderByDesc('brand_partners_count')
             ->limit(5)
             ->get()
-            ->map(fn($cat) => [
+            ->map(fn ($cat) => [
                 'name' => $cat->name,
                 'count' => $cat->brand_partners_count,
             ])
@@ -203,7 +203,7 @@ class BrandPartnerAnalyticsService
         $uniqueViews = BrandPartnerView::where('brand_partner_id', $partnerId)
             ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
             ->first()->count;
-        
+
         $clicksQuery = BrandPartnerClick::where('brand_partner_id', $partnerId);
         $totalClicks = (clone $clicksQuery)->count();
         $uniqueClicks = (clone $clicksQuery)

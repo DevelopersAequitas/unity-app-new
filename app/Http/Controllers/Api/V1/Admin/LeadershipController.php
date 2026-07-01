@@ -3,10 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
-use App\Models\Circle;
 use App\Models\LeaderInterestSubmission;
-use App\Models\Role;
-use App\Models\User;
 use App\Services\Admin\AdminAuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,11 +11,9 @@ use Illuminate\Support\Facades\DB;
 
 class LeadershipController extends BaseApiController
 {
-    private const SUPPORTED_ROLES = ['ded','id','cf','cd','chair','vice_chair','secretary','powerhouse','advisor','honorary','industry_advisor','circle_advisor','circle_influencer'];
+    private const SUPPORTED_ROLES = ['ded', 'id', 'cf', 'cd', 'chair', 'vice_chair', 'secretary', 'powerhouse', 'advisor', 'honorary', 'industry_advisor', 'circle_advisor', 'circle_influencer'];
 
-    public function __construct(private readonly AdminAuditService $audit)
-    {
-    }
+    public function __construct(private readonly AdminAuditService $audit) {}
 
     public function roles(): JsonResponse
     {

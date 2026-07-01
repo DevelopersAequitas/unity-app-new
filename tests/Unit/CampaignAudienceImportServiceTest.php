@@ -41,12 +41,12 @@ class CampaignAudienceImportServiceTest extends TestCase
 
     private function service(): CampaignAudienceImportService
     {
-        return new CampaignAudienceImportService(new CampaignRecipientResolverService());
+        return new CampaignAudienceImportService(new CampaignRecipientResolverService);
     }
 
     private function writeXlsx(string $path, array $rows): void
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
         $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
@@ -55,15 +55,15 @@ class CampaignAudienceImportServiceTest extends TestCase
 
         $sheetRows = '';
         foreach ($rows as $rowIndex => $row) {
-            $sheetRows .= '<row r="' . ($rowIndex + 1) . '">';
+            $sheetRows .= '<row r="'.($rowIndex + 1).'">';
             foreach ($row as $columnIndex => $value) {
-                $cell = chr(ord('A') + $columnIndex) . ($rowIndex + 1);
-                $sheetRows .= '<c r="' . $cell . '" t="inlineStr"><is><t>' . htmlspecialchars($value, ENT_XML1) . '</t></is></c>';
+                $cell = chr(ord('A') + $columnIndex).($rowIndex + 1);
+                $sheetRows .= '<c r="'.$cell.'" t="inlineStr"><is><t>'.htmlspecialchars($value, ENT_XML1).'</t></is></c>';
             }
             $sheetRows .= '</row>';
         }
 
-        $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' . $sheetRows . '</sheetData></worksheet>');
+        $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'.$sheetRows.'</sheetData></worksheet>');
         $zip->close();
     }
 }

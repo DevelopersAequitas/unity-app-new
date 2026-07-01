@@ -17,12 +17,11 @@ class UserNotificationCreated implements ShouldBroadcastNow
     public function __construct(
         public string $userId,
         public array $notification,
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): PrivateChannel
     {
-        return new PrivateChannel('user.' . $this->userId);
+        return new PrivateChannel('user.'.$this->userId);
     }
 
     public function broadcastAs(): string

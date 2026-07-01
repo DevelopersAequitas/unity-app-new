@@ -25,7 +25,7 @@ class CoinsService
             return null;
         }
 
-        return DB::transaction(function () use ($user, $activityType, $activityId, $reference, $createdBy, $sourceType, $sourceId, $amount) {
+        return DB::transaction(function () use ($user, $activityType, $reference, $createdBy, $sourceType, $sourceId, $amount) {
             $user = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
 
             if ($sourceType !== null && $sourceId !== null && $this->hasSourceColumns()) {
@@ -51,7 +51,7 @@ class CoinsService
                 'user_id' => $user->id,
                 'amount' => $amount,
                 'balance_after' => $newBalance,
-                'reference' => $reference ?? ucfirst(str_replace('_', ' ', $activityType)) . ' reward',
+                'reference' => $reference ?? ucfirst(str_replace('_', ' ', $activityType)).' reward',
                 'created_by' => $createdBy ?? $user->id,
                 'created_at' => now(),
             ];
@@ -112,4 +112,3 @@ class CoinsService
             && Schema::hasColumn('coins_ledger', 'source_id');
     }
 }
-

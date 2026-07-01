@@ -2,17 +2,18 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\CampaignSchedule;
-use App\Models\CampaignDelivery;
 use App\Jobs\ProcessCampaignDeliveryJob;
+use App\Models\CampaignDelivery;
+use App\Models\CampaignSchedule;
 use App\Services\AdminCampaigns\CampaignScheduleCalculator;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class RunScheduledCampaigns extends Command
 {
     protected $signature = 'campaigns:run {--manual}';
+
     protected $description = 'Trigger pending campaign schedule deliveries';
 
     public function handle(CampaignScheduleCalculator $calculator): int
@@ -75,7 +76,7 @@ class RunScheduledCampaigns extends Command
                                         'created_at' => now(),
                                     ]);
                                 } catch (\Exception $e) {
-                                    Log::warning('Failed to log campaign schedule active transition: ' . $e->getMessage());
+                                    Log::warning('Failed to log campaign schedule active transition: '.$e->getMessage());
                                 }
                             }
 
@@ -91,7 +92,7 @@ class RunScheduledCampaigns extends Command
                             // 2. Update the in-memory object's last_run_at and calculate next run date
                             $schedule->last_run_at = $schedule->next_run_at;
                             $nextRun = $calculator->calculateNextRunAt($schedule, $now);
-                            
+
                             // 3. Update the schedule record
                             $schedule->update([
                                 'last_run_at' => $schedule->last_run_at,
@@ -114,14 +115,15 @@ class RunScheduledCampaigns extends Command
                             ProcessCampaignDeliveryJob::dispatch($delivery->id);
                         }
                     } catch (\Exception $e) {
-                        Log::error("Failed to trigger campaign ID {$schedule->campaign_id}: " . $e->getMessage());
+                        Log::error("Failed to trigger campaign ID {$schedule->campaign_id}: ".$e->getMessage());
                     }
                 }
             } else {
-                $this->info("No campaign schedules due at this time.");
+                $this->info('No campaign schedules due at this time.');
             }
 
             $this->info("Triggered {$triggeredCount} of {$processedCount} campaign schedules.");
+
             return Command::SUCCESS;
 
         } catch (\Throwable $e) {

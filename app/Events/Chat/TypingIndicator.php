@@ -4,10 +4,10 @@ namespace App\Events\Chat;
 
 use App\Models\Chat;
 use App\Models\User;
+use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Queue\SerializesModels;
 
 class TypingIndicator implements ShouldBroadcastNow
@@ -20,12 +20,11 @@ class TypingIndicator implements ShouldBroadcastNow
         public Chat $chat,
         public User $user,
         public bool $isTyping
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): array
     {
-        return [new PresenceChannel('presence-chat.' . $this->chat->id)];
+        return [new PresenceChannel('presence-chat.'.$this->chat->id)];
     }
 
     public function broadcastAs(): string
@@ -40,7 +39,7 @@ class TypingIndicator implements ShouldBroadcastNow
             'user' => [
                 'id' => (string) $this->user->id,
                 'display_name' => $this->user->display_name
-                    ?? trim(($this->user->first_name ?? '') . ' ' . ($this->user->last_name ?? '')),
+                    ?? trim(($this->user->first_name ?? '').' '.($this->user->last_name ?? '')),
             ],
             'is_typing' => $this->isTyping,
         ];

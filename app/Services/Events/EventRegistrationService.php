@@ -65,7 +65,6 @@ class EventRegistrationService
         );
     }
 
-
     public function registerApprovedCrossCircleMember(Event $event, EventOccurrence $occurrence, User $user, string $requestId, string $source = 'app'): EventRegistration
     {
         if ($occurrence->event_id !== $event->id) {
@@ -109,7 +108,6 @@ class EventRegistrationService
             true
         );
     }
-
 
     public function registerCrossCircleMemberDirect(Event $event, EventOccurrence $occurrence, User $user, string $source = 'app'): EventRegistration
     {
@@ -314,7 +312,6 @@ class EventRegistrationService
         if (! array_key_exists('visitor_business_category_sub_id', $data) && array_key_exists('visitor_business_category_id', $data)) {
             $data['visitor_business_category_sub_id'] = $data['visitor_business_category_id'];
         }
-
 
         return $data;
     }

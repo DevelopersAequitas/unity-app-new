@@ -19,7 +19,7 @@ class RequirementHistoryController extends BaseApiController
         $query = Requirement::query();
 
         $query->where('user_id', $authUserId);
-        $whereParts[] = 'user_id = "' . $authUserId . '"';
+        $whereParts[] = 'user_id = "'.$authUserId.'"';
 
         $query->whereNull('deleted_at');
         $whereParts[] = 'deleted_at IS NULL';

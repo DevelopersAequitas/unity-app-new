@@ -3,9 +3,9 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\Api\V1\AppConfigController;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use ReflectionMethod;
 use Tests\TestCase;
 

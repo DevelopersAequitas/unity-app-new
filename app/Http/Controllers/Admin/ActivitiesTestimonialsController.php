@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ActivitiesTestimonialsController extends Controller
 {
@@ -70,7 +70,7 @@ class ActivitiesTestimonialsController extends Controller
     {
         $filters = $this->filters($request);
         $tableFilters = $this->tableFilters($request);
-        $filename = 'testimonials_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'testimonials_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($request, $filters, $tableFilters) {
             @ini_set('zlib.output_compression', '0');
@@ -166,7 +166,6 @@ class ActivitiesTestimonialsController extends Controller
         ];
     }
 
-
     private function tableFilters(Request $request): array
     {
         return [
@@ -186,7 +185,7 @@ class ActivitiesTestimonialsController extends Controller
 
         if ($filters['q'] !== '') {
             $query->leftJoin('cities as actor_city', 'actor_city.id', '=', 'actor.city_id');
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['q']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['q']).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -215,7 +214,7 @@ class ActivitiesTestimonialsController extends Controller
         }
 
         if ($tableFilters['from_peer'] !== '') {
-            $like = '%' . $this->escapeLike($tableFilters['from_peer']) . '%';
+            $like = '%'.$this->escapeLike($tableFilters['from_peer']).'%';
             $query->where(function ($q) use ($like) {
                 $q->whereRaw("coalesce(nullif(trim(concat_ws(' ', actor.first_name, actor.last_name)), ''), actor.display_name, '') ILIKE ?", [$like])
                     ->orWhere('actor.company_name', 'ILIKE', $like)
@@ -224,7 +223,7 @@ class ActivitiesTestimonialsController extends Controller
         }
 
         if ($tableFilters['to_peer'] !== '') {
-            $like = '%' . $this->escapeLike($tableFilters['to_peer']) . '%';
+            $like = '%'.$this->escapeLike($tableFilters['to_peer']).'%';
             $query->where(function ($q) use ($like) {
                 $q->whereRaw("coalesce(nullif(trim(concat_ws(' ', peer.first_name, peer.last_name)), ''), peer.display_name, '') ILIKE ?", [$like])
                     ->orWhere('peer.company_name', 'ILIKE', $like)
@@ -341,7 +340,7 @@ class ActivitiesTestimonialsController extends Controller
             return $displayName;
         }
 
-        $name = trim(($firstName ?? '') . ' ' . ($lastName ?? ''));
+        $name = trim(($firstName ?? '').' '.($lastName ?? ''));
 
         return $name !== '' ? $name : '—';
     }
@@ -405,7 +404,7 @@ class ActivitiesTestimonialsController extends Controller
             }
 
             if ($id && Str::isUuid($id)) {
-                return url('/api/v1/files/' . $id);
+                return url('/api/v1/files/'.$id);
             }
 
             return $id ?: null;
@@ -417,7 +416,7 @@ class ActivitiesTestimonialsController extends Controller
             }
 
             if (Str::isUuid($item)) {
-                return url('/api/v1/files/' . $item);
+                return url('/api/v1/files/'.$item);
             }
 
             return $item;

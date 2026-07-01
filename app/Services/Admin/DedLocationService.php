@@ -19,9 +19,7 @@ class DedLocationService
 
     private ?Collection $usedLocationPairs = null;
 
-    public function __construct(private readonly DistrictSyncService $districtSyncService)
-    {
-    }
+    public function __construct(private readonly DistrictSyncService $districtSyncService) {}
 
     public function getAvailableStates(): Collection
     {
@@ -107,7 +105,6 @@ class DedLocationService
         return $this->districtSyncService->uniqueDistrictRows($districts);
     }
 
-
     public function districtBelongsToState(string $districtId, string $stateId): bool
     {
         return $this->getAvailableDistrictsByState($stateId)
@@ -148,7 +145,7 @@ class DedLocationService
         $selects = ['admin_ded_districts.admin_user_id'];
         foreach (['state_id', 'district_id', 'state_name', 'district_name'] as $column) {
             if (Schema::hasColumn('admin_ded_districts', $column)) {
-                $selects[] = 'admin_ded_districts.' . $column;
+                $selects[] = 'admin_ded_districts.'.$column;
             }
         }
 
@@ -185,10 +182,11 @@ class DedLocationService
 
         if (! $districtName) {
             $query->whereRaw('1=0');
+
             return;
         }
 
-        $query->whereRaw('LOWER(NULLIF(TRIM(' . $userColumn . "), '')) = ?", [Str::lower($districtName)]);
+        $query->whereRaw('LOWER(NULLIF(TRIM('.$userColumn."), '')) = ?", [Str::lower($districtName)]);
     }
 
     public function resolveDistrictId(?string $districtName, ?string $stateId = null): ?string
@@ -236,7 +234,6 @@ class DedLocationService
         $this->locationsSynced = true;
     }
 
-
     private function usedLocationPairs(): Collection
     {
         if ($this->usedLocationPairs !== null) {
@@ -256,7 +253,7 @@ class DedLocationService
 
         return $this->usedLocationPairs = $pairs
             ->filter(fn (object $pair): bool => $pair->state_key !== '' && $pair->district_key !== '')
-            ->unique(fn (object $pair): string => $pair->state_key . '|' . $pair->district_key)
+            ->unique(fn (object $pair): string => $pair->state_key.'|'.$pair->district_key)
             ->values();
     }
 
@@ -271,8 +268,8 @@ class DedLocationService
             : 'cities.name as district_name';
 
         DB::table($ownerTable)
-            ->join('cities', 'cities.id', '=', $ownerTable . '.city_id')
-            ->whereNotNull($ownerTable . '.city_id')
+            ->join('cities', 'cities.id', '=', $ownerTable.'.city_id')
+            ->whereNotNull($ownerTable.'.city_id')
             ->whereNotNull('cities.state')
             ->whereRaw("NULLIF(TRIM(cities.state), '') IS NOT NULL")
             ->distinct()
@@ -286,10 +283,10 @@ class DedLocationService
             return;
         }
 
-        $columns = [$districtColumn . ' as district_name'];
+        $columns = [$districtColumn.' as district_name'];
         $hasStateColumn = Schema::hasColumn($table, $stateColumn);
         if ($hasStateColumn) {
-            $columns[] = $stateColumn . ' as state_name';
+            $columns[] = $stateColumn.' as state_name';
         }
 
         DB::table($table)

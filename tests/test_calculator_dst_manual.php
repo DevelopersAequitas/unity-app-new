@@ -1,4 +1,5 @@
 <?php
+
 require 'c:/Users/HP/Downloads/unity-app 27-5-2026/unity-app/vendor/autoload.php';
 $app = require_once 'c:/Users/HP/Downloads/unity-app 27-5-2026/unity-app/bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
@@ -8,7 +9,7 @@ use App\Models\CampaignSchedule;
 use App\Services\AdminCampaigns\CampaignScheduleCalculator;
 use Carbon\Carbon;
 
-$calculator = new CampaignScheduleCalculator();
+$calculator = new CampaignScheduleCalculator;
 
 $schedule = new CampaignSchedule([
     'schedule_type' => 'recurring',
@@ -28,12 +29,12 @@ echo "DST RECURRENCE EVALUATION TRACE:\n";
 for ($i = 0; $i < 4; $i++) {
     // Calculate next run starting from current time
     $next = $calculator->calculateNextRunAt($schedule, $current);
-    
-    echo "  Calculation from: " . $current->copy()->setTimezone('America/New_York')->toDateTimeString() . " EST/EDT (" . $current->toDateTimeString() . " UTC)\n";
+
+    echo '  Calculation from: '.$current->copy()->setTimezone('America/New_York')->toDateTimeString().' EST/EDT ('.$current->toDateTimeString()." UTC)\n";
     if ($next) {
-        echo "  Next Run (UTC):   " . $next->toDateTimeString() . "\n";
-        echo "  Next Run (Local): " . $next->copy()->setTimezone('America/New_York')->toDateTimeString() . " EST/EDT\n";
-        
+        echo '  Next Run (UTC):   '.$next->toDateTimeString()."\n";
+        echo '  Next Run (Local): '.$next->copy()->setTimezone('America/New_York')->toDateTimeString()." EST/EDT\n";
+
         // Advance current evaluation time for the next iteration (simulate job running at the scheduled time)
         $current = $next->copy();
         $schedule->last_run_at = $next;

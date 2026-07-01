@@ -18,9 +18,7 @@ use Razorpay\Api\Utility;
 
 class PaymentController extends Controller
 {
-    public function __construct(private readonly MembershipService $membershipService)
-    {
-    }
+    public function __construct(private readonly MembershipService $membershipService) {}
 
     public function createOrder(CreateOrderRequest $request): JsonResponse
     {

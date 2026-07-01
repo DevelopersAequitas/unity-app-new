@@ -19,7 +19,7 @@ class LifeImpactRecalculateUsersCommand extends Command
 
         $this->newLine();
         $this->info('Life impact users recalculation completed.');
-        $this->line('Users updated from history totals: ' . $updatedUsers);
+        $this->line('Users updated from history totals: '.$updatedUsers);
 
         return self::SUCCESS;
     }

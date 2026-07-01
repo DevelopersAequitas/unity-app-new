@@ -26,7 +26,6 @@ class ExampleTest extends TestCase
         $response->assertStatus(200);
     }
 
-
     public function test_user_resource_returns_trial_membership_label(): void
     {
         $user = new User([
@@ -56,7 +55,7 @@ class ExampleTest extends TestCase
 
     public function test_sync_membership_expiry_command_name_is_registered(): void
     {
-        $this->assertSame('users:sync-membership-expiry', (new SyncMembershipExpiryFields())->getName());
+        $this->assertSame('users:sync-membership-expiry', (new SyncMembershipExpiryFields)->getName());
     }
 
     public function test_expire_trial_command_downgrades_only_expired_trial_users(): void

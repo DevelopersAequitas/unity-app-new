@@ -43,11 +43,13 @@ class ZohoPaymentWebhookService
 
             if (($event->status ?? null) === 'processed') {
                 Log::info('zoho_payment_webhook_duplicate_ignored', $this->context($event, $normalized) + ['duplicate_status' => $event->status]);
+
                 return ['message' => 'Webhook already processed.', 'normalized' => $normalized, 'webhook_event_id' => $event->id];
             }
 
             if (($event->status ?? null) === 'processing' && $event->updated_at && $event->updated_at->greaterThan(now()->subMinutes(5))) {
                 Log::info('zoho_payment_webhook_duplicate_ignored', $this->context($event, $normalized) + ['duplicate_status' => $event->status]);
+
                 return ['message' => 'Webhook is already processing.', 'normalized' => $normalized, 'webhook_event_id' => $event->id];
             }
 
@@ -96,6 +98,7 @@ class ZohoPaymentWebhookService
 
         if ($this->isSubscriptionPaymentWebhook($normalized) && ! $this->hasStrongEventRegistrationHint($normalized)) {
             Log::info('zoho_webhook_detected_subscription_payment', $this->context($event, $normalized));
+
             return $this->processSubscriptionPaymentEvent($event, $payload, $normalized);
         }
 
@@ -103,6 +106,7 @@ class ZohoPaymentWebhookService
         if (! $registration) {
             if ($this->isSubscriptionPaymentWebhook($normalized)) {
                 Log::info('zoho_webhook_detected_subscription_payment', $this->context($event, $normalized));
+
                 return $this->processSubscriptionPaymentEvent($event, $payload, $normalized);
             }
 
@@ -110,6 +114,7 @@ class ZohoPaymentWebhookService
             $event->forceFill(['status' => 'ignored', 'processed_at' => now(), 'error' => $lookupError])->save();
             Log::warning('zoho_payment_webhook_registration_not_found', $this->context($event, $normalized));
             Log::warning('zoho_payment_webhook_ignored_registration_not_found', $this->context($event, $normalized));
+
             return ['message' => 'Webhook received but registration not found.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => false, 'error' => $lookupError];
         }
 
@@ -130,12 +135,14 @@ class ZohoPaymentWebhookService
             $event->forceFill(['status' => 'processed', 'processed_at' => now(), 'error' => null])->save();
             Log::info('zoho_payment_webhook_cancelled_or_expired', $this->context($event, $normalized));
             Log::info('zoho_payment_webhook_processed', $this->context($event, $normalized));
+
             return ['message' => 'Webhook received.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => true];
         }
 
         if ($this->isAlreadyFullySynced($registration)) {
             $event->forceFill(['status' => 'processed', 'processed_at' => now(), 'error' => null])->save();
             Log::info('zoho_payment_webhook_processed', $this->context($event, $normalized));
+
             return ['message' => 'Webhook already processed.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => true, 'registration_id' => (string) $registration->id];
         }
 
@@ -164,15 +171,19 @@ class ZohoPaymentWebhookService
         $verifySignature = filter_var(env('ZOHO_PAYMENT_WEBHOOK_VERIFY_SIGNATURE', false), FILTER_VALIDATE_BOOL);
         if ($verifySignature) {
             $signature = $request->header('X-Zoho-Webhook-Signature') ?: $request->header('X-Zoho-Signature') ?: $request->header('X-Zoho-Payments-Signature');
+
             return $secret !== '' && $signature !== '' && hash_equals(hash_hmac('sha256', $request->getContent(), $secret), (string) $signature);
         }
         if ($secret === '') {
             if (app()->environment('local')) {
                 Log::warning('Zoho payment webhook secret is empty; allowing local webhook request.');
+
                 return true;
             }
+
             return false;
         }
+
         return hash_equals($secret, (string) $request->query('secret', '')) || hash_equals($secret, (string) $request->header('X-Webhook-Secret', ''));
     }
 
@@ -272,7 +283,9 @@ class ZohoPaymentWebhookService
             $query->whereRaw('1 = 0');
         }
         $existing = $query->first();
-        if ($existing) return $existing;
+        if ($existing) {
+            return $existing;
+        }
 
         $event = WebhookEvent::query()->create([
             'provider' => 'zoho',
@@ -285,6 +298,7 @@ class ZohoPaymentWebhookService
             'headers' => $this->safeHeaders($request),
         ]);
         Log::info('zoho_payment_webhook_event_stored', $this->context($event, $info));
+
         return $event;
     }
 
@@ -299,6 +313,7 @@ class ZohoPaymentWebhookService
             $registration = EventRegistration::query()->where('id', $info['parsed_registration_id'])->first();
             if ($registration) {
                 Log::info('zoho_payment_webhook_lookup_by_registration_id_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
+
                 return $registration;
             }
         }
@@ -308,6 +323,7 @@ class ZohoPaymentWebhookService
             $registration = EventRegistration::query()->where('id', $info['registration_id'])->first();
             if ($registration) {
                 Log::info('zoho_payment_webhook_lookup_by_registration_id_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
+
                 return $registration;
             }
         }
@@ -323,6 +339,7 @@ class ZohoPaymentWebhookService
                 $registration = EventRegistration::query()->where($column, $value)->latest('created_at')->first();
                 if ($registration) {
                     Log::info('zoho_payment_webhook_registration_found_final', $this->context($event, $info) + ['registration_id' => (string) $registration->id, 'matched_column' => $column]);
+
                     return $registration;
                 }
             }
@@ -333,6 +350,7 @@ class ZohoPaymentWebhookService
             $registration = EventRegistration::query()->where('zoho_payment_link_id', $info['payment_link_id'])->latest('created_at')->first();
             if ($registration) {
                 Log::info('zoho_payment_webhook_lookup_by_payment_link_id_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
+
                 return $registration;
             }
         }
@@ -342,6 +360,7 @@ class ZohoPaymentWebhookService
             $registration = EventRegistration::query()->where('zoho_payment_link_id', $info['parsed_payment_link_id'])->latest('created_at')->first();
             if ($registration) {
                 Log::info('zoho_payment_webhook_lookup_by_payment_link_id_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
+
                 return $registration;
             }
         }
@@ -351,6 +370,7 @@ class ZohoPaymentWebhookService
             $registration = EventRegistration::query()->where('zoho_payment_id', $info['parsed_original_payment_id'])->latest('created_at')->first();
             if ($registration) {
                 Log::info('zoho_payment_webhook_registration_found_final', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
+
                 return $registration;
             }
         }
@@ -360,6 +380,7 @@ class ZohoPaymentWebhookService
             $registration = EventRegistration::query()->where('zoho_payment_id', $info['payment_id'])->latest('created_at')->first();
             if ($registration) {
                 Log::info('zoho_payment_webhook_registration_found_final', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
+
                 return $registration;
             }
         }
@@ -373,6 +394,7 @@ class ZohoPaymentWebhookService
                 ->first();
             if ($registration) {
                 Log::info('zoho_payment_webhook_registration_found_final', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
+
                 return $registration;
             }
         }
@@ -386,13 +408,17 @@ class ZohoPaymentWebhookService
                 ->orWhere('zoho_hosted_page_url', $url)
                 ->latest('created_at')
                 ->first();
-            if ($registration) return $registration;
+            if ($registration) {
+                return $registration;
+            }
         }
 
         foreach ([data_get($payload, 'registration_id'), data_get($payload, 'reference_number'), data_get($payload, 'payment.reference_number'), data_get($payload, 'data.reference_number')] as $id) {
             if ($id && Str::isUuid((string) $id)) {
                 $registration = EventRegistration::query()->find($id);
-                if ($registration) return $registration;
+                if ($registration) {
+                    return $registration;
+                }
             }
         }
 
@@ -412,11 +438,13 @@ class ZohoPaymentWebhookService
             if ($candidates->count() === 1) {
                 $registration = $candidates->first();
                 Log::info('zoho_payment_webhook_lookup_by_customer_amount_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id, 'amount' => $amount]);
+
                 return $registration;
             }
             if ($candidates->count() > 1) {
                 $this->lastLookupError = 'Multiple matching registrations found for customer/amount fallback.';
                 Log::warning('zoho_payment_webhook_lookup_multiple_candidates', $this->context($event, $info) + ['candidate_count' => $candidates->count(), 'amount' => $amount]);
+
                 return null;
             }
             Log::warning('zoho_payment_webhook_lookup_by_customer_amount_failed', $this->context($event, $info) + ['amount' => $amount]);
@@ -427,11 +455,13 @@ class ZohoPaymentWebhookService
             if ($candidates->count() === 1) {
                 $registration = $candidates->first();
                 Log::info('zoho_payment_webhook_lookup_by_customer_only_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
+
                 return $registration;
             }
             if ($candidates->count() > 1) {
                 $this->lastLookupError = 'Multiple possible registrations found for payment webhook customer fallback.';
                 Log::warning('zoho_payment_webhook_lookup_multiple_candidates', $this->context($event, $info) + ['candidate_count' => $candidates->count()]);
+
                 return null;
             }
         }
@@ -458,17 +488,20 @@ class ZohoPaymentWebhookService
             if ($candidates->count() === 1) {
                 $registration = $candidates->first();
                 Log::info('zoho_payment_webhook_lookup_by_email_amount_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id, 'amount' => $amount]);
+
                 return $registration;
             }
 
             if ($candidates->count() > 1) {
                 $this->lastLookupError = 'Multiple matching registrations found for email/amount fallback.';
                 Log::warning('zoho_payment_webhook_lookup_multiple_candidates', $this->context($event, $info) + ['candidate_count' => $candidates->count(), 'amount' => $amount]);
+
                 return null;
             }
         }
 
         $this->lastLookupError = 'Registration not found for webhook.';
+
         return null;
     }
 
@@ -524,7 +557,9 @@ class ZohoPaymentWebhookService
 
     private function markCancelledOrExpired(EventRegistration $registration, array $payload, string $status): void
     {
-        if (($registration->payment_status ?? null) === 'paid') return;
+        if (($registration->payment_status ?? null) === 'paid') {
+            return;
+        }
         $registration->forceFill($this->filter([
             'zoho_payment_status' => $status,
             'payment_status' => $status === 'expired' ? 'expired' : 'failed',
@@ -698,6 +733,7 @@ class ZohoPaymentWebhookService
     private function jsonTextLikeExpression(string $column): string
     {
         $driver = Schema::getConnection()->getDriverName();
+
         return match ($driver) {
             'pgsql' => $column.'::text LIKE ?',
             'sqlite' => $column.' LIKE ?',
@@ -924,7 +960,6 @@ class ZohoPaymentWebhookService
         ];
     }
 
-
     private function parseDescriptionIdentifiers(string $description): array
     {
         $parsed = [];
@@ -940,12 +975,14 @@ class ZohoPaymentWebhookService
         if (preg_match('/original_payment_id=([0-9]+)/', $description, $m) || preg_match('/original payment\s+([0-9]+)/i', $description, $m)) {
             $parsed['original_payment_id'] = $m[1];
         }
+
         return $parsed;
     }
 
     private function blankToNull($value): ?string
     {
         $value = trim((string) $value);
+
         return $value === '' ? null : $value;
     }
 

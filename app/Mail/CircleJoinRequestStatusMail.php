@@ -19,8 +19,7 @@ class CircleJoinRequestStatusMail extends Mailable
         public string $body,
         public ?string $statusLabel = null,
         public ?string $rejectionReason = null,
-    ) {
-    }
+    ) {}
 
     public function build(): self
     {

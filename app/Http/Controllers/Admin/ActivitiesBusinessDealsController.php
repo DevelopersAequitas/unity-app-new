@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ActivitiesBusinessDealsController extends Controller
 {
@@ -29,8 +29,8 @@ class ActivitiesBusinessDealsController extends Controller
                 'activity.business_type',
                 'activity.comment',
                 'activity.created_at',
-                DB::raw($this->hasMediaSelectExpression() . ' as has_media'),
-                DB::raw($this->mediaReferenceSelectExpression() . ' as media_reference'),
+                DB::raw($this->hasMediaSelectExpression().' as has_media'),
+                DB::raw($this->mediaReferenceSelectExpression().' as media_reference'),
                 'actor.display_name as actor_display_name',
                 'actor.first_name as actor_first_name',
                 'actor.last_name as actor_last_name',
@@ -65,7 +65,7 @@ class ActivitiesBusinessDealsController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->filters($request);
-        $filename = 'business_deals_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'business_deals_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($request, $filters) {
             @ini_set('zlib.output_compression', '0');
@@ -110,8 +110,8 @@ class ActivitiesBusinessDealsController extends Controller
                         'peer.first_name as peer_first_name',
                         'peer.last_name as peer_last_name',
                         'peer.email as peer_email',
-                        DB::raw($this->hasMediaSelectExpression() . ' as has_media'),
-                        DB::raw($this->mediaReferenceSelectExpression() . ' as media_reference'),
+                        DB::raw($this->hasMediaSelectExpression().' as has_media'),
+                        DB::raw($this->mediaReferenceSelectExpression().' as media_reference'),
                     ])
                     ->orderBy('activity.created_at')
                     ->orderBy('activity.id')
@@ -188,7 +188,7 @@ class ActivitiesBusinessDealsController extends Controller
 
         if ($filters['q'] !== '') {
             $query->leftJoin('cities as actor_city', 'actor_city.id', '=', 'actor.city_id');
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['q']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['q']).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -242,15 +242,15 @@ class ActivitiesBusinessDealsController extends Controller
         }
 
         if ($filters['deal_amount'] !== '') {
-            $query->whereRaw('CAST(activity.deal_amount AS TEXT) ILIKE ?', ['%' . $this->escapeLike($filters['deal_amount']) . '%']);
+            $query->whereRaw('CAST(activity.deal_amount AS TEXT) ILIKE ?', ['%'.$this->escapeLike($filters['deal_amount']).'%']);
         }
 
         if ($filters['business_type'] !== '') {
-            $query->where('activity.business_type', 'ILIKE', '%' . $this->escapeLike($filters['business_type']) . '%');
+            $query->where('activity.business_type', 'ILIKE', '%'.$this->escapeLike($filters['business_type']).'%');
         }
 
         if ($filters['comment'] !== '') {
-            $query->where('activity.comment', 'ILIKE', '%' . $this->escapeLike($filters['comment']) . '%');
+            $query->where('activity.comment', 'ILIKE', '%'.$this->escapeLike($filters['comment']).'%');
         }
 
         if ($filters['has_media'] === 'yes') {
@@ -329,10 +329,12 @@ class ActivitiesBusinessDealsController extends Controller
         foreach (['media', 'media_id', 'media_file_id', 'file_id', 'attachment_id', 'media_url'] as $candidate) {
             if (Schema::hasColumn('business_deals', $candidate)) {
                 $column = $candidate;
+
                 return $column;
             }
         }
         $column = null;
+
         return null;
     }
 
@@ -348,12 +350,14 @@ class ActivitiesBusinessDealsController extends Controller
         if ($column) {
             return "CASE WHEN activity.{$column} IS NULL THEN 0 ELSE 1 END";
         }
+
         return '0';
     }
 
     private function mediaReferenceSelectExpression(): string
     {
         $column = $this->dealMediaColumn();
+
         return $column ? "activity.{$column}" : 'NULL';
     }
 
@@ -364,15 +368,18 @@ class ActivitiesBusinessDealsController extends Controller
             if ($hasMedia) {
                 $query->whereRaw('1 = 0');
             }
+
             return;
         }
         $qualified = "activity.{$column}";
         if ($column === 'media_url') {
             $query->whereRaw($hasMedia ? "NULLIF({$qualified}, '') IS NOT NULL" : "NULLIF({$qualified}, '') IS NULL");
+
             return;
         }
         if ($column === 'media') {
             $query->whereRaw($hasMedia ? "{$qualified} IS NOT NULL AND {$qualified}::text <> '[]'" : "{$qualified} IS NULL OR {$qualified}::text = '[]'");
+
             return;
         }
         $hasMedia ? $query->whereNotNull($qualified) : $query->whereNull($qualified);
@@ -430,9 +437,8 @@ class ActivitiesBusinessDealsController extends Controller
             return $displayName;
         }
 
-        $name = trim(($firstName ?? '') . ' ' . ($lastName ?? ''));
+        $name = trim(($firstName ?? '').' '.($lastName ?? ''));
 
         return $name !== '' ? $name : '—';
     }
-
 }

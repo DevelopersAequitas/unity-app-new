@@ -22,7 +22,7 @@ class EventGalleryApiController extends BaseApiController
             ]);
 
         if ($search = trim((string) $request->query('q', ''))) {
-            $query->where('event_name', 'ILIKE', '%' . $search . '%');
+            $query->where('event_name', 'ILIKE', '%'.$search.'%');
         }
 
         $perPage = (int) $request->query('per_page', 20);

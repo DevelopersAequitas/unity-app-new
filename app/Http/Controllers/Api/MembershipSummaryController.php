@@ -8,9 +8,7 @@ use Illuminate\Http\Request;
 
 class MembershipSummaryController extends BaseApiController
 {
-    public function __construct(private readonly MembershipSummaryService $membershipSummaryService)
-    {
-    }
+    public function __construct(private readonly MembershipSummaryService $membershipSummaryService) {}
 
     public function show(Request $request): JsonResponse
     {
