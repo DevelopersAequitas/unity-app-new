@@ -89,8 +89,7 @@ class CircleMemberDashboardTest extends TestCase
         // Assert success and presence of dashboard content
         $response->assertStatus(200);
         $response->assertSee('John Chair');
-        $response->assertSee('Chair Dashboard');
+        $response->assertSee('Circle Dashboard');
         $response->assertSee('Test Circle Alpha');
-        $response->assertSee('500');
     }
 }

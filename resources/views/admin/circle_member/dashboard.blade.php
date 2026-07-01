@@ -1,6 +1,6 @@
 @extends('admin.layouts.app')
 
-@section('title', $roleLabel . ' Dashboard')
+@section('title', 'Circle Dashboard')
 
 @push('styles')
 <style>
@@ -62,7 +62,7 @@
     <!-- Header -->
     <div class="dashboard-header p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
-            <div class="badge bg-white text-primary mb-2 fw-semibold px-3 py-1.5 rounded-pill">{{ $roleLabel }} Portal</div>
+            <div class="badge bg-white text-primary mb-2 fw-semibold px-3 py-1.5 rounded-pill">Circle Dashboard</div>
             <h2 class="mb-1 fw-bold text-white">Welcome back, {{ $data['user']->display_name }}</h2>
             <p class="mb-0 text-white-50">Here is a scoped overview of your circles, peers, and pending approvals.</p>
         </div>
@@ -76,7 +76,7 @@
     <!-- KPI Summary Grid -->
     <div class="row g-3 mb-4">
         <!-- Scoped Peers -->
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-md-6">
             <div class="card glass-card p-3 h-100 border-0">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
@@ -93,44 +93,8 @@
             </div>
         </div>
 
-        <!-- Joined Circles -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card glass-card p-3 h-100 border-0">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <p class="text-muted small fw-medium mb-1">Joined Circles</p>
-                        <h3 class="mb-0 fw-bold">{{ number_format($data['joinedCircles']->count()) }}</h3>
-                    </div>
-                    <div class="kpi-icon-wrapper bg-icon-success">
-                        <i class="bi bi-diagram-3-fill"></i>
-                    </div>
-                </div>
-                <div class="mt-3 text-muted small">
-                    <i class="bi bi-arrow-right-short text-success"></i> Active circle memberships
-                </div>
-            </div>
-        </div>
-
-        <!-- Coins Info -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card glass-card p-3 h-100 border-0">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <p class="text-muted small fw-medium mb-1">Coins Info</p>
-                        <h3 class="mb-0 fw-bold">{{ number_format($data['userCoins']) }} <span class="fs-6 text-muted">/ {{ number_format($data['totalCircleCoins']) }}</span></h3>
-                    </div>
-                    <div class="kpi-icon-wrapper bg-icon-warning">
-                        <i class="bi bi-coin"></i>
-                    </div>
-                </div>
-                <div class="mt-3 text-muted small">
-                    <i class="bi bi-arrow-right-short text-warning"></i> My Balance / Circle Total
-                </div>
-            </div>
-        </div>
-
         <!-- Actionable Pending Requests -->
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-md-6">
             <div class="card glass-card p-3 h-100 border-0">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
@@ -153,120 +117,136 @@
         <h5 class="fw-bold mb-3 text-dark"><i class="bi bi-activity text-primary me-2"></i>Circle Activities Overview</h5>
         <div class="row g-3">
             <!-- Testimonials -->
-            <div class="col-6 col-sm-4 col-md-3 col-xxl-2">
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
                 <a href="{{ route('admin.activities.testimonials.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-2.5 h-100 border-0 d-flex flex-row align-items-center">
-                        <div class="kpi-icon-wrapper bg-icon-primary me-3" style="width: 38px; height: 38px; font-size: 1.1rem; border-radius: 8px;">
-                            <i class="bi bi-chat-left-quote"></i>
-                        </div>
-                        <div>
-                            <p class="text-muted small fw-medium mb-0" style="font-size: 0.75rem;">Testimonials</p>
-                            <h5 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['testimonials'] ?? 0) }}</h5>
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Testimonials</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['testimonials'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-primary">
+                                <i class="bi bi-chat-left-quote"></i>
+                            </div>
                         </div>
                     </div>
                 </a>
             </div>
 
             <!-- Requirements -->
-            <div class="col-6 col-sm-4 col-md-3 col-xxl-2">
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
                 <a href="{{ route('admin.activities.requirements.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-2.5 h-100 border-0 d-flex flex-row align-items-center">
-                        <div class="kpi-icon-wrapper bg-icon-success me-3" style="width: 38px; height: 38px; font-size: 1.1rem; border-radius: 8px;">
-                            <i class="bi bi-card-checklist"></i>
-                        </div>
-                        <div>
-                            <p class="text-muted small fw-medium mb-0" style="font-size: 0.75rem;">Requirements</p>
-                            <h5 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['requirements'] ?? 0) }}</h5>
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Requirements</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['requirements'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-success">
+                                <i class="bi bi-card-checklist"></i>
+                            </div>
                         </div>
                     </div>
                 </a>
             </div>
 
             <!-- Referrals -->
-            <div class="col-6 col-sm-4 col-md-3 col-xxl-2">
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
                 <a href="{{ route('admin.activities.referrals.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-2.5 h-100 border-0 d-flex flex-row align-items-center">
-                        <div class="kpi-icon-wrapper bg-icon-warning me-3" style="width: 38px; height: 38px; font-size: 1.1rem; border-radius: 8px;">
-                            <i class="bi bi-share"></i>
-                        </div>
-                        <div>
-                            <p class="text-muted small fw-medium mb-0" style="font-size: 0.75rem;">Referrals</p>
-                            <h5 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['referrals'] ?? 0) }}</h5>
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Referrals</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['referrals'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-warning">
+                                <i class="bi bi-share"></i>
+                            </div>
                         </div>
                     </div>
                 </a>
             </div>
 
             <!-- P2P Meetings -->
-            <div class="col-6 col-sm-4 col-md-3 col-xxl-2">
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
                 <a href="{{ route('admin.activities.p2p-meetings.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-2.5 h-100 border-0 d-flex flex-row align-items-center">
-                        <div class="kpi-icon-wrapper bg-icon-info me-3" style="width: 38px; height: 38px; font-size: 1.1rem; border-radius: 8px;">
-                            <i class="bi bi-chat-right-dots"></i>
-                        </div>
-                        <div>
-                            <p class="text-muted small fw-medium mb-0" style="font-size: 0.75rem;">P2P Meetings</p>
-                            <h5 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['p2pMeetings'] ?? 0) }}</h5>
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">P2P Meetings</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['p2pMeetings'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-info">
+                                <i class="bi bi-chat-right-dots"></i>
+                            </div>
                         </div>
                     </div>
                 </a>
             </div>
 
             <!-- Business Deals -->
-            <div class="col-6 col-sm-4 col-md-3 col-xxl-2">
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
                 <a href="{{ route('admin.activities.business-deals.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-2.5 h-100 border-0 d-flex flex-row align-items-center">
-                        <div class="kpi-icon-wrapper bg-icon-primary me-3" style="width: 38px; height: 38px; font-size: 1.1rem; border-radius: 8px;">
-                            <i class="bi bi-briefcase"></i>
-                        </div>
-                        <div>
-                            <p class="text-muted small fw-medium mb-0" style="font-size: 0.75rem;">Deals</p>
-                            <h5 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['businessDeals'] ?? 0) }}</h5>
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Business Deals</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['businessDeals'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-primary">
+                                <i class="bi bi-briefcase"></i>
+                            </div>
                         </div>
                     </div>
                 </a>
             </div>
 
             <!-- Become A Leader -->
-            <div class="col-6 col-sm-4 col-md-3 col-xxl-2">
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
                 <a href="{{ route('admin.activities.become-a-leader.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-2.5 h-100 border-0 d-flex flex-row align-items-center">
-                        <div class="kpi-icon-wrapper bg-icon-success me-3" style="width: 38px; height: 38px; font-size: 1.1rem; border-radius: 8px;">
-                            <i class="bi bi-award"></i>
-                        </div>
-                        <div>
-                            <p class="text-muted small fw-medium mb-0" style="font-size: 0.75rem;">Leader Interest</p>
-                            <h5 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['becomeLeader'] ?? 0) }}</h5>
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Leader Interest</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['becomeLeader'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-success">
+                                <i class="bi bi-award"></i>
+                            </div>
                         </div>
                     </div>
                 </a>
             </div>
 
             <!-- Recommend A Peer -->
-            <div class="col-6 col-sm-4 col-md-3 col-xxl-2">
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
                 <a href="{{ route('admin.activities.recommend-peer.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-2.5 h-100 border-0 d-flex flex-row align-items-center">
-                        <div class="kpi-icon-wrapper bg-icon-warning me-3" style="width: 38px; height: 38px; font-size: 1.1rem; border-radius: 8px;">
-                            <i class="bi bi-hand-thumbs-up"></i>
-                        </div>
-                        <div>
-                            <p class="text-muted small fw-medium mb-0" style="font-size: 0.75rem;">Recommendations</p>
-                            <h5 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['recommendPeer'] ?? 0) }}</h5>
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Recommendations</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['recommendPeer'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-warning">
+                                <i class="bi bi-hand-thumbs-up"></i>
+                            </div>
                         </div>
                     </div>
                 </a>
             </div>
 
             <!-- Register A Visitor -->
-            <div class="col-6 col-sm-4 col-md-3 col-xxl-2">
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
                 <a href="{{ route('admin.activities.register-visitor.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-2.5 h-100 border-0 d-flex flex-row align-items-center">
-                        <div class="kpi-icon-wrapper bg-icon-info me-3" style="width: 38px; height: 38px; font-size: 1.1rem; border-radius: 8px;">
-                            <i class="bi bi-person-badge"></i>
-                        </div>
-                        <div>
-                            <p class="text-muted small fw-medium mb-0" style="font-size: 0.75rem;">Visitors</p>
-                            <h5 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['registerVisitor'] ?? 0) }}</h5>
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Visitors</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['registerVisitor'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-info">
+                                <i class="bi bi-person-badge"></i>
+                            </div>
                         </div>
                     </div>
                 </a>
