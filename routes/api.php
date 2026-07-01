@@ -11,7 +11,7 @@ use App\Http\Controllers\Api\ActivityCreativeController;
 use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\AdminActivityController;
-use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\AuthController; 
 use App\Http\Controllers\Api\BusinessDealController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ChatTypingController;
