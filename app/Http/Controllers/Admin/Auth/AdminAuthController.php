@@ -87,6 +87,36 @@ class AdminAuthController extends Controller
         $otpRecord->used_at = null;
         $otpRecord->save();
 
+        $subject = 'Your Admin Login OTP';
+        $body = "Your admin login OTP is {$otp}. It expires in 5 minutes.";
+
+        try {
+            Mail::raw($body, static function ($message) use ($email, $subject): void {
+                $message->to($email)->subject($subject);
+            });
+
+            app(EmailLogService::class)->logSent([
+                'to_email' => $email,
+                'subject' => $subject,
+                'template_key' => 'admin_login_otp',
+                'source_module' => 'Admin Auth',
+                'body_text' => $body,
+                'payload' => ['purpose' => 'admin_login_otp'],
+            ]);
+        } catch (\Throwable $exception) {
+            app(EmailLogService::class)->logFailed([
+                'to_email' => $email,
+                'subject' => $subject,
+                'template_key' => 'admin_login_otp',
+                'source_module' => 'Admin Auth',
+                'body_text' => $body,
+                'payload' => ['purpose' => 'admin_login_otp'],
+            ], $exception);
+
+            return back()
+                ->withInput(['email' => $email])
+                ->withErrors(['email' => 'Failed to send OTP: ' . $exception->getMessage()]);
+        }
         Mail::raw(
             "Your admin login OTP is {$otp}. It expires in 5 minutes.",
             static function ($message) use ($email): void {
