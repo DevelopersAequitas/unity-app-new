@@ -612,7 +612,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/forms/recommend-peer', [AdminOpsController::class, 'recommendPeerForms']);
             Route::get('/forms/recommend-peer/{id}', [AdminOpsController::class, 'recommendPeerFormShow'])->whereUuid('id');
             Route::patch('/forms/recommend-peer/{id}/status', [AdminOpsController::class, 'recommendPeerStatus'])->whereUuid('id');
-
+  
             Route::get('/posts', [AdminOpsController::class, 'posts']);
             Route::get('/posts/{id}', [AdminOpsController::class, 'postShow'])->whereUuid('id');
             Route::patch('/posts/{id}/status', [AdminOpsController::class, 'postStatus'])->whereUuid('id');
