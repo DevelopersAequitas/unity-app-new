@@ -4,6 +4,7 @@
     $isSuper = \App\Support\AdminAccess::isSuper($adminUser);
     $isCircleScoped = \App\Support\AdminAccess::isCircleScoped($adminUser);
     $isDed = \App\Support\AdminAccess::isDed($adminUser);
+    $isCircleCommittee = \App\Support\AdminAccess::isCircleCommittee($adminUser);
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
     $isIndustryDirector = $adminUser?->roles?->pluck('key')->contains('industry_director') ?? false;
 
@@ -81,7 +82,7 @@
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
-    $referralReportItem = (! $isIndustryDirector && ($isSuper || $isCircleScoped || $isDed))
+    $referralReportItem = (! $isCircleCommittee && ! $isIndustryDirector && ($isSuper || $isCircleScoped || $isDed))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
     $activityExpanded = $isIndustryDirector || $activityActive || ! $isGlobalAdmin;
@@ -114,6 +115,13 @@
             ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
         ];
 
+    if ($isCircleCommittee) {
+        $pendingRequestsMenu = array_values(array_filter(
+            $pendingRequestsMenu,
+            fn ($item) => ! in_array(($item['label'] ?? null), ['Inactive Registrations', 'Circle Joining Requests', 'Certifications'], true)
+        ));
+    }
+
     $leadsActive = request()->routeIs('admin.leads.*');
     $pendingRequestsActive =
         request()->routeIs('admin.pending-registrations.*') ||
@@ -124,7 +132,7 @@
         request()->routeIs('admin.certifications.*') ||
         request()->routeIs('admin.impacts.pending');
 
-    $leadsMenu = $isIndustryDirector ? [] : $leadsMenu;
+    $leadsMenu = ($isIndustryDirector || $isCircleCommittee) ? [] : $leadsMenu;
 
     $campaignsMenu = [
         ['label' => 'Campaign Dashboard', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.index', 'admin.campaigns.show', 'admin.campaigns.edit']],
@@ -154,7 +162,7 @@
     ];
 
     $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*');
-    $emailLogsMoreItem = (! $isDed && ! $isIndustryDirector)
+    $emailLogsMoreItem = (! $isDed && ! $isIndustryDirector && ! $isCircleCommittee)
         ? ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']]
         : null;
     $bottomNavItems = [];
@@ -345,7 +353,7 @@
             @endforeach
 
 
-            @if (! $isIndustryDirector)
+            @if (! $isIndustryDirector && ! $isCircleCommittee)
                 <li class="nav-item menu-parent {{ $notificationsActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $notificationsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#notificationsSubmenu" role="button" aria-expanded="{{ $notificationsActive ? 'true' : 'false' }}" aria-controls="notificationsSubmenu">
                         <span><i class="bi bi-bell me-2"></i>Notifications</span>
@@ -396,7 +404,7 @@
                 </li>
             @endforeach
 
-            @if (! $isDed)
+            @if (! $isDed && ! $isCircleCommittee && $leadsMenu !== [])
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
                 <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
                     <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>

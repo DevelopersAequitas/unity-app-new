@@ -1106,4 +1106,3 @@ Route::get('/debug-logs', function () {
         ]);
     }
 });
-});

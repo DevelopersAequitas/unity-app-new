@@ -257,7 +257,7 @@ class EventManagementController extends Controller
 
     private function applyJoiningRequestScope($query, $admin): void
     {
-        if (! AdminAccess::isDed($admin)) {
+        if (! AdminAccess::isDed($admin) && ! AdminAccess::isCircleScoped($admin)) {
             return;
         }
 
