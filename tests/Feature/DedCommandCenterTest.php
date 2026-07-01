@@ -1063,6 +1063,7 @@ class DedCommandCenterTest extends TestCase
             $table->uuid('id')->primary();
             $table->uuid('from_user_id');
             $table->uuid('to_user_id');
+            $table->integer('rating')->nullable();
             $table->boolean('is_deleted')->default(false);
             $table->timestamp('deleted_at')->nullable();
             $table->timestamps();

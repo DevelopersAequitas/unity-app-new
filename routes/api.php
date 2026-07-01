@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\PostSaveController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\TestimonialController;
+use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\UserContactsController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
@@ -341,6 +342,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
 
+        // V1 Testimonials API
+        Route::post('/testimonials', [V1TestimonialController::class, 'store']);
+        Route::get('/testimonials/given', [V1TestimonialController::class, 'given']);
+        Route::get('/testimonials/received', [V1TestimonialController::class, 'received']);
+        Route::get('/users/{user}/testimonials', [V1TestimonialController::class, 'userTestimonials'])->whereUuid('user');
+
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 
         Route::get('/profile', [ProfileController::class, 'show']);
@@ -605,7 +612,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/forms/recommend-peer', [AdminOpsController::class, 'recommendPeerForms']);
             Route::get('/forms/recommend-peer/{id}', [AdminOpsController::class, 'recommendPeerFormShow'])->whereUuid('id');
             Route::patch('/forms/recommend-peer/{id}/status', [AdminOpsController::class, 'recommendPeerStatus'])->whereUuid('id');
-
+  
             Route::get('/posts', [AdminOpsController::class, 'posts']);
             Route::get('/posts/{id}', [AdminOpsController::class, 'postShow'])->whereUuid('id');
             Route::patch('/posts/{id}/status', [AdminOpsController::class, 'postStatus'])->whereUuid('id');

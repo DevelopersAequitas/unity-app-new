@@ -438,6 +438,7 @@ class DailyNotificationReminderTest extends TestCase
         Schema::create('testimonials', function (Blueprint $table) {
             $table->id();
             $table->uuid('from_user_id');
+            $table->integer('rating')->nullable();
             $table->timestamps();
         });
 
