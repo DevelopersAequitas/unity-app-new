@@ -8,6 +8,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use App\Support\AdminAccess;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -179,6 +181,7 @@ class ReferralReportController extends Controller
             ->when($this->hasUserColumn('company_name'), fn ($query) => $query->groupBy('referrer.company_name'));
 
         $this->applySummaryFilters($query, $filters);
+        $this->applyReferralCircleScope($query, ['rd.referrer_user_id']);
 
         if ($applySorting) {
             $direction = ($filters['direction'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
@@ -193,12 +196,16 @@ class ReferralReportController extends Controller
 
     private function detailQuery(string $referrerUserId, array $filters): Builder
     {
-        return DB::table('referraldata as rd')
+        $query = DB::table('referraldata as rd')
             ->leftJoin('users as referred', function ($join): void {
                 $join->on(DB::raw('rd.referred_user_id::text'), '=', DB::raw('referred.id::text'));
             })
             ->whereRaw('rd.referrer_user_id::text = ?', [$referrerUserId])
             ->selectRaw($this->detailSelectSql());
+
+        $this->applyReferralCircleScope($query, ['rd.referrer_user_id']);
+
+        return $query;
     }
 
     private function referredUsersForSummaryRows(array $referrerUserIds, array $filters): \Illuminate\Support\Collection
@@ -216,6 +223,7 @@ class ReferralReportController extends Controller
 
         $this->applyReferralDataFilters($query, $filters);
         $this->applyReferredUserFilters($query, $filters);
+        $this->applyReferralCircleScope($query, ['rd.referrer_user_id']);
 
         return $query
             ->orderByDesc(DB::raw($this->referralDateExpression()))
@@ -236,8 +244,34 @@ class ReferralReportController extends Controller
             ->selectRaw($this->exportRowsSelectSql());
 
         $this->applySummaryFilters($query, $filters);
+        $this->applyReferralCircleScope($query, ['rd.referrer_user_id']);
 
         return $query;
+    }
+
+    private function applyReferralCircleScope(Builder $query, array $userColumns): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (! AdminAccess::isCircleScoped($admin)) {
+            return;
+        }
+
+        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
+        if ($allowedCircleIds === []) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->where(function (Builder $scopeQuery) use ($userColumns, $allowedCircleIds): void {
+            foreach ($userColumns as $column) {
+                $scopeQuery->orWhereIn(DB::raw("{$column}::text"), DB::table('circle_members')
+                    ->selectRaw('user_id::text')
+                    ->whereIn('circle_id', $allowedCircleIds)
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at'));
+            }
+        });
     }
 
     private function applySummaryFilters(Builder $query, array $filters): void

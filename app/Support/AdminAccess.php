@@ -328,6 +328,20 @@ class AdminAccess
         return self::CIRCLE_ROLE_LABELS[$roleKey] ?? 'Circle Leader';
     }
 
+    public static function isCircleCommittee(?AdminUser $admin): bool
+    {
+        if (! $admin || self::isSuper($admin)) {
+            return false;
+        }
+
+        $roleKeys = self::adminRoleKeys($admin);
+        if ((bool) array_intersect(['chair', 'vice_chair', 'secretary'], $roleKeys)) {
+            return true;
+        }
+
+        return in_array(self::primaryCircleRoleKey($admin), ['chair', 'vice_chair', 'secretary'], true);
+    }
+
     public static function canEditUsers(?AdminUser $admin): bool
     {
         if (! $admin) {
