@@ -122,6 +122,11 @@
         ));
     }
 
+    $pendingRequestsMenu = array_values(array_filter(
+        $pendingRequestsMenu,
+        fn ($item) => \Illuminate\Support\Facades\Route::has($item['route'] ?? '')
+    ));
+
     $leadsActive = request()->routeIs('admin.leads.*');
     $pendingRequestsActive =
         request()->routeIs('admin.pending-registrations.*') ||
