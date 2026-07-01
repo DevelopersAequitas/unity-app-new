@@ -307,10 +307,9 @@
                             @foreach ($brandPartnersMenu as $item)
                                 @if (Route::has($item['route']))
                                     <li class="nav-item">
-                                        <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                        <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                                             {{ $item['label'] }}
                                         </a>
-                                        <a class="nav-link {{ (isset($campaignItem['active_routes']) ? request()->routeIs(...$campaignItem['active_routes']) : request()->routeIs($campaignItem['route'])) ? 'active' : '' }}" href="{{ route($campaignItem['route']) }}">{{ $campaignItem['label'] }}</a>
                                     </li>
                                 @endif
                             @endforeach
