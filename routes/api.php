@@ -340,6 +340,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
+        Route::get('/users/{user_id}/business-deals/stats', [BusinessDealController::class, 'userBusinessDealsStats'])->whereUuid('user_id');
+        Route::get('/users/{user_id}/business-deals', [BusinessDealController::class, 'userBusinessDealsList'])->whereUuid('user_id');
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
 
         // V1 Testimonials API
@@ -772,6 +774,8 @@ Route::prefix('v1')->group(function () {
             Route::get('testimonials/{id}', [TestimonialHistoryController::class, 'show']);
         });
 
+        Route::get('/p2p-meetings/user/{userId}', [P2pMeetingController::class, 'userMeetings'])->whereUuid('userId');
+
         // P2P Meeting Requests
         Route::post('/p2p-meeting-requests', [P2PMeetingRequestController::class, 'store']);
         Route::get('/p2p-meeting-requests/inbox', [P2PMeetingRequestController::class, 'inbox']);
@@ -800,6 +804,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/timeline/requirements', [TimelineRequirementController::class, 'index']);
         Route::post('/requirements', [V1RequirementController::class, 'store']);
         Route::get('/requirements/incompleted', [V1RequirementController::class, 'incompleted']);
+        Route::get('/requirements/summary', [V1RequirementController::class, 'summary']);
+        Route::get('/requirements/summary/{userId}', [V1RequirementController::class, 'summary'])->whereUuid('userId');
         Route::get('/requirements/{id}', [V1RequirementController::class, 'show']);
         Route::patch('/requirements/{id}/close', [V1RequirementController::class, 'close']);
         Route::post('/requirements/{requirement}/interest', [RequirementInterestController::class, 'store']);
@@ -884,6 +890,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/referrals/generate', [ReferralController::class, 'generate']);
         Route::get('/referrals/members', [ReferralController::class, 'members']);
         Route::get('/referrals/stats', [ReferralController::class, 'stats']);
+        Route::get('/referrals/stats/{userId}', [ReferralController::class, 'statsByUser'])->whereUuid('userId');
         Route::post('/referrals/links', [ReferralController::class, 'storeLink']);
         Route::get('/referrals/links', [ReferralController::class, 'listLinks']);
         Route::get('/referrals/visitors', [ReferralController::class, 'listVisitors']);

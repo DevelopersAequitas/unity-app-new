@@ -7,6 +7,7 @@ use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Events\ActivityCreated;
 use App\Http\Requests\Api\GenerateReferralCodeRequest;
 use App\Http\Resources\ReferralMemberResource;
+use App\Http\Resources\Api\V1\ActivityReferralResource;
 use App\Models\Referral;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
@@ -57,9 +58,143 @@ class ReferralController extends BaseApiController
         ]);
     }
 
-    public function stats(Request $request, ReferralService $referralService)
+    public function stats(Request $request)
     {
-        return $this->success($referralService->getReferralStats($request->user()));
+        $userId = $request->user()->id;
+        $perPage = max(1, min((int) $request->query('per_page', 15), 100));
+
+        $givenPaginator = Referral::query()
+            ->with(['givenByUser', 'receivedByUser'])
+            ->where(function ($query) {
+                $query->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('from_user_id', $userId)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'given_page');
+
+        $receivedPaginator = Referral::query()
+            ->with(['givenByUser', 'receivedByUser'])
+            ->where(function ($query) {
+                $query->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('to_user_id', $userId)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'received_page');
+
+        $givenItems = ActivityReferralResource::collection($givenPaginator->items());
+        $receivedItems = ActivityReferralResource::collection($receivedPaginator->items());
+
+        return $this->success([
+            'counts' => [
+                'referrals_given' => $givenPaginator->total(),
+                'referrals_received' => $receivedPaginator->total(),
+                'total_referrals' => $givenPaginator->total() + $receivedPaginator->total(),
+            ],
+            'referrals_given' => [
+                'data' => $givenItems,
+                'meta' => [
+                    'current_page' => $givenPaginator->currentPage(),
+                    'per_page' => $givenPaginator->perPage(),
+                    'total' => $givenPaginator->total(),
+                    'last_page' => $givenPaginator->lastPage(),
+                ],
+            ],
+            'referrals_received' => [
+                'data' => $receivedItems,
+                'meta' => [
+                    'current_page' => $receivedPaginator->currentPage(),
+                    'per_page' => $receivedPaginator->perPage(),
+                    'total' => $receivedPaginator->total(),
+                    'last_page' => $receivedPaginator->lastPage(),
+                ],
+            ],
+        ]);
+    }
+
+    public function statsByUser(Request $request, string $userId)
+    {
+        $user = User::find($userId);
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null,
+            ], 404);
+        }
+
+        $perPage = max(1, min((int) $request->query('per_page', 15), 100));
+
+        $givenPaginator = Referral::query()
+            ->with(['givenByUser', 'receivedByUser'])
+            ->where(function ($query) {
+                $query->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('from_user_id', $userId)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'given_page');
+
+        $receivedPaginator = Referral::query()
+            ->with(['givenByUser', 'receivedByUser'])
+            ->where(function ($query) {
+                $query->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('to_user_id', $userId)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'received_page');
+
+        $givenItems = ActivityReferralResource::collection($givenPaginator->items());
+        $receivedItems = ActivityReferralResource::collection($receivedPaginator->items());
+
+        $resolvedCity = $user->city_of_residence ?: (is_string($user->city) ? $user->city : data_get($user, 'city.name'));
+
+        return $this->success([
+            'user' => [
+                'id' => (string) $user->id,
+                'display_name' => $user->display_name ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'company_name' => $user->company_name,
+                'designation' => $user->designation,
+                'city' => $resolvedCity,
+                'membership_status' => $user->membership_status,
+                'profile_photo_url' => $user->profile_photo_url,
+                'public_profile_slug' => $user->public_profile_slug,
+            ],
+            'counts' => [
+                'referrals_given' => $givenPaginator->total(),
+                'referrals_received' => $receivedPaginator->total(),
+                'total_referrals' => $givenPaginator->total() + $receivedPaginator->total(),
+            ],
+            'referrals_given' => [
+                'data' => $givenItems,
+                'meta' => [
+                    'current_page' => $givenPaginator->currentPage(),
+                    'per_page' => $givenPaginator->perPage(),
+                    'total' => $givenPaginator->total(),
+                    'last_page' => $givenPaginator->lastPage(),
+                ],
+            ],
+            'referrals_received' => [
+                'data' => $receivedItems,
+                'meta' => [
+                    'current_page' => $receivedPaginator->currentPage(),
+                    'per_page' => $receivedPaginator->perPage(),
+                    'total' => $receivedPaginator->total(),
+                    'last_page' => $receivedPaginator->lastPage(),
+                ],
+            ],
+        ]);
     }
 
     public function validateCode(string $code, ReferralService $referralService)

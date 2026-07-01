@@ -8,6 +8,7 @@ use App\Http\Resources\Requirement\RequirementDetailResource;
 use App\Models\Post;
 use App\Models\Requirement;
 use App\Models\RequirementInterest;
+use App\Models\User;
 use App\Services\Requirements\RequirementNotificationService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -356,5 +357,49 @@ class RequirementController extends Controller
                 'meta' => null,
             ], 500);
         }
+    }
+
+    public function summary(Request $request, ?string $userId = null): JsonResponse
+    {
+        $targetUserId = $userId ?: $request->user()->id;
+
+        $user = User::query()
+            ->select([
+                'id',
+                'first_name',
+                'last_name',
+                'display_name',
+                'email',
+                'phone',
+                'company_name',
+                'designation',
+                'profile_photo_url',
+            ])
+            ->where('id', $targetUserId)
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null,
+            ], 404);
+        }
+
+        $givenRequirements = Requirement::query()
+            ->where('user_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->count();
+
+        return response()->json([
+            'success' => true,
+            'message' => null,
+            'data' => [
+                'user' => $user,
+                'total_requirements' => $givenRequirements,
+                'given_requirements' => $givenRequirements,
+                'received_requirements' => 0,
+            ],
+        ]);
     }
 }
