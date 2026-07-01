@@ -61,19 +61,6 @@
                     @enderror
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Remarks (optional)</label>
-                    <input
-                        type="text"
-                        name="remarks"
-                        value="{{ old('remarks') }}"
-                        class="form-control @error('remarks') is-invalid @enderror"
-                        maxlength="255"
-                    >
-                    @error('remarks')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
 
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Save</button>
