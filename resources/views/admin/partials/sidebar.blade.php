@@ -82,7 +82,7 @@
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
-    $referralReportItem = (! $isIndustryDirector && ($isSuper || $isCircleScoped || $isDed))
+    $referralReportItem = (! $isCircleCommittee && ! $isIndustryDirector && ($isSuper || $isCircleScoped || $isDed))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
     $activityExpanded = $isIndustryDirector || $activityActive || ! $isGlobalAdmin;
@@ -116,7 +116,10 @@
         ];
 
     if ($isCircleCommittee) {
-        $pendingRequestsMenu = array_values(array_filter($pendingRequestsMenu, fn ($item) => ($item['label'] ?? null) !== 'Circle Joining Requests'));
+        $pendingRequestsMenu = array_values(array_filter(
+            $pendingRequestsMenu,
+            fn ($item) => ! in_array(($item['label'] ?? null), ['Circle Joining Requests', 'Certifications'], true)
+        ));
     }
 
     $leadsActive = request()->routeIs('admin.leads.*');
@@ -350,7 +353,7 @@
             @endforeach
 
 
-            @if (! $isIndustryDirector)
+            @if (! $isIndustryDirector && ! $isCircleCommittee)
                 <li class="nav-item menu-parent {{ $notificationsActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $notificationsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#notificationsSubmenu" role="button" aria-expanded="{{ $notificationsActive ? 'true' : 'false' }}" aria-controls="notificationsSubmenu">
                         <span><i class="bi bi-bell me-2"></i>Notifications</span>
