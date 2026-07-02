@@ -132,6 +132,8 @@ Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
+Route::middleware('auth:sanctum')->get('/account-deletion-status', [\App\Http\Controllers\AccountDeletionController::class, 'status']);
+
 Route::prefix('v1')->group(function () {
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::prefix('scan-app')->group(function () {
