@@ -76,7 +76,7 @@
     <!-- KPI Summary Grid -->
     <div class="row g-3 mb-4">
         <!-- Scoped Peers -->
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-sm-6 col-md-4 col-xl-3">
             <div class="card glass-card p-3 h-100 border-0">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
@@ -87,14 +87,11 @@
                         <i class="bi bi-people-fill"></i>
                     </div>
                 </div>
-                <div class="mt-3 text-muted small">
-                    <i class="bi bi-arrow-right-short text-primary"></i> Peers across all your circles
-                </div>
             </div>
         </div>
 
         <!-- Actionable Pending Requests -->
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-sm-6 col-md-4 col-xl-3">
             <div class="card glass-card p-3 h-100 border-0">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
@@ -104,9 +101,6 @@
                     <div class="kpi-icon-wrapper bg-icon-info">
                         <i class="bi bi-hourglass-split"></i>
                     </div>
-                </div>
-                <div class="mt-3 text-muted small">
-                    <i class="bi bi-arrow-right-short text-info"></i> Approvals awaiting action
                 </div>
             </div>
         </div>
@@ -319,66 +313,6 @@
                     <div class="text-center py-5">
                         <i class="bi bi-people text-muted display-4"></i>
                         <p class="text-muted mt-2 mb-0">No peers found in your circles.</p>
-                    </div>
-                @endif
-            </div>
-
-            <!-- 2. Coins Ledger Details -->
-            <div class="card border-0 shadow-sm p-4 rounded-4">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="kpi-icon-wrapper bg-icon-warning me-3">
-                        <i class="bi bi-coin"></i>
-                    </div>
-                    <div>
-                        <h5 class="fw-bold mb-0 text-dark">Coins Ledger Details</h5>
-                        <p class="text-muted small mb-0">Recent coin allocations and transactions within your circles.</p>
-                    </div>
-                </div>
-
-                @if($data['recentTransactions']->isNotEmpty())
-                    <div class="table-responsive">
-                        <table class="table align-middle">
-                            <thead>
-                                <tr class="text-muted fs-7">
-                                    <th>Recipient</th>
-                                    <th>Reference / Action</th>
-                                    <th>Amount</th>
-                                    <th>Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($data['recentTransactions'] as $tx)
-                                    <tr>
-                                        <td>
-                                            <span class="fw-semibold text-dark fs-7">{{ $tx->user->display_name ?? 'N/A' }}</span>
-                                            <div class="text-muted fs-8">{{ $tx->user->email ?? '' }}</div>
-                                        </td>
-                                        <td>
-                                            <span class="text-dark fs-7">{{ $tx->reference }}</span>
-                                            @if($tx->remark)
-                                                <div class="text-muted fs-8">{{ $tx->remark }}</div>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            <span class="fw-bold {{ $tx->amount >= 0 ? 'text-success' : 'text-danger' }} fs-7">
-                                                {{ $tx->amount >= 0 ? '+' : '' }}{{ number_format($tx->amount) }}
-                                            </span>
-                                        </td>
-                                        <td class="text-muted fs-8">
-                                            {{ $tx->created_at ? $tx->created_at->format('Y-m-d H:i') : 'N/A' }}
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="text-end mt-2">
-                        <a href="{{ route('admin.coins.index') }}" class="btn btn-outline-primary btn-sm px-3 rounded-2 fs-7">View All Transactions</a>
-                    </div>
-                @else
-                    <div class="text-center py-5">
-                        <i class="bi bi-coin text-muted display-4"></i>
-                        <p class="text-muted mt-2 mb-0">No transactions recorded yet.</p>
                     </div>
                 @endif
             </div>

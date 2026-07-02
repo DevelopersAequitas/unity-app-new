@@ -56,4 +56,14 @@ class Referral extends Model
     {
         return $this->belongsTo(User::class, 'to_user_id');
     }
+
+    public function givenByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'from_user_id');
+    }
+
+    public function receivedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'to_user_id');
+    }
 }

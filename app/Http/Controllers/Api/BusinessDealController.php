@@ -12,6 +12,7 @@ use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 use Throwable;
 
 class BusinessDealController extends BaseApiController
@@ -245,5 +246,144 @@ class BusinessDealController extends BaseApiController
         }
 
         return $this->success($businessDeal);
+    }
+
+    public function userBusinessDealsStats(Request $request, string $userId): \Illuminate\Http\JsonResponse
+    {
+        $user = User::find($userId);
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null,
+            ], 404);
+        }
+
+        $baseQuery = BusinessDeal::query()
+            ->where(function ($q) {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at');
+
+        $givenCount = (clone $baseQuery)
+            ->where('from_user_id', $userId)
+            ->count();
+
+        $receivedCount = (clone $baseQuery)
+            ->where('to_user_id', $userId)
+            ->count();
+
+        $totalCount = $givenCount + $receivedCount;
+
+        return $this->success([
+            'user' => [
+                'id' => (string) $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'display_name' => $user->display_name ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'company_name' => $user->company_name,
+                'designation' => $user->designation,
+                'profile_photo_url' => $user->profile_photo_url ?? $user->profile_photo ?? null,
+            ],
+            'business_deals_given' => $givenCount,
+            'business_deals_received' => $receivedCount,
+            'total_business_deals' => $totalCount,
+        ]);
+    }
+
+    public function userBusinessDealsList(Request $request, string $userId): \Illuminate\Http\JsonResponse
+    {
+        $user = User::find($userId);
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null,
+            ], 404);
+        }
+
+        $baseQuery = BusinessDeal::query()
+            ->where(function ($q) {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at');
+
+        $givenCount = (clone $baseQuery)
+            ->where('from_user_id', $userId)
+            ->count();
+
+        $receivedCount = (clone $baseQuery)
+            ->where('to_user_id', $userId)
+            ->count();
+
+        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
+
+        $paginator = (clone $baseQuery)
+            ->with(['fromUser', 'toUser'])
+            ->where(function ($q) use ($userId) {
+                $q->where('from_user_id', $userId)
+                  ->orWhere('to_user_id', $userId);
+            })
+            ->orderBy('deal_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        $items = collect($paginator->items())->map(function (BusinessDeal $deal): array {
+            $fromUser = $deal->fromUser;
+            $toUser = $deal->toUser;
+
+            return [
+                'id' => (string) $deal->id,
+                'from_user_id' => (string) $deal->from_user_id,
+                'to_user_id' => (string) $deal->to_user_id,
+                'deal_date' => $deal->deal_date ? Carbon::parse($deal->deal_date)->format('Y-m-d') : '',
+                'deal_amount' => $deal->deal_amount,
+                'business_type' => $deal->business_type ?? '',
+                'comment' => $deal->comment ?? '',
+                'created_at' => $deal->created_at ? Carbon::parse($deal->created_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'updated_at' => $deal->updated_at ? Carbon::parse($deal->updated_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'from_user' => $fromUser ? [
+                    'id' => (string) $fromUser->id,
+                    'display_name' => $fromUser->display_name ?? trim(($fromUser->first_name ?? '') . ' ' . ($fromUser->last_name ?? '')),
+                    'first_name' => $fromUser->first_name,
+                    'last_name' => $fromUser->last_name,
+                    'email' => $fromUser->email,
+                    'phone' => $fromUser->phone,
+                    'company_name' => $fromUser->company_name,
+                    'designation' => $fromUser->designation,
+                    'profile_photo_url' => $fromUser->profile_photo_url ?? $fromUser->profile_photo ?? null,
+                ] : null,
+                'to_user' => $toUser ? [
+                    'id' => (string) $toUser->id,
+                    'display_name' => $toUser->display_name ?? trim(($toUser->first_name ?? '') . ' ' . ($toUser->last_name ?? '')),
+                    'first_name' => $toUser->first_name,
+                    'last_name' => $toUser->last_name,
+                    'email' => $toUser->email,
+                    'phone' => $toUser->phone,
+                    'company_name' => $toUser->company_name,
+                    'designation' => $toUser->designation,
+                    'profile_photo_url' => $toUser->profile_photo_url ?? $toUser->profile_photo ?? null,
+                ] : null,
+            ];
+        })->values()->all();
+
+        return $this->success([
+            'business_deals_given' => $givenCount,
+            'business_deals_received' => $receivedCount,
+            'total_business_deals' => $givenCount + $receivedCount,
+            'items' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ]);
     }
 }

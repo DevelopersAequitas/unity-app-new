@@ -28,6 +28,8 @@ class BrandPartnerClick extends Model
         'ip',
         'device',
         'created_at',
+        'session_id',
+        'ip_address',
     ];
 
     protected $casts = [

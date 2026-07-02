@@ -47,6 +47,10 @@ class MemberController extends BaseApiController
             $selectColumns[] = 'profile_visibility';
         }
 
+        if (Schema::hasColumn('users', 'contact_visibility')) {
+            $selectColumns[] = 'contact_visibility';
+        }
+
         $profileMatchColumns = [
             'city_of_residence',
             'state',
@@ -106,6 +110,13 @@ class MemberController extends BaseApiController
                 'followers as followers_count',
                 'following as following_count',
             ]);
+
+        if (Schema::hasTable('connections')) {
+            $query->withCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
 
         // Manual test: inactive members should be excluded from the members list API.
         $query->where(function ($statusQuery) {
