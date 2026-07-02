@@ -107,7 +107,6 @@
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
         ]
         : [
-            ['label' => 'Inactive Registrations', 'route' => 'admin.pending-registrations.index'],
             ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
             ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
             ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
@@ -120,13 +119,12 @@
     if ($isCircleCommittee) {
         $pendingRequestsMenu = array_values(array_filter(
             $pendingRequestsMenu,
-            fn ($item) => ! in_array(($item['label'] ?? null), ['Inactive Registrations', 'Circle Joining Requests', 'Certifications'], true)
+            fn ($item) => ! in_array(($item['label'] ?? null), ['Circle Joining Requests', 'Certifications'], true)
         ));
     }
 
     $leadsActive = request()->routeIs('admin.leads.*');
     $pendingRequestsActive =
-        request()->routeIs('admin.pending-registrations.*') ||
         request()->routeIs('admin.visitor-registrations.*') ||
         request()->routeIs('admin.coin-claims.*') ||
         request()->routeIs('admin.event-joining-requests.*') ||
