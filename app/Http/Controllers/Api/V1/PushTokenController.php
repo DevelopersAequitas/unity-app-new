@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
@@ -26,17 +28,11 @@ class PushTokenController extends BaseApiController
             $user = $request->user();
             $token = (string) ($validated['fcm_token'] ?? $validated['token']);
 
-<<<<<<< Updated upstream
-            UserPushToken::where('token', $token)
-                ->where(UserPushToken::getUserIdColumn(), '!=', $user->id)
-                ->delete();
-=======
             if (Schema::hasTable('user_push_tokens')) {
                 UserPushToken::where('token', $token)
-                    ->where('user_id', '!=', $user->id)
+                    ->where(UserPushToken::getUserIdColumn(), '!=', $user->id)
                     ->delete();
             }
->>>>>>> Stashed changes
 
             if (filled($validated['device_id'] ?? null)) {
                 UserPushToken::where('device_id', $validated['device_id'])
@@ -64,28 +60,22 @@ class PushTokenController extends BaseApiController
                 $updates['app_version'] = $validated['app_version'];
             }
 
-<<<<<<< Updated upstream
             // Always activate/reset states when registered explicitly by the client device
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'is_active')) {
-                $updates['is_active'] = true;
-            }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'status')) {
-                $updates['status'] = 'active';
-            }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'token_status')) {
-                $updates['token_status'] = 'active';
-            }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'failed_at')) {
-                $updates['failed_at'] = null;
-            }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'failure_reason')) {
-                $updates['failure_reason'] = null;
-            }
-=======
             if (Schema::hasColumn('user_push_tokens', 'is_active')) {
                 $updates['is_active'] = true;
             }
->>>>>>> Stashed changes
+            if (Schema::hasColumn('user_push_tokens', 'status')) {
+                $updates['status'] = 'active';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                $updates['token_status'] = 'active';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'failed_at')) {
+                $updates['failed_at'] = null;
+            }
+            if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
+                $updates['failure_reason'] = null;
+            }
 
             $pushToken = UserPushToken::updateOrCreate(
                 [
@@ -106,7 +96,7 @@ class PushTokenController extends BaseApiController
                 'last_seen_at' => $pushToken->last_seen_at ?? null,
             ], 'Push token saved successfully');
         } catch (Throwable $throwable) {
-            Log::error('PushTokenController store exception: ' . $throwable->getMessage(), [
+            Log::error('PushTokenController store exception: '.$throwable->getMessage(), [
                 'trace' => $throwable->getTraceAsString(),
                 'user_id' => isset($user) ? $user->id : null,
                 'token' => isset($token) ? $token : null,

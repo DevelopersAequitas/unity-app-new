@@ -104,6 +104,7 @@
     $pendingRequestsMenu = $isIndustryDirector
         ? [
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
+            ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
         ]
         : [
             ['label' => 'Inactive Registrations', 'route' => 'admin.pending-registrations.index'],
@@ -113,6 +114,7 @@
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
             ['label' => 'Certifications', 'route' => 'admin.certifications.index'],
             ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
+            ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
         ];
 
     if ($isCircleCommittee) {
@@ -130,7 +132,8 @@
         request()->routeIs('admin.event-joining-requests.*') ||
         request()->routeIs('admin.circle-joining-requests.*') ||
         request()->routeIs('admin.certifications.*') ||
-        request()->routeIs('admin.impacts.pending');
+        request()->routeIs('admin.impacts.pending') ||
+        request()->routeIs('admin.account-deletion.*');
 
     $leadsMenu = ($isIndustryDirector || $isCircleCommittee) ? [] : $leadsMenu;
 

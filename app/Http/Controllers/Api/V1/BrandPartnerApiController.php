@@ -344,12 +344,12 @@ class BrandPartnerApiController extends BaseApiController
         ]);
 
         if ($request->hasFile('logo_file')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo_file'), null);
+            $logoModel = $this->fileUploadService->store($request->file('logo_file'), null, 'public');
             $data['logo'] = $logoModel->s3_key;
         }
 
         if ($request->hasFile('cover_file')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_file'), null);
+            $coverModel = $this->fileUploadService->store($request->file('cover_file'), null, 'public');
             $data['cover_image'] = $coverModel->s3_key;
         }
 
@@ -422,12 +422,12 @@ class BrandPartnerApiController extends BaseApiController
         ]);
 
         if ($request->hasFile('logo_file')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo_file'), null);
+            $logoModel = $this->fileUploadService->store($request->file('logo_file'), null, 'public');
             $data['logo'] = $logoModel->s3_key;
         }
 
         if ($request->hasFile('cover_file')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_file'), null);
+            $coverModel = $this->fileUploadService->store($request->file('cover_file'), null, 'public');
             $data['cover_image'] = $coverModel->s3_key;
         }
 

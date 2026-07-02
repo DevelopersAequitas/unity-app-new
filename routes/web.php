@@ -71,6 +71,9 @@ Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [Public
     ->whereUuid('occurrence')
     ->name('events.visitor-register.submit');
 
+Route::get('/account-deletion-request', [\App\Http\Controllers\AccountDeletionController::class, 'show'])->name('account-deletion.show');
+Route::post('/account-deletion-request', [\App\Http\Controllers\AccountDeletionController::class, 'submit'])->name('account-deletion.submit');
+
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
     Route::post('/login/send-otp', [AdminAuthController::class, 'requestOtp'])->name('login.send-otp');
@@ -386,6 +389,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/impacts/{id}/approve', [ImpactsController::class, 'approve'])->whereUuid('id')->name('impacts.approve');
         Route::post('/impacts/{id}/reject', [ImpactsController::class, 'reject'])->whereUuid('id')->name('impacts.reject');
         Route::get('/email-logs/{emailLog}', [EmailLogController::class, 'show'])->name('email-logs.show');
+
+        // Account Deletion Requests
+        Route::get('/account-deletion-request', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'index']);
+        Route::get('/account-deletion-requests', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'index'])->name('account-deletion.index');
+        Route::post('/account-deletion-requests/{id}/approve', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'approve'])->name('account-deletion.approve');
+        Route::post('/account-deletion-requests/{id}/reject', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'reject'])->name('account-deletion.reject');
+        Route::patch('/account-deletion-requests/{id}/status', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'updateStatus'])->name('account-deletion.update-status');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');

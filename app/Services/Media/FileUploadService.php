@@ -17,9 +17,9 @@ class FileUploadService
         private readonly Probe $probe
     ) {}
 
-    public function store(UploadedFile $file, ?User $user = null): FileModel
+    public function store(UploadedFile $file, ?User $user = null, ?string $disk = null): FileModel
     {
-        $disk = config('filesystems.default', 'public');
+        $disk = $disk ?: config('filesystems.default', 'public');
         $tempOriginal = $this->storeTemporary($file);
         $optimizedTemp = null;
         $type = null;
