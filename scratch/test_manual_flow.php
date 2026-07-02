@@ -2,10 +2,11 @@
 
 require __DIR__.'/../vendor/autoload.php';
 $app = require_once __DIR__.'/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\User;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Str;
 
 try {
@@ -84,7 +85,7 @@ try {
     echo "Cleaned up test user.\n";
     echo "Manual verification complete successfully!\n";
 
-} catch (\Exception $e) {
+} catch (Exception $e) {
     echo 'Error during validation: '.$e->getMessage()."\n";
     echo $e->getTraceAsString()."\n";
 }

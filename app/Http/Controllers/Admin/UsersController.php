@@ -1311,7 +1311,7 @@ class UsersController extends Controller
                     User::create($payload);
                     $results['created']++;
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 $results['failed'][] = ['row' => $data, 'reason' => $e->getMessage()];
             }
         }
@@ -1402,7 +1402,7 @@ class UsersController extends Controller
             $plans = Cache::remember($cacheKey, 600, function () {
                 return $this->zohoBillingService->listActivePlans();
             });
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             report($throwable);
             $plans = [];
         }

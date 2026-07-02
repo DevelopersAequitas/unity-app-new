@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\Admin\ActivitiesBusinessDealsController;
 use App\Http\Controllers\Admin\ActivitiesConnectionsController;
 use App\Http\Controllers\Admin\ActivitiesController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\AdminCampaignController;
 use App\Http\Controllers\Admin\AdminExecutionController;
+use App\Http\Controllers\Admin\AdminFileUploadController;
 use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\BrandPartnerAnalyticsController;
@@ -56,6 +58,7 @@ use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
+use App\Support\AdminAccess;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -71,8 +74,8 @@ Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [Public
     ->whereUuid('occurrence')
     ->name('events.visitor-register.submit');
 
-Route::get('/account-deletion-request', [\App\Http\Controllers\AccountDeletionController::class, 'show'])->name('account-deletion.show');
-Route::post('/account-deletion-request', [\App\Http\Controllers\AccountDeletionController::class, 'submit'])->name('account-deletion.submit');
+Route::get('/account-deletion-request', [AccountDeletionController::class, 'show'])->name('account-deletion.show');
+Route::post('/account-deletion-request', [AccountDeletionController::class, 'submit'])->name('account-deletion.submit');
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
@@ -89,7 +92,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 return redirect()->route('admin.industry-director.dashboard');
             }
 
-            if (\App\Support\AdminAccess::isCircleScoped($admin)) {
+            if (AdminAccess::isCircleScoped($admin)) {
                 return redirect()->route('admin.circle-member.dashboard');
             }
 
@@ -207,7 +210,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/unity-peers-plans/{plan}/edit', [MembershipPlanController::class, 'edit'])->name('unity-peers-plans.edit');
         Route::get('/login-history', [LoginHistoryController::class, 'index'])->name('login-history.index');
         Route::put('/unity-peers-plans/{plan}', [MembershipPlanController::class, 'update'])->name('unity-peers-plans.update');
-        Route::post('/files/upload', [\App\Http\Controllers\Admin\AdminFileUploadController::class, 'upload'])->name('files.upload');
+        Route::post('/files/upload', [AdminFileUploadController::class, 'upload'])->name('files.upload');
         Route::get('/users/import', [UsersController::class, 'importForm'])->name('users.import');
         Route::post('/users/import', [UsersController::class, 'import'])->name('users.import.submit');
         Route::post('/users/export/csv', [UsersController::class, 'exportCsv'])->name('users.export.csv');
@@ -391,11 +394,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/email-logs/{emailLog}', [EmailLogController::class, 'show'])->name('email-logs.show');
 
         // Account Deletion Requests
-        Route::get('/account-deletion-request', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'index']);
-        Route::get('/account-deletion-requests', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'index'])->name('account-deletion.index');
-        Route::post('/account-deletion-requests/{id}/approve', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'approve'])->name('account-deletion.approve');
-        Route::post('/account-deletion-requests/{id}/reject', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'reject'])->name('account-deletion.reject');
-        Route::patch('/account-deletion-requests/{id}/status', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'updateStatus'])->name('account-deletion.update-status');
+        Route::get('/account-deletion-request', [App\Http\Controllers\Admin\AccountDeletionController::class, 'index']);
+        Route::get('/account-deletion-requests', [App\Http\Controllers\Admin\AccountDeletionController::class, 'index'])->name('account-deletion.index');
+        Route::post('/account-deletion-requests/{id}/approve', [App\Http\Controllers\Admin\AccountDeletionController::class, 'approve'])->name('account-deletion.approve');
+        Route::post('/account-deletion-requests/{id}/reject', [App\Http\Controllers\Admin\AccountDeletionController::class, 'reject'])->name('account-deletion.reject');
+        Route::patch('/account-deletion-requests/{id}/status', [App\Http\Controllers\Admin\AccountDeletionController::class, 'updateStatus'])->name('account-deletion.update-status');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');

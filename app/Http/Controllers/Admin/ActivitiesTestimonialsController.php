@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\File;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
@@ -49,9 +50,9 @@ class ActivitiesTestimonialsController extends Controller
 
         $allMediaIds = [];
         foreach ($items as $item) {
-            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+            $allMediaIds = array_merge($allMediaIds, File::extractIdsFromMedia($item->media));
         }
-        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+        $validMediaIds = File::getValidMediaIds(array_unique($allMediaIds));
 
         $topMembers = $this->topMembers($request);
 

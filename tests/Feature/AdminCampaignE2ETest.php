@@ -8,6 +8,8 @@ use App\Models\CampaignDelivery;
 use App\Models\Notification;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserPushToken;
+use App\Services\Firebase\FcmService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -53,9 +55,9 @@ class AdminCampaignE2ETest extends TestCase
         $this->admin->roles()->attach($globalAdminRoleId);
 
         // Auto-generate UUID for Notification model in tests since SQLite does not support gen_random_uuid()
-        \App\Models\Notification::creating(function ($notification) {
+        Notification::creating(function ($notification) {
             if (empty($notification->id)) {
-                $notification->id = (string) \Illuminate\Support\Str::uuid();
+                $notification->id = (string) Str::uuid();
             }
         });
 
@@ -302,13 +304,13 @@ class AdminCampaignE2ETest extends TestCase
         $this->withoutExceptionHandling();
 
         // Register push tokens for user1 and user2
-        \App\Models\UserPushToken::create([
+        UserPushToken::create([
             'id' => (string) Str::uuid(),
             'user_id' => $this->user1->id,
             'token' => 'fcm-token-user1',
             'platform' => 'android',
         ]);
-        \App\Models\UserPushToken::create([
+        UserPushToken::create([
             'id' => (string) Str::uuid(),
             'user_id' => $this->user2->id,
             'token' => 'fcm-token-user2',
@@ -316,7 +318,7 @@ class AdminCampaignE2ETest extends TestCase
         ]);
 
         // Mock FcmService
-        $fcmMock = $this->mock(\App\Services\Firebase\FcmService::class);
+        $fcmMock = $this->mock(FcmService::class);
         $fcmMock->shouldReceive('sendToDevice')
             ->twice()
             ->andReturn([

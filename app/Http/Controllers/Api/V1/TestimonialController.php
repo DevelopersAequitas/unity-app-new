@@ -192,18 +192,17 @@ class TestimonialController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
-        $givenToTotal = Testimonial::query()
-            ->where('from_user_id', $authUser->id)
+        $testimonialsReceived = Testimonial::query()
+            ->where('to_user_id', $authUser->id)
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
-            ->distinct('to_user_id')
-            ->count('to_user_id');
+            ->count();
 
         return $this->success([
             'summary' => [
                 'total_testimonials' => $paginator->total(),
-                'given_by_total' => $paginator->total(),
-                'given_to_total' => $givenToTotal,
+                'testimonials_given' => $paginator->total(),
+                'testimonials_received' => $testimonialsReceived,
             ],
             'items' => TestimonialResource::collection($paginator->items()),
             'pagination' => [
@@ -229,18 +228,17 @@ class TestimonialController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
-        $givenByTotal = Testimonial::query()
-            ->where('to_user_id', $authUser->id)
+        $testimonialsGiven = Testimonial::query()
+            ->where('from_user_id', $authUser->id)
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
-            ->distinct('from_user_id')
-            ->count('from_user_id');
+            ->count();
 
         return $this->success([
             'summary' => [
                 'total_testimonials' => $paginator->total(),
-                'given_by_total' => $givenByTotal,
-                'given_to_total' => $paginator->total(),
+                'testimonials_given' => $testimonialsGiven,
+                'testimonials_received' => $paginator->total(),
             ],
             'items' => TestimonialResource::collection($paginator->items()),
             'pagination' => [
@@ -265,18 +263,17 @@ class TestimonialController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
-        $givenByTotal = Testimonial::query()
-            ->where('to_user_id', $user->id)
+        $testimonialsGiven = Testimonial::query()
+            ->where('from_user_id', $user->id)
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
-            ->distinct('from_user_id')
-            ->count('from_user_id');
+            ->count();
 
         return $this->success([
             'summary' => [
                 'total_testimonials' => $paginator->total(),
-                'given_by_total' => $givenByTotal,
-                'given_to_total' => $paginator->total(),
+                'testimonials_given' => $testimonialsGiven,
+                'testimonials_received' => $paginator->total(),
             ],
             'items' => TestimonialResource::collection($paginator->items()),
             'pagination' => [

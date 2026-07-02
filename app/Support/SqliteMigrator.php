@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class SqliteMigrator
 {
@@ -38,7 +39,7 @@ class SqliteMigrator
             $table = $matches[1];
             $column = $matches[2];
             try {
-                if (\Illuminate\Support\Facades\Schema::hasTable($table) && \Illuminate\Support\Facades\Schema::hasColumn($table, $column)) {
+                if (Schema::hasTable($table) && Schema::hasColumn($table, $column)) {
                     return '';
                 }
             } catch (\Throwable $e) {
@@ -50,7 +51,7 @@ class SqliteMigrator
             $table = $matches[1];
             $column = $matches[2];
             try {
-                if (\Illuminate\Support\Facades\Schema::hasTable($table) && ! \Illuminate\Support\Facades\Schema::hasColumn($table, $column)) {
+                if (Schema::hasTable($table) && ! Schema::hasColumn($table, $column)) {
                     return '';
                 }
             } catch (\Throwable $e) {

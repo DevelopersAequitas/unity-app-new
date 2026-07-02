@@ -22,6 +22,7 @@ use App\Services\Notifications\NotifyUserService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -832,7 +833,7 @@ class PostController extends BaseApiController
         }
     }
 
-    private function mentionedUsers(string $text): \Illuminate\Support\Collection
+    private function mentionedUsers(string $text): Collection
     {
         preg_match_all('/@([A-Za-z0-9_.-]{2,50})/', $text, $matches);
         $handles = collect($matches[1] ?? [])->filter()->unique()->values();

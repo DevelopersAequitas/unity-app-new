@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\AdminUser;
 use App\Models\CircleMember;
+use App\Models\Event;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
@@ -607,7 +608,7 @@ class AdminCircleScope
             return true;
         }
 
-        $query = \App\Models\Event::query()->whereKey($eventId);
+        $query = Event::query()->whereKey($eventId);
         self::applyToEventsQuery($query, $admin);
 
         return $query->exists();

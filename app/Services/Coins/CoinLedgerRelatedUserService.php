@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 class CoinLedgerRelatedUserService
 {
-    /** @var \Illuminate\Support\Collection<string, \App\Models\User> */
+    /** @var Collection<string, User> */
     private Collection $userCache;
 
     public function __construct()
@@ -23,7 +23,7 @@ class CoinLedgerRelatedUserService
 
     /**
      * @param  mixed  $ledger
-     * @return array{related_user: ?\App\Models\User, activity_type: ?string, activity_id: ?string}
+     * @return array{related_user: ?User, activity_type: ?string, activity_id: ?string}
      */
     public function enrichLedgerItem($ledger, int|string $authUserId, string $reasonLabel): array
     {
@@ -130,7 +130,7 @@ class CoinLedgerRelatedUserService
     /**
      * @template T of \Illuminate\Database\Eloquent\Model
      *
-     * @param  \Illuminate\Support\Collection<int, T>  $records
+     * @param  Collection<int, T>  $records
      * @return ?T
      */
     private function closestByTimestamp(Collection $records, Carbon $target)
@@ -158,7 +158,7 @@ class CoinLedgerRelatedUserService
     }
 
     /**
-     * @return array{start: \Carbon\Carbon, end: \Carbon\Carbon}
+     * @return array{start: Carbon, end: Carbon}
      */
     private function timeWindow(Carbon $center): array
     {

@@ -16,9 +16,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -44,8 +46,8 @@ class NotificationAdminController extends Controller
             'clicked_notifications' => $hasNotifications ? AppNotification::whereNotNull('clicked_at')->count() : 0,
             'active_campaigns' => $hasCampaigns ? NotificationCampaign::where('is_active', true)->count() : 0,
             'inactive_campaigns' => $hasCampaigns ? NotificationCampaign::where('is_active', false)->count() : 0,
-            'total_push_tokens' => $hasPushTokens ? \Illuminate\Support\Facades\DB::table('user_push_tokens')->count() : 0,
-            'active_push_tokens' => ($hasPushTokens && Schema::hasColumn('user_push_tokens', 'is_active')) ? \Illuminate\Support\Facades\DB::table('user_push_tokens')->where('is_active', true)->count() : 0,
+            'total_push_tokens' => $hasPushTokens ? DB::table('user_push_tokens')->count() : 0,
+            'active_push_tokens' => ($hasPushTokens && Schema::hasColumn('user_push_tokens', 'is_active')) ? DB::table('user_push_tokens')->where('is_active', true)->count() : 0,
             'today_sent' => $hasNotifications ? AppNotification::whereDate('sent_at', today())->count() : 0,
             'today_failed' => $hasNotifications ? AppNotification::whereDate('failed_at', today())->count() : 0,
             'today_read' => $hasNotifications ? AppNotification::whereDate('read_at', today())->count() : 0,
@@ -370,7 +372,7 @@ class NotificationAdminController extends Controller
     {
         try {
             $data = $this->testNotificationData($request);
-        } catch (\Illuminate\Validation\ValidationException $exception) {
+        } catch (ValidationException $exception) {
             if ($exception->validator->errors()->has('data')) {
                 return back()->withInput()->with('error', 'Data JSON must be valid JSON.');
             }

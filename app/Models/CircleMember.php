@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -131,24 +132,24 @@ class CircleMember extends Model
         static::saved(function (CircleMember $member): void {
             $admin = auth('admin')->user();
             if ($admin) {
-                \Illuminate\Support\Facades\Cache::forget('admin-access:allowed-users:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:allowed-circles:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:primary-role:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:assigned-circles:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:user:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:roles:'.$admin->id);
+                Cache::forget('admin-access:allowed-users:'.$admin->id);
+                Cache::forget('admin-access:allowed-circles:'.$admin->id);
+                Cache::forget('admin-access:primary-role:'.$admin->id);
+                Cache::forget('admin-access:assigned-circles:'.$admin->id);
+                Cache::forget('admin-access:user:'.$admin->id);
+                Cache::forget('admin-access:roles:'.$admin->id);
             }
         });
 
         static::deleted(function (CircleMember $member): void {
             $admin = auth('admin')->user();
             if ($admin) {
-                \Illuminate\Support\Facades\Cache::forget('admin-access:allowed-users:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:allowed-circles:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:primary-role:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:assigned-circles:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:user:'.$admin->id);
-                \Illuminate\Support\Facades\Cache::forget('admin-access:roles:'.$admin->id);
+                Cache::forget('admin-access:allowed-users:'.$admin->id);
+                Cache::forget('admin-access:allowed-circles:'.$admin->id);
+                Cache::forget('admin-access:primary-role:'.$admin->id);
+                Cache::forget('admin-access:assigned-circles:'.$admin->id);
+                Cache::forget('admin-access:user:'.$admin->id);
+                Cache::forget('admin-access:roles:'.$admin->id);
             }
         });
     }

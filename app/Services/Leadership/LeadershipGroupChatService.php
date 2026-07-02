@@ -54,7 +54,7 @@ class LeadershipGroupChatService
 
         DB::table('leadership_group_message_deletions')->upsert(
             [[
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'message_id' => $message->id,
                 'user_id' => $user->id,
                 'deleted_at' => $now,

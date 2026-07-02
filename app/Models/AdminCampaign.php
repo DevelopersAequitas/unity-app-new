@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -118,7 +119,7 @@ class AdminCampaign extends Model
         return $schedule->timezone;
     }
 
-    public function formatTimestamp(?\Carbon\Carbon $dateTime): ?string
+    public function formatTimestamp(?Carbon $dateTime): ?string
     {
         if (! $dateTime) {
             return null;
@@ -133,7 +134,7 @@ class AdminCampaign extends Model
             return null;
         }
 
-        return \Carbon\Carbon::parse($value, 'UTC');
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setSentAtAttribute($value)
@@ -141,7 +142,7 @@ class AdminCampaign extends Model
         if (! $value) {
             $this->attributes['sent_at'] = null;
         } else {
-            $this->attributes['sent_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['sent_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 

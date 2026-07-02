@@ -31,6 +31,6 @@ try {
         );
     }
 
-} catch (\Throwable $e) {
+} catch (Throwable $e) {
     echo 'Error: '.$e->getMessage().PHP_EOL;
 }

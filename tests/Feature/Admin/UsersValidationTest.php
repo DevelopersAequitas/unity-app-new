@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -76,7 +77,7 @@ class UsersValidationTest extends TestCase
         $this->actingAs($this->admin, 'admin');
 
         // Create dummy city
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        DB::table('cities')->insert([
             'id' => (string) Str::uuid(),
             'name' => 'Ahmedabad',
             'created_at' => now(),

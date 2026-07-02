@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AdminUser;
 use App\Models\DailyNotificationReminder;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -166,7 +167,7 @@ class DailyNotificationReminderTest extends TestCase
         }
 
         // Create a test user
-        $testUser = \App\Models\User::query()->create([
+        $testUser = User::query()->create([
             'id' => Str::uuid()->toString(),
             'email' => 'missurvashi300@gmail.com',
             'first_name' => 'Jenil',

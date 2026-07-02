@@ -7,7 +7,10 @@ use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\AdminCircleScope;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -18,7 +21,7 @@ class DedCommandCenterTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        \App\Support\AdminCircleScope::resetCache();
+        AdminCircleScope::resetCache();
         $this->createSchema();
 
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
@@ -62,7 +65,7 @@ class DedCommandCenterTest extends TestCase
 
         // 3. Setup location assignments
         $stateId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('states')->insert([
+        DB::table('states')->insert([
             'id' => $stateId,
             'name' => 'Gujarat',
             'created_at' => now(),
@@ -70,7 +73,7 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         $districtId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('districts')->insert([
+        DB::table('districts')->insert([
             'id' => $districtId,
             'name' => 'Ahmedabad',
             'state_id' => $stateId,
@@ -78,7 +81,7 @@ class DedCommandCenterTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        \Illuminate\Support\Facades\DB::table('admin_ded_districts')->insert([
+        DB::table('admin_ded_districts')->insert([
             'id' => (string) Str::uuid(),
             'admin_user_id' => $admin->id,
             'state_id' => $stateId,
@@ -89,7 +92,7 @@ class DedCommandCenterTest extends TestCase
 
         // 4. Create Circles - one matching Ahmedabad, one matching Bengaluru
         $ahmedabadCityId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        DB::table('cities')->insert([
             'id' => $ahmedabadCityId,
             'name' => 'Ahmedabad',
             'created_at' => now(),
@@ -97,7 +100,7 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         $bengaluruCityId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        DB::table('cities')->insert([
             'id' => $bengaluruCityId,
             'name' => 'Bengaluru',
             'created_at' => now(),
@@ -141,7 +144,7 @@ class DedCommandCenterTest extends TestCase
         $this->actingAs($admin, 'admin');
 
         // Refresh Cache/Static states if any
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
 
         $response = $this->get('/admin/ded-dashboard');
         $response->assertOk();
@@ -181,7 +184,7 @@ class DedCommandCenterTest extends TestCase
         $admin->roles()->attach($role->id);
 
         $stateId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('states')->insert([
+        DB::table('states')->insert([
             'id' => $stateId,
             'name' => 'Gujarat',
             'created_at' => now(),
@@ -189,7 +192,7 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         $districtId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('districts')->insert([
+        DB::table('districts')->insert([
             'id' => $districtId,
             'name' => 'Ahmedabad',
             'state_id' => $stateId,
@@ -197,7 +200,7 @@ class DedCommandCenterTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        \Illuminate\Support\Facades\DB::table('admin_ded_districts')->insert([
+        DB::table('admin_ded_districts')->insert([
             'id' => (string) Str::uuid(),
             'admin_user_id' => $admin->id,
             'state_id' => $stateId,
@@ -217,7 +220,7 @@ class DedCommandCenterTest extends TestCase
         Sanctum::actingAs($user);
 
         // Flush cache
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
 
         $response = $this->getJson('/api/v1/ded/dashboard');
         $response->assertOk();
@@ -255,23 +258,23 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         $stateId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('states')->insert([
+        DB::table('states')->insert([
             'id' => $stateId, 'name' => 'Gujarat', 'created_at' => now(), 'updated_at' => now(),
         ]);
         $districtId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('districts')->insert([
+        DB::table('districts')->insert([
             'id' => $districtId, 'name' => 'Ahmedabad', 'state_id' => $stateId, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        \Illuminate\Support\Facades\DB::table('admin_ded_districts')->insert([
+        DB::table('admin_ded_districts')->insert([
             'id' => (string) Str::uuid(), 'admin_user_id' => $admin->id, 'state_id' => $stateId, 'district_id' => $districtId, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $ahmedabadCityId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        DB::table('cities')->insert([
             'id' => $ahmedabadCityId, 'name' => 'Ahmedabad', 'created_at' => now(), 'updated_at' => now(),
         ]);
         $bengaluruCityId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        DB::table('cities')->insert([
             'id' => $bengaluruCityId, 'name' => 'Bengaluru', 'created_at' => now(), 'updated_at' => now(),
         ]);
 
@@ -326,7 +329,7 @@ class DedCommandCenterTest extends TestCase
 
         // Join Requests
         // Request A: status pending_cd_approval, DED status pending -> pending approval
-        $reqA = \Illuminate\Support\Facades\DB::table('circle_join_requests')->insert([
+        $reqA = DB::table('circle_join_requests')->insert([
             'id' => (string) Str::uuid(),
             'user_id' => $user1->id,
             'circle_id' => $ahmedabadCircle->id,
@@ -335,7 +338,7 @@ class DedCommandCenterTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]);
         // Request B: status pending_cd_approval, DED status approved -> approved
-        $reqB = \Illuminate\Support\Facades\DB::table('circle_join_requests')->insert([
+        $reqB = DB::table('circle_join_requests')->insert([
             'id' => (string) Str::uuid(),
             'user_id' => $user1->id,
             'circle_id' => $ahmedabadCircle->id,
@@ -345,7 +348,7 @@ class DedCommandCenterTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]);
         // Request C: status pending_circle_fee, fee_paid_at null -> pending payment
-        $reqC = \Illuminate\Support\Facades\DB::table('circle_join_requests')->insert([
+        $reqC = DB::table('circle_join_requests')->insert([
             'id' => (string) Str::uuid(),
             'user_id' => $user1->id,
             'circle_id' => $ahmedabadCircle->id,
@@ -355,8 +358,8 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         $this->actingAs($admin, 'admin');
-        \App\Support\AdminCircleScope::resetCache();
-        \Illuminate\Support\Facades\Cache::flush();
+        AdminCircleScope::resetCache();
+        Cache::flush();
 
         // Request dashboard
         $response = $this->get('/admin/ded-dashboard');
@@ -414,23 +417,23 @@ class DedCommandCenterTest extends TestCase
         $admin->roles()->attach($dedRole->id);
 
         $stateId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('states')->insert([
+        DB::table('states')->insert([
             'id' => $stateId, 'name' => 'Gujarat', 'created_at' => now(), 'updated_at' => now(),
         ]);
         $districtId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('districts')->insert([
+        DB::table('districts')->insert([
             'id' => $districtId, 'name' => 'Ahmedabad', 'state_id' => $stateId, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        \Illuminate\Support\Facades\DB::table('admin_ded_districts')->insert([
+        DB::table('admin_ded_districts')->insert([
             'id' => (string) Str::uuid(), 'admin_user_id' => $admin->id, 'state_id' => $stateId, 'district_id' => $districtId, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $ahmedabadCityId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        DB::table('cities')->insert([
             'id' => $ahmedabadCityId, 'name' => 'Ahmedabad', 'created_at' => now(), 'updated_at' => now(),
         ]);
         $bengaluruCityId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        DB::table('cities')->insert([
             'id' => $bengaluruCityId, 'name' => 'Bengaluru', 'created_at' => now(), 'updated_at' => now(),
         ]);
 
@@ -483,8 +486,8 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         $this->actingAs($admin, 'admin');
-        \App\Support\AdminCircleScope::resetCache();
-        \Illuminate\Support\Facades\Cache::flush();
+        AdminCircleScope::resetCache();
+        Cache::flush();
 
         // 1. DED user should be able to VIEW in-scope user details
         $viewInScope = $this->get("/admin/users/{$userA->id}");
@@ -514,38 +517,38 @@ class DedCommandCenterTest extends TestCase
     {
         $dedRole = Role::query()->where('key', 'ded')->firstOrFail();
         $admin = AdminUser::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'name' => 'DED Ahmedabad',
             'email' => 'ded.ahm.health@example.com',
         ]);
         $admin->roles()->attach($dedRole->id);
 
-        $stateId = (string) \Illuminate\Support\Str::uuid();
-        \Illuminate\Support\Facades\DB::table('states')->insert([
+        $stateId = (string) Str::uuid();
+        DB::table('states')->insert([
             'id' => $stateId, 'name' => 'Gujarat', 'created_at' => now(), 'updated_at' => now(),
         ]);
-        $districtId = (string) \Illuminate\Support\Str::uuid();
-        \Illuminate\Support\Facades\DB::table('districts')->insert([
+        $districtId = (string) Str::uuid();
+        DB::table('districts')->insert([
             'id' => $districtId, 'name' => 'Ahmedabad', 'state_id' => $stateId, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        \Illuminate\Support\Facades\DB::table('admin_ded_districts')->insert([
-            'id' => (string) \Illuminate\Support\Str::uuid(), 'admin_user_id' => $admin->id, 'state_id' => $stateId, 'district_id' => $districtId, 'created_at' => now(), 'updated_at' => now(),
+        DB::table('admin_ded_districts')->insert([
+            'id' => (string) Str::uuid(), 'admin_user_id' => $admin->id, 'state_id' => $stateId, 'district_id' => $districtId, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        $ahmedabadCityId = (string) \Illuminate\Support\Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        $ahmedabadCityId = (string) Str::uuid();
+        DB::table('cities')->insert([
             'id' => $ahmedabadCityId, 'name' => 'Ahmedabad', 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $ahmedabadCircle = Circle::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'name' => 'Ahmedabad Winners Circle',
             'city_id' => $ahmedabadCityId,
             'status' => 'active',
         ]);
 
         $userA = User::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'Active Member',
             'email' => 'active.ahm@example.com',
             'city_id' => $ahmedabadCityId,
@@ -554,7 +557,7 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         CircleMember::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'user_id' => $userA->id,
             'circle_id' => $ahmedabadCircle->id,
             'role' => 'chair',
@@ -563,8 +566,8 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         $this->actingAs($admin, 'admin');
-        \App\Support\AdminCircleScope::resetCache();
-        \Illuminate\Support\Facades\Cache::flush();
+        AdminCircleScope::resetCache();
+        Cache::flush();
 
         // 1. Active Members
         $response = $this->get('/admin/ded-dashboard/health/active-members');
@@ -597,38 +600,38 @@ class DedCommandCenterTest extends TestCase
     {
         $dedRole = Role::query()->where('key', 'ded')->firstOrFail();
         $admin = AdminUser::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'name' => 'DED Ahmedabad',
             'email' => 'ded.ahm.ind.overview@example.com',
         ]);
         $admin->roles()->attach($dedRole->id);
 
-        $stateId = (string) \Illuminate\Support\Str::uuid();
-        \Illuminate\Support\Facades\DB::table('states')->insert([
+        $stateId = (string) Str::uuid();
+        DB::table('states')->insert([
             'id' => $stateId, 'name' => 'Gujarat', 'created_at' => now(), 'updated_at' => now(),
         ]);
-        $districtId = (string) \Illuminate\Support\Str::uuid();
-        \Illuminate\Support\Facades\DB::table('districts')->insert([
+        $districtId = (string) Str::uuid();
+        DB::table('districts')->insert([
             'id' => $districtId, 'name' => 'Ahmedabad', 'state_id' => $stateId, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        \Illuminate\Support\Facades\DB::table('admin_ded_districts')->insert([
-            'id' => (string) \Illuminate\Support\Str::uuid(), 'admin_user_id' => $admin->id, 'state_id' => $stateId, 'district_id' => $districtId, 'created_at' => now(), 'updated_at' => now(),
+        DB::table('admin_ded_districts')->insert([
+            'id' => (string) Str::uuid(), 'admin_user_id' => $admin->id, 'state_id' => $stateId, 'district_id' => $districtId, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        $ahmedabadCityId = (string) \Illuminate\Support\Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        $ahmedabadCityId = (string) Str::uuid();
+        DB::table('cities')->insert([
             'id' => $ahmedabadCityId, 'name' => 'Ahmedabad', 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $ahmedabadCircle = Circle::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'name' => 'Ahmedabad Manufacturing Circle',
             'city_id' => $ahmedabadCityId,
             'status' => 'active',
         ]);
 
         // Create circle category
-        $catId = \Illuminate\Support\Facades\DB::table('circle_categories')->insertGetId([
+        $catId = DB::table('circle_categories')->insertGetId([
             'name' => 'Manufacturing & Engineering Circles',
             'parent_id' => null,
             'is_active' => true,
@@ -636,13 +639,13 @@ class DedCommandCenterTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        \Illuminate\Support\Facades\DB::table('circle_category_mappings')->insert([
+        DB::table('circle_category_mappings')->insert([
             'circle_id' => $ahmedabadCircle->id,
             'category_id' => $catId,
         ]);
 
         $user = User::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'Active Member',
             'email' => 'active.ahm.ind@example.com',
             'city_id' => $ahmedabadCityId,
@@ -652,7 +655,7 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         CircleMember::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'user_id' => $user->id,
             'circle_id' => $ahmedabadCircle->id,
             'role' => 'chair',
@@ -661,8 +664,8 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         $this->actingAs($admin, 'admin');
-        \App\Support\AdminCircleScope::resetCache();
-        \Illuminate\Support\Facades\Cache::flush();
+        AdminCircleScope::resetCache();
+        Cache::flush();
 
         $response = $this->get('/admin/ded-dashboard/industries');
         $response->assertOk();
@@ -680,38 +683,38 @@ class DedCommandCenterTest extends TestCase
     {
         $dedRole = Role::query()->where('key', 'ded')->firstOrFail();
         $admin = AdminUser::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'name' => 'DED Ahmedabad',
             'email' => 'ded.ahm.ind.detail@example.com',
         ]);
         $admin->roles()->attach($dedRole->id);
 
-        $stateId = (string) \Illuminate\Support\Str::uuid();
-        \Illuminate\Support\Facades\DB::table('states')->insert([
+        $stateId = (string) Str::uuid();
+        DB::table('states')->insert([
             'id' => $stateId, 'name' => 'Gujarat', 'created_at' => now(), 'updated_at' => now(),
         ]);
-        $districtId = (string) \Illuminate\Support\Str::uuid();
-        \Illuminate\Support\Facades\DB::table('districts')->insert([
+        $districtId = (string) Str::uuid();
+        DB::table('districts')->insert([
             'id' => $districtId, 'name' => 'Ahmedabad', 'state_id' => $stateId, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        \Illuminate\Support\Facades\DB::table('admin_ded_districts')->insert([
-            'id' => (string) \Illuminate\Support\Str::uuid(), 'admin_user_id' => $admin->id, 'state_id' => $stateId, 'district_id' => $districtId, 'created_at' => now(), 'updated_at' => now(),
+        DB::table('admin_ded_districts')->insert([
+            'id' => (string) Str::uuid(), 'admin_user_id' => $admin->id, 'state_id' => $stateId, 'district_id' => $districtId, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        $ahmedabadCityId = (string) \Illuminate\Support\Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        $ahmedabadCityId = (string) Str::uuid();
+        DB::table('cities')->insert([
             'id' => $ahmedabadCityId, 'name' => 'Ahmedabad', 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $ahmedabadCircle = Circle::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'name' => 'Ahmedabad Manufacturing Circle',
             'city_id' => $ahmedabadCityId,
             'status' => 'active',
         ]);
 
         // Create circle category
-        $catId = \Illuminate\Support\Facades\DB::table('circle_categories')->insertGetId([
+        $catId = DB::table('circle_categories')->insertGetId([
             'name' => 'Manufacturing & Engineering Circles',
             'parent_id' => null,
             'is_active' => true,
@@ -719,13 +722,13 @@ class DedCommandCenterTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        \Illuminate\Support\Facades\DB::table('circle_category_mappings')->insert([
+        DB::table('circle_category_mappings')->insert([
             'circle_id' => $ahmedabadCircle->id,
             'category_id' => $catId,
         ]);
 
         $user = User::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'Active Member',
             'email' => 'active.ahm.ind@example.com',
             'city_id' => $ahmedabadCityId,
@@ -735,7 +738,7 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         CircleMember::query()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'user_id' => $user->id,
             'circle_id' => $ahmedabadCircle->id,
             'role' => 'chair',
@@ -744,8 +747,8 @@ class DedCommandCenterTest extends TestCase
         ]);
 
         $this->actingAs($admin, 'admin');
-        \App\Support\AdminCircleScope::resetCache();
-        \Illuminate\Support\Facades\Cache::flush();
+        AdminCircleScope::resetCache();
+        Cache::flush();
 
         $response = $this->get('/admin/ded-dashboard/industries/'.$catId);
         $response->assertOk();
@@ -770,19 +773,19 @@ class DedCommandCenterTest extends TestCase
         $admin->roles()->attach($dedRole->id);
 
         $stateId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('states')->insert([
+        DB::table('states')->insert([
             'id' => $stateId, 'name' => 'Gujarat', 'created_at' => now(), 'updated_at' => now(),
         ]);
         $districtId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('districts')->insert([
+        DB::table('districts')->insert([
             'id' => $districtId, 'name' => 'Ahmedabad', 'state_id' => $stateId, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        \Illuminate\Support\Facades\DB::table('admin_ded_districts')->insert([
+        DB::table('admin_ded_districts')->insert([
             'id' => (string) Str::uuid(), 'admin_user_id' => $admin->id, 'state_id' => $stateId, 'district_id' => $districtId, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $ahmedabadCityId = (string) Str::uuid();
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        DB::table('cities')->insert([
             'id' => $ahmedabadCityId, 'name' => 'Ahmedabad', 'created_at' => now(), 'updated_at' => now(),
         ]);
 
@@ -793,7 +796,7 @@ class DedCommandCenterTest extends TestCase
             'status' => 'active',
         ]);
 
-        $catId = \Illuminate\Support\Facades\DB::table('circle_categories')->insertGetId([
+        $catId = DB::table('circle_categories')->insertGetId([
             'name' => 'Manufacturing & Engineering',
             'parent_id' => null,
             'is_active' => true,
@@ -801,7 +804,7 @@ class DedCommandCenterTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        \Illuminate\Support\Facades\DB::table('circle_category_mappings')->insert([
+        DB::table('circle_category_mappings')->insert([
             'circle_id' => $circle->id,
             'category_id' => $catId,
         ]);
@@ -826,8 +829,8 @@ class DedCommandCenterTest extends TestCase
         Sanctum::actingAs($user);
 
         // Flush cache
-        \App\Support\AdminCircleScope::resetCache();
-        \Illuminate\Support\Facades\Cache::flush();
+        AdminCircleScope::resetCache();
+        Cache::flush();
 
         // 1. Drilldowns
         $this->getJson('/api/v1/ded/drilldowns/active-members')

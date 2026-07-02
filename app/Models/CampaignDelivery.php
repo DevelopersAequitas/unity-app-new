@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -64,7 +65,7 @@ class CampaignDelivery extends Model
             return null;
         }
 
-        return \Carbon\Carbon::parse($value, 'UTC');
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setScheduledAtAttribute($value)
@@ -72,7 +73,7 @@ class CampaignDelivery extends Model
         if (! $value) {
             $this->attributes['scheduled_at'] = null;
         } else {
-            $this->attributes['scheduled_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['scheduled_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 
@@ -82,7 +83,7 @@ class CampaignDelivery extends Model
             return null;
         }
 
-        return \Carbon\Carbon::parse($value, 'UTC');
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setStartedAtAttribute($value)
@@ -90,7 +91,7 @@ class CampaignDelivery extends Model
         if (! $value) {
             $this->attributes['started_at'] = null;
         } else {
-            $this->attributes['started_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['started_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 
@@ -100,7 +101,7 @@ class CampaignDelivery extends Model
             return null;
         }
 
-        return \Carbon\Carbon::parse($value, 'UTC');
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setCompletedAtAttribute($value)
@@ -108,7 +109,7 @@ class CampaignDelivery extends Model
         if (! $value) {
             $this->attributes['completed_at'] = null;
         } else {
-            $this->attributes['completed_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['completed_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 
@@ -117,7 +118,7 @@ class CampaignDelivery extends Model
         return $this->hasMany(CampaignLog::class, 'delivery_id');
     }
 
-    public function formatTimestamp(?\Carbon\Carbon $dateTime): ?string
+    public function formatTimestamp(?Carbon $dateTime): ?string
     {
         if (! $dateTime) {
             return null;

@@ -9,6 +9,8 @@ use App\Models\CircleMember;
 use App\Models\EmailLog;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
@@ -548,8 +550,8 @@ class SendMembershipExpiryRemindersTest extends TestCase
 
     public function test_scheduler_contains_all_three_reminder_commands(): void
     {
-        $kernel = app(\Illuminate\Contracts\Console\Kernel::class);
-        $schedule = app(\Illuminate\Console\Scheduling\Schedule::class);
+        $kernel = app(Kernel::class);
+        $schedule = app(Schedule::class);
 
         $reflection = new \ReflectionClass($kernel);
         if ($reflection->hasMethod('schedule')) {

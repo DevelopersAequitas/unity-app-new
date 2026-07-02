@@ -3,13 +3,14 @@
 namespace App\Services\Admin;
 
 use App\Models\AdminAuditLog;
+use App\Models\AdminUser;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class AdminAuditService
 {
-    public function log(User|\App\Models\AdminUser $actor, string $action, string $resourceType, ?string $resourceId, array $old = [], array $new = [], ?Request $request = null): void
+    public function log(User|AdminUser $actor, string $action, string $resourceType, ?string $resourceId, array $old = [], array $new = [], ?Request $request = null): void
     {
         AdminAuditLog::query()->create([
             'id' => (string) Str::uuid(),
