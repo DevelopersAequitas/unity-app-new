@@ -14,6 +14,7 @@ use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -373,7 +374,7 @@ class ImpactsController extends Controller
             ->where('status', 'approved');
         $this->applyDedImpactScope($totalLifeImpactedQuery);
         $totalLifeImpacted = (int) $totalLifeImpactedQuery
-            ->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(life_impacted, 1)'));
+            ->sum(DB::raw('COALESCE(life_impacted, 1)'));
 
         return view('admin.impacts.show', [
             'impact' => $impact,

@@ -15,6 +15,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ProcessCampaignDeliveryJob implements ShouldQueue
@@ -82,7 +83,7 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
                 $now = now();
 
                 foreach ($users as $user) {
-                    $logId = (string) \Illuminate\Support\Str::uuid();
+                    $logId = (string) Str::uuid();
                     $logsData[] = [
                         'id' => $logId,
                         'delivery_id' => $deliveryId,
@@ -139,7 +140,7 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
 
                         $campaign = $del->campaign;
                         if ($campaign) {
-                            (new \App\Jobs\ProcessCampaignDeliveryJob($deliveryId))->syncCampaignStatus($campaign);
+                            (new ProcessCampaignDeliveryJob($deliveryId))->syncCampaignStatus($campaign);
                         }
                     }
                 })
@@ -161,7 +162,7 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
 
                         $campaign = $del->campaign;
                         if ($campaign) {
-                            (new \App\Jobs\ProcessCampaignDeliveryJob($deliveryId))->syncCampaignStatus($campaign);
+                            (new ProcessCampaignDeliveryJob($deliveryId))->syncCampaignStatus($campaign);
                         }
                     }
                 });

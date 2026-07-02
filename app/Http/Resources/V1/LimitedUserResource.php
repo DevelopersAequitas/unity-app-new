@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources\V1;
 
+use App\Models\City;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class LimitedUserResource extends JsonResource
@@ -9,7 +11,7 @@ class LimitedUserResource extends JsonResource
     /**
      * Transform the resource into an array.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  Request  $request
      * @return array<string, mixed>
      */
     public function toArray($request): array
@@ -21,7 +23,7 @@ class LimitedUserResource extends JsonResource
 
         $cityName = null;
         $cityRelation = $user->relationLoaded('city') ? $user->getRelation('city') : null;
-        if ($cityRelation instanceof \App\Models\City) {
+        if ($cityRelation instanceof City) {
             $cityName = $cityRelation->name;
         } else {
             $cityName = is_string($user->city) ? $user->city : ($user->city_of_residence ?? null);

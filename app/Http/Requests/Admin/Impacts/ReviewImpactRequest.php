@@ -4,6 +4,7 @@ namespace App\Http\Requests\Admin\Impacts;
 
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class ReviewImpactRequest extends FormRequest
 {
@@ -21,7 +22,7 @@ class ReviewImpactRequest extends FormRequest
 
     protected function failedValidation(ValidatorContract $validator): void
     {
-        throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+        throw new HttpResponseException(response()->json([
             'status' => false,
             'message' => 'Validation failed.',
             'errors' => $validator->errors(),

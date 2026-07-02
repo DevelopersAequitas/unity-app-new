@@ -2,15 +2,21 @@
 
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\AdminAuditLog;
 use App\Models\AdminUser;
 use App\Models\EmailLog;
 use App\Models\User;
+use App\Services\Media\FileUploadService;
+use App\Services\Referrals\ReferralService;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Redirector;
+use Illuminate\Support\Str;
 
 require __DIR__.'/../vendor/autoload.php';
 $app = require_once __DIR__.'/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 $email = 'verify-workflow-user@example.com';
@@ -31,7 +37,7 @@ if ($oldUser) {
 // 1. REGISTRATION
 echo "\n--- 1. REGISTERING NEW USER via API logic ---\n";
 
-$registerRequest = \App\Http\Requests\Auth\RegisterRequest::create('/api/v1/auth/register', 'POST', [
+$registerRequest = RegisterRequest::create('/api/v1/auth/register', 'POST', [
     'first_name' => 'John',
     'last_name' => 'Doe',
     'email' => $email,
@@ -40,13 +46,13 @@ $registerRequest = \App\Http\Requests\Auth\RegisterRequest::create('/api/v1/auth
     'password_confirmation' => $password,
 ]);
 $registerRequest->setContainer($app);
-$registerRequest->setRedirector($app->make(\Illuminate\Routing\Redirector::class));
+$registerRequest->setRedirector($app->make(Redirector::class));
 $registerRequest->validateResolved();
 
 // Resolve dependencies
 $authController = app(AuthController::class);
-$referralService = app(\App\Services\Referrals\ReferralService::class);
-$fileUploadService = app(\App\Services\Media\FileUploadService::class);
+$referralService = app(ReferralService::class);
+$fileUploadService = app(FileUploadService::class);
 
 $registerResponse = $authController->register(
     $registerRequest,
@@ -95,7 +101,7 @@ $admin = AdminUser::first();
 if (! $admin) {
     // create a dummy admin
     $admin = AdminUser::create([
-        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'id' => (string) Str::uuid(),
         'name' => 'System Tester',
         'email' => 'system.tester@example.com',
     ]);

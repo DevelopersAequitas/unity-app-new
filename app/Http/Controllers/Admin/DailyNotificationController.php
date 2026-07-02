@@ -17,6 +17,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Services\DailyNotificationReminderService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -517,7 +518,7 @@ class DailyNotificationController extends Controller
     /**
      * Helper method to map activity names to their corresponding Eloquent builders.
      */
-    protected function getEligibleUsersQuery(string $activity): \Illuminate\Database\Eloquent\Builder
+    protected function getEligibleUsersQuery(string $activity): Builder
     {
         $query = User::query()->where('status', 'active');
 

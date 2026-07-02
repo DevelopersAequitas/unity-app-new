@@ -7,6 +7,7 @@ use App\Mail\CoinClaimRejectedMail;
 use App\Mail\CoinClaimSubmittedMail;
 use App\Models\CoinClaimRequest;
 use App\Services\EmailLogs\EmailLogService;
+use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -31,7 +32,7 @@ class CoinClaimEmailService
 
     private function safeSend(CoinClaimRequest $claim, object $mailable, string $type): void
     {
-        if (! $mailable instanceof \Illuminate\Mail\Mailable) {
+        if (! $mailable instanceof Mailable) {
             return;
         }
 

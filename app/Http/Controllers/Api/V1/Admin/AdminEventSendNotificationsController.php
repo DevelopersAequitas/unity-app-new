@@ -7,6 +7,7 @@ use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\Event;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationDeliveryLog;
+use App\Models\User;
 use App\Services\Notifications\FcmService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -79,7 +80,7 @@ class AdminEventSendNotificationsController extends BaseApiController
             ->keyBy('user_id');
 
         // ── Get all active users ────────────────────────────────────────────
-        $userQuery = \App\Models\User::query()
+        $userQuery = User::query()
             ->when(Schema::hasColumn('users', 'deleted_at'), fn ($q) => $q->whereNull('users.deleted_at'))
             ->when(Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($q) => $q->whereNull('users.gdpr_deleted_at'))
             ->when(Schema::hasColumn('users', 'status'), fn ($q) => $q->where(fn ($sq) => $sq->whereNull('users.status')

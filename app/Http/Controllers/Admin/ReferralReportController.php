@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -208,7 +209,7 @@ class ReferralReportController extends Controller
         return $query;
     }
 
-    private function referredUsersForSummaryRows(array $referrerUserIds, array $filters): \Illuminate\Support\Collection
+    private function referredUsersForSummaryRows(array $referrerUserIds, array $filters): Collection
     {
         if ($referrerUserIds === []) {
             return collect();

@@ -132,7 +132,7 @@ class AppConfigPageController extends Controller
         if ($id) {
             DB::table('app_navigation_items')->where('app_instance_id', $this->appId())->where('id', $id)->update($payload);
         } else {
-            DB::table('app_navigation_items')->insert($payload + ['id' => (string) \Illuminate\Support\Str::uuid(), 'created_at' => now()]);
+            DB::table('app_navigation_items')->insert($payload + ['id' => (string) Str::uuid(), 'created_at' => now()]);
         }
         $this->syncDrawerIconActiveState($payload['menu_type'], $payload['item_key'], $payload['feature_key'] ?? null, $payload['is_enabled']);
 

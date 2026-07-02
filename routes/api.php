@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\Api\Activities\BusinessDealHistoryController;
 use App\Http\Controllers\Api\Activities\P2pMeetingHistoryController;
 use App\Http\Controllers\Api\Activities\ReferralHistoryController;
@@ -125,14 +126,20 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use App\Http\Controllers\Api\WalletController;
+use App\Jobs\SendPushNotificationJob;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 
 // Backward-compatible ads endpoint for clients that still call /api/ads.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
-Route::middleware('auth:sanctum')->get('/account-deletion-status', [\App\Http\Controllers\AccountDeletionController::class, 'status']);
+Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDeletionController::class, 'status']);
 
 Route::prefix('v1')->group(function () {
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
@@ -857,14 +864,14 @@ Route::prefix('v1')->group(function () {
         Route::delete('/push-tokens', [PushTokenController::class, 'destroy']);
 
         if (app()->environment(['local', 'staging'])) {
-            Route::post('/debug/push-test', function (\Illuminate\Http\Request $request) {
+            Route::post('/debug/push-test', function (Request $request) {
                 $user = $request->user();
 
-                \Illuminate\Support\Facades\Log::info('Dispatching test push job', [
+                Log::info('Dispatching test push job', [
                     'user_id' => $user->id,
                 ]);
 
-                \App\Jobs\SendPushNotificationJob::dispatch(
+                SendPushNotificationJob::dispatch(
                     $user,
                     'Test Push',
                     'Hello from Laravel ✅',
@@ -1009,37 +1016,37 @@ Route::middleware(['auth:sanctum', 'unity.user'])->prefix('admin')->group(functi
 
 Route::get('/debug-notifications', function () {
     try {
-        $users = \App\Models\User::query()
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('users.deleted_at'))
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($query) => $query->whereNull('users.gdpr_deleted_at'))
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.status')->orWhereRaw("LOWER(users.status::text) NOT IN ('inactive', 'suspended', 'blocked', 'banned', 'deleted', 'rejected')")))
-            ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'membership_status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.membership_status')->orWhere('users.membership_status', '!=', 'suspended')))
+        $users = User::query()
+            ->when(Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('users.deleted_at'))
+            ->when(Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($query) => $query->whereNull('users.gdpr_deleted_at'))
+            ->when(Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.status')->orWhereRaw("LOWER(users.status::text) NOT IN ('inactive', 'suspended', 'blocked', 'banned', 'deleted', 'rejected')")))
+            ->when(Schema::hasColumn('users', 'membership_status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.membership_status')->orWhere('users.membership_status', '!=', 'suspended')))
             ->get();
 
         $debugData = [];
         foreach ($users as $user) {
-            $tokens = \Illuminate\Support\Facades\DB::table('user_push_tokens')
+            $tokens = DB::table('user_push_tokens')
                 ->where('user_id', $user->id)
                 ->get();
 
-            $activeQuery = \Illuminate\Support\Facades\DB::table('user_push_tokens')
+            $activeQuery = DB::table('user_push_tokens')
                 ->where('user_id', $user->id)
                 ->whereNotNull('token')
                 ->where('token', '!=', '');
 
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'deleted_at')) {
+            if (Schema::hasColumn('user_push_tokens', 'deleted_at')) {
                 $activeQuery->whereNull('deleted_at');
             }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'status')) {
+            if (Schema::hasColumn('user_push_tokens', 'status')) {
                 $activeQuery->where('status', 'active');
             }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'token_status')) {
+            if (Schema::hasColumn('user_push_tokens', 'token_status')) {
                 $activeQuery->where('token_status', 'active');
             }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'is_active')) {
+            if (Schema::hasColumn('user_push_tokens', 'is_active')) {
                 $activeQuery->where('is_active', true);
             }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'platform')) {
+            if (Schema::hasColumn('user_push_tokens', 'platform')) {
                 $activeQuery->where(function ($platformQuery): void {
                     $platformQuery->whereNull('platform')
                         ->orWhere('platform', '')
@@ -1071,7 +1078,7 @@ Route::get('/debug-notifications', function () {
             'targeted_users_count' => $users->count(),
             'users' => $debugData,
         ]);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         return response()->json([
             'success' => false,
             'error' => $e->getMessage(),
@@ -1108,7 +1115,7 @@ Route::get('/debug-logs', function () {
             'total_lines' => $totalLines,
             'recent_lines' => array_reverse($lines),
         ]);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         return response()->json([
             'success' => false,
             'error' => $e->getMessage(),

@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Models\WebhookEvent;
 use App\Services\Events\EventPaymentSyncService;
+use App\Services\Events\EventQrService;
 use App\Services\Membership\MembershipUpgradeService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -550,7 +551,7 @@ class ZohoPaymentWebhookService
 
         $registration->refresh();
         if (empty($registration->qr_code_url) && empty($registration->qr_code_path) && empty($registration->qr_token)) {
-            app(\App\Services\Events\EventQrService::class)->generateAndStore($registration);
+            app(EventQrService::class)->generateAndStore($registration);
             Log::info('zoho_payment_webhook_qr_generated', $this->context(null, $info) + ['registration_id' => (string) $registration->id]);
         }
     }

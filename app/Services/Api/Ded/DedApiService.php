@@ -9,10 +9,12 @@ use App\Models\Circle;
 use App\Models\CircleJoinRequest;
 use App\Models\CoinClaimRequest;
 use App\Models\CoinLedger;
+use App\Models\CollaborationPost;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
 use App\Models\Impact;
 use App\Models\P2pMeeting;
+use App\Models\PeerRecommendation;
 use App\Models\Referral;
 use App\Models\Requirement;
 use App\Models\Testimonial;
@@ -22,6 +24,7 @@ use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -517,7 +520,7 @@ class DedApiService
         [$model, $primary, $peer, $relations, $dateColumn] = $this->activityMap($type);
         /** @var EloquentBuilder $query */
         $query = $model::query()->with($relations);
-        if (in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive($model), true)) {
+        if (in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
             // SoftDeletes global scope already applies.
         }
         $this->applyActivityScope($query, $admin, $primary, $peer, $request->query('circle_id'));
@@ -785,7 +788,7 @@ class DedApiService
             abort(404, 'Peer recommendation table is not available.');
         }
 
-        $query = \App\Models\PeerRecommendation::query()->with('user');
+        $query = PeerRecommendation::query()->with('user');
         $this->applyActivityScope($query, $admin, 'peer_recommendations.user_id', null, $request->query('circle_id'));
         $this->applyDateFilters($query, $request, 'created_at');
         $this->applyGenericSearch($query, $request->query('search'));
@@ -799,7 +802,7 @@ class DedApiService
             abort(404, 'Collaboration table is not available.');
         }
 
-        $query = \App\Models\CollaborationPost::query()->with(['user', 'acceptedByUser', 'collaborationType']);
+        $query = CollaborationPost::query()->with(['user', 'acceptedByUser', 'collaborationType']);
         $this->applyActivityScope($query, $admin, 'collaboration_posts.user_id', 'collaboration_posts.accepted_by_user_id', $request->query('circle_id'));
         $this->applyDateFilters($query, $request, Schema::hasColumn('collaboration_posts', 'posted_at') ? 'posted_at' : 'created_at');
         $this->applyGenericSearch($query, $request->query('search'));

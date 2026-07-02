@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -111,7 +112,7 @@ class CoinClaimController extends BaseApiController
         ]);
 
         try {
-            $validator = \Illuminate\Support\Facades\Validator::make($request->query(), [
+            $validator = Validator::make($request->query(), [
                 'status' => ['nullable', 'in:pending,approved,rejected'],
                 'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
             ]);

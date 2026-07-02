@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Connection;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -108,7 +109,7 @@ class MemberListApiTest extends TestCase
             'contact_visibility' => 'circle_only',
         ]);
 
-        \App\Models\Connection::create([
+        Connection::create([
             'requester_id' => $memberWithConnections->id,
             'addressee_id' => $authUser->id,
             'is_approved' => true,
@@ -122,13 +123,13 @@ class MemberListApiTest extends TestCase
             'status' => 'active',
         ]);
 
-        \App\Models\Connection::create([
+        Connection::create([
             'requester_id' => $otherUser->id,
             'addressee_id' => $memberWithConnections->id,
             'is_approved' => true,
         ]);
 
-        \App\Models\Connection::create([
+        Connection::create([
             'requester_id' => $memberWithConnections->id,
             'addressee_id' => $memberWithoutConnections->id,
             'is_approved' => false,

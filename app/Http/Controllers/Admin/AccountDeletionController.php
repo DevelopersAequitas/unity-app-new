@@ -63,6 +63,6 @@ class AccountDeletionController extends Controller
         $deletionRequest = AccountDeletionRequest::findOrFail($id);
         $deletionRequest->update(['status' => $request->status]);
 
-        return back()->with('success', 'Account deletion request status updated to ' . ucfirst($request->status) . '.');
+        return back()->with('success', 'Account deletion request status updated to '.ucfirst($request->status).'.');
     }
 }

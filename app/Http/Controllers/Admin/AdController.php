@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\Ads\UpdateAdRequest;
 use App\Models\Ad;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -106,13 +107,13 @@ class AdController extends Controller
         $data['is_active'] = $request->boolean('is_active');
 
         if (! empty($data['starts_at'])) {
-            $data['starts_at'] = \Illuminate\Support\Carbon::parse($data['starts_at'], 'Asia/Kolkata')->utc();
+            $data['starts_at'] = Carbon::parse($data['starts_at'], 'Asia/Kolkata')->utc();
         } else {
             $data['starts_at'] = null;
         }
 
         if (! empty($data['ends_at'])) {
-            $data['ends_at'] = \Illuminate\Support\Carbon::parse($data['ends_at'], 'Asia/Kolkata')->utc();
+            $data['ends_at'] = Carbon::parse($data['ends_at'], 'Asia/Kolkata')->utc();
         } else {
             $data['ends_at'] = null;
         }

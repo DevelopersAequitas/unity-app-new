@@ -29,7 +29,7 @@ function scanDirCustom($dir)
                 $results[] = $path;
             }
         }
-    } catch (\Exception $e) {
+    } catch (Exception $e) {
         // Ignore permission denied
     }
 

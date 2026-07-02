@@ -3,10 +3,11 @@
 namespace App\Jobs;
 
 use App\Models\Event;
-use App\Models\User;
 use App\Models\EventNotificationLog;
+use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationDeliveryLog;
+use App\Models\User;
 use App\Services\Notifications\FcmService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -21,19 +22,18 @@ class SendEventCreatedNotificationJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public string $eventId)
-    {
-    }
+    public function __construct(public string $eventId) {}
 
     public function handle(FcmService $fcmService): void
     {
         $event = Event::find($this->eventId);
-        if (!$event) {
-            Log::error("SendEventCreatedNotificationJob failed: Event not found.", ['event_id' => $this->eventId]);
+        if (! $event) {
+            Log::error('SendEventCreatedNotificationJob failed: Event not found.', ['event_id' => $this->eventId]);
+
             return;
         }
 
-        Log::info("SendEventCreatedNotificationJob started for event: " . $event->id);
+        Log::info('SendEventCreatedNotificationJob started for event: '.$event->id);
 
         $logRecord = null;
         if (Schema::hasTable('event_notification_logs')) {
@@ -52,7 +52,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                     'started_at' => now(),
                 ]);
             } catch (Throwable $e) {
-                Log::warning("Failed to create EventNotificationLog: " . $e->getMessage());
+                Log::warning('Failed to create EventNotificationLog: '.$e->getMessage());
             }
         }
 
@@ -74,11 +74,11 @@ class SendEventCreatedNotificationJob implements ShouldQueue
             $bannerUrl = $event->banner_url;
             if (is_string($bannerUrl) && trim($bannerUrl) !== '') {
                 $bannerUrl = trim($bannerUrl);
-                if (!str_starts_with($bannerUrl, 'http://') && !str_starts_with($bannerUrl, 'https://')) {
+                if (! str_starts_with($bannerUrl, 'http://') && ! str_starts_with($bannerUrl, 'https://')) {
                     if (str_starts_with($bannerUrl, '/')) {
                         $bannerUrl = url($bannerUrl);
                     } else {
-                        $bannerUrl = url('/api/v1/files/' . $bannerUrl);
+                        $bannerUrl = url('/api/v1/files/'.$bannerUrl);
                     }
                 }
             } else {
@@ -124,7 +124,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                             ->whereIn('type', ['event', 'event_created'])
                             ->where(function ($q) use ($event) {
                                 $q->whereJsonContains('data->event_id', (string) $event->id)
-                                  ->orWhere('reference_id', (string) $event->id);
+                                    ->orWhere('reference_id', (string) $event->id);
                             })
                             ->first();
 
@@ -140,7 +140,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                                     continue;
                                 }
                             } catch (Throwable $e) {
-                                Log::warning("Could not check push log for notification {$notification->id}: " . $e->getMessage());
+                                Log::warning("Could not check push log for notification {$notification->id}: ".$e->getMessage());
                                 // Continue to attempt push even if log check fails
                             }
                         } else {
@@ -166,14 +166,14 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                         // For legacy notifications support
                         try {
                             if (Schema::hasTable('notifications')) {
-                                $legacyExists = \App\Models\Notification::query()
+                                $legacyExists = Notification::query()
                                     ->where('user_id', $user->id)
                                     ->where('source_type', 'event')
                                     ->where('source_id', $event->id)
                                     ->exists();
-                                
-                                if (!$legacyExists) {
-                                    \App\Models\Notification::create([
+
+                                if (! $legacyExists) {
+                                    Notification::create([
                                         'user_id' => $user->id,
                                         'type' => 'activity_update',
                                         'payload' => $notificationData,
@@ -196,7 +196,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                             ->where('channel', 'in_app')
                             ->exists();
 
-                        if (!$inAppLogExists) {
+                        if (! $inAppLogExists) {
                             NotificationDeliveryLog::create([
                                 'notification_id' => $notification->id,
                                 'user_id' => $user->id,
@@ -220,7 +220,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                         ]);
 
                         Log::info('Firebase token count', [
-                            'count' => $tokens->count()
+                            'count' => $tokens->count(),
                         ]);
 
                         if ($tokens->isNotEmpty()) {
@@ -238,16 +238,16 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                                         $reason = $result['error'] ?? 'Unknown FCM error';
                                         $failedDetails[] = [
                                             'user_id' => $user->id,
-                                            'name' => trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? ''))),
-                                            'error' => $reason
+                                            'name' => trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? ''))),
+                                            'error' => $reason,
                                         ];
                                     }
                                 } catch (Throwable $e) {
                                     $totalPushFailed++;
                                     $failedDetails[] = [
                                         'user_id' => $user->id,
-                                        'name' => trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? ''))),
-                                        'error' => $e->getMessage()
+                                        'name' => trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? ''))),
+                                        'error' => $e->getMessage(),
                                     ];
                                 }
                             }
@@ -286,7 +286,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                         ]);
                         $failedDetails[] = [
                             'user_id' => $user->id,
-                            'name' => trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? ''))),
+                            'name' => trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? ''))),
                             'error' => $e->getMessage(),
                         ];
                     }
@@ -307,12 +307,12 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                         'completed_at' => now(),
                     ]);
                 } catch (Throwable $e) {
-                    Log::warning("Failed to update EventNotificationLog to completed: " . $e->getMessage());
+                    Log::warning('Failed to update EventNotificationLog to completed: '.$e->getMessage());
                 }
             }
 
             $mainFailureReason = null;
-            if (!empty($failedDetails)) {
+            if (! empty($failedDetails)) {
                 $errors = array_column($failedDetails, 'error');
                 $counts = array_count_values($errors);
                 arsort($counts);
@@ -320,7 +320,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
             }
 
             // Summary log
-            Log::info("SendEventCreatedNotificationJob finished for event: " . $event->id, [
+            Log::info('SendEventCreatedNotificationJob finished for event: '.$event->id, [
                 'event_id' => (string) $event->id,
                 'total_users_targeted' => $totalUsersTargeted,
                 'total_in_app_notifications_created' => $totalInAppCreated,
@@ -331,9 +331,9 @@ class SendEventCreatedNotificationJob implements ShouldQueue
             ]);
 
         } catch (Throwable $throwable) {
-            Log::error("SendEventCreatedNotificationJob failed catastrophically.", [
+            Log::error('SendEventCreatedNotificationJob failed catastrophically.', [
                 'event_id' => $event->id,
-                'error' => $throwable->getMessage()
+                'error' => $throwable->getMessage(),
             ]);
 
             if ($logRecord) {
@@ -344,7 +344,7 @@ class SendEventCreatedNotificationJob implements ShouldQueue
                         'completed_at' => now(),
                     ]);
                 } catch (Throwable $e) {
-                    Log::warning("Failed to update EventNotificationLog to failed: " . $e->getMessage());
+                    Log::warning('Failed to update EventNotificationLog to failed: '.$e->getMessage());
                 }
             }
 

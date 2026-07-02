@@ -269,8 +269,8 @@ class TestimonialApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.summary.total_testimonials', 1)
-            ->assertJsonPath('data.summary.given_by_total', 1)
-            ->assertJsonPath('data.summary.given_to_total', 1)
+            ->assertJsonPath('data.summary.testimonials_given', 1)
+            ->assertJsonPath('data.summary.testimonials_received', 0)
             ->assertJsonCount(1, 'data.items')
             ->assertJsonPath('data.items.0.message', 'Awesome person!')
             ->assertJsonPath('data.items.0.given_to.display_name', 'Receiver User');
@@ -294,8 +294,8 @@ class TestimonialApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.summary.total_testimonials', 1)
-            ->assertJsonPath('data.summary.given_by_total', 1)
-            ->assertJsonPath('data.summary.given_to_total', 1)
+            ->assertJsonPath('data.summary.testimonials_given', 0)
+            ->assertJsonPath('data.summary.testimonials_received', 1)
             ->assertJsonCount(1, 'data.items')
             ->assertJsonPath('data.items.0.message', 'Received feedback!')
             ->assertJsonPath('data.items.0.given_by.display_name', 'Sender User');
@@ -329,8 +329,8 @@ class TestimonialApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.summary.total_testimonials', 1)
-            ->assertJsonPath('data.summary.given_by_total', 1)
-            ->assertJsonPath('data.summary.given_to_total', 1)
+            ->assertJsonPath('data.summary.testimonials_given', 0)
+            ->assertJsonPath('data.summary.testimonials_received', 1)
             ->assertJsonCount(1, 'data.items')
             ->assertJsonPath('data.items.0.message', 'Approved/visible testimonial!');
     }
