@@ -6,6 +6,33 @@
     $roleBadge = $isSuper
         ? 'Global Admin'
         : ($isDed ? 'DED' : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin'));
+
+    $joinedCircles = collect();
+    $requiresCircleDropdown = false;
+    $selectedCircleId = null;
+
+    if ($admin && $isCircleScoped) {
+        $roleKey = \App\Support\AdminAccess::primaryCircleRoleKey($admin);
+        if (in_array($roleKey, ['founder', 'director'], true)) {
+            $appUser = \App\Support\AdminAccess::resolveAppUser($admin);
+            if ($appUser) {
+                $joinedCircles = \App\Models\CircleMember::query()
+                    ->where('user_id', $appUser->id)
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->with('circle')
+                    ->get();
+
+                if ($joinedCircles->count() > 1) {
+                    $requiresCircleDropdown = true;
+                }
+            }
+        }
+    }
+
+    if ($joinedCircles->isNotEmpty()) {
+        $selectedCircleId = request()->query('circle_id') ?: $joinedCircles->first()->circle_id;
+    }
 @endphp
 <header class="admin-topbar d-flex align-items-center justify-content-between px-4 py-3 border-bottom bg-white">
     <div class="d-flex align-items-center gap-3 flex-grow-1">
@@ -21,6 +48,20 @@
             </form>
         </div>
         <div class="d-none d-md-flex align-items-center gap-2">
+            @if ($requiresCircleDropdown && request()->routeIs('admin.circle-member.dashboard'))
+                <form method="GET" action="{{ route('admin.circle-member.dashboard') }}" class="d-flex align-items-center gap-2 me-2">
+                    <label for="topbar_circle_id" class="text-muted fw-semibold mb-0 text-nowrap fs-7">Circle:</label>
+                    <select name="circle_id" id="topbar_circle_id" class="form-select form-select-sm rounded-3 py-1.5 px-3 border shadow-sm" style="min-width: 180px; max-width: 250px; background-color: #f8f9fa;" onchange="this.form.submit()">
+                        @foreach ($joinedCircles as $cm)
+                            @if ($cm->circle)
+                                <option value="{{ $cm->circle_id }}" @selected($cm->circle_id === $selectedCircleId)>
+                                    {{ $cm->circle->name }}
+                                </option>
+                            @endif
+                        @endforeach
+                    </select>
+                </form>
+            @endif
             <div class="dropdown">
                 <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
                     Quick Actions
