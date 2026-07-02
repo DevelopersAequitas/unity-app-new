@@ -13,6 +13,7 @@ use App\Services\Media\FileUploadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -98,12 +99,12 @@ class BrandPartnerController extends Controller
 
         // Image uploads reusing existing FileUploadService
         if ($request->hasFile('logo')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo'), null);
+            $logoModel = $this->fileUploadService->store($request->file('logo'), null, 'public');
             $data['logo'] = $logoModel->s3_key;
         }
 
         if ($request->hasFile('cover_image')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null);
+            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null, 'public');
             $data['cover_image'] = $coverModel->s3_key;
         }
 
@@ -138,7 +139,7 @@ class BrandPartnerController extends Controller
                 }
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to create brand partner: '.$e->getMessage());
+            Log::error('Failed to create brand partner: '.$e->getMessage());
 
             return redirect()->back()
                 ->withInput()
@@ -173,12 +174,12 @@ class BrandPartnerController extends Controller
 
         // Image uploads reusing existing FileUploadService
         if ($request->hasFile('logo')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo'), null);
+            $logoModel = $this->fileUploadService->store($request->file('logo'), null, 'public');
             $data['logo'] = $logoModel->s3_key;
         }
 
         if ($request->hasFile('cover_image')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null);
+            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null, 'public');
             $data['cover_image'] = $coverModel->s3_key;
         }
 
@@ -215,7 +216,7 @@ class BrandPartnerController extends Controller
                 SendBulkPartnerNotificationJob::dispatch($brand_partner, 'offer');
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to update brand partner: '.$e->getMessage());
+            Log::error('Failed to update brand partner: '.$e->getMessage());
 
             return redirect()->back()
                 ->withInput()
