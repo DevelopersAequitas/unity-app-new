@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api\V1\Ded;
 
 use App\Http\Controllers\Controller;
+use App\Models\Circle;
 use App\Services\Api\Ded\DashboardAggregationService;
 use App\Services\Api\Ded\DedApiService;
 use App\Services\Api\Ded\DistrictAnalyticsService;
+use App\Support\AdminCircleScope;
 use Illuminate\Http\Request;
 
 class DedDashboardController extends Controller
@@ -93,8 +95,8 @@ class DedDashboardController extends Controller
     public function circles(Request $request)
     {
         $admin = $this->ded->admin($request);
-        $circlesQuery = \App\Models\Circle::query();
-        \App\Support\AdminCircleScope::applyToCirclesQuery($circlesQuery, $admin);
+        $circlesQuery = Circle::query();
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, $admin);
         $list = $circlesQuery->orderBy('name')->get(['id', 'name']);
 
         return $this->ded->success($list, 'Circles loaded.');

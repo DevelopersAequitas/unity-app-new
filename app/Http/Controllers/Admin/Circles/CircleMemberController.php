@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\Circles\StoreCircleMemberRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleMemberRequest;
 use App\Models\Circle;
 use App\Models\CircleMember;
+use App\Models\JoinedCircleCategory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -63,7 +64,7 @@ class CircleMemberController extends Controller
         ])->save();
 
         if (Schema::hasTable('joined_circle_categories')) {
-            \App\Models\JoinedCircleCategory::query()
+            JoinedCircleCategory::query()
                 ->where('circle_member_id', $circleMember->id)
                 ->delete();
         }

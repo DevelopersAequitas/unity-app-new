@@ -11,6 +11,7 @@ use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -248,7 +249,7 @@ class BusinessDealController extends BaseApiController
         return $this->success($businessDeal);
     }
 
-    public function userBusinessDealsStats(Request $request, string $userId): \Illuminate\Http\JsonResponse
+    public function userBusinessDealsStats(Request $request, string $userId): JsonResponse
     {
         $user = User::find($userId);
 
@@ -295,7 +296,7 @@ class BusinessDealController extends BaseApiController
         ]);
     }
 
-    public function userBusinessDealsList(Request $request, string $userId): \Illuminate\Http\JsonResponse
+    public function userBusinessDealsList(Request $request, string $userId): JsonResponse
     {
         $user = User::find($userId);
 

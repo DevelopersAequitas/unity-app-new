@@ -2,9 +2,10 @@
 
 require __DIR__.'/../vendor/autoload.php';
 $app = require_once __DIR__.'/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 
 try {
@@ -24,6 +25,6 @@ try {
           AND column_name IN ('website', 'sustainability_contribution', 'sustainability_areas', 'greenpreneur_goals', 'community_directory_listing')
     ");
     print_r($verify);
-} catch (\Exception $e) {
+} catch (Exception $e) {
     echo 'Error applying SQL: '.$e->getMessage()."\n";
 }

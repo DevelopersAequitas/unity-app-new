@@ -6,6 +6,7 @@ use App\Exceptions\MediaProcessingException;
 use App\Http\Resources\FileResource;
 use App\Models\File;
 use App\Services\Media\FileUploadService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
@@ -100,7 +101,7 @@ class FileController extends BaseApiController
 
                 $result = $this->processSingleUpload($file, $request);
 
-                if ($result instanceof \Illuminate\Http\JsonResponse) {
+                if ($result instanceof JsonResponse) {
                     return $result;
                 }
 

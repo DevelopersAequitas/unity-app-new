@@ -20,6 +20,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class AdminExecutionController extends Controller
 {
@@ -172,7 +173,7 @@ class AdminExecutionController extends Controller
         ]);
 
         DB::table('broadcast_messages')->insert([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'title' => $validated['title'],
             'message' => $validated['message'],
             'channel' => $validated['channel'] ?? 'in_app',

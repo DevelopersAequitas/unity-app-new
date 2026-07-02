@@ -3,12 +3,16 @@
 namespace App\Console\Commands;
 
 use App\Jobs\ProcessCampaignDeliveryJob;
+use App\Models\AdminAuditLog;
 use App\Models\CampaignDelivery;
 use App\Models\CampaignSchedule;
 use App\Services\AdminCampaigns\CampaignScheduleCalculator;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class RunScheduledCampaigns extends Command
 {
@@ -19,11 +23,11 @@ class RunScheduledCampaigns extends Command
     public function handle(CampaignScheduleCalculator $calculator): int
     {
         $startTime = microtime(true);
-        $now = \Carbon\Carbon::now('UTC')->startOfMinute();
+        $now = Carbon::now('UTC')->startOfMinute();
         $triggeredType = $this->option('manual') ? 'manual_check' : 'scheduler';
 
         // Update heartbeat in cache
-        \Illuminate\Support\Facades\Cache::put('scheduler_last_run_at', $now->toIso8601String(), 600);
+        Cache::put('scheduler_last_run_at', $now->toIso8601String(), 600);
 
         try {
             // Find active schedules that are due (next_run_at is in the past or now)
@@ -60,8 +64,8 @@ class RunScheduledCampaigns extends Command
                                 try {
                                     $ipAddress = '127.0.0.1';
                                     $userAgent = 'Console Scheduler';
-                                    \App\Models\AdminAuditLog::create([
-                                        'id' => (string) \Illuminate\Support\Str::uuid(),
+                                    AdminAuditLog::create([
+                                        'id' => (string) Str::uuid(),
                                         'admin_user_id' => null, // triggered by scheduler
                                         'action' => 'active', // transitions to active
                                         'target_table' => 'admin_campaigns',

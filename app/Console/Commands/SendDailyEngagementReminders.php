@@ -17,6 +17,7 @@ use App\Models\Testimonial;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -415,7 +416,7 @@ class SendDailyEngagementReminders extends Command
     /**
      * Fetch users eligible for receiving notifications.
      */
-    protected function getTargetUsers(?string $targetUserId, string $activity, string $timing, ?callable $additionalConstraints = null): \Illuminate\Support\Collection
+    protected function getTargetUsers(?string $targetUserId, string $activity, string $timing, ?callable $additionalConstraints = null): Collection
     {
         $query = User::query()->where('status', 'active');
 
@@ -459,7 +460,7 @@ class SendDailyEngagementReminders extends Command
     /**
      * Dispatch reminders to a collection of users.
      */
-    protected function dispatchReminders(\Illuminate\Support\Collection $users, DailyNotificationReminder $reminder, array $placeholders): void
+    protected function dispatchReminders(Collection $users, DailyNotificationReminder $reminder, array $placeholders): void
     {
         foreach ($users as $user) {
             $this->dispatchSingleReminder($user, $reminder, $placeholders);

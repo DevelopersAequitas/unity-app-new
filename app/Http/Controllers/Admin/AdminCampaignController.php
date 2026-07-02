@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessCampaignDeliveryJob;
+use App\Models\AdminAuditLog;
 use App\Models\AdminCampaign;
 use App\Models\CampaignDelivery;
 use App\Models\CampaignEmailTemplate;
@@ -20,6 +21,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
@@ -130,7 +134,7 @@ class AdminCampaignController extends Controller
 
     public function show(AdminCampaign $campaign): View
     {
-        \Illuminate\Support\Facades\Gate::forUser(auth('admin')->user())->authorize('view', $campaign);
+        Gate::forUser(auth('admin')->user())->authorize('view', $campaign);
 
         $campaign->load(['emailTemplate', 'schedule', 'creator', 'deliveries' => function ($query) {
             $query->orderBy('scheduled_at', 'asc');
@@ -186,7 +190,7 @@ class AdminCampaignController extends Controller
                 'run_number' => 'Run #'.$runIndex++,
                 'scheduled_time' => $campaign->formatTimestamp($del->scheduled_at),
                 'actual_time' => $del->started_at ? $campaign->formatTimestamp($del->started_at) : '-',
-                'status' => $del->status === 'sent' || $del->status === 'completed' ? 'Success' : \Illuminate\Support\Str::headline($del->status),
+                'status' => $del->status === 'sent' || $del->status === 'completed' ? 'Success' : Str::headline($del->status),
                 'emails_sent' => $del->total_email_sent,
                 'notifications_sent' => $del->total_notification_sent,
                 'failed' => $del->total_failed,
@@ -237,7 +241,7 @@ class AdminCampaignController extends Controller
 
     public function edit(AdminCampaign $campaign): View|RedirectResponse
     {
-        \Illuminate\Support\Facades\Gate::forUser(auth('admin')->user())->authorize('update', $campaign);
+        Gate::forUser(auth('admin')->user())->authorize('update', $campaign);
 
         if (! $campaign->isEditable()) {
             return redirect()->route('admin.campaigns.show', $campaign)->with('error', 'Sent campaigns cannot be edited.');
@@ -265,7 +269,7 @@ class AdminCampaignController extends Controller
 
     public function update(Request $request, AdminCampaign $campaign): RedirectResponse
     {
-        \Illuminate\Support\Facades\Gate::forUser($request->user('admin'))->authorize('update', $campaign);
+        Gate::forUser($request->user('admin'))->authorize('update', $campaign);
 
         if (! $campaign->isEditable()) {
             return redirect()->route('admin.campaigns.show', $campaign)->with('error', 'Sent campaigns cannot be edited.');
@@ -656,7 +660,7 @@ class AdminCampaignController extends Controller
 
     public function destroy(AdminCampaign $campaign): RedirectResponse
     {
-        \Illuminate\Support\Facades\Gate::forUser(auth('admin')->user())->authorize('delete', $campaign);
+        Gate::forUser(auth('admin')->user())->authorize('delete', $campaign);
 
         DB::transaction(function () use ($campaign) {
             $campaign->update(['status' => AdminCampaign::STATUS_DELETED]);
@@ -669,7 +673,7 @@ class AdminCampaignController extends Controller
 
     public function pause(AdminCampaign $campaign): RedirectResponse
     {
-        \Illuminate\Support\Facades\Gate::forUser(auth('admin')->user())->authorize('pause', $campaign);
+        Gate::forUser(auth('admin')->user())->authorize('pause', $campaign);
 
         DB::transaction(function () use ($campaign) {
             $campaign->update(['status' => AdminCampaign::STATUS_PAUSED]);
@@ -684,7 +688,7 @@ class AdminCampaignController extends Controller
 
     public function resume(AdminCampaign $campaign): RedirectResponse
     {
-        \Illuminate\Support\Facades\Gate::forUser(auth('admin')->user())->authorize('resume', $campaign);
+        Gate::forUser(auth('admin')->user())->authorize('resume', $campaign);
 
         DB::transaction(function () use ($campaign) {
             $campaign->update(['status' => AdminCampaign::STATUS_ACTIVE]);
@@ -700,7 +704,7 @@ class AdminCampaignController extends Controller
 
     public function stop(AdminCampaign $campaign): RedirectResponse
     {
-        \Illuminate\Support\Facades\Gate::forUser(auth('admin')->user())->authorize('stop', $campaign);
+        Gate::forUser(auth('admin')->user())->authorize('stop', $campaign);
 
         DB::transaction(function () use ($campaign) {
             $campaign->update(['status' => AdminCampaign::STATUS_STOPPED]);
@@ -715,7 +719,7 @@ class AdminCampaignController extends Controller
 
     public function duplicate(AdminCampaign $campaign): RedirectResponse
     {
-        \Illuminate\Support\Facades\Gate::forUser(auth('admin')->user())->authorize('duplicate', $campaign);
+        Gate::forUser(auth('admin')->user())->authorize('duplicate', $campaign);
 
         $newCampaign = DB::transaction(function () use ($campaign) {
             $duplicate = $campaign->replicate();
@@ -746,7 +750,7 @@ class AdminCampaignController extends Controller
 
     public function retry(AdminCampaign $campaign): RedirectResponse
     {
-        \Illuminate\Support\Facades\Gate::forUser(auth('admin')->user())->authorize('retry', $campaign);
+        Gate::forUser(auth('admin')->user())->authorize('retry', $campaign);
 
         $schedule = $campaign->schedule;
         $scheduleType = $schedule ? $schedule->schedule_type : 'immediately';
@@ -791,8 +795,8 @@ class AdminCampaignController extends Controller
             $ipAddress = request()->ip();
             $userAgent = request()->userAgent();
 
-            $log = new \App\Models\AdminAuditLog;
-            $log->id = (string) \Illuminate\Support\Str::uuid();
+            $log = new AdminAuditLog;
+            $log->id = (string) Str::uuid();
             $log->admin_user_id = $admin?->id;
             $log->action = $action;
             $log->target_table = 'admin_campaigns';
@@ -806,7 +810,7 @@ class AdminCampaignController extends Controller
             $log->created_at = now();
             $log->save();
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('Failed to log campaign action: '.$e->getMessage());
+            Log::warning('Failed to log campaign action: '.$e->getMessage());
         }
     }
 }

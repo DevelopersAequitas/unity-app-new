@@ -3,10 +3,11 @@
 require __DIR__.'/vendor/autoload.php';
 $app = require_once __DIR__.'/bootstrap/app.php';
 
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\User;
+use Illuminate\Contracts\Console\Kernel;
 
 $users = User::withTrashed()->whereNotNull('deleted_at')->orderByDesc('deleted_at')->limit(5)->get();
 echo "5 most recently deleted users:\n";

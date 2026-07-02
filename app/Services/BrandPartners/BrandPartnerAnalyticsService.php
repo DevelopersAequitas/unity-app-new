@@ -9,6 +9,7 @@ use App\Models\BrandPartnerSaved;
 use App\Models\BrandPartnerView;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class BrandPartnerAnalyticsService
 {
@@ -64,7 +65,7 @@ class BrandPartnerAnalyticsService
             $ctr = ($uniqueClicks / $uniqueViews) * 100;
         }
         if ($ctr > 100) {
-            \Illuminate\Support\Facades\Log::warning("Brand Partners CTR calculation exceeded 100%: {$ctr}%. Capping to 100%. Unique Clicks: {$uniqueClicks}, Unique Views: {$uniqueViews}");
+            Log::warning("Brand Partners CTR calculation exceeded 100%: {$ctr}%. Capping to 100%. Unique Clicks: {$uniqueClicks}, Unique Views: {$uniqueViews}");
             $ctr = 100;
         }
         $ctr = round($ctr, 2);
@@ -75,7 +76,7 @@ class BrandPartnerAnalyticsService
             $conversionRate = ($totalRedemptions / $uniqueClicks) * 100;
         }
         if ($conversionRate > 100) {
-            \Illuminate\Support\Facades\Log::warning("Brand Partners Conversion Rate exceeded 100%: {$conversionRate}%. Capping to 100%. Redemptions: {$totalRedemptions}, Unique Clicks: {$uniqueClicks}");
+            Log::warning("Brand Partners Conversion Rate exceeded 100%: {$conversionRate}%. Capping to 100%. Redemptions: {$totalRedemptions}, Unique Clicks: {$uniqueClicks}");
             $conversionRate = 100;
         }
         $conversionRate = round($conversionRate, 2);
@@ -229,7 +230,7 @@ class BrandPartnerAnalyticsService
             $ctr = ($uniqueClicks / $uniqueViews) * 100;
         }
         if ($ctr > 100) {
-            \Illuminate\Support\Facades\Log::warning("Brand Partner {$partnerId} CTR calculation exceeded 100%: {$ctr}%. Capping to 100%.");
+            Log::warning("Brand Partner {$partnerId} CTR calculation exceeded 100%: {$ctr}%. Capping to 100%.");
             $ctr = 100;
         }
         $ctr = round($ctr, 2);
@@ -240,7 +241,7 @@ class BrandPartnerAnalyticsService
             $conversionRate = ($redeems / $uniqueClicks) * 100;
         }
         if ($conversionRate > 100) {
-            \Illuminate\Support\Facades\Log::warning("Brand Partner {$partnerId} Conversion Rate exceeded 100%: {$conversionRate}%. Capping to 100%.");
+            Log::warning("Brand Partner {$partnerId} Conversion Rate exceeded 100%: {$conversionRate}%. Capping to 100%.");
             $conversionRate = 100;
         }
         $conversionRate = round($conversionRate, 2);

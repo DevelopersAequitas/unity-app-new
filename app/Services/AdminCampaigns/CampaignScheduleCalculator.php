@@ -35,7 +35,7 @@ class CampaignScheduleCalculator
         }
 
         $startDateStr = $schedule->start_date;
-        if ($startDateStr instanceof \Carbon\Carbon) {
+        if ($startDateStr instanceof Carbon) {
             $startDateStr = $startDateStr->toDateString();
         }
         if (empty($startDateStr)) {

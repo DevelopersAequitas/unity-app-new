@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountDeletionRequest;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -33,7 +34,7 @@ class AccountDeletionController extends Controller
         ];
 
         // If user is not authenticated on web guard, require email to identify them
-        if (!$user) {
+        if (! $user) {
             $rules['email'] = 'required|email|exists:users,email';
         }
 
@@ -42,7 +43,7 @@ class AccountDeletionController extends Controller
             'reason.min' => 'Please provide a more detailed reason (minimum 10 characters).',
         ]);
 
-        if (!$user) {
+        if (! $user) {
             $user = User::where('email', $request->email)->firstOrFail();
         }
 
@@ -67,17 +68,17 @@ class AccountDeletionController extends Controller
     /**
      * Retrieve the account deletion request status for the authenticated user.
      */
-    public function status(Request $request): \Illuminate\Http\JsonResponse
+    public function status(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
         $deletionRequest = AccountDeletionRequest::where('user_id', $user->id)->first();
 
-        if (!$deletionRequest) {
+        if (! $deletionRequest) {
             return response()->json(['message' => 'Account deletion request not found.'], 404);
         }
 

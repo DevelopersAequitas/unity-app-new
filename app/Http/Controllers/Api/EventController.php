@@ -13,6 +13,7 @@ use App\Http\Resources\Event\EventOccurrenceListResource;
 use App\Http\Resources\Event\EventRegistrationResource;
 use App\Http\Resources\EventResource;
 use App\Http\Resources\EventRsvpResource;
+use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
@@ -230,10 +231,10 @@ class EventController extends BaseApiController
             ->whereIn('circle_id', $allowedCircleIds ?: array_filter([$eventCircleId]))
             ->where('user_id', $user->id)
             ->whereNull('deleted_at');
-        if (\Illuminate\Support\Facades\Schema::hasColumn('circle_members', 'status')) {
+        if (Schema::hasColumn('circle_members', 'status')) {
             $memberQuery->whereIn('status', CircleMember::activeStatuses());
         }
-        if (\Illuminate\Support\Facades\Schema::hasColumn('circle_members', 'expires_at')) {
+        if (Schema::hasColumn('circle_members', 'expires_at')) {
             $memberQuery->where(function ($q): void {
                 $q->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()->toDateString());
             });
@@ -1221,7 +1222,7 @@ class EventController extends BaseApiController
         ];
     }
 
-    private function invitedByUserPayload(?\App\Models\User $user): ?array
+    private function invitedByUserPayload(?User $user): ?array
     {
         if (! $user) {
             return null;
@@ -1248,10 +1249,10 @@ class EventController extends BaseApiController
             ->where('circle_id', $circleId)
             ->where('user_id', $userId)
             ->whereNull('deleted_at');
-        if (\Illuminate\Support\Facades\Schema::hasColumn('circle_members', 'status')) {
+        if (Schema::hasColumn('circle_members', 'status')) {
             $query->whereIn('status', CircleMember::activeStatuses());
         }
-        if (\Illuminate\Support\Facades\Schema::hasColumn('circle_members', 'expires_at')) {
+        if (Schema::hasColumn('circle_members', 'expires_at')) {
             $query->where(function ($q): void {
                 $q->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()->toDateString());
             });
@@ -1360,7 +1361,7 @@ class EventController extends BaseApiController
         $event->save();
         $event->load(['circle', 'createdByUser', 'rsvps.user']);
 
-        \App\Jobs\SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
+        SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
 
         return $this->success(new EventResource($event), 'Event created successfully', 201);
     }

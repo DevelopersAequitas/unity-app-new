@@ -12,6 +12,7 @@ use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -353,7 +354,7 @@ class P2pMeetingController extends BaseApiController
         return is_array($rawMedia) ? $rawMedia : [];
     }
 
-    public function userMeetings(Request $request, string $userId): \Illuminate\Http\JsonResponse
+    public function userMeetings(Request $request, string $userId): JsonResponse
     {
         $user = User::find($userId);
 

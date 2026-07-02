@@ -1166,8 +1166,8 @@ class ZohoBillingService
         $start = now();
 
         try {
-            $start = \Illuminate\Support\Carbon::parse($startsAt);
-        } catch (\Throwable) {
+            $start = Carbon::parse($startsAt);
+        } catch (Throwable) {
             $start = now();
         }
 

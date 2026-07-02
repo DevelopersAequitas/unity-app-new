@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ActivitiesExportRequest;
 use App\Models\BusinessDeal;
+use App\Models\File;
 use App\Models\LeaderInterestSubmission;
 use App\Models\P2pMeeting;
 use App\Models\PeerRecommendation;
@@ -14,6 +15,7 @@ use App\Models\Testimonial;
 use App\Models\User;
 use App\Models\VisitorRegistration;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -272,7 +274,7 @@ class ActivitiesController extends Controller
             ->select('circles.id', 'circles.name')
             ->orderBy('circles.name');
 
-        if (\App\Support\AdminAccess::isCircleScoped($admin)) {
+        if (AdminAccess::isCircleScoped($admin)) {
             $circleId = AdminCircleScope::resolveCircleId($admin);
             if ($circleId) {
                 $query->where('circles.id', $circleId);
@@ -303,9 +305,9 @@ class ActivitiesController extends Controller
 
         $allMediaIds = [];
         foreach ($items as $item) {
-            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+            $allMediaIds = array_merge($allMediaIds, File::extractIdsFromMedia($item->media));
         }
-        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+        $validMediaIds = File::getValidMediaIds(array_unique($allMediaIds));
 
         return view('admin.activities.list-testimonials', [
             'member' => $member,
@@ -406,9 +408,9 @@ class ActivitiesController extends Controller
 
         $allMediaIds = [];
         foreach ($items as $item) {
-            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+            $allMediaIds = array_merge($allMediaIds, File::extractIdsFromMedia($item->media));
         }
-        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+        $validMediaIds = File::getValidMediaIds(array_unique($allMediaIds));
 
         return view('admin.activities.list-requirements', [
             'member' => $member,

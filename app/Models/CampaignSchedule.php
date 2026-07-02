@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -74,7 +75,7 @@ class CampaignSchedule extends Model
             return null;
         }
 
-        return \Carbon\Carbon::parse($value, 'UTC');
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setNextRunAtAttribute($value)
@@ -84,7 +85,7 @@ class CampaignSchedule extends Model
         } elseif ($value instanceof \DateTimeInterface) {
             $this->attributes['next_run_at'] = $value->format('Y-m-d H:i:s');
         } else {
-            $this->attributes['next_run_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['next_run_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 
@@ -94,7 +95,7 @@ class CampaignSchedule extends Model
             return null;
         }
 
-        return \Carbon\Carbon::parse($value, 'UTC');
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setLastRunAtAttribute($value)
@@ -104,7 +105,7 @@ class CampaignSchedule extends Model
         } elseif ($value instanceof \DateTimeInterface) {
             $this->attributes['last_run_at'] = $value->format('Y-m-d H:i:s');
         } else {
-            $this->attributes['last_run_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['last_run_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 }

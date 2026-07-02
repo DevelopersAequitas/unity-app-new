@@ -2,16 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessCampaignDeliveryJob;
+use App\Jobs\SendCampaignRecipientJob;
+use App\Mail\AdminCampaignMailable;
 use App\Models\AdminCampaign;
 use App\Models\AdminUser;
 use App\Models\CampaignDelivery;
 use App\Models\CampaignLog;
 use App\Models\Notification;
+use App\Models\OtpCode;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserPushToken;
+use App\Services\AdminCampaigns\CampaignRecipientResolverService;
+use App\Services\EmailLogs\EmailLogService;
 use App\Services\Firebase\FcmService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -56,9 +63,9 @@ class CampaignNotificationDeliveryTest extends TestCase
         $this->admin->roles()->attach($globalAdminRoleId);
 
         // Auto-generate UUID for Notification model in tests
-        \App\Models\Notification::creating(function ($notification) {
+        Notification::creating(function ($notification) {
             if (empty($notification->id)) {
-                $notification->id = (string) \Illuminate\Support\Str::uuid();
+                $notification->id = (string) Str::uuid();
             }
         });
 
@@ -390,15 +397,15 @@ class CampaignNotificationDeliveryTest extends TestCase
             'scheduled_at' => now(),
         ]);
 
-        $job = new \App\Jobs\ProcessCampaignDeliveryJob($delivery->id);
-        $job->handle(app(\App\Services\AdminCampaigns\CampaignRecipientResolverService::class));
+        $job = new ProcessCampaignDeliveryJob($delivery->id);
+        $job->handle(app(CampaignRecipientResolverService::class));
 
         $this->assertDatabaseHas('campaign_deliveries', [
             'id' => $delivery->id,
             'total_recipients' => 2,
         ]);
 
-        Mail::assertSent(\App\Mail\AdminCampaignMailable::class, 2);
+        Mail::assertSent(AdminCampaignMailable::class, 2);
     }
 
     /**
@@ -437,8 +444,8 @@ class CampaignNotificationDeliveryTest extends TestCase
             'scheduled_at' => now(),
         ]);
 
-        $job = new \App\Jobs\ProcessCampaignDeliveryJob($delivery->id);
-        $job->handle(app(\App\Services\AdminCampaigns\CampaignRecipientResolverService::class));
+        $job = new ProcessCampaignDeliveryJob($delivery->id);
+        $job->handle(app(CampaignRecipientResolverService::class));
 
         // Wait for batch jobs (since we are synchronously calling SendCampaignRecipientJob inside process, or let's execute the job directly)
         $log = CampaignLog::where('delivery_id', $delivery->id)->first();
@@ -498,10 +505,10 @@ class CampaignNotificationDeliveryTest extends TestCase
             'notification_status' => 'queued',
         ]);
 
-        $recipientJob = new \App\Jobs\SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
-        $recipientJob->handle(app(\App\Services\EmailLogs\EmailLogService::class), $fcmMock);
+        $recipientJob = new SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
+        $recipientJob->handle(app(EmailLogService::class), $fcmMock);
 
-        Mail::assertSent(\App\Mail\AdminCampaignMailable::class, 1);
+        Mail::assertSent(AdminCampaignMailable::class, 1);
         $this->assertDatabaseHas('campaign_logs', [
             'id' => $log->id,
             'email_status' => 'sent',
@@ -555,8 +562,8 @@ class CampaignNotificationDeliveryTest extends TestCase
             'notification_status' => 'queued',
         ]);
 
-        $recipientJob = new \App\Jobs\SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
-        $recipientJob->handle(app(\App\Services\EmailLogs\EmailLogService::class), $fcmMock);
+        $recipientJob = new SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
+        $recipientJob->handle(app(EmailLogService::class), $fcmMock);
 
         $this->assertDatabaseHas('campaign_logs', [
             'id' => $log->id,
@@ -603,8 +610,8 @@ class CampaignNotificationDeliveryTest extends TestCase
             'notification_status' => 'queued',
         ]);
 
-        $recipientJob = new \App\Jobs\SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithoutToken->id);
-        $recipientJob->handle(app(\App\Services\EmailLogs\EmailLogService::class), $fcmMock);
+        $recipientJob = new SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithoutToken->id);
+        $recipientJob->handle(app(EmailLogService::class), $fcmMock);
 
         $this->assertDatabaseHas('campaign_logs', [
             'id' => $log->id,
@@ -625,7 +632,7 @@ class CampaignNotificationDeliveryTest extends TestCase
             'last_name' => 'Login',
             'display_name' => 'John Login',
             'email' => 'john-login@example.com',
-            'password_hash' => \Illuminate\Support\Facades\Hash::make('password123'),
+            'password_hash' => Hash::make('password123'),
             'membership_status' => 'active',
             'status' => 'active',
         ]);
@@ -666,11 +673,11 @@ class CampaignNotificationDeliveryTest extends TestCase
             'status' => 'active',
         ]);
 
-        \App\Models\OtpCode::create([
+        OtpCode::create([
             'user_id' => $user->id,
             'email' => $user->email,
             'purpose' => 'login_otp',
-            'code' => \Illuminate\Support\Facades\Hash::make('1234'),
+            'code' => Hash::make('1234'),
             'expires_at' => now()->addMinutes(5),
             'used_at' => null,
         ]);

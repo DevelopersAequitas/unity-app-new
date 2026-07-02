@@ -2,11 +2,12 @@
 
 require 'c:/Users/HP/Downloads/unity-app 27-5-2026/unity-app/vendor/autoload.php';
 $app = require_once 'c:/Users/HP/Downloads/unity-app 27-5-2026/unity-app/bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\CampaignDelivery;
 use App\Models\CampaignSchedule;
+use Illuminate\Contracts\Console\Kernel;
 
 $schedule = CampaignSchedule::where('id', '4d34650e-d13a-4946-b3cf-8c29f43b9048')->first();
 if ($schedule) {

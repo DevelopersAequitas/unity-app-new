@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Models\AdminCampaign;
 use App\Policies\AdminCampaignPolicy;
+use App\Support\SqliteMigrator;
+use Illuminate\Database\Connection;
+use Illuminate\Database\SQLiteConnection;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
@@ -42,12 +45,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        \Illuminate\Database\Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) {
-            return new class($connection, $database, $prefix, $config) extends \Illuminate\Database\SQLiteConnection
+        Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) {
+            return new class($connection, $database, $prefix, $config) extends SQLiteConnection
             {
                 public function statement($query, $bindings = [])
                 {
-                    $query = \App\Support\SqliteMigrator::translate($query);
+                    $query = SqliteMigrator::translate($query);
                     $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
                     if (empty(trim($query))) {
                         return true;
@@ -58,7 +61,7 @@ class AppServiceProvider extends ServiceProvider
 
                 public function unprepared($query)
                 {
-                    $query = \App\Support\SqliteMigrator::translate($query);
+                    $query = SqliteMigrator::translate($query);
                     $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
                     if (empty(trim($query))) {
                         return true;
@@ -69,7 +72,7 @@ class AppServiceProvider extends ServiceProvider
 
                 protected function run($query, $bindings, \Closure $callback)
                 {
-                    $query = \App\Support\SqliteMigrator::translate($query);
+                    $query = SqliteMigrator::translate($query);
                     $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
 
                     return parent::run($query, $bindings, $callback);

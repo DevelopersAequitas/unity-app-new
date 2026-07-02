@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\CoinHistoryItemResource;
+use App\Models\Activity;
 use App\Models\CoinLedger;
 use App\Services\Coins\CoinActivityTitleResolver;
 use App\Services\Coins\CoinLedgerRelatedUserService;
@@ -122,7 +123,7 @@ class CoinHistoryController extends BaseApiController
             return collect();
         }
 
-        return \App\Models\Activity::whereIn('id', $activityIds)->get()->keyBy('id');
+        return Activity::whereIn('id', $activityIds)->get()->keyBy('id');
     }
 
     private function formatReasonLabel(?string $reasonKey): string

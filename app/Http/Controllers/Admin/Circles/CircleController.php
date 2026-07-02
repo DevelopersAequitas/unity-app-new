@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -731,13 +732,13 @@ class CircleController extends Controller
         try {
             $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
         } catch (Throwable $throwable) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'circle_package' => 'Failed to fetch selected Circle Package from Zoho Billing.',
             ]);
         }
 
         if (! is_array($addon)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'circle_package' => 'Selected Circle Package is invalid or inactive.',
             ]);
         }

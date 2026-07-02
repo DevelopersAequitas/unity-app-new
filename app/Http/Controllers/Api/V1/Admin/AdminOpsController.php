@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\CircleJoinRequest;
+use App\Models\Circular;
 use App\Models\CoinClaimRequest;
 use App\Models\Event;
 use App\Models\Impact;
 use App\Models\ImpactAction;
 use App\Models\LeaderInterestSubmission;
+use App\Models\MembershipPlan;
 use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\PeerRecommendation;
@@ -23,6 +26,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminOpsController extends BaseApiController
@@ -214,7 +218,7 @@ class AdminOpsController extends BaseApiController
     {
         $v = $request->validate(['title' => 'required|string|max:255', 'description' => 'nullable|string', 'circle_id' => 'nullable|uuid']);
         $event = Event::create($v);
-        \App\Jobs\SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
+        SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
 
         return $this->success($event);
     }
@@ -267,7 +271,7 @@ class AdminOpsController extends BaseApiController
     public function eventExpenseStore(Request $request, string $id): JsonResponse
     {
         $v = $request->validate(['title' => 'required|string|max:255', 'amount' => 'required|numeric|min:0']);
-        DB::table('event_expenses')->insert(['id' => (string) \Illuminate\Support\Str::uuid(), 'event_id' => $id, 'title' => $v['title'], 'amount' => $v['amount'], 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('event_expenses')->insert(['id' => (string) Str::uuid(), 'event_id' => $id, 'title' => $v['title'], 'amount' => $v['amount'], 'created_at' => now(), 'updated_at' => now()]);
 
         return $this->success(['created' => true]);
     }
@@ -280,7 +284,7 @@ class AdminOpsController extends BaseApiController
     public function eventSponsorshipStore(Request $request, string $id): JsonResponse
     {
         $v = $request->validate(['sponsor_name' => 'required|string|max:255', 'amount' => 'required|numeric|min:0']);
-        DB::table('event_sponsors')->insert(['id' => (string) \Illuminate\Support\Str::uuid(), 'event_id' => $id, 'sponsor_name' => $v['sponsor_name'], 'amount' => $v['amount'], 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('event_sponsors')->insert(['id' => (string) Str::uuid(), 'event_id' => $id, 'sponsor_name' => $v['sponsor_name'], 'amount' => $v['amount'], 'created_at' => now(), 'updated_at' => now()]);
 
         return $this->success(['created' => true]);
     }
@@ -397,12 +401,12 @@ class AdminOpsController extends BaseApiController
 
     public function billingPlans(): JsonResponse
     {
-        return $this->success(\App\Models\MembershipPlan::query()->paginate(20));
+        return $this->success(MembershipPlan::query()->paginate(20));
     }
 
     public function billingPlanUpdate(Request $request, string $id): JsonResponse
     {
-        $p = \App\Models\MembershipPlan::findOrFail($id);
+        $p = MembershipPlan::findOrFail($id);
         $p->fill($request->only(['name', 'price', 'description', 'is_active']))->save();
 
         return $this->success($p);
@@ -540,7 +544,7 @@ class AdminOpsController extends BaseApiController
     public function notificationBroadcast(Request $request): JsonResponse
     {
         $v = $request->validate(['title' => 'required|string|max:255', 'message' => 'required|string']);
-        DB::table('broadcast_messages')->insert(['id' => (string) \Illuminate\Support\Str::uuid(), 'title' => $v['title'], 'message' => $v['message'], 'created_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('broadcast_messages')->insert(['id' => (string) Str::uuid(), 'title' => $v['title'], 'message' => $v['message'], 'created_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
 
         return $this->success(['queued' => true]);
     }
@@ -553,7 +557,7 @@ class AdminOpsController extends BaseApiController
     public function notificationTemplateStore(Request $request): JsonResponse
     {
         $v = $request->validate(['name' => 'required|string|max:255', 'subject' => 'nullable|string|max:255', 'body' => 'required|string']);
-        DB::table('communication_templates')->insert(['id' => (string) \Illuminate\Support\Str::uuid(), 'name' => $v['name'], 'subject' => $v['subject'] ?? null, 'body' => $v['body'], 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('communication_templates')->insert(['id' => (string) Str::uuid(), 'name' => $v['name'], 'subject' => $v['subject'] ?? null, 'body' => $v['body'], 'created_at' => now(), 'updated_at' => now()]);
 
         return $this->success(['created' => true]);
     }
@@ -567,19 +571,19 @@ class AdminOpsController extends BaseApiController
 
     public function circulars(): JsonResponse
     {
-        return $this->success(\App\Models\Circular::query()->latest('created_at')->paginate(20));
+        return $this->success(Circular::query()->latest('created_at')->paginate(20));
     }
 
     public function circularStore(Request $request): JsonResponse
     {
         $v = $request->validate(['title' => 'required|string|max:255', 'content' => 'required|string']);
 
-        return $this->success(\App\Models\Circular::create($v));
+        return $this->success(Circular::create($v));
     }
 
     public function circularUpdate(Request $request, string $id): JsonResponse
     {
-        $x = \App\Models\Circular::findOrFail($id);
+        $x = Circular::findOrFail($id);
         $x->fill($request->only(['title', 'content', 'status']))->save();
 
         return $this->success($x);
@@ -587,7 +591,7 @@ class AdminOpsController extends BaseApiController
 
     public function circularDelete(string $id): JsonResponse
     {
-        \App\Models\Circular::where('id', $id)->delete();
+        Circular::where('id', $id)->delete();
 
         return $this->success(['deleted' => true]);
     }
@@ -601,7 +605,7 @@ class AdminOpsController extends BaseApiController
     public function meetingStore(Request $request, string $circleId): JsonResponse
     {
         $v = $request->validate(['meeting_date' => 'required|date', 'title' => 'required|string|max:255']);
-        DB::table('circle_meetings')->insert(['id' => (string) \Illuminate\Support\Str::uuid(), 'circle_id' => $circleId, 'meeting_date' => $v['meeting_date'], 'title' => $v['title'], 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('circle_meetings')->insert(['id' => (string) Str::uuid(), 'circle_id' => $circleId, 'meeting_date' => $v['meeting_date'], 'title' => $v['title'], 'created_at' => now(), 'updated_at' => now()]);
 
         return $this->success(['created' => true]);
     }
@@ -623,10 +627,10 @@ class AdminOpsController extends BaseApiController
         $v = $request->validate(['user_id' => 'required|uuid|exists:users,id', 'status' => 'required|string']);
         $exists = DB::table('attendance_records')->where('meeting_id', $id)->where('user_id', $v['user_id'])->exists();
         if (! $exists) {
-            DB::table('attendance_records')->insert(['id' => (string) \Illuminate\Support\Str::uuid(), 'meeting_id' => $id, 'user_id' => $v['user_id'], 'status' => $v['status'], 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('attendance_records')->insert(['id' => (string) Str::uuid(), 'meeting_id' => $id, 'user_id' => $v['user_id'], 'status' => $v['status'], 'created_at' => now(), 'updated_at' => now()]);
         }
 
-return $this->success(['saved' => true]);
+        return $this->success(['saved' => true]);
     }
 
     public function meetingAttendance(string $id): JsonResponse
@@ -646,7 +650,7 @@ return $this->success(['saved' => true]);
         $v = $request->validate(['user_id' => 'required|uuid|exists:users,id', 'substitute_user_id' => 'required|uuid|exists:users,id']);
         $count = DB::table('substitute_logs')->where('meeting_id', $id)->where('user_id', $v['user_id'])->count();
         abort_if($count >= 3, 422, 'Maximum 3 substitutes reached.');
-        DB::table('substitute_logs')->insert(['id' => (string) \Illuminate\Support\Str::uuid(), 'meeting_id' => $id, 'user_id' => $v['user_id'], 'substitute_user_id' => $v['substitute_user_id'], 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('substitute_logs')->insert(['id' => (string) Str::uuid(), 'meeting_id' => $id, 'user_id' => $v['user_id'], 'substitute_user_id' => $v['substitute_user_id'], 'created_at' => now(), 'updated_at' => now()]);
 
         return $this->success(['created' => true]);
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\Circle;
 use App\Models\Event;
 use App\Models\EventQrScanLog;
@@ -191,7 +192,7 @@ class EventManagementController extends Controller
             return $event;
         });
 
-        \App\Jobs\SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
+        SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
 
         return redirect()->route('admin.events.show', $event)->with('success', 'Event created successfully.');
     }
