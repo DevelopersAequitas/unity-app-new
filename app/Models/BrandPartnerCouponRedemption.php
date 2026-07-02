@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -7,33 +9,33 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class BrandPartnerView extends Model
+class BrandPartnerCouponRedemption extends Model
 {
     use HasFactory;
     use HasUuids;
 
-    protected $table = 'brand_partner_views';
+    protected $table = 'brand_partner_coupon_redemptions';
 
     protected $keyType = 'string';
 
     public $incrementing = false;
 
-    // Map viewed_at to the created_at event
-    const CREATED_AT = 'viewed_at';
+    public const CREATED_AT = 'redeemed_at';
 
-    const UPDATED_AT = null;
+    public const UPDATED_AT = null;
 
     protected $fillable = [
         'id',
-        'user_id',
         'brand_partner_id',
-        'viewed_at',
-        'session_id',
-        'ip_address',
+        'user_id',
+        'coupon_code',
+        'redeemed_at',
+        'metadata',
     ];
 
     protected $casts = [
-        'viewed_at' => 'datetime',
+        'redeemed_at' => 'datetime',
+        'metadata' => 'array',
     ];
 
     public function brandPartner(): BelongsTo

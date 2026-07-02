@@ -154,6 +154,11 @@ class BrandPartner extends Model
         return $this->hasMany(BrandPartnerSaved::class, 'brand_partner_id');
     }
 
+    public function couponRedemptions(): HasMany
+    {
+        return $this->hasMany(BrandPartnerCouponRedemption::class, 'brand_partner_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(AdminUser::class, 'created_by');
