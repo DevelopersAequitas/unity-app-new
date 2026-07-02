@@ -10,9 +10,9 @@ use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
 use Throwable;
 
 class BusinessDealController extends BaseApiController
@@ -282,7 +282,7 @@ class BusinessDealController extends BaseApiController
                 'id' => (string) $user->id,
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
-                'display_name' => $user->display_name ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                'display_name' => $user->display_name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'company_name' => $user->company_name,
@@ -328,7 +328,7 @@ class BusinessDealController extends BaseApiController
             ->with(['fromUser', 'toUser'])
             ->where(function ($q) use ($userId) {
                 $q->where('from_user_id', $userId)
-                  ->orWhere('to_user_id', $userId);
+                    ->orWhere('to_user_id', $userId);
             })
             ->orderBy('deal_date', 'desc')
             ->orderBy('created_at', 'desc')
@@ -350,7 +350,7 @@ class BusinessDealController extends BaseApiController
                 'updated_at' => $deal->updated_at ? Carbon::parse($deal->updated_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
                 'from_user' => $fromUser ? [
                     'id' => (string) $fromUser->id,
-                    'display_name' => $fromUser->display_name ?? trim(($fromUser->first_name ?? '') . ' ' . ($fromUser->last_name ?? '')),
+                    'display_name' => $fromUser->display_name ?? trim(($fromUser->first_name ?? '').' '.($fromUser->last_name ?? '')),
                     'first_name' => $fromUser->first_name,
                     'last_name' => $fromUser->last_name,
                     'email' => $fromUser->email,
@@ -361,7 +361,7 @@ class BusinessDealController extends BaseApiController
                 ] : null,
                 'to_user' => $toUser ? [
                     'id' => (string) $toUser->id,
-                    'display_name' => $toUser->display_name ?? trim(($toUser->first_name ?? '') . ' ' . ($toUser->last_name ?? '')),
+                    'display_name' => $toUser->display_name ?? trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? '')),
                     'first_name' => $toUser->first_name,
                     'last_name' => $toUser->last_name,
                     'email' => $toUser->email,

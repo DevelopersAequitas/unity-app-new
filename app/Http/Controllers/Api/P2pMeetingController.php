@@ -375,7 +375,7 @@ class P2pMeetingController extends BaseApiController
         $totalCount = (clone $baseQuery)
             ->where(function ($q) use ($userId) {
                 $q->where('initiator_user_id', $userId)
-                  ->orWhere('peer_user_id', $userId);
+                    ->orWhere('peer_user_id', $userId);
             })
             ->count();
 
@@ -393,7 +393,7 @@ class P2pMeetingController extends BaseApiController
             ->with(['initiator', 'peer'])
             ->where(function ($q) use ($userId) {
                 $q->where('initiator_user_id', $userId)
-                  ->orWhere('peer_user_id', $userId);
+                    ->orWhere('peer_user_id', $userId);
             })
             ->orderBy('meeting_date', 'desc')
             ->orderBy('created_at', 'desc')
@@ -415,7 +415,7 @@ class P2pMeetingController extends BaseApiController
                 'updated_at' => $meeting->updated_at ? Carbon::parse($meeting->updated_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
                 'initiated_by' => $initiatedBy ? [
                     'id' => (string) $initiatedBy->id,
-                    'display_name' => $initiatedBy->display_name ?? trim(($initiatedBy->first_name ?? '') . ' ' . ($initiatedBy->last_name ?? '')),
+                    'display_name' => $initiatedBy->display_name ?? trim(($initiatedBy->first_name ?? '').' '.($initiatedBy->last_name ?? '')),
                     'first_name' => $initiatedBy->first_name,
                     'last_name' => $initiatedBy->last_name,
                     'email' => $initiatedBy->email,
@@ -426,7 +426,7 @@ class P2pMeetingController extends BaseApiController
                 ] : null,
                 'initiated_to' => $initiatedTo ? [
                     'id' => (string) $initiatedTo->id,
-                    'display_name' => $initiatedTo->display_name ?? trim(($initiatedTo->first_name ?? '') . ' ' . ($initiatedTo->last_name ?? '')),
+                    'display_name' => $initiatedTo->display_name ?? trim(($initiatedTo->first_name ?? '').' '.($initiatedTo->last_name ?? '')),
                     'first_name' => $initiatedTo->first_name,
                     'last_name' => $initiatedTo->last_name,
                     'email' => $initiatedTo->email,

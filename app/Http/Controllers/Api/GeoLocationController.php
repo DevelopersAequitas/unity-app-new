@@ -169,7 +169,7 @@ class GeoLocationController extends BaseApiController
         $count = UserGeoLocation::query()
             ->where('is_visible', true)
             ->where('user_id', '!=', (string) $authUser->id)
-            ->whereRaw($distanceExpression . ' <= ?', [...$distanceBindings, 500])
+            ->whereRaw($distanceExpression.' <= ?', [...$distanceBindings, 500])
             ->count();
 
         return $this->success([

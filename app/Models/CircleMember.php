@@ -127,6 +127,30 @@ class CircleMember extends Model
                 throw $exception;
             }
         });
+
+        static::saved(function (CircleMember $member): void {
+            $admin = auth('admin')->user();
+            if ($admin) {
+                \Illuminate\Support\Facades\Cache::forget('admin-access:allowed-users:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:allowed-circles:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:primary-role:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:assigned-circles:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:user:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:roles:'.$admin->id);
+            }
+        });
+
+        static::deleted(function (CircleMember $member): void {
+            $admin = auth('admin')->user();
+            if ($admin) {
+                \Illuminate\Support\Facades\Cache::forget('admin-access:allowed-users:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:allowed-circles:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:primary-role:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:assigned-circles:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:user:'.$admin->id);
+                \Illuminate\Support\Facades\Cache::forget('admin-access:roles:'.$admin->id);
+            }
+        });
     }
 
     public function user(): BelongsTo

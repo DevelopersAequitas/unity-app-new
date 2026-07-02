@@ -42,6 +42,7 @@
     .bg-icon-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
     .bg-icon-warning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
     .bg-icon-info { background: rgba(13, 202, 240, 0.1); color: #0dcaf0; }
+    .bg-icon-danger { background: rgba(220, 53, 69, 0.1); color: #dc3545; }
     
     .peer-avatar {
         width: 32px;
@@ -110,51 +111,102 @@
     <div class="mb-4">
         <h5 class="fw-bold mb-3 text-dark"><i class="bi bi-activity text-primary me-2"></i>Circle Activities Overview</h5>
         <div class="row g-3">
-            <!-- Testimonials -->
+            <!-- Total Lives Impacted -->
             <div class="col-12 col-sm-6 col-md-4 col-xl-3">
-                <a href="{{ route('admin.activities.testimonials.index') }}" class="text-decoration-none">
+                <a href="{{ route('admin.life-impact.index') }}" class="text-decoration-none">
                     <div class="card glass-card p-3 h-100 border-0">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <p class="text-muted small fw-medium mb-1">Testimonials</p>
-                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['testimonials'] ?? 0) }}</h3>
+                                <p class="text-muted small fw-medium mb-1">Total Lives Impacted</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['totalLivesImpacted'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-info">
+                                <i class="bi bi-heart-fill"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Total Coins Earned -->
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+                <a href="{{ route('admin.coins.index') }}" class="text-decoration-none">
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Total Coins Earned</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['totalCoinsEarned'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-warning">
+                                <i class="bi bi-coin"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Business Deals Count -->
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+                <a href="{{ route('admin.activities.business-deals.index') }}" class="text-decoration-none">
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Business Deals Count</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['businessDealsCount'] ?? 0) }}</h3>
                             </div>
                             <div class="kpi-icon-wrapper bg-icon-primary">
-                                <i class="bi bi-chat-left-quote"></i>
+                                <i class="bi bi-briefcase"></i>
                             </div>
                         </div>
                     </div>
                 </a>
             </div>
 
-            <!-- Requirements -->
+            <!-- Business Deals Amount -->
             <div class="col-12 col-sm-6 col-md-4 col-xl-3">
-                <a href="{{ route('admin.activities.requirements.index') }}" class="text-decoration-none">
+                <a href="{{ route('admin.activities.business-deals.index') }}" class="text-decoration-none">
                     <div class="card glass-card p-3 h-100 border-0">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <p class="text-muted small fw-medium mb-1">Requirements</p>
-                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['requirements'] ?? 0) }}</h3>
+                                <p class="text-muted small fw-medium mb-1">Business Deals Amount</p>
+                                <h3 class="mb-0 fw-bold text-dark">₹ {{ number_format($data['activityCounts']['businessDealsAmount'] ?? 0) }}</h3>
                             </div>
                             <div class="kpi-icon-wrapper bg-icon-success">
-                                <i class="bi bi-card-checklist"></i>
+                                <i class="bi bi-cash-stack"></i>
                             </div>
                         </div>
                     </div>
                 </a>
             </div>
 
-            <!-- Referrals -->
+            <!-- Referrals Passed -->
             <div class="col-12 col-sm-6 col-md-4 col-xl-3">
                 <a href="{{ route('admin.activities.referrals.index') }}" class="text-decoration-none">
                     <div class="card glass-card p-3 h-100 border-0">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <p class="text-muted small fw-medium mb-1">Referrals</p>
-                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['referrals'] ?? 0) }}</h3>
+                                <p class="text-muted small fw-medium mb-1">Referrals Passed</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['referralsPassed'] ?? 0) }}</h3>
                             </div>
-                            <div class="kpi-icon-wrapper bg-icon-warning">
+                            <div class="kpi-icon-wrapper bg-icon-info">
                                 <i class="bi bi-share"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Connections Made -->
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+                <a href="{{ route('admin.activities.connections.index') }}" class="text-decoration-none">
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Connections Made</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['connectionsMade'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-primary">
+                                <i class="bi bi-people"></i>
                             </div>
                         </div>
                     </div>
@@ -170,7 +222,7 @@
                                 <p class="text-muted small fw-medium mb-1">P2P Meetings</p>
                                 <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['p2pMeetings'] ?? 0) }}</h3>
                             </div>
-                            <div class="kpi-icon-wrapper bg-icon-info">
+                            <div class="kpi-icon-wrapper bg-icon-success">
                                 <i class="bi bi-chat-right-dots"></i>
                             </div>
                         </div>
@@ -178,68 +230,85 @@
                 </a>
             </div>
 
-            <!-- Business Deals -->
+            <!-- Requirements Posted -->
             <div class="col-12 col-sm-6 col-md-4 col-xl-3">
-                <a href="{{ route('admin.activities.business-deals.index') }}" class="text-decoration-none">
+                <a href="{{ route('admin.activities.requirements.index') }}" class="text-decoration-none">
                     <div class="card glass-card p-3 h-100 border-0">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <p class="text-muted small fw-medium mb-1">Business Deals</p>
-                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['businessDeals'] ?? 0) }}</h3>
-                            </div>
-                            <div class="kpi-icon-wrapper bg-icon-primary">
-                                <i class="bi bi-briefcase"></i>
-                            </div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <!-- Become A Leader -->
-            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
-                <a href="{{ route('admin.activities.become-a-leader.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-3 h-100 border-0">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <p class="text-muted small fw-medium mb-1">Leader Interest</p>
-                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['becomeLeader'] ?? 0) }}</h3>
-                            </div>
-                            <div class="kpi-icon-wrapper bg-icon-success">
-                                <i class="bi bi-award"></i>
-                            </div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <!-- Recommend A Peer -->
-            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
-                <a href="{{ route('admin.activities.recommend-peer.index') }}" class="text-decoration-none">
-                    <div class="card glass-card p-3 h-100 border-0">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <p class="text-muted small fw-medium mb-1">Recommendations</p>
-                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['recommendPeer'] ?? 0) }}</h3>
+                                <p class="text-muted small fw-medium mb-1">Requirements Posted</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['requirementsPosted'] ?? 0) }}</h3>
                             </div>
                             <div class="kpi-icon-wrapper bg-icon-warning">
-                                <i class="bi bi-hand-thumbs-up"></i>
+                                <i class="bi bi-card-checklist"></i>
                             </div>
                         </div>
                     </div>
                 </a>
             </div>
 
-            <!-- Register A Visitor -->
+            <!-- Testimonials Exchanged -->
             <div class="col-12 col-sm-6 col-md-4 col-xl-3">
-                <a href="{{ route('admin.activities.register-visitor.index') }}" class="text-decoration-none">
+                <a href="{{ route('admin.activities.testimonials.index') }}" class="text-decoration-none">
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Testimonials Exchanged</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['testimonialsExchanged'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-info">
+                                <i class="bi bi-chat-left-quote"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Visitors -->
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+                <a href="{{ route('admin.visitor-registrations.index') }}" class="text-decoration-none">
                     <div class="card glass-card p-3 h-100 border-0">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
                                 <p class="text-muted small fw-medium mb-1">Visitors</p>
-                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['registerVisitor'] ?? 0) }}</h3>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['visitors'] ?? 0) }}</h3>
                             </div>
-                            <div class="kpi-icon-wrapper bg-icon-info">
+                            <div class="kpi-icon-wrapper bg-icon-primary">
                                 <i class="bi bi-person-badge"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Circle Left Members -->
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+                <a href="javascript:void(0);" onclick="handleLeftMembersClick()" class="text-decoration-none">
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Circle Left Members</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['circleLeftMembers'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-danger">
+                                <i class="bi bi-person-dash"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Circle Joined Members -->
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+                <a href="{{ route('admin.users.index', ['joined_filter' => 'last_month']) }}" class="text-decoration-none">
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Circle Joined Members</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['activityCounts']['circleJoinedMembers'] ?? 0) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-success">
+                                <i class="bi bi-person-check"></i>
                             </div>
                         </div>
                     </div>
@@ -251,6 +320,83 @@
     <!-- Main Grid Section -->
     <div class="row g-4">
         <div class="col-12 col-lg-8">
+            <!-- Circles Details Section -->
+            <div class="card border-0 shadow-sm p-4 mb-4 rounded-4">
+                <div class="d-flex align-items-center mb-4">
+                    <div class="kpi-icon-wrapper bg-icon-success me-3">
+                        <i class="bi bi-circle-fill"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">My Circles & Details</h5>
+                        <p class="text-muted small mb-0">Overview of circles you are associated with, including launch dates and leadership.</p>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    @forelse($data['joinedCircles'] as $memberRecord)
+                        @php
+                            $circle = $memberRecord->circle;
+                        @endphp
+                        @if($circle)
+                            <div class="col-12 col-md-6">
+                                <div class="card border border-light-subtle rounded-3 p-3 h-100 bg-light-subtle">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div>
+                                            <h6 class="fw-bold text-primary mb-1">{{ $circle->name }}</h6>
+                                            <span class="badge bg-primary-subtle text-primary text-capitalize px-2 py-1 fs-8">
+                                                {{ str_replace('_', ' ', $memberRecord->role) }}
+                                            </span>
+                                        </div>
+                                        @if($circle->status)
+                                            <span class="badge bg-{{ $circle->status === 'active' ? 'success' : 'secondary' }}-subtle text-{{ $circle->status === 'active' ? 'success' : 'secondary' }} text-capitalize border border-{{ $circle->status === 'active' ? 'success' : 'secondary' }}-subtle px-2.5 py-1 fs-8">
+                                                {{ $circle->status }}
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    <div class="text-muted fs-7 mb-3" style="min-height: 42px;">
+                                        {{ Str::limit($circle->description ?? $circle->purpose ?? 'No description provided.', 120) }}
+                                    </div>
+
+                                    <div class="border-top pt-3 fs-7">
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <div class="text-muted small fs-8">Circle Founder</div>
+                                                <div class="fw-semibold text-dark text-truncate">
+                                                    {{ $circle->founder ? $circle->founder->display_name : '—' }}
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="text-muted small fs-8">Circle Director</div>
+                                                <div class="fw-semibold text-dark text-truncate">
+                                                    {{ $circle->director ? $circle->director->display_name : '—' }}
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="text-muted small fs-8">Launch Date</div>
+                                                <div class="fw-semibold text-dark">
+                                                    {{ $circle->launch_date ? \Illuminate\Support\Carbon::parse($circle->launch_date)->format('M d, Y') : '—' }}
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="text-muted small fs-8">DED</div>
+                                                <div class="fw-semibold text-dark text-truncate">
+                                                    {{ $circle->ded ? $circle->ded->display_name : '—' }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+                    @empty
+                        <div class="col-12 text-center py-4">
+                            <p class="text-muted mb-0">You are not associated with any circles yet.</p>
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+
             <!-- 1. Circle Peers Details -->
             <div class="card border-0 shadow-sm p-4 mb-4 rounded-4">
                 <div class="d-flex align-items-center mb-3">
@@ -396,4 +542,66 @@
         </div>
     </div>
 </div>
+
+<!-- Left Members Modal -->
+<div class="modal fade" id="leftMembersModal" tabindex="-1" aria-labelledby="leftMembersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-danger d-flex align-items-center" id="leftMembersModalLabel">
+                    <i class="bi bi-person-x-fill me-2 fs-4"></i> Members Left in Last Month
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr class="text-muted fs-8">
+                                <th>Name</th>
+                                <th>Circle</th>
+                                <th>Left At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($data['leftMembers'] as $leftMember)
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold text-dark fs-7">
+                                            {{ $leftMember->user->display_name ?? '—' }}
+                                        </div>
+                                        <div class="text-muted fs-8">
+                                            {{ $leftMember->user->email ?? '—' }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="fs-7 text-dark">{{ $leftMember->circle->name ?? '—' }}</span>
+                                    </td>
+                                    <td class="text-muted fs-8">
+                                        {{ $leftMember->left_at ? \Illuminate\Support\Carbon::parse($leftMember->left_at)->format('Y-m-d') : '—' }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm px-3 rounded-3" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function handleLeftMembersClick() {
+        const leftCount = {{ (int)($data['activityCounts']['circleLeftMembers'] ?? 0) }};
+        if (leftCount === 0) {
+            alert('No members left the circle in the last month.');
+        } else {
+            const modal = new bootstrap.Modal(document.getElementById('leftMembersModal'));
+            modal.show();
+        }
+    }
+</script>
 @endsection

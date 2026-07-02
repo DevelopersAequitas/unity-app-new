@@ -2,12 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\Requirement;
-use App\Models\RequirementInterest;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -229,7 +228,7 @@ class RequirementApiTest extends TestCase
         // Acting as User 1, but requesting User 2's summary
         Sanctum::actingAs($user1);
 
-        $response = $this->getJson('/api/v1/requirements/summary/' . $user2->id);
+        $response = $this->getJson('/api/v1/requirements/summary/'.$user2->id);
 
         $response->assertStatus(200)
             ->assertJson([

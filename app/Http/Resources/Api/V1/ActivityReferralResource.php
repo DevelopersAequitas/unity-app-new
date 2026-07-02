@@ -17,7 +17,7 @@ class ActivityReferralResource extends JsonResource
             'description' => $this->remarks,
             'status' => $this->status ?? null,
             'source_module' => $this->source_module ?? 'referral',
-            
+
             // Raw database fields
             'referral_type' => $this->referral_type,
             'referral_date' => $this->referral_date,
@@ -27,7 +27,7 @@ class ActivityReferralResource extends JsonResource
             'address' => $this->address,
             'hot_value' => is_numeric($this->hot_value) ? (int) $this->hot_value : $this->hot_value,
             'remarks' => $this->remarks,
-            
+
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
             'given_by_user' => $this->formatSafeUser($this->relationLoaded('givenByUser') ? $this->givenByUser : null),
@@ -45,7 +45,7 @@ class ActivityReferralResource extends JsonResource
 
         return [
             'id' => (string) $user->id,
-            'display_name' => $user->display_name ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+            'display_name' => $user->display_name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'email' => $user->email,

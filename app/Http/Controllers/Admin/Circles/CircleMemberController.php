@@ -58,7 +58,17 @@ class CircleMemberController extends Controller
         }
         $redirectQuery = $this->peerFilterQuery($request);
 
-        $circleMember->forceDelete();
+        $circleMember->forceFill([
+            'left_at' => now(),
+        ])->save();
+
+        if (Schema::hasTable('joined_circle_categories')) {
+            \App\Models\JoinedCircleCategory::query()
+                ->where('circle_member_id', $circleMember->id)
+                ->delete();
+        }
+
+        $circleMember->delete();
 
         return redirect()
             ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))

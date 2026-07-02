@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Events\ActivityCreated;
 use App\Http\Requests\Activity\StoreReferralRequest;
 use App\Http\Requests\Api\GenerateReferralCodeRequest;
-use App\Http\Resources\ReferralMemberResource;
 use App\Http\Resources\Api\V1\ActivityReferralResource;
+use App\Http\Resources\ReferralMemberResource;
 use App\Models\Referral;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
@@ -158,7 +158,7 @@ class ReferralController extends BaseApiController
         return $this->success([
             'user' => [
                 'id' => (string) $user->id,
-                'display_name' => $user->display_name ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                'display_name' => $user->display_name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
                 'email' => $user->email,

@@ -158,7 +158,6 @@ class MemberListApiTest extends TestCase
         $this->assertSame(0, $lonelyPayload['connection_count']);
     }
 
-
     private function createSchema(): void
     {
         Schema::dropIfExists('circle_subscriptions');
@@ -261,5 +260,4 @@ class MemberListApiTest extends TestCase
             $table->primary(['requester_id', 'addressee_id']);
         });
     }
-
 }

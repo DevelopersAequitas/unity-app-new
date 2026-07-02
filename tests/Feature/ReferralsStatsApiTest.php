@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\Referral;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
@@ -311,7 +311,7 @@ class ReferralsStatsApiTest extends TestCase
 
         Sanctum::actingAs($watcher);
 
-        $response = $this->getJson('/api/v1/referrals/stats/' . $user1->id . '?per_page=1');
+        $response = $this->getJson('/api/v1/referrals/stats/'.$user1->id.'?per_page=1');
 
         $response->assertStatus(200)
             ->assertJson([

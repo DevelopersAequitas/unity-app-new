@@ -10,10 +10,9 @@ use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
 use App\Models\CoinClaimRequest;
 use App\Models\CoinLedger;
+use App\Models\Connection;
 use App\Models\EventRegistrationRequest;
-use App\Models\LeaderInterestSubmission;
 use App\Models\P2pMeeting;
-use App\Models\PeerRecommendation;
 use App\Models\Referral;
 use App\Models\Requirement;
 use App\Models\Testimonial;
@@ -61,9 +60,8 @@ class CircleMemberDashboardService
             ->where('status', 'approved')
             ->whereNull('deleted_at')
             ->with(['circle' => function ($query) {
-                $query->orderBy('name')->withCount(['members' => function ($q) {
-                    $q->where('status', 'approved')->whereNull('deleted_at');
-                }]);
+                $query->orderBy('name')
+                    ->with(['founder', 'director', 'ded']);
             }])
             ->get();
 
@@ -153,32 +151,31 @@ class CircleMemberDashboardService
         $totalPending = $circleJoinCount + $coinClaimsCount + $visitorRegistrationsCount + $eventJoiningCount;
 
         $activityCounts = [
-            'testimonials' => 0,
-            'requirements' => 0,
-            'referrals' => 0,
+            'totalLivesImpacted' => 0,
+            'totalCoinsEarned' => 0,
+            'businessDealsCount' => 0,
+            'businessDealsAmount' => 0,
+            'referralsPassed' => 0,
+            'connectionsMade' => 0,
             'p2pMeetings' => 0,
-            'businessDeals' => 0,
-            'becomeLeader' => 0,
-            'recommendPeer' => 0,
-            'registerVisitor' => 0,
+            'requirementsPosted' => 0,
+            'testimonialsExchanged' => 0,
+            'visitors' => 0,
+            'circleLeftMembers' => 0,
+            'circleJoinedMembers' => 0,
         ];
 
         if (! empty($allowedUserIds)) {
-            $activityCounts['testimonials'] = Testimonial::query()
-                ->where('is_deleted', false)
-                ->whereNull('deleted_at')
-                ->where(function ($q) use ($allowedUserIds): void {
-                    $q->whereIn('from_user_id', $allowedUserIds)
-                        ->orWhereIn('to_user_id', $allowedUserIds);
-                })
-                ->count();
+            $activityCounts['totalLivesImpacted'] = (int) User::query()
+                ->whereIn('id', $allowedUserIds)
+                ->sum('life_impacted_count');
 
-            $activityCounts['requirements'] = Requirement::query()
-                ->whereNull('deleted_at')
+            $activityCounts['totalCoinsEarned'] = (int) CoinLedger::query()
                 ->whereIn('user_id', $allowedUserIds)
-                ->count();
+                ->where('amount', '>', 0)
+                ->sum('amount');
 
-            $activityCounts['referrals'] = Referral::query()
+            $activityCounts['businessDealsCount'] = BusinessDeal::query()
                 ->where('is_deleted', false)
                 ->whereNull('deleted_at')
                 ->where(function ($q) use ($allowedUserIds): void {
@@ -186,6 +183,35 @@ class CircleMemberDashboardService
                         ->orWhereIn('to_user_id', $allowedUserIds);
                 })
                 ->count();
+
+            $activityCounts['businessDealsAmount'] = (float) BusinessDeal::query()
+                ->where('is_deleted', false)
+                ->whereNull('deleted_at')
+                ->where(function ($q) use ($allowedUserIds): void {
+                    $q->whereIn('from_user_id', $allowedUserIds)
+                        ->orWhereIn('to_user_id', $allowedUserIds);
+                })
+                ->sum('deal_amount');
+
+            $activityCounts['referralsPassed'] = Referral::query()
+                ->where('is_deleted', false)
+                ->whereNull('deleted_at')
+                ->where(function ($q) use ($allowedUserIds): void {
+                    $q->whereIn('from_user_id', $allowedUserIds)
+                        ->orWhereIn('to_user_id', $allowedUserIds);
+                })
+                ->count();
+
+            $activityCounts['connectionsMade'] = 0;
+            if (Schema::hasTable('connections')) {
+                $activityCounts['connectionsMade'] = Connection::query()
+                    ->where('is_approved', true)
+                    ->where(function ($q) use ($allowedUserIds): void {
+                        $q->whereIn('requester_id', $allowedUserIds)
+                            ->orWhereIn('addressee_id', $allowedUserIds);
+                    })
+                    ->count();
+            }
 
             $activityCounts['p2pMeetings'] = P2pMeeting::query()
                 ->where('is_deleted', false)
@@ -197,7 +223,12 @@ class CircleMemberDashboardService
                 })
                 ->count();
 
-            $activityCounts['businessDeals'] = BusinessDeal::query()
+            $activityCounts['requirementsPosted'] = Requirement::query()
+                ->whereNull('deleted_at')
+                ->whereIn('user_id', $allowedUserIds)
+                ->count();
+
+            $activityCounts['testimonialsExchanged'] = Testimonial::query()
                 ->where('is_deleted', false)
                 ->whereNull('deleted_at')
                 ->where(function ($q) use ($allowedUserIds): void {
@@ -206,17 +237,32 @@ class CircleMemberDashboardService
                 })
                 ->count();
 
-            $activityCounts['becomeLeader'] = LeaderInterestSubmission::query()
+            $activityCounts['visitors'] = VisitorRegistration::query()
                 ->whereIn('user_id', $allowedUserIds)
+                ->count();
+        }
+
+        $leftMembers = collect();
+        if (! empty($allowedCircleIds)) {
+            $activityCounts['circleLeftMembers'] = CircleMember::withTrashed()
+                ->whereIn('circle_id', $allowedCircleIds)
+                ->whereNotNull('left_at')
+                ->where('left_at', '>=', now()->subDays(30))
                 ->count();
 
-            $activityCounts['recommendPeer'] = PeerRecommendation::query()
-                ->whereIn('user_id', $allowedUserIds)
+            $activityCounts['circleJoinedMembers'] = CircleMember::query()
+                ->whereIn('circle_id', $allowedCircleIds)
+                ->where('status', 'approved')
+                ->whereNull('left_at')
+                ->where('joined_at', '>=', now()->subDays(30))
                 ->count();
 
-            $activityCounts['registerVisitor'] = VisitorRegistration::query()
-                ->whereIn('user_id', $allowedUserIds)
-                ->count();
+            $leftMembers = CircleMember::withTrashed()
+                ->whereIn('circle_id', $allowedCircleIds)
+                ->whereNotNull('left_at')
+                ->where('left_at', '>=', now()->subDays(30))
+                ->with(['user', 'circle'])
+                ->get();
         }
 
         return [
@@ -235,6 +281,7 @@ class CircleMemberDashboardService
                 'total' => $totalPending,
             ],
             'activityCounts' => $activityCounts,
+            'leftMembers' => $leftMembers,
         ];
     }
 }

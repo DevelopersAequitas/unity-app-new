@@ -375,7 +375,7 @@ class RequirementController extends Controller
             ->where('id', $targetUserId)
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'User not found',

@@ -51,8 +51,11 @@ return new class extends Migration
         }
 
         // Seed default roles and admin user
-        $globalAdminRoleId = (string) Str::uuid();
-        $adminUserId = (string) Str::uuid();
+        $existingAdminRole = DB::table('roles')->where('key', 'global_admin')->first();
+        $globalAdminRoleId = $existingAdminRole ? $existingAdminRole->id : (string) Str::uuid();
+
+        $existingUser = DB::table('admin_users')->where('email', 'work.jaykanzariya@gmail.com')->first();
+        $adminUserId = $existingUser ? $existingUser->id : (string) Str::uuid();
 
         DB::table('roles')->insertOrIgnore([
             [

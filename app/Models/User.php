@@ -250,7 +250,6 @@ class User extends Authenticatable
         return $this->hasMany(Connection::class, 'addressee_id')->where('is_approved', true);
     }
 
-
     protected static function booted(): void
     {
         static::saving(function (self $user): void {
