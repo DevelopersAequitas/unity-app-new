@@ -99,13 +99,13 @@ class BrandPartnerController extends Controller
 
         // Image uploads reusing existing FileUploadService
         if ($request->hasFile('logo')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo'), null, 'public');
-            $data['logo'] = $logoModel->s3_key;
+            $logoModel = $this->fileUploadService->store($request->file('logo'), null);
+            $data['logo'] = $logoModel->id;
         }
 
         if ($request->hasFile('cover_image')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null, 'public');
-            $data['cover_image'] = $coverModel->s3_key;
+            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null);
+            $data['cover_image'] = $coverModel->id;
         }
 
         // Track who created it
@@ -174,13 +174,13 @@ class BrandPartnerController extends Controller
 
         // Image uploads reusing existing FileUploadService
         if ($request->hasFile('logo')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo'), null, 'public');
-            $data['logo'] = $logoModel->s3_key;
+            $logoModel = $this->fileUploadService->store($request->file('logo'), null);
+            $data['logo'] = $logoModel->id;
         }
 
         if ($request->hasFile('cover_image')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null, 'public');
-            $data['cover_image'] = $coverModel->s3_key;
+            $coverModel = $this->fileUploadService->store($request->file('cover_image'), null);
+            $data['cover_image'] = $coverModel->id;
         }
 
         // Track who updated it

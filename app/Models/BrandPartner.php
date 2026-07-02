@@ -116,6 +116,10 @@ class BrandPartner extends Model
             return $this->logo;
         }
 
+        if (Str::isUuid($this->logo)) {
+            return url('/api/v1/files/' . $this->logo);
+        }
+
         return Storage::disk('public')->url($this->logo);
     }
 
@@ -128,6 +132,10 @@ class BrandPartner extends Model
 
         if (Str::startsWith($this->cover_image, ['http://', 'https://'])) {
             return $this->cover_image;
+        }
+
+        if (Str::isUuid($this->cover_image)) {
+            return url('/api/v1/files/' . $this->cover_image);
         }
 
         return Storage::disk('public')->url($this->cover_image);
