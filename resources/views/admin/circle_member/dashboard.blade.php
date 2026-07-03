@@ -87,36 +87,49 @@
             </div>
         </div>
     @else
+        @php
+            $selectedCircleValue = request()->query('circle_id') ?: ($selectedCircleId ?? '');
+            $circleJoinPendingCount = (int)($data['pendingCounts']['circleJoin'] ?? 0);
+            $hasPendingCircleRequests = $circleJoinPendingCount > 0;
+        @endphp
         <!-- KPI Summary Grid -->
         <div class="row g-3 mb-4">
             <!-- Scoped Peers -->
             <div class="col-12 col-sm-6 col-md-4 col-xl-3">
-                <div class="card glass-card p-3 h-100 border-0">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <p class="text-muted small fw-medium mb-1">Total Scoped Peers</p>
-                            <h3 class="mb-0 fw-bold">{{ number_format($data['totalPeers']) }}</h3>
-                        </div>
-                        <div class="kpi-icon-wrapper bg-icon-primary">
-                            <i class="bi bi-people-fill"></i>
+                <a href="{{ route('admin.users.index', $selectedCircleValue ? ['circle_id' => $selectedCircleValue] : []) }}" class="text-decoration-none">
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Total members of circle</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($data['totalPeers']) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-primary">
+                                <i class="bi bi-people-fill"></i>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </a>
             </div>
 
             <!-- Actionable Pending Requests -->
             <div class="col-12 col-sm-6 col-md-4 col-xl-3">
-                <div class="card glass-card p-3 h-100 border-0">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <p class="text-muted small fw-medium mb-1">Pending Requests</p>
-                            <h3 class="mb-0 fw-bold">{{ number_format($data['pendingCounts']['total']) }}</h3>
-                        </div>
-                        <div class="kpi-icon-wrapper bg-icon-info">
-                            <i class="bi bi-hourglass-split"></i>
+                @if ($hasPendingCircleRequests)
+                    <a href="{{ route('admin.circle-joining-requests.index') }}" class="text-decoration-none">
+                @else
+                    <a href="javascript:void(0)" data-bs-toggle="modal" data-bs-target="#noPendingRequestsModal" class="text-decoration-none">
+                @endif
+                    <div class="card glass-card p-3 h-100 border-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small fw-medium mb-1">Pending Requests</p>
+                                <h3 class="mb-0 fw-bold text-dark">{{ number_format($circleJoinPendingCount) }}</h3>
+                            </div>
+                            <div class="kpi-icon-wrapper bg-icon-info">
+                                <i class="bi bi-hourglass-split"></i>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </a>
             </div>
         </div>
 
@@ -521,6 +534,24 @@
                     </div>
                     <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn btn-outline-secondary btn-sm px-3 rounded-3" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for No Pending Requests -->
+        <div class="modal fade" id="noPendingRequestsModal" tabindex="-1" aria-labelledby="noPendingRequestsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content shadow border-0 rounded-4 text-center p-4">
+                    <div class="modal-body py-3">
+                        <div class="kpi-icon-wrapper bg-icon-success mx-auto mb-3" style="width: 64px; height: 64px; font-size: 2rem;">
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                        </div>
+                        <h4 class="fw-bold text-dark mb-2">No Pending Requests</h4>
+                        <p class="text-muted mb-4">
+                            There are currently no pending circle joining requests.
+                        </p>
+                        <button type="button" class="btn btn-primary px-4 rounded-pill" data-bs-dismiss="modal">OK</button>
                     </div>
                 </div>
             </div>
