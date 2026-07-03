@@ -26,17 +26,9 @@ class PushTokenController extends BaseApiController
             $user = $request->user();
             $token = (string) ($validated['fcm_token'] ?? $validated['token']);
 
-<<<<<<< Updated upstream
             UserPushToken::where('token', $token)
                 ->where(UserPushToken::getUserIdColumn(), '!=', $user->id)
                 ->delete();
-=======
-            if (Schema::hasTable('user_push_tokens')) {
-                UserPushToken::where('token', $token)
-                    ->where('user_id', '!=', $user->id)
-                    ->delete();
-            }
->>>>>>> Stashed changes
 
             if (filled($validated['device_id'] ?? null)) {
                 UserPushToken::where('device_id', $validated['device_id'])
@@ -64,28 +56,22 @@ class PushTokenController extends BaseApiController
                 $updates['app_version'] = $validated['app_version'];
             }
 
-<<<<<<< Updated upstream
             // Always activate/reset states when registered explicitly by the client device
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'is_active')) {
-                $updates['is_active'] = true;
-            }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'status')) {
-                $updates['status'] = 'active';
-            }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'token_status')) {
-                $updates['token_status'] = 'active';
-            }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'failed_at')) {
-                $updates['failed_at'] = null;
-            }
-            if (\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'failure_reason')) {
-                $updates['failure_reason'] = null;
-            }
-=======
             if (Schema::hasColumn('user_push_tokens', 'is_active')) {
                 $updates['is_active'] = true;
             }
->>>>>>> Stashed changes
+            if (Schema::hasColumn('user_push_tokens', 'status')) {
+                $updates['status'] = 'active';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'token_status')) {
+                $updates['token_status'] = 'active';
+            }
+            if (Schema::hasColumn('user_push_tokens', 'failed_at')) {
+                $updates['failed_at'] = null;
+            }
+            if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
+                $updates['failure_reason'] = null;
+            }
 
             $pushToken = UserPushToken::updateOrCreate(
                 [
