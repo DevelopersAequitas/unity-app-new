@@ -111,6 +111,7 @@
         ? [
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
+            ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
         ]
         : [
             ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
@@ -120,6 +121,7 @@
             ['label' => 'Certifications', 'route' => 'admin.certifications.index'],
             ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
+            ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
         ];
 
     if ($isCircleCommittee) {

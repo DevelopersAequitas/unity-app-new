@@ -403,6 +403,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Account Deletion Requests
         Route::get('/account-deletion-request', [App\Http\Controllers\Admin\AccountDeletionController::class, 'index']);
         Route::get('/account-deletion-requests', [App\Http\Controllers\Admin\AccountDeletionController::class, 'index'])->name('account-deletion.index');
+        Route::get('/account-deletion-requests/emails', [App\Http\Controllers\Admin\AccountDeletionController::class, 'emails'])->name('account-deletion.emails');
+        Route::get('/account-deletion-requests/emails/{template}/preview', [App\Http\Controllers\Admin\AccountDeletionController::class, 'preview'])->name('account-deletion.emails.preview');
+        Route::post('/account-deletion-requests/emails/{template}/send', [App\Http\Controllers\Admin\AccountDeletionController::class, 'send'])->name('account-deletion.emails.send');
+        Route::post('/account-deletion-requests/emails/clear-logs', [App\Http\Controllers\Admin\AccountDeletionController::class, 'clearLogs'])->name('account-deletion.emails.clear-logs');
         Route::post('/account-deletion-requests/{id}/approve', [App\Http\Controllers\Admin\AccountDeletionController::class, 'approve'])->name('account-deletion.approve');
         Route::post('/account-deletion-requests/{id}/reject', [App\Http\Controllers\Admin\AccountDeletionController::class, 'reject'])->name('account-deletion.reject');
         Route::patch('/account-deletion-requests/{id}/status', [App\Http\Controllers\Admin\AccountDeletionController::class, 'updateStatus'])->name('account-deletion.update-status');
