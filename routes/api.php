@@ -375,8 +375,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/members/profile/{slug}', [MemberController::class, 'publicProfileBySlug']);
         Route::get('/members/public/{slug}', [MemberController::class, 'publicProfileBySlug']);
 
+        Route::get('members', [MemberController::class, 'limited']);
         Route::apiResource('members', MemberController::class)
-            ->only(['index', 'show']);
+            ->only(['show']);
         Route::get('/members-summary', [MemberController::class, 'summary']);
         Route::post('/members/online-heartbeat', [OnlineStatusController::class, 'heartbeat']);
         Route::post('/members/update-online-status', [OnlineStatusController::class, 'updateStatus']);
