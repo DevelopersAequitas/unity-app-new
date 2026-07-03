@@ -27,7 +27,7 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS facebook_profile VARCHAR(500) NULL,
     ADD COLUMN IF NOT EXISTS youtube_channel VARCHAR(500) NULL,
     ADD COLUMN IF NOT EXISTS other_website VARCHAR(500) NULL,
-    ADD COLUMN IF NOT EXISTS contact_visibility VARCHAR(50) NULL DEFAULT 'connections',
+    ADD COLUMN IF NOT EXISTS contact_visibility VARCHAR(50) NULL DEFAULT 'connected_only',
     ADD COLUMN IF NOT EXISTS business_address TEXT NULL,
     ADD COLUMN IF NOT EXISTS business_city VARCHAR(100) NULL,
     ADD COLUMN IF NOT EXISTS business_state VARCHAR(100) NULL,

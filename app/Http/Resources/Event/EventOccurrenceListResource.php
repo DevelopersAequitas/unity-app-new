@@ -25,15 +25,30 @@ class EventOccurrenceListResource extends JsonResource
         $metadata = is_array($metadata) ? $metadata : [];
         $zohoFormUrl = $event->zoho_form_url ?? data_get($metadata, 'zoho_form_url');
         $visitorRegistrationEnabled = $eventService->visitorRegistrationEnabled($event);
+        $circles = $event->relationLoaded('circles') ? $event->circles->map(fn ($circle) => [
+            'id' => $circle->id,
+            'name' => $circle->name,
+            'state_name' => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null,
+        ])->values()->all() : [];
+        if ($circles === [] && $event->circle) {
+            $circles = [['id' => $event->circle->id, 'name' => $event->circle->name, 'state_name' => $event->circle->state_name ?? $event->circle->state ?? null]];
+        }
 
         return [
+            'id' => $event->id,
             'occurrence_id' => $this->id,
             'event_id' => $event->id,
             'title' => $event->title,
             'description' => $event->description,
             'event_type' => $event->event_type,
+            'type' => $event->event_type,
             'event_category' => $event->event_category,
-            'mode' => $event->mode,
+            'mode' => ($event->recurrence_type ?? 'none') === 'none' ? 'one_time' : 'recurring',
+            'delivery_mode' => $event->mode,
+            'state_name' => $event->state_name,
+            'circle_id' => $event->circle_id,
+            'circle_ids' => collect($circles)->pluck('id')->values()->all(),
+            'circles' => $circles,
             'recurrence' => [
                 'type' => $event->recurrence_type,
                 'interval' => $event->recurrence_interval,
@@ -41,6 +56,8 @@ class EventOccurrenceListResource extends JsonResource
             ],
             'circle' => $event->circle ? ['id' => $event->circle->id, 'name' => $event->circle->name, 'slug' => $event->circle->slug ?? null] : null,
             'start_at' => optional($this->start_at)->toISOString(),
+            'start_date' => optional($this->start_at)->toDateString(),
+            'start_time' => optional($this->start_at)->format('H:i:s'),
             'end_at' => optional($this->end_at)->toISOString(),
             'status' => $this->status ?? $event->status ?? 'scheduled',
             'display_date' => optional($this->start_at)->format('M d, Y'),

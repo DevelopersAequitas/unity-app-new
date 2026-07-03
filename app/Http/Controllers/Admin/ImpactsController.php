@@ -406,7 +406,7 @@ class ImpactsController extends Controller
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isGlobalAdmin($admin) && ! AdminAccess::isDed($admin)) {
+        if (! AdminAccess::isGlobalAdmin($admin) && ! AdminAccess::isDed($admin) && ! AdminAccess::isCircleScoped($admin)) {
             abort(403);
         }
     }
@@ -415,7 +415,7 @@ class ImpactsController extends Controller
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isDed($admin)) {
+        if (! AdminAccess::isDed($admin) && ! AdminAccess::isCircleScoped($admin)) {
             return;
         }
 
@@ -430,7 +430,7 @@ class ImpactsController extends Controller
             return;
         }
 
-        if (AdminAccess::isDed($admin)
+        if ((AdminAccess::isDed($admin) || AdminAccess::isCircleScoped($admin))
             && (AdminCircleScope::userInScope($admin, (string) $impact->user_id)
                 || AdminCircleScope::userInScope($admin, (string) $impact->impacted_peer_id))) {
             return;

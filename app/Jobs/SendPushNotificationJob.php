@@ -73,6 +73,9 @@ class SendPushNotificationJob implements ShouldQueue
                         $hasImage ? (string) $imageUrl : null,
                     );
 
+                    Log::info("FCM Success: Notification sent successfully to user ID {$this->user->id}.");
+                } catch (Throwable $e) {
+                    Log::error("FCM Failure: Failed to send to user ID {$this->user->id}. Error: {$e->getMessage()}.");
                     if ($result['success'] ?? false) {
                         Log::info('Push sent successfully', [
                             'user_id' => (string) $this->user->id,

@@ -87,6 +87,7 @@ class AdminCampaignController extends Controller
             'mode' => 'create',
             'emailTemplates' => $this->emailTemplates(),
             'defaultEmailTemplate' => $this->emailTemplateRenderer->defaultTemplate(),
+            'senderEmails' => AdminCampaign::SENDER_EMAILS,
         ]);
     }
 
@@ -257,6 +258,7 @@ class AdminCampaignController extends Controller
             'mode' => 'edit',
             'emailTemplates' => $this->emailTemplates(),
             'defaultEmailTemplate' => $this->emailTemplateRenderer->defaultTemplate(),
+            'senderEmails' => AdminCampaign::SENDER_EMAILS,
         ]);
     }
 
@@ -591,6 +593,7 @@ class AdminCampaignController extends Controller
             'filters' => ['nullable'],
             'pamphlet_id' => ['nullable', 'uuid', 'exists:campaign_pamphlets,id'],
             'email_template_id' => ['nullable', 'uuid', 'exists:campaign_email_templates,id'],
+            'sender_email' => ['required', Rule::in(AdminCampaign::SENDER_EMAILS)],
         ]);
 
         $data['filters'] = $this->normalizeFilters($request);

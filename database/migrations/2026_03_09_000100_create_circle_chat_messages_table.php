@@ -10,7 +10,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('circle_chat_messages', function (Blueprint $table): void {
-            $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
+            $table->uuid('id')->primary()->default(DB::connection()->getDriverName() === 'sqlite' ? null : DB::raw('gen_random_uuid()'));
             $table->uuid('circle_id');
             $table->uuid('sender_id');
             $table->string('message_type', 20);
@@ -32,8 +32,10 @@ return new class extends Migration
             $table->index(['circle_id', 'created_at']);
             $table->index('sender_id');
             $table->index('is_deleted_for_all');
-            $table->check("message_type IN ('text','image','video')");
-            $table->check("(message_type = 'text' AND message_text IS NOT NULL) OR (message_type IN ('image','video') AND file_path IS NOT NULL)");
+            if (DB::getDriverName() !== 'sqlite') {
+                $table->check("message_type IN ('text','image','video')");
+                $table->check("(message_type = 'text' AND message_text IS NOT NULL) OR (message_type IN ('image','video') AND file_path IS NOT NULL)");
+            }
         });
     }
 

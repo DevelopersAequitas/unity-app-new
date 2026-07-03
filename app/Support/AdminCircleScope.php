@@ -59,9 +59,14 @@ class AdminCircleScope
 
     public static function circleUserIdsSubquery(string $circleId): Builder
     {
+        return self::circleUserIdsSubqueryForCircleIds([$circleId]);
+    }
+
+    public static function circleUserIdsSubqueryForCircleIds(array $circleIds): Builder
+    {
         return CircleMember::query()
             ->select('user_id')
-            ->where('circle_id', $circleId)
+            ->whereIn('circle_id', $circleIds)
             ->where('status', 'approved')
             ->whereNull('deleted_at');
     }
@@ -85,16 +90,20 @@ class AdminCircleScope
             return;
         }
 
-        $circleId = self::resolveCircleId($admin);
+        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
 
-        if (! $circleId) {
+        if ($allowedCircleIds === []) {
             $query->whereRaw('1=0');
             return;
         }
 
-        $circleUserIds = self::circleUserIdsSubquery($circleId);
+        $query->where(function ($circleScopeQuery) use ($primaryColumn, $peerColumn, $allowedCircleIds) {
+            $circleScopeQuery->whereIn($primaryColumn, self::circleUserIdsSubqueryForCircleIds($allowedCircleIds));
 
-        $query->whereIn($primaryColumn, $circleUserIds);
+            if ($peerColumn) {
+                $circleScopeQuery->orWhereIn($peerColumn, self::circleUserIdsSubqueryForCircleIds($allowedCircleIds));
+            }
+        });
     }
 
     public static function applyToUsersQuery($query, ?AdminUser $admin): void
@@ -108,20 +117,20 @@ class AdminCircleScope
             return;
         }
 
-        $circleId = self::resolveCircleId($admin);
+        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
 
-        if (! $circleId) {
+        if ($allowedCircleIds === []) {
             $query->whereRaw('1=0');
             return;
         }
 
-        $query->whereExists(function ($subQuery) use ($circleId) {
+        $query->whereExists(function ($subQuery) use ($allowedCircleIds) {
             $subQuery->selectRaw(1)
                 ->from('circle_members as cm')
                 ->whereColumn('cm.user_id', 'users.id')
                 ->where('cm.status', 'approved')
                 ->whereNull('cm.deleted_at')
-                ->where('cm.circle_id', $circleId);
+                ->whereIn('cm.circle_id', $allowedCircleIds);
         });
     }
 
@@ -557,27 +566,35 @@ class AdminCircleScope
 
     public static function applyToEventsQuery($query, ?AdminUser $admin, string $eventTable = 'events'): void
     {
-        if (! AdminAccess::isDed($admin)) {
-            return;
-        }
-
         if (! Schema::hasColumn($eventTable, 'circle_id') || ! Schema::hasTable('circles')) {
-            $query->whereRaw('1=0');
+            if (AdminAccess::isDed($admin) || AdminAccess::isCircleScoped($admin)) {
+                $query->whereRaw('1=0');
+            }
             return;
         }
 
-        $query->whereExists(function ($subQuery) use ($eventTable, $admin) {
-            $subQuery->selectRaw(1)
-                ->from('circles as ded_scope_circles')
-                ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id");
+        if (AdminAccess::isDed($admin)) {
+            $query->whereExists(function ($subQuery) use ($eventTable, $admin) {
+                $subQuery->selectRaw(1)
+                    ->from('circles as ded_scope_circles')
+                    ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id");
 
-            self::applyToCirclesQuery($subQuery, $admin, 'ded_scope_circles');
-        });
+                self::applyToCirclesQuery($subQuery, $admin, 'ded_scope_circles');
+            });
+            return;
+        }
+
+        if (AdminAccess::isCircleScoped($admin)) {
+            $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
+            $allowedCircleIds === []
+                ? $query->whereRaw('1=0')
+                : $query->whereIn("{$eventTable}.circle_id", $allowedCircleIds);
+        }
     }
 
     public static function eventInScope(?AdminUser $admin, string $eventId): bool
     {
-        if (! AdminAccess::isDed($admin)) {
+        if (! AdminAccess::isDed($admin) && ! AdminAccess::isCircleScoped($admin)) {
             return true;
         }
 
@@ -600,15 +617,15 @@ class AdminCircleScope
             return true;
         }
 
-        $circleId = self::resolveCircleId($admin);
+        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
 
-        if (! $circleId) {
+        if ($allowedCircleIds === []) {
             return false;
         }
 
         return CircleMember::query()
             ->where('user_id', $userId)
-            ->where('circle_id', $circleId)
+            ->whereIn('circle_id', $allowedCircleIds)
             ->where('status', 'approved')
             ->whereNull('deleted_at')
             ->exists();

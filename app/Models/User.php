@@ -54,6 +54,8 @@ class User extends Authenticatable
         'city_id',
         'city',
         'status',
+        'approval_status',
+        'contacts_allowed',
         'skills',
         'interests',
         'social_links',
@@ -63,6 +65,7 @@ class User extends Authenticatable
         'business_logo_id',
         'state',
         'country',
+        'timezone',
         'preferred_language',
         'business_category_id',
         'business_sub_category',
@@ -85,6 +88,7 @@ class User extends Authenticatable
         'youtube_channel',
         'other_website',
         'contact_visibility',
+        'profile_visibility',
         'business_address',
         'business_city',
         'business_state',
@@ -213,6 +217,7 @@ class User extends Authenticatable
         'is_online' => 'boolean',
         'sustainability_areas' => 'array',
         'greenpreneur_goals' => 'array',
+        'contacts_allowed' => 'boolean',
     ];
 
     public function getAuthPassword()
@@ -223,6 +228,11 @@ class User extends Authenticatable
     public function getLifeImpactedCountAttribute($value): int
     {
         return (int) ($value ?? 0);
+    }
+
+    public function contactPosts(): HasMany
+    {
+        return $this->hasMany(ContactPost::class, 'user_id');
     }
 
     protected static function booted(): void
@@ -745,7 +755,7 @@ class User extends Authenticatable
 
     public function pushTokens(): HasMany
     {
-        return $this->hasMany(UserPushToken::class);
+        return $this->hasMany(UserPushToken::class, UserPushToken::getUserIdColumn());
     }
 
     public function notifications(): HasMany

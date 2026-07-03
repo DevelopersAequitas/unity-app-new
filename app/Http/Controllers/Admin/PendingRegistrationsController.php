@@ -8,6 +8,7 @@ use App\Services\Admin\AdminAuditService;
 use App\Services\EmailLogs\EmailLogService;
 use App\Mail\RegistrationApprovedMail;
 use App\Mail\RegistrationRejectedMail;
+use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +32,7 @@ class PendingRegistrationsController extends Controller
         $date = trim((string) $request->query('date', ''));
 
         $query = User::query()->where('registration_source', 'App');
+        AdminCircleScope::applyToUsersQuery($query, Auth::guard('admin')->user());
 
         // Allow filtering by status, but restrict to inactive / rejected / active.
         // Default to inactive if invalid status is supplied.
@@ -75,7 +77,7 @@ class PendingRegistrationsController extends Controller
     public function approve(User $user, Request $request): RedirectResponse
     {
         $admin = Auth::guard('admin')->user();
-        if (! $admin) {
+        if (! $admin || ! AdminCircleScope::userInScope($admin, (string) $user->id)) {
             abort(403);
         }
 
@@ -143,7 +145,7 @@ class PendingRegistrationsController extends Controller
     public function reject(User $user, Request $request): RedirectResponse
     {
         $admin = Auth::guard('admin')->user();
-        if (! $admin) {
+        if (! $admin || ! AdminCircleScope::userInScope($admin, (string) $user->id)) {
             abort(403);
         }
 

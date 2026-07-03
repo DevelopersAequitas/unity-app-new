@@ -47,6 +47,7 @@ class UserProfileResource extends JsonResource
             'city_of_residence'  => $this->city_of_residence ?? $this->city,
             'state'              => $this->state,
             'country'            => $this->country,
+            'timezone'           => $this->timezone,
             'preferred_language' => $this->preferred_language,
 
             'skills'             => $this->skills ?? [],
