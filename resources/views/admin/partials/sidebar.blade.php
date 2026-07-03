@@ -140,12 +140,10 @@
         ['label' => 'Create Campaign', 'route' => 'admin.campaigns.create', 'active_routes' => ['admin.campaigns.create']],
         ['label' => 'Campaign Email Templates', 'route' => 'admin.campaign-email-templates.index', 'active_routes' => ['admin.campaign-email-templates.*']],
         ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index', 'active_routes' => ['admin.campaign-pamphlets.*']],
-        ['label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']],
     ];
     $campaignsActive = request()->routeIs('admin.campaigns.*')
         || request()->routeIs('admin.campaign-pamphlets.*')
         || request()->routeIs('admin.campaign-email-templates.*')
-        || request()->routeIs('admin.email-logs.*')
         || request()->routeIs('admin.execution.communications');
     $notificationsMenu = [
         ['label' => 'Overview', 'route' => 'admin.notifications.dashboard', 'icon' => 'bi-speedometer2', 'active_routes' => ['admin.notifications.dashboard']],
@@ -274,6 +272,22 @@
                 </div>
             </li>
 
+            @if ($emailLogsMoreItem)
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs(...$emailLogsMoreItem['active_routes']) ? 'active' : '' }}" href="{{ route($emailLogsMoreItem['route']) }}">
+                        <i class="bi {{ $emailLogsMoreItem['icon'] }} me-2"></i>{{ $emailLogsMoreItem['label'] }}
+                    </a>
+                </li>
+            @endif
+
+            @if (! $isDed && ! $isIndustryDirector && ! $isCircleCommittee)
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.support-tickets.*') ? 'active' : '' }}" href="{{ route('admin.support-tickets.index') }}">
+                        <i class="bi bi-ticket-perforated me-2"></i>Support Tickets
+                    </a>
+                </li>
+            @endif
+
             @if ($isGlobalAdmin)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
@@ -388,13 +402,7 @@
                 <li class="nav-item mt-3 pt-2 border-top small text-muted px-3">More</li>
             @endif
 
-            @if ($emailLogsMoreItem)
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs(...$emailLogsMoreItem['active_routes']) ? 'active' : '' }}" href="{{ route($emailLogsMoreItem['route']) }}">
-                        <i class="bi {{ $emailLogsMoreItem['icon'] }} me-2"></i>{{ $emailLogsMoreItem['label'] }}
-                    </a>
-                </li>
-            @endif
+
 
             @foreach ($bottomNavItems as $item)
                 <li class="nav-item">
