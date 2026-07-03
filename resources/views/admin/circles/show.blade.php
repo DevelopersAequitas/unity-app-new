@@ -389,7 +389,7 @@
 <div class="card mt-3">
     <div class="card-header fw-semibold">Peers</div>
     <div class="card-body">
-        <form action="{{ route('admin.circles.members.store', $circle) }}" method="POST" class="row g-2 align-items-end mb-4">
+        <form id="add-peer-form" action="{{ route('admin.circles.members.store', $circle) }}" method="POST" class="row g-2 align-items-end mb-4">
             @csrf
             <input type="hidden" name="peer_name" value="{{ $peerNameFilter }}">
             <input type="hidden" name="peer_email" value="{{ $peerEmailFilter }}">
@@ -563,9 +563,10 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const CIRCLE_ID = @json($circle->id ?? null);
+        const jQuery = window.jQuery || window.$;
 
-        if (window.$ && $('#peer_select').length && $.fn.select2) {
-            $('#peer_select').select2({
+        if (jQuery && jQuery('#peer_select').length && jQuery.fn.select2) {
+            jQuery('#peer_select').select2({
                 width: '100%',
                 placeholder: 'Select peer',
                 allowClear: true,
@@ -574,16 +575,74 @@
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {
-                        return { q: params.term || '' };
-                    },
-                    processResults: function (data) {
                         return {
-                            results: data.results || []
+                            q: params.term || '',
+                            page: params.page || 1
+                        };
+                    },
+                    processResults: function (data, params) {
+                        params.page = params.page || 1;
+                        return {
+                            results: data.results || [],
+                            pagination: {
+                                more: data.pagination && data.pagination.more
+                            }
                         };
                     },
                     cache: true
+                },
+                language: {
+                    noResults: function () {
+                        return "No peers found.";
+                    },
+                    searching: function () {
+                        return "Searching peers...";
+                    }
                 }
             });
+        }
+
+        const addPeerForm = jQuery('#add-peer-form');
+        if (addPeerForm.length) {
+            addPeerForm.on('submit', function (e) {
+                e.preventDefault();
+                
+                // Clear existing error alerts
+                addPeerForm.find('.alert-danger-custom').remove();
+                jQuery('.alert-danger').remove();
+                
+                const url = addPeerForm.attr('action');
+                const data = addPeerForm.serialize();
+                
+                jQuery.ajax({
+                    url: url,
+                    method: 'POST',
+                    data: data,
+                    dataType: 'json',
+                    success: function (res) {
+                        window.location.reload();
+                    },
+                    error: function (xhr) {
+                        let msg = 'This peer is already a member of this circle.';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            msg = xhr.responseJSON.message;
+                        }
+                        
+                        const alertHtml = '<div class="alert alert-danger alert-danger-custom mt-2 w-100">' + escapeHtml(msg) + '</div>';
+                        addPeerForm.append(alertHtml);
+                    }
+                });
+            });
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                return str
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
         }
     });
 </script>

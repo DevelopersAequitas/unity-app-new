@@ -137,8 +137,16 @@ CREATE TABLE users (
     business_type           VARCHAR(100),
     turnover_range          VARCHAR(100),
     city_id                 UUID REFERENCES cities(id) ON DELETE SET NULL,
+    city                    VARCHAR(100),
     membership_status       membership_status_enum NOT NULL DEFAULT 'visitor',
+    status                  VARCHAR(50) NOT NULL DEFAULT 'inactive',
     membership_expiry       TIMESTAMPTZ,
+    active_circle_id        UUID REFERENCES circles(id) ON DELETE SET NULL,
+    active_circle_addon_code VARCHAR(100),
+    active_circle_addon_name VARCHAR(150),
+    circle_joined_at        TIMESTAMPTZ,
+    circle_expires_at       TIMESTAMPTZ,
+    active_circle_subscription_id UUID,
     coins_balance           BIGINT NOT NULL DEFAULT 0,
     introduced_by           UUID REFERENCES users(id) ON DELETE SET NULL,
     members_introduced_count INT NOT NULL DEFAULT 0,
@@ -220,6 +228,19 @@ CREATE TABLE circle_members (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at          TIMESTAMPTZ,
+    role_id             UUID REFERENCES roles(id) ON DELETE SET NULL,
+    joined_via          VARCHAR(100),
+    payment_id          VARCHAR(100),
+    paid_at             TIMESTAMPTZ,
+    joined_via_payment  BOOLEAN DEFAULT FALSE,
+    billing_term        VARCHAR(50),
+    paid_starts_at      TIMESTAMPTZ,
+    paid_ends_at        TIMESTAMPTZ,
+    zoho_subscription_id VARCHAR(100),
+    zoho_addon_code     VARCHAR(100),
+    payment_status      VARCHAR(50),
+    meta                JSONB,
+    expires_at          TIMESTAMPTZ,
     CONSTRAINT uq_circle_member UNIQUE (circle_id, user_id)
 );
 CREATE INDEX idx_circle_members_circle_id ON circle_members(circle_id);
@@ -626,6 +647,54 @@ EXCEPTION
         RAISE EXCEPTION 'Coins already awarded for activity %', p_activity_id;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE TABLE circle_meetings (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    circle_id           UUID NOT NULL REFERENCES circles(id) ON DELETE CASCADE,
+    meeting_date        TIMESTAMPTZ,
+    meeting_number      INT,
+    mode                VARCHAR(50),
+    venue               TEXT,
+    meeting_link        TEXT,
+    agenda              TEXT,
+    status              VARCHAR(50),
+    conducted_by        UUID REFERENCES users(id) ON DELETE SET NULL,
+    visitor_count       INT NOT NULL DEFAULT 0,
+    member_present_count INT NOT NULL DEFAULT 0,
+    meeting_notes       TEXT,
+    quality_score       INT,
+    recording_url       TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE circle_subscriptions (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    circle_id           UUID NOT NULL REFERENCES circles(id) ON DELETE CASCADE,
+    status              VARCHAR(50),
+    zoho_customer_id    VARCHAR(100),
+    zoho_subscription_id VARCHAR(100),
+    zoho_payment_id     VARCHAR(100),
+    zoho_invoice_id     VARCHAR(100),
+    hostedpage_id       VARCHAR(100),
+    reference_id        VARCHAR(100),
+    zoho_addon_code     VARCHAR(100),
+    zoho_addon_name     VARCHAR(150),
+    paid_amount         NUMERIC(12,2),
+    paid_currency       VARCHAR(10),
+    paid_at             TIMESTAMPTZ,
+    started_at          TIMESTAMPTZ,
+    expires_at          TIMESTAMPTZ,
+    raw_checkout_response JSONB,
+    raw_webhook_payload JSONB,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    zoho_hosted_page_id VARCHAR(100),
+    zoho_addon_id       VARCHAR(100),
+    amount              NUMERIC(12,2),
+    currency_code       VARCHAR(10)
+);
 
 CREATE MATERIALIZED VIEW mv_coins_per_circle AS
 SELECT

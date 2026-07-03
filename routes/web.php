@@ -232,6 +232,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/circles/{circle}', [CircleController::class, 'update'])->name('circles.update');
         Route::delete('/circles/{circle}', [CircleController::class, 'destroy'])->name('circles.destroy');
         Route::post('/circles/{circle}/members', [CircleMemberController::class, 'store'])->name('circles.members.store');
+        Route::get('/circles/{circle}/delete-stats', [CircleController::class, 'deleteStats'])->name('circles.delete-stats');
         Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
