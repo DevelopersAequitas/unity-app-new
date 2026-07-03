@@ -662,12 +662,6 @@ class VisitorRegistrationsController extends Controller
                 continue;
             }
 
-            if (! AdminCircleScope::userInScope($admin, (string) $peerUserId)) {
-                $errors[] = "Row {$rowNumber}: Resolved peer is outside your scope.";
-
-                continue;
-            }
-
             VisitorRegistration::create([
                 'user_id' => $peerUserId,
                 'visitor_full_name' => $visitorName,

@@ -56,6 +56,26 @@ class VisitorRegistration extends Model
         });
     }
 
+    public function getVisitorDesignationAttribute(): ?string
+    {
+        return $this->attributes['how_known'] ?? null;
+    }
+
+    public function setVisitorDesignationAttribute(?string $value): void
+    {
+        $this->attributes['how_known'] = $value;
+    }
+
+    public function getVisitorBusinessBriefAttribute(): ?string
+    {
+        return $this->attributes['note'] ?? null;
+    }
+
+    public function setVisitorBusinessBriefAttribute(?string $value): void
+    {
+        $this->attributes['note'] = $value;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
