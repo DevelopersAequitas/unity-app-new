@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
+use App\Mail\RegistrationRequestReceivedMail;
 use App\Mail\WelcomePeerMail;
 use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
@@ -23,6 +24,7 @@ use App\Services\EmailLogs\EmailLogService;
 use App\Services\Media\FileUploadService;
 use App\Services\OnlineStatusService;
 use App\Services\Referrals\ReferralService;
+use App\Services\Users\PublicProfileSlugService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -639,7 +641,7 @@ class AuthController extends BaseApiController
 
     private function sendRegistrationRequestReceivedEmail(User $user): void
     {
-        $mailable = new \App\Mail\RegistrationRequestReceivedMail($user);
+        $mailable = new RegistrationRequestReceivedMail($user);
 
         try {
             Mail::to($user->email)->send($mailable);
@@ -829,7 +831,7 @@ class AuthController extends BaseApiController
             'phone' => (string) ($user->phone ?? ''),
         ]);
 
-        $user->public_profile_slug = app(\App\Services\Users\PublicProfileSlugService::class)->generateUniqueForUser($user);
+        $user->public_profile_slug = app(PublicProfileSlugService::class)->generateUniqueForUser($user);
         $user->save();
 
         Log::info('auth.register.after_user_saved', [

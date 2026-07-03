@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class FeedbackController extends BaseApiController
 {
@@ -124,7 +125,7 @@ class FeedbackController extends BaseApiController
             $category = FeedbackCategory::query()->findOrFail($request->category_id);
 
             $feedback = FeedbackForm::query()->create([
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'user_id' => auth()->id(),
                 'category_id' => $category->id,
                 'category' => $category->name,

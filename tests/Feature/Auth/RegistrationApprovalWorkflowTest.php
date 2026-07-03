@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Mail\RegistrationApprovedMail;
+use App\Mail\RegistrationRejectedMail;
+use App\Mail\RegistrationRequestReceivedMail;
 use App\Models\AdminAuditLog;
 use App\Models\AdminUser;
 use App\Models\Role;
@@ -48,9 +51,9 @@ class RegistrationApprovalWorkflowTest extends TestCase
         $this->admin->roles()->attach($globalAdminRoleId);
 
         // Auto-generate UUID for AdminAuditLog in tests since SQLite does not support gen_random_uuid() and id is not fillable
-        \App\Models\AdminAuditLog::creating(function ($log) {
+        AdminAuditLog::creating(function ($log) {
             if (empty($log->id)) {
-                $log->id = (string) \Illuminate\Support\Str::uuid();
+                $log->id = (string) Str::uuid();
             }
         });
     }
@@ -209,7 +212,7 @@ class RegistrationApprovalWorkflowTest extends TestCase
         $user = User::where('email', 'workflow@example.com')->firstOrFail();
 
         // Verify registration request received email was logged/sent
-        Mail::assertSent(\App\Mail\RegistrationRequestReceivedMail::class, function ($mail) use ($user) {
+        Mail::assertSent(RegistrationRequestReceivedMail::class, function ($mail) use ($user) {
             return $mail->user->id === $user->id;
         });
 
@@ -252,7 +255,7 @@ class RegistrationApprovalWorkflowTest extends TestCase
         $this->assertEquals('active', $user->status);
 
         // Verify approval email was sent & logged
-        Mail::assertSent(\App\Mail\RegistrationApprovedMail::class, function ($mail) use ($user) {
+        Mail::assertSent(RegistrationApprovedMail::class, function ($mail) use ($user) {
             return $mail->user->id === $user->id;
         });
 
@@ -286,7 +289,7 @@ class RegistrationApprovalWorkflowTest extends TestCase
         $this->assertEquals('rejected', $user->status);
 
         // Verify rejection email was sent & logged
-        Mail::assertSent(\App\Mail\RegistrationRejectedMail::class, function ($mail) use ($user) {
+        Mail::assertSent(RegistrationRejectedMail::class, function ($mail) use ($user) {
             return $mail->user->id === $user->id;
         });
 

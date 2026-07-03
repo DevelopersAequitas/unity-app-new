@@ -519,7 +519,7 @@ class User extends Authenticatable
             $name = trim((string) optional($member?->circle)->name);
 
             return $name !== '' ? $name : 'No Circle';
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return 'No Circle';
         }
     }

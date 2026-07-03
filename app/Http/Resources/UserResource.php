@@ -7,6 +7,7 @@ use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMemberCategorySelection;
+use App\Models\Connection;
 use App\Models\User;
 use App\Services\ProfileMatchService;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -452,7 +453,7 @@ class UserResource extends JsonResource
             return (int) ($this->approved_sent_count + $this->approved_received_count);
         }
 
-        return (int) (\App\Models\Connection::where('is_approved', true)
+        return (int) (Connection::where('is_approved', true)
             ->where(function ($query) {
                 $query->where('requester_id', $this->id)
                     ->orWhere('addressee_id', $this->id);

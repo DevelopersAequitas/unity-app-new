@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Mail\MembershipWelcomeMail;
 use App\Models\AdminUser;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Membership\MembershipWelcomeEmailService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -123,12 +125,12 @@ class MembershipWelcomeEmailTest extends TestCase
             'last_payment_at' => null,
         ]);
 
-        $service = app(\App\Services\Membership\MembershipWelcomeEmailService::class);
+        $service = app(MembershipWelcomeEmailService::class);
         $result = $service->sendIfEligible($user);
 
         $this->assertFalse($result['sent']);
         $this->assertSame('not_paid', $result['reason']);
-        Mail::assertNotSent(\App\Mail\MembershipWelcomeMail::class);
+        Mail::assertNotSent(MembershipWelcomeMail::class);
 
         // 2. Set last_payment_at (eligible)
         $user->forceFill([
@@ -139,7 +141,7 @@ class MembershipWelcomeEmailTest extends TestCase
 
         $this->assertTrue($result['sent']);
         $this->assertSame('sent', $result['reason']);
-        Mail::assertSent(\App\Mail\MembershipWelcomeMail::class, function ($mail) use ($user) {
+        Mail::assertSent(MembershipWelcomeMail::class, function ($mail) use ($user) {
             return $mail->hasTo($user->email);
         });
 
@@ -164,7 +166,7 @@ class MembershipWelcomeEmailTest extends TestCase
             'welcome_membership_email_status' => 'Sent',
         ]);
 
-        $service = app(\App\Services\Membership\MembershipWelcomeEmailService::class);
+        $service = app(MembershipWelcomeEmailService::class);
 
         // 1. Automatic trigger (not forced) with same payment date -> should skip
         $result = $service->sendIfEligible($user, false);
@@ -221,7 +223,7 @@ class MembershipWelcomeEmailTest extends TestCase
         $response->assertRedirect();
         $response->assertSessionHas('success', 'Welcome email sent successfully.');
 
-        Mail::assertSent(\App\Mail\MembershipWelcomeMail::class, function ($mail) use ($user) {
+        Mail::assertSent(MembershipWelcomeMail::class, function ($mail) use ($user) {
             return $mail->hasTo($user->email);
         });
 
@@ -279,7 +281,7 @@ class MembershipWelcomeEmailTest extends TestCase
         $response->assertOk();
 
         // Verify welcome email was automatically triggered and sent
-        Mail::assertSent(\App\Mail\MembershipWelcomeMail::class, function ($mail) use ($user) {
+        Mail::assertSent(MembershipWelcomeMail::class, function ($mail) use ($user) {
             return $mail->hasTo($user->email);
         });
 
@@ -298,7 +300,7 @@ class MembershipWelcomeEmailTest extends TestCase
             'created_at' => Carbon::create(2026, 6, 12, 12, 0, 0),
         ]);
 
-        $mailable = new \App\Mail\MembershipWelcomeMail($user);
+        $mailable = new MembershipWelcomeMail($user);
         $html = $mailable->render();
 
         $this->assertStringContainsString('Dear <strong>John Doe</strong>,', $html);

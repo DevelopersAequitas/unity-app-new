@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Circle;
+use App\Models\CircleMember;
+use App\Models\Impact;
 use App\Models\Industry;
 use App\Models\Payment;
 use App\Services\Admin\AdminAuditService;
@@ -90,9 +92,9 @@ class IndustryManagementController extends BaseApiController
         return $this->success([
             'total_circles' => $circles->count(),
             'active_circles' => (clone $circles)->where('status', 'active')->count(),
-            'total_members' => \App\Models\CircleMember::query()->whereIn('circle_id', $circleIds)->where('status', 'approved')->whereNull('deleted_at')->count(),
+            'total_members' => CircleMember::query()->whereIn('circle_id', $circleIds)->where('status', 'approved')->whereNull('deleted_at')->count(),
             'total_revenue' => Payment::query()->whereIn('circle_id', $circleIds)->where('status', 'paid')->sum('amount'),
-            'total_impacts' => \App\Models\Impact::query()->whereIn('circle_id', $circleIds)->where('status', 'approved')->count(),
+            'total_impacts' => Impact::query()->whereIn('circle_id', $circleIds)->where('status', 'approved')->count(),
         ]);
     }
 

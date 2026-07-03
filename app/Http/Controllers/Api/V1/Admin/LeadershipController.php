@@ -8,6 +8,7 @@ use App\Services\Admin\AdminAuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class LeadershipController extends BaseApiController
 {
@@ -90,7 +91,7 @@ class LeadershipController extends BaseApiController
         if ($exists) {
             DB::table('circle_members')->where('user_id', $validated['user_id'])->where('circle_id', $validated['circle_id'])->update(['role' => $circleRole, 'status' => 'approved', 'updated_at' => now()]);
         } else {
-            DB::table('circle_members')->insert(['id' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $validated['user_id'], 'circle_id' => $validated['circle_id'], 'role' => $circleRole, 'status' => 'approved', 'joined_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('circle_members')->insert(['id' => (string) Str::uuid(), 'user_id' => $validated['user_id'], 'circle_id' => $validated['circle_id'], 'role' => $circleRole, 'status' => 'approved', 'joined_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
         }
 
         return $this->success(['assigned' => true]);

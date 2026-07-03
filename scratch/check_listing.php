@@ -2,13 +2,15 @@
 
 require __DIR__.'/../vendor/autoload.php';
 $app = require_once __DIR__.'/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 use App\Http\Controllers\Admin\PendingRegistrationsController;
+use App\Models\AdminUser;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Http\Request;
 
-$admin = \App\Models\AdminUser::first();
+$admin = AdminUser::first();
 if ($admin) {
     Auth::guard('admin')->setUser($admin);
 }

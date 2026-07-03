@@ -25,11 +25,36 @@ class CircleMemberDashboardController extends Controller
         $admin = Auth::guard('admin')->user();
         abort_unless($admin && AdminAccess::isCircleScoped($admin), 403);
 
-        $dashboardData = $this->dashboardService->getDashboardData($admin);
+        $roleKey = AdminAccess::primaryCircleRoleKey($admin);
+        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
+        $requiresSelection = count($allowedCircleIds) > 1;
+
+        $circleId = $request->query('circle_id');
+
+        // By default, choose the first circle if one exists and no selection is active
+        if (empty($circleId) && ! empty($allowedCircleIds)) {
+            $circleId = $allowedCircleIds[0];
+        }
+
+        // If selection is required, check if they have selected one
+        $isCircleSelected = ! empty($circleId);
+
+        // Fetch data
+        if ($requiresSelection && ! $isCircleSelected) {
+            // Load only circles to populate dropdown
+            $dashboardData = $this->dashboardService->getDashboardData($admin, null, true);
+        } else {
+            // Load full dashboard data (either filtered by circle_id or for all circles merged)
+            $dashboardData = $this->dashboardService->getDashboardData($admin, $circleId);
+        }
 
         return view('admin.circle_member.dashboard', [
             'data' => $dashboardData,
             'roleLabel' => AdminAccess::primaryCircleRoleLabel($admin),
+            'roleKey' => $roleKey,
+            'requiresSelection' => $requiresSelection,
+            'selectedCircleId' => $circleId,
+            'isCircleSelected' => $isCircleSelected || ! $requiresSelection,
         ]);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Services\Notifications;
 
 use App\Models\Notifications\NotificationCampaign;
 use App\Models\Notifications\NotificationCampaignRun;
+use App\Models\User;
 
 class CampaignService
 {
@@ -30,7 +31,7 @@ class CampaignService
     private function audienceFor(NotificationCampaign $campaign)
     {
         return match ($campaign->audience_type) {
-            'inactive_users' => $this->audiences->inactiveUsers(), 'incomplete_profile' => $this->audiences->incompleteProfileUsers(), 'non_pro_users' => $this->audiences->nonProUsers(), 'subscription_expiring' => $this->audiences->subscriptionExpiringUsers(), 'unclaimed_coins' => $this->audiences->usersWithUnclaimedCoins(), default => \App\Models\User::limit(100)->get()
+            'inactive_users' => $this->audiences->inactiveUsers(), 'incomplete_profile' => $this->audiences->incompleteProfileUsers(), 'non_pro_users' => $this->audiences->nonProUsers(), 'subscription_expiring' => $this->audiences->subscriptionExpiringUsers(), 'unclaimed_coins' => $this->audiences->usersWithUnclaimedCoins(), default => User::limit(100)->get()
         };
     }
 

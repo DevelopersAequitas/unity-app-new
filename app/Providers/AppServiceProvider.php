@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Models\AdminCampaign;
 use App\Policies\AdminCampaignPolicy;
+use App\Support\SqliteMigrator;
+use Illuminate\Database\Connection;
+use Illuminate\Database\SQLiteConnection;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
@@ -42,12 +45,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        \Illuminate\Database\Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) {
-            return new class($connection, $database, $prefix, $config) extends \Illuminate\Database\SQLiteConnection
+        Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) {
+            return new class($connection, $database, $prefix, $config) extends SQLiteConnection
             {
                 public function statement($query, $bindings = [])
                 {
-                    $query = \App\Support\SqliteMigrator::translate($query);
+                    $query = SqliteMigrator::translate($query);
                     $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
                     if (empty(trim($query))) {
                         return true;
@@ -58,7 +61,7 @@ class AppServiceProvider extends ServiceProvider
 
                 public function unprepared($query)
                 {
-                    $query = \App\Support\SqliteMigrator::translate($query);
+                    $query = SqliteMigrator::translate($query);
                     $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
                     if (empty(trim($query))) {
                         return true;
@@ -69,7 +72,7 @@ class AppServiceProvider extends ServiceProvider
 
                 protected function run($query, $bindings, \Closure $callback)
                 {
-                    $query = \App\Support\SqliteMigrator::translate($query);
+                    $query = SqliteMigrator::translate($query);
                     $query = str_ireplace('sqlite_autoindex_', 'idx_autoindex_', $query);
 
                     return parent::run($query, $bindings, $callback);
@@ -106,5 +109,76 @@ class AppServiceProvider extends ServiceProvider
                 'timeout' => null,
             ],
         ]);
+
+        // Register global listener to capture outgoing email bodies and save them to email_logs
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Mail\Events\MessageSending::class,
+            function (\Illuminate\Mail\Events\MessageSending $event) {
+                \Illuminate\Support\Facades\Log::info('Mail Listener triggered');
+                try {
+                    $message = $event->message;
+                    $subject = $message->getSubject();
+                    $to = collect($message->getTo())->map(fn($addr) => $addr->getAddress())->first();
+                    
+                    \Illuminate\Support\Facades\Log::info('Mail listener processing', [
+                        'to' => $to,
+                        'subject' => $subject,
+                    ]);
+
+                    if (empty($to)) {
+                        \Illuminate\Support\Facades\Log::warning('Mail listener: No recipient found.');
+                        return;
+                    }
+
+                    $html = $message->getHtmlBody();
+                    $text = $message->getTextBody();
+
+                    // Find a recently created log within the last 30 seconds for this recipient
+                    $log = \App\Models\EmailLog::where('to_email', $to)
+                        ->where(function ($query) use ($subject) {
+                            if (!empty($subject)) {
+                                $query->where('subject', $subject)
+                                      ->orWhereNull('subject')
+                                      ->orWhere('subject', '');
+                            }
+                        })
+                        ->where('created_at', '>=', now()->subSeconds(30))
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+
+                    if ($log) {
+                        \Illuminate\Support\Facades\Log::info('Mail listener: Found matching email log, updating body', ['log_id' => $log->id]);
+                        $updates = [];
+                        if (empty($log->body_html) && !empty($html)) {
+                            $updates['body_html'] = $html;
+                        }
+                        if (empty($log->body_text) && !empty($text)) {
+                            $updates['body_text'] = $text;
+                        }
+                        if (!empty($updates)) {
+                            $log->update($updates);
+                        }
+                    } else {
+                        \Illuminate\Support\Facades\Log::info('Mail listener: No matching log found, creating a new one.');
+                        // Create a new log if none exists
+                        \App\Models\EmailLog::create([
+                            'id' => (string) \Illuminate\Support\Str::uuid(),
+                            'to_email' => $to,
+                            'template_key' => 'raw_email',
+                            'subject' => $subject,
+                            'body_html' => $html,
+                            'body_text' => $text,
+                            'status' => 'sent',
+                            'sent_at' => now(),
+                            'created_at' => now(),
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Error logging outgoing mail body: ' . $e->getMessage(), [
+                        'exception' => $e
+                    ]);
+                }
+            }
+        );
     }
 }

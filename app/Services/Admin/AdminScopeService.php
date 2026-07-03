@@ -4,6 +4,7 @@ namespace App\Services\Admin;
 
 use App\Models\Circle;
 use App\Models\CircleMember;
+use App\Models\Industry;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -44,7 +45,7 @@ class AdminScopeService
     public function visibleIndustryIds(User $user): array
     {
         if ($this->isGlobal($user)) {
-            return \App\Models\Industry::query()->pluck('id')->all();
+            return Industry::query()->pluck('id')->all();
         }
 
         return Circle::query()

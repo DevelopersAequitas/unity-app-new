@@ -45,32 +45,26 @@
             <table class="table mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>Submitted At</th>
-                        <th>Peer Name</th>
-                        <th>Peer Phone</th>
-                        <th>Event Type</th>
-                        <th>Event Name</th>
-                        <th>Event Date</th>
                         <th>Visitor Name</th>
-                        <th>Visitor Mobile</th>
+                        <th>Phone Number</th>
+                        <th>Business Name</th>
                         <th>Visitor City</th>
-                        <th>Visitor Business</th>
+                        <th>Event Date</th>
+                        <th>Event Name</th>
+                        <th>Event Type</th>
                         <th>Status</th>
                         <th>Coins Awarded</th>
                         <th class="text-end">Actions</th>
-                        <th>Created At</th>
+                        <th>Submitted At</th>
                     </tr>
                     <tr>
-                        <th class="text-muted">—</th>
-                        <th><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Peer Phone" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="event_type" value="{{ $filters['event_type'] ?? '' }}" placeholder="Event Type" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="event_name" value="{{ $filters['event_name'] ?? '' }}" placeholder="Event Name" class="form-control form-control-sm"></th>
-                        <th><input type="date" name="event_date" value="{{ $filters['event_date'] ?? '' }}" class="form-control form-control-sm"></th>
                         <th><input type="text" name="visitor_name" value="{{ $filters['visitor_name'] ?? '' }}" placeholder="Visitor Name" class="form-control form-control-sm"></th>
                         <th><input type="text" name="visitor_mobile" value="{{ $filters['visitor_mobile'] ?? '' }}" placeholder="Visitor Mobile" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="visitor_city" value="{{ $filters['visitor_city'] ?? '' }}" placeholder="Visitor City" class="form-control form-control-sm"></th>
                         <th><input type="text" name="visitor_business" value="{{ $filters['visitor_business'] ?? '' }}" placeholder="Visitor Business" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="visitor_city" value="{{ $filters['visitor_city'] ?? '' }}" placeholder="Visitor City" class="form-control form-control-sm"></th>
+                        <th><input type="date" name="event_date" value="{{ $filters['event_date'] ?? '' }}" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="event_name" value="{{ $filters['event_name'] ?? '' }}" placeholder="Event Name" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="event_type" value="{{ $filters['event_type'] ?? '' }}" placeholder="Event Type" class="form-control form-control-sm"></th>
                         <th><input type="text" name="status" value="{{ $filters['status'] ?? '' }}" placeholder="Status" class="form-control form-control-sm"></th>
                         <th><input type="number" name="coins_awarded" value="{{ $filters['coins_awarded'] ?? '' }}" placeholder="Coins" class="form-control form-control-sm"></th>
                         <th class="text-end">
@@ -85,26 +79,16 @@
                 <tbody>
                     @forelse ($items as $item)
                         @php
-                            $peerName = $item->peer_name ?? '—';
                             $visitorSearch = $item->visitor_mobile ? ['search' => $item->visitor_mobile] : [];
                         @endphp
                         <tr>
-                            <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
-                            <td>
-                                @include('admin.components.peer-card', [
-                                    'name' => $peerName,
-                                    'company' => $item->peer_company ?? '',
-                                    'city' => $item->peer_city ?? '',
-                                ])
-                            </td>
-                            <td>{{ $item->peer_phone ?? '—' }}</td>
-                            <td>{{ ucfirst($item->event_type ?? '—') }}</td>
-                            <td>{{ $item->event_name ?? '—' }}</td>
-                            <td>{{ $formatDate($item->event_date ?? null) }}</td>
                             <td>{{ $item->visitor_full_name ?? '—' }}</td>
                             <td>{{ $item->visitor_mobile ?? '—' }}</td>
-                            <td>{{ $item->visitor_city ?? '—' }}</td>
                             <td>{{ $item->visitor_business ?? '—' }}</td>
+                            <td>{{ $item->visitor_city ?? '—' }}</td>
+                            <td>{{ $formatDate($item->event_date ?? null) }}</td>
+                            <td>{{ $item->event_name ?? '—' }}</td>
+                            <td>{{ ucfirst($item->event_type ?? '—') }}</td>
                             <td>{{ ucfirst($item->status ?? '—') }}</td>
                             <td>{{ $item->coins_awarded ? 'Yes' : 'No' }}</td>
                             <td class="text-end">
@@ -120,7 +104,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="13" class="text-center text-muted">No visitor registrations found.</td>
+                            <td colspan="11" class="text-center text-muted">No visitor registrations found.</td>
                         </tr>
                     @endforelse
                 </tbody>

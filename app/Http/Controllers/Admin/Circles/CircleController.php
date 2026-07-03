@@ -15,12 +15,15 @@ use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -593,9 +596,107 @@ class CircleController extends Controller
             ->with('success', 'Circle updated successfully.');
     }
 
-    public function destroy(Circle $circle): RedirectResponse
+    public function deleteStats(Request $request, Circle $circle): JsonResponse
     {
-        $circle->delete();
+        $this->authorizeCircleView($request, $circle);
+
+        $membersCount = $circle->members()->count();
+        $meetingsCount = DB::table('circle_meetings')->where('circle_id', $circle->id)->count();
+
+        $postsCount = $circle->posts()->count();
+        $chatMessagesCount = $circle->chatMessages()->count();
+        $joinRequestsCount = DB::table('circle_join_requests')->where('circle_id', $circle->id)->count();
+        $activitiesCount = $circle->activities()->count();
+
+        $relatedCount = $postsCount + $chatMessagesCount + $joinRequestsCount + $activitiesCount;
+
+        return response()->json([
+            'success' => true,
+            'name' => $circle->name,
+            'members_count' => $membersCount,
+            'meetings_count' => $meetingsCount,
+            'related_count' => $relatedCount,
+        ]);
+    }
+
+    public function destroy(Request $request, Circle $circle): RedirectResponse
+    {
+        $this->authorizeCircleView($request, $circle);
+
+        DB::transaction(function () use ($circle) {
+            // 1. Soft delete members of the circle and set left_at, delete categories
+            $members = $circle->members()->get();
+            foreach ($members as $member) {
+                $member->forceFill(['left_at' => now()])->save();
+                if (Schema::hasTable('joined_circle_categories')) {
+                    DB::table('joined_circle_categories')->where('circle_member_id', $member->id)->delete();
+                }
+                $member->delete();
+            }
+
+            // 2. Cascade delete mappings / pivot tables & child records
+            $circle->categories()->detach();
+            
+            if (Schema::hasTable('event_circles')) {
+                DB::table('event_circles')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circle_meetings')) {
+                DB::table('circle_meetings')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circle_join_requests')) {
+                DB::table('circle_join_requests')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circle_subscriptions')) {
+                DB::table('circle_subscriptions')->where('circle_id', $circle->id)->delete();
+            }
+            
+            if (Schema::hasTable('circle_chat_messages')) {
+                $messageIds = DB::table('circle_chat_messages')->where('circle_id', $circle->id)->pluck('id')->toArray();
+                if (!empty($messageIds)) {
+                    if (Schema::hasTable('circle_chat_message_reads')) {
+                        DB::table('circle_chat_message_reads')->whereIn('message_id', $messageIds)->delete();
+                    }
+                    DB::table('circle_chat_messages')->where('circle_id', $circle->id)->delete();
+                }
+            }
+            
+            if (Schema::hasTable('activities')) {
+                DB::table('activities')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circulars')) {
+                DB::table('circulars')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('leadership_group_messages')) {
+                DB::table('leadership_group_messages')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('leadership_group_members')) {
+                DB::table('leadership_group_members')->where('circle_id', $circle->id)->delete();
+            }
+
+            if (Schema::hasTable('joined_circle_categories')) {
+                DB::table('joined_circle_categories')->where('circle_id', $circle->id)->delete();
+            }
+
+            if (Schema::hasTable('circle_member_category_selections')) {
+                DB::table('circle_member_category_selections')->where('circle_id', $circle->id)->delete();
+            }
+
+            // 3. Update users who have this circle as their active_circle_id
+            DB::table('users')->where('active_circle_id', $circle->id)->update([
+                'active_circle_id' => null,
+                'active_circle_addon_code' => null,
+                'active_circle_addon_name' => null,
+                'circle_joined_at' => null,
+                'circle_expires_at' => null,
+                'active_circle_subscription_id' => null,
+            ]);
+
+            // 4. Soft delete the circle itself
+            $circle->delete();
+        });
+
+        Cache::forget('admin.circles.index');
+        Cache::forget('admin.circles.filters');
 
         return redirect()
             ->route('admin.circles.index')
@@ -731,13 +832,13 @@ class CircleController extends Controller
         try {
             $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
         } catch (Throwable $throwable) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'circle_package' => 'Failed to fetch selected Circle Package from Zoho Billing.',
             ]);
         }
 
         if (! is_array($addon)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'circle_package' => 'Selected Circle Package is invalid or inactive.',
             ]);
         }

@@ -22,9 +22,16 @@ class StoreCircleMemberRequest extends FormRequest
                 'required',
                 'uuid',
                 'exists:users,id',
-                Rule::unique('circle_members', 'user_id')->where(fn ($query) => $query->where('circle_id', $circleId)),
+                Rule::unique('circle_members', 'user_id')->where(fn ($query) => $query->where('circle_id', $circleId)->whereNull('deleted_at')),
             ],
             'role' => ['required', Rule::in(CircleMember::roleOptions())],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'user_id.unique' => 'This peer is already a member of this circle.',
         ];
     }
 }

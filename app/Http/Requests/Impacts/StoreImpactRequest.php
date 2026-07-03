@@ -5,6 +5,7 @@ namespace App\Http\Requests\Impacts;
 use App\Models\Impact;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 class StoreImpactRequest extends FormRequest
@@ -46,7 +47,7 @@ class StoreImpactRequest extends FormRequest
 
     protected function failedValidation(ValidatorContract $validator): void
     {
-        throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+        throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation failed.',
             'errors' => $validator->errors(),

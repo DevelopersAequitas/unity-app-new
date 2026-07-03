@@ -10,6 +10,8 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\Admin\AdminAuditService;
 use App\Services\Admin\AdminScopeService;
+use App\Services\Membership\MembershipNotificationService;
+use App\Services\Membership\MembershipWelcomeEmailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -84,8 +86,8 @@ class UserManagementController extends BaseApiController
 
         $fresh = $target->fresh();
         if ($fresh && $this->becameActiveMembership($oldStatus, (string) ($fresh->membership_status ?? ''))) {
-            app(\App\Services\Membership\MembershipNotificationService::class)->sendMembershipWelcome($fresh, 'api_admin_membership_update', $attachments);
-            app(\App\Services\Membership\MembershipWelcomeEmailService::class)->sendIfEligible($fresh, true, 'api_admin_membership_update', $attachments);
+            app(MembershipNotificationService::class)->sendMembershipWelcome($fresh, 'api_admin_membership_update', $attachments);
+            app(MembershipWelcomeEmailService::class)->sendIfEligible($fresh, true, 'api_admin_membership_update', $attachments);
         }
 
         return $this->success($fresh);

@@ -14,9 +14,10 @@ class CirclePeersController extends Controller
 {
     public function peerOptions(Request $request, Circle $circle): JsonResponse
     {
+        $isCircleScoped = (bool) $request->attributes->get('is_circle_scoped');
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
 
-        if (is_array($allowedCircleIds) && ! in_array($circle->id, $allowedCircleIds, true)) {
+        if ($isCircleScoped && is_array($allowedCircleIds) && ! in_array($circle->id, $allowedCircleIds, true)) {
             abort(403);
         }
 
@@ -41,8 +42,30 @@ class CirclePeersController extends Controller
 
         $cityExpr = $hasCity ? 'users.city' : "''";
 
+        $duplicateNames = DB::table('users')
+            ->whereNull('deleted_at')
+            ->where('status', 'active')
+            ->selectRaw("{$nameExpr} as name, count(*) as count")
+            ->groupBy('name')
+            ->havingRaw('count(*) > 1')
+            ->pluck('count', 'name')
+            ->toArray();
+
+        $page = (int) $request->query('page', 1);
+        $perPage = 30;
+
         $rows = DB::table('users')
+            ->leftJoin('circles as c_active', 'c_active.id', '=', 'users.active_circle_id')
             ->whereNull('users.deleted_at')
+            ->where('users.status', 'active')
+            ->whereNotNull('users.email')
+            ->where('users.email', '!=', '')
+            ->where(function ($q): void {
+                $q->whereNotNull('users.display_name')
+                    ->where('users.display_name', '!=', '')
+                    ->orWhereNotNull('users.first_name')
+                    ->where('users.first_name', '!=', '');
+            })
             ->whereNotIn('users.id', function ($subQuery) use ($circle): void {
                 $subQuery->select('user_id')
                     ->from('circle_members')
@@ -56,35 +79,73 @@ class CirclePeersController extends Controller
                     $searchQuery->whereRaw("{$nameExpr} ILIKE ?", [$like])
                         ->orWhere('users.email', 'ILIKE', $like)
                         ->orWhereRaw("COALESCE({$companyExpr}, '') ILIKE ?", [$like])
-                        ->orWhereRaw("COALESCE({$cityExpr}, '') ILIKE ?", [$like]);
+                        ->orWhereRaw("COALESCE({$cityExpr}, '') ILIKE ?", [$like])
+                        ->orWhere('c_active.name', 'ILIKE', $like)
+                        ->orWhereExists(function ($sub) use ($like) {
+                            $sub->select(DB::raw(1))
+                                ->from('circle_members as cm_search')
+                                ->join('circles as c_search', 'c_search.id', '=', 'cm_search.circle_id')
+                                ->whereRaw('cm_search.user_id = users.id')
+                                ->whereNull('cm_search.deleted_at')
+                                ->where('c_search.name', 'ILIKE', $like);
+                        });
                 });
             })
             ->selectRaw(
                 "users.id,
                 {$nameExpr} as name,
+                users.email,
                 COALESCE({$companyExpr}, '') as company,
                 COALESCE({$cityExpr}, '') as city,
-                COALESCE((
-                    SELECT c.name
-                    FROM circle_members cm
-                    JOIN circles c ON c.id = cm.circle_id
-                    WHERE cm.user_id = users.id
-                      AND cm.deleted_at IS NULL
-                    ORDER BY cm.created_at DESC
-                    LIMIT 1
-                ), '') as circle"
+                COALESCE(
+                    c_active.name,
+                    (
+                        SELECT c.name
+                        FROM circle_members cm
+                        JOIN circles c ON c.id = cm.circle_id
+                        WHERE cm.user_id = users.id
+                          AND cm.deleted_at IS NULL
+                        ORDER BY cm.created_at DESC
+                        LIMIT 1
+                    ),
+                    ''
+                ) as circle"
             )
             ->orderByRaw("{$nameExpr} ASC")
-            ->limit(20)
-            ->get();
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $results = collect($rows->items())->map(function ($row) use ($duplicateNames) {
+            $name = trim((string) $row->name);
+            $company = trim((string) $row->company);
+            $city = trim((string) $row->city);
+            $email = trim((string) $row->email);
+            $circleName = trim((string) $row->circle);
+
+            $text = $name;
+            if (isset($duplicateNames[$name])) {
+                if ($company !== '') {
+                    $text .= " ({$company})";
+                } elseif ($city !== '') {
+                    $text .= " ({$city})";
+                }
+            }
+
+            return [
+                'id' => $row->id,
+                'text' => $text,
+                'name' => $name,
+                'company' => $company,
+                'city' => $city,
+                'email' => $email,
+                'circle' => $circleName,
+            ];
+        })->values();
 
         return response()->json([
-            'results' => $rows
-                ->map(fn ($row) => [
-                    'id' => $row->id,
-                    'text' => UserOptionLabel::makeFromRow((array) $row),
-                ])
-                ->values(),
+            'results' => $results,
+            'pagination' => [
+                'more' => $rows->hasMorePages(),
+            ],
         ]);
     }
 }

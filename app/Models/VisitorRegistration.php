@@ -47,6 +47,35 @@ class VisitorRegistration extends Model
         'coins_awarded_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $model): void {
+            if (! $model->id) {
+                $model->id = (string) \Illuminate\Support\Str::uuid();
+            }
+        });
+    }
+
+    public function getVisitorDesignationAttribute(): ?string
+    {
+        return $this->attributes['how_known'] ?? null;
+    }
+
+    public function setVisitorDesignationAttribute(?string $value): void
+    {
+        $this->attributes['how_known'] = $value;
+    }
+
+    public function getVisitorBusinessBriefAttribute(): ?string
+    {
+        return $this->attributes['note'] ?? null;
+    }
+
+    public function setVisitorBusinessBriefAttribute(?string $value): void
+    {
+        $this->attributes['note'] = $value;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');

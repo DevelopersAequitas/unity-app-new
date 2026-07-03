@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Circle;
 use App\Models\CircleJoinRequest;
 use App\Models\CircleMember;
+use App\Models\Impact;
+use App\Models\Payment;
 use App\Services\Admin\AdminAuditService;
 use App\Services\Admin\AdminScopeService;
 use Illuminate\Http\JsonResponse;
@@ -152,8 +154,8 @@ class CircleManagementController extends BaseApiController
     public function health(string $id): JsonResponse
     {
         $memberCount = CircleMember::query()->where('circle_id', $id)->where('status', 'approved')->whereNull('deleted_at')->count();
-        $impactTotal = \App\Models\Impact::query()->where('circle_id', $id)->where('status', 'approved')->sum(DB::raw('COALESCE(impact_score,impact_value,1)'));
-        $revenue = \App\Models\Payment::query()->where('circle_id', $id)->where('status', 'paid')->sum('amount');
+        $impactTotal = Impact::query()->where('circle_id', $id)->where('status', 'approved')->sum(DB::raw('COALESCE(impact_score,impact_value,1)'));
+        $revenue = Payment::query()->where('circle_id', $id)->where('status', 'paid')->sum('amount');
 
         return $this->success([
             'current_members' => $memberCount,

@@ -2,14 +2,17 @@
 
 require 'c:/Users/HP/Downloads/unity-app 27-5-2026/unity-app/vendor/autoload.php';
 $app = require_once 'c:/Users/HP/Downloads/unity-app 27-5-2026/unity-app/bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\AdminCampaign;
 use App\Models\CampaignSchedule;
+use Carbon\Carbon;
+use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Support\Facades\DB;
 
 // Let's run inside a database transaction to prevent persisting test changes
-\Illuminate\Support\Facades\DB::transaction(function () {
+DB::transaction(function () {
     $campaign = AdminCampaign::create([
         'title' => 'Timezone Manual Test',
         'campaign_type' => 'email_only',
@@ -23,7 +26,7 @@ use App\Models\CampaignSchedule;
         'timezone' => 'Asia/Kolkata',
         'start_date' => '2026-06-15',
         'send_time' => '13:10:00',
-        'next_run_at' => \Carbon\Carbon::parse('2026-06-15 07:40:00', 'UTC'),
+        'next_run_at' => Carbon::parse('2026-06-15 07:40:00', 'UTC'),
     ]);
 
     // Eager load schedule
@@ -47,5 +50,5 @@ use App\Models\CampaignSchedule;
     echo "  (Expected: 15 Jun 2026 07:40)\n\n";
 
     // Trigger transaction rollback to clean up
-    throw new \Exception('Rollback transaction successfully');
+    throw new Exception('Rollback transaction successfully');
 });

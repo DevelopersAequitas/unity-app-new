@@ -344,13 +344,13 @@ class BrandPartnerApiController extends BaseApiController
         ]);
 
         if ($request->hasFile('logo_file')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo_file'), null, 'public');
-            $data['logo'] = $logoModel->s3_key;
+            $logoModel = $this->fileUploadService->store($request->file('logo_file'), null);
+            $data['logo'] = $logoModel->id;
         }
 
         if ($request->hasFile('cover_file')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_file'), null, 'public');
-            $data['cover_image'] = $coverModel->s3_key;
+            $coverModel = $this->fileUploadService->store($request->file('cover_file'), null);
+            $data['cover_image'] = $coverModel->id;
         }
 
         $user = auth()->user() ?? auth('admin')->user();
@@ -422,13 +422,13 @@ class BrandPartnerApiController extends BaseApiController
         ]);
 
         if ($request->hasFile('logo_file')) {
-            $logoModel = $this->fileUploadService->store($request->file('logo_file'), null, 'public');
-            $data['logo'] = $logoModel->s3_key;
+            $logoModel = $this->fileUploadService->store($request->file('logo_file'), null);
+            $data['logo'] = $logoModel->id;
         }
 
         if ($request->hasFile('cover_file')) {
-            $coverModel = $this->fileUploadService->store($request->file('cover_file'), null, 'public');
-            $data['cover_image'] = $coverModel->s3_key;
+            $coverModel = $this->fileUploadService->store($request->file('cover_file'), null);
+            $data['cover_image'] = $coverModel->id;
         }
 
         $user = auth()->user() ?? auth('admin')->user();

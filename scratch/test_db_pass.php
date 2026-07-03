@@ -6,7 +6,7 @@ foreach ($passwords as $p) {
         new PDO('pgsql:host=127.0.0.1;port=5432;dbname=postgres', 'postgres', $p);
         echo 'SUCCESS PASSWORD: '.var_export($p, true).PHP_EOL;
         exit(0);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         // failed
     }
 }

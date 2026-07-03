@@ -26,7 +26,10 @@
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-                ...(! $isDed ? [['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index']] : []),
+                ...(! $isDed && ! $isCircleCommittee ? [
+                    ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
+                ] : []),
                 ...($isGlobalAdmin ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
@@ -46,7 +49,10 @@
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
                 ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications']],
-                ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+                ...(! $isCircleCommittee ? [
+                    ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
+                ] : []),
                 ...($isGlobalAdmin ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
@@ -105,9 +111,9 @@
         ? [
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
+            ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
         ]
         : [
-            ['label' => 'Inactive Registrations', 'route' => 'admin.pending-registrations.index'],
             ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
             ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
             ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
@@ -115,18 +121,18 @@
             ['label' => 'Certifications', 'route' => 'admin.certifications.index'],
             ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
+            ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
         ];
 
     if ($isCircleCommittee) {
         $pendingRequestsMenu = array_values(array_filter(
             $pendingRequestsMenu,
-            fn ($item) => ! in_array(($item['label'] ?? null), ['Inactive Registrations', 'Circle Joining Requests', 'Certifications'], true)
+            fn ($item) => ! in_array(($item['label'] ?? null), ['Circle Joining Requests', 'Certifications'], true)
         ));
     }
 
     $leadsActive = request()->routeIs('admin.leads.*');
     $pendingRequestsActive =
-        request()->routeIs('admin.pending-registrations.*') ||
         request()->routeIs('admin.visitor-registrations.*') ||
         request()->routeIs('admin.coin-claims.*') ||
         request()->routeIs('admin.event-joining-requests.*') ||
@@ -142,12 +148,10 @@
         ['label' => 'Create Campaign', 'route' => 'admin.campaigns.create', 'active_routes' => ['admin.campaigns.create']],
         ['label' => 'Campaign Email Templates', 'route' => 'admin.campaign-email-templates.index', 'active_routes' => ['admin.campaign-email-templates.*']],
         ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index', 'active_routes' => ['admin.campaign-pamphlets.*']],
-        ['label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']],
     ];
     $campaignsActive = request()->routeIs('admin.campaigns.*')
         || request()->routeIs('admin.campaign-pamphlets.*')
         || request()->routeIs('admin.campaign-email-templates.*')
-        || request()->routeIs('admin.email-logs.*')
         || request()->routeIs('admin.execution.communications');
     $notificationsMenu = [
         ['label' => 'Overview', 'route' => 'admin.notifications.dashboard', 'icon' => 'bi-speedometer2', 'active_routes' => ['admin.notifications.dashboard']],
@@ -165,13 +169,16 @@
     ];
 
     $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*');
-    $emailLogsMoreItem = (! $isDed && ! $isIndustryDirector && ! $isCircleCommittee)
-        ? ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']]
-        : null;
-    $bottomNavItems = [];
-    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs'], true)));
+    $bottomNavItems = array_map(function ($item) {
+        if ($item['label'] === 'Email Logs') {
+            $item['active_routes'] = ['admin.email-logs.*'];
+        } elseif ($item['label'] === 'Support Tickets') {
+            $item['active_routes'] = ['admin.support-tickets.*'];
+        }
+        return $item;
+    }, array_values(array_filter($navItems, fn ($item) => in_array(($item['label'] ?? null), ['Email Logs', 'Support Tickets'], true))));
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
     $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*') || request()->routeIs('admin.event-scan-credentials.*');
-    $navItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) !== 'Events Management'));
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     $eventsManagementMenu = $isIndustryDirector ? [] : $eventsManagementMenu;
     
@@ -275,6 +282,14 @@
                     </ul>
                 </div>
             </li>
+
+            @foreach ($bottomNavItems as $item)
+                <li class="nav-item">
+                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                        <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
+                    </a>
+                </li>
+            @endforeach
 
             @if ($isGlobalAdmin)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
@@ -386,25 +401,6 @@
                 </li>
             @endif
 
-            @if ($bottomNavItems || ! $isDed)
-                <li class="nav-item mt-3 pt-2 border-top small text-muted px-3">More</li>
-            @endif
-
-            @if ($emailLogsMoreItem)
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs(...$emailLogsMoreItem['active_routes']) ? 'active' : '' }}" href="{{ route($emailLogsMoreItem['route']) }}">
-                        <i class="bi {{ $emailLogsMoreItem['icon'] }} me-2"></i>{{ $emailLogsMoreItem['label'] }}
-                    </a>
-                </li>
-            @endif
-
-            @foreach ($bottomNavItems as $item)
-                <li class="nav-item">
-                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
-                        <i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}
-                    </a>
-                </li>
-            @endforeach
 
             @if (! $isDed && ! $isCircleCommittee && $leadsMenu !== [])
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">

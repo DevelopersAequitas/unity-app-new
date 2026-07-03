@@ -79,6 +79,9 @@ class UsersController extends Controller
         if ($industryScope->isIndustryDirector($adminUser)) {
             $circleIds = $industryScope->circleIdsForAdmin($adminUser);
             $circlesQuery->when($circleIds !== [], fn ($query) => $query->whereIn('id', $circleIds), fn ($query) => $query->whereRaw('1 = 0'));
+        } elseif (AdminAccess::isCircleScoped($adminUser)) {
+            $circleIds = AdminAccess::allowedCircleIds($adminUser);
+            $circlesQuery->when($circleIds !== [], fn ($query) => $query->whereIn('id', $circleIds), fn ($query) => $query->whereRaw('1 = 0'));
         }
         $circles = $circlesQuery->get(['id', 'name']);
         $q = $filters['search'] ?? '';
@@ -127,6 +130,7 @@ class UsersController extends Controller
             'interests' => $request->input('interests', []),
             'sustainability_areas' => $request->input('sustainability_areas', []),
             'greenpreneur_goals' => $request->input('greenpreneur_goals', []),
+            'community_directory_listing' => $request->input('community_directory_listing', 'No'),
         ]);
         $request->merge($this->normalizedAdminCircleDateInputs($request));
 
@@ -458,6 +462,7 @@ class UsersController extends Controller
             'interests' => $request->input('interests', []),
             'sustainability_areas' => $request->input('sustainability_areas', []),
             'greenpreneur_goals' => $request->input('greenpreneur_goals', []),
+            'community_directory_listing' => $request->input('community_directory_listing', $user->community_directory_listing ?? 'No'),
         ]);
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $adminRoles = Role::query()
@@ -1311,7 +1316,7 @@ class UsersController extends Controller
                     User::create($payload);
                     $results['created']++;
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 $results['failed'][] = ['row' => $data, 'reason' => $e->getMessage()];
             }
         }
@@ -1402,7 +1407,7 @@ class UsersController extends Controller
             $plans = Cache::remember($cacheKey, 600, function () {
                 return $this->zohoBillingService->listActivePlans();
             });
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             report($throwable);
             $plans = [];
         }
@@ -1919,7 +1924,16 @@ class UsersController extends Controller
         }
 
         $search = trim((string) $request->query('q', $request->input('search', '')));
-        $circleId = (string) $request->query('circle_id', 'all');
+        $circleId = $request->query('circle_id');
+        if ($circleId === null) {
+            if ($isCircleScoped && is_array($allowedCircleIds) && ! empty($allowedCircleIds)) {
+                $circleId = $allowedCircleIds[0];
+            } else {
+                $circleId = 'all';
+            }
+        } else {
+            $circleId = (string) $circleId;
+        }
         $membership = $request->input('membership_status');
         $phone = $request->input('phone');
         $joinedFilter = (string) $request->input('joined_filter', 'all');

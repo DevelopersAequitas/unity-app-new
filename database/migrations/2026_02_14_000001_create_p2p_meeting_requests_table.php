@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\SqliteMigrator;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -7,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        \App\Support\SqliteMigrator::run(<<<'SQL'
+        SqliteMigrator::run(<<<'SQL'
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'p2p_meeting_status_enum') THEN

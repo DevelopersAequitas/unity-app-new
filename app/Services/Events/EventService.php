@@ -2,6 +2,7 @@
 
 namespace App\Services\Events;
 
+use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\CircleMember;
 use App\Models\Event;
 use App\Models\EventOccurrence;
@@ -57,7 +58,7 @@ class EventService
 
         // afterResponse() runs the job immediately after the HTTP response is sent.
         // This means: no queue worker needed, no blocking the API response.
-        \App\Jobs\SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
+        SendEventCreatedNotificationJob::dispatch($event->id)->afterResponse();
 
         return $event;
     }

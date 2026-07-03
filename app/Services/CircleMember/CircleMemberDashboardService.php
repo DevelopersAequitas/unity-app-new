@@ -29,7 +29,7 @@ class CircleMemberDashboardService
      *
      * @return array<string, mixed>
      */
-    public function getDashboardData(AdminUser $admin): array
+    public function getDashboardData(AdminUser $admin, ?string $circleId = null, bool $onlyCircles = false): array
     {
         $user = AdminAccess::resolveAppUser($admin);
         if (! $user) {
@@ -48,11 +48,23 @@ class CircleMemberDashboardService
                     'eventJoining' => 0,
                     'total' => 0,
                 ],
+                'activityCounts' => [
+                    'totalLivesImpacted' => 0,
+                    'totalCoinsEarned' => 0,
+                    'businessDealsCount' => 0,
+                    'businessDealsAmount' => 0,
+                    'referralsPassed' => 0,
+                    'connectionsMade' => 0,
+                    'p2pMeetings' => 0,
+                    'requirementsPosted' => 0,
+                    'testimonialsExchanged' => 0,
+                    'visitors' => 0,
+                    'circleLeftMembers' => 0,
+                    'circleJoinedMembers' => 0,
+                ],
+                'leftMembers' => collect(),
             ];
         }
-
-        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
-        $allowedUserIds = AdminAccess::allowedUserIds($admin);
 
         // Joined Circles & Role
         $joinedCircles = CircleMember::query()
@@ -64,6 +76,61 @@ class CircleMemberDashboardService
                     ->with(['founder', 'director', 'ded']);
             }])
             ->get();
+
+        if ($onlyCircles) {
+            return [
+                'user' => $user,
+                'totalPeers' => 0,
+                'userCoins' => $user->coins_balance ?? 0,
+                'totalCircleCoins' => 0,
+                'joinedCircles' => $joinedCircles,
+                'recentPeers' => collect(),
+                'recentTransactions' => collect(),
+                'pendingCounts' => [
+                    'circleJoin' => 0,
+                    'coinClaims' => 0,
+                    'visitorRegistrations' => 0,
+                    'eventJoining' => 0,
+                    'total' => 0,
+                ],
+                'activityCounts' => [
+                    'totalLivesImpacted' => 0,
+                    'totalCoinsEarned' => 0,
+                    'businessDealsCount' => 0,
+                    'businessDealsAmount' => 0,
+                    'referralsPassed' => 0,
+                    'connectionsMade' => 0,
+                    'p2pMeetings' => 0,
+                    'requirementsPosted' => 0,
+                    'testimonialsExchanged' => 0,
+                    'visitors' => 0,
+                    'circleLeftMembers' => 0,
+                    'circleJoinedMembers' => 0,
+                ],
+                'leftMembers' => collect(),
+            ];
+        }
+
+        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
+        if ($circleId) {
+            $circleIdStr = (string) $circleId;
+            $allowedCircleIdStrings = array_map('strval', $allowedCircleIds);
+            if (in_array($circleIdStr, $allowedCircleIdStrings, true)) {
+                $allowedCircleIds = [$circleIdStr];
+            }
+        }
+
+        $allowedUserIds = [];
+        if (! empty($allowedCircleIds)) {
+            $allowedUserIds = CircleMember::query()
+                ->whereIn('circle_id', $allowedCircleIds)
+                ->where('status', 'approved')
+                ->whereNull('deleted_at')
+                ->pluck('user_id')
+                ->unique()
+                ->values()
+                ->all();
+        }
 
         // Scoped Statistics
         $totalPeers = 0;
@@ -113,16 +180,19 @@ class CircleMemberDashboardService
         // Pending Request Counts
         $circleJoinCount = 0;
         if (! empty($allowedCircleIds)) {
-            $circleJoinCount = CircleJoinRequest::visibleToAdminUser($admin)
-                ->pending()
-                ->count();
+            $circleJoinQuery = CircleJoinRequest::visibleToAdminUser($admin)
+                ->pending();
+            if ($circleId) {
+                $circleJoinQuery->where('circle_id', $circleId);
+            }
+            $circleJoinCount = $circleJoinQuery->count();
         }
 
         $coinClaimsCount = 0;
         $claimTable = (new CoinClaimRequest)->getTable();
         if (Schema::hasTable($claimTable)) {
             $coinClaimsQuery = CoinClaimRequest::query()->where('status', 'pending');
-            AdminCircleScope::applyToActivityQuery($coinClaimsQuery, $admin, "{$claimTable}.user_id", null);
+            $coinClaimsQuery->whereIn("{$claimTable}.user_id", $allowedUserIds);
             $coinClaimsCount = $coinClaimsQuery->count();
         }
 
@@ -130,7 +200,7 @@ class CircleMemberDashboardService
         $visitorTable = (new VisitorRegistration)->getTable();
         if (Schema::hasTable($visitorTable)) {
             $visitorQuery = VisitorRegistration::query()->where('status', 'pending');
-            AdminCircleScope::applyToActivityQuery($visitorQuery, $admin, "{$visitorTable}.user_id", null);
+            $visitorQuery->whereIn("{$visitorTable}.user_id", $allowedUserIds);
             $visitorRegistrationsCount = $visitorQuery->count();
         }
 
@@ -138,12 +208,13 @@ class CircleMemberDashboardService
         $eventReqTable = (new EventRegistrationRequest)->getTable();
         if (Schema::hasTable($eventReqTable)) {
             $eventQuery = EventRegistrationRequest::query()->where('status', 'pending');
-            $eventQuery->where(function ($scopeQuery) use ($admin, $eventReqTable) {
-                $scopeQuery->whereHas('event', function ($eventQuery) use ($admin): void {
+            $eventQuery->where(function ($scopeQuery) use ($admin, $eventReqTable, $allowedUserIds, $circleId) {
+                $scopeQuery->whereHas('event', function ($eventQuery) use ($admin, $circleId): void {
                     AdminCircleScope::applyToEventsQuery($eventQuery, $admin);
-                })->orWhere(function ($userScope) use ($admin, $eventReqTable): void {
-                    AdminCircleScope::applyToActivityQuery($userScope, $admin, "{$eventReqTable}.user_id", null);
-                });
+                    if ($circleId) {
+                        $eventQuery->where('circle_id', $circleId);
+                    }
+                })->orWhereIn("{$eventReqTable}.user_id", $allowedUserIds);
             });
             $eventJoiningCount = $eventQuery->count();
         }
