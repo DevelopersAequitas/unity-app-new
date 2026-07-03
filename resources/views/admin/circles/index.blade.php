@@ -211,11 +211,7 @@
                             <td class="text-end">
                                 <div class="d-inline-flex gap-1">
                                     <a class="btn btn-sm btn-light" href="{{ route('admin.circles.show', $circle) }}">View</a>
-                                    <form action="{{ route('admin.circles.destroy', $circle) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this circle? This is a soft delete and can be restored by admin.');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                                    </form>
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete-circle" data-url="{{ route('admin.circles.destroy', $circle) }}" data-id="{{ $circle->id }}" data-name="{{ $circle->name }}" data-members="{{ $circle->members_count ?? 0 }}">Delete</button>
                                 </div>
                             </td>
                         </tr>
@@ -233,35 +229,118 @@
     </div>
 </form>
 
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteCircleModal" tabindex="-1" aria-labelledby="deleteCircleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form id="deleteCircleForm" method="POST" action="">
+            @csrf
+            @method('DELETE')
+            <div class="modal-content text-start" style="white-space: normal;">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteCircleModalLabel">Delete Circle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">Are you sure you want to delete the circle "<strong id="deleteCircleName"></strong>"?</p>
+                    <ul class="list-group list-group-flush mb-3">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            Members Count
+                            <span class="badge bg-secondary rounded-pill" id="deleteMembersCount">0</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            Meetings Count
+                            <span class="badge bg-secondary rounded-pill" id="deleteMeetingsCount">Loading...</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            Related Records (Posts, Messages, etc.)
+                            <span class="badge bg-secondary rounded-pill" id="deleteRelatedCount">Loading...</span>
+                        </li>
+                    </ul>
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i> This will delete the circle and cascade cleanup related records.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Delete</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const form = document.getElementById('circleFiltersForm');
 
-        if (!form) {
-            return;
-        }
+        if (form) {
+            const enterSubmitFields = [
+                document.getElementById('circleStageFilter'),
+                document.getElementById('circleRankFilter'),
+            ];
 
-        const enterSubmitFields = [
-            document.getElementById('circleStageFilter'),
-            document.getElementById('circleRankFilter'),
-        ];
-
-        enterSubmitFields.forEach(function (field) {
-            if (!field) {
-                return;
-            }
-
-            field.addEventListener('keydown', function (event) {
-                if (event.key !== 'Enter') {
+            enterSubmitFields.forEach(function (field) {
+                if (!field) {
                     return;
                 }
 
-                event.preventDefault();
-                form.submit();
+                field.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Enter') {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    form.submit();
+                });
             });
-        });
+        }
+
+        const deleteButtons = document.querySelectorAll('.btn-delete-circle');
+        const deleteModalEl = document.getElementById('deleteCircleModal');
+        
+        if (deleteButtons.length && deleteModalEl) {
+            const deleteModal = new bootstrap.Modal(deleteModalEl);
+            const deleteForm = document.getElementById('deleteCircleForm');
+            const nameEl = document.getElementById('deleteCircleName');
+            const membersEl = document.getElementById('deleteMembersCount');
+            const meetingsEl = document.getElementById('deleteMeetingsCount');
+            const relatedEl = document.getElementById('deleteRelatedCount');
+
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const url = this.getAttribute('data-url');
+                    const name = this.getAttribute('data-name');
+                    const members = this.getAttribute('data-members');
+                    const id = this.getAttribute('data-id');
+
+                    deleteForm.setAttribute('action', url);
+                    nameEl.textContent = name;
+                    membersEl.textContent = members;
+                    meetingsEl.textContent = 'Loading...';
+                    relatedEl.textContent = 'Loading...';
+
+                    deleteModal.show();
+
+                    // Fetch stats via AJAX
+                    fetch(`/admin/circles/${id}/delete-stats`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                meetingsEl.textContent = data.meetings_count;
+                                relatedEl.textContent = data.related_count;
+                            } else {
+                                meetingsEl.textContent = 'Error';
+                                relatedEl.textContent = 'Error';
+                            }
+                        })
+                        .catch(err => {
+                            meetingsEl.textContent = 'Error';
+                            relatedEl.textContent = 'Error';
+                        });
+                });
+            });
+        }
     });
 </script>
 @endpush
