@@ -112,8 +112,12 @@ class CircleMemberDashboardService
         }
 
         $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
-        if ($circleId && in_array($circleId, $allowedCircleIds, true)) {
-            $allowedCircleIds = [$circleId];
+        if ($circleId) {
+            $circleIdStr = (string) $circleId;
+            $allowedCircleIdStrings = array_map('strval', $allowedCircleIds);
+            if (in_array($circleIdStr, $allowedCircleIdStrings, true)) {
+                $allowedCircleIds = [$circleIdStr];
+            }
         }
 
         $allowedUserIds = [];

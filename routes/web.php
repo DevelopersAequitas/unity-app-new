@@ -289,6 +289,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/pending-requests/pending-registrations/{user}/reject', [PendingRegistrationsController::class, 'reject'])->name('pending-registrations.reject');
 
         Route::get('/visitor-registrations', [VisitorRegistrationsController::class, 'index'])->name('visitor-registrations.index');
+        Route::post('/visitor-registrations', [VisitorRegistrationsController::class, 'store'])->name('visitor-registrations.store');
+        Route::post('/visitor-registrations/import', [VisitorRegistrationsController::class, 'importStore'])->name('visitor-registrations.import');
+        Route::get('/visitor-registrations/sample-csv', [VisitorRegistrationsController::class, 'sampleCsv'])->name('visitor-registrations.sample-csv');
+        Route::get('/visitor-registrations/export', [VisitorRegistrationsController::class, 'export'])->name('visitor-registrations.export');
+        Route::get('/visitor-registrations/{id}/export-single', [VisitorRegistrationsController::class, 'exportSingle'])
+            ->whereUuid('id')
+            ->name('visitor-registrations.export-single');
         Route::post('/visitor-registrations/{id}/approve', [VisitorRegistrationsController::class, 'approve'])
             ->whereUuid('id')
             ->name('visitor-registrations.approve');
