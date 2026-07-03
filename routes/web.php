@@ -407,6 +407,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/account-deletion-requests/{id}/reject', [App\Http\Controllers\Admin\AccountDeletionController::class, 'reject'])->name('account-deletion.reject');
         Route::patch('/account-deletion-requests/{id}/status', [App\Http\Controllers\Admin\AccountDeletionController::class, 'updateStatus'])->name('account-deletion.update-status');
 
+        // Support Tickets Module
+        Route::get('/support-tickets', [\App\Http\Controllers\Admin\SupportTicketController::class, 'index'])->name('support-tickets.index');
+        Route::get('/support-tickets/{id}', [\App\Http\Controllers\Admin\SupportTicketController::class, 'show'])->name('support-tickets.show');
+        Route::put('/support-tickets/{id}', [\App\Http\Controllers\Admin\SupportTicketController::class, 'update'])->name('support-tickets.update');
+
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');
         Route::get('/execution/events', [AdminExecutionController::class, 'events'])->name('execution.events');
