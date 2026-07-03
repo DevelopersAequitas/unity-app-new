@@ -26,13 +26,13 @@ class CircleMemberDashboardController extends Controller
         abort_unless($admin && AdminAccess::isCircleScoped($admin), 403);
 
         $roleKey = AdminAccess::primaryCircleRoleKey($admin);
-        $requiresSelection = in_array($roleKey, ['founder', 'director'], true);
-
         $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
+        $requiresSelection = count($allowedCircleIds) > 1;
+
         $circleId = $request->query('circle_id');
 
-        // By default, choose the first circle for founder/director roles
-        if ($requiresSelection && empty($circleId) && ! empty($allowedCircleIds)) {
+        // By default, choose the first circle if one exists and no selection is active
+        if (empty($circleId) && ! empty($allowedCircleIds)) {
             $circleId = $allowedCircleIds[0];
         }
 

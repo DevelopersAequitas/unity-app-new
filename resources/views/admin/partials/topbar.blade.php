@@ -12,20 +12,17 @@
     $selectedCircleId = null;
 
     if ($admin && $isCircleScoped) {
-        $roleKey = \App\Support\AdminAccess::primaryCircleRoleKey($admin);
-        if (in_array($roleKey, ['founder', 'director'], true)) {
-            $appUser = \App\Support\AdminAccess::resolveAppUser($admin);
-            if ($appUser) {
-                $joinedCircles = \App\Models\CircleMember::query()
-                    ->where('user_id', $appUser->id)
-                    ->where('status', 'approved')
-                    ->whereNull('deleted_at')
-                    ->with('circle')
-                    ->get();
+        $appUser = \App\Support\AdminAccess::resolveAppUser($admin);
+        if ($appUser) {
+            $joinedCircles = \App\Models\CircleMember::query()
+                ->where('user_id', $appUser->id)
+                ->where('status', 'approved')
+                ->whereNull('deleted_at')
+                ->with('circle')
+                ->get();
 
-                if ($joinedCircles->count() > 1) {
-                    $requiresCircleDropdown = true;
-                }
+            if ($joinedCircles->count() > 1) {
+                $requiresCircleDropdown = true;
             }
         }
     }
