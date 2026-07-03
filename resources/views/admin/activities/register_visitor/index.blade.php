@@ -3,18 +3,7 @@
 @section('title', 'Register A Visitor')
 
 @section('content')
-    <style>
-        .peer-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; display: block; }
-    </style>
     @php
-        $displayName = function (?string $display, ?string $first, ?string $last): string {
-            if ($display) {
-                return $display;
-            }
-            $name = trim(($first ?? '') . ' ' . ($last ?? ''));
-            return $name !== '' ? $name : '—';
-        };
-
         $formatDateTime = function ($value): string {
             return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d H:i') : '—';
         };

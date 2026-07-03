@@ -302,6 +302,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/visitor-registrations/{id}/reject', [VisitorRegistrationsController::class, 'reject'])
             ->whereUuid('id')
             ->name('visitor-registrations.reject');
+        Route::delete('/visitor-registrations/{id}', [VisitorRegistrationsController::class, 'destroy'])
+            ->whereUuid('id')
+            ->name('visitor-registrations.destroy');
+        Route::post('/visitor-registrations/bulk-destroy', [VisitorRegistrationsController::class, 'bulkDestroy'])
+            ->name('visitor-registrations.bulk-destroy');
         Route::get('/coin-claims', [CoinClaimsController::class, 'index'])->name('coin-claims.index');
         Route::get('/coin-claims/{id}', [CoinClaimsController::class, 'show'])->whereUuid('id')->name('coin-claims.show');
         Route::post('/coin-claims/{id}/approve', [CoinClaimsController::class, 'approve'])->whereUuid('id')->name('coin-claims.approve');

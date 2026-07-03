@@ -696,4 +696,54 @@ class VisitorRegistrationsController extends Controller
             ->route('admin.visitor-registrations.index')
             ->with('success', $message);
     }
+
+    public function destroy(string $id): RedirectResponse
+    {
+        $admin = Auth::guard('admin')->user();
+
+        $query = VisitorRegistration::query()->where('id', $id);
+        AdminCircleScope::applyToActivityQuery($query, $admin, 'visitor_registrations.user_id', null);
+
+        $registration = $query->first();
+
+        if (! $registration) {
+            abort(403, 'You are not authorised to delete this visitor registration.');
+        }
+
+        $registration->delete();
+
+        return redirect()
+            ->route('admin.visitor-registrations.index', request()->query())
+            ->with('success', 'Visitor registration deleted successfully.');
+    }
+
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $ids = array_filter((array) $request->input('ids', []), fn ($id) => Str::isUuid($id));
+
+        if (empty($ids)) {
+            return redirect()
+                ->route('admin.visitor-registrations.index', request()->query())
+                ->with('error', 'No valid records selected for deletion.');
+        }
+
+        $admin = Auth::guard('admin')->user();
+
+        $registrations = VisitorRegistration::whereIn('id', $ids)->get();
+
+        $deleted = 0;
+        foreach ($registrations as $registration) {
+            $query = VisitorRegistration::query()->where('id', $registration->id);
+            AdminCircleScope::applyToActivityQuery($query, $admin, 'visitor_registrations.user_id', null);
+
+            if ($query->exists()) {
+                $registration->delete();
+                $deleted++;
+            }
+        }
+
+        return redirect()
+            ->route('admin.visitor-registrations.index', request()->query())
+            ->with('success', "Deleted {$deleted} visitor registration(s) successfully.");
+    }
 }

@@ -25,6 +25,9 @@
     @endphp
 
     <form id="visitorRegistrationsFiltersForm" method="GET" action="{{ route('admin.visitor-registrations.index') }}"></form>
+    <form id="bulkDeleteForm" method="POST" action="{{ route('admin.visitor-registrations.bulk-destroy') }}">
+        @csrf
+    </form>
 
     @if ($errors->any())
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -49,6 +52,10 @@
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addVisitorModal">
                 <i class="bi bi-plus-lg me-1"></i> Add Visitor
             </button>
+            <button type="submit" form="bulkDeleteForm" id="bulkDeleteBtn" class="btn btn-danger btn-sm" disabled
+                onclick="return confirm('Are you sure you want to delete the selected visitor registrations? This cannot be undone.')">
+                <i class="bi bi-trash me-1"></i> Delete Selected
+            </button>
             <span class="badge bg-light text-dark border ms-1">Total: {{ number_format($registrations->total()) }}</span>
         </div>
     </div>
@@ -56,6 +63,13 @@
     @if (session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
@@ -93,11 +107,15 @@
         </div>
     </div>
 
+
     <div class="card shadow-sm">
         <div class="table-responsive">
             <table class="table mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
+                        <th style="width:40px">
+                            <input type="checkbox" id="selectAll" class="form-check-input" title="Select All">
+                        </th>
                         <th>Submitted At</th>
                         <th>Peer Name</th>
                         <th>Peer Phone</th>
@@ -166,6 +184,9 @@
                             $memberCircle = optional($member?->circleMembers?->first()?->circle)->name ?? 'No Circle';
                         @endphp
                         <tr>
+                            <td>
+                                <input type="checkbox" name="ids[]" value="{{ $registration->id }}" form="bulkDeleteForm" class="form-check-input row-checkbox">
+                            </td>
                             <td>{{ $formatDateTime($registration->created_at ?? null) }}</td>
                             <td>
                                 <div class="d-flex flex-column">
@@ -199,6 +220,13 @@
                                             <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Reject this visitor registration?')">Reject</button>
                                         </form>
                                     @endif
+                                    <form method="POST" action="{{ route('admin.visitor-registrations.destroy', $registration->id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this visitor registration? This cannot be undone.')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -211,6 +239,7 @@
             </table>
         </div>
     </div>
+
 
     <div class="mt-3">
         {{ $registrations->links() }}
@@ -399,3 +428,42 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    (function () {
+        const selectAll   = document.getElementById('selectAll');
+        const bulkBtn     = document.getElementById('bulkDeleteBtn');
+        const checkboxes  = () => document.querySelectorAll('.row-checkbox');
+
+        function syncBtn() {
+            const checked = document.querySelectorAll('.row-checkbox:checked').length;
+            bulkBtn.disabled = checked === 0;
+            if (bulkBtn.disabled) {
+                bulkBtn.title = 'Select at least one row to delete';
+            } else {
+                bulkBtn.title = `Delete ${checked} selected record(s)`;
+            }
+        }
+
+        if (selectAll) {
+            selectAll.addEventListener('change', function () {
+                checkboxes().forEach(cb => { cb.checked = selectAll.checked; });
+                syncBtn();
+            });
+        }
+
+        document.addEventListener('change', function (e) {
+            if (e.target.classList.contains('row-checkbox')) {
+                syncBtn();
+                if (selectAll) {
+                    const all = checkboxes();
+                    selectAll.checked = all.length > 0 && [...all].every(cb => cb.checked);
+                }
+            }
+        });
+
+        syncBtn();
+    })();
+</script>
+@endpush
