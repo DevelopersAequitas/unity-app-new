@@ -34,6 +34,7 @@ class VisitorRegistrationsController extends Controller
         $visitorMobile = trim((string) $request->query('visitor_mobile', ''));
         $visitorCity = trim((string) $request->query('visitor_city', ''));
         $visitorBusiness = trim((string) $request->query('visitor_business', ''));
+        $visitorBusinessCategory = trim((string) $request->query('visitor_business_category', ''));
 
         $hasUsersName = Schema::hasColumn('users', 'name');
         $hasUsersCompany = Schema::hasColumn('users', 'company');
@@ -159,6 +160,10 @@ class VisitorRegistrationsController extends Controller
             $query->where('visitor_business', 'ILIKE', "%{$visitorBusiness}%");
         }
 
+        if ($visitorBusinessCategory !== '') {
+            $query->where('visitor_business_category', 'ILIKE', "%{$visitorBusinessCategory}%");
+        }
+
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'visitor_registrations.user_id', null);
 
         $registrations = $query
@@ -192,6 +197,7 @@ class VisitorRegistrationsController extends Controller
                 'visitor_mobile' => $visitorMobile,
                 'visitor_city' => $visitorCity,
                 'visitor_business' => $visitorBusiness,
+                'visitor_business_category' => $visitorBusinessCategory,
             ],
             'statuses' => ['pending', 'approved', 'rejected'],
         ]);

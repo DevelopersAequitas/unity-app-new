@@ -116,20 +116,34 @@
                         <th style="width:40px">
                             <input type="checkbox" id="selectAll" class="form-check-input" title="Select All">
                         </th>
+                        <th>Visitor Name</th>
+                        <th>Phone Number</th>
+                        <th>Business Name</th>
+                        <th>Business Category</th>
                         <th>Submitted At</th>
                         <th>Peer Name</th>
                         <th>Peer Phone</th>
                         <th>Event Type</th>
                         <th>Event Name</th>
                         <th>Event Date</th>
-                        <th>Visitor Name</th>
-                        <th>Visitor Mobile</th>
                         <th>Visitor City</th>
-                        <th>Visitor Business</th>
                         <th>Status</th>
                         <th class="text-end">Actions</th>
                     </tr>
                     <tr>
+                        <th></th>
+                        <th>
+                            <input type="text" name="visitor_name" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Name" value="{{ $filters['visitor_name'] }}">
+                        </th>
+                        <th>
+                            <input type="text" name="visitor_mobile" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Mobile" value="{{ $filters['visitor_mobile'] }}">
+                        </th>
+                        <th>
+                            <input type="text" name="visitor_business" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Business" value="{{ $filters['visitor_business'] }}">
+                        </th>
+                        <th>
+                            <input type="text" name="visitor_business_category" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Business Category" value="{{ $filters['visitor_business_category'] ?? '' }}">
+                        </th>
                         <th></th>
                         <th>
                             <input type="text" name="peer_q" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Peer/Company/City" value="{{ $filters['peer_q'] }}">
@@ -147,16 +161,7 @@
                             <input type="date" name="event_date" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" value="{{ $filters['event_date'] }}">
                         </th>
                         <th>
-                            <input type="text" name="visitor_name" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Name" value="{{ $filters['visitor_name'] }}">
-                        </th>
-                        <th>
-                            <input type="text" name="visitor_mobile" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Mobile" value="{{ $filters['visitor_mobile'] }}">
-                        </th>
-                        <th>
                             <input type="text" name="visitor_city" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor City" value="{{ $filters['visitor_city'] }}">
-                        </th>
-                        <th>
-                            <input type="text" name="visitor_business" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Business" value="{{ $filters['visitor_business'] }}">
                         </th>
                         <th>
                             <select name="status" form="visitorRegistrationsFiltersForm" class="form-select form-select-sm">
@@ -187,6 +192,10 @@
                             <td>
                                 <input type="checkbox" name="ids[]" value="{{ $registration->id }}" form="bulkDeleteForm" class="form-check-input row-checkbox">
                             </td>
+                            <td>{{ $registration->visitor_full_name ?? '—' }}</td>
+                            <td>{{ $registration->visitor_mobile ?? '—' }}</td>
+                            <td>{{ $registration->visitor_business ?? '—' }}</td>
+                            <td>{{ $registration->visitor_business_category ?? '—' }}</td>
                             <td>{{ $formatDateTime($registration->created_at ?? null) }}</td>
                             <td>
                                 <div class="d-flex flex-column">
@@ -200,10 +209,7 @@
                             <td>{{ ucfirst($registration->event_type ?? '—') }}</td>
                             <td>{{ $registration->event_name ?? '—' }}</td>
                             <td>{{ $formatDate($registration->event_date ?? null) }}</td>
-                            <td>{{ $registration->visitor_full_name ?? '—' }}</td>
-                            <td>{{ $registration->visitor_mobile ?? '—' }}</td>
                             <td>{{ $registration->visitor_city ?? '—' }}</td>
-                            <td>{{ $registration->visitor_business ?? '—' }}</td>
                             <td>{{ ucfirst($registration->status ?? '—') }}</td>
                             <td class="text-end">
                                 <div class="d-inline-flex gap-1 justify-content-end align-items-center">
@@ -232,7 +238,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="12" class="text-center text-muted">No visitor registrations found.</td>
+                            <td colspan="14" class="text-center text-muted">No visitor registrations found.</td>
                         </tr>
                     @endforelse
                 </tbody>
