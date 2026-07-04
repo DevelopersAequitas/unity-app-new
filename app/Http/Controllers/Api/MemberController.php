@@ -299,11 +299,12 @@ class MemberController extends BaseApiController
                 'life_impacted_count',
                 'status',
                 'deleted_at',
+                'business_category_id',
             ])
             ->when(Schema::hasColumn('users', 'profile_visibility'), function ($query): void {
                 $query->addSelect('profile_visibility');
             })
-            ->with(['city:id,name']);
+            ->with(['city:id,name', 'level4Category:id,name']);
 
         // Exclude inactive members
         $query->where(function ($statusQuery) {
@@ -325,12 +326,12 @@ class MemberController extends BaseApiController
             }
         }
 
-        $users = $query->orderByDesc('created_at')->get();
+        $users = $query->orderByDesc('created_at')->paginate(15);
 
-        return $this->success(
-            LimitedUserResource::collection($users),
-            'Limited user data fetched successfully.'
-        );
+        return LimitedUserResource::collection($users)->additional([
+            'success' => true,
+            'message' => 'Limited user data fetched successfully.',
+        ]);
     }
 
     public function show(Request $request, string $id, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)

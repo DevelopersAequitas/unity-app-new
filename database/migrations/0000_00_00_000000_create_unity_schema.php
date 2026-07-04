@@ -148,6 +148,7 @@ CREATE TABLE users (
     circle_expires_at       TIMESTAMPTZ,
     active_circle_subscription_id UUID,
     coins_balance           BIGINT NOT NULL DEFAULT 0,
+    life_impacted_count     INT NOT NULL DEFAULT 0,
     introduced_by           UUID REFERENCES users(id) ON DELETE SET NULL,
     members_introduced_count INT NOT NULL DEFAULT 0,
     influencer_stars        INT NOT NULL DEFAULT 0,

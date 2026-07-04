@@ -8,22 +8,22 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         :root {
-            color-scheme: dark;
-            --bg-start: #0a0f1f;
-            --bg-end: #101833;
-            --card-bg: rgba(255, 255, 255, 0.05);
-            --card-border: rgba(255, 255, 255, 0.1);
-            --text-primary: #f5f7ff;
-            --text-secondary: #c6c9e5;
-            --accent: #ff6b6b;
-            --accent-glow: rgba(255, 107, 107, 0.15);
-            --accent-strong: #e63946;
-            --shadow: 0 24px 60px rgba(4, 8, 26, 0.45);
+            color-scheme: light;
+            --bg-color: #f9f9f9;
+            --card-bg: #ffffff;
+            --card-border: #e2e8f0;
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --accent: #dc2626;
+            --accent-glow: rgba(220, 38, 38, 0.08);
+            --accent-strong: #b91c1c;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
         }
 
         body {
             font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-            background: radial-gradient(circle at top, #1a2247 0%, var(--bg-end) 45%, var(--bg-start) 100%);
+            background-color: var(--bg-color);
             color: var(--text-primary);
             min-height: 100vh;
             display: flex;
@@ -40,13 +40,12 @@
             border-radius: 24px;
             padding: 40px;
             box-shadow: var(--shadow);
-            backdrop-filter: blur(20px);
             transition: all 0.3s ease;
         }
 
         .deletion-card:hover {
-            border-color: rgba(255, 107, 107, 0.3);
-            box-shadow: 0 24px 60px rgba(255, 107, 107, 0.05);
+            border-color: rgba(220, 38, 38, 0.2);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
 
         .header-icon {
@@ -62,8 +61,8 @@
         }
 
         .form-control {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
             color: var(--text-primary);
             border-radius: 12px;
             padding: 12px 16px;
@@ -71,14 +70,14 @@
         }
 
         .form-control:focus {
-            background: rgba(255, 255, 255, 0.1);
+            background: #ffffff;
             border-color: var(--accent);
             box-shadow: 0 0 0 3px var(--accent-glow);
             color: var(--text-primary);
         }
 
         .btn-danger {
-            background-color: var(--accent-strong);
+            background-color: var(--accent);
             border: none;
             padding: 12px 24px;
             border-radius: 12px;
@@ -87,23 +86,23 @@
         }
 
         .btn-danger:hover {
-            background-color: #ff4d4d;
+            background-color: var(--accent-strong);
             transform: translateY(-1px);
             box-shadow: 0 8px 20px var(--accent-glow);
         }
 
         .alert-success {
-            background: rgba(46, 204, 113, 0.15);
-            border: 1px solid rgba(46, 204, 113, 0.3);
-            color: #2ecc71;
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
             border-radius: 12px;
             padding: 16px;
         }
 
         .alert-danger {
-            background: rgba(231, 76, 60, 0.15);
-            border: 1px solid rgba(231, 76, 60, 0.3);
-            color: #e74c3c;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
             border-radius: 12px;
             padding: 16px;
         }
@@ -114,7 +113,13 @@
             letter-spacing: 0.05em;
             color: var(--text-primary);
             margin-bottom: 30px;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .text-muted {
+            color: var(--text-muted) !important;
         }
     </style>
 </head>
@@ -122,7 +127,8 @@
 
     <div class="deletion-card text-center">
         <div class="logo-text">
-            <i class="bi bi-unity me-2 text-info"></i>PEERS GLOBAL UNITY
+            <img src="{{ asset('images/peersglobal-logo.png') }}" alt="Peers Global Unity Logo" class="me-2" style="height: 32px; width: auto; object-fit: contain;">
+            PEERS GLOBAL UNITY
         </div>
 
         <div class="header-icon">
@@ -137,7 +143,7 @@
                 <i class="bi bi-check-circle-fill me-2"></i>
                 {{ session('success') }}
             </div>
-            <a href="/" class="btn btn-outline-light w-100 py-2.5" style="border-radius: 12px;">Back to Home</a>
+            <a href="/" class="btn btn-outline-dark w-100 py-2.5" style="border-radius: 12px;">Back to Home</a>
         @else
             <form action="{{ route('account-deletion.submit') }}" method="POST" class="text-start">
                 @csrf
@@ -152,7 +158,7 @@
                 @if($user)
                     <div class="mb-4">
                         <label class="form-label">Account details</label>
-                        <div class="form-control" style="background: rgba(255, 255, 255, 0.03); color: var(--text-secondary);">
+                        <div class="form-control" style="background: #f8fafc; border: 1px solid #e2e8f0; color: var(--text-secondary);">
                             <div class="d-flex align-items-center justify-content-between">
                                 <span><strong>Name:</strong> {{ $user->display_name ?? $user->first_name }}</span>
                                 <span class="badge bg-secondary">Logged In</span>
