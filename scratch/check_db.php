@@ -1,15 +1,17 @@
 <?php
 
-use Illuminate\Contracts\Console\Kernel;
-
-require __DIR__.'/../vendor/autoload.php';
-$app = require_once __DIR__.'/../bootstrap/app.php';
-$kernel = $app->make(Kernel::class);
+require 'vendor/autoload.php';
+$app = require_once 'bootstrap/app.php';
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
-try {
-    $result = DB::select('SELECT enum_range(NULL::user_status_enum)');
-    print_r($result);
-} catch (Exception $e) {
-    echo 'Error: '.$e->getMessage()."\n";
+use Illuminate\Support\Facades\DB;
+
+$circles = DB::table('circles')
+    ->select('id', 'name', 'circle_founder_user_id', 'circle_director_user_id', 'ded_user_id')
+    ->get();
+
+echo "CIRCLES COLUMNS:\n";
+foreach ($circles as $c) {
+    echo "{$c->name} -> Founder: {$c->circle_founder_user_id}, Director: {$c->circle_director_user_id}, DED: {$c->ded_user_id}\n";
 }

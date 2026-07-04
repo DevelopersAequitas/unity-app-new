@@ -2011,20 +2011,20 @@ class UsersController extends Controller
                         $q->whereIn('circles.id', $dedCircleIds);
                     }
                 });
-            } elseif ($role === 'founder') {
+            } elseif ($role === 'founder' || $role === 'circle_founder') {
                 $query->whereExists(function ($q) use ($isDed, $dedCircleIds) {
                     $q->selectRaw(1)
                         ->from('circles')
-                        ->whereColumn('circles.founder_user_id', 'users.id');
+                        ->whereColumn('circles.circle_founder_user_id', 'users.id');
                     if ($isDed && is_array($dedCircleIds)) {
                         $q->whereIn('circles.id', $dedCircleIds);
                     }
                 });
-            } elseif ($role === 'director') {
+            } elseif ($role === 'director' || $role === 'circle_director') {
                 $query->whereExists(function ($q) use ($isDed, $dedCircleIds) {
                     $q->selectRaw(1)
                         ->from('circles')
-                        ->whereColumn('circles.director_user_id', 'users.id');
+                        ->whereColumn('circles.circle_director_user_id', 'users.id');
                     if ($isDed && is_array($dedCircleIds)) {
                         $q->whereIn('circles.id', $dedCircleIds);
                     }

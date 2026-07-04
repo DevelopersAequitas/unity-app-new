@@ -46,10 +46,10 @@ class CircleController extends BaseApiController
     {
         $query = Circle::query()
             ->with([
-                'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
-                'founder.cityRelation:id,name',
-                'director:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
-                'director.cityRelation:id,name',
+                'circleFounder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'circleFounder.cityRelation:id,name',
+                'circleDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+                'circleDirector.cityRelation:id,name',
                 'industryDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
                 'industryDirector.cityRelation:id,name',
                 'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
@@ -162,18 +162,18 @@ class CircleController extends BaseApiController
             $circle = new Circle;
             $circle->fill($data);
             $circle->slug = Circle::generateUniqueSlug((string) ($data['name'] ?? 'circle'));
-            $circle->founder_user_id = $authUser->id;
+            $circle->circle_founder_user_id = $authUser->id;
             $circle->save();
 
             CircleMember::create([
                 'circle_id' => $circle->id,
                 'user_id' => $authUser->id,
-                'role' => 'founder',
+                'role' => 'circle_founder',
                 'status' => 'approved',
                 'joined_at' => now(),
             ]);
 
-            $circle->load(['city', 'founder']);
+            $circle->load(['city', 'circleFounder']);
 
             return $this->success(new CircleResource($circle), 'Circle created successfully', 201);
         });
@@ -192,7 +192,7 @@ class CircleController extends BaseApiController
             return $this->error('Circle not found', 404);
         }
 
-        if ($circle->founder_user_id === $user->id) {
+        if ($circle->circle_founder_user_id === $user->id) {
             return $this->success(null, 'You are the founder of this circle');
         }
 

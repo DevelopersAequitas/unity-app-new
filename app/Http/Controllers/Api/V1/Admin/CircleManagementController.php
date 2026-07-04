@@ -63,7 +63,7 @@ class CircleManagementController extends BaseApiController
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate(['name' => ['required', 'string'], 'industry_id' => ['nullable', 'uuid'], 'founder_user_id' => ['nullable', 'uuid', 'exists:users,id'], 'status' => ['nullable', 'string']]);
+        $data = $request->validate(['name' => ['required', 'string'], 'industry_id' => ['nullable', 'uuid'], 'circle_founder_user_id' => ['nullable', 'uuid', 'exists:users,id'], 'status' => ['nullable', 'string']]);
         $circle = Circle::query()->create($data);
 
         return $this->success($circle);
@@ -77,7 +77,7 @@ class CircleManagementController extends BaseApiController
     public function update(Request $request, string $id): JsonResponse
     {
         $circle = Circle::query()->findOrFail($id);
-        $circle->fill($request->only(['name', 'description', 'industry_id', 'status', 'founder_user_id', 'director_user_id', 'industry_director_user_id', 'ded_user_id']))->save();
+        $circle->fill($request->only(['name', 'description', 'industry_id', 'status', 'circle_founder_user_id', 'circle_director_user_id', 'industry_director_user_id', 'ded_user_id', 'eed_user_id']))->save();
 
         return $this->success($circle);
     }
@@ -91,14 +91,14 @@ class CircleManagementController extends BaseApiController
 
     public function assignFounder(Request $request, string $id): JsonResponse
     {
-        $request->merge(['founder_user_id' => $request->validate(['user_id' => 'required|uuid|exists:users,id'])['user_id']]);
+        $request->merge(['circle_founder_user_id' => $request->validate(['user_id' => 'required|uuid|exists:users,id'])['user_id']]);
 
         return $this->update($request, $id);
     }
 
     public function assignDirector(Request $request, string $id): JsonResponse
     {
-        $request->merge(['director_user_id' => $request->validate(['user_id' => 'required|uuid|exists:users,id'])['user_id']]);
+        $request->merge(['circle_director_user_id' => $request->validate(['user_id' => 'required|uuid|exists:users,id'])['user_id']]);
 
         return $this->update($request, $id);
     }
@@ -173,8 +173,8 @@ class CircleManagementController extends BaseApiController
     public function performance(string $id): JsonResponse
     {
         return $this->success([
-            'founder' => Circle::query()->where('id', $id)->value('founder_user_id'),
-            'director' => Circle::query()->where('id', $id)->value('director_user_id'),
+            'founder' => Circle::query()->where('id', $id)->value('circle_founder_user_id'),
+            'director' => Circle::query()->where('id', $id)->value('circle_director_user_id'),
             'leadership' => CircleMember::query()->where('circle_id', $id)->whereIn(DB::raw('role::text'), ['chair', 'vice_chair', 'secretary', 'committee_leader'])->whereNull('deleted_at')->get(),
         ]);
     }

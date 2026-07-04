@@ -40,8 +40,8 @@ class MyCirclesApiTest extends TestCase
             'slug' => 'active-circle-'.Str::lower(Str::random(6)),
             'status' => 'active',
             'type' => 'private',
-            'founder_user_id' => $founder->id,
-            'director_user_id' => $director->id,
+            'circle_founder_user_id' => $founder->id,
+            'circle_director_user_id' => $director->id,
             'meeting_mode' => 'online',
             'meeting_frequency' => 'monthly',
         ]);
@@ -51,8 +51,8 @@ class MyCirclesApiTest extends TestCase
             'slug' => 'expired-circle-'.Str::lower(Str::random(6)),
             'status' => 'active',
             'type' => 'private',
-            'founder_user_id' => $founder->id,
-            'director_user_id' => $director->id,
+            'circle_founder_user_id' => $founder->id,
+            'circle_director_user_id' => $director->id,
         ]);
 
         $leftCircle = Circle::create([

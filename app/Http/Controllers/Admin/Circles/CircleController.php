@@ -316,6 +316,11 @@ class CircleController extends Controller
             'announcement' => $validated['announcement'] ?? null,
             'industry_tags' => $this->normalizeIndustryTags($validated['industry_tags'] ?? null),
             'circle_stage' => $validated['circle_stage'] ?? null,
+            'circle_founder_user_id' => $validated['circle_founder_user_id'] ?? null,
+            'circle_director_user_id' => $validated['circle_director_user_id'] ?? null,
+            'industry_director_user_id' => $validated['industry_director_user_id'] ?? null,
+            'ded_user_id' => $validated['ded_user_id'] ?? null,
+            'eed_user_id' => $validated['eed_user_id'] ?? null,
         ];
 
         if (empty($payload['status'])) {
@@ -370,7 +375,7 @@ class CircleController extends Controller
             'peer_email' => $this->sanitizeFilterInput($validatedFilters['peer_email'] ?? ''),
         ];
 
-        $relations = ['city', 'founder', 'director', 'industryDirector', 'ded'];
+        $relations = ['city', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
             $relations[] = 'categories';
@@ -482,7 +487,7 @@ class CircleController extends Controller
 
     public function edit(Request $request, Circle $circle): View
     {
-        $relations = ['city'];
+        $relations = ['city', 'circleFounder', 'circleDirector', 'eed'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
             $relations[] = 'categories';
@@ -490,7 +495,7 @@ class CircleController extends Controller
 
         $circle->load($relations);
 
-        $defaultFounder = $circle->founder ?? $this->defaultFounderUser();
+        $defaultFounder = $circle->circleFounder ?? $circle->founder ?? $this->defaultFounderUser();
         $countries = $this->countriesList();
         $selectedCountry = $request->input('country', $circle->country ?? $circle->city?->country ?? $countries->first() ?? 'India');
 
@@ -537,7 +542,11 @@ class CircleController extends Controller
             'type',
             'status',
             'industry_tags',
-            'founder_user_id',
+            'circle_founder_user_id',
+            'circle_director_user_id',
+            'industry_director_user_id',
+            'ded_user_id',
+            'eed_user_id',
             'city_id',
             'description',
             'purpose',
@@ -917,9 +926,13 @@ class CircleController extends Controller
 
         data_set($calendar, 'settings.meeting_repeat', $validated['meeting_repeat'] ?? null);
 
-        data_set($calendar, 'leadership.director_user_id', $validated['director_user_id'] ?? null);
+        data_set($calendar, 'leadership.circle_founder_user_id', $validated['circle_founder_user_id'] ?? null);
+        data_set($calendar, 'leadership.founder_user_id', $validated['circle_founder_user_id'] ?? null);
+        data_set($calendar, 'leadership.circle_director_user_id', $validated['circle_director_user_id'] ?? null);
+        data_set($calendar, 'leadership.director_user_id', $validated['circle_director_user_id'] ?? null);
         data_set($calendar, 'leadership.industry_director_user_id', $validated['industry_director_user_id'] ?? null);
         data_set($calendar, 'leadership.ded_user_id', $validated['ded_user_id'] ?? null);
+        data_set($calendar, 'leadership.eed_user_id', $validated['eed_user_id'] ?? null);
 
         $coverFileId = trim((string) ($validated['cover_file_id'] ?? ''));
         data_set($calendar, 'cover.file_id', $coverFileId !== '' ? $coverFileId : null);

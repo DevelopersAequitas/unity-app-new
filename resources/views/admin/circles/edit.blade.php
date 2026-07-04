@@ -27,7 +27,7 @@
     if (is_array($industryTagsValue)) {
         $industryTagsValue = implode(', ', $industryTagsValue);
     }
-    $founderId = old('founder_user_id', $defaultFounder?->id);
+    $founderId = old('circle_founder_user_id', $defaultFounder?->id);
     $calendar = is_array($circle->calendar) ? $circle->calendar : [];
     $meetingScheduleFrequency = old('meeting_schedule_frequency');
     $meetingScheduleTimes = old('meeting_schedule_default_meet_time');
@@ -70,7 +70,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Circle Founder</label>
-                        <select name="founder_user_id" class="form-select" required>
+                        <select name="circle_founder_user_id" class="form-select" required>
                             <option value="">Select a member</option>
                             @foreach ($allUsers as $user)
                                 <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
@@ -173,10 +173,10 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Circle Director</label>
-                        <select name="director_user_id" class="form-select">
-                            <option value="">Select director</option>
+                        <select name="circle_director_user_id" class="form-select">
+                            <option value="">Select circle director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('director_user_id', $circle->director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
+                                <option value="{{ $user->id }}" @selected(old('circle_director_user_id', $circle->circle_director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -195,6 +195,15 @@
                             <option value="">Select DED</option>
                             @foreach ($allUsers as $user)
                                 <option value="{{ $user->id }}" @selected(old('ded_user_id', $circle->ded_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">EED</label>
+                        <select name="eed_user_id" class="form-select">
+                            <option value="">Select EED</option>
+                            @foreach ($allUsers as $user)
+                                <option value="{{ $user->id }}" @selected(old('eed_user_id', $circle->eed_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
                             @endforeach
                         </select>
                     </div>

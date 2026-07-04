@@ -101,7 +101,7 @@ class CircleMemberController extends Controller
         $redirectQuery = $this->peerFilterQuery($request);
 
         // 1. Prevent founder removal
-        if ($circle->founder_user_id === $circleMember->user_id || $circleMember->role === 'founder') {
+        if ($circle->circle_founder_user_id === $circleMember->user_id || in_array($circleMember->role, ['circle_founder', 'founder'])) {
             return redirect()
                 ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
                 ->with('error', 'Cannot remove founder. Please transfer founder role first.');
