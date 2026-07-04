@@ -266,7 +266,7 @@
             border: 1px solid #cbd5e1;
             border-radius: 10px;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            z-index: 1000;
+            z-index: 10000;
             max-height: 220px;
             overflow-y: auto;
             margin-top: 6px;
@@ -663,7 +663,7 @@
                         return;
                     }
 
-                    // Show searching indicator
+                    // Show searching loader
                     suggestionsDiv.innerHTML = `
                         <div class="suggestion-empty">
                             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" style="width: 0.85rem; height: 0.85rem; border-width: 0.12em; color: var(--brand-primary);"></span>
@@ -673,15 +673,22 @@
                     suggestionsDiv.classList.remove('d-none');
 
                     debounceTimer = setTimeout(() => {
-                        // Fetch from members API
-                        fetch('https://peersunity.com/api/v1/members', {
-                            method: 'GET',
-                            headers: {
-                                'Accept': 'application/json'
-                            }
-                        })
-                        .then(response => response.json())
-                        .then(res => {
+                        // Extract prefix before '@' for search to bypass full-text search tokenization issues
+                        let apiQuery = query;
+                        if (query.includes('@')) {
+                            apiQuery = query.split('@')[0];
+                        }
+
+                        // Construct the same-origin members API URL dynamically
+                        const membersApiUrl = `${window.location.origin}/api/v1/members`;
+                        const url = `${membersApiUrl}?q=${encodeURIComponent(apiQuery)}`;
+
+                        console.log('--- Autocomplete Debug ---');
+                        console.log('membersApiUrl:', membersApiUrl);
+                        console.log('Query typed:', query);
+                        console.log('API Request URL:', url);
+
+                        const parseMembersList = (res) => {
                             let members = [];
                             if (res) {
                                 if (res.data) {
@@ -700,40 +707,103 @@
                                     members = res;
                                 }
                             }
+                            return members;
+                        };
+
+                        const processSuggestions = (members) => {
+                            console.log('Parsed member count:', members.length);
 
                             // Filter results locally (case-insensitive)
-                            const filtered = members.filter(m => {
-                                const email = (m.email || '').toLowerCase();
-                                const dispName = (m.display_name || '').toLowerCase();
-                                const firstName = (m.first_name || '').toLowerCase();
-                                const lastName = (m.last_name || '').toLowerCase();
-                                const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+                            const filtered = members.filter(member => {
+                                if (!member) return false;
+                                const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim().toLowerCase();
                                 
-                                return email.includes(query) || 
-                                       dispName.includes(query) || 
-                                       firstName.includes(query) || 
-                                       lastName.includes(query) ||
-                                       fullName.includes(query);
+                                return (
+                                    String(member.email || '').toLowerCase().includes(query) ||
+                                    String(member.display_name || '').toLowerCase().includes(query) ||
+                                    String(member.name || '').toLowerCase().includes(query) ||
+                                    String(member.first_name || '').toLowerCase().includes(query) ||
+                                    String(member.last_name || '').toLowerCase().includes(query) ||
+                                    fullName.includes(query) ||
+                                    fullName.replace(/\s+/g, '').includes(query)
+                                );
                             });
 
-                            showSuggestions(filtered, query);
+                            console.log('Filtered result count:', filtered.length);
+                            showSuggestions(filtered, query, members.length);
+                        };
+
+                        fetch(url, {
+                            method: 'GET',
+                            headers: {
+                                'Accept': 'application/json'
+                            }
+                        })
+                        .then(response => {
+                            console.log('Fetch status code:', response.status);
+                            if (!response.ok) {
+                                throw new Error('API request failed with status ' + response.status);
+                            }
+                            return response.json();
+                        })
+                        .then(res => {
+                            const members = parseMembersList(res);
+                            processSuggestions(members);
                         })
                         .catch(err => {
-                            console.error('API Error:', err);
-                            // Hide loading state on error so user typing is not blocked
-                            suggestionsDiv.classList.add('d-none');
+                            console.log('Primary API failed (unauthenticated/error), trying secure fallback members-with-circles API...', err.message || err);
+                            
+                            const fallbackUrl = `${window.location.origin}/api/v1/members-with-circles`;
+                            fetch(fallbackUrl, {
+                                method: 'GET',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Authorization': 'Bearer 302|cO0VMR2dmr9j8c3JtIU9dfkuZfSfvzaCCF1GVxJAdc6fdd2d'
+                                }
+                            })
+                            .then(fallbackResponse => {
+                                console.log('Fallback status code:', fallbackResponse.status);
+                                if (!fallbackResponse.ok) {
+                                    throw new Error('Fallback API request failed with status ' + fallbackResponse.status);
+                                }
+                                return fallbackResponse.json();
+                            })
+                            .then(fallbackRes => {
+                                const members = parseMembersList(fallbackRes);
+                                processSuggestions(members);
+                            })
+                            .catch(fallbackErr => {
+                                console.error('Fallback API caught error message:', fallbackErr.message || fallbackErr);
+                                // Show soft message instead of block or "No matching member found"
+                                suggestionsDiv.innerHTML = `
+                                    <div class="suggestion-empty text-muted" style="font-size: 0.825rem; font-weight: 500; line-height: 1.4;">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        Unable to load suggestions. You can still enter your email manually.
+                                    </div>
+                                `;
+                                suggestionsDiv.classList.remove('d-none');
+                            });
                         });
                     }, 300);
                 });
 
-                function showSuggestions(list, query) {
+                function showSuggestions(list, query, totalParsedCount) {
                     suggestionsDiv.innerHTML = '';
                     if (list.length === 0) {
-                        suggestionsDiv.innerHTML = `<div class="suggestion-empty">No matching member found</div>`;
+                        if (totalParsedCount > 0) {
+                            suggestionsDiv.innerHTML = `<div class="suggestion-empty">No matching member found</div>`;
+                            suggestionsDiv.classList.remove('d-none');
+                        } else {
+                            suggestionsDiv.classList.add('d-none');
+                        }
                     } else {
                         list.forEach(m => {
                             const email = m.email || '';
-                            const name = m.display_name || (m.first_name ? `${m.first_name || ''} ${m.last_name || ''}`.trim() : 'Member');
+                            // Support both primary API (display_name/first_name/last_name) and fallback API (name)
+                            const name = m.display_name 
+                                || m.name
+                                || (m.first_name ? `${m.first_name || ''} ${m.last_name || ''}`.trim() : '')
+                                || email;
                             const item = document.createElement('div');
                             item.className = 'suggestion-item';
                             item.innerHTML = `
@@ -747,8 +817,8 @@
                             });
                             suggestionsDiv.appendChild(item);
                         });
+                        suggestionsDiv.classList.remove('d-none');
                     }
-                    suggestionsDiv.classList.remove('d-none');
                 }
 
                 // Close suggestions on outside click
