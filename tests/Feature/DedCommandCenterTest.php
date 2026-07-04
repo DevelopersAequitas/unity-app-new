@@ -302,7 +302,7 @@ class DedCommandCenterTest extends TestCase
             'city_id' => $ahmedabadCityId,
             'status' => 'active',
         ]);
-        $ahmedabadCircle->founder_user_id = $user1->id;
+        $ahmedabadCircle->circle_founder_user_id = $user1->id;
         $ahmedabadCircle->save();
 
         // Leader 2: Bengaluru resident, director of Ahmedabad circle (lives elsewhere but should be in DED scope due to role)
@@ -313,7 +313,7 @@ class DedCommandCenterTest extends TestCase
             'city_id' => $bengaluruCityId,
             'status' => 'active',
         ]);
-        $ahmedabadCircle->director_user_id = $user2->id;
+        $ahmedabadCircle->circle_director_user_id = $user2->id;
         $ahmedabadCircle->save();
 
         // User 3: Ahmedabad resident, founder of Bengaluru circle (should NOT show up in Ahmedabad DED's founder list)
@@ -324,7 +324,7 @@ class DedCommandCenterTest extends TestCase
             'city_id' => $ahmedabadCityId,
             'status' => 'active',
         ]);
-        $bengaluruCircle->founder_user_id = $user3->id;
+        $bengaluruCircle->circle_founder_user_id = $user3->id;
         $bengaluruCircle->save();
 
         // Join Requests
@@ -982,8 +982,8 @@ class DedCommandCenterTest extends TestCase
             $table->string('slug')->nullable();
             $table->uuid('city_id')->nullable();
             $table->string('city')->nullable();
-            $table->uuid('founder_user_id')->nullable();
-            $table->uuid('director_user_id')->nullable();
+            $table->uuid('circle_founder_user_id')->nullable();
+            $table->uuid('circle_director_user_id')->nullable();
             $table->uuid('industry_director_user_id')->nullable();
             $table->string('status')->default('active');
             $table->string('circle_stage')->nullable();

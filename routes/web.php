@@ -303,6 +303,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/visitor-registrations/{id}/reject', [VisitorRegistrationsController::class, 'reject'])
             ->whereUuid('id')
             ->name('visitor-registrations.reject');
+        Route::delete('/visitor-registrations/{id}', [VisitorRegistrationsController::class, 'destroy'])
+            ->whereUuid('id')
+            ->name('visitor-registrations.destroy');
+        Route::post('/visitor-registrations/bulk-destroy', [VisitorRegistrationsController::class, 'bulkDestroy'])
+            ->name('visitor-registrations.bulk-destroy');
         Route::get('/coin-claims', [CoinClaimsController::class, 'index'])->name('coin-claims.index');
         Route::get('/coin-claims/{id}', [CoinClaimsController::class, 'show'])->whereUuid('id')->name('coin-claims.show');
         Route::post('/coin-claims/{id}/approve', [CoinClaimsController::class, 'approve'])->whereUuid('id')->name('coin-claims.approve');
@@ -411,6 +416,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/account-deletion-requests/{id}/approve', [App\Http\Controllers\Admin\AccountDeletionController::class, 'approve'])->name('account-deletion.approve');
         Route::post('/account-deletion-requests/{id}/reject', [App\Http\Controllers\Admin\AccountDeletionController::class, 'reject'])->name('account-deletion.reject');
         Route::patch('/account-deletion-requests/{id}/status', [App\Http\Controllers\Admin\AccountDeletionController::class, 'updateStatus'])->name('account-deletion.update-status');
+        Route::post('/account-deletion-requests/{id}/activate-account', [App\Http\Controllers\Admin\AccountDeletionController::class, 'activateAccount'])->name('account-deletion.activate-account');
+        Route::post('/account-deletion-requests/{id}/deactivate-account', [App\Http\Controllers\Admin\AccountDeletionController::class, 'deactivateAccount'])->name('account-deletion.deactivate-account');
 
         // Support Tickets Module
         Route::get('/support-tickets', [\App\Http\Controllers\Admin\SupportTicketController::class, 'index'])->name('support-tickets.index');

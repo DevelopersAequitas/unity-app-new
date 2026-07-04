@@ -120,7 +120,7 @@ class CircleJoinRequestAdminController extends BaseApiController
     private function ensureCanApproveCd($user, CircleJoinRequest $record): void
     {
         $this->ensureCanAccessRecord($user, $record);
-        abort_unless($this->hasAnyRole($user, ['global_admin', 'circle_leader', 'director']) || (string) $record->circle?->director_user_id === (string) $user->id, 403);
+        abort_unless($this->hasAnyRole($user, ['global_admin', 'circle_leader', 'circle_director', 'director']) || (string) $record->circle?->circle_director_user_id === (string) $user->id, 403);
     }
 
     private function ensureCanApproveId($user, CircleJoinRequest $record): void
@@ -135,7 +135,7 @@ class CircleJoinRequestAdminController extends BaseApiController
             return;
         }
 
-        if ((string) $record->circle?->director_user_id === (string) $user->id || (string) $record->circle?->industry_director_user_id === (string) $user->id) {
+        if ((string) $record->circle?->circle_director_user_id === (string) $user->id || (string) $record->circle?->industry_director_user_id === (string) $user->id) {
             return;
         }
 
@@ -149,7 +149,7 @@ class CircleJoinRequestAdminController extends BaseApiController
         }
 
         $query->where(function ($q) use ($user) {
-            $q->whereHas('circle', fn ($cq) => $cq->where('director_user_id', $user->id)->orWhere('industry_director_user_id', $user->id));
+            $q->whereHas('circle', fn ($cq) => $cq->where('circle_director_user_id', $user->id)->orWhere('industry_director_user_id', $user->id));
         });
     }
 

@@ -20,8 +20,11 @@ class CircleMember extends Model
     use SoftDeletes;
 
     public const LEADERSHIP_ROLE_OPTIONS = [
-        'founder',
-        'director',
+        'circle_founder',
+        'circle_director',
+        'industry_director',
+        'ded',
+        'eed',
         'chair',
         'vice_chair',
         'secretary',
@@ -30,8 +33,11 @@ class CircleMember extends Model
 
     public const ROLE_OPTIONS = [
         'member',
-        'founder',
-        'director',
+        'circle_founder',
+        'circle_director',
+        'industry_director',
+        'ded',
+        'eed',
         'chair',
         'vice_chair',
         'secretary',

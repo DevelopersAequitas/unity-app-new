@@ -54,10 +54,11 @@ class Circle extends Model
         'description',
         'purpose',
         'announcement',
-        'founder_user_id',
-        'director_user_id',
+        'circle_founder_user_id',
+        'circle_director_user_id',
         'industry_director_user_id',
         'ded_user_id',
+        'eed_user_id',
         'template_id',
         'status',
         'calendar',
@@ -235,15 +236,38 @@ class Circle extends Model
         return is_string($calendarDate) && trim($calendarDate) !== '' ? trim($calendarDate) : null;
     }
 
-    public function getDirectorUserIdAttribute($value): ?string
+    public function getCircleDirectorUserIdAttribute($value): ?string
     {
         if (is_string($value) && trim($value) !== '') {
             return trim($value);
         }
 
-        $calendarValue = $this->calendarGet('leadership.director_user_id');
+        $calendarValue = $this->calendarGet('leadership.circle_director_user_id')
+            ?? $this->calendarGet('leadership.director_user_id');
 
         return is_string($calendarValue) && trim($calendarValue) !== '' ? trim($calendarValue) : null;
+    }
+
+    public function getDirectorUserIdAttribute($value): ?string
+    {
+        return $this->getCircleDirectorUserIdAttribute($value);
+    }
+
+    public function getCircleFounderUserIdAttribute($value): ?string
+    {
+        if (is_string($value) && trim($value) !== '') {
+            return trim($value);
+        }
+
+        $calendarValue = $this->calendarGet('leadership.circle_founder_user_id')
+            ?? $this->calendarGet('leadership.founder_user_id');
+
+        return is_string($calendarValue) && trim($calendarValue) !== '' ? trim($calendarValue) : null;
+    }
+
+    public function getFounderUserIdAttribute($value): ?string
+    {
+        return $this->getCircleFounderUserIdAttribute($value);
     }
 
     public function getIndustryDirectorUserIdAttribute($value): ?string
@@ -264,6 +288,17 @@ class Circle extends Model
         }
 
         $calendarValue = $this->calendarGet('leadership.ded_user_id');
+
+        return is_string($calendarValue) && trim($calendarValue) !== '' ? trim($calendarValue) : null;
+    }
+
+    public function getEedUserIdAttribute($value): ?string
+    {
+        if (is_string($value) && trim($value) !== '') {
+            return trim($value);
+        }
+
+        $calendarValue = $this->calendarGet('leadership.eed_user_id');
 
         return is_string($calendarValue) && trim($calendarValue) !== '' ? trim($calendarValue) : null;
     }
@@ -333,19 +368,34 @@ class Circle extends Model
         return $existing;
     }
 
+    public function circleFounder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'circle_founder_user_id');
+    }
+
+    public function circleFounderUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'circle_founder_user_id');
+    }
+
+    public function circleDirector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'circle_director_user_id');
+    }
+
     public function founder(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'founder_user_id');
+        return $this->circleFounder();
     }
 
     public function founderUser(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'founder_user_id');
+        return $this->circleFounderUser();
     }
 
     public function director(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'director_user_id');
+        return $this->circleDirector();
     }
 
     public function industryDirector(): BelongsTo
@@ -356,6 +406,11 @@ class Circle extends Model
     public function ded(): BelongsTo
     {
         return $this->belongsTo(User::class, 'ded_user_id');
+    }
+
+    public function eed(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'eed_user_id');
     }
 
     public function template(): BelongsTo

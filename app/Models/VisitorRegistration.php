@@ -23,11 +23,9 @@ class VisitorRegistration extends Model
         'visitor_email',
         'visitor_city',
         'visitor_business',
-        'visitor_designation',
         'visitor_business_category_id',
         'visitor_business_category',
         'visitor_business_website',
-        'visitor_business_brief',
         'invited_by_type',
         'invited_by_user_id',
         'how_known',
@@ -52,6 +50,9 @@ class VisitorRegistration extends Model
         static::creating(function (self $model): void {
             if (! $model->id) {
                 $model->id = (string) \Illuminate\Support\Str::uuid();
+            }
+            if (empty($model->status)) {
+                $model->status = 'pending';
             }
         });
     }

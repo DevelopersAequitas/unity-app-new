@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AccountDeletionRequest;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class AccountDeletionController extends Controller
@@ -17,7 +19,9 @@ class AccountDeletionController extends Controller
     {
         $status = $request->query('status', 'all');
 
-        $query = AccountDeletionRequest::with('user')
+        // Eager-load user via user_id FK (including soft-deleted) with an explicit
+        // closure so withTrashed() is reliably applied during eager loading.
+        $query = AccountDeletionRequest::with(['user' => fn ($q) => $q->withTrashed()])
             ->orderBy('created_at', 'desc');
 
         if ($status !== 'all') {
@@ -25,6 +29,13 @@ class AccountDeletionController extends Controller
         }
 
         $requests = $query->paginate(15);
+
+        // For each request, resolve the linked user by user_id OR email fallback.
+        // This handles rows where user_id is NULL but the email column is populated.
+        $requests->getCollection()->transform(function ($req) {
+            $req->linked_user = $req->resolveLinkedUser();
+            return $req;
+        });
 
         return view('admin.account-deletion.index', compact('requests', 'status'));
     }
@@ -38,13 +49,13 @@ class AccountDeletionController extends Controller
         $oldStatus = $deletionRequest->status;
         $deletionRequest->update(['status' => 'approved']);
 
-        if (!in_array($oldStatus, ['completed', 'approved'], true)) {
+        if (! in_array($oldStatus, ['completed', 'approved'], true)) {
             if ($deletionRequest->user) {
                 $user = $deletionRequest->user;
                 try {
                     \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\AccountDeletedMail($user));
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send account deleted email in approve: ' . $e->getMessage());
+                    \Illuminate\Support\Facades\Log::error('Failed to send account deleted email in approve: '.$e->getMessage());
                 }
                 $user->delete();
             }
@@ -65,31 +76,72 @@ class AccountDeletionController extends Controller
     }
 
     /**
-     * Update the status of the deletion request.
+     * Update the status of the deletion request (pending/ongoing only).
      */
     public function updateStatus(Request $request, string $id): RedirectResponse
     {
         $request->validate([
-            'status' => 'required|string|in:pending,ongoing,completed,approved,rejected',
+            'status' => 'required|string|in:pending,ongoing,approved,rejected',
         ]);
 
         $deletionRequest = AccountDeletionRequest::findOrFail($id);
-        $oldStatus = $deletionRequest->status;
         $deletionRequest->update(['status' => $request->status]);
 
-        if (in_array($request->status, ['completed', 'approved'], true) && !in_array($oldStatus, ['completed', 'approved'], true)) {
-            if ($deletionRequest->user) {
-                $user = $deletionRequest->user;
-                try {
-                    \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\AccountDeletedMail($user));
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send account deleted email in updateStatus: ' . $e->getMessage());
-                }
-                $user->delete();
-            }
+        return back()->with('success', 'Account deletion request status updated to '.ucfirst($request->status).'.');
+    }
+
+    /**
+     * Activate the user account associated with a deletion request.
+     * Restores a soft-deleted user so they appear in all normal listings.
+     */
+    public function activateAccount(string $id): RedirectResponse
+    {
+        $deletionRequest = AccountDeletionRequest::findOrFail($id);
+
+        // Resolve user by user_id OR email fallback (handles null user_id rows)
+        $user = $deletionRequest->resolveLinkedUser();
+
+        if (! $user) {
+            return back()->with('error', 'No user account found linked to this request.');
         }
 
-        return back()->with('success', 'Account deletion request status updated to '.ucfirst($request->status).'.');
+        if ($user->trashed()) {
+            $user->restore();
+            Log::info('admin.account-deletion.activate', [
+                'deletion_request_id' => $id,
+                'user_id' => $user->id,
+                'email' => $user->email,
+            ]);
+        }
+
+        return back()->with('success', 'User account activated. The user is now visible in all listings.');
+    }
+
+    /**
+     * Deactivate (soft-delete) the user account associated with a deletion request.
+     * The user is hidden from all normal listings but NOT permanently deleted.
+     */
+    public function deactivateAccount(string $id): RedirectResponse
+    {
+        $deletionRequest = AccountDeletionRequest::findOrFail($id);
+
+        // Resolve user by user_id OR email fallback (handles null user_id rows)
+        $user = $deletionRequest->resolveLinkedUser();
+
+        if (! $user) {
+            return back()->with('error', 'No user account found linked to this request.');
+        }
+
+        if (! $user->trashed()) {
+            $user->delete(); // soft-delete only — does NOT permanently erase data
+            Log::info('admin.account-deletion.deactivate', [
+                'deletion_request_id' => $id,
+                'user_id' => $user->id,
+                'email' => $user->email,
+            ]);
+        }
+
+        return back()->with('success', 'User account deactivated. The user is now hidden from all listings. No data was permanently deleted.');
     }
 
     /**
@@ -119,9 +171,9 @@ class AccountDeletionController extends Controller
             }
         }
 
-        if (!$user) {
+        if (! $user) {
             // Mock dummy user for preview if no request is chosen
-            $user = new \App\Models\User();
+            $user = new \App\Models\User;
             $user->display_name = 'John Doe';
             $user->first_name = 'John';
             $user->last_name = 'Doe';
@@ -150,11 +202,11 @@ class AccountDeletionController extends Controller
         $deletionRequest = AccountDeletionRequest::with('user')->findOrFail($request->request_id);
         $user = $deletionRequest->user;
 
-        if (!$user) {
+        if (! $user) {
             $user = \App\Models\User::withTrashed()->find($deletionRequest->user_id);
         }
 
-        if (!$user || !$user->email) {
+        if (! $user || ! $user->email) {
             return back()->with('error', 'Unable to send email: Associated user or email address not found.');
         }
 
@@ -177,20 +229,20 @@ class AccountDeletionController extends Controller
             ];
             session()->put('manual_email_logs', $log);
 
-            return back()->with('success', 'Email (' . ($template === 'requested' ? 'Request Submitted' : 'Account Deleted') . ') successfully sent to ' . $user->email);
+            return back()->with('success', 'Email ('.($template === 'requested' ? 'Request Submitted' : 'Account Deleted').') successfully sent to '.$user->email);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Manual email send failed: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Manual email send failed: '.$e->getMessage());
 
             $log = session()->get('manual_email_logs', []);
             $log[] = [
                 'timestamp' => now()->format('Y-m-d H:i:s'),
                 'template' => $template === 'requested' ? 'Request Submitted' : 'Account Deleted',
                 'recipient' => $user->email ?? 'unknown',
-                'status' => 'failed (' . $e->getMessage() . ')',
+                'status' => 'failed ('.$e->getMessage().')',
             ];
             session()->put('manual_email_logs', $log);
 
-            return back()->with('error', 'Failed to send email: ' . $e->getMessage());
+            return back()->with('error', 'Failed to send email: '.$e->getMessage());
         }
     }
 
@@ -200,6 +252,7 @@ class AccountDeletionController extends Controller
     public function clearLogs(): RedirectResponse
     {
         session()->forget('manual_email_logs');
+
         return back()->with('success', 'Manual trigger logs cleared.');
     }
 }

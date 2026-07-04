@@ -58,7 +58,10 @@
     $circleCity = data_get($circle, 'city.name') ?: '—';
     $circleCountry = data_get($circle, 'city.country') ?: (data_get($circle, 'country') ?: '—');
 
-    $circleFounder = data_get($circle, 'founder.display_name')
+    $circleFounder = data_get($circle, 'circleFounder.display_name')
+        ?: data_get($circle, 'circleFounder.name')
+        ?: trim((string) data_get($circle, 'circleFounder.first_name', '') . ' ' . (string) data_get($circle, 'circleFounder.last_name', ''))
+        ?: data_get($circle, 'founder.display_name')
         ?: data_get($circle, 'founder.name')
         ?: trim((string) data_get($circle, 'founder.first_name', '') . ' ' . (string) data_get($circle, 'founder.last_name', ''));
     $circleFounder = trim((string) $circleFounder) !== '' ? trim((string) $circleFounder) : '—';
@@ -296,8 +299,8 @@
             </div>
 
             <div class="col-md-4">
-                <div class="small text-muted">Director</div>
-                {!! $displayValue($formatUser($circle->director ?? null)) !!}
+                <div class="small text-muted">Circle Director</div>
+                {!! $displayValue($formatUser($circle->circleDirector ?? $circle->director ?? null)) !!}
             </div>
 
             <div class="col-md-4">
@@ -308,6 +311,11 @@
             <div class="col-md-4">
                 <div class="small text-muted">DED</div>
                 {!! $displayValue($formatUser($circle->ded ?? null)) !!}
+            </div>
+
+            <div class="col-md-4">
+                <div class="small text-muted">EED</div>
+                {!! $displayValue($formatUser($circle->eed ?? null)) !!}
             </div>
 
             <div class="col-md-8">

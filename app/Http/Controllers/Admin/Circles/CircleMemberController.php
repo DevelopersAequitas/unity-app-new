@@ -31,7 +31,7 @@ class CircleMemberController extends Controller
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This peer is already a member of this circle.'
+                    'message' => 'This peer is already a member of this circle.',
                 ], 422);
             }
 
@@ -56,7 +56,7 @@ class CircleMemberController extends Controller
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This peer is already a member of this circle.'
+                    'message' => 'This peer is already a member of this circle.',
                 ], 422);
             }
 
@@ -68,7 +68,7 @@ class CircleMemberController extends Controller
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Member added to the circle.'
+                'message' => 'Member added to the circle.',
             ]);
         }
 
@@ -101,7 +101,7 @@ class CircleMemberController extends Controller
         $redirectQuery = $this->peerFilterQuery($request);
 
         // 1. Prevent founder removal
-        if ($circle->founder_user_id === $circleMember->user_id || $circleMember->role === 'founder') {
+        if ($circle->circle_founder_user_id === $circleMember->user_id || in_array($circleMember->role, ['circle_founder', 'founder'])) {
             return redirect()
                 ->route('admin.circles.show', array_merge(['circle' => $circle], $redirectQuery))
                 ->with('error', 'Cannot remove founder. Please transfer founder role first.');

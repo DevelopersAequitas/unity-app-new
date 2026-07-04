@@ -403,7 +403,7 @@ class User extends Authenticatable
 
     public function foundedCircles(): HasMany
     {
-        return $this->hasMany(Circle::class, 'founder_user_id');
+        return $this->hasMany(Circle::class, 'circle_founder_user_id');
     }
 
     public function circleMembers(): HasMany

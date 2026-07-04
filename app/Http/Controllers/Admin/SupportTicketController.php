@@ -29,7 +29,7 @@ class SupportTicketController extends Controller
 
         // Search term
         if ($request->filled('search')) {
-            $search = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $request->search) . '%';
+            $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $request->search).'%';
             $query->where(function ($q) use ($search) {
                 $q->where('ticket_number', 'ilike', $search)
                     ->orWhere('contact_name', 'ilike', $search)

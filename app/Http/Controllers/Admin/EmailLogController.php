@@ -94,7 +94,7 @@ class EmailLogController extends Controller
 
         if ($jsonData) {
             $bodyHtml = $this->renderTemplate($jsonData, $emailLog);
-        } elseif (empty($bodyHtml) && !empty($bodyText)) {
+        } elseif (empty($bodyHtml) && ! empty($bodyText)) {
             $bodyHtml = $this->renderTemplate(['message' => $bodyText], $emailLog);
         }
 
@@ -110,6 +110,7 @@ class EmailLogController extends Controller
             return false;
         }
         json_decode($string);
+
         return json_last_error() === JSON_ERROR_NONE;
     }
 
@@ -117,16 +118,16 @@ class EmailLogController extends Controller
     {
         $title = $data['title'] ?? $data['subject'] ?? $emailLog->subject ?? 'Notification';
         $recipientName = $emailLog->to_name ?: 'User';
-        
+
         $greeting = $data['greeting'] ?? '';
         if (empty($greeting)) {
-            $greeting = "Dear " . $recipientName . ",";
+            $greeting = 'Dear '.$recipientName.',';
         }
 
         $messageContent = $data['message'] ?? $data['body'] ?? $data['content'] ?? $data['text'] ?? '';
-        
+
         if (is_array($messageContent)) {
-            $messageContent = implode("<br><br>", array_map('htmlspecialchars', $messageContent));
+            $messageContent = implode('<br><br>', array_map('htmlspecialchars', $messageContent));
         } else {
             if ($messageContent === strip_tags($messageContent)) {
                 $messageContent = nl2br(htmlspecialchars($messageContent));
@@ -135,12 +136,12 @@ class EmailLogController extends Controller
 
         $actionButtonHtml = '';
         $actionUrl = $data['action_url'] ?? $data['url'] ?? $data['link'] ?? '';
-        if (!empty($actionUrl)) {
+        if (! empty($actionUrl)) {
             $actionText = $data['action_text'] ?? $data['button_text'] ?? 'Click Here';
             $actionButtonHtml = '
                 <div style="margin: 24px 0; text-align: center;">
-                    <a href="' . htmlspecialchars($actionUrl) . '" style="background-color: #1d4ed8; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 700; display: inline-block;">
-                        ' . htmlspecialchars($actionText) . '
+                    <a href="'.htmlspecialchars($actionUrl).'" style="background-color: #1d4ed8; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 700; display: inline-block;">
+                        '.htmlspecialchars($actionText).'
                     </a>
                 </div>';
         }
@@ -148,7 +149,7 @@ class EmailLogController extends Controller
         $additionalInfoHtml = '';
         $excludedKeys = ['title', 'subject', 'greeting', 'message', 'body', 'content', 'text', 'action_url', 'url', 'link', 'action_text', 'button_text', 'footer'];
         $details = array_diff_key($data, array_flip($excludedKeys));
-        if (!empty($details)) {
+        if (! empty($details)) {
             $additionalInfoHtml .= '<div style="margin-top: 20px; padding: 15px; background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">';
             $additionalInfoHtml .= '<h4 style="margin: 0 0 10px 0; color: #0f172a; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Details</h4>';
             $additionalInfoHtml .= '<table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #334155;">';
@@ -158,8 +159,8 @@ class EmailLogController extends Controller
                 }
                 $formattedKey = ucwords(str_replace('_', ' ', $key));
                 $additionalInfoHtml .= '<tr>';
-                $additionalInfoHtml .= '<td style="padding: 6px 0; font-weight: 600; width: 35%; vertical-align: top;">' . htmlspecialchars($formattedKey) . ':</td>';
-                $additionalInfoHtml .= '<td style="padding: 6px 0; vertical-align: top;">' . nl2br(htmlspecialchars((string)$val)) . '</td>';
+                $additionalInfoHtml .= '<td style="padding: 6px 0; font-weight: 600; width: 35%; vertical-align: top;">'.htmlspecialchars($formattedKey).':</td>';
+                $additionalInfoHtml .= '<td style="padding: 6px 0; vertical-align: top;">'.nl2br(htmlspecialchars((string) $val)).'</td>';
                 $additionalInfoHtml .= '</tr>';
             }
             $additionalInfoHtml .= '</table></div>';
@@ -173,7 +174,7 @@ class EmailLogController extends Controller
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>' . htmlspecialchars($title) . '</title>
+    <title>'.htmlspecialchars($title).'</title>
 </head>
 <body style="margin:0; padding:0; background-color:#f5f7fb; font-family:\'Helvetica Neue\', Arial, sans-serif;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f5f7fb; padding:24px 0;">
@@ -187,12 +188,12 @@ class EmailLogController extends Controller
                     </tr>
                     <tr>
                         <td style="padding:28px;">
-                            <p style="margin:0 0 12px; color:#0f172a; font-size:18px; font-weight:700;">' . htmlspecialchars($greeting) . '</p>
+                            <p style="margin:0 0 12px; color:#0f172a; font-size:18px; font-weight:700;">'.htmlspecialchars($greeting).'</p>
                             <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:22px;">
-                                ' . $messageContent . '
+                                '.$messageContent.'
                             </p>
-                            ' . $actionButtonHtml . '
-                            ' . $additionalInfoHtml . '
+                            '.$actionButtonHtml.'
+                            '.$additionalInfoHtml.'
                             <p style="margin:20px 0 0; color:#94a3b8; font-size:13px; line-height:20px;">
                                 Warm regards,<br>
                                 Peers Global Unity
@@ -201,7 +202,7 @@ class EmailLogController extends Controller
                     </tr>
                     <tr>
                         <td style="background-color:#f8fafc; padding:18px 28px; color:#94a3b8; font-size:12px; line-height:18px; border-top:1px solid #e2e8f0;">
-                            ' . htmlspecialchars($footerText) . '
+                            '.htmlspecialchars($footerText).'
                         </td>
                     </tr>
                 </table>

@@ -24,10 +24,11 @@ class UpdateCircleRequest extends FormRequest
             'announcement' => ['nullable', 'string'],
             'city_id' => ['required', 'uuid', 'exists:cities,id'],
             'country' => ['required', 'string', 'max:100'],
-            'founder_user_id' => ['required', 'uuid', 'exists:users,id'],
-            'director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'circle_founder_user_id' => ['required', 'uuid', 'exists:users,id'],
+            'circle_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'industry_director_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'ded_user_id' => ['nullable', 'uuid', 'exists:users,id'],
+            'eed_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'cover_file_id' => ['nullable', 'uuid'],
             'type' => ['required', Rule::in(Circle::TYPE_OPTIONS)],
             'status' => ['required', Rule::in(Circle::STATUS_OPTIONS)],
@@ -72,7 +73,7 @@ class UpdateCircleRequest extends FormRequest
             $this->merge($payload);
         }
 
-        if ($this->filled('founder_user_id')) {
+        if ($this->filled('circle_founder_user_id')) {
             return;
         }
 
@@ -86,7 +87,7 @@ class UpdateCircleRequest extends FormRequest
 
         if ($defaultFounder) {
             $this->merge([
-                'founder_user_id' => $defaultFounder->id,
+                'circle_founder_user_id' => $defaultFounder->id,
             ]);
         }
     }

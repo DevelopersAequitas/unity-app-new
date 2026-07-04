@@ -419,7 +419,7 @@ class CircleJoinRequestsController extends Controller
             $record->load('circle');
         }
 
-        return (string) $record->circle?->director_user_id === (string) $actor->id
+        return (string) $record->circle?->circle_director_user_id === (string) $actor->id
             || (string) $record->circle?->industry_director_user_id === (string) $actor->id;
     }
 
@@ -445,7 +445,7 @@ class CircleJoinRequestsController extends Controller
             return false;
         }
 
-        return (string) $record->circle?->director_user_id === (string) $actor->id;
+        return (string) $record->circle?->circle_director_user_id === (string) $actor->id;
     }
 
     private function canApproveId($admin, $actor, CircleJoinRequest $record): bool

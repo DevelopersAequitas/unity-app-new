@@ -39,7 +39,7 @@
         $industryTagsValue = implode(', ', $industryTagsValue);
     }
 
-    $founderId = old('founder_user_id', $defaultFounder?->id);
+    $founderId = old('circle_founder_user_id', $defaultFounder?->id);
 @endphp
 
 <form action="{{ route('admin.circles.store') }}" method="POST">
@@ -57,7 +57,7 @@
 
                     <div class="col-md-6">
                         <label class="form-label">Circle Founder</label>
-                        <select name="founder_user_id" class="form-select" required>
+                        <select name="circle_founder_user_id" class="form-select" required>
                             <option value="">Select a member</option>
                             @foreach ($allUsers as $user)
                                 <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>
@@ -152,11 +152,11 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">Director</label>
-                        <select name="director_user_id" class="form-select">
-                            <option value="">Select director</option>
+                        <label class="form-label">Circle Director</label>
+                        <select name="circle_director_user_id" class="form-select">
+                            <option value="">Select circle director</option>
                             @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected((string) old('director_user_id') === (string) $user->id)>
+                                <option value="{{ $user->id }}" @selected((string) old('circle_director_user_id') === (string) $user->id)>
                                     {{ $user->adminNameCompanyCityLabel() }}
                                 </option>
                             @endforeach
@@ -190,6 +190,27 @@
                                     }
                                 @endphp
                                 <option value="{{ $user->id }}" @selected((string) old('ded_user_id') === (string) $user->id)>
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">EED</label>
+                        <select name="eed_user_id" class="form-select">
+                            <option value="">Select EED</option>
+                            @foreach ($allUsers as $user)
+                                @php
+                                    $label = trim((string) ($user->display_name ?? ''));
+                                    if ($label === '') {
+                                        $label = trim(trim((string) ($user->first_name ?? '')) . ' ' . trim((string) ($user->last_name ?? '')));
+                                    }
+                                    if ($label === '') {
+                                        $label = (string) ($user->email ?? 'User');
+                                    }
+                                @endphp
+                                <option value="{{ $user->id }}" @selected((string) old('eed_user_id') === (string) $user->id)>
                                     {{ $label }}
                                 </option>
                             @endforeach
