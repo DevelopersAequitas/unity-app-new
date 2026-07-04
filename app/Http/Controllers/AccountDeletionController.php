@@ -65,7 +65,7 @@ class AccountDeletionController extends Controller
         try {
             \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\AccountDeletionRequestedMail($user));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to send account deletion requested email: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Failed to send account deletion requested email: '.$e->getMessage());
         }
 
         return back()->with('success', 'Your request has been submitted. Our compliance team will review and process your deletion request.');

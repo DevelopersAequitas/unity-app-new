@@ -38,13 +38,13 @@ class AccountDeletionController extends Controller
         $oldStatus = $deletionRequest->status;
         $deletionRequest->update(['status' => 'approved']);
 
-        if (!in_array($oldStatus, ['completed', 'approved'], true)) {
+        if (! in_array($oldStatus, ['completed', 'approved'], true)) {
             if ($deletionRequest->user) {
                 $user = $deletionRequest->user;
                 try {
                     \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\AccountDeletedMail($user));
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send account deleted email in approve: ' . $e->getMessage());
+                    \Illuminate\Support\Facades\Log::error('Failed to send account deleted email in approve: '.$e->getMessage());
                 }
                 $user->delete();
             }
@@ -77,13 +77,13 @@ class AccountDeletionController extends Controller
         $oldStatus = $deletionRequest->status;
         $deletionRequest->update(['status' => $request->status]);
 
-        if (in_array($request->status, ['completed', 'approved'], true) && !in_array($oldStatus, ['completed', 'approved'], true)) {
+        if (in_array($request->status, ['completed', 'approved'], true) && ! in_array($oldStatus, ['completed', 'approved'], true)) {
             if ($deletionRequest->user) {
                 $user = $deletionRequest->user;
                 try {
                     \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\AccountDeletedMail($user));
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send account deleted email in updateStatus: ' . $e->getMessage());
+                    \Illuminate\Support\Facades\Log::error('Failed to send account deleted email in updateStatus: '.$e->getMessage());
                 }
                 $user->delete();
             }
@@ -119,9 +119,9 @@ class AccountDeletionController extends Controller
             }
         }
 
-        if (!$user) {
+        if (! $user) {
             // Mock dummy user for preview if no request is chosen
-            $user = new \App\Models\User();
+            $user = new \App\Models\User;
             $user->display_name = 'John Doe';
             $user->first_name = 'John';
             $user->last_name = 'Doe';
@@ -150,11 +150,11 @@ class AccountDeletionController extends Controller
         $deletionRequest = AccountDeletionRequest::with('user')->findOrFail($request->request_id);
         $user = $deletionRequest->user;
 
-        if (!$user) {
+        if (! $user) {
             $user = \App\Models\User::withTrashed()->find($deletionRequest->user_id);
         }
 
-        if (!$user || !$user->email) {
+        if (! $user || ! $user->email) {
             return back()->with('error', 'Unable to send email: Associated user or email address not found.');
         }
 
@@ -177,20 +177,20 @@ class AccountDeletionController extends Controller
             ];
             session()->put('manual_email_logs', $log);
 
-            return back()->with('success', 'Email (' . ($template === 'requested' ? 'Request Submitted' : 'Account Deleted') . ') successfully sent to ' . $user->email);
+            return back()->with('success', 'Email ('.($template === 'requested' ? 'Request Submitted' : 'Account Deleted').') successfully sent to '.$user->email);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Manual email send failed: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Manual email send failed: '.$e->getMessage());
 
             $log = session()->get('manual_email_logs', []);
             $log[] = [
                 'timestamp' => now()->format('Y-m-d H:i:s'),
                 'template' => $template === 'requested' ? 'Request Submitted' : 'Account Deleted',
                 'recipient' => $user->email ?? 'unknown',
-                'status' => 'failed (' . $e->getMessage() . ')',
+                'status' => 'failed ('.$e->getMessage().')',
             ];
             session()->put('manual_email_logs', $log);
 
-            return back()->with('error', 'Failed to send email: ' . $e->getMessage());
+            return back()->with('error', 'Failed to send email: '.$e->getMessage());
         }
     }
 
@@ -200,6 +200,7 @@ class AccountDeletionController extends Controller
     public function clearLogs(): RedirectResponse
     {
         session()->forget('manual_email_logs');
+
         return back()->with('success', 'Manual trigger logs cleared.');
     }
 }

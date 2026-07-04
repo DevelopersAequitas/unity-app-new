@@ -717,7 +717,7 @@ class VisitorRegistrationsController extends Controller
 
         $message = "Successfully imported {$imported} visitor registration(s).";
         if (! empty($errors)) {
-            $message .= ' Some rows had warnings: ' . implode(' | ', $errors);
+            $message .= ' Some rows had warnings: '.implode(' | ', $errors);
         }
 
         return redirect()

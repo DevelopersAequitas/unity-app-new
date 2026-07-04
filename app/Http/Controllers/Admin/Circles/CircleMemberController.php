@@ -31,7 +31,7 @@ class CircleMemberController extends Controller
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This peer is already a member of this circle.'
+                    'message' => 'This peer is already a member of this circle.',
                 ], 422);
             }
 
@@ -56,7 +56,7 @@ class CircleMemberController extends Controller
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This peer is already a member of this circle.'
+                    'message' => 'This peer is already a member of this circle.',
                 ], 422);
             }
 
@@ -68,7 +68,7 @@ class CircleMemberController extends Controller
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Member added to the circle.'
+                'message' => 'Member added to the circle.',
             ]);
         }
 

@@ -19,7 +19,9 @@ class CircleManagementTest extends TestCase
     use RefreshDatabase;
 
     private AdminUser $admin;
+
     private Circle $circle;
+
     private User $founder;
 
     protected function setUp(): void
@@ -57,7 +59,7 @@ class CircleManagementTest extends TestCase
         $this->circle = Circle::create([
             'id' => (string) Str::uuid(),
             'name' => 'Test Circle X',
-            'slug' => 'test-circle-x-' . Str::lower(Str::random(5)),
+            'slug' => 'test-circle-x-'.Str::lower(Str::random(5)),
             'status' => 'active',
             'founder_user_id' => $this->founder->id,
         ]);
