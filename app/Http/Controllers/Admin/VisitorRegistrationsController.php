@@ -21,7 +21,7 @@ class VisitorRegistrationsController extends Controller
 {
     public function index(Request $request): View
     {
-        $status = (string) $request->query('status', 'pending');
+        $status = (string) $request->query('status', 'all');
         $search = trim((string) $request->query('search', ''));
         $circleId = (string) $request->query('circle_id', 'all');
 
@@ -53,7 +53,14 @@ class VisitorRegistrationsController extends Controller
             ]);
 
         if ($status !== '' && $status !== 'all') {
-            $query->where('status', $status);
+            if ($status === 'pending') {
+                $query->where(function ($q) {
+                    $q->where('status', 'pending')
+                      ->orWhereNull('status');
+                });
+            } else {
+                $query->where('status', $status);
+            }
         }
 
         if ($circleId !== '' && $circleId !== 'all') {
@@ -161,7 +168,7 @@ class VisitorRegistrationsController extends Controller
         }
 
         if ($visitorBusinessCategory !== '') {
-            $query->where('visitor_business_category', 'ILIKE', "%{$visitorBusinessCategory}%");
+            $query->where('visitor_business', 'ILIKE', "%{$visitorBusinessCategory}%");
         }
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'visitor_registrations.user_id', null);
@@ -269,7 +276,14 @@ class VisitorRegistrationsController extends Controller
             ]);
 
         if ($status !== '' && $status !== 'all') {
-            $query->where('status', $status);
+            if ($status === 'pending') {
+                $query->where(function ($q) {
+                    $q->where('status', 'pending')
+                      ->orWhereNull('status');
+                });
+            } else {
+                $query->where('status', $status);
+            }
         }
 
         if ($circleId !== '' && $circleId !== 'all') {

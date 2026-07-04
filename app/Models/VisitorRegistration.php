@@ -51,6 +51,9 @@ class VisitorRegistration extends Model
             if (! $model->id) {
                 $model->id = (string) \Illuminate\Support\Str::uuid();
             }
+            if (empty($model->status)) {
+                $model->status = 'pending';
+            }
         });
     }
 
