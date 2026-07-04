@@ -9,25 +9,86 @@ use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class CircleMemberDashboardTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $tables = [
+            'business_deals' => function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('from_user_id');
+                $table->uuid('to_user_id');
+                $table->boolean('is_deleted')->default(false);
+                $table->timestamp('deleted_at')->nullable();
+                $table->timestamps();
+            },
+            'testimonials' => function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('from_user_id');
+                $table->uuid('to_user_id');
+                $table->boolean('is_deleted')->default(false);
+                $table->timestamp('deleted_at')->nullable();
+                $table->timestamps();
+            },
+            'p2p_meetings' => function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('from_user_id');
+                $table->uuid('to_user_id');
+                $table->boolean('is_deleted')->default(false);
+                $table->timestamp('deleted_at')->nullable();
+                $table->timestamps();
+            },
+            'requirements' => function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->timestamp('deleted_at')->nullable();
+                $table->timestamps();
+            },
+            'visitor_registrations' => function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->string('status')->nullable();
+                $table->timestamp('deleted_at')->nullable();
+                $table->timestamps();
+            },
+            'referrals' => function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('from_user_id');
+                $table->uuid('to_user_id');
+                $table->boolean('is_deleted')->default(false);
+                $table->timestamp('deleted_at')->nullable();
+                $table->timestamps();
+            },
+            'connections' => function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('from_user_id');
+                $table->uuid('to_user_id');
+                $table->boolean('is_deleted')->default(false);
+                $table->timestamp('deleted_at')->nullable();
+                $table->timestamps();
+            },
+        ];
+
+        foreach ($tables as $name => $callback) {
+            if (! \Illuminate\Support\Facades\Schema::hasTable($name)) {
+                \Illuminate\Support\Facades\Schema::create($name, $callback);
+            }
+        }
+    }
 
     public function test_circle_scoped_dashboard_loads_successfully(): void
     {
         // Ensure the role exists in the database
-        $chairRole = Role::query()->firstOrCreate(
-            ['key' => 'chair'],
-            [
-                'id' => (string) Str::uuid(),
-                'name' => 'Chair',
-                'description' => 'Circle Chair',
-            ]
-        );
+        $chairRole = $this->createRole('chair', 'Chair');
 
         // Create the app user matching the email
         $user = User::factory()->create([
@@ -65,10 +126,7 @@ class CircleMemberDashboardTest extends TestCase
         ]);
 
         // Create a peer user in the same circle
-        $peerRole = Role::query()->firstOrCreate(
-            ['key' => 'member'],
-            ['id' => (string) Str::uuid(), 'name' => 'Member']
-        );
+        $peerRole = $this->createRole('member', 'Member');
         $peerUser = User::factory()->create([
             'email' => 'peer.user@example.com',
             'display_name' => 'Jane Peer',
@@ -95,14 +153,7 @@ class CircleMemberDashboardTest extends TestCase
 
     public function test_founder_defaults_to_first_circle_and_conditional_dropdown(): void
     {
-        $founderRole = Role::query()->firstOrCreate(
-            ['key' => 'founder'],
-            [
-                'id' => (string) Str::uuid(),
-                'name' => 'Founder',
-                'description' => 'Circle Founder',
-            ]
-        );
+        $founderRole = $this->createRole('founder', 'Founder');
 
         $user = User::factory()->create([
             'email' => 'founder.user@example.com',
@@ -179,5 +230,16 @@ class CircleMemberDashboardTest extends TestCase
         $response3->assertStatus(200);
         $response3->assertSee('Founder Circle One'); // Present in dropdown option
         $response3->assertSee('Founder Circle Two'); // Present in dropdown option
+    }
+
+    private function createRole(string $key, string $name): Role
+    {
+        $role = new Role();
+        $role->id = (string) Str::uuid();
+        $role->key = $key;
+        $role->name = $name;
+        $role->save();
+
+        return $role;
     }
 }

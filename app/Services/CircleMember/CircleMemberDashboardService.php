@@ -199,8 +199,14 @@ class CircleMemberDashboardService
         $visitorRegistrationsCount = 0;
         $visitorTable = (new VisitorRegistration)->getTable();
         if (Schema::hasTable($visitorTable)) {
-            $visitorQuery = VisitorRegistration::query()->where('status', 'pending');
-            $visitorQuery->whereIn("{$visitorTable}.user_id", $allowedUserIds);
+            $visitorQuery = VisitorRegistration::query()->where(function ($q) {
+                $q->where('status', 'pending')
+                  ->orWhereNull('status');
+            });
+            $visitorQuery->where(function ($q) use ($allowedUserIds, $user, $visitorTable) {
+                $q->whereIn("{$visitorTable}.user_id", $allowedUserIds)
+                  ->orWhere("{$visitorTable}.user_id", $user->id);
+            });
             $visitorRegistrationsCount = $visitorQuery->count();
         }
 
@@ -309,7 +315,10 @@ class CircleMemberDashboardService
                 ->count();
 
             $activityCounts['visitors'] = VisitorRegistration::query()
-                ->whereIn('user_id', $allowedUserIds)
+                ->where(function ($q) use ($allowedUserIds, $user) {
+                    $q->whereIn('user_id', $allowedUserIds)
+                      ->orWhere('user_id', $user->id);
+                })
                 ->count();
         }
 
