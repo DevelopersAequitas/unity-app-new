@@ -14,8 +14,8 @@ use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -636,7 +636,7 @@ class CircleController extends Controller
 
             // 2. Cascade delete mappings / pivot tables & child records
             $circle->categories()->detach();
-            
+
             if (Schema::hasTable('event_circles')) {
                 DB::table('event_circles')->where('circle_id', $circle->id)->delete();
             }
@@ -649,17 +649,17 @@ class CircleController extends Controller
             if (Schema::hasTable('circle_subscriptions')) {
                 DB::table('circle_subscriptions')->where('circle_id', $circle->id)->delete();
             }
-            
+
             if (Schema::hasTable('circle_chat_messages')) {
                 $messageIds = DB::table('circle_chat_messages')->where('circle_id', $circle->id)->pluck('id')->toArray();
-                if (!empty($messageIds)) {
+                if (! empty($messageIds)) {
                     if (Schema::hasTable('circle_chat_message_reads')) {
                         DB::table('circle_chat_message_reads')->whereIn('message_id', $messageIds)->delete();
                     }
                     DB::table('circle_chat_messages')->where('circle_id', $circle->id)->delete();
                 }
             }
-            
+
             if (Schema::hasTable('activities')) {
                 DB::table('activities')->where('circle_id', $circle->id)->delete();
             }

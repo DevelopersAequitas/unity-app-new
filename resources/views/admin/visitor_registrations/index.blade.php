@@ -119,7 +119,6 @@
                         <th>Visitor Name</th>
                         <th>Phone Number</th>
                         <th>Business Name</th>
-                        <th>Business Category</th>
                         <th>Submitted At</th>
                         <th>Peer Name</th>
                         <th>Peer Phone</th>
@@ -140,9 +139,6 @@
                         </th>
                         <th>
                             <input type="text" name="visitor_business" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Business" value="{{ $filters['visitor_business'] }}">
-                        </th>
-                        <th>
-                            <input type="text" name="visitor_business_category" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Business Category" value="{{ $filters['visitor_business_category'] ?? '' }}">
                         </th>
                         <th></th>
                         <th>
@@ -195,7 +191,6 @@
                             <td>{{ $registration->visitor_full_name ?? '—' }}</td>
                             <td>{{ $registration->visitor_mobile ?? '—' }}</td>
                             <td>{{ $registration->visitor_business ?? '—' }}</td>
-                            <td>{{ $registration->visitor_business_category ?? '—' }}</td>
                             <td>{{ $formatDateTime($registration->created_at ?? null) }}</td>
                             <td>
                                 <div class="d-flex flex-column">
@@ -238,7 +233,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="14" class="text-center text-muted">No visitor registrations found.</td>
+                            <td colspan="13" class="text-center text-muted">No visitor registrations found.</td>
                         </tr>
                     @endforelse
                 </tbody>

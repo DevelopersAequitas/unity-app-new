@@ -118,8 +118,8 @@ class AppServiceProvider extends ServiceProvider
                 try {
                     $message = $event->message;
                     $subject = $message->getSubject();
-                    $to = collect($message->getTo())->map(fn($addr) => $addr->getAddress())->first();
-                    
+                    $to = collect($message->getTo())->map(fn ($addr) => $addr->getAddress())->first();
+
                     \Illuminate\Support\Facades\Log::info('Mail listener processing', [
                         'to' => $to,
                         'subject' => $subject,
@@ -127,6 +127,7 @@ class AppServiceProvider extends ServiceProvider
 
                     if (empty($to)) {
                         \Illuminate\Support\Facades\Log::warning('Mail listener: No recipient found.');
+
                         return;
                     }
 
@@ -136,10 +137,10 @@ class AppServiceProvider extends ServiceProvider
                     // Find a recently created log within the last 30 seconds for this recipient
                     $log = \App\Models\EmailLog::where('to_email', $to)
                         ->where(function ($query) use ($subject) {
-                            if (!empty($subject)) {
+                            if (! empty($subject)) {
                                 $query->where('subject', $subject)
-                                      ->orWhereNull('subject')
-                                      ->orWhere('subject', '');
+                                    ->orWhereNull('subject')
+                                    ->orWhere('subject', '');
                             }
                         })
                         ->where('created_at', '>=', now()->subSeconds(30))
@@ -149,13 +150,13 @@ class AppServiceProvider extends ServiceProvider
                     if ($log) {
                         \Illuminate\Support\Facades\Log::info('Mail listener: Found matching email log, updating body', ['log_id' => $log->id]);
                         $updates = [];
-                        if (empty($log->body_html) && !empty($html)) {
+                        if (empty($log->body_html) && ! empty($html)) {
                             $updates['body_html'] = $html;
                         }
-                        if (empty($log->body_text) && !empty($text)) {
+                        if (empty($log->body_text) && ! empty($text)) {
                             $updates['body_text'] = $text;
                         }
-                        if (!empty($updates)) {
+                        if (! empty($updates)) {
                             $log->update($updates);
                         }
                     } else {
@@ -174,8 +175,8 @@ class AppServiceProvider extends ServiceProvider
                         ]);
                     }
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Error logging outgoing mail body: ' . $e->getMessage(), [
-                        'exception' => $e
+                    \Illuminate\Support\Facades\Log::error('Error logging outgoing mail body: '.$e->getMessage(), [
+                        'exception' => $e,
                     ]);
                 }
             }
