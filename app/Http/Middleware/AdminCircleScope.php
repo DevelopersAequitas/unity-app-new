@@ -48,7 +48,7 @@ class AdminCircleScope
             if ($routeName !== '' && ! in_array($routeName, $allowedRoutes, true) && ! Str::startsWith($routeName, $allowedPrefixes)) {
                 abort(403);
             }
-
+ 
             return $next($request);
         }
 
