@@ -282,7 +282,7 @@ class MemberController extends BaseApiController
         );
     }
 
-    public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
+    protected function buildLimitedUsersQuery(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
         $selectColumns = [
             'id',
@@ -352,6 +352,23 @@ class MemberController extends BaseApiController
             }
         }
 
+        return $query;
+    }
+
+    public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
+    {
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
+        $users = $query->orderByDesc('created_at')->get();
+
+        return LimitedUserResource::collection($users)->additional([
+            'success' => true,
+            'message' => 'Limited user data fetched successfully.',
+        ]);
+    }
+
+    public function limitedPaginated(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
+    {
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
         $users = $query->orderByDesc('created_at')->paginate(15);
 
         return LimitedUserResource::collection($users)->additional([

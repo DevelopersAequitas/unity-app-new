@@ -86,22 +86,6 @@ class LimitedUserApiTest extends TestCase
                     'level4_category',
                 ],
             ],
-            'links' => [
-                'first',
-                'last',
-                'prev',
-                'next',
-            ],
-            'meta' => [
-                'current_page',
-                'from',
-                'last_page',
-                'links',
-                'path',
-                'per_page',
-                'to',
-                'total',
-            ],
         ]);
 
         $data = $response->json('data');
@@ -117,7 +101,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertSame('Software Engineering', $data[0]['level4_category']);
     }
 
-    public function test_limited_users_endpoint_pagination_limit_is_15(): void
+    public function test_limited_users_endpoint_returns_paginated_members(): void
     {
         $activeUser = User::factory()->create([
             'status' => 'active',
@@ -133,7 +117,29 @@ class LimitedUserApiTest extends TestCase
 
         $response->assertOk();
         $this->assertCount(15, $response->json('data'));
+        $response->assertJsonStructure([
+            'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+            'links' => ['first', 'last', 'prev', 'next'],
+        ]);
         $this->assertSame(21, $response->json('meta.total'));
-        $this->assertSame(15, $response->json('meta.per_page'));
+    }
+
+    public function test_members_endpoint_returns_all_members_without_pagination(): void
+    {
+        $activeUser = User::factory()->create([
+            'status' => 'active',
+        ]);
+
+        User::factory()->count(20)->create([
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($activeUser);
+
+        $response = $this->getJson('/api/v1/members');
+
+        $response->assertOk();
+        $this->assertCount(21, $response->json('data'));
+        $response->assertJsonMissing(['meta', 'links']);
     }
 }
