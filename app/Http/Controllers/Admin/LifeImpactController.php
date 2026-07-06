@@ -64,7 +64,7 @@ class LifeImpactController extends Controller
             ->orderByDesc('total_life_impacted_sort')
             ->orderBy('users.display_name');
 
-        $filename = 'life_impact_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'life_impact_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($query, $filters): void {
             $handle = fopen('php://output', 'w');
@@ -478,7 +478,7 @@ class LifeImpactController extends Controller
                     if (mb_strlen($alias) > 2) {
                         $categoryQuery->orWhereRaw(
                             "TRIM(BOTH '_' FROM REGEXP_REPLACE(LOWER(COALESCE({$column}, '')), '[^a-z0-9]+', '_', 'g')) LIKE ?",
-                            ['%' . $alias . '%']
+                            ['%'.$alias.'%']
                         );
                     }
                 }

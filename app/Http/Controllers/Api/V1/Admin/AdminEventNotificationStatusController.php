@@ -1,15 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Event;
 use App\Models\EventNotificationLog;
-use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationDeliveryLog;
+use App\Models\UserPushToken;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class AdminEventNotificationStatusController extends BaseApiController
@@ -17,12 +19,11 @@ class AdminEventNotificationStatusController extends BaseApiController
     public function show(string $eventId): JsonResponse
     {
         $event = Event::find($eventId);
-        if (!$event) {
+        if (! $event) {
             return $this->error('Event not found', 404);
         }
 
         $log = null;
-<<<<<<< Updated upstream
         $useFallback = false;
 
         if (Schema::hasTable('event_notification_logs')) {
@@ -32,14 +33,12 @@ class AdminEventNotificationStatusController extends BaseApiController
                     ->first();
             } catch (\Throwable $e) {
                 $useFallback = true;
-=======
-        if (\Illuminate\Support\Facades\Schema::hasTable('event_notification_logs')) {
-            $log = EventNotificationLog::where('event_id', $event->id)
-                ->latest('created_at')
-                ->first();
+            }
+        } else {
+            $useFallback = true;
         }
 
-        if ($log) {
+        if ($log && ! $useFallback) {
             $data = [
                 'event_id' => (string) $event->id,
                 'event_title' => (string) $event->title,
@@ -50,91 +49,14 @@ class AdminEventNotificationStatusController extends BaseApiController
                 'active_push_tokens' => (int) $log->active_push_tokens,
                 'push_sent_successfully' => (int) $log->push_sent_successfully,
                 'push_failed' => (int) $log->push_failed,
-                'pending' => $log->status === 'processing' 
-                    ? max(0, (int) $log->total_users - ((int) $log->push_sent_successfully + (int) $log->push_failed)) 
+                'pending' => $log->status === 'processing'
+                    ? max(0, (int) $log->total_users - ((int) $log->push_sent_successfully + (int) $log->push_failed))
                     : 0,
-                'last_sent_at' => $log->completed_at 
-                    ? $log->completed_at->format('Y-m-d H:i:s') 
+                'last_sent_at' => $log->completed_at
+                    ? $log->completed_at->format('Y-m-d H:i:s')
                     : ($log->started_at ? $log->started_at->format('Y-m-d H:i:s') : null),
                 'failed_tokens' => $log->failed_details ?? [],
             ];
-        } else {
-            // Fallback calculation from database tables if no direct log exists
-            $notificationQuery = fn ($q) => $q
-                ->whereIn('type', ['event', 'event_created'])
-                ->where(function ($query) use ($event) {
-                    $query->whereJsonContains('data->event_id', (string) $event->id)
-                        ->orWhere('reference_id', (string) $event->id);
-                });
-
-            $inAppCreated = AppNotification::where($notificationQuery)->count();
-
-            if ($inAppCreated > 0) {
-                $userIds = AppNotification::where($notificationQuery)
-                    ->pluck('user_id')
-                    ->unique();
-
-                $activePushTokens = \Illuminate\Support\Facades\DB::table('user_push_tokens')
-                    ->whereIn('user_id', $userIds)
-                    ->whereNotNull('token')
-                    ->where('token', '!=', '')
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'status'), fn ($q) => $q->where('status', 'active'))
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'token_status'), fn ($q) => $q->where('token_status', 'active'))
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'is_active'), fn ($q) => $q->where('is_active', true))
-                    ->count();
-            } else {
-                $targetedUserIds = \App\Models\User::query()
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'deleted_at'), fn ($query) => $query->whereNull('users.deleted_at'))
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'gdpr_deleted_at'), fn ($query) => $query->whereNull('users.gdpr_deleted_at'))
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.status')->orWhereRaw("LOWER(users.status::text) NOT IN ('inactive', 'suspended', 'blocked', 'banned', 'deleted', 'rejected')")))
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'membership_status'), fn ($query) => $query->where(fn ($userQuery) => $userQuery->whereNull('users.membership_status')->orWhere('users.membership_status', '!=', 'suspended')))
-                    ->pluck('id');
-
-                $activePushTokens = \Illuminate\Support\Facades\DB::table('user_push_tokens')
-                    ->whereIn('user_id', $targetedUserIds)
-                    ->whereNotNull('token')
-                    ->where('token', '!=', '')
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'status'), fn ($q) => $q->where('status', 'active'))
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'token_status'), fn ($q) => $q->where('token_status', 'active'))
-                    ->when(\Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'is_active'), fn ($q) => $q->where('is_active', true))
-                    ->count();
-            }
-
-            $pushSentSuccess = NotificationDeliveryLog::whereHas('notification', $notificationQuery)
-                ->where('channel', 'push')
-                ->whereIn('status', ['sent', 'delivered'])
-                ->count();
-
-            $pushFailed = NotificationDeliveryLog::whereHas('notification', $notificationQuery)
-                ->where('channel', 'push')
-                ->where('status', 'failed')
-                ->count();
-
-            $failedDeliveryLogs = NotificationDeliveryLog::with('user')
-                ->whereHas('notification', $notificationQuery)
-                ->where('channel', 'push')
-                ->where('status', 'failed')
-                ->get();
-
-            $failedTokens = $failedDeliveryLogs->map(fn ($item) => [
-                'user_id' => $item->user_id,
-                'name' => $item->user 
-                    ? trim((string) ($item->user->display_name ?? '')) ?: trim(((string) ($item->user->first_name ?? '')) . ' ' . ((string) ($item->user->last_name ?? '')))
-                    : 'Unknown',
-                'error' => $item->error_message ?: 'Push notification failed',
-            ])->values()->all();
-
-            $lastSentAtRaw = AppNotification::where($notificationQuery)
-                ->latest('created_at')
-                ->value('created_at');
-
-            $lastSentAt = null;
-            if ($lastSentAtRaw) {
-                $lastSentAt = \Illuminate\Support\Carbon::parse($lastSentAtRaw)->format('Y-m-d H:i:s');
->>>>>>> Stashed changes
-            }
         } else {
             $useFallback = true;
         }
@@ -148,10 +70,8 @@ class AdminEventNotificationStatusController extends BaseApiController
                             ->orWhere('reference_id', (string) $event->id);
                     });
 
-<<<<<<< Updated upstream
                 $inAppCreated = AppNotification::where($notificationQuery)->count();
 
-                // Count actual active push tokens for users who have in-app notifications for this event
                 $activePushTokens = 0;
                 if (Schema::hasTable('user_push_tokens')) {
                     $userIdsWithNotifications = AppNotification::where($notificationQuery)
@@ -160,9 +80,9 @@ class AdminEventNotificationStatusController extends BaseApiController
                         ->values()
                         ->toArray();
 
-                    if (!empty($userIdsWithNotifications)) {
-                        $tokenQuery = \App\Models\UserPushToken::whereIn(
-                            \App\Models\UserPushToken::getUserIdColumn(),
+                    if (! empty($userIdsWithNotifications)) {
+                        $tokenQuery = UserPushToken::whereIn(
+                            UserPushToken::getUserIdColumn(),
                             $userIdsWithNotifications
                         )->whereNotNull('token')->where('token', '!=', '');
 
@@ -173,7 +93,7 @@ class AdminEventNotificationStatusController extends BaseApiController
                         if (Schema::hasColumn('user_push_tokens', 'platform')) {
                             $tokenQuery->where(function ($q) {
                                 $q->whereNull('platform')
-                                  ->orWhereRaw("LOWER(platform::text) IN ('android', 'ios')");
+                                    ->orWhereRaw("LOWER(platform::text) IN ('android', 'ios')");
                             });
                         }
 
@@ -199,8 +119,8 @@ class AdminEventNotificationStatusController extends BaseApiController
 
                 $failedTokens = $failedDeliveryLogs->map(fn ($item) => [
                     'user_id' => $item->user_id,
-                    'name' => $item->user 
-                        ? trim((string) ($item->user->display_name ?? '')) ?: trim(((string) ($item->user->first_name ?? '')) . ' ' . ((string) ($item->user->last_name ?? '')))
+                    'name' => $item->user
+                        ? trim((string) ($item->user->display_name ?? '')) ?: trim(((string) ($item->user->first_name ?? '')).' '.((string) ($item->user->last_name ?? '')))
                         : 'Unknown',
                     'error' => $item->error_message ?: 'Push notification failed',
                 ])->values()->all();
@@ -211,7 +131,7 @@ class AdminEventNotificationStatusController extends BaseApiController
 
                 $lastSentAt = null;
                 if ($lastSentAtRaw) {
-                    $lastSentAt = \Illuminate\Support\Carbon::parse($lastSentAtRaw)->format('Y-m-d H:i:s');
+                    $lastSentAt = Carbon::parse($lastSentAtRaw)->format('Y-m-d H:i:s');
                 }
 
                 $status = $inAppCreated > 0 ? 'completed' : 'pending';
@@ -248,141 +168,11 @@ class AdminEventNotificationStatusController extends BaseApiController
                     'failed_tokens' => [],
                 ];
             }
-        } else {
-            if ($log) {
-                $data = [
-                    'event_id' => (string) $event->id,
-                    'event_title' => (string) $event->title,
-                    'notification_type' => $log->notification_type,
-                    'status' => $log->status,
-                    'total_users' => (int) $log->total_users,
-                    'in_app_notifications_created' => (int) $log->in_app_notifications_created,
-                    'active_push_tokens' => (int) $log->active_push_tokens,
-                    'push_sent_successfully' => (int) $log->push_sent_successfully,
-                    'push_failed' => (int) $log->push_failed,
-                    'pending' => $log->status === 'processing' 
-                        ? max(0, (int) $log->total_users - ((int) $log->push_sent_successfully + (int) $log->push_failed)) 
-                        : 0,
-                    'last_sent_at' => $log->completed_at 
-                        ? $log->completed_at->format('Y-m-d H:i:s') 
-                        : ($log->started_at ? $log->started_at->format('Y-m-d H:i:s') : null),
-                    'failed_tokens' => $log->failed_details ?? [],
-                ];
-            } else {
-                // Fallback calculation from database tables if no direct log exists
-                $notificationQuery = fn ($q) => $q
-                    ->whereIn('type', ['event', 'event_created'])
-                    ->where(function ($query) use ($event) {
-                        $query->whereJsonContains('data->event_id', (string) $event->id)
-                            ->orWhere('reference_id', (string) $event->id);
-                    });
-
-                $inAppCreated = AppNotification::where($notificationQuery)->count();
-
-                // Count actual active push tokens for users who have in-app notifications for this event
-                $activePushTokens = 0;
-                if (Schema::hasTable('user_push_tokens')) {
-                    $userIdsWithNotifications = AppNotification::where($notificationQuery)
-                        ->pluck('user_id')
-                        ->unique()
-                        ->values()
-                        ->toArray();
-
-                    if (!empty($userIdsWithNotifications)) {
-                        $tokenQuery = \App\Models\UserPushToken::whereIn(
-                            \App\Models\UserPushToken::getUserIdColumn(),
-                            $userIdsWithNotifications
-                        )->whereNotNull('token')->where('token', '!=', '');
-
-                        if (Schema::hasColumn('user_push_tokens', 'is_active')) {
-                            $tokenQuery->where('is_active', true);
-                        }
-
-                        if (Schema::hasColumn('user_push_tokens', 'platform')) {
-                            $tokenQuery->where(function ($q) {
-                                $q->whereNull('platform')
-                                  ->orWhereRaw("LOWER(platform::text) IN ('android', 'ios')");
-                            });
-                        }
-
-                        $activePushTokens = $tokenQuery->count();
-                    }
-                }
-
-                $pushSentSuccess = NotificationDeliveryLog::whereHas('notification', $notificationQuery)
-                    ->where('channel', 'push')
-                    ->whereIn('status', ['sent', 'delivered'])
-                    ->count();
-
-                $pushFailed = NotificationDeliveryLog::whereHas('notification', $notificationQuery)
-                    ->where('channel', 'push')
-                    ->where('status', 'failed')
-                    ->count();
-
-                $failedDeliveryLogs = NotificationDeliveryLog::with('user')
-                    ->whereHas('notification', $notificationQuery)
-                    ->where('channel', 'push')
-                    ->where('status', 'failed')
-                    ->get();
-
-                $failedTokens = $failedDeliveryLogs->map(fn ($item) => [
-                    'user_id' => $item->user_id,
-                    'name' => $item->user 
-                        ? trim((string) ($item->user->display_name ?? '')) ?: trim(((string) ($item->user->first_name ?? '')) . ' ' . ((string) ($item->user->last_name ?? '')))
-                        : 'Unknown',
-                    'error' => $item->error_message ?: 'Push notification failed',
-                ])->values()->all();
-
-                $lastSentAtRaw = AppNotification::where($notificationQuery)
-                    ->latest('created_at')
-                    ->value('created_at');
-
-                $lastSentAt = null;
-                if ($lastSentAtRaw) {
-                    $lastSentAt = \Illuminate\Support\Carbon::parse($lastSentAtRaw)->format('Y-m-d H:i:s');
-                }
-
-                $status = $inAppCreated > 0 ? 'completed' : 'pending';
-
-                $data = [
-                    'event_id' => (string) $event->id,
-                    'event_title' => (string) $event->title,
-                    'notification_type' => 'event_created',
-                    'status' => $status,
-                    'total_users' => $inAppCreated,
-                    'in_app_notifications_created' => $inAppCreated,
-                    'active_push_tokens' => $activePushTokens,
-                    'push_sent_successfully' => $pushSentSuccess,
-                    'push_failed' => $pushFailed,
-                    'pending' => 0,
-                    'last_sent_at' => $lastSentAt,
-                    'failed_tokens' => $failedTokens,
-                ];
-            }
         }
 
         if (array_key_exists('active_push_tokens', $data) && ($data['active_push_tokens'] === 0 || $data['active_push_tokens'] === null)) {
             $pushSent = (int) ($data['push_sent_successfully'] ?? 0);
             if ($pushSent === 0) {
-=======
-            $data = [
-                'event_id' => (string) $event->id,
-                'event_title' => (string) $event->title,
-                'notification_type' => 'event_created',
-                'status' => $status,
-                'source' => 'notification_fallback',
-                'total_users' => $inAppCreated,
-                'in_app_notifications_created' => $inAppCreated,
-                'active_push_tokens' => $activePushTokens,
-                'push_sent_successfully' => $pushSentSuccess,
-                'push_failed' => $pushFailed,
-                'pending' => 0,
-                'last_sent_at' => $lastSentAt,
-                'failed_tokens' => $failedTokens,
-            ];
-
-            if ($activePushTokens === 0) {
->>>>>>> Stashed changes
                 $data['reason'] = 'No active Firebase tokens found for any notified user';
             }
         }

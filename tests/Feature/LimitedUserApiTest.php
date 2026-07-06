@@ -2,14 +2,36 @@
 
 namespace Tests\Feature;
 
+use App\Models\CircleCategoryLevel4;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class LimitedUserApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Schema::create('peer_blocks', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('blocker_user_id');
+            $table->uuid('blocked_user_id');
+            $table->string('reason')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('circle_category_level4', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->timestamps();
+        });
+    }
 
     public function test_limited_users_endpoint_requires_authentication(): void
     {
@@ -19,6 +41,11 @@ class LimitedUserApiTest extends TestCase
 
     public function test_limited_users_endpoint_returns_only_active_members_with_limited_data(): void
     {
+        // Create category
+        $category = CircleCategoryLevel4::create([
+            'name' => 'Software Engineering',
+        ]);
+
         // 1. Create active user
         $activeUser = User::factory()->create([
             'first_name' => 'John',
@@ -28,6 +55,7 @@ class LimitedUserApiTest extends TestCase
             'city' => 'New York',
             'life_impacted_count' => 42,
             'status' => 'active',
+            'business_category_id' => $category->id,
         ]);
 
         // 2. Create inactive user
@@ -55,8 +83,25 @@ class LimitedUserApiTest extends TestCase
                     'business_name',
                     'total_life_impact',
                     'company_name',
-                ]
-            ]
+                    'level4_category',
+                ],
+            ],
+            'links' => [
+                'first',
+                'last',
+                'prev',
+                'next',
+            ],
+            'meta' => [
+                'current_page',
+                'from',
+                'last_page',
+                'links',
+                'path',
+                'per_page',
+                'to',
+                'total',
+            ],
         ]);
 
         $data = $response->json('data');
@@ -69,5 +114,26 @@ class LimitedUserApiTest extends TestCase
         $this->assertSame('Acme Corp', $data[0]['business_name']);
         $this->assertSame('Acme Corp', $data[0]['company_name']);
         $this->assertSame(42, $data[0]['total_life_impact']);
+        $this->assertSame('Software Engineering', $data[0]['level4_category']);
+    }
+
+    public function test_limited_users_endpoint_pagination_limit_is_15(): void
+    {
+        $activeUser = User::factory()->create([
+            'status' => 'active',
+        ]);
+
+        User::factory()->count(20)->create([
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($activeUser);
+
+        $response = $this->getJson('/api/v1/members/limited');
+
+        $response->assertOk();
+        $this->assertCount(15, $response->json('data'));
+        $this->assertSame(21, $response->json('meta.total'));
+        $this->assertSame(15, $response->json('meta.per_page'));
     }
 }

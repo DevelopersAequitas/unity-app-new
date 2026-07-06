@@ -16,8 +16,7 @@ class WebsiteFormConfirmationMail extends Mailable
         public readonly string $recipientName,
         public readonly string $formTitle,
         public readonly string $confirmationMessage,
-    ) {
-    }
+    ) {}
 
     public function build(): self
     {

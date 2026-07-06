@@ -5,6 +5,7 @@ namespace App\Http\Requests\CoinClaims;
 use App\Support\CoinClaims\CoinClaimActivityRegistry;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Validator;
 
 class StoreCoinClaimRequest extends FormRequest
@@ -91,7 +92,7 @@ class StoreCoinClaimRequest extends FormRequest
 
     protected function failedValidation(ValidatorContract $validator): void
     {
-        throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+        throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation failed.',
             'errors' => $validator->errors(),

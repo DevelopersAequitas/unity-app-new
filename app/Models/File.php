@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class File extends Model
 {
@@ -42,12 +44,12 @@ class File extends Model
      */
     public static function extractIdsFromMedia($media): array
     {
-        if (!$media) {
+        if (! $media) {
             return [];
         }
 
         $decoded = is_string($media) ? json_decode($media, true) : $media;
-        if (!is_array($decoded)) {
+        if (! is_array($decoded)) {
             $decoded = [$media];
         }
 
@@ -55,10 +57,10 @@ class File extends Model
         foreach ($decoded as $item) {
             if (is_array($item)) {
                 $id = $item['id'] ?? $item['file_id'] ?? $item['fileId'] ?? null;
-                if ($id && \Illuminate\Support\Str::isUuid($id)) {
+                if ($id && Str::isUuid($id)) {
                     $ids[] = $id;
                 }
-            } elseif (is_string($item) && \Illuminate\Support\Str::isUuid($item)) {
+            } elseif (is_string($item) && Str::isUuid($item)) {
                 $ids[] = $item;
             }
         }
@@ -84,9 +86,10 @@ class File extends Model
                 continue;
             }
 
-            if (!$file->s3_key || !\Illuminate\Support\Facades\Storage::disk($disk)->exists($file->s3_key)) {
+            if (! $file->s3_key || ! Storage::disk($disk)->exists($file->s3_key)) {
                 $file->is_orphaned = true;
                 $file->save();
+
                 continue;
             }
 

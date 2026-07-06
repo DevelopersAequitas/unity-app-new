@@ -23,11 +23,9 @@ class VisitorRegistration extends Model
         'visitor_email',
         'visitor_city',
         'visitor_business',
-        'visitor_designation',
         'visitor_business_category_id',
         'visitor_business_category',
         'visitor_business_website',
-        'visitor_business_brief',
         'invited_by_type',
         'invited_by_user_id',
         'how_known',
@@ -46,6 +44,38 @@ class VisitorRegistration extends Model
         'coins_awarded' => 'boolean',
         'coins_awarded_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $model): void {
+            if (! $model->id) {
+                $model->id = (string) \Illuminate\Support\Str::uuid();
+            }
+            if (empty($model->status)) {
+                $model->status = 'pending';
+            }
+        });
+    }
+
+    public function getVisitorDesignationAttribute(): ?string
+    {
+        return $this->attributes['how_known'] ?? null;
+    }
+
+    public function setVisitorDesignationAttribute(?string $value): void
+    {
+        $this->attributes['how_known'] = $value;
+    }
+
+    public function getVisitorBusinessBriefAttribute(): ?string
+    {
+        return $this->attributes['note'] ?? null;
+    }
+
+    public function setVisitorBusinessBriefAttribute(?string $value): void
+    {
+        $this->attributes['note'] = $value;
+    }
 
     public function user(): BelongsTo
     {

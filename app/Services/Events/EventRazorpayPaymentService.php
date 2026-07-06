@@ -107,6 +107,7 @@ class EventRazorpayPaymentService
     {
         if ($registration->user) {
             $user = $registration->user;
+
             return [
                 'name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
                 'email' => (string) $user->email,

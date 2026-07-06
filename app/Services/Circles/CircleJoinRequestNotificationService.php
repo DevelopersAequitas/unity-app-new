@@ -13,9 +13,7 @@ use Illuminate\Support\Facades\Mail;
 
 class CircleJoinRequestNotificationService
 {
-    public function __construct(private readonly EmailLogService $emailLogService)
-    {
-    }
+    public function __construct(private readonly EmailLogService $emailLogService) {}
 
     public function sendCdApprovedToUser(CircleJoinRequest $request): void
     {
@@ -31,7 +29,7 @@ class CircleJoinRequestNotificationService
         $circleName = $request->circle?->name ?? 'this circle';
         $reason = trim((string) $request->cd_rejection_reason);
         $title = 'Circle Join Request Rejected';
-        $body = "Your request to join {$circleName} was rejected by Circle Director." . ($reason !== '' ? " Reason: {$reason}" : '');
+        $body = "Your request to join {$circleName} was rejected by Circle Director.".($reason !== '' ? " Reason: {$reason}" : '');
 
         $this->sendUserUpdate($request, $title, $body, 'circle_join_request_cd_rejected', 'rejected_by_cd', $reason !== '' ? $reason : null, 'Your Circle Join Request Was Rejected by Circle Director');
     }
@@ -50,7 +48,7 @@ class CircleJoinRequestNotificationService
         $circleName = $request->circle?->name ?? 'this circle';
         $reason = trim((string) $request->id_rejection_reason);
         $title = 'Circle Join Request Rejected';
-        $body = "Your request to join {$circleName} was rejected by Industry Director." . ($reason !== '' ? " Reason: {$reason}" : '');
+        $body = "Your request to join {$circleName} was rejected by Industry Director.".($reason !== '' ? " Reason: {$reason}" : '');
 
         $this->sendUserUpdate($request, $title, $body, 'circle_join_request_id_rejected', 'rejected_by_id', $reason !== '' ? $reason : null, 'Your Circle Join Request Was Rejected by Industry Director');
     }
@@ -145,7 +143,7 @@ class CircleJoinRequestNotificationService
                 $this->emailLogService->logMailableSent($mailable, [
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => $eventType,
                     'source_module' => 'Circles',
                     'related_type' => CircleJoinRequest::class,
@@ -158,7 +156,7 @@ class CircleJoinRequestNotificationService
                 $this->emailLogService->logFailed([
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => $eventType,
                     'subject' => $emailSubject,
                     'source_module' => 'Circles',
@@ -203,7 +201,7 @@ class CircleJoinRequestNotificationService
 
         return [
             'id' => (string) $actor->id,
-            'name' => (string) ($actor->display_name ?: trim(($actor->first_name ?? '') . ' ' . ($actor->last_name ?? ''))),
+            'name' => (string) ($actor->display_name ?: trim(($actor->first_name ?? '').' '.($actor->last_name ?? ''))),
             'role' => $role,
         ];
     }

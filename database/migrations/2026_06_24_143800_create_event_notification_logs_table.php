@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('event_notification_logs')) {
+        if (! Schema::hasTable('event_notification_logs')) {
             Schema::create('event_notification_logs', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->uuid('event_id');

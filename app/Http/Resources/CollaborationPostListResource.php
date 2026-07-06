@@ -14,16 +14,16 @@ class CollaborationPostListResource extends JsonResource
         $posterPaid = ! in_array($this->user?->membership_status, ['visitor', 'free_peer', 'suspended'], true);
         $profilePhotoFileId = $this->user?->profile_photo_file_id ?? $this->user?->profile_photo_id;
         $acceptedBy = $this->acceptedByUser;
-        $acceptedByName = $acceptedBy?->display_name ?: trim(($acceptedBy?->first_name ?? '') . ' ' . ($acceptedBy?->last_name ?? ''));
+        $acceptedByName = $acceptedBy?->display_name ?: trim(($acceptedBy?->first_name ?? '').' '.($acceptedBy?->last_name ?? ''));
         $acceptedByPhotoFileId = $acceptedBy?->profile_photo_file_id ?? $acceptedBy?->profile_photo_id;
 
         return [
             'id' => $this->id,
             'user' => [
                 'id' => $this->user?->id,
-                'name' => $this->user?->display_name ?? trim(($this->user?->first_name ?? '') . ' ' . ($this->user?->last_name ?? '')),
+                'name' => $this->user?->display_name ?? trim(($this->user?->first_name ?? '').' '.($this->user?->last_name ?? '')),
                 'city' => $this->user?->city,
-                'profile_photo_url' => $profilePhotoFileId ? url('/api/v1/files/' . $profilePhotoFileId) : ($this->user?->profile_photo_url),
+                'profile_photo_url' => $profilePhotoFileId ? url('/api/v1/files/'.$profilePhotoFileId) : ($this->user?->profile_photo_url),
             ],
             'member_type' => $posterPaid ? 'Verified' : 'Free',
             'verified_badge' => $posterPaid,
@@ -57,7 +57,7 @@ class CollaborationPostListResource extends JsonResource
                 'company_name' => $acceptedBy->company_name,
                 'designation' => $acceptedBy->designation,
                 'city' => $acceptedBy->city,
-                'profile_photo_url' => $acceptedByPhotoFileId ? url('/api/v1/files/' . $acceptedByPhotoFileId) : $acceptedBy->profile_photo_url,
+                'profile_photo_url' => $acceptedByPhotoFileId ? url('/api/v1/files/'.$acceptedByPhotoFileId) : $acceptedBy->profile_photo_url,
             ] : null,
             'interests_count' => (int) ($this->interests_count ?? 0),
             'meetings_count' => (int) ($this->meeting_requests_count ?? 0),

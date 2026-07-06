@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 class SyncUserMilestones extends Command
 {
     protected $signature = 'users:sync-milestones';
+
     protected $description = 'Sync contribution milestone fields for all users';
 
     public function handle(UserMilestoneSyncService $service): int

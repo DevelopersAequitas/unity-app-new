@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -13,17 +12,27 @@ class ActivityOtherUserMail extends Mailable
     use SerializesModels;
 
     public string $activityTypeNormalized;
+
     public string $activityTypeLabel;
+
     public string $viewName;
+
     public string $subjectLine;
 
     public string $actorName;
+
     public ?string $otherName;
+
     public ?string $meetingDate;
+
     public ?string $meetingPlace;
+
     public ?string $referralOf;
+
     public ?string $requirementSubject;
+
     public ?string $testimonialContent;
+
     public ?string $dealAmountInr;
 
     public function __construct(string $activityTypeNormalized, string $activityTypeLabel, array $data)

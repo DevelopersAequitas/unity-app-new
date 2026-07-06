@@ -20,6 +20,7 @@ class PublicUserResource extends JsonResource
             'short_bio' => $this->short_bio,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'city' => new CityResource($this->whenLoaded('city')),
+            'timezone' => $this->timezone ?? null,
         ];
     }
 }

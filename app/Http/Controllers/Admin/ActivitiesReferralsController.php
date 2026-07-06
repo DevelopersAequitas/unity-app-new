@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\Referral;
 use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ActivitiesReferralsController extends Controller
 {
@@ -34,8 +34,8 @@ class ActivitiesReferralsController extends Controller
                 'activity.hot_value',
                 'activity.remarks',
                 'activity.created_at',
-                DB::raw($this->hasMediaSelectExpression() . ' as has_media'),
-                DB::raw($this->mediaReferenceSelectExpression() . ' as media_reference'),
+                DB::raw($this->hasMediaSelectExpression().' as has_media'),
+                DB::raw($this->mediaReferenceSelectExpression().' as media_reference'),
                 'actor.display_name as actor_display_name',
                 'actor.first_name as actor_first_name',
                 'actor.last_name as actor_last_name',
@@ -70,7 +70,7 @@ class ActivitiesReferralsController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->buildFilters($request);
-        $filename = 'referrals_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'referrals_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($filters) {
             @ini_set('zlib.output_compression', '0');
@@ -123,8 +123,8 @@ class ActivitiesReferralsController extends Controller
                         'peer.first_name as peer_first_name',
                         'peer.last_name as peer_last_name',
                         'peer.email as peer_email',
-                        DB::raw($this->hasMediaSelectExpression() . ' as has_media'),
-                        DB::raw($this->mediaReferenceSelectExpression() . ' as media_reference'),
+                        DB::raw($this->hasMediaSelectExpression().' as has_media'),
+                        DB::raw($this->mediaReferenceSelectExpression().' as media_reference'),
                     ])
                     ->orderBy('activity.created_at')
                     ->orderBy('activity.id')
@@ -223,7 +223,7 @@ class ActivitiesReferralsController extends Controller
 
         if ($filters['q'] !== '') {
             $query->leftJoin('cities as actor_city', 'actor_city.id', '=', 'actor.city_id');
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['q']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['q']).'%';
             $query->where(function ($q) use ($like) {
                 $q->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -239,7 +239,7 @@ class ActivitiesReferralsController extends Controller
         }
 
         if ($filters['from_user'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['from_user']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['from_user']).'%';
             $query->where(function ($inner) use ($like) {
                 $inner->where('actor.display_name', 'ILIKE', $like)
                     ->orWhere('actor.first_name', 'ILIKE', $like)
@@ -249,7 +249,7 @@ class ActivitiesReferralsController extends Controller
         }
 
         if ($filters['to_user'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['to_user']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['to_user']).'%';
             $query->where(function ($inner) use ($like) {
                 $inner->where('peer.display_name', 'ILIKE', $like)
                     ->orWhere('peer.first_name', 'ILIKE', $like)
@@ -270,17 +270,17 @@ class ActivitiesReferralsController extends Controller
         }
 
         if ($filters['referral_of'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['referral_of']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['referral_of']).'%';
             $query->where('activity.referral_of', 'ILIKE', $like);
         }
 
         if ($filters['phone'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['phone']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['phone']).'%';
             $query->where('activity.phone', 'ILIKE', $like);
         }
 
         if ($filters['email'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['email']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['email']).'%';
             $query->where('activity.email', 'ILIKE', $like);
         }
 
@@ -289,7 +289,7 @@ class ActivitiesReferralsController extends Controller
         }
 
         if ($filters['remarks'] !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $filters['remarks']) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $filters['remarks']).'%';
             $query->where('activity.remarks', 'ILIKE', $like);
         }
 
@@ -413,6 +413,7 @@ class ActivitiesReferralsController extends Controller
         foreach (['media_id', 'media_file_id', 'file_id', 'attachment_id', 'media_url', 'document_id', 'image_id'] as $candidate) {
             if (Schema::hasColumn('referrals', $candidate)) {
                 $column = $candidate;
+
                 return $column;
             }
         }
@@ -517,10 +518,8 @@ class ActivitiesReferralsController extends Controller
             return $displayName;
         }
 
-        $name = trim(($firstName ?? '') . ' ' . ($lastName ?? ''));
+        $name = trim(($firstName ?? '').' '.($lastName ?? ''));
 
         return $name !== '' ? $name : '—';
     }
-
 }
-

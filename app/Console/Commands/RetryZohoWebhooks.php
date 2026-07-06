@@ -9,14 +9,21 @@ use Illuminate\Console\Command;
 class RetryZohoWebhooks extends Command
 {
     protected $signature = 'zoho:webhooks:retry-failed {--id=} {--registration_id=} {--payment_id=} {--limit=50}';
+
     protected $description = 'Retry failed Zoho payment webhook events.';
 
     public function handle(ZohoPaymentWebhookService $service): int
     {
         $query = WebhookEvent::query()->where('provider', 'zoho')->where('status', 'failed');
-        if ($this->option('id')) $query->where('id', $this->option('id'));
-        if ($this->option('registration_id')) $query->where('registration_id', $this->option('registration_id'));
-        if ($this->option('payment_id')) $query->where('payment_id', $this->option('payment_id'));
+        if ($this->option('id')) {
+            $query->where('id', $this->option('id'));
+        }
+        if ($this->option('registration_id')) {
+            $query->where('registration_id', $this->option('registration_id'));
+        }
+        if ($this->option('payment_id')) {
+            $query->where('payment_id', $this->option('payment_id'));
+        }
         $events = $query->oldest()->limit((int) $this->option('limit'))->get();
         foreach ($events as $event) {
             $this->line('Retrying webhook '.$event->id.' registration='.(string) $event->registration_id);
@@ -26,6 +33,7 @@ class RetryZohoWebhooks extends Command
             $this->line('Result '.$event->id.' status='.$event->status.' error='.(string) $event->error);
         }
         $this->info('Processed: '.$events->count());
+
         return self::SUCCESS;
     }
 }

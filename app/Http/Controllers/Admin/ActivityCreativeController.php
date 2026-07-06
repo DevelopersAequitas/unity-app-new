@@ -14,7 +14,7 @@ class ActivityCreativeController extends Controller
         $query = ActivityCreative::query()->with('user:id,first_name,last_name,display_name,email');
 
         if ($request->filled('q')) {
-            $term = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $request->string('q')) . '%';
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $request->string('q')).'%';
             $query->whereHas('user', function ($q) use ($term) {
                 $q->where('display_name', 'ILIKE', $term)
                     ->orWhere('first_name', 'ILIKE', $term)

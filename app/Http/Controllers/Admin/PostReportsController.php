@@ -74,11 +74,11 @@ class PostReportsController extends Controller
         }
 
         if (filled($postId)) {
-            $query->whereHas('post', fn ($postQuery) => $postQuery->where('id', 'ILIKE', '%' . $postId . '%'));
+            $query->whereHas('post', fn ($postQuery) => $postQuery->where('id', 'ILIKE', '%'.$postId.'%'));
         }
 
         if (filled($peer)) {
-            $peerLike = '%' . $peer . '%';
+            $peerLike = '%'.$peer.'%';
             $query->whereHas('post.user', function ($userQuery) use ($peerLike) {
                 $userQuery->where(function ($subQuery) use ($peerLike) {
                     $subQuery->where('name', 'ILIKE', $peerLike)
@@ -94,7 +94,7 @@ class PostReportsController extends Controller
         }
 
         if (filled($reporter)) {
-            $reporterLike = '%' . $reporter . '%';
+            $reporterLike = '%'.$reporter.'%';
             $query->whereHas('reporter', function ($reporterQuery) use ($reporterLike) {
                 $reporterQuery->where(function ($subQuery) use ($reporterLike) {
                     $subQuery->where('name', 'ILIKE', $reporterLike)
@@ -108,8 +108,8 @@ class PostReportsController extends Controller
 
         if (filled($reasonText)) {
             $query->where(function ($subQuery) use ($reasonText) {
-                $subQuery->where('reason', 'ILIKE', '%' . $reasonText . '%')
-                    ->orWhereHas('reasonOption', fn ($reasonQuery) => $reasonQuery->where('title', 'ILIKE', '%' . $reasonText . '%'));
+                $subQuery->where('reason', 'ILIKE', '%'.$reasonText.'%')
+                    ->orWhereHas('reasonOption', fn ($reasonQuery) => $reasonQuery->where('title', 'ILIKE', '%'.$reasonText.'%'));
             });
         }
 

@@ -53,7 +53,7 @@ class CoinMilestoneResolverTest extends TestCase
 
     public function test_user_model_sync_method_updates_fields_from_balance(): void
     {
-        $user = new User();
+        $user = new User;
         $user->coins_balance = 820000;
 
         $changed = $user->syncCoinMilestoneAttributes();

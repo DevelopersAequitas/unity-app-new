@@ -92,6 +92,7 @@ class LeadSubmissionsController extends Controller
                 foreach ($searchColumns as $index => $column) {
                     if ($index === 0) {
                         $builder->where($column, 'ILIKE', $like);
+
                         continue;
                     }
 

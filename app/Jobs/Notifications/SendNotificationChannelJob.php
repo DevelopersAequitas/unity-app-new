@@ -17,9 +17,7 @@ class SendNotificationChannelJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public string $notificationId, public string $channel)
-    {
-    }
+    public function __construct(public string $notificationId, public string $channel) {}
 
     public function handle(FcmService $fcm): void
     {
@@ -37,6 +35,7 @@ class SendNotificationChannelJob implements ShouldQueue
                 'failed_at' => $result['success'] ? null : now(),
                 'failure_reason' => $result['success'] ? null : (string) ($result['error'] ?? 'Push delivery failed or no active FCM token accepted the message.'),
             ]);
+
             return;
         }
 

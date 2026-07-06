@@ -9,9 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class MembershipSyncService
 {
-    public function __construct(private readonly MembershipUpgradeService $membershipUpgradeService)
-    {
-    }
+    public function __construct(private readonly MembershipUpgradeService $membershipUpgradeService) {}
 
     public function syncUserMembershipFromZoho(User $user, array $zohoData): User
     {

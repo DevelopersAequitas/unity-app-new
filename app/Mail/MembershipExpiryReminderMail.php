@@ -4,16 +4,18 @@ namespace App\Mail;
 
 use App\Models\User;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Contracts\Queue\ShouldQueue;
 
 class MembershipExpiryReminderMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
     public User $user;
+
     public string $formattedExpiryDate;
+
     public string $support_email;
 
     public function __construct(User $user)
@@ -22,12 +24,13 @@ class MembershipExpiryReminderMail extends Mailable implements ShouldQueue
         $this->formattedExpiryDate = $user->membership_ends_at
             ? $user->membership_ends_at->format('d M Y')
             : '';
-        $this->support_email = config('mail.from.address') ?: 'support@peersglobal.com';
+        $this->support_email = config('mail.membership_from.address', 'support@peersglobal.com');
     }
 
     public function build()
     {
         return $this->subject('Membership Expired – Action Required')
+            ->from(config('mail.membership_from.address', 'support@peersglobal.com'), config('mail.membership_from.name', 'Peers Global Unity'))
             ->view('emails.membership.expiry_reminder')
             ->with([
                 'user' => $this->user,

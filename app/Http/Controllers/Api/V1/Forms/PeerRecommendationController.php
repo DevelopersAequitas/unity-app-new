@@ -47,7 +47,7 @@ class PeerRecommendationController extends BaseApiController
             return [$recommendation, $currentBalance];
         });
 
-        /** @var \App\Models\PeerRecommendation $recommendation */
+        /** @var PeerRecommendation $recommendation */
         [$recommendation, $currentBalance] = $result;
 
         $payload = [

@@ -143,6 +143,6 @@ SQL);
 
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="210" height="170" viewBox="0 0 210 170"><rect width="210" height="170" rx="18" fill="#f8fafc"/><rect x="18" y="18" width="174" height="134" rx="14" fill="#ffffff" stroke="#dbe3ef"/>'.$columns.'</svg>';
 
-        return 'data:image/svg+xml;utf8,' . rawurlencode($svg);
+        return 'data:image/svg+xml;utf8,'.rawurlencode($svg);
     }
 };

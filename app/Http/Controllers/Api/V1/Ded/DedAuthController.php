@@ -41,7 +41,7 @@ class DedAuthController extends Controller
 
         $otpRecord = AdminLoginOtp::query()->where('email', $email)->first();
         if (! $otpRecord) {
-            $otpRecord = new AdminLoginOtp();
+            $otpRecord = new AdminLoginOtp;
             $otpRecord->id = (string) Str::uuid();
             $otpRecord->email = $email;
         }

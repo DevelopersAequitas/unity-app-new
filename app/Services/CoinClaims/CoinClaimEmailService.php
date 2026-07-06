@@ -7,14 +7,13 @@ use App\Mail\CoinClaimRejectedMail;
 use App\Mail\CoinClaimSubmittedMail;
 use App\Models\CoinClaimRequest;
 use App\Services\EmailLogs\EmailLogService;
+use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class CoinClaimEmailService
 {
-    public function __construct(private readonly EmailLogService $emailLogService)
-    {
-    }
+    public function __construct(private readonly EmailLogService $emailLogService) {}
 
     public function sendSubmitted(CoinClaimRequest $claim): void
     {
@@ -33,7 +32,7 @@ class CoinClaimEmailService
 
     private function safeSend(CoinClaimRequest $claim, object $mailable, string $type): void
     {
-        if (! $mailable instanceof \Illuminate\Mail\Mailable) {
+        if (! $mailable instanceof Mailable) {
             return;
         }
 
@@ -47,8 +46,8 @@ class CoinClaimEmailService
             $this->emailLogService->logMailableSent($mailable, [
                 'user_id' => $claim->user?->id,
                 'to_email' => $email,
-                'to_name' => $claim->user?->display_name ?: trim(($claim->user?->first_name ?? '') . ' ' . ($claim->user?->last_name ?? '')),
-                'template_key' => 'coin_claim_' . $type,
+                'to_name' => $claim->user?->display_name ?: trim(($claim->user?->first_name ?? '').' '.($claim->user?->last_name ?? '')),
+                'template_key' => 'coin_claim_'.$type,
                 'source_module' => 'CoinClaims',
                 'related_type' => CoinClaimRequest::class,
                 'related_id' => (string) $claim->id,
@@ -61,8 +60,8 @@ class CoinClaimEmailService
             $this->emailLogService->logMailableFailed($mailable, [
                 'user_id' => $claim->user?->id,
                 'to_email' => (string) ($claim->user?->email ?? ''),
-                'to_name' => $claim->user?->display_name ?: trim(($claim->user?->first_name ?? '') . ' ' . ($claim->user?->last_name ?? '')),
-                'template_key' => 'coin_claim_' . $type,
+                'to_name' => $claim->user?->display_name ?: trim(($claim->user?->first_name ?? '').' '.($claim->user?->last_name ?? '')),
+                'template_key' => 'coin_claim_'.$type,
                 'source_module' => 'CoinClaims',
                 'related_type' => CoinClaimRequest::class,
                 'related_id' => (string) $claim->id,

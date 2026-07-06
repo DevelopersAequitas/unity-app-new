@@ -20,12 +20,11 @@ class NewChatMessage implements ShouldBroadcastNow
     public function __construct(
         public Chat $chat,
         public Message $message
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): PrivateChannel
     {
-        return new PrivateChannel('chat.' . $this->chat->id);
+        return new PrivateChannel('chat.'.$this->chat->id);
     }
 
     public function broadcastAs(): string

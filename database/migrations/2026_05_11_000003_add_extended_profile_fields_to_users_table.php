@@ -110,7 +110,7 @@ return new class extends Migration
             }
 
             if (! Schema::hasColumn('users', 'contact_visibility')) {
-                $table->string('contact_visibility', 50)->nullable()->default('connections');
+                $table->string('contact_visibility', 50)->nullable()->default('connected_only');
             }
 
             if (! Schema::hasColumn('users', 'business_address')) {
@@ -173,5 +173,4 @@ return new class extends Migration
         // with Schema::hasColumn(). Avoid dropping profile columns that may have
         // existed before this migration on live databases.
     }
-
 };

@@ -16,7 +16,7 @@ class RequirementInterestResource extends JsonResource
             'name' => data_get($user, 'name')
                 ?: data_get($user, 'full_name')
                 ?: data_get($user, 'display_name')
-                ?: trim((string) data_get($user, 'first_name', '') . ' ' . (string) data_get($user, 'last_name', '')),
+                ?: trim((string) data_get($user, 'first_name', '').' '.(string) data_get($user, 'last_name', '')),
             'company' => data_get($user, 'company') ?: data_get($user, 'company_name', ''),
             'city' => data_get($user, 'city', ''),
             'profile_photo_url' => $this->resolveProfilePhotoUrl($user),
@@ -35,7 +35,7 @@ class RequirementInterestResource extends JsonResource
         $profilePhotoId = data_get($user, 'profile_photo_id') ?: data_get($user, 'profile_photo_file_id');
 
         if ($profilePhotoId) {
-            return url('/api/v1/files/' . $profilePhotoId);
+            return url('/api/v1/files/'.$profilePhotoId);
         }
 
         return data_get($user, 'profile_photo_url');

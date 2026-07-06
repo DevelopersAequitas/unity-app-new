@@ -3,17 +3,27 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessCampaignDeliveryJob;
+use App\Models\AdminAuditLog;
 use App\Models\AdminCampaign;
+use App\Models\CampaignDelivery;
 use App\Models\CampaignEmailTemplate;
+use App\Models\CampaignLog;
 use App\Models\CampaignPamphlet;
+use App\Models\CampaignSchedule;
 use App\Services\AdminCampaigns\CampaignAudienceImportService;
 use App\Services\AdminCampaigns\CampaignEmailTemplateRenderer;
 use App\Services\AdminCampaigns\CampaignRecipientResolverService;
+use App\Services\AdminCampaigns\CampaignScheduleCalculator;
 use App\Services\AdminCampaigns\CampaignSendService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
@@ -21,6 +31,7 @@ use RuntimeException;
 class AdminCampaignController extends Controller
 {
     private const CAMPAIGN_TYPES = ['email_only', 'notification_only', 'email_and_notification'];
+
     private const AUDIENCE_TYPES = ['all_members', 'city', 'circle', 'company', 'category', 'membership_status', 'specific_members', 'custom_filter'];
 
     public function __construct(
@@ -28,12 +39,28 @@ class AdminCampaignController extends Controller
         private readonly CampaignSendService $sendService,
         private readonly CampaignAudienceImportService $audienceImportService,
         private readonly CampaignEmailTemplateRenderer $emailTemplateRenderer,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
-        $campaigns = AdminCampaign::query()->latest('created_at')->paginate(20);
+        $query = AdminCampaign::query();
+
+        // Apply Search Filter by Title
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'ilike', '%'.$search.'%')
+                    ->orWhere('title', 'like', '%'.$search.'%');
+            });
+        }
+
+        // Apply Status Filter
+        $status = $request->input('status', 'all');
+        if ($status !== 'all' && in_array($status, ['draft', 'scheduled', 'active', 'paused', 'sent', 'failed'], true)) {
+            $query->where('status', $status);
+        }
+
+        $campaigns = $query->with('schedule')->latest('created_at')->paginate(20)->withQueryString();
 
         $stats = [
             'total' => AdminCampaign::query()->count(),
@@ -44,13 +71,21 @@ class AdminCampaignController extends Controller
             'notifications_sent' => AdminCampaign::query()->sum('total_notification_sent'),
         ];
 
-        return view('admin.campaigns.index', compact('campaigns', 'stats'));
+        return view('admin.campaigns.index', compact('campaigns', 'stats', 'status'));
     }
 
     public function create(): View
     {
+        $campaign = new AdminCampaign(['campaign_type' => 'email_only', 'audience_type' => 'all_members', 'filters' => []]);
+        $campaign->setRelation('schedule', new CampaignSchedule([
+            'schedule_type' => 'immediately',
+            'timezone' => 'UTC',
+            'start_date' => now()->toDateString(),
+            'send_time' => '09:00',
+        ]));
+
         return view('admin.campaigns.form', [
-            'campaign' => new AdminCampaign(['campaign_type' => 'email_only', 'audience_type' => 'all_members', 'filters' => []]),
+            'campaign' => $campaign,
             'filterOptions' => $this->recipientResolver->filterOptions(),
             'mode' => 'create',
             'emailTemplates' => $this->emailTemplates(),
@@ -61,34 +96,165 @@ class AdminCampaignController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        // Validate schedule first to prevent partial creation bugs
+        $scheduleInput = $this->validateScheduleData($request);
         $data = $this->validatedCampaignData($request);
-        $data['status'] = AdminCampaign::STATUS_DRAFT;
+
+        $action = $request->input('action', 'draft');
+        $scheduleType = $request->input('schedule.schedule_type', 'immediately');
+
+        if ($action === 'send') {
+            if ($scheduleType === 'immediately') {
+                $data['status'] = 'queued';
+            } else {
+                $data['status'] = 'scheduled';
+            }
+        } else {
+            $data['status'] = AdminCampaign::STATUS_DRAFT;
+        }
+
         $data['created_by'] = optional($request->user('admin'))->id;
         $data['updated_by'] = optional($request->user('admin'))->id;
 
         $campaign = AdminCampaign::query()->create($data);
 
-        if ($request->input('action') === 'send') {
-            return $this->send($campaign);
+        // Save schedule (already validated)
+        $this->saveCampaignSchedule($campaign, $scheduleInput, app(CampaignScheduleCalculator::class));
+
+        $this->logCampaignAction($campaign, 'created');
+
+        if ($action === 'send' && $scheduleType === 'immediately') {
+            return $this->executeImmediateSend($campaign);
         }
 
-        return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign draft saved.');
+        $msg = ($action === 'send') ? 'Campaign activated and scheduled.' : 'Campaign draft saved.';
+
+        return redirect()->route('admin.campaigns.show', $campaign)->with('success', $msg);
     }
 
     public function show(AdminCampaign $campaign): View
     {
-        $campaign->load(['recipients.user', 'emailTemplate']);
-        $recipients = $campaign->recipients()->with('user')->latest('created_at')->paginate(50);
+        Gate::forUser(auth('admin')->user())->authorize('view', $campaign);
+
+        $campaign->load(['emailTemplate', 'schedule', 'creator', 'deliveries' => function ($query) {
+            $query->orderBy('scheduled_at', 'asc');
+        }]);
+
+        $deliveryIds = $campaign->deliveries->pluck('id')->all();
+        if (! empty($deliveryIds)) {
+            $recipients = CampaignLog::with(['user', 'delivery'])
+                ->whereIn('delivery_id', $deliveryIds)
+                ->latest('created_at')
+                ->paginate(50);
+        } else {
+            // Calculate recipient count on the fly for preview/status page prior to execution
+            $campaign->total_recipients = $this->recipientResolver->count(
+                $campaign->audience_type,
+                $campaign->filters,
+                $campaign->includesEmail()
+            );
+
+            // Resolve target audience on the fly and map to pending virtual logs
+            $query = $this->recipientResolver->query(
+                $campaign->audience_type,
+                $campaign->filters,
+                $campaign->includesEmail()
+            );
+
+            $paginator = $query->paginate(50);
+            $paginator->getCollection()->transform(function ($user) use ($campaign) {
+                $recipient = new \stdClass;
+                $recipient->id = $user->id;
+                $recipient->user_id = $user->id;
+                $recipient->user = $user;
+                $recipient->email = $user->email;
+                $recipient->email_status = 'pending';
+                $recipient->notification_status = 'pending';
+                $recipient->error_message = null;
+                $recipient->sent_at = null;
+                $recipient->scheduled_at = $campaign->schedule?->next_run_at;
+
+                return $recipient;
+            });
+            $recipients = $paginator;
+        }
 
         $filterSummary = $this->recipientResolver->describeFilters($campaign->filters);
 
-        return view('admin.campaigns.show', compact('campaign', 'recipients', 'filterSummary'));
+        // Compile Recurring Execution History
+        $executionHistory = [];
+        $runIndex = 1;
+
+        foreach ($campaign->deliveries as $del) {
+            $executionHistory[] = [
+                'run_number' => 'Run #'.$runIndex++,
+                'scheduled_time' => $campaign->formatTimestamp($del->scheduled_at),
+                'actual_time' => $del->started_at ? $campaign->formatTimestamp($del->started_at) : '-',
+                'status' => $del->status === 'sent' || $del->status === 'completed' ? 'Success' : Str::headline($del->status),
+                'emails_sent' => $del->total_email_sent,
+                'notifications_sent' => $del->total_notification_sent,
+                'failed' => $del->total_failed,
+                'triggered_by' => $campaign->schedule && $campaign->schedule->schedule_type === 'immediately' ? ($campaign->creator?->name ?? 'Admin') : 'Scheduler',
+            ];
+        }
+
+        // Calculate upcoming executions if the campaign is recurring/once and not completed/stopped/deleted
+        if ($campaign->schedule && $campaign->schedule->schedule_type !== 'immediately' && \in_array($campaign->status, ['active', 'scheduled'])) {
+            $calculator = app(CampaignScheduleCalculator::class);
+            $nextRun1 = $campaign->schedule->next_run_at;
+            if ($nextRun1) {
+                $executionHistory[] = [
+                    'run_number' => 'Run #'.$runIndex++,
+                    'scheduled_time' => $campaign->formatTimestamp($nextRun1),
+                    'actual_time' => 'Pending',
+                    'status' => 'Pending',
+                    'emails_sent' => '-',
+                    'notifications_sent' => '-',
+                    'failed' => '-',
+                    'triggered_by' => 'Scheduler',
+                ];
+
+                // Calculate the one after that if it is recurring
+                if ($campaign->schedule->schedule_type === 'recurring') {
+                    $nextRun2 = $calculator->calculateNextRunAt($campaign->schedule, $nextRun1);
+                    if ($nextRun2) {
+                        $executionHistory[] = [
+                            'run_number' => 'Run #'.$runIndex++,
+                            'scheduled_time' => $campaign->formatTimestamp($nextRun2),
+                            'actual_time' => 'Pending',
+                            'status' => 'Pending',
+                            'emails_sent' => '-',
+                            'notifications_sent' => '-',
+                            'failed' => '-',
+                            'triggered_by' => 'Scheduler',
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Reverse execution history to show latest runs first
+        $executionHistory = \array_reverse($executionHistory);
+
+        return view('admin.campaigns.show', compact('campaign', 'recipients', 'filterSummary', 'executionHistory'));
     }
 
     public function edit(AdminCampaign $campaign): View|RedirectResponse
     {
+        Gate::forUser(auth('admin')->user())->authorize('update', $campaign);
+
         if (! $campaign->isEditable()) {
             return redirect()->route('admin.campaigns.show', $campaign)->with('error', 'Sent campaigns cannot be edited.');
+        }
+
+        $campaign->load('schedule');
+        if (! $campaign->schedule) {
+            $campaign->setRelation('schedule', new CampaignSchedule([
+                'schedule_type' => 'immediately',
+                'timezone' => 'UTC',
+                'start_date' => now()->toDateString(),
+                'send_time' => '09:00',
+            ]));
         }
 
         return view('admin.campaigns.form', [
@@ -103,19 +269,45 @@ class AdminCampaignController extends Controller
 
     public function update(Request $request, AdminCampaign $campaign): RedirectResponse
     {
+        Gate::forUser($request->user('admin'))->authorize('update', $campaign);
+
         if (! $campaign->isEditable()) {
             return redirect()->route('admin.campaigns.show', $campaign)->with('error', 'Sent campaigns cannot be edited.');
         }
 
+        // Validate schedule first to prevent partial update bugs
+        $scheduleInput = $this->validateScheduleData($request);
         $data = $this->validatedCampaignData($request);
+
+        $action = $request->input('action', 'draft');
+        $scheduleType = $request->input('schedule.schedule_type', 'immediately');
+
+        if ($action === 'send') {
+            if ($scheduleType === 'immediately') {
+                $data['status'] = 'queued';
+            } else {
+                // If it was already active, we can keep it active, otherwise scheduled
+                $data['status'] = in_array($campaign->status, ['active', 'scheduled']) ? $campaign->status : 'scheduled';
+            }
+        } else {
+            $data['status'] = AdminCampaign::STATUS_DRAFT;
+        }
+
         $data['updated_by'] = optional($request->user('admin'))->id;
         $campaign->update($data);
 
-        if ($request->input('action') === 'send') {
-            return $this->send($campaign->refresh());
+        // Save schedule (already validated)
+        $this->saveCampaignSchedule($campaign, $scheduleInput, app(CampaignScheduleCalculator::class));
+
+        $this->logCampaignAction($campaign, 'edited');
+
+        if ($action === 'send' && $scheduleType === 'immediately') {
+            return $this->executeImmediateSend($campaign->refresh());
         }
 
-        return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign draft updated.');
+        $msg = ($action === 'send') ? 'Campaign activated and scheduled.' : 'Campaign draft updated.';
+
+        return redirect()->route('admin.campaigns.show', $campaign)->with('success', $msg);
     }
 
     public function previewRecipients(Request $request): JsonResponse
@@ -143,10 +335,145 @@ class AdminCampaignController extends Controller
 
     public function send(AdminCampaign $campaign): RedirectResponse
     {
+        if (! $campaign->isEditable()) {
+            return redirect()->route('admin.campaigns.show', $campaign)->with('error', 'Sent campaigns cannot be edited.');
+        }
+
+        $schedule = $campaign->schedule;
+        $scheduleType = $schedule ? $schedule->schedule_type : 'immediately';
+
+        if ($scheduleType === 'immediately') {
+            $campaign->update(['status' => 'queued']);
+
+            return $this->executeImmediateSend($campaign);
+        }
+
+        $campaign->update(['status' => 'active']);
+
+        if ($schedule) {
+            $nextRun = app(CampaignScheduleCalculator::class)->calculateNextRunAt($schedule, now());
+            $schedule->update(['next_run_at' => $nextRun]);
+        }
+
+        return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign schedule activated successfully.');
+    }
+
+    protected function validateScheduleData(Request $request): array
+    {
+        $scheduleType = $request->input('schedule.schedule_type');
+
+        $rules = [
+            'schedule.schedule_type' => ['required', 'string', 'in:immediately,once,recurring'],
+        ];
+
+        if ($scheduleType === 'once') {
+            $rules = array_merge($rules, [
+                'schedule.start_date' => ['required', 'date'],
+                'schedule.send_time' => ['required', 'string', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
+                'schedule.timezone' => ['required', 'string'],
+            ]);
+        } elseif ($scheduleType === 'recurring') {
+            $rules = array_merge($rules, [
+                'schedule.start_date' => ['required', 'date'],
+                'schedule.send_time' => ['required', 'string', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
+                'schedule.timezone' => ['required', 'string'],
+                'schedule.end_type' => ['required', 'string', 'in:never,date'],
+                'schedule.end_date' => ['required_if:schedule.end_type,date', 'nullable', 'date'],
+                'schedule.recurrence_type' => ['required', 'string', 'in:daily,weekly,monthly,yearly,custom,cycle'],
+                'schedule.frequency_interval' => ['nullable', 'integer', 'min:1'],
+            ]);
+
+            $recurrenceType = $request->input('schedule.recurrence_type');
+            if ($recurrenceType === 'weekly') {
+                $rules['schedule.weekdays'] = ['required', 'array'];
+                $rules['schedule.weekdays.*'] = ['string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'];
+            } elseif ($recurrenceType === 'monthly') {
+                $rules['schedule.monthly_basis'] = ['required', 'string', 'in:date,position'];
+
+                $monthlyBasis = $request->input('schedule.monthly_basis');
+                if ($monthlyBasis === 'date') {
+                    $rules['schedule.monthly_day_of_month'] = ['required', 'integer', 'min:1', 'max:31'];
+                } elseif ($monthlyBasis === 'position') {
+                    $rules['schedule.monthly_position'] = ['required', 'string', 'in:first,second,third,fourth,last'];
+                    $rules['schedule.monthly_day_of_week'] = ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'];
+                }
+            } elseif ($recurrenceType === 'yearly') {
+                $rules['schedule.yearly_month'] = ['required', 'integer', 'min:1', 'max:12'];
+                $rules['schedule.yearly_day'] = ['required', 'integer', 'min:1', 'max:31'];
+            } elseif ($recurrenceType === 'custom') {
+                $rules['schedule.custom_unit'] = ['required', 'string', 'in:day,week,month,year'];
+            } elseif ($recurrenceType === 'cycle') {
+                $rules['schedule.cycle_send_days'] = ['required', 'integer', 'min:1'];
+                $rules['schedule.cycle_pause_days'] = ['required', 'integer', 'min:0'];
+            }
+        }
+
+        return $request->validate($rules);
+    }
+
+    protected function saveCampaignSchedule(AdminCampaign $campaign, array $scheduleInput, CampaignScheduleCalculator $calculator): void
+    {
+        $scheduleData = $scheduleInput['schedule'] ?? [];
+        $scheduleType = $scheduleData['schedule_type'] ?? 'immediately';
+
+        $weekdays = isset($scheduleData['weekdays']) ? implode(',', $scheduleData['weekdays']) : null;
+
+        if ($scheduleType === 'immediately') {
+            $scheduleData['start_date'] = now()->toDateString();
+            $scheduleData['send_time'] = now()->toTimeString();
+            $scheduleData['timezone'] = 'UTC';
+        }
+
+        $schedule = $campaign->schedule ?: new CampaignSchedule;
+        $schedule->fill([
+            'campaign_id' => $campaign->id,
+            'schedule_type' => $scheduleType,
+            'start_date' => $scheduleData['start_date'] ?? now()->toDateString(),
+            'end_type' => $scheduleData['end_type'] ?? 'never',
+            'end_date' => $scheduleData['end_date'] ?? null,
+            'send_time' => $scheduleData['send_time'] ?? now()->toTimeString(),
+            'timezone' => $scheduleData['timezone'] ?? 'UTC',
+            'recurrence_type' => $scheduleData['recurrence_type'] ?? null,
+            'frequency_interval' => isset($scheduleData['frequency_interval']) ? (int) $scheduleData['frequency_interval'] : null,
+            'weekdays' => $weekdays,
+            'monthly_basis' => $scheduleData['monthly_basis'] ?? null,
+            'monthly_day_of_month' => isset($scheduleData['monthly_day_of_month']) ? (int) $scheduleData['monthly_day_of_month'] : null,
+            'monthly_position' => $scheduleData['monthly_position'] ?? null,
+            'monthly_day_of_week' => $scheduleData['monthly_day_of_week'] ?? null,
+            'yearly_month' => isset($scheduleData['yearly_month']) ? (int) $scheduleData['yearly_month'] : null,
+            'yearly_day' => isset($scheduleData['yearly_day']) ? (int) $scheduleData['yearly_day'] : null,
+            'custom_unit' => $scheduleData['custom_unit'] ?? null,
+            'cycle_send_days' => isset($scheduleData['cycle_send_days']) ? (int) $scheduleData['cycle_send_days'] : null,
+            'cycle_pause_days' => isset($scheduleData['cycle_pause_days']) ? (int) $scheduleData['cycle_pause_days'] : null,
+        ]);
+
+        if (in_array($campaign->status, ['active', 'scheduled', 'sent', 'queued'], true)) {
+            if ($scheduleType === 'immediately') {
+                $schedule->next_run_at = now();
+            } else {
+                $schedule->next_run_at = $calculator->calculateNextRunAt($schedule, now());
+            }
+        } else {
+            $schedule->next_run_at = null;
+        }
+
+        $campaign->schedule()->save($schedule);
+    }
+
+    protected function executeImmediateSend(AdminCampaign $campaign): RedirectResponse
+    {
         try {
-            $this->sendService->send($campaign);
-            return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign sent successfully.');
-        } catch (RuntimeException $exception) {
+            $delivery = CampaignDelivery::create([
+                'campaign_id' => $campaign->id,
+                'schedule_id' => optional($campaign->schedule)->id,
+                'status' => 'scheduled',
+                'scheduled_at' => now(),
+            ]);
+
+            ProcessCampaignDeliveryJob::dispatch($delivery->id);
+
+            return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign has been queued for background sending.');
+        } catch (\Exception $exception) {
             return redirect()->route('admin.campaigns.show', $campaign)->with('error', $exception->getMessage());
         }
     }
@@ -196,11 +523,11 @@ class AdminCampaignController extends Controller
             $this->sampleValues($audienceType, $columns, 2),
         ];
 
-        $csv = collect($rows)->map(fn (array $row): string => collect($row)->map(fn (string $value): string => '"' . str_replace('"', '""', $value) . '"')->implode(','))->implode("\n");
+        $csv = collect($rows)->map(fn (array $row): string => collect($row)->map(fn (string $value): string => '"'.str_replace('"', '""', $value).'"')->implode(','))->implode("\n");
 
-        return response($csv . "\n", 200, [
+        return response($csv."\n", 200, [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="campaign-' . str_replace('_', '-', $audienceType) . '-sample.csv"',
+            'Content-Disposition' => 'attachment; filename="campaign-'.str_replace('_', '-', $audienceType).'-sample.csv"',
         ]);
     }
 
@@ -229,7 +556,7 @@ class AdminCampaignController extends Controller
             default => 'audience values',
         };
 
-        return $count . ' ' . $label . ' imported successfully.';
+        return $count.' '.$label.' imported successfully.';
     }
 
     private function sampleColumns(): array
@@ -329,5 +656,161 @@ class AdminCampaignController extends Controller
         }
 
         return $normalized;
+    }
+
+    public function destroy(AdminCampaign $campaign): RedirectResponse
+    {
+        Gate::forUser(auth('admin')->user())->authorize('delete', $campaign);
+
+        DB::transaction(function () use ($campaign) {
+            $campaign->update(['status' => AdminCampaign::STATUS_DELETED]);
+            $campaign->delete();
+            $this->logCampaignAction($campaign, 'deleted');
+        });
+
+        return redirect()->route('admin.campaigns.index')->with('success', 'Campaign soft-deleted successfully.');
+    }
+
+    public function pause(AdminCampaign $campaign): RedirectResponse
+    {
+        Gate::forUser(auth('admin')->user())->authorize('pause', $campaign);
+
+        DB::transaction(function () use ($campaign) {
+            $campaign->update(['status' => AdminCampaign::STATUS_PAUSED]);
+            if ($campaign->schedule) {
+                $campaign->schedule->update(['next_run_at' => null]);
+            }
+            $this->logCampaignAction($campaign, 'paused');
+        });
+
+        return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign paused successfully.');
+    }
+
+    public function resume(AdminCampaign $campaign): RedirectResponse
+    {
+        Gate::forUser(auth('admin')->user())->authorize('resume', $campaign);
+
+        DB::transaction(function () use ($campaign) {
+            $campaign->update(['status' => AdminCampaign::STATUS_ACTIVE]);
+            if ($campaign->schedule) {
+                $nextRun = app(CampaignScheduleCalculator::class)->calculateNextRunAt($campaign->schedule, now());
+                $campaign->schedule->update(['next_run_at' => $nextRun]);
+            }
+            $this->logCampaignAction($campaign, 'resumed');
+        });
+
+        return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign resumed successfully.');
+    }
+
+    public function stop(AdminCampaign $campaign): RedirectResponse
+    {
+        Gate::forUser(auth('admin')->user())->authorize('stop', $campaign);
+
+        DB::transaction(function () use ($campaign) {
+            $campaign->update(['status' => AdminCampaign::STATUS_STOPPED]);
+            if ($campaign->schedule) {
+                $campaign->schedule->update(['next_run_at' => null]);
+            }
+            $this->logCampaignAction($campaign, 'stopped');
+        });
+
+        return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign stopped successfully.');
+    }
+
+    public function duplicate(AdminCampaign $campaign): RedirectResponse
+    {
+        Gate::forUser(auth('admin')->user())->authorize('duplicate', $campaign);
+
+        $newCampaign = DB::transaction(function () use ($campaign) {
+            $duplicate = $campaign->replicate();
+            $duplicate->title = 'Copy of '.$campaign->title;
+            $duplicate->status = AdminCampaign::STATUS_DRAFT;
+            $duplicate->total_recipients = 0;
+            $duplicate->total_email_sent = 0;
+            $duplicate->total_notification_sent = 0;
+            $duplicate->total_failed = 0;
+            $duplicate->sent_at = null;
+            $duplicate->save();
+
+            if ($campaign->schedule) {
+                $newSchedule = $campaign->schedule->replicate();
+                $newSchedule->campaign_id = $duplicate->id;
+                $newSchedule->next_run_at = null;
+                $newSchedule->last_run_at = null;
+                $newSchedule->save();
+            }
+
+            $this->logCampaignAction($duplicate, 'duplicated', ['original_campaign_id' => $campaign->id]);
+
+            return $duplicate;
+        });
+
+        return redirect()->route('admin.campaigns.edit', $newCampaign)->with('success', 'Campaign duplicated as draft.');
+    }
+
+    public function retry(AdminCampaign $campaign): RedirectResponse
+    {
+        Gate::forUser(auth('admin')->user())->authorize('retry', $campaign);
+
+        $schedule = $campaign->schedule;
+        $scheduleType = $schedule ? $schedule->schedule_type : 'immediately';
+
+        if ($scheduleType === 'immediately') {
+            DB::transaction(function () use ($campaign) {
+                $campaign->update([
+                    'status' => 'queued',
+                    'total_recipients' => 0,
+                    'total_email_sent' => 0,
+                    'total_notification_sent' => 0,
+                    'total_failed' => 0,
+                ]);
+                $this->logCampaignAction($campaign, 'retried');
+            });
+
+            return $this->executeImmediateSend($campaign);
+        }
+
+        DB::transaction(function () use ($campaign, $schedule) {
+            $campaign->update([
+                'status' => 'active',
+                'total_recipients' => 0,
+                'total_email_sent' => 0,
+                'total_notification_sent' => 0,
+                'total_failed' => 0,
+            ]);
+            if ($schedule) {
+                $nextRun = app(CampaignScheduleCalculator::class)->calculateNextRunAt($schedule, now());
+                $schedule->update(['next_run_at' => $nextRun]);
+            }
+            $this->logCampaignAction($campaign, 'retried');
+        });
+
+        return redirect()->route('admin.campaigns.show', $campaign)->with('success', 'Campaign retried and activated.');
+    }
+
+    private function logCampaignAction(AdminCampaign $campaign, string $action, array $extraDetails = []): void
+    {
+        try {
+            $admin = auth('admin')->user();
+            $ipAddress = request()->ip();
+            $userAgent = request()->userAgent();
+
+            $log = new AdminAuditLog;
+            $log->id = (string) Str::uuid();
+            $log->admin_user_id = $admin?->id;
+            $log->action = $action;
+            $log->target_table = 'admin_campaigns';
+            $log->target_id = $campaign->id;
+            $log->details = array_merge([
+                'campaign_title' => $campaign->title,
+                'status' => $campaign->status,
+            ], $extraDetails);
+            $log->ip_address = $ipAddress;
+            $log->user_agent = $userAgent;
+            $log->created_at = now();
+            $log->save();
+        } catch (\Exception $e) {
+            Log::warning('Failed to log campaign action: '.$e->getMessage());
+        }
     }
 }

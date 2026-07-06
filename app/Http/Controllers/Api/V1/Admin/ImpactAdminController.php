@@ -17,9 +17,7 @@ class ImpactAdminController extends BaseApiController
     public function __construct(
         private readonly ImpactService $impactService,
         private readonly LifeImpactBackfillService $lifeImpactBackfillService,
-    ) {
-    }
-
+    ) {}
 
     public function storeManual(StoreManualLifeImpactRequest $request): JsonResponse
     {

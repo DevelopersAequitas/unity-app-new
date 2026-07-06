@@ -21,7 +21,12 @@ use Throwable;
 class User extends Authenticatable
 {
     public const STATUS_FREE_TRIAL = 'free_trial_peer';
+
     public const STATUS_FREE = 'free_peer';
+
+    public const STATUS_GREEN_PEER = 'Only Green Peer';
+
+    public const STATUS_GREEN_PEER_LABEL = 'Only Green Peer';
 
     private const FREE_PEER_STATUS_CANDIDATES = [self::STATUS_FREE, 'Free Peer', 'Free_peer'];
 
@@ -31,7 +36,9 @@ class User extends Authenticatable
     use SoftDeletes;
 
     protected $table = 'users';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -63,6 +70,7 @@ class User extends Authenticatable
         'business_logo_id',
         'state',
         'country',
+        'timezone',
         'preferred_language',
         'business_category_id',
         'business_sub_category',
@@ -85,6 +93,7 @@ class User extends Authenticatable
         'youtube_channel',
         'other_website',
         'contact_visibility',
+        'profile_visibility',
         'business_address',
         'business_city',
         'business_state',
@@ -157,6 +166,11 @@ class User extends Authenticatable
         'welcome_membership_email_status',
         'welcome_membership_email_error',
         'welcome_membership_email_plan_code',
+        'website',
+        'sustainability_contribution',
+        'sustainability_areas',
+        'greenpreneur_goals',
+        'community_directory_listing',
     ];
 
     protected $hidden = [
@@ -206,6 +220,8 @@ class User extends Authenticatable
         'is_sponsored_member' => 'boolean',
         'life_impacted_count' => 'integer',
         'is_online' => 'boolean',
+        'sustainability_areas' => 'array',
+        'greenpreneur_goals' => 'array',
         'contacts_allowed' => 'boolean',
     ];
 
@@ -224,6 +240,16 @@ class User extends Authenticatable
         return $this->hasMany(ContactPost::class, 'user_id');
     }
 
+    public function approvedSentConnections(): HasMany
+    {
+        return $this->hasMany(Connection::class, 'requester_id')->where('is_approved', true);
+    }
+
+    public function approvedReceivedConnections(): HasMany
+    {
+        return $this->hasMany(Connection::class, 'addressee_id')->where('is_approved', true);
+    }
+
     protected static function booted(): void
     {
         static::saving(function (self $user): void {
@@ -238,7 +264,7 @@ class User extends Authenticatable
             }
 
             if (empty($user->display_name)) {
-                $user->display_name = trim($user->first_name . ' ' . ($user->last_name ?? ''));
+                $user->display_name = trim($user->first_name.' '.($user->last_name ?? ''));
             }
         });
 
@@ -370,9 +396,14 @@ class User extends Authenticatable
         return $this->belongsTo(CircleCategory::class, 'business_category_id');
     }
 
+    public function level4Category(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel4::class, 'business_category_id');
+    }
+
     public function foundedCircles(): HasMany
     {
-        return $this->hasMany(Circle::class, 'founder_user_id');
+        return $this->hasMany(Circle::class, 'circle_founder_user_id');
     }
 
     public function circleMembers(): HasMany
@@ -428,7 +459,7 @@ class User extends Authenticatable
         }
 
         $fullName = trim(
-            trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
+            trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? ''))
         );
 
         return $fullName !== '' ? $fullName : 'Unknown';
@@ -439,7 +470,7 @@ class User extends Authenticatable
         $firstName = trim($this->first_name ?? '');
         $lastName = trim($this->last_name ?? '');
 
-        $fullName = trim($firstName . ' ' . $lastName);
+        $fullName = trim($firstName.' '.$lastName);
 
         if ($fullName !== '') {
             return $fullName;
@@ -472,11 +503,13 @@ class User extends Authenticatable
     {
         if ($this->relationLoaded('circleMembers')) {
             $name = trim((string) optional($this->circleMembers->first()?->circle)->name);
+
             return $name !== '' ? $name : 'No Circle';
         }
 
         if ($this->relationLoaded('circles')) {
             $name = trim((string) optional($this->circles->first())->name);
+
             return $name !== '' ? $name : 'No Circle';
         }
 
@@ -491,7 +524,7 @@ class User extends Authenticatable
             $name = trim((string) optional($member?->circle)->name);
 
             return $name !== '' ? $name : 'No Circle';
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return 'No Circle';
         }
     }
@@ -515,7 +548,7 @@ class User extends Authenticatable
         }
 
         $fullName = trim(
-            trim((string) ($this->first_name ?? '')) . ' ' . trim((string) ($this->last_name ?? ''))
+            trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? ''))
         );
 
         if ($fullName !== '') {
@@ -819,7 +852,7 @@ class User extends Authenticatable
             ?? null;
 
         if ($profilePhotoId) {
-            return url('/api/v1/files/' . $profilePhotoId);
+            return url('/api/v1/files/'.$profilePhotoId);
         }
 
         $storedProfilePhotoUrl = $this->attributes['profile_photo_url'] ?? null;
@@ -841,7 +874,7 @@ class User extends Authenticatable
             return null;
         }
 
-        return url('/api/v1/files/' . $this->profile_video_id);
+        return url('/api/v1/files/'.$this->profile_video_id);
     }
 
     public function isFreeMember(): bool
@@ -858,7 +891,7 @@ class User extends Authenticatable
     {
         $name = (string) ($this->getAttribute('name')
             ?? $this->display_name
-            ?? trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? '')));
+            ?? trim(($this->first_name ?? '').' '.($this->last_name ?? '')));
 
         $companyName = (string) ($this->getAttribute('company_name') ?? '');
         $city = (string) ($this->getAttribute('city') ?? '');

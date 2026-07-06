@@ -105,6 +105,12 @@ class EmailLogService
                 'body_html' => Arr::get($data, 'body_html'),
                 'payload' => is_array($payload) ? $payload : null,
                 'error_message' => Arr::get($data, 'error_message'),
+                'triggered_by' => Arr::get($data, 'triggered_by'),
+                'triggered_user_id' => Arr::get($data, 'triggered_user_id'),
+                'mail_provider' => Arr::get($data, 'mail_provider', config('mail.default')),
+                'queue_id' => Arr::get($data, 'queue_id'),
+                'message_id' => Arr::get($data, 'message_id'),
+                'body_text' => Arr::get($data, 'body_text'),
                 'sent_at' => Arr::get($data, 'sent_at', now()),
                 'created_at' => Arr::get($data, 'created_at', now()),
             ];
@@ -161,11 +167,13 @@ class EmailLogService
 
             if ($this->isSensitiveKey($normalizedKey)) {
                 $sanitized[$key] = '***';
+
                 continue;
             }
 
             if (is_array($value)) {
                 $sanitized[$key] = $this->sanitizePayload($value);
+
                 continue;
             }
 

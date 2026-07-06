@@ -11,7 +11,9 @@ class AdminDedDistrict extends Model
     use HasUuids;
 
     protected $table = 'admin_ded_districts';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

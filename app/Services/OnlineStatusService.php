@@ -103,7 +103,8 @@ class OnlineStatusService
             }
 
             $displayName = $otherUser->display_name
-                ?: trim(($otherUser->first_name ?? '') . ' ' . ($otherUser->last_name ?? ''));
+                ?: trim(($otherUser->first_name ?? '').' '.($otherUser->last_name ?? ''));
+
             return [
                 'user_id' => (string) $otherUser->id,
                 'display_name' => $displayName !== '' ? $displayName : null,
@@ -160,7 +161,7 @@ class OnlineStatusService
             return 'Offline';
         }
 
-        return 'Last seen ' . $lastSeenAt->diffForHumans(now(), [
+        return 'Last seen '.$lastSeenAt->diffForHumans(now(), [
             'parts' => 2,
             'short' => false,
             'syntax' => CarbonInterface::DIFF_RELATIVE_TO_NOW,

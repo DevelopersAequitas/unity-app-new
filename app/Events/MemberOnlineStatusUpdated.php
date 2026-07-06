@@ -12,9 +12,7 @@ class MemberOnlineStatusUpdated implements ShouldBroadcast
     use Dispatchable;
     use SerializesModels;
 
-    public function __construct(public array $payload)
-    {
-    }
+    public function __construct(public array $payload) {}
 
     public function broadcastOn(): array
     {

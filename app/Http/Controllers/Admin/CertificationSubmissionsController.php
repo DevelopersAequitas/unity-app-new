@@ -10,9 +10,7 @@ use Illuminate\Validation\Rule;
 
 class CertificationSubmissionsController extends Controller
 {
-    public function __construct(private readonly CertificateGeneratorService $certificateGenerator)
-    {
-    }
+    public function __construct(private readonly CertificateGeneratorService $certificateGenerator) {}
 
     public function index(Request $request)
     {
@@ -36,7 +34,7 @@ class CertificationSubmissionsController extends Controller
             $search = trim((string) $filters['search']);
             $query->where(function ($q) use ($search) {
                 foreach (['full_name', 'business_name', 'email', 'contact_no'] as $column) {
-                    $q->orWhereRaw('LOWER(' . $column . ') LIKE ?', ['%' . strtolower($search) . '%']);
+                    $q->orWhereRaw('LOWER('.$column.') LIKE ?', ['%'.strtolower($search).'%']);
                 }
             });
         }

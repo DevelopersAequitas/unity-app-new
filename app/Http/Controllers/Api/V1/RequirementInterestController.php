@@ -15,9 +15,7 @@ use Throwable;
 class RequirementInterestController extends Controller
 {
     public function __construct(private readonly RequirementNotificationService $requirementNotificationService,
-        private readonly PeerBlockService $peerBlockService)
-    {
-    }
+        private readonly PeerBlockService $peerBlockService) {}
 
     public function store(InterestRequirementRequest $request, Requirement $requirement): JsonResponse
     {

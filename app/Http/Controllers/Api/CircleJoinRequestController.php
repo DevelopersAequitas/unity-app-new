@@ -13,9 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestController extends BaseApiController
 {
-    public function __construct(private readonly CircleJoinRequestService $service)
-    {
-    }
+    public function __construct(private readonly CircleJoinRequestService $service) {}
 
     public function store(StoreCircleJoinRequest $request): JsonResponse
     {

@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
-use App\Http\Requests\Activity\StoreBusinessDealRequest;
 use App\Events\ActivityCreated;
-use App\Models\Post;
+use App\Http\Requests\Activity\StoreBusinessDealRequest;
 use App\Models\BusinessDeal;
+use App\Models\Post;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -24,13 +25,13 @@ class BusinessDealController extends BaseApiController
         }
 
         return collect($media)->map(function ($item) {
-            $id   = $item['id']   ?? null;
+            $id = $item['id'] ?? null;
             $type = $item['type'] ?? 'image';
 
             return [
-                'id'   => $id,
+                'id' => $id,
                 'type' => $type,
-                'url'  => $id ? url('/api/v1/files/' . $id) : null,
+                'url' => $id ? url('/api/v1/files/'.$id) : null,
             ];
         })->all();
     }
@@ -53,22 +54,22 @@ class BusinessDealController extends BaseApiController
             ]);
 
             Post::create([
-                'user_id'           => $deal->from_user_id ?? $deal->user_id ?? $deal->created_by ?? $deal->to_user_id,
-                'circle_id'         => null,
-                'content_text'      => $contentText,
-                'media'             => $mediaForPost,
-                'tags'              => ['business_deal'],
-                'visibility'        => 'public',
+                'user_id' => $deal->from_user_id ?? $deal->user_id ?? $deal->created_by ?? $deal->to_user_id,
+                'circle_id' => null,
+                'content_text' => $contentText,
+                'media' => $mediaForPost,
+                'tags' => ['business_deal'],
+                'visibility' => 'public',
                 'moderation_status' => 'pending',
-                'sponsored'         => false,
-                'is_deleted'        => false,
-                'source_type'       => 'business_deal',
-                'source_id'         => $deal->id,
+                'sponsored' => false,
+                'is_deleted' => false,
+                'source_type' => 'business_deal',
+                'source_id' => $deal->id,
             ]);
         } catch (Throwable $e) {
             Log::error('Failed to create post for business deal', [
                 'business_deal_id' => $deal->id,
-                'error'            => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -173,7 +174,7 @@ class BusinessDealController extends BaseApiController
                         'activity_type' => 'business_deal',
                         'activity_id' => (string) $businessDeal->id,
                         'title' => 'New Business Deal',
-                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' recorded a business deal with you',
+                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' recorded a business deal with you',
                     ],
                     $businessDeal
                 );
@@ -246,5 +247,144 @@ class BusinessDealController extends BaseApiController
         }
 
         return $this->success($businessDeal);
+    }
+
+    public function userBusinessDealsStats(Request $request, string $userId): JsonResponse
+    {
+        $user = User::find($userId);
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null,
+            ], 404);
+        }
+
+        $baseQuery = BusinessDeal::query()
+            ->where(function ($q) {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at');
+
+        $givenCount = (clone $baseQuery)
+            ->where('from_user_id', $userId)
+            ->count();
+
+        $receivedCount = (clone $baseQuery)
+            ->where('to_user_id', $userId)
+            ->count();
+
+        $totalCount = $givenCount + $receivedCount;
+
+        return $this->success([
+            'user' => [
+                'id' => (string) $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'display_name' => $user->display_name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'company_name' => $user->company_name,
+                'designation' => $user->designation,
+                'profile_photo_url' => $user->profile_photo_url ?? $user->profile_photo ?? null,
+            ],
+            'business_deals_given' => $givenCount,
+            'business_deals_received' => $receivedCount,
+            'total_business_deals' => $totalCount,
+        ]);
+    }
+
+    public function userBusinessDealsList(Request $request, string $userId): JsonResponse
+    {
+        $user = User::find($userId);
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null,
+            ], 404);
+        }
+
+        $baseQuery = BusinessDeal::query()
+            ->where(function ($q) {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at');
+
+        $givenCount = (clone $baseQuery)
+            ->where('from_user_id', $userId)
+            ->count();
+
+        $receivedCount = (clone $baseQuery)
+            ->where('to_user_id', $userId)
+            ->count();
+
+        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
+
+        $paginator = (clone $baseQuery)
+            ->with(['fromUser', 'toUser'])
+            ->where(function ($q) use ($userId) {
+                $q->where('from_user_id', $userId)
+                    ->orWhere('to_user_id', $userId);
+            })
+            ->orderBy('deal_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        $items = collect($paginator->items())->map(function (BusinessDeal $deal): array {
+            $fromUser = $deal->fromUser;
+            $toUser = $deal->toUser;
+
+            return [
+                'id' => (string) $deal->id,
+                'from_user_id' => (string) $deal->from_user_id,
+                'to_user_id' => (string) $deal->to_user_id,
+                'deal_date' => $deal->deal_date ? Carbon::parse($deal->deal_date)->format('Y-m-d') : '',
+                'deal_amount' => $deal->deal_amount,
+                'business_type' => $deal->business_type ?? '',
+                'comment' => $deal->comment ?? '',
+                'created_at' => $deal->created_at ? Carbon::parse($deal->created_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'updated_at' => $deal->updated_at ? Carbon::parse($deal->updated_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'from_user' => $fromUser ? [
+                    'id' => (string) $fromUser->id,
+                    'display_name' => $fromUser->display_name ?? trim(($fromUser->first_name ?? '').' '.($fromUser->last_name ?? '')),
+                    'first_name' => $fromUser->first_name,
+                    'last_name' => $fromUser->last_name,
+                    'email' => $fromUser->email,
+                    'phone' => $fromUser->phone,
+                    'company_name' => $fromUser->company_name,
+                    'designation' => $fromUser->designation,
+                    'profile_photo_url' => $fromUser->profile_photo_url ?? $fromUser->profile_photo ?? null,
+                ] : null,
+                'to_user' => $toUser ? [
+                    'id' => (string) $toUser->id,
+                    'display_name' => $toUser->display_name ?? trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? '')),
+                    'first_name' => $toUser->first_name,
+                    'last_name' => $toUser->last_name,
+                    'email' => $toUser->email,
+                    'phone' => $toUser->phone,
+                    'company_name' => $toUser->company_name,
+                    'designation' => $toUser->designation,
+                    'profile_photo_url' => $toUser->profile_photo_url ?? $toUser->profile_photo ?? null,
+                ] : null,
+            ];
+        })->values()->all();
+
+        return $this->success([
+            'business_deals_given' => $givenCount,
+            'business_deals_received' => $receivedCount,
+            'total_business_deals' => $givenCount + $receivedCount,
+            'items' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ]);
     }
 }

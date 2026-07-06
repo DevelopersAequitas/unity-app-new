@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class UserPushToken extends Model
 {
@@ -45,14 +46,16 @@ class UserPushToken extends Model
     {
         static $column = null;
         if ($column === null) {
-            $column = \Illuminate\Support\Facades\Schema::hasColumn('user_push_tokens', 'usr_id') ? 'usr_id' : 'user_id';
+            $column = Schema::hasColumn('user_push_tokens', 'usr_id') ? 'usr_id' : 'user_id';
         }
+
         return $column;
     }
 
     public function getUserIdAttribute()
     {
         $col = self::getUserIdColumn();
+
         return $this->attributes[$col] ?? null;
     }
 

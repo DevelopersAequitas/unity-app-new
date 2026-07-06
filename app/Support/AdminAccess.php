@@ -2,13 +2,13 @@
 
 namespace App\Support;
 
-use App\Models\AdminUser;
 use App\Models\AdminDedDistrict;
+use App\Models\AdminUser;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class AdminAccess
@@ -56,7 +56,7 @@ class AdminAccess
             return null;
         }
 
-        $cacheKey = 'admin-access:user:' . $admin->id;
+        $cacheKey = 'admin-access:user:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $email = trim(strtolower((string) $admin->email));
@@ -76,7 +76,7 @@ class AdminAccess
             return [];
         }
 
-        $cacheKey = 'admin-access:roles:' . $admin->id;
+        $cacheKey = 'admin-access:roles:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             return Role::query()
@@ -104,7 +104,6 @@ class AdminAccess
 
         return in_array('global_admin', self::adminRoleKeys($admin), true);
     }
-
 
     public static function isDed(?AdminUser $admin): bool
     {
@@ -141,7 +140,7 @@ class AdminAccess
             return [];
         }
 
-        $cacheKey = 'admin-access:ded-location:' . $admin->id;
+        $cacheKey = 'admin-access:ded-location:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin): array {
             $query = AdminDedDistrict::query()
@@ -232,7 +231,7 @@ class AdminAccess
             return [];
         }
 
-        $cacheKey = 'admin-access:circles:' . $admin->id;
+        $cacheKey = 'admin-access:circles:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $user = self::resolveAppUser($admin);
@@ -257,7 +256,7 @@ class AdminAccess
             return [];
         }
 
-        $cacheKey = 'admin-access:allowed-users:' . $admin->id;
+        $cacheKey = 'admin-access:allowed-users:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $allowedCircleIds = self::allowedCircleIds($admin);
@@ -282,7 +281,7 @@ class AdminAccess
             return null;
         }
 
-        $cacheKey = 'admin-access:primary-role:' . $admin->id;
+        $cacheKey = 'admin-access:primary-role:'.$admin->id;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             $user = self::resolveAppUser($admin);
@@ -313,7 +312,7 @@ class AdminAccess
                 ->whereIn($roleCol, $roles)
                 ->orderByRaw("case {$orderRoleCol} {$orderCases} else 999 end")
                 ->limit(1)
-                ->value($valueRoleCol);
+                ->value('role');
         });
     }
 
@@ -326,6 +325,20 @@ class AdminAccess
         }
 
         return self::CIRCLE_ROLE_LABELS[$roleKey] ?? 'Circle Leader';
+    }
+
+    public static function isCircleCommittee(?AdminUser $admin): bool
+    {
+        if (! $admin || self::isSuper($admin)) {
+            return false;
+        }
+
+        $roleKeys = self::adminRoleKeys($admin);
+        if ((bool) array_intersect(['circle_leader', 'chair', 'vice_chair', 'secretary'], $roleKeys)) {
+            return true;
+        }
+
+        return in_array(self::primaryCircleRoleKey($admin), ['circle_leader', 'chair', 'vice_chair', 'secretary'], true);
     }
 
     public static function canEditUsers(?AdminUser $admin): bool

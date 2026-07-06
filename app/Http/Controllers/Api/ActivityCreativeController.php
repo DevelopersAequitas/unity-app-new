@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Models\ActivityCreative;
 use App\Models\FileModel;
 use Illuminate\Http\JsonResponse;
@@ -51,7 +50,6 @@ class ActivityCreativeController extends BaseApiController
 
         return $this->success($items, 'Activity creatives fetched successfully.');
     }
-
 
     public function myCreatives(Request $request): JsonResponse
     {
@@ -155,10 +153,9 @@ class ActivityCreativeController extends BaseApiController
             }
 
             $fileModel = $this->storeFile($request->file('creative_image'), $user->id);
-            $fileUrl = url('/api/v1/files/' . $fileModel->id);
+            $fileUrl = url('/api/v1/files/'.$fileModel->id);
 
             $postId = $validated['post_id'] ?? ($existing?->post_id);
-
 
             $payload = [
                 'user_id' => $user->id,
@@ -227,9 +224,9 @@ class ActivityCreativeController extends BaseApiController
     private function storeFile(UploadedFile $file, ?string $userId): FileModel
     {
         $disk = config('filesystems.default', 'public');
-        $folder = 'uploads/' . now()->format('Y/m/d');
+        $folder = 'uploads/'.now()->format('Y/m/d');
         $extension = $file->getClientOriginalExtension() ?: 'jpg';
-        $path = $file->storeAs($folder, Str::uuid() . '.' . $extension, $disk);
+        $path = $file->storeAs($folder, Str::uuid().'.'.$extension, $disk);
 
         return FileModel::create([
             'uploader_user_id' => $userId,

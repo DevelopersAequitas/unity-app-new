@@ -11,13 +11,11 @@ class SupportTicketSubmittedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public SupportTicket $ticket)
-    {
-    }
+    public function __construct(public SupportTicket $ticket) {}
 
     public function build(): self
     {
-        return $this->subject('Support Ticket Received - ' . $this->ticket->ticket_number)
+        return $this->subject('Support Ticket Received - '.$this->ticket->ticket_number)
             ->view('emails.support_ticket_submitted');
     }
 }

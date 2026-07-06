@@ -2,6 +2,4 @@
 
 namespace App\Services\IndustryDirector;
 
-class IndustryScopeService extends IndustryDirectorScopeService
-{
-}
+class IndustryScopeService extends IndustryDirectorScopeService {}

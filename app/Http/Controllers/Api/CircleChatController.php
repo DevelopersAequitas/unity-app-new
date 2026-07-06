@@ -15,8 +15,7 @@ class CircleChatController extends BaseApiController
 {
     public function __construct(
         private readonly CircleChatService $circleChatService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, Circle $circle)
     {

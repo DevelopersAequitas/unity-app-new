@@ -4,17 +4,17 @@ namespace App\Http\Controllers\Api\V1\Billing;
 
 use App\Http\Controllers\Controller;
 use App\Mail\MembershipPurchaseCongratulationsMail;
-use App\Models\CircleSubscription;
 use App\Models\CircleJoinRequest;
+use App\Models\CircleSubscription;
 use App\Models\EmailLog;
 use App\Models\User;
 use App\Services\Billing\MembershipSyncService;
-use App\Services\EmailLogs\EmailLogService;
 use App\Services\Circles\CircleJoinRequestPaymentSyncService;
-use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Circles\PaidCircleMembershipFinalizer;
-use App\Support\Zoho\ZohoBillingService;
+use App\Services\EmailLogs\EmailLogService;
+use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Zoho\ZohoPaymentWebhookService;
+use App\Support\Zoho\ZohoBillingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,8 +32,7 @@ class ZohoBillingWebhookController extends Controller
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
         private readonly PaidCircleMembershipFinalizer $paidCircleMembershipFinalizer,
         private readonly ZohoPaymentWebhookService $zohoPaymentWebhookService,
-    ) {
-    }
+    ) {}
 
     public function handle(Request $request)
     {
@@ -128,7 +127,6 @@ class ZohoBillingWebhookController extends Controller
         }
     }
 
-
     private function sendMembershipPurchaseCongratulationsEmail(User $user): void
     {
         if ((string) ($user->membership_status ?? '') !== 'active') {
@@ -150,7 +148,7 @@ class ZohoBillingWebhookController extends Controller
             app(EmailLogService::class)->logMailableSent($mailable, [
                 'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'membership_purchase_congratulations',
                 'source_module' => 'billing',
                 'related_type' => 'user',
@@ -164,7 +162,7 @@ class ZohoBillingWebhookController extends Controller
             app(EmailLogService::class)->logMailableFailed($mailable, [
                 'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
-                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'membership_purchase_congratulations',
                 'source_module' => 'billing',
                 'related_type' => 'user',
@@ -625,6 +623,6 @@ class ZohoBillingWebhookController extends Controller
 
         [$name, $domain] = explode('@', $email, 2);
 
-        return substr($name, 0, 1) . '***@' . $domain;
+        return substr($name, 0, 1).'***@'.$domain;
     }
 }

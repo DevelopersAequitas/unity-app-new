@@ -8,9 +8,7 @@ use Illuminate\Http\JsonResponse;
 
 class LocationController extends Controller
 {
-    public function __construct(private readonly DedLocationService $dedLocationService)
-    {
-    }
+    public function __construct(private readonly DedLocationService $dedLocationService) {}
 
     public function districts(string $state): JsonResponse
     {

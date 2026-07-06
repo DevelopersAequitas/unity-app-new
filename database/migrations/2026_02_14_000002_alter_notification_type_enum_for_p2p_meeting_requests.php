@@ -1,13 +1,13 @@
 <?php
 
+use App\Support\SqliteMigrator;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        DB::unprepared(<<<'SQL'
+        SqliteMigrator::run(<<<'SQL'
 ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_meeting_request';
 ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_meeting_accepted';
 ALTER TYPE notification_type_enum ADD VALUE IF NOT EXISTS 'p2p_meeting_rejected';

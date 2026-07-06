@@ -27,6 +27,7 @@ class DailyNotificationReminderService
         return DB::transaction(function () use ($id, $data) {
             $reminder = DailyNotificationReminder::query()->findOrFail($id);
             $reminder->update($data);
+
             return $reminder;
         });
     }

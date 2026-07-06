@@ -97,7 +97,7 @@ class EventQrService
 
     private function makePng(string $payload): string
     {
-        $writer = new PngWriter();
+        $writer = new PngWriter;
         $qrCode = new QrCode(
             data: $payload,
             encoding: new Encoding('UTF-8'),

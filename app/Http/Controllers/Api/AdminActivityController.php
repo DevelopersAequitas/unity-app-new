@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Activity\UpdateActivityAdminRequest;
 use App\Http\Resources\ActivityResource;
 use App\Models\Activity;
@@ -140,11 +139,13 @@ class AdminActivityController extends BaseApiController
 
             if (! $lockedActivity) {
                 DB::rollBack();
+
                 return $this->error('Activity not found', 404);
             }
 
             if ($lockedActivity->status !== 'pending') {
                 DB::rollBack();
+
                 return $this->error('Only pending activities can be updated', 422);
             }
 
@@ -162,13 +163,14 @@ class AdminActivityController extends BaseApiController
 
                 if ($coinsAwarded <= 0) {
                     DB::rollBack();
+
                     return $this->error('coins_awarded must be greater than zero when approving', 422);
                 }
 
                 $lockedActivity->coins_awarded = $coinsAwarded;
 
                 $txRow = DB::selectOne(
-                    "SELECT coins_apply_transaction(?, ?, ?, ?, ?) AS transaction_id",
+                    'SELECT coins_apply_transaction(?, ?, ?, ?, ?) AS transaction_id',
                     [
                         $lockedActivity->user_id,
                         $lockedActivity->coins_awarded,

@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
+use App\Events\ActivityCreated;
 use App\Http\Requests\Activity\StoreP2pMeetingRequest;
+use App\Models\FileModel;
 use App\Models\P2pMeeting;
 use App\Models\Post;
 use App\Models\User;
-use App\Events\ActivityCreated;
-use App\Models\FileModel;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -29,23 +29,23 @@ class P2pMeetingController extends BaseApiController
             $contentText = $this->buildActivityPostMessage('p2p_meeting', $peerUser);
 
             Post::create([
-                'user_id'           => $meeting->initiator_user_id,
-                'circle_id'         => null,
-                'content_text'      => $contentText,
-                'media'             => [],
-                'tags'              => ['p2p_meeting'],
-                'source_type'       => 'p2p_meeting',
-                'source_id'         => $meeting->id,
-                'source_event'      => 'p2p_meeting_created',
-                'visibility'        => 'public',
+                'user_id' => $meeting->initiator_user_id,
+                'circle_id' => null,
+                'content_text' => $contentText,
+                'media' => [],
+                'tags' => ['p2p_meeting'],
+                'source_type' => 'p2p_meeting',
+                'source_id' => $meeting->id,
+                'source_event' => 'p2p_meeting_created',
+                'visibility' => 'public',
                 'moderation_status' => 'pending',
-                'sponsored'         => false,
-                'is_deleted'        => false,
+                'sponsored' => false,
+                'is_deleted' => false,
             ]);
         } catch (Throwable $e) {
             Log::error('Failed to create post for P2P meeting', [
                 'p2p_meeting_id' => $meeting->id,
-                'error'          => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -176,7 +176,7 @@ class P2pMeetingController extends BaseApiController
                         'activity_type' => 'p2p_meeting',
                         'activity_id' => (string) $meeting->id,
                         'title' => 'New P2P Meeting',
-                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' scheduled a P2P meeting with you',
+                        'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' scheduled a P2P meeting with you',
                     ],
                     $meeting
                 );
@@ -217,7 +217,6 @@ class P2pMeetingController extends BaseApiController
 
         return $this->success($this->buildP2pMeetingResponse($meeting));
     }
-
 
     /**
      * @return array<string, mixed>
@@ -300,7 +299,6 @@ class P2pMeetingController extends BaseApiController
     }
 
     /**
-     * @param  mixed  $rawMedia
      * @return array<int, array<string, mixed>>
      */
     private function expandP2pMedia(mixed $rawMedia): array
@@ -332,7 +330,7 @@ class P2pMeetingController extends BaseApiController
                 return [
                     'file_id' => $fileId,
                     'media_type' => $mediaType,
-                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/' . $fileId) : null,
+                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/'.$fileId) : null,
                     'mime_type' => $file->mime_type ?? $file->mime ?? $file->type ?? null,
                     'original_name' => $file->original_name ?? $file->original_filename ?? $file->name ?? null,
                     'size' => $file->size ?? $file->size_bytes ?? null,
@@ -349,9 +347,110 @@ class P2pMeetingController extends BaseApiController
     {
         if (is_string($rawMedia)) {
             $decoded = json_decode($rawMedia, true);
+
             return is_array($decoded) ? $decoded : [];
         }
 
         return is_array($rawMedia) ? $rawMedia : [];
+    }
+
+    public function userMeetings(Request $request, string $userId): JsonResponse
+    {
+        $user = User::find($userId);
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null,
+            ], 404);
+        }
+
+        $baseQuery = P2pMeeting::query()
+            ->where(function ($q) {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at');
+
+        $totalCount = (clone $baseQuery)
+            ->where(function ($q) use ($userId) {
+                $q->where('initiator_user_id', $userId)
+                    ->orWhere('peer_user_id', $userId);
+            })
+            ->count();
+
+        $initiatedCount = (clone $baseQuery)
+            ->where('initiator_user_id', $userId)
+            ->count();
+
+        $peerCount = (clone $baseQuery)
+            ->where('peer_user_id', $userId)
+            ->count();
+
+        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
+
+        $paginator = (clone $baseQuery)
+            ->with(['initiator', 'peer'])
+            ->where(function ($q) use ($userId) {
+                $q->where('initiator_user_id', $userId)
+                    ->orWhere('peer_user_id', $userId);
+            })
+            ->orderBy('meeting_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        $items = collect($paginator->items())->map(function (P2pMeeting $meeting): array {
+            $initiatedBy = $meeting->initiator;
+            $initiatedTo = $meeting->peer;
+
+            return [
+                'id' => (string) $meeting->id,
+                'initiated_by_user_id' => (string) $meeting->initiator_user_id,
+                'initiated_to_user_id' => (string) $meeting->peer_user_id,
+                'meeting_title' => $meeting->remarks ?? '',
+                'meeting_date' => $meeting->meeting_date ? Carbon::parse($meeting->meeting_date)->format('Y-m-d') : '',
+                'meeting_time' => '',
+                'status' => 'completed',
+                'created_at' => $meeting->created_at ? Carbon::parse($meeting->created_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'updated_at' => $meeting->updated_at ? Carbon::parse($meeting->updated_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'initiated_by' => $initiatedBy ? [
+                    'id' => (string) $initiatedBy->id,
+                    'display_name' => $initiatedBy->display_name ?? trim(($initiatedBy->first_name ?? '').' '.($initiatedBy->last_name ?? '')),
+                    'first_name' => $initiatedBy->first_name,
+                    'last_name' => $initiatedBy->last_name,
+                    'email' => $initiatedBy->email,
+                    'phone' => $initiatedBy->phone,
+                    'company_name' => $initiatedBy->company_name,
+                    'designation' => $initiatedBy->designation,
+                    'profile_photo_url' => $initiatedBy->profile_photo_url,
+                ] : null,
+                'initiated_to' => $initiatedTo ? [
+                    'id' => (string) $initiatedTo->id,
+                    'display_name' => $initiatedTo->display_name ?? trim(($initiatedTo->first_name ?? '').' '.($initiatedTo->last_name ?? '')),
+                    'first_name' => $initiatedTo->first_name,
+                    'last_name' => $initiatedTo->last_name,
+                    'email' => $initiatedTo->email,
+                    'phone' => $initiatedTo->phone,
+                    'company_name' => $initiatedTo->company_name,
+                    'designation' => $initiatedTo->designation,
+                    'profile_photo_url' => $initiatedTo->profile_photo_url,
+                ] : null,
+            ];
+        })->values()->all();
+
+        return $this->success([
+            'user_id' => $userId,
+            'total' => $totalCount,
+            'i_initiated' => $initiatedCount,
+            'peer_initiated' => $peerCount,
+            'items' => $items,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ]);
     }
 }

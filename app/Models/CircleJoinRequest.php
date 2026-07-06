@@ -2,10 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\CircleCategory;
-use App\Models\CircleCategoryLevel2;
-use App\Models\CircleCategoryLevel3;
-use App\Models\CircleCategoryLevel4;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,12 +16,19 @@ class CircleJoinRequest extends Model
     use HasFactory;
 
     public const STATUS_PENDING_CD_APPROVAL = 'pending_cd_approval';
+
     public const STATUS_PENDING_ID_APPROVAL = 'pending_id_approval';
+
     public const STATUS_PENDING_CIRCLE_FEE = 'pending_circle_fee';
+
     public const STATUS_CIRCLE_MEMBER = 'circle_member';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_REJECTED_BY_CD = 'rejected_by_cd';
+
     public const STATUS_REJECTED_BY_ID = 'rejected_by_id';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     public const ACTIVE_STATUSES = [
@@ -37,6 +40,7 @@ class CircleJoinRequest extends Model
     ];
 
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -116,7 +120,6 @@ class CircleJoinRequest extends Model
             }
         });
     }
-
 
     public function effectiveDedApprovalStatus(): string
     {
@@ -226,7 +229,6 @@ class CircleJoinRequest extends Model
         return $this->belongsTo(User::class, 'ded_approved_by');
     }
 
-
     public function level1Category(): BelongsTo
     {
         return $this->belongsTo(CircleCategory::class, 'level1_category_id');
@@ -247,4 +249,3 @@ class CircleJoinRequest extends Model
         return $this->belongsTo(CircleCategoryLevel4::class, 'level4_category_id');
     }
 }
-

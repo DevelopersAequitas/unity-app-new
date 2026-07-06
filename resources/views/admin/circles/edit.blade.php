@@ -65,7 +65,7 @@
     if (is_array($industryTagsValue)) {
         $industryTagsValue = implode(', ', $industryTagsValue);
     }
-    $founderId = old('founder_user_id', $defaultFounder?->id);
+    $founderId = old('circle_founder_user_id', $defaultFounder?->id);
     $calendar = is_array($circle->calendar) ? $circle->calendar : [];
     $meetingScheduleFrequency = old('meeting_schedule_frequency');
     $meetingScheduleTimes = old('meeting_schedule_default_meet_time');
@@ -117,6 +117,78 @@
                 </button>
             </li>
         </ul>
+<form action="{{ route('admin.circles.update', $circle) }}" method="POST">
+    @csrf
+    @method('PUT')
+
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Circle Details</div>
+                <div class="card-body row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Name</label>
+                        <input type="text" name="name" class="form-control" value="{{ old('name', $circle->name) }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Circle Founder</label>
+                        <select name="circle_founder_user_id" class="form-select" required>
+                            <option value="">Select a member</option>
+                            @foreach ($allUsers as $user)
+                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Defaults to the logged-in admin user.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Type</label>
+                        <select name="type" class="form-select" required>
+                            <option value="" disabled>Select type</option>
+                            @foreach ($types as $type)
+                                <option value="{{ $type }}" @selected(old('type', $circle->type) === $type)>{{ ucfirst($type) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select" required>
+                            @foreach ($statuses as $status)
+                                <option value="{{ $status }}" @selected(old('status', $circle->status) === $status)>{{ ucfirst($status) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Circle Package</label>
+                        <select name="circle_package" class="form-select">
+                            <option value="">Select package</option>
+                            @foreach ($circlePackages as $package)
+                                @php
+                                    $packageValue = $package['addon_code'] ?: $package['addon_id'];
+                                @endphp
+                                <option value="{{ $packageValue }}" @selected(old('circle_package', $circle->zoho_addon_code ?: $circle->zoho_addon_id) === $packageValue)>
+                                    {{ $package['name'] }} ({{ $package['addon_code'] }}) - {{ $package['amount'] }} {{ $package['currency_code'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Only active Zoho addons with code starting with <code>Package-</code> are listed.</div>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-control" rows="2">{{ old('description', $circle->description) }}</textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Purpose</label>
+                        <textarea name="purpose" class="form-control" rows="2">{{ old('purpose', $circle->purpose) }}</textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Announcement</label>
+                        <textarea name="announcement" class="form-control" rows="2">{{ old('announcement', $circle->announcement) }}</textarea>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Industry Tags</label>
+                        <input type="text" name="industry_tags" class="form-control" value="{{ $industryTagsValue }}" placeholder="e.g. Finance, SaaS, Retail">
+                        <div class="form-text">Separate tags with commas.</div>
+                    </div>
 
         <form action="{{ route('admin.circles.update', $circle) }}" method="POST" class="p-4">
             @csrf
@@ -232,6 +304,14 @@
                         <button type="button" class="btn btn-primary" onclick="switchTab('leadership-tab')">
                             Next: Leadership & Location <i class="bi bi-arrow-right ms-1"></i>
                         </button>
+                    <div class="col-md-4">
+                        <label class="form-label">Circle Director</label>
+                        <select name="circle_director_user_id" class="form-select">
+                            <option value="">Select circle director</option>
+                            @foreach ($allUsers as $user)
+                                <option value="{{ $user->id }}" @selected(old('circle_director_user_id', $circle->circle_director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 
@@ -302,6 +382,32 @@
                         <button type="button" class="btn btn-primary" onclick="switchTab('schedule-tab')">
                             Next: Meeting Settings <i class="bi bi-arrow-right ms-1"></i>
                         </button>
+                    <div class="col-md-4">
+                        <label class="form-label">EED</label>
+                        <select name="eed_user_id" class="form-select">
+                            <option value="">Select EED</option>
+                            @foreach ($allUsers as $user)
+                                <option value="{{ $user->id }}" @selected(old('eed_user_id', $circle->eed_user_id) === $user->id)>{{ $user->adminDisplayInlineLabel() }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Cover Image</label>
+                        <input type="hidden" name="cover_file_id" id="coverFileId" value="{{ old('cover_file_id', $circle->cover_file_id) }}">
+                        @if ($circle->cover_file_id)
+                            <div id="coverPreviewBlock" class="mb-2 d-flex align-items-center gap-2">
+                                <a id="coverPreviewLink" href="{{ url('/api/v1/files/' . $circle->cover_file_id) }}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
+                                <small class="text-muted">File ID: {{ $circle->cover_file_id }}</small>
+                                <img id="coverPreviewImage" src="{{ url('/api/v1/files/' . $circle->cover_file_id) }}" alt="Cover preview" class="rounded border" style="max-height:80px;border-radius:8px;">
+                            </div>
+                        @else
+                            <div id="coverPreviewBlock" class="mb-2 d-none align-items-center gap-2">
+                                <a id="coverPreviewLink" href="#" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
+                                <img id="coverPreviewImage" src="#" alt="Cover preview" class="rounded border" style="max-height:80px;border-radius:8px;">
+                            </div>
+                        @endif
+                        <input type="file" class="form-control" id="coverFileInput" accept="image/*">
+                        <div class="form-text" id="coverUploadStatus">Upload up to 10MB.</div>
                     </div>
                 </div>
 

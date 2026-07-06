@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         if (DB::getDriverName() === 'pgsql') {
@@ -79,12 +80,12 @@ return new class extends Migration {
         ];
     }
 
-
     private function ensureUniqueIndex(): void
     {
         try {
             if (DB::getDriverName() === 'pgsql') {
                 DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS app_icon_assets_app_instance_icon_key_unique ON app_icon_assets (app_instance_id, icon_key)');
+
                 return;
             }
 

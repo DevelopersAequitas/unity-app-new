@@ -13,12 +13,13 @@ class SyncPaidMembershipPayments extends Command
 {
     protected $signature = 'membership:sync-paid-payments {--dry-run : Show matching rows without updating users} {--limit=500 : Maximum payments to scan}';
 
-    protected $description = 'Upgrade users to Only Unity Peer for already-paid local Zoho membership payments.';
+    protected $description = 'Upgrade users to Only Green Peer for already-paid local Zoho membership payments.';
 
     public function handle(MembershipUpgradeService $membershipUpgradeService): int
     {
         if (! Schema::hasTable('payments') || ! Schema::hasColumn('payments', 'user_id') || ! Schema::hasColumn('payments', 'status')) {
             $this->warn('payments table, payments.user_id, or payments.status is missing; nothing to sync.');
+
             return self::SUCCESS;
         }
 
@@ -54,10 +55,11 @@ class SyncPaidMembershipPayments extends Command
 
             if ($dryRun) {
                 $this->line("Would sync payment {$payment->id} for user {$user->id}");
+
                 return;
             }
 
-            $membershipUpgradeService->markAsOnlyUnityPeerAfterPayment($user, $payment);
+            $membershipUpgradeService->markAsOnlyGreenPeerAfterPayment($user, $payment);
             $updated++;
 
             Log::info('Membership paid payment synced', [

@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Profile\StoreUserLinkRequest;
 use App\Http\Requests\Profile\UpdateProfileRequest;
+use App\Http\Requests\Profile\UpdateTimezoneRequest;
 use App\Http\Requests\Profile\UpdateUserLinkRequest;
 use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserProfileResource;
@@ -12,6 +12,7 @@ use App\Services\Users\PublicProfileSlugService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ProfileController extends BaseApiController
 {
@@ -24,6 +25,21 @@ class ProfileController extends BaseApiController
         ]);
 
         return $this->success(new UserProfileResource($user), 'Profile fetched successfully');
+    }
+
+    public function updateTimezone(UpdateTimezoneRequest $request)
+    {
+        $user = $request->user();
+        $timezone = $request->validated('timezone');
+
+        if ($user->timezone !== $timezone) {
+            $user->timezone = $timezone;
+            $user->saveOrFail();
+        }
+
+        return $this->success([
+            'timezone' => $timezone,
+        ], 'Timezone updated successfully.');
     }
 
     public function update(UpdateProfileRequest $request, PublicProfileSlugService $publicProfileSlugService)
@@ -85,7 +101,7 @@ class ProfileController extends BaseApiController
         }
 
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
-            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '') . ' ' . ($data['last_name'] ?? $user->last_name ?? ''));
+            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '').' '.($data['last_name'] ?? $user->last_name ?? ''));
             $data['display_name'] = $displayName !== '' ? $displayName : $user->email;
         }
 
@@ -140,7 +156,7 @@ class ProfileController extends BaseApiController
     }
 
     /**
-     * @param array<int, array<string, mixed>> $media
+     * @param  array<int, array<string, mixed>>  $media
      * @return array<int, array{id: string, url: string, type: string}>
      */
     private function formatMediaPayload(array $media): array
@@ -148,7 +164,7 @@ class ProfileController extends BaseApiController
         return collect($media)
             ->map(fn (array $item): array => [
                 'id' => (string) $item['id'],
-                'url' => url('/api/v1/files/' . $item['id']),
+                'url' => url('/api/v1/files/'.$item['id']),
                 'type' => (string) $item['type'],
             ])
             ->values()
@@ -160,7 +176,7 @@ class ProfileController extends BaseApiController
      */
     private function profileUpdateFields(): array
     {
-        return [
+        $fields = [
             'first_name',
             'last_name',
             'phone',
@@ -177,6 +193,7 @@ class ProfileController extends BaseApiController
             'city_of_residence',
             'state',
             'country',
+            'timezone',
             'preferred_language',
             'skills',
             'interests',
@@ -205,6 +222,7 @@ class ProfileController extends BaseApiController
             'facebook_profile',
             'youtube_channel',
             'other_website',
+            'profile_visibility',
             'contact_visibility',
             'business_address',
             'business_city',
@@ -220,6 +238,12 @@ class ProfileController extends BaseApiController
             'open_to_cross_city_collaboration',
             'open_to_speaking_at_events',
         ];
+
+        if (! Schema::hasColumn('users', 'profile_visibility')) {
+            $fields = array_values(array_diff($fields, ['profile_visibility']));
+        }
+
+        return $fields;
     }
 
     /**

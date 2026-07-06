@@ -109,6 +109,71 @@
                                     <a href="{{ route('admin.activities.register-visitor.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
                                 </div>
                             </th>
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Visitor Name</th>
+                        <th>Phone Number</th>
+                        <th>Business Name</th>
+                        <th>Visitor City</th>
+                        <th>Event Date</th>
+                        <th>Event Name</th>
+                        <th>Event Type</th>
+                        <th>Status</th>
+                        <th>Coins Awarded</th>
+                        <th class="text-end">Actions</th>
+                        <th>Submitted At</th>
+                    </tr>
+                    <tr>
+                        <th><input type="text" name="visitor_name" value="{{ $filters['visitor_name'] ?? '' }}" placeholder="Visitor Name" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="visitor_mobile" value="{{ $filters['visitor_mobile'] ?? '' }}" placeholder="Visitor Mobile" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="visitor_business" value="{{ $filters['visitor_business'] ?? '' }}" placeholder="Visitor Business" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="visitor_city" value="{{ $filters['visitor_city'] ?? '' }}" placeholder="Visitor City" class="form-control form-control-sm"></th>
+                        <th><input type="date" name="event_date" value="{{ $filters['event_date'] ?? '' }}" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="event_name" value="{{ $filters['event_name'] ?? '' }}" placeholder="Event Name" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="event_type" value="{{ $filters['event_type'] ?? '' }}" placeholder="Event Type" class="form-control form-control-sm"></th>
+                        <th><input type="text" name="status" value="{{ $filters['status'] ?? '' }}" placeholder="Status" class="form-control form-control-sm"></th>
+                        <th><input type="number" name="coins_awarded" value="{{ $filters['coins_awarded'] ?? '' }}" placeholder="Coins" class="form-control form-control-sm"></th>
+                        <th class="text-end">
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                                <a href="{{ route('admin.activities.register-visitor.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                            </div>
+                        </th>
+                        <th class="text-muted">—</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($items as $item)
+                        @php
+                            $visitorSearch = $item->visitor_mobile ? ['search' => $item->visitor_mobile] : [];
+                        @endphp
+                        <tr>
+                            <td>{{ $item->visitor_full_name ?? '—' }}</td>
+                            <td>{{ $item->visitor_mobile ?? '—' }}</td>
+                            <td>{{ $item->visitor_business ?? '—' }}</td>
+                            <td>{{ $item->visitor_city ?? '—' }}</td>
+                            <td>{{ $formatDate($item->event_date ?? null) }}</td>
+                            <td>{{ $item->event_name ?? '—' }}</td>
+                            <td>{{ ucfirst($item->event_type ?? '—') }}</td>
+                            <td>{{ ucfirst($item->status ?? '—') }}</td>
+                            <td>{{ $item->coins_awarded ? 'Yes' : 'No' }}</td>
+                            <td class="text-end">
+                                @if ($item->visitor_mobile)
+                                    <a class="btn btn-sm btn-outline-primary" href="{{ route('admin.visitor-registrations.index', $visitorSearch) }}">
+                                        Open Approval Page
+                                    </a>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
+                            <td>{{ $formatDateTime($item->created_at ?? null) }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="11" class="text-center text-muted">No visitor registrations found.</td>
                         </tr>
                     </thead>
                     <tbody>

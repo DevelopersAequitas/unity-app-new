@@ -2,26 +2,25 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
+use App\Events\Chat\ChatReadUpdated;
+use App\Events\Chat\ChatTyping;
+use App\Events\Chat\MessageSent;
 use App\Http\Requests\Chat\StoreChatRequest;
 use App\Http\Requests\Chat\StoreMessageRequest;
 use App\Http\Resources\ChatResource;
 use App\Http\Resources\MessageResource;
-use App\Models\FileModel;
-use App\Models\Notification;
-use App\Models\Chat;
-use App\Models\Message;
-use App\Models\User;
-use App\Events\Chat\ChatReadUpdated;
-use App\Events\Chat\MessageSent;
-use App\Events\Chat\ChatTyping;
 use App\Jobs\SendPushNotificationJob;
+use App\Models\Chat;
+use App\Models\FileModel;
+use App\Models\Message;
+use App\Models\Notification;
+use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Support\Chat\AuthorizesChatAccess;
 use App\Support\Media\Probe;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -32,8 +31,7 @@ class ChatController extends BaseApiController
 
     public function __construct(
         private readonly Probe $probe
-    ) {
-    }
+    ) {}
 
     public function index(Request $request)
     {
@@ -75,7 +73,6 @@ class ChatController extends BaseApiController
         if ($authUserId === $otherUserId) {
             return $this->error('You cannot start a chat with yourself', 422);
         }
-
 
         if ($peerBlockService->isBlockedEitherWay($authUserId, $otherUserId)) {
             return $this->error('You cannot interact with this peer.', 422);
@@ -209,7 +206,6 @@ class ChatController extends BaseApiController
             return $this->error('Chat not found', 404);
         }
 
-
         $otherUserId = (string) ((string) $chat->user1_id === (string) $authUser->id ? $chat->user2_id : $chat->user1_id);
 
         if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, $otherUserId)) {
@@ -323,7 +319,6 @@ class ChatController extends BaseApiController
         return $this->success(new MessageResource($message), 'Message sent', 201);
     }
 
-
     private function normalizedContent(mixed $value): ?string
     {
         if (! is_string($value)) {
@@ -381,15 +376,15 @@ class ChatController extends BaseApiController
             return $relativeUrl;
         }
 
-        return $baseUrl . (Str::startsWith($relativeUrl, '/') ? $relativeUrl : '/' . $relativeUrl);
+        return $baseUrl.(Str::startsWith($relativeUrl, '/') ? $relativeUrl : '/'.$relativeUrl);
     }
 
     private function storeAttachment(UploadedFile $file, string $uploaderUserId): array
     {
         $disk = config('filesystems.default', 'public');
-        $folder = 'uploads/' . now()->format('Y/m/d');
+        $folder = 'uploads/'.now()->format('Y/m/d');
         $safeName = preg_replace('/[^A-Za-z0-9\.\-_]/', '_', $file->getClientOriginalName());
-        $storeName = (string) Str::uuid() . '_' . ($safeName ?: 'attachment');
+        $storeName = (string) Str::uuid().'_'.($safeName ?: 'attachment');
         $path = $file->storeAs($folder, $storeName, $disk);
 
         $mime = $file->getMimeType() ?: $file->getClientMimeType() ?: 'application/octet-stream';
@@ -429,7 +424,7 @@ class ChatController extends BaseApiController
             'name' => $file->getClientOriginalName(),
             'mime' => $mime,
             'size' => (int) $storedFile->size_bytes,
-            'url' => '/api/v1/files/' . $storedFile->id,
+            'url' => '/api/v1/files/'.$storedFile->id,
         ];
     }
 
@@ -496,7 +491,7 @@ class ChatController extends BaseApiController
         return [
             'id' => (string) $user->id,
             'display_name' => $user->display_name
-                ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
             'profile_photo_url' => $user->profile_photo_url,
         ];
     }

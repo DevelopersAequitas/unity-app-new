@@ -35,7 +35,6 @@ class DedActivitiesController extends Controller
         return $this->ded->success($paginator->items(), 'DED activities loaded.', $this->ded->paginationMeta($paginator));
     }
 
-
     public function recommendPeer(Request $request)
     {
         $request->validate($this->listRules() + ['search' => ['nullable', 'string', 'max:255']]);

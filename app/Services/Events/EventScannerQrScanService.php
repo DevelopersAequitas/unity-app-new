@@ -88,7 +88,6 @@ class EventScannerQrScanService
         }
     }
 
-
     private function extractQrToken(string $qrToken): string
     {
         $value = trim($qrToken);

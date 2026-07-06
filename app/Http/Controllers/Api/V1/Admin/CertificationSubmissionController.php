@@ -7,18 +7,16 @@ use App\Models\AdminUser;
 use App\Models\CertificationSubmission;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Certifications\CertificateGeneratorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Services\Certifications\CertificateGeneratorService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 class CertificationSubmissionController extends BaseApiController
 {
-    public function __construct(private readonly CertificateGeneratorService $certificateGenerator)
-    {
-    }
+    public function __construct(private readonly CertificateGeneratorService $certificateGenerator) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -242,7 +240,7 @@ class CertificationSubmissionController extends BaseApiController
             $search = trim((string) $request->query('search'));
             $query->where(function ($q) use ($search) {
                 foreach (['full_name', 'business_name', 'email', 'contact_no'] as $column) {
-                    $q->orWhereRaw('LOWER(' . $column . ') LIKE ?', ['%' . strtolower($search) . '%']);
+                    $q->orWhereRaw('LOWER('.$column.') LIKE ?', ['%'.strtolower($search).'%']);
                 }
             });
         }
@@ -279,7 +277,7 @@ class CertificationSubmissionController extends BaseApiController
         if ($item->status === CertificationSubmission::STATUS_APPROVED) {
             return $this->isFrontendCertificateUrl($item->certificate_download_url)
                 ? $item->certificate_download_url
-                : url('/admin/certificates/' . $item->id . '/view');
+                : url('/admin/certificates/'.$item->id.'/view');
         }
 
         return $item->certificate_download_url;

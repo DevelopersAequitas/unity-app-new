@@ -12,9 +12,7 @@ use Illuminate\Http\Request;
 
 class PeerBlockController extends BaseApiController
 {
-    public function __construct(private readonly PeerBlockService $peerBlockService)
-    {
-    }
+    public function __construct(private readonly PeerBlockService $peerBlockService) {}
 
     public function index(Request $request)
     {

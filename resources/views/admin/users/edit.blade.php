@@ -112,6 +112,87 @@
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">First Name</label>
                             <input type="text" name="first_name" class="form-control" value="{{ old('first_name', $user->first_name) }}" required>
+<form id="userEditForm" action="{{ route('admin.users.update', $user->id) }}" method="POST">
+    @csrf
+    @method('PUT')
+
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Basic Info</div>
+                <div class="card-body row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">First Name</label>
+                        <input type="text" name="first_name" class="form-control" value="{{ old('first_name', $user->first_name) }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Last Name</label>
+                        <input type="text" name="last_name" class="form-control" value="{{ old('last_name', $user->last_name) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" name="display_name" class="form-control" value="{{ old('display_name', $user->display_name) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" value="{{ old('email', $user->email) }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Phone</label>
+                        <input type="text" name="phone" class="form-control" value="{{ old('phone', $user->phone) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Designation <span class="text-danger">*</span></label>
+                        <input type="text" name="designation" class="form-control" value="{{ old('designation', $user->designation) }}" required>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Business & Profile</div>
+                <div class="card-body row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Company Name <span class="text-danger">*</span></label>
+                        <input type="text" name="company_name" class="form-control" value="{{ old('company_name', $user->company_name) }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Business Type</label>
+                        <input type="text" name="business_type" class="form-control" value="{{ old('business_type', $user->business_type) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Turnover Range</label>
+                        <input type="text" name="turnover_range" class="form-control" value="{{ old('turnover_range', $user->turnover_range) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Gender</label>
+                        <input type="text" name="gender" class="form-control" value="{{ old('gender', $user->gender) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Date of Birth</label>
+                        <input type="date" name="dob" class="form-control" value="{{ old('dob', optional($user->dob)->format('Y-m-d')) }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Experience Years</label>
+                        <input type="number" name="experience_years" class="form-control" min="0" max="100" value="{{ old('experience_years', $user->experience_years) }}">
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Experience Summary</label>
+                        <textarea name="experience_summary" class="form-control" rows="2">{{ old('experience_summary', $user->experience_summary) }}</textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Short Bio</label>
+                        <textarea name="short_bio" class="form-control" rows="2">{{ old('short_bio', $user->short_bio) }}</textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Profile Photo</label>
+                        <input type="hidden" name="profile_photo_file_id" id="profilePhotoFileId" value="{{ old('profile_photo_file_id', $user->profile_photo_file_id) }}">
+                        <div id="profilePhotoExisting" class="{{ $user->profile_photo_file_id ? '' : 'd-none' }}">
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="{{ $user->profile_photo_file_id ? url('/api/v1/files/' . $user->profile_photo_file_id) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm">View Image</a>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-change-target="profilePhoto">Change</button>
+                            </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Last Name</label>
@@ -274,6 +355,37 @@
                                 <textarea name="{{ $field }}" class="form-control" rows="2" placeholder="Enter comma separated values...">{{ old($field, $asCsv($value)) }}</textarea>
                             </div>
                         @endforeach
+                            $membershipStatusLabels = [
+                                'free_trial_peer' => 'Free Trial Peer',
+                                'free_peer' => 'Free Peer',
+                                'Only Green Peer' => 'Only Green Peer',
+                                'only_unity_peer' => 'Only Unity Peer',
+                                'Circle Peer' => 'Circle Peer',
+                                'Multi Circle Peer' => 'Multi Circle Peer',
+                                'Charter Peer' => 'Charter Peer',
+                                'Industry Advisor' => 'Industry Advisor',
+                                'Charter Investor' => 'Charter Investor',
+                                'Circle Founder' => 'Circle Founder',
+                                'Circle Director' => 'Circle Director',
+                                'Board Advisor' => 'Board Advisor',
+                            ];
+                            $currentMembershipStatus = old('membership_status', $user->membership_status);
+                            $membershipStatusOptions = collect($membershipStatuses)
+                                ->reduce(function (array $options, string $status) use ($membershipStatusLabels, $currentMembershipStatus): array {
+                                    $label = $membershipStatusLabels[$status] ?? $status;
+                                    if (! isset($options[$label]) || $status === $currentMembershipStatus) {
+                                        $options[$label] = $status;
+                                    }
+                                    return $options;
+                                }, []);
+                        @endphp
+                        <select name="membership_status" class="form-select" required>
+                            @foreach ($membershipStatusOptions as $label => $status)
+                                <option value="{{ $status }}" @selected($currentMembershipStatus === $status)>
+                                    {{ $membershipStatusLabels[$status] ?? $status }}
+                                </option>
+                            @endforeach
+                        </select>
                     </div>
 
                     <div class="d-flex justify-content-between mt-4 pt-3 border-top">
@@ -658,6 +770,141 @@
                                 </div>
                                 @endif
                             @endif
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Location</div>
+                <div class="card-body row g-3">
+                    <div class="col-md-12">
+                        <label class="form-label">City <span class="text-danger">*</span></label>
+                        <input type="text" name="city" class="form-control" value="{{ old('city', $user->city) }}" required>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Greenpreneur Sustainability Info</div>
+                <div class="card-body row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Website</label>
+                        <input type="text" name="website" class="form-control" value="{{ old('website', $user->website) }}" placeholder="https://example.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">List in Community Directory?</label>
+                        <select name="community_directory_listing" class="form-select">
+                            <option value="Yes" @selected(old('community_directory_listing', $user->community_directory_listing) === 'Yes')>Yes</option>
+                            <option value="No" @selected(old('community_directory_listing', $user->community_directory_listing ?? 'No') === 'No')>No</option>
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">How does your business contribute to sustainability?</label>
+                        <textarea name="sustainability_contribution" class="form-control" rows="3" placeholder="Describe contribution...">{{ old('sustainability_contribution', $user->sustainability_contribution) }}</textarea>
+                    </div>
+                    
+                    <div class="col-md-12">
+                        <label class="form-label d-block fw-semibold mb-2">Which sustainability areas do you focus on?</label>
+                        <div class="row g-2">
+                            @php
+                                $sustainabilityAreasOptions = [
+                                    'Renewable Energy', 'Waste Management', 'Water Conservation', 'Sustainable Agriculture',
+                                    'Green Construction', 'Circular Economy', 'ESG Consulting', 'Electric Mobility',
+                                    'Carbon Reduction', 'Recycling', 'Climate Technology', 'Sustainable Packaging',
+                                    'Biodiversity', 'Green Finance', 'Other'
+                                ];
+                                $userAreas = is_array($user->sustainability_areas) ? $user->sustainability_areas : [];
+                            @endphp
+                            @foreach($sustainabilityAreasOptions as $option)
+                                <div class="col-md-4 col-sm-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="sustainability_areas[]" value="{{ $option }}" id="area_{{ Str::slug($option) }}" @checked(in_array($option, old('sustainability_areas', $userAreas)))>
+                                        <label class="form-check-label" for="area_{{ Str::slug($option) }}">{{ $option }}</label>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-12">
+                        <label class="form-label d-block fw-semibold mb-2">What are you looking for through Greenpreneur?</label>
+                        <div class="row g-2">
+                            @php
+                                $greenpreneurGoalsOptions = [
+                                    'Business Growth', 'Partnerships', 'Investors', 'Customers',
+                                    'Government Connect', 'Knowledge Sharing', 'Technology Partners',
+                                    'Global Expansion', 'Sustainability Learning'
+                                ];
+                                $userGoals = is_array($user->greenpreneur_goals) ? $user->greenpreneur_goals : [];
+                            @endphp
+                            @foreach($greenpreneurGoalsOptions as $option)
+                                <div class="col-md-4 col-sm-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="greenpreneur_goals[]" value="{{ $option }}" id="goal_{{ Str::slug($option) }}" @checked(in_array($option, old('greenpreneur_goals', $userGoals)))>
+                                        <label class="form-check-label" for="goal_{{ Str::slug($option) }}">{{ $option }}</label>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-12">
+                        <label class="form-label d-block fw-semibold mb-2">Are you interested in:</label>
+                        <div class="row g-2">
+                            @php
+                                $interestsOptions = [
+                                    'Speaking Opportunities', 'Panel Discussions', 'Mentoring', 'Exhibiting',
+                                    'Sponsorship', 'Investment Opportunities', 'Greenpreneur Awards',
+                                    'Coffee Table Book Feature', 'Impact Story'
+                                ];
+                                $userInterests = is_array($user->interests) ? $user->interests : [];
+                            @endphp
+                            @foreach($interestsOptions as $option)
+                                <div class="col-md-4 col-sm-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="interests[]" value="{{ $option }}" id="interest_{{ Str::slug($option) }}" @checked(in_array($option, old('interests', $userInterests)))>
+                                        <label class="form-check-label" for="interest_{{ Str::slug($option) }}">{{ $option }}</label>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-semibold">Additional Details</div>
+                <div class="card-body row g-3">
+                    @php
+                        $jsonFields = [
+                            'industry_tags' => $user->industry_tags,
+                            'target_regions' => $user->target_regions,
+                            'target_business_categories' => $user->target_business_categories,
+                            'hobbies_interests' => $user->hobbies_interests,
+                            'leadership_roles' => $user->leadership_roles,
+                            'special_recognitions' => $user->special_recognitions,
+                            'skills' => $user->skills,
+                        ];
+
+                        $asCsv = function ($value): string {
+                            if (is_array($value)) {
+                                return implode(', ', $value);
+                            }
+                            return '';
+                        };
+
+                    @endphp
+                    @foreach ($jsonFields as $field => $value)
+                        <div class="col-md-6">
+                            <label class="form-label text-capitalize">{{ str_replace('_', ' ', $field) }}</label>
+                            <textarea name="{{ $field }}" class="form-control" rows="3" placeholder="Enter comma separated values (e.g. IT, Finance, Retail)">{{ old($field, $asCsv($value)) }}</textarea>
                         </div>
                     </div>
 

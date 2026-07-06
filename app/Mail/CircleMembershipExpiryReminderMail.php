@@ -2,19 +2,21 @@
 
 namespace App\Mail;
 
-use App\Models\User;
 use App\Models\CircleMember;
+use App\Models\User;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Contracts\Queue\ShouldQueue;
 
 class CircleMembershipExpiryReminderMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
     public User $user;
+
     public string $formattedExpiryDate;
+
     public string $support_email;
 
     public function __construct(User $user, CircleMember $circleMember)

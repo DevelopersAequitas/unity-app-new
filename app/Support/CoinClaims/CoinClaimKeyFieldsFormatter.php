@@ -50,7 +50,8 @@ class CoinClaimKeyFieldsFormatter
 
             if ($type === 'file') {
                 $hasFile = ! empty($filesPayload[$key]) || ! empty($fieldsPayload[$key]);
-                $parts[] = $label . ': ' . ($hasFile ? 'Attached' : 'Not attached');
+                $parts[] = $label.': '.($hasFile ? 'Attached' : 'Not attached');
+
                 continue;
             }
 
@@ -59,7 +60,7 @@ class CoinClaimKeyFieldsFormatter
                 continue;
             }
 
-            $parts[] = $label . ': ' . self::formatValueByType($type, $value);
+            $parts[] = $label.': '.self::formatValueByType($type, $value);
         }
 
         return $parts !== [] ? implode(' • ', $parts) : '-';
@@ -173,7 +174,6 @@ class CoinClaimKeyFieldsFormatter
 
         return (string) str($normalized)->replace(['-', '_'], ' ')->title();
     }
-
 
     private static function formatAdminValue(string $key, string $value): string
     {

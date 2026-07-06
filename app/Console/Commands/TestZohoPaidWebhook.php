@@ -10,12 +10,14 @@ use Illuminate\Http\Request;
 class TestZohoPaidWebhook extends Command
 {
     protected $signature = 'zoho:webhook:test-paid {registration_id}';
+
     protected $description = 'Simulate a paid Zoho payment webhook for an event registration (local helper).';
 
     public function handle(ZohoPaymentWebhookService $service): int
     {
         if (! app()->environment('local')) {
             $this->error('This command is only available in local environment.');
+
             return self::FAILURE;
         }
         $registration = EventRegistration::query()->findOrFail((string) $this->argument('registration_id'));
@@ -32,6 +34,7 @@ class TestZohoPaidWebhook extends Command
         $service->handle($request);
         $registration->refresh();
         $this->info('payment_status='.$registration->payment_status.' invoice_status='.$registration->zoho_invoice_status.' qr='.(string) ($registration->qr_code_url ?: $registration->qr_code_path));
+
         return self::SUCCESS;
     }
 }

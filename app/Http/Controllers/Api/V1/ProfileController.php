@@ -7,6 +7,7 @@ use App\Http\Requests\Api\V1\Profile\UpdateProfileRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ProfileController extends Controller
 {
@@ -74,7 +75,7 @@ class ProfileController extends Controller
         }
 
         if (array_key_exists('first_name', $data) || array_key_exists('last_name', $data)) {
-            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '') . ' ' . ($data['last_name'] ?? $user->last_name ?? ''));
+            $displayName = trim(($data['first_name'] ?? $user->first_name ?? '').' '.($data['last_name'] ?? $user->last_name ?? ''));
             $data['display_name'] = $displayName !== '' ? $displayName : $user->email;
         }
 
@@ -130,7 +131,7 @@ class ProfileController extends Controller
      */
     private function profileUpdateFields(): array
     {
-        return [
+        $fields = [
             'first_name',
             'last_name',
             'phone',
@@ -174,6 +175,7 @@ class ProfileController extends Controller
             'facebook_profile',
             'youtube_channel',
             'other_website',
+            'profile_visibility',
             'contact_visibility',
             'business_address',
             'business_city',
@@ -189,6 +191,12 @@ class ProfileController extends Controller
             'open_to_cross_city_collaboration',
             'open_to_speaking_at_events',
         ];
+
+        if (! Schema::hasColumn('users', 'profile_visibility')) {
+            $fields = array_values(array_diff($fields, ['profile_visibility']));
+        }
+
+        return $fields;
     }
 
     /**
@@ -207,5 +215,4 @@ class ProfileController extends Controller
             'collaboration_goals',
         ];
     }
-
 }

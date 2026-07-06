@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('user_push_tokens')) {
+        if (! Schema::hasTable('user_push_tokens')) {
             return;
         }
 

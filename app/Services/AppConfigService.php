@@ -31,7 +31,7 @@ class AppConfigService
 
             $this->backfillConfigRows((string) $row->id);
 
-            return (new AppInstance())->newFromBuilder((array) $row);
+            return (new AppInstance)->newFromBuilder((array) $row);
         }
 
         $id = (string) Str::uuid();
@@ -41,7 +41,7 @@ class AppConfigService
 
         $this->backfillConfigRows($id);
 
-        return (new AppInstance())->newFromBuilder((array) $row);
+        return (new AppInstance)->newFromBuilder((array) $row);
     }
 
     private function activateExistingInstance(string $id, object $row): void

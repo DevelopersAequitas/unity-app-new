@@ -9,6 +9,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Notifications\UpcomingMembershipExpiryNotification;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\Membership\MembershipNotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -33,8 +34,6 @@ class SendUpcomingMembershipExpiryReminders extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return int
      */
     public function handle(): int
     {
@@ -48,7 +47,7 @@ class SendUpcomingMembershipExpiryReminders extends Command
             ->where('membership_ends_at', '<=', today()->addDays(30))
             ->get();
 
-        $this->info('Found ' . $upcomingUsers->count() . ' users approaching membership expiry.');
+        $this->info('Found '.$upcomingUsers->count().' users approaching membership expiry.');
 
         $sentCount = 0;
         $failedCount = 0;
@@ -61,6 +60,7 @@ class SendUpcomingMembershipExpiryReminders extends Command
             // Prevent duplicate emails/notifications within the same scheduled execution
             if ($email === '' || in_array($email, $sentEmails, true)) {
                 $skippedCount++;
+
                 continue;
             }
 
@@ -143,6 +143,13 @@ class SendUpcomingMembershipExpiryReminders extends Command
                         'email_status' => 'sent',
                         'notification_status' => 'sent',
                     ]);
+
+                    app(MembershipNotificationService::class)->recordEmailSent(
+                        $user,
+                        'membership_expiry_email_sent',
+                        (string) $user->email,
+                        'upcoming_membership_expiry_reminder_command'
+                    );
 
                     $sentEmails[] = $email;
                     $sentCount++;
