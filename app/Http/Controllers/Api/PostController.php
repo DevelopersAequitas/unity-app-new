@@ -503,7 +503,7 @@ class PostController extends BaseApiController
         $user = Auth::user();
 
         $data = $request->validate([
-            'content_text' => ['required', 'string', 'max:5000'],
+            'content_text' => ['nullable', 'string', 'max:5000'],
             'media' => ['nullable', 'array'],
             'media.*.id' => ['required_with:media', 'uuid', 'exists:files,id'],
             'media.*.type' => ['required_with:media', 'string', 'max:50'],
@@ -537,7 +537,7 @@ class PostController extends BaseApiController
         $post = Post::create([
             'user_id' => $user->id,
             'circle_id' => $data['circle_id'] ?? null,
-            'content_text' => $data['content_text'],
+            'content_text' => $data['content_text'] ?? null,
             'media' => $mediaItems ?: [],
             'tags' => $data['tags'] ?? [],
             'visibility' => $data['visibility'],
@@ -812,8 +812,9 @@ class PostController extends BaseApiController
         }
     }
 
-    private function dispatchMentionNotifications(NotificationDispatchService $notifications, Post $post, User $actor, string $text, ?PostComment $comment): void
+    private function dispatchMentionNotifications(NotificationDispatchService $notifications, Post $post, User $actor, ?string $text, ?PostComment $comment): void
     {
+        $text = $text ?? '';
         $mentionedUsers = $this->mentionedUsers($text)->reject(fn (User $user) => (string) $user->id === (string) $actor->id)->values();
         if ($mentionedUsers->isEmpty()) {
             return;
