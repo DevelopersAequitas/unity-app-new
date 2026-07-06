@@ -284,27 +284,53 @@ class MemberController extends BaseApiController
 
     public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
+        $selectColumns = [
+            'id',
+            'first_name',
+            'last_name',
+            'display_name',
+            'company_name',
+            'profile_photo_file_id',
+            'profile_photo_url',
+            'city_id',
+            'city',
+            'city_of_residence',
+            'life_impacted_count',
+            'status',
+            'deleted_at',
+            'business_category_id',
+            'public_profile_slug',
+            'email',
+            'phone',
+            'membership_status',
+            'coins_balance',
+            'business_type',
+            'created_at',
+            'updated_at',
+        ];
+
+        if (Schema::hasColumn('users', 'profile_visibility')) {
+            $selectColumns[] = 'profile_visibility';
+        }
+
+        if (Schema::hasColumn('users', 'contact_visibility')) {
+            $selectColumns[] = 'contact_visibility';
+        }
+
         $query = User::query()
-            ->select([
-                'id',
-                'first_name',
-                'last_name',
-                'display_name',
-                'company_name',
-                'profile_photo_file_id',
-                'profile_photo_url',
-                'city_id',
-                'city',
-                'city_of_residence',
-                'life_impacted_count',
-                'status',
-                'deleted_at',
-                'business_category_id',
-            ])
-            ->when(Schema::hasColumn('users', 'profile_visibility'), function ($query): void {
-                $query->addSelect('profile_visibility');
-            })
-            ->with(['city:id,name', 'level4Category:id,name']);
+            ->select($selectColumns)
+            ->with([
+                'city:id,name',
+                'level4Category:id,name',
+                'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+            ]);
+
+        if (Schema::hasTable('connections')) {
+            $query->withCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
 
         // Exclude inactive members
         $query->where(function ($statusQuery) {

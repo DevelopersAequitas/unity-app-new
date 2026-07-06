@@ -2,11 +2,11 @@
 
 namespace App\Http\Resources\V1;
 
+use App\Http\Resources\UserResource;
 use App\Models\City;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
 
-class LimitedUserResource extends JsonResource
+class LimitedUserResource extends UserResource
 {
     /**
      * Transform the resource into an array.
@@ -16,6 +16,7 @@ class LimitedUserResource extends JsonResource
      */
     public function toArray($request): array
     {
+        $parentData = parent::toArray($request);
         $user = $this->resource;
 
         $name = $user->display_name
@@ -29,8 +30,7 @@ class LimitedUserResource extends JsonResource
             $cityName = is_string($user->city) ? $user->city : ($user->city_of_residence ?? null);
         }
 
-        return [
-            'id' => $user->id,
+        return array_merge($parentData, [
             'name' => $name !== '' ? trim((string) $name) : null,
             'profile_photo_image' => $user->profile_photo_url,
             'city' => $cityName,
@@ -38,6 +38,6 @@ class LimitedUserResource extends JsonResource
             'total_life_impact' => (int) ($user->life_impacted_count ?? 0),
             'company_name' => $user->company_name,
             'level4_category' => $user->level4Category ? $user->level4Category->name : null,
-        ];
+        ]);
     }
 }
