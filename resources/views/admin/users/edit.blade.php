@@ -2,13 +2,44 @@
 
 @section('title', ($isReadOnly ?? false) ? 'View Profile' : 'Edit Peer')
 
+@push('styles')
+<style>
+    #editPeerTabs .nav-link {
+        color: var(--text-secondary);
+        border-radius: var(--radius-md);
+        transition: all var(--duration-fast) var(--ease-smooth);
+        border: 1px solid transparent;
+    }
+    #editPeerTabs .nav-link:hover {
+        background-color: var(--border-light);
+    }
+    #editPeerTabs .nav-link.active {
+        background-color: var(--primary);
+        color: #ffffff;
+        box-shadow: var(--shadow-sm);
+    }
+    .form-section-title {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+</style>
+@endpush
+
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h5 class="mb-0">{{ ($isReadOnly ?? false) ? 'View Profile' : 'Edit Peer' }}</h5>
+        <h4 class="mb-1 text-dark fw-bold">
+            <i class="bi bi-person-fill text-primary me-2"></i>{{ ($isReadOnly ?? false) ? 'View Profile' : 'Edit Peer' }}
+        </h4>
         <small class="text-muted">ID: {{ $user->id }}</small>
     </div>
-    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary btn-sm">Back to Peers</a>
+    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back to Peers
+    </a>
 </div>
 
 @if (session('status'))
@@ -28,7 +59,7 @@
 @endif
 
 @if ($errors->any())
-    <div class="alert alert-danger">
+    <div class="alert alert-danger mb-4">
         <strong>There were some problems with your input.</strong>
         <ul class="mb-0 small">
             @foreach ($errors->all() as $error)
@@ -44,718 +75,765 @@
     </form>
 @endif
 
-<form id="userEditForm" action="{{ route('admin.users.update', $user->id) }}" method="POST">
-    @csrf
-    @method('PUT')
+<div class="card-activities-wrapper mb-4">
+    <div class="card-body p-0">
+        <ul class="nav nav-pills nav-fill bg-light border-bottom p-2 gap-1" id="editPeerTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active py-2 px-3 fw-semibold" id="personal-tab" data-bs-toggle="pill" data-bs-target="#personal-section" type="button" role="tab" aria-controls="personal-section" aria-selected="true">
+                    <i class="bi bi-person me-1"></i>1. Personal Profile
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3 fw-semibold" id="business-tab" data-bs-toggle="pill" data-bs-target="#business-section" type="button" role="tab" aria-controls="business-section" aria-selected="false">
+                    <i class="bi bi-briefcase me-1"></i>2. Business Details
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3 fw-semibold" id="membership-tab" data-bs-toggle="pill" data-bs-target="#membership-section" type="button" role="tab" aria-controls="membership-section" aria-selected="false">
+                    <i class="bi bi-award me-1"></i>3. Membership & Coins
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3 fw-semibold" id="circles-tab" data-bs-toggle="pill" data-bs-target="#circles-section" type="button" role="tab" aria-controls="circles-section" aria-selected="false">
+                    <i class="bi bi-circle me-1"></i>4. Circles & Admin
+                </button>
+            </li>
+        </ul>
 
-    <div class="row g-3">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Basic Info</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">First Name</label>
-                        <input type="text" name="first_name" class="form-control" value="{{ old('first_name', $user->first_name) }}" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Last Name</label>
-                        <input type="text" name="last_name" class="form-control" value="{{ old('last_name', $user->last_name) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Display Name</label>
-                        <input type="text" name="display_name" class="form-control" value="{{ old('display_name', $user->display_name) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Email</label>
-                        <input type="email" name="email" class="form-control" value="{{ old('email', $user->email) }}" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Phone</label>
-                        <input type="text" name="phone" class="form-control" value="{{ old('phone', $user->phone) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Designation</label>
-                        <input type="text" name="designation" class="form-control" value="{{ old('designation', $user->designation) }}">
-                    </div>
-                </div>
-            </div>
-        </div>
+        <form id="userEditForm" action="{{ route('admin.users.update', $user->id) }}" method="POST" class="p-4">
+            @csrf
+            @method('PUT')
 
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Business & Profile</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Company Name</label>
-                        <input type="text" name="company_name" class="form-control" value="{{ old('company_name', $user->company_name) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Business Type</label>
-                        <input type="text" name="business_type" class="form-control" value="{{ old('business_type', $user->business_type) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Turnover Range</label>
-                        <input type="text" name="turnover_range" class="form-control" value="{{ old('turnover_range', $user->turnover_range) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Gender</label>
-                        <input type="text" name="gender" class="form-control" value="{{ old('gender', $user->gender) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Date of Birth</label>
-                        <input type="date" name="dob" class="form-control" value="{{ old('dob', optional($user->dob)->format('Y-m-d')) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Experience Years</label>
-                        <input type="number" name="experience_years" class="form-control" min="0" max="100" value="{{ old('experience_years', $user->experience_years) }}">
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label">Experience Summary</label>
-                        <textarea name="experience_summary" class="form-control" rows="2">{{ old('experience_summary', $user->experience_summary) }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Short Bio</label>
-                        <textarea name="short_bio" class="form-control" rows="2">{{ old('short_bio', $user->short_bio) }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Profile Photo</label>
-                        <input type="hidden" name="profile_photo_file_id" id="profilePhotoFileId" value="{{ old('profile_photo_file_id', $user->profile_photo_file_id) }}">
-                        <div id="profilePhotoExisting" class="{{ $user->profile_photo_file_id ? '' : 'd-none' }}">
-                            <div class="d-flex align-items-center gap-2">
-                                <a href="{{ $user->profile_photo_file_id ? url('/api/v1/files/' . $user->profile_photo_file_id) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm">View Image</a>
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-change-target="profilePhoto">Change</button>
-                            </div>
-                        </div>
-                        <div id="profilePhotoUpload" class="{{ $user->profile_photo_file_id ? 'd-none' : '' }}">
-                            <input type="file" class="form-control" id="profilePhotoFile" accept="image/*">
-                            <div class="form-text" id="profilePhotoStatus">Upload up to 10MB.</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Cover Photo</label>
-                        <input type="hidden" name="cover_photo_file_id" id="coverPhotoFileId" value="{{ old('cover_photo_file_id', $user->cover_photo_file_id) }}">
-                        <div id="coverPhotoExisting" class="{{ $user->cover_photo_file_id ? '' : 'd-none' }}">
-                            <div class="d-flex align-items-center gap-2">
-                                <a href="{{ $user->cover_photo_file_id ? url('/api/v1/files/' . $user->cover_photo_file_id) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm">View Image</a>
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-change-target="coverPhoto">Change</button>
-                            </div>
-                        </div>
-                        <div id="coverPhotoUpload" class="{{ $user->cover_photo_file_id ? 'd-none' : '' }}">
-                            <input type="file" class="form-control" id="coverPhotoFile" accept="image/*">
-                            <div class="form-text" id="coverPhotoStatus">Upload up to 10MB.</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Public Profile Slug</label>
-                        <input type="text" name="public_profile_slug" class="form-control" value="{{ old('public_profile_slug', $user->public_profile_slug) }}">
-                    </div>
-                    <div class="col-12">
-                        @php
-                            $socialLinksValue = '';
-                            if (is_array($user->social_links) && $user->social_links !== []) {
-                                if (array_keys($user->social_links) !== range(0, count($user->social_links) - 1)) {
-                                    $pairs = [];
-                                    foreach ($user->social_links as $k => $v) {
-                                        $pairs[] = $k . '=' . $v;
-                                    }
-                                    $socialLinksValue = implode(', ', $pairs);
-                                } else {
-                                    $socialLinksValue = implode(', ', $user->social_links);
-                                }
-                            }
-                        @endphp
-                        <label class="form-label">Social Links</label>
-                        <textarea name="social_links" class="form-control" rows="3" placeholder="Enter social links">{{ old('social_links', $socialLinksValue) }}</textarea>
-                        <small class="text-muted">
-                            Enter comma separated links, optionally as key=value
-                            (e.g. linkedin=https://linkedin.com/..., website=https://example.com)
-                        </small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Membership & Coins</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Membership Status</label>
-                        @php
-                            $membershipStatusLabels = [
-                                'free_trial_peer' => 'Free Trial Peer',
-                                'free_peer' => 'Free Peer',
-                                'only_unity_peer' => 'Only Unity Peer',
-                                'Only Unity Peer' => 'Only Unity Peer',
-                                'Circle Peer' => 'Circle Peer',
-                                'Multi Circle Peer' => 'Multi Circle Peer',
-                                'Charter Peer' => 'Charter Peer',
-                                'Industry Advisor' => 'Industry Advisor',
-                                'Charter Investor' => 'Charter Investor',
-                                'Circle Founder' => 'Circle Founder',
-                                'Circle Director' => 'Circle Director',
-                                'Board Advisor' => 'Board Advisor',
-                            ];
-                        @endphp
-                        <select name="membership_status" class="form-select" required>
-                            @foreach ($membershipStatuses as $status)
-                                <option value="{{ $status }}" @selected(old('membership_status', $user->membership_status) === $status)>
-                                    {{ $membershipStatusLabels[$status] ?? $status }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select" required>
-                            @php
-                                $statusValue = old('status', $user->status ?? 'active');
-                            @endphp
-                            <option value="active" @selected($statusValue === 'active')>Active</option>
-                            <option value="inactive" @selected($statusValue === 'inactive')>Inactive</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Membership Expiry</label>
-                        <input type="datetime-local" name="membership_expiry" class="form-control" value="{{ old('membership_expiry', optional($user->membership_ends_at)->format('Y-m-d\TH:i')) }}">
-                    </div>
-                    @if(old('membership_status', $user->membership_status) === 'free_trial_peer')
+            <div class="tab-content" id="editPeerTabsContent">
+                <!-- Tab 1: Personal Profile -->
+                <div class="tab-pane fade show active" id="personal-section" role="tabpanel" aria-labelledby="personal-tab">
+                    <h5 class="form-section-title"><i class="bi bi-person-badge text-primary me-2"></i>Personal Identification</h5>
+                    <div class="row g-3">
                         <div class="col-md-4">
-                            <label class="form-label">Trial Expiry Date</label>
-                            <input type="text" class="form-control" value="{{ old('membership_expiry', optional($user->membership_ends_at)->format('Y-m-d H:i:s')) }}" readonly>
+                            <label class="form-label fw-semibold">First Name</label>
+                            <input type="text" name="first_name" class="form-control" value="{{ old('first_name', $user->first_name) }}" required>
                         </div>
-                    @endif
-                    <div class="col-md-4">
-                        <label class="form-label">Coins Balance</label>
-                        <input type="number" name="coins_balance" class="form-control" min="0" value="{{ old('coins_balance', $user->coins_balance) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Coins Remark</label>
-                        <input
-                            type="text"
-                            name="coins_remark"
-                            class="form-control @error('coins_remark') is-invalid @enderror"
-                            maxlength="1000"
-                            value="{{ old('coins_remark', !empty($hasCoinsRemarkColumn) ? $user->coins_remark : '') }}"
-                            placeholder="Required when coins balance is changed"
-                        >
-                        @error('coins_remark')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Influencer Stars</label>
-                        <input type="number" name="influencer_stars" class="form-control" min="0" value="{{ old('influencer_stars', $user->influencer_stars) }}">
-                    </div>
-                    <div class="col-md-4 d-flex align-items-center">
-                        <div class="form-check mt-3">
-                            <input class="form-check-input" type="checkbox" value="1" id="isSponsoredMember" name="is_sponsored_member" @checked(old('is_sponsored_member', $user->is_sponsored_member))>
-                            <label class="form-check-label" for="isSponsoredMember">
-                                Is Sponsored Member
-                            </label>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Last Name</label>
+                            <input type="text" name="last_name" class="form-control" value="{{ old('last_name', $user->last_name) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Display Name</label>
+                            <input type="text" name="display_name" class="form-control" value="{{ old('display_name', $user->display_name) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Email</label>
+                            <input type="email" name="email" class="form-control" value="{{ old('email', $user->email) }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Phone</label>
+                            <input type="text" name="phone" class="form-control" value="{{ old('phone', $user->phone) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Designation</label>
+                            <input type="text" name="designation" class="form-control" value="{{ old('designation', $user->designation) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Gender</label>
+                            <input type="text" name="gender" class="form-control" value="{{ old('gender', $user->gender) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Date of Birth</label>
+                            <input type="date" name="dob" class="form-control" value="{{ old('dob', optional($user->dob)->format('Y-m-d')) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Experience Years</label>
+                            <input type="number" name="experience_years" class="form-control" min="0" max="100" value="{{ old('experience_years', $user->experience_years) }}">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Short Bio</label>
+                            <textarea name="short_bio" class="form-control" rows="2">{{ old('short_bio', $user->short_bio) }}</textarea>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Experience Summary</label>
+                            <textarea name="experience_summary" class="form-control" rows="2">{{ old('experience_summary', $user->experience_summary) }}</textarea>
+                        </div>
+                        
+                        <div class="col-md-6 mt-4">
+                            <label class="form-label fw-semibold">Profile Photo</label>
+                            <input type="hidden" name="profile_photo_file_id" id="profilePhotoFileId" value="{{ old('profile_photo_file_id', $user->profile_photo_file_id) }}">
+                            <div id="profilePhotoExisting" class="{{ $user->profile_photo_file_id ? '' : 'd-none' }} border rounded p-3 bg-light mb-2">
+                                <div class="d-flex align-items-center gap-3">
+                                    @if ($user->profile_photo_file_id)
+                                        <img src="{{ url('/api/v1/files/' . $user->profile_photo_file_id) }}" alt="Profile preview" class="rounded border shadow-sm" style="max-height: 80px; max-width: 80px; object-fit: cover;">
+                                    @endif
+                                    <div>
+                                        <a href="{{ $user->profile_photo_file_id ? url('/api/v1/files/' . $user->profile_photo_file_id) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm mb-1">View Image</a>
+                                        <button type="button" class="btn btn-outline-primary btn-sm mb-1" data-change-target="profilePhoto">Change</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="profilePhotoUpload" class="{{ $user->profile_photo_file_id ? 'd-none' : '' }}">
+                                <input type="file" class="form-control" id="profilePhotoFile" accept="image/*">
+                                <div class="form-text" id="profilePhotoStatus">Upload up to 10MB.</div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mt-4">
+                            <label class="form-label fw-semibold">Cover Photo</label>
+                            <input type="hidden" name="cover_photo_file_id" id="coverPhotoFileId" value="{{ old('cover_photo_file_id', $user->cover_photo_file_id) }}">
+                            <div id="coverPhotoExisting" class="{{ $user->cover_photo_file_id ? '' : 'd-none' }} border rounded p-3 bg-light mb-2">
+                                <div class="d-flex align-items-center gap-3">
+                                    @if ($user->cover_photo_file_id)
+                                        <img src="{{ url('/api/v1/files/' . $user->cover_photo_file_id) }}" alt="Cover preview" class="rounded border shadow-sm" style="max-height: 80px; max-width: 140px; object-fit: cover;">
+                                    @endif
+                                    <div>
+                                        <a href="{{ $user->cover_photo_file_id ? url('/api/v1/files/' . $user->cover_photo_file_id) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm mb-1">View Image</a>
+                                        <button type="button" class="btn btn-outline-primary btn-sm mb-1" data-change-target="coverPhoto">Change</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="coverPhotoUpload" class="{{ $user->cover_photo_file_id ? 'd-none' : '' }}">
+                                <input type="file" class="form-control" id="coverPhotoFile" accept="image/*">
+                                <div class="form-text" id="coverPhotoStatus">Upload up to 10MB.</div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mt-3">
+                            <label class="form-label fw-semibold">Public Profile Slug</label>
+                            <input type="text" name="public_profile_slug" class="form-control" value="{{ old('public_profile_slug', $user->public_profile_slug) }}">
+                        </div>
+
+                        <div class="col-12 mt-3">
+                            @php
+                                $socialLinksValue = '';
+                                if (is_array($user->social_links) && $user->social_links !== []) {
+                                    if (array_keys($user->social_links) !== range(0, count($user->social_links) - 1)) {
+                                        $pairs = [];
+                                        foreach ($user->social_links as $k => $v) {
+                                            $pairs[] = $k . '=' . $v;
+                                        }
+                                        $socialLinksValue = implode(', ', $pairs);
+                                    } else {
+                                        $socialLinksValue = implode(', ', $user->social_links);
+                                    }
+                                }
+                            @endphp
+                            <label class="form-label fw-semibold">Social Links</label>
+                            <textarea name="social_links" class="form-control" rows="2" placeholder="Enter social links">{{ old('social_links', $socialLinksValue) }}</textarea>
+                            <small class="text-muted">
+                                Enter comma separated links, optionally as key=value (e.g. linkedin=https://linkedin.com/..., website=https://example.com)
+                            </small>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Members Introduced Count</label>
-                        <input type="number" name="members_introduced_count" class="form-control" min="0" value="{{ old('members_introduced_count', $user->members_introduced_count) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Introduced By (User ID)</label>
-                        <input type="text" name="introduced_by" class="form-control" value="{{ old('introduced_by', $user->introduced_by) }}">
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Life Impact</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Total Life Impacted</label>
-                        <input
-                            type="number"
-                            name="life_impacted_count"
-                            class="form-control @error('life_impacted_count') is-invalid @enderror"
-                            min="0"
-                            value="{{ old('life_impacted_count', $user->life_impacted_count ?? 0) }}"
-                        >
-                        @error('life_impacted_count')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    <div class="col-md-8">
-                        <label class="form-label">Life Impact Remark</label>
-                        <input
-                            type="text"
-                            name="life_impact_remark"
-                            class="form-control @error('life_impact_remark') is-invalid @enderror"
-                            maxlength="1000"
-                            value="{{ old('life_impact_remark') }}"
-                            placeholder="Required when total life impacted is changed"
-                        >
-                        @error('life_impact_remark')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Membership & Circle Details</div>
-                <div class="card-body row g-3">
-                    <div class="col-12">
-                        <small class="text-muted">Manual admin override only. Does not affect payment history. Expired membership will be treated as Free Peer.</small>
-                    </div>
-                    <div class="col-12"><h6 class="mb-0">Membership Details</h6></div>
-                    <div class="col-md-4">
-                        <label class="form-label">Membership Start Date</label>
-                        <input type="date" name="membership_starts_at" class="form-control" value="{{ old('membership_starts_at', optional($user->membership_starts_at)->format('Y-m-d')) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Membership Expiry Date</label>
-                        <input type="date" name="membership_ends_at" class="form-control" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Membership Plan</label>
-                        <select name="zoho_plan_code" class="form-select @error('zoho_plan_code') is-invalid @enderror">
-                            <option value="">Select Membership Plan</option>
-                            @foreach ($membershipPlanOptions as $plan)
-                                <option value="{{ $plan['code'] }}" @selected(old('zoho_plan_code', $user->zoho_plan_code) === $plan['code'])>{{ $plan['label'] }}</option>
-                            @endforeach
-                        </select>
-                        @error('zoho_plan_code')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                        <div class="form-text">Membership plan list is loaded from existing system plans.</div>
-                    </div>
-                    <div class="col-12"><h6 class="mb-0 mt-2">Circle Membership Details</h6></div>
-                    @php
-                        $selectedCircleValue = (string) old('active_circle_id', $user->active_circle_id ?? $effectiveCircleId ?? '');
-                    @endphp
-                    <input type="hidden" name="active_circle_id" value="{{ $selectedCircleValue }}">
-                    <div class="col-md-4">
-                        <label class="form-label" for="additional_circle_id">Add Another Circle Membership</label>
-                        <select name="additional_circle_id" id="additional_circle_id" class="form-select @error('additional_circle_id') is-invalid @enderror">
-                            <option value="">-- Optional --</option>
-                            @foreach ($circles as $circle)
-                                <option value="{{ $circle->id }}" @selected((string) old('additional_circle_id') === (string) $circle->id)>
-                                    {{ $circle->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('additional_circle_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                        <div class="form-text">Adds or reactivates membership without removing existing circles.</div>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label" for="level1_category_id">Level 1 Category</label>
-                        <select name="level1_category_id" id="level1_category_id" class="form-select">
-                            <option value="">Select level 1 category</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label" for="level2_category_id">Level 2 Category</label>
-                        <select name="level2_category_id" id="level2_category_id" class="form-select" disabled>
-                            <option value="">Select level 2 category</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label" for="level3_category_id">Level 3 Category</label>
-                        <select name="level3_category_id" id="level3_category_id" class="form-select" disabled>
-                            <option value="">Select level 3 category</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label" for="level4_category_id">Level 4 Category</label>
-                        <select name="level4_category_id" id="level4_category_id" class="form-select" disabled>
-                            <option value="">Select level 4 category</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Circle Joined Date</label>
-                        <input type="date" name="circle_joined_at" class="form-control" value="{{ old('circle_joined_at', optional($user->circle_joined_at)->format('Y-m-d')) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Circle Expiry Date</label>
-                        <input type="date" name="circle_expires_at" class="form-control" value="{{ old('circle_expires_at', optional($user->circle_expires_at)->format('Y-m-d')) }}">
-                    </div>
-                    <div class="col-md-4 d-flex align-items-end">
-                        <button type="submit" name="add_circle_membership" value="1" class="btn btn-outline-primary w-100">
-                            Add Circle
+                    <div class="d-flex justify-content-end mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-primary" onclick="switchTab('business-tab')">
+                            Next: Business Details <i class="bi bi-arrow-right ms-1"></i>
                         </button>
                     </div>
+                </div>
 
-                    @if (! $isJoinedToEffectiveCircle)
-                        <div class="col-12">
-                            <div class="alert alert-warning mb-0">
-                                Peer is not joined to the selected circle. Select a circle and click <strong>Save</strong> to join.
-                            </div>
+                <!-- Tab 2: Business Details -->
+                <div class="tab-pane fade" id="business-section" role="tabpanel" aria-labelledby="business-tab">
+                    <h5 class="form-section-title"><i class="bi bi-briefcase text-primary me-2"></i>Business Classification</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Company Name</label>
+                            <input type="text" name="company_name" class="form-control" value="{{ old('company_name', $user->company_name) }}">
                         </div>
-                    @endif
-
-                    <div class="col-12 mt-2">
-                        <h6 class="mb-2">Joined Circle Memberships (Multi-circle)</h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Circle</th>
-                                        <th>Addon Code</th>
-                                        <th>Addon Name</th>
-                                        <th>Joined At</th>
-                                        <th>Expires At</th>
-                                        <th>Member Status</th>
-                                        <th>Payment Status</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse ($circleMemberships as $membership)
-                                        @php
-                                            $latestSubscription = $latestCircleSubscriptions->get((string) $membership->circle_id);
-                                            $membershipExpiresAt = $membership->expires_at;
-                                        @endphp
-                                        <tr>
-                                            <td>
-                                                @if ($membership->circle?->id)
-                                                    <a href="{{ route('admin.circles.show', $membership->circle->id) }}">{{ $membership->circle?->name ?: '—' }}</a>
-                                                @else
-                                                    —
-                                                @endif
-                                            </td>
-                                            <td>{{ $membership->zoho_addon_code ?: ($latestSubscription->zoho_addon_code ?? '—') }}</td>
-                                            <td>{{ $latestSubscription->zoho_addon_name ?? '—' }}</td>
-                                            <td>{{ optional($membership->joined_at)->format('Y-m-d') ?: '—' }}</td>
-                                            <td>{{ $membershipExpiresAt ? \Illuminate\Support\Carbon::parse($membershipExpiresAt)->format('Y-m-d') : '—' }}</td>
-                                            <td>{{ $membership->status ?: '—' }}</td>
-                                            <td>{{ $membership->payment_status ?: ($latestSubscription->status ?? '—') }}</td>
-                                            <td>
-                                                <button
-                                                    type="submit"
-                                                    form="remove-circle-membership-{{ $membership->id }}"
-                                                    class="btn btn-sm btn-outline-danger"
-                                                    onclick="return confirm('Remove this circle membership for this peer?');"
-                                                >
-                                                    Remove
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="8" class="text-muted text-center">No joined circle memberships.</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Business Type</label>
+                            <input type="text" name="business_type" class="form-control" value="{{ old('business_type', $user->business_type) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Turnover Range</label>
+                            <input type="text" name="turnover_range" class="form-control" value="{{ old('turnover_range', $user->turnover_range) }}">
                         </div>
                     </div>
 
-                    <div class="col-12 mt-3">
-                        <h6 class="mb-2">Joined Circle Categories</h6>
+                    <h5 class="form-section-title"><i class="bi bi-tags text-primary me-2"></i>Tags & Business Metadata</h5>
+                    <div class="row g-3">
                         @php
-                            $joinedCircleCategoryTrees = $joinedCircleCategoryTrees ?? collect();
-                            $registeredMainBusinessCategory = $user->mainBusinessCategory;
-                            $registeredBusinessCategory = $user->businessCategory;
-                            $hasRegisteredBusinessCategory = $registeredMainBusinessCategory || $registeredBusinessCategory;
+                            $jsonFields = [
+                                'industry_tags' => $user->industry_tags,
+                                'target_regions' => $user->target_regions,
+                                'target_business_categories' => $user->target_business_categories,
+                                'hobbies_interests' => $user->hobbies_interests,
+                                'leadership_roles' => $user->leadership_roles,
+                                'special_recognitions' => $user->special_recognitions,
+                                'skills' => $user->skills,
+                                'interests' => $user->interests,
+                            ];
+
+                            $asCsv = function ($value): string {
+                                if (is_array($value)) {
+                                    return implode(', ', $value);
+                                }
+                                return '';
+                            };
                         @endphp
-
-                        @if($joinedCircleCategoryTrees->isEmpty() && ! $hasRegisteredBusinessCategory)
-                            <div class="text-muted">—</div>
-                        @else
-                            @if($hasRegisteredBusinessCategory)
-                                <div class="border rounded p-3 bg-light-subtle mb-3">
-                                    <div class="fw-semibold mb-2">Registered Business Category</div>
-                                    <div class="small">
-                                        {{ $registeredMainBusinessCategory?->name ?? '—' }}
-                                        @if($registeredBusinessCategory)
-                                            <span class="text-muted mx-1">→</span>
-                                            {{ $registeredBusinessCategory->name }}
-                                        @endif
-                                    </div>
-                                </div>
-                            @endif
-
-                            @if($joinedCircleCategoryTrees->isNotEmpty())
-                            <div class="row g-3">
-                                @foreach($joinedCircleCategoryTrees as $circleTree)
-                                    <div class="col-12">
-                                        <div class="border rounded p-3 bg-light-subtle">
-                                            <div class="fw-semibold mb-2">
-                                                Joined Circle: {{ $circleTree['circle']?->name ?: ($circleTree['membership']->circle?->name ?? '—') }}
-                                            </div>
-
-                                            @php
-                                                $selectedPath = $circleTree['selected_category_path'] ?? [];
-                                            @endphp
-                                            <div class="small mb-2">
-                                                <div><strong>Level 1:</strong> {{ $selectedPath['level1']->name ?? '—' }}</div>
-                                                <div><strong>Level 2:</strong> {{ $selectedPath['level2']->name ?? '—' }}</div>
-                                                <div><strong>Level 3:</strong> {{ $selectedPath['level3']->name ?? '—' }}</div>
-                                                <div><strong>Level 4:</strong> {{ $selectedPath['level4']->name ?? '—' }}</div>
-                                            </div>
-
-                                            @if(($circleTree['categories'] ?? collect())->isEmpty())
-                                                <div class="text-muted">—</div>
-                                            @else
-                                                @foreach($circleTree['categories'] as $mainCategoryTree)
-                                                    <div class="mb-3">
-                                                        <span class="badge bg-light text-dark border mb-2">
-                                                            Category: {{ $mainCategoryTree['node']->name }}
-                                                        </span>
-
-                                                        @if(($mainCategoryTree['children'] ?? collect())->isEmpty())
-                                                            <div class="text-muted ms-2">—</div>
-                                                        @else
-                                                            <ul class="mb-0">
-                                                                @foreach($mainCategoryTree['children'] as $level2Tree)
-                                                                    <li>
-                                                                        {{ $level2Tree['node']->name }}
-                                                                        @if(($level2Tree['children'] ?? collect())->isNotEmpty())
-                                                                            <ul>
-                                                                                @foreach($level2Tree['children'] as $level3Tree)
-                                                                                    <li>
-                                                                                        {{ $level3Tree['node']->name }}
-                                                                                        @if(($level3Tree['children'] ?? collect())->isNotEmpty())
-                                                                                            <ul>
-                                                                                                @foreach($level3Tree['children'] as $level4Node)
-                                                                                                    <li>{{ $level4Node->name }}</li>
-                                                                                                @endforeach
-                                                                                            </ul>
-                                                                                        @endif
-                                                                                    </li>
-                                                                                @endforeach
-                                                                            </ul>
-                                                                        @endif
-                                                                    </li>
-                                                                @endforeach
-                                                            </ul>
-                                                        @endif
-                                                    </div>
-                                                @endforeach
-                                            @endif
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                            @endif
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Location</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-12">
-                        <label class="form-label">City (string fallback)</label>
-                        <input type="text" name="city" class="form-control" value="{{ old('city', $user->city) }}">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Additional Details</div>
-                <div class="card-body row g-3">
-                    @php
-                        $jsonFields = [
-                            'industry_tags' => $user->industry_tags,
-                            'target_regions' => $user->target_regions,
-                            'target_business_categories' => $user->target_business_categories,
-                            'hobbies_interests' => $user->hobbies_interests,
-                            'leadership_roles' => $user->leadership_roles,
-                            'special_recognitions' => $user->special_recognitions,
-                            'skills' => $user->skills,
-                            'interests' => $user->interests,
-                        ];
-
-                        $asCsv = function ($value): string {
-                            if (is_array($value)) {
-                                return implode(', ', $value);
-                            }
-                            return '';
-                        };
-
-                    @endphp
-                    @foreach ($jsonFields as $field => $value)
-                        <div class="col-md-6">
-                            <label class="form-label text-capitalize">{{ str_replace('_', ' ', $field) }}</label>
-                            <textarea name="{{ $field }}" class="form-control" rows="3" placeholder="Enter comma separated values (e.g. IT, Finance, Retail)">{{ old($field, $asCsv($value)) }}</textarea>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Read-only Metadata</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">ID</label>
-                        <input type="text" class="form-control" value="{{ $user->id }}" disabled>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Created At</label>
-                        <input type="text" class="form-control" value="{{ optional($user->created_at)->toDateTimeString() }}" disabled>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Updated At</label>
-                        <input type="text" class="form-control" value="{{ optional($user->updated_at)->toDateTimeString() }}" disabled>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Last Login</label>
-                        <input type="text" class="form-control" value="{{ optional($user->last_login_at)->toDateTimeString() }}" disabled>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Roles</div>
-                <div class="card-body">
-                    @php
-                        $currentRoleIds = old('role_ids', $userRoleIds);
-                        $currentRoleIds = is_array($currentRoleIds) ? $currentRoleIds : [];
-                        $currentIndustryId = old('industry_id', $selectedIndustryId);
-                    @endphp
-                    @if ($hasAssignedAdminRole)
-                        <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
-                            <div>
-                                <strong>Currently assigned:</strong>
-                                <span>{{ $assignedAdminRoleNames }}</span>
-                            </div>
-                            <button type="submit"
-                                    form="removeAdminRoleForm"
-                                    class="btn btn-sm btn-outline-danger"
-                                    onclick="return confirm('Remove the current admin role from this user?');">
-                                Remove Role
-                            </button>
-                        </div>
-                    @endif
-                    <div class="row g-3 align-items-center">
-                        @foreach ($roles as $role)
-                            <div class="col-md-4 d-flex align-items-start">
-                                <div class="form-check">
-                                    <input class="form-check-input"
-                                           type="checkbox"
-                                           name="role_ids[]"
-                                           value="{{ $role->id }}"
-                                           id="role-{{ $role->id }}"
-                                           data-role-key="{{ $role->key }}"
-                                           @checked(in_array($role->id, $currentRoleIds))
-                                           @disabled($hasAssignedAdminRole)>
-                                    <label class="form-check-label" for="role-{{ $role->id }}">
-                                        <strong>{{ $role->name }}</strong>
-                                        <div class="small text-muted">{{ $role->description }}</div>
-                                    </label>
-                                </div>
+                        @foreach ($jsonFields as $field => $value)
+                            <div class="col-md-6">
+                                <label class="form-label text-capitalize fw-semibold">{{ str_replace('_', ' ', $field) }}</label>
+                                <textarea name="{{ $field }}" class="form-control" rows="2" placeholder="Enter comma separated values...">{{ old($field, $asCsv($value)) }}</textarea>
                             </div>
                         @endforeach
                     </div>
 
-                    @php
-                        $selectedDedStateId = old('ded_state_id', $assignedDedStateId);
-                        $selectedDedStateName = old('ded_state_name', $assignedDedStateName);
-                        $selectedDedDistrictId = old('ded_district_id', $assignedDedDistrictId);
-                        $selectedDedDistrictName = old('ded_district_name', $assignedDedDistrictName);
-                        $dedRoleId = optional($roles->firstWhere('key', 'ded'))->id;
-                        $showDedDistrict = $dedRoleId && in_array($dedRoleId, (array) $currentRoleIds);
-                    @endphp
-                    <div id="dedDistrictField" class="row g-2 mt-3 {{ $showDedDistrict ? '' : 'd-none' }}">
-                        <div class="col-md-6">
-                            <label class="form-label" for="dedStateId">DED State</label>
-                            <select
-                                id="dedStateId"
-                                name="ded_state_id"
-                                class="form-select @error('ded_state_id') is-invalid @enderror"
-                                @disabled($hasAssignedAdminRole)
-                            >
-                                <option value="">Select state</option>
-                                @foreach ($states as $state)
-                                    <option value="{{ $state->id }}" @selected((string) $selectedDedStateId === (string) $state->id)>
-                                        {{ $state->name }}
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" onclick="switchTab('personal-tab')">
+                            <i class="bi bi-arrow-left me-1"></i> Back
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="switchTab('membership-tab')">
+                            Next: Membership & Coins <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Membership & Coins -->
+                <div class="tab-pane fade" id="membership-section" role="tabpanel" aria-labelledby="membership-tab">
+                    <h5 class="form-section-title"><i class="bi bi-award-fill text-primary me-2"></i>Membership Settings</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Membership Status</label>
+                            @php
+                                $membershipStatusLabels = [
+                                    'free_trial_peer' => 'Free Trial Peer',
+                                    'free_peer' => 'Free Peer',
+                                    'only_unity_peer' => 'Only Unity Peer',
+                                    'Only Unity Peer' => 'Only Unity Peer',
+                                    'Circle Peer' => 'Circle Peer',
+                                    'Multi Circle Peer' => 'Multi Circle Peer',
+                                    'Charter Peer' => 'Charter Peer',
+                                    'Industry Advisor' => 'Industry Advisor',
+                                    'Charter Investor' => 'Charter Investor',
+                                    'Circle Founder' => 'Circle Founder',
+                                    'Circle Director' => 'Circle Director',
+                                    'Board Advisor' => 'Board Advisor',
+                                ];
+                            @endphp
+                            <select name="membership_status" class="form-select js-no-searchable-select" required>
+                                @foreach ($membershipStatuses as $status)
+                                    <option value="{{ $status }}" @selected(old('membership_status', $user->membership_status) === $status)>
+                                        {{ $membershipStatusLabels[$status] ?? $status }}
                                     </option>
                                 @endforeach
                             </select>
-                            <input type="hidden" id="dedStateName" name="ded_state_name" value="{{ $selectedDedStateName }}">
-                            @error('ded_state_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label" for="dedDistrictId">DED District <span class="text-danger">*</span></label>
-                            <select
-                                id="dedDistrictId"
-                                name="ded_district_id"
-                                class="form-select @error('ded_district_id') is-invalid @enderror"
-                                @disabled($hasAssignedAdminRole)
-                            >
-                                <option value="">Select district</option>
-                                @foreach ($assignedDedDistricts as $district)
-                                    @php
-                                        $districtName = $district->district_name ?? $district->name;
-                                        $districtId = $district->district_id ?? null;
-                                    @endphp
-                                    <option
-                                        value="{{ $districtId ?: $district->id }}"
-                                        data-district-name="{{ $districtName }}"
-                                        @selected((string) $selectedDedDistrictName === (string) $districtName || (string) $selectedDedDistrictId === (string) $districtId)
-                                    >
-                                        {{ $district->name }}
-                                    </option>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Status</label>
+                            <select name="status" class="form-select js-no-searchable-select" required>
+                                @php
+                                    $statusValue = old('status', $user->status ?? 'active');
+                                @endphp
+                                <option value="active" @selected($statusValue === 'active')>Active</option>
+                                <option value="inactive" @selected($statusValue === 'inactive')>Inactive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Membership Plan</label>
+                            <select name="zoho_plan_code" class="form-select @error('zoho_plan_code') is-invalid @enderror">
+                                <option value="">Select Membership Plan</option>
+                                @foreach ($membershipPlanOptions as $plan)
+                                    <option value="{{ $plan['code'] }}" @selected(old('zoho_plan_code', $user->zoho_plan_code) === $plan['code'])>{{ $plan['label'] }}</option>
                                 @endforeach
                             </select>
-                            <input type="hidden" id="dedDistrictName" name="ded_district_name" value="{{ $selectedDedDistrictName }}">
-                            @error('ded_district_id')
+                            @error('zoho_plan_code')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
-                        <div class="col-12">
-                            <div class="form-text">Only districts currently used by users, circles, or DED assignments are shown for the selected state.</div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Membership Start Date</label>
+                            <input type="date" name="membership_starts_at" class="form-control" value="{{ old('membership_starts_at', optional($user->membership_starts_at)->format('Y-m-d')) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Membership Expiry Date</label>
+                            <input type="date" name="membership_ends_at" class="form-control" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}">
+                        </div>
+                        @if(old('membership_status', $user->membership_status) === 'free_trial_peer')
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Trial Expiry Date</label>
+                                <input type="text" class="form-control bg-light" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}" readonly>
+                            </div>
+                        @endif
+                        <div class="col-md-4 d-flex align-items-center">
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" value="1" id="isSponsoredMember" name="is_sponsored_member" @checked(old('is_sponsored_member', $user->is_sponsored_member))>
+                                <label class="form-check-label fw-semibold" for="isSponsoredMember">
+                                    Is Sponsored Member
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Members Introduced Count</label>
+                            <input type="number" name="members_introduced_count" class="form-control" min="0" value="{{ old('members_introduced_count', $user->members_introduced_count) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Introduced By (User ID)</label>
+                            <input type="text" name="introduced_by" class="form-control" value="{{ old('introduced_by', $user->introduced_by) }}">
                         </div>
                     </div>
 
-                    @if ($hasAssignedAdminRole)
-                        <div class="form-text text-muted mt-2">
-                            Remove the existing admin role to assign a new one.
+                    <h5 class="form-section-title"><i class="bi bi-coin text-primary me-2"></i>Coins Balance</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Coins Balance</label>
+                            <input type="number" name="coins_balance" class="form-control" min="0" value="{{ old('coins_balance', $user->coins_balance) }}">
                         </div>
-                    @endif
-                    <div id="industry-director-industry-group" class="row g-3 mt-3 d-none">
                         <div class="col-md-6">
-                            <label class="form-label" for="industry-director-industry">Industry <span class="text-danger">*</span></label>
-                            <select id="industry-director-industry" name="industry_id" class="form-select @error('industry_id') is-invalid @enderror">
-                                <option value="">Select industry</option>
-                                @foreach ($industries as $industry)
-                                    <option value="{{ $industry->id }}" @selected((string) $currentIndustryId === (string) $industry->id)>
-                                        {{ $industry->name }}
+                            <label class="form-label fw-semibold">Coins Remark</label>
+                            <input
+                                type="text"
+                                name="coins_remark"
+                                class="form-control @error('coins_remark') is-invalid @enderror"
+                                maxlength="1000"
+                                value="{{ old('coins_remark', !empty($hasCoinsRemarkColumn) ? $user->coins_remark : '') }}"
+                                placeholder="Required when coins balance is changed"
+                            >
+                            @error('coins_remark')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Influencer Stars</label>
+                            <input type="number" name="influencer_stars" class="form-control" min="0" value="{{ old('influencer_stars', $user->influencer_stars) }}">
+                        </div>
+                    </div>
+
+                    <h5 class="form-section-title"><i class="bi bi-heart-pulse text-primary me-2"></i>Life Impact</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Total Life Impacted</label>
+                            <input
+                                type="number"
+                                name="life_impacted_count"
+                                class="form-control @error('life_impacted_count') is-invalid @enderror"
+                                min="0"
+                                value="{{ old('life_impacted_count', $user->life_impacted_count ?? 0) }}"
+                            >
+                            @error('life_impacted_count')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">Life Impact Remark</label>
+                            <input
+                                type="text"
+                                name="life_impact_remark"
+                                class="form-control @error('life_impact_remark') is-invalid @enderror"
+                                maxlength="1000"
+                                value="{{ old('life_impact_remark') }}"
+                                placeholder="Required when total life impacted is changed"
+                            >
+                            @error('life_impact_remark')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" onclick="switchTab('business-tab')">
+                            <i class="bi bi-arrow-left me-1"></i> Back
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="switchTab('circles-tab')">
+                            Next: Circles & Admin <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Circles & Admin -->
+                <div class="tab-pane fade" id="circles-section" role="tabpanel" aria-labelledby="circles-tab">
+                    <h5 class="form-section-title"><i class="bi bi-people-fill text-primary me-2"></i>Circle Management</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12 text-muted small">
+                            Manual admin override only. Does not affect payment history. Expired membership will be treated as Free Peer.
+                        </div>
+
+
+                        <div class="col-12"><h6 class="mb-0 mt-3 text-dark fw-bold">Add Another Circle Membership</h6></div>
+                        @php
+                            $selectedCircleValue = (string) old('active_circle_id', $user->active_circle_id ?? $effectiveCircleId ?? '');
+                        @endphp
+                        <input type="hidden" name="active_circle_id" value="{{ $selectedCircleValue }}">
+                        
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold" for="additional_circle_id">Circle</label>
+                            <select name="additional_circle_id" id="additional_circle_id" class="form-select @error('additional_circle_id') is-invalid @enderror">
+                                <option value="">-- Optional --</option>
+                                @foreach ($circles as $circle)
+                                    <option value="{{ $circle->id }}" @selected((string) old('additional_circle_id') === (string) $circle->id)>
+                                        {{ $circle->name }}
                                     </option>
                                 @endforeach
                             </select>
-                            @error('industry_id')
+                            @error('additional_circle_id')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
-                            <div class="form-text text-muted">Required only when Industry Director is selected.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold" for="level1_category_id">Level 1 Category</label>
+                            <select name="level1_category_id" id="level1_category_id" class="form-select js-no-searchable-select">
+                                <option value="">Select level 1 category</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold" for="level2_category_id">Level 2 Category</label>
+                            <select name="level2_category_id" id="level2_category_id" class="form-select js-no-searchable-select" disabled>
+                                <option value="">Select level 2 category</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold" for="level3_category_id">Level 3 Category</label>
+                            <select name="level3_category_id" id="level3_category_id" class="form-select js-no-searchable-select" disabled>
+                                <option value="">Select level 3 category</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold" for="level4_category_id">Level 4 Category</label>
+                            <select name="level4_category_id" id="level4_category_id" class="form-select js-no-searchable-select" disabled>
+                                <option value="">Select level 4 category</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Circle Joined Date</label>
+                            <input type="date" name="circle_joined_at" class="form-control" value="{{ old('circle_joined_at', optional($user->circle_joined_at)->format('Y-m-d')) }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Circle Expiry Date</label>
+                            <input type="date" name="circle_expires_at" class="form-control" value="{{ old('circle_expires_at', optional($user->circle_expires_at)->format('Y-m-d')) }}">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" name="add_circle_membership" value="1" class="btn btn-outline-primary w-100">
+                                <i class="bi bi-plus-circle me-1"></i>Add Circle
+                            </button>
+                        </div>
+
+                        @if (! $isJoinedToEffectiveCircle)
+                            <div class="col-12 mt-2">
+                                <div class="alert alert-warning mb-0 small">
+                                    Peer is not joined to the selected circle. Select a circle and click <strong>Save</strong> to join.
+                                </div>
+                            </div>
+                        @endif
+
+                        <div class="col-12 mt-4">
+                            <h6 class="fw-bold mb-2 text-dark">Joined Circle Memberships (Multi-circle)</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-premium align-middle mb-0 text-nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th>Circle</th>
+                                            <th>Addon Code</th>
+                                            <th>Addon Name</th>
+                                            <th>Joined At</th>
+                                            <th>Expires At</th>
+                                            <th>Member Status</th>
+                                            <th>Payment Status</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse ($circleMemberships as $membership)
+                                            @php
+                                                $latestSubscription = $latestCircleSubscriptions->get((string) $membership->circle_id);
+                                                $membershipExpiresAt = $membership->expires_at;
+                                            @endphp
+                                            <tr>
+                                                <td>
+                                                    @if ($membership->circle?->id)
+                                                        <a href="{{ route('admin.circles.show', $membership->circle->id) }}">{{ $membership->circle?->name ?: '—' }}</a>
+                                                    @else
+                                                        —
+                                                    @endif
+                                                </td>
+                                                <td>{{ $membership->zoho_addon_code ?: ($latestSubscription->zoho_addon_code ?? '—') }}</td>
+                                                <td>{{ $latestSubscription->zoho_addon_name ?? '—' }}</td>
+                                                <td>{{ optional($membership->joined_at)->format('Y-m-d') ?: '—' }}</td>
+                                                <td>{{ $membershipExpiresAt ? \Illuminate\Support\Carbon::parse($membershipExpiresAt)->format('Y-m-d') : '—' }}</td>
+                                                <td>{{ $membership->status ?: '—' }}</td>
+                                                <td>{{ $membership->payment_status ?: ($latestSubscription->status ?? '—') }}</td>
+                                                <td>
+                                                    <button
+                                                        type="submit"
+                                                        form="remove-circle-membership-{{ $membership->id }}"
+                                                        class="btn btn-sm btn-outline-danger py-0 px-2"
+                                                        onclick="return confirm('Remove this circle membership for this peer?');"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="8" class="text-muted text-center py-3">No joined circle memberships.</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-4">
+                            <h6 class="fw-bold mb-2 text-dark">Joined Circle Categories</h6>
+                            @php
+                                $joinedCircleCategoryTrees = $joinedCircleCategoryTrees ?? collect();
+                                $registeredMainBusinessCategory = $user->mainBusinessCategory;
+                                $registeredBusinessCategory = $user->businessCategory;
+                                $hasRegisteredBusinessCategory = $registeredMainBusinessCategory || $registeredBusinessCategory;
+                            @endphp
+
+                            @if($joinedCircleCategoryTrees->isEmpty() && ! $hasRegisteredBusinessCategory)
+                                <div class="text-muted small">—</div>
+                            @else
+                                @if($hasRegisteredBusinessCategory)
+                                    <div class="border rounded p-3 bg-light-subtle mb-3">
+                                        <div class="fw-semibold mb-2 text-muted small">Registered Business Category</div>
+                                        <div class="small fw-semibold text-dark">
+                                            {{ $registeredMainBusinessCategory?->name ?? '—' }}
+                                            @if($registeredBusinessCategory)
+                                                <span class="text-muted mx-1">→</span>
+                                                {{ $registeredBusinessCategory->name }}
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
+
+                                @if($joinedCircleCategoryTrees->isNotEmpty())
+                                <div class="row g-3">
+                                    @foreach($joinedCircleCategoryTrees as $circleTree)
+                                        <div class="col-12">
+                                            <div class="border rounded p-3 bg-light-subtle">
+                                                <div class="fw-semibold mb-2 text-primary small">
+                                                    Joined Circle: {{ $circleTree['circle']?->name ?: ($circleTree['membership']->circle?->name ?? '—') }}
+                                                </div>
+
+                                                @php
+                                                    $selectedPath = $circleTree['selected_category_path'] ?? [];
+                                                @endphp
+                                                <div class="small mb-3 d-flex flex-wrap gap-3 bg-white p-2 rounded border">
+                                                    <div><strong>Level 1:</strong> {{ $selectedPath['level1']->name ?? '—' }}</div>
+                                                    <div><strong>Level 2:</strong> {{ $selectedPath['level2']->name ?? '—' }}</div>
+                                                    <div><strong>Level 3:</strong> {{ $selectedPath['level3']->name ?? '—' }}</div>
+                                                    <div><strong>Level 4:</strong> {{ $selectedPath['level4']->name ?? '—' }}</div>
+                                                </div>
+
+                                                @if(($circleTree['categories'] ?? collect())->isEmpty())
+                                                    <div class="text-muted small">—</div>
+                                                @else
+                                                    @foreach($circleTree['categories'] as $mainCategoryTree)
+                                                        <div class="mb-2">
+                                                            <span class="badge bg-light text-dark border">
+                                                                Category: {{ $mainCategoryTree['node']->name }}
+                                                            </span>
+
+                                                            @if(($mainCategoryTree['children'] ?? collect())->isEmpty())
+                                                                <div class="text-muted ms-2 small">—</div>
+                                                            @else
+                                                                <ul class="mb-0 small mt-1">
+                                                                    @foreach($mainCategoryTree['children'] as $level2Tree)
+                                                                        <li>
+                                                                            {{ $level2Tree['node']->name }}
+                                                                            @if(($level2Tree['children'] ?? collect())->isNotEmpty())
+                                                                                <ul>
+                                                                                    @foreach($level2Tree['children'] as $level3Tree)
+                                                                                        <li>
+                                                                                            {{ $level3Tree['node']->name }}
+                                                                                            @if(($level3Tree['children'] ?? collect())->isNotEmpty())
+                                                                                                <ul>
+                                                                                                    @foreach($level3Tree['children'] as $level4Node)
+                                                                                                        <li>{{ $level4Node->name }}</li>
+                                                                                                    @endforeach
+                                                                                                </ul>
+                                                                                            @endif
+                                                                                        </li>
+                                                                                    @endforeach
+                                                                                </ul>
+                                                                            @endif
+                                                                        </li>
+                                                                    @endforeach
+                                                                </ul>
+                                                            @endif
+                                                        </div>
+                                                    @endforeach
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                                @endif
+                            @endif
+                        </div>
+                    </div>
+
+                    <h5 class="form-section-title mt-4"><i class="bi bi-geo text-primary me-2"></i>Physical Location</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">City (string fallback)</label>
+                            <input type="text" name="city" class="form-control" value="{{ old('city', $user->city) }}">
+                        </div>
+                    </div>
+
+                    <h5 class="form-section-title"><i class="bi bi-shield-lock text-primary me-2"></i>Admin Roles & Permissions</h5>
+                    <div class="mb-4">
+                        @php
+                            $currentRoleIds = old('role_ids', $userRoleIds);
+                            $currentRoleIds = is_array($currentRoleIds) ? $currentRoleIds : [];
+                            $currentIndustryId = old('industry_id', $selectedIndustryId);
+                        @endphp
+                        @if ($hasAssignedAdminRole)
+                            <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <div>
+                                    <strong>Currently assigned role:</strong>
+                                    <span>{{ $assignedAdminRoleNames }}</span>
+                                </div>
+                                <button type="submit"
+                                        form="removeAdminRoleForm"
+                                        class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('Remove the current admin role from this user?');">
+                                    Remove Role
+                                </button>
+                            </div>
+                        @endif
+                        <div class="row g-3 align-items-center bg-light p-3 rounded border mb-3">
+                            @foreach ($roles as $role)
+                                <div class="col-md-4 d-flex align-items-start">
+                                    <div class="form-check">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="role_ids[]"
+                                               value="{{ $role->id }}"
+                                               id="role-{{ $role->id }}"
+                                               data-role-key="{{ $role->key }}"
+                                               @checked(in_array($role->id, $currentRoleIds))
+                                               @disabled($hasAssignedAdminRole)>
+                                        <label class="form-check-label" for="role-{{ $role->id }}">
+                                            <strong class="text-dark">{{ $role->name }}</strong>
+                                            <div class="small text-muted">{{ $role->description }}</div>
+                                        </label>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        @php
+                            $selectedDedStateId = old('ded_state_id', $assignedDedStateId);
+                            $selectedDedStateName = old('ded_state_name', $assignedDedStateName);
+                            $selectedDedDistrictId = old('ded_district_id', $assignedDedDistrictId);
+                            $selectedDedDistrictName = old('ded_district_name', $assignedDedDistrictName);
+                            $dedRoleId = optional($roles->firstWhere('key', 'ded'))->id;
+                            $showDedDistrict = $dedRoleId && in_array($dedRoleId, (array) $currentRoleIds);
+                        @endphp
+                        <div id="dedDistrictField" class="row g-2 mt-2 {{ $showDedDistrict ? '' : 'd-none' }}">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="dedStateId">DED State</label>
+                                <select
+                                    id="dedStateId"
+                                    name="ded_state_id"
+                                    class="form-select @error('ded_state_id') is-invalid @enderror js-no-searchable-select"
+                                    @disabled($hasAssignedAdminRole)
+                                >
+                                    <option value="">Select state</option>
+                                    @foreach ($states as $state)
+                                        <option value="{{ $state->id }}" @selected((string) $selectedDedStateId === (string) $state->id)>
+                                            {{ $state->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <input type="hidden" id="dedStateName" name="ded_state_name" value="{{ $selectedDedStateName }}">
+                                @error('ded_state_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="dedDistrictId">DED District <span class="text-danger">*</span></label>
+                                <select
+                                    id="dedDistrictId"
+                                    name="ded_district_id"
+                                    class="form-select @error('ded_district_id') is-invalid @enderror js-no-searchable-select"
+                                    @disabled($hasAssignedAdminRole)
+                                >
+                                    <option value="">Select district</option>
+                                    @foreach ($assignedDedDistricts as $district)
+                                        @php
+                                            $districtName = $district->district_name ?? $district->name;
+                                            $districtId = $district->district_id ?? null;
+                                        @endphp
+                                        <option
+                                            value="{{ $districtId ?: $district->id }}"
+                                            data-district-name="{{ $districtName }}"
+                                            @selected((string) $selectedDedDistrictName === (string) $districtName || (string) $selectedDedDistrictId === (string) $districtId)
+                                        >
+                                            {{ $district->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <input type="hidden" id="dedDistrictName" name="ded_district_name" value="{{ $selectedDedDistrictName }}">
+                                @error('ded_district_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-12">
+                                <div class="form-text">Only districts currently used by users, circles, or DED assignments are shown for the selected state.</div>
+                            </div>
+                        </div>
+
+                        @if ($hasAssignedAdminRole)
+                            <div class="form-text text-muted">
+                                Remove the existing admin role to assign a new one.
+                            </div>
+                        @endif
+                        
+                        <div id="industry-director-industry-group" class="row g-3 mt-2 d-none">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="industry-director-industry">Industry <span class="text-danger">*</span></label>
+                                <select id="industry-director-industry" name="industry_id" class="form-select @error('industry_id') is-invalid @enderror">
+                                    <option value="">Select industry</option>
+                                    @foreach ($industries as $industry)
+                                        <option value="{{ $industry->id }}" @selected((string) $currentIndustryId === (string) $industry->id)>
+                                            {{ $industry->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('industry_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text text-muted">Required only when Industry Director is selected.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="form-section-title"><i class="bi bi-info-circle text-primary me-2"></i>Read-only Metadata</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label small">ID</label>
+                            <input type="text" class="form-control bg-light" value="{{ $user->id }}" disabled>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Created At</label>
+                            <input type="text" class="form-control bg-light" value="{{ optional($user->created_at)->toDateTimeString() }}" disabled>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Updated At</label>
+                            <input type="text" class="form-control bg-light" value="{{ optional($user->updated_at)->toDateTimeString() }}" disabled>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Last Login</label>
+                            <input type="text" class="form-control bg-light" value="{{ optional($user->last_login_at)->toDateTimeString() }}" disabled>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" onclick="switchTab('membership-tab')">
+                            <i class="bi bi-arrow-left me-1"></i> Back
+                        </button>
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('admin.users.index') }}" class="btn btn-outline-danger">Cancel</a>
+                            <button type="submit" class="btn btn-success px-4">
+                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </form>
     </div>
-
-    <div class="mt-4">
-        <button type="submit" class="btn btn-primary">Save</button>
-        <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary" type="button">Cancel</a>
-    </div>
-</form>
+</div>
 
 @foreach ($circleMemberships as $membership)
     <form
@@ -768,9 +846,19 @@
         @method('DELETE')
     </form>
 @endforeach
+@endsection
 
 @push('scripts')
 <script>
+function switchTab(tabId) {
+    const tabEl = document.getElementById(tabId);
+    if (tabEl) {
+        const tab = new bootstrap.Tab(tabEl);
+        tab.show();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const roleCheckboxes = Array.from(document.querySelectorAll('input[name="role_ids[]"]'));
     const dedDistrictField = document.getElementById('dedDistrictField');
@@ -978,8 +1066,6 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 @endpush
-
-@endsection
 
 @push('scripts')
 <script>

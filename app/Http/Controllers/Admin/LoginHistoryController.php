@@ -16,6 +16,8 @@ class LoginHistoryController extends Controller
     {
         $validated = $request->validate([
             'q' => ['nullable', 'string', 'max:255'],
+            'company' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:255'],
             'circle_id' => ['nullable', 'string'],
             'join_status' => ['nullable', 'in:all,joined,not_joined'],
             'from' => ['nullable', 'date_format:Y-m-d\TH:i'],
@@ -25,6 +27,8 @@ class LoginHistoryController extends Controller
         ]);
 
         $q = trim((string) ($validated['q'] ?? ''));
+        $companyInput = trim((string) ($validated['company'] ?? ''));
+        $cityInput = trim((string) ($validated['city'] ?? ''));
         $circleId = trim((string) ($validated['circle_id'] ?? ''));
         $joinStatus = (string) ($validated['join_status'] ?? 'all');
         $fromInput = (string) ($validated['from'] ?? '');
@@ -113,10 +117,42 @@ class LoginHistoryController extends Controller
                     }
                 });
             })
+            ->when($companyInput !== '', function ($query) use ($companyInput, $hasUsersCompany, $hasUsersBusinessName) {
+                $like = '%' . $companyInput . '%';
+                $query->where(function ($innerQuery) use ($like, $hasUsersCompany, $hasUsersBusinessName) {
+                    $innerQuery->where('users.company_name', 'ilike', $like);
+                    if ($hasUsersCompany) {
+                        $innerQuery->orWhere('users.company', 'ilike', $like);
+                    }
+                    if ($hasUsersBusinessName) {
+                        $innerQuery->orWhere('users.business_name', 'ilike', $like);
+                    }
+                });
+            })
+            ->when($cityInput !== '', function ($query) use ($cityInput) {
+                $like = '%' . $cityInput . '%';
+                $query->where(function ($innerQuery) use ($like) {
+                    $innerQuery->where('users.city', 'ilike', $like)
+                        ->orWhere('cities.name', 'ilike', $like);
+                });
+            })
             ->when($circleId !== '', fn ($query) => $query->where('circles.id', '=', $circleId))
-            ->selectRaw("\n                users.id,\n                {$peerNameExpression} as peer_name,\n                users.email,\n                COALESCE(NULLIF(users.city, ''), cities.name) as city,\n                {$companyExpression} as company,\n                login_last.last_login_at,\n                COUNT(DISTINCT circles.id) as circles_count,\n                COALESCE(STRING_AGG(DISTINCT circles.name, ', '), '') as circles_names\n            ")
+            ->selectRaw("
+                users.id,
+                users.profile_photo_url,
+                users.profile_photo_file_id,
+                {$peerNameExpression} as peer_name,
+                users.email,
+                COALESCE(NULLIF(users.city, ''), cities.name) as city,
+                {$companyExpression} as company,
+                login_last.last_login_at,
+                COUNT(DISTINCT circles.id) as circles_count,
+                COALESCE(STRING_AGG(DISTINCT circles.name, ', '), '') as circles_names
+            ")
             ->groupBy(
                 'users.id',
+                'users.profile_photo_url',
+                'users.profile_photo_file_id',
                 'users.display_name',
                 'users.first_name',
                 'users.last_name',
@@ -140,6 +176,8 @@ class LoginHistoryController extends Controller
             'circleOptions' => $circleOptions,
             'filters' => [
                 'q' => $q,
+                'company' => $companyInput,
+                'city' => $cityInput,
                 'circle_id' => $circleId,
                 'join_status' => in_array($joinStatus, ['all', 'joined', 'not_joined'], true) ? $joinStatus : 'all',
                 'from' => $fromInput,

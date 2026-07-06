@@ -13,7 +13,7 @@
 
     <form id="postsFiltersForm" method="GET" action="{{ route('admin.posts.index') }}"></form>
 
-    <div class="card shadow-sm">
+    <div class="card-activities-wrapper">
         <div class="p-3 border-bottom">
             <div class="row g-2 align-items-end">
                 <div class="col-12 col-md-2">
@@ -62,23 +62,23 @@
         </div>
 
         <div class="table-responsive">
-            <table class="table mb-0 align-middle text-nowrap">
+            <table class="table table-premium mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>Created At</th>
-                        <th>Peer Name</th>
-                        <th>Visibility</th>
-                        <th>Moderation Status</th>
-                        <th>Active?</th>
-                        <th>Content</th>
-                        <th>Media</th>
-                        <th>Actions</th>
+                        <th style="min-width: 140px;">Created At</th>
+                        <th style="min-width: 180px;">Peer Name</th>
+                        <th style="min-width: 120px;">Visibility</th>
+                        <th style="min-width: 150px;">Moderation Status</th>
+                        <th style="min-width: 120px;">Active?</th>
+                        <th style="min-width: 250px;">Content</th>
+                        <th style="min-width: 120px;">Media</th>
+                        <th class="text-end" style="min-width: 140px;">Actions</th>
                     </tr>
-                    <tr class="bg-light">
+                    <tr class="bg-light filter-row">
                         <th></th>
                         <th><input type="text" name="peer" form="postsFiltersForm" class="form-control form-control-sm" style="min-width:180px" value="{{ $peer ?? '' }}" placeholder="Peer/Company/City"></th>
                         <th>
-                            <select name="inline_visibility" form="postsFiltersForm" class="form-select form-select-sm">
+                            <select name="inline_visibility" form="postsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
                                 <option value="any">Any</option>
                                 @foreach ($visibilities as $visibility)
                                     <option value="{{ $visibility }}" @selected(($inlineVisibility ?? 'any') === $visibility)>{{ ucfirst($visibility) }}</option>
@@ -86,14 +86,14 @@
                             </select>
                         </th>
                         <th>
-                            <select name="inline_moderation_status" form="postsFiltersForm" class="form-select form-select-sm">
+                            <select name="inline_moderation_status" form="postsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
                                 @foreach ($moderationOptions as $value => $label)
                                     <option value="{{ $value }}" @selected(($inlineModerationStatus ?? 'any') === $value)>{{ $label }}</option>
                                 @endforeach
                             </select>
                         </th>
                         <th>
-                            <select name="inline_active" form="postsFiltersForm" class="form-select form-select-sm">
+                            <select name="inline_active" form="postsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
                                 <option value="any" @selected(($inlineActive ?? 'any') === 'any')>Any</option>
                                 <option value="yes" @selected(($inlineActive ?? '') === 'yes')>Yes</option>
                                 <option value="no" @selected(($inlineActive ?? '') === 'no')>No</option>
@@ -101,7 +101,7 @@
                         </th>
                         <th></th>
                         <th>
-                            <select name="media" form="postsFiltersForm" class="form-select form-select-sm">
+                            <select name="media" form="postsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
                                 <option value="any" @selected(($media ?? 'any') === 'any')>Any</option>
                                 <option value="has" @selected(($media ?? '') === 'has')>Has Media</option>
                                 <option value="none" @selected(($media ?? '') === 'none')>No Media</option>

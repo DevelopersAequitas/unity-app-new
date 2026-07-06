@@ -300,27 +300,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/pending-requests/leads/become-mentor/{id}', [LeadSubmissionsController::class, 'becomeMentorShow'])->name('leads.become-mentor.show');
         Route::get('/campaign-email-templates', [CampaignEmailTemplateController::class, 'index'])->name('campaign-email-templates.index');
         Route::get('/campaign-email-templates/list', [CampaignEmailTemplateController::class, 'list'])->name('campaign-email-templates.list');
-        Route::get('/notifications/dashboard', [NotificationAdminController::class, 'dashboard'])->name('notifications.dashboard');
-        Route::get('/notifications/campaigns', [NotificationAdminController::class, 'campaigns'])->name('notifications.campaigns');
-        Route::get('/notifications/campaigns/create', [NotificationAdminController::class, 'createCampaign'])->name('notifications.campaigns.create');
-        Route::post('/notifications/campaigns', [NotificationAdminController::class, 'storeCampaign'])->name('notifications.campaigns.store');
-        Route::post('/notifications/campaigns/seed-defaults', [NotificationAdminController::class, 'seedDefaults'])->name('notifications.campaigns.seed-defaults');
-        Route::get('/notifications/campaigns/{id}/edit', [NotificationAdminController::class, 'editCampaign'])->whereUuid('id')->name('notifications.campaigns.edit');
-        Route::put('/notifications/campaigns/{id}', [NotificationAdminController::class, 'updateCampaign'])->whereUuid('id')->name('notifications.campaigns.update');
-        Route::patch('/notifications/campaigns/{id}/toggle', [NotificationAdminController::class, 'toggleCampaign'])->whereUuid('id')->name('notifications.campaigns.toggle');
-        Route::post('/notifications/campaigns/{id}/preview', [NotificationAdminController::class, 'previewCampaign'])->whereUuid('id')->name('notifications.campaigns.preview');
-        Route::post('/notifications/campaigns/{id}/run', [NotificationAdminController::class, 'runCampaign'])->whereUuid('id')->name('notifications.campaigns.run');
-        Route::get('/notifications/users/search', [NotificationAdminController::class, 'searchUsers'])->name('notifications.users.search');
-        Route::get('/notifications/users/{user}/push-status', [NotificationAdminController::class, 'pushStatus'])->whereUuid('user')->name('notifications.users.push-status');
-        Route::get('/notifications/send-test', [NotificationAdminController::class, 'sendTestForm'])->name('notifications.send-test');
-        Route::post('/notifications/send-test', [NotificationAdminController::class, 'sendTest'])->name('notifications.send-test.store');
-        Route::get('/notifications/logs', [NotificationAdminController::class, 'logs'])->name('notifications.logs');
-        Route::get('/notifications/push-tokens', [NotificationAdminController::class, 'pushTokens'])->name('notifications.push-tokens');
-        Route::patch('/notifications/push-tokens/{id}/deactivate', [NotificationAdminController::class, 'deactivatePushToken'])->whereUuid('id')->name('notifications.push-tokens.deactivate');
-        Route::get('/notifications/user-notifications', [NotificationAdminController::class, 'userNotifications'])->name('notifications.user-notifications');
-        Route::post('/notifications/{id}/mark-read', [NotificationAdminController::class, 'markNotificationRead'])->whereUuid('id')->name('notifications.mark-read');
-        Route::delete('/notifications/{id}', [NotificationAdminController::class, 'deleteNotification'])->whereUuid('id')->name('notifications.destroy');
-        Route::delete('/notifications/clear-user/{userId}', [NotificationAdminController::class, 'clearUserNotifications'])->whereUuid('userId')->name('notifications.clear-user');
+
 
         Route::get('/campaigns', [AdminCampaignController::class, 'index'])->name('campaigns.index');
         Route::get('/campaigns/create', [AdminCampaignController::class, 'create'])->name('campaigns.create');
@@ -364,11 +344,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');
-        Route::get('/execution/events', [AdminExecutionController::class, 'events'])->name('execution.events');
-        Route::get('/execution/finance', [AdminExecutionController::class, 'finance'])->name('execution.finance');
-        Route::get('/execution/communications', [AdminExecutionController::class, 'communications'])->name('execution.communications');
-        Route::post('/execution/communications/broadcast', [AdminExecutionController::class, 'sendBroadcast'])->name('execution.broadcast.send');
-        Route::get('/execution/meetings', [AdminExecutionController::class, 'meetings'])->name('execution.meetings');
-        Route::get('/execution/reports', [AdminExecutionController::class, 'reports'])->name('execution.reports');
+
     });
 });

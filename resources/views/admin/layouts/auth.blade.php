@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Admin Login')</title>
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}?v={{ time() }}">
     <style>
         :root {
             --bg-gradient: radial-gradient(circle at 10% 20%, #1f2937 0%, #0b1220 25%, #0a0f1d 50%, #0b1224 75%, #0f172a 100%);

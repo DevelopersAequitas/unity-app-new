@@ -15,8 +15,9 @@ class CirclePeersController extends Controller
     public function peerOptions(Request $request, Circle $circle): JsonResponse
     {
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
+        $isCircleScoped = (bool) $request->attributes->get('is_circle_scoped');
 
-        if (is_array($allowedCircleIds) && ! in_array($circle->id, $allowedCircleIds, true)) {
+        if ($isCircleScoped && is_array($allowedCircleIds) && ! in_array($circle->id, $allowedCircleIds, true)) {
             abort(403);
         }
 

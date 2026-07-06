@@ -443,6 +443,7 @@ class UsersController extends Controller
             'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
             'level_4_category_id' => $request->input('level_4_category_id', $request->input('level4_category_id')),
         ]);
+        $request->merge($this->normalizedAdminCircleDateInputs($request));
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $adminRoles = Role::query()
             ->whereIn('key', $adminRoleKeys)
@@ -758,8 +759,7 @@ class UsersController extends Controller
                         'user_id' => $user->id,
                         'circle_id' => $selectedCircleId,
                     ]);
-                    $shouldApplySelectedCircleDates = ! $isAddingAdditionalCircle
-                        && (! $memberRecord->exists || $memberRecord->trashed());
+                    $shouldApplySelectedCircleDates = true;
 
                     $membershipAttributes = $this->circleMembershipAttributes(
                         $request,
@@ -1654,11 +1654,11 @@ class UsersController extends Controller
 
         $joinedAt = $this->parseAdminDate(
             (string) $request->input('circle_joined_date', $request->input('circle_joined_at'))
-        ) ?? now()->startOfDay();
+        ) ?? $membership->joined_at ?? now()->startOfDay();
         $expiresAt = $this->parseAdminDate(
             (string) $request->input('circle_expiry_date', $request->input('circle_expires_at')),
             true
-        ) ?? $joinedAt->copy()->addYear()->endOfDay();
+        ) ?? $membership->expires_at ?? $joinedAt->copy()->addYear()->endOfDay();
 
         if (Schema::hasColumn('circle_members', 'joined_at')) {
             $attributes['joined_at'] = $joinedAt;
@@ -1858,7 +1858,7 @@ class UsersController extends Controller
         $search = trim((string) $request->query('q', $request->input('search', '')));
         $circleId = (string) $request->query('circle_id', 'all');
         $membership = $request->input('membership_status');
-        $phone = $request->input('phone');
+        $phone = null;
         $joinedFilter = (string) $request->input('joined_filter', 'all');
         $joinedFrom = (string) $request->input('joined_from', '');
         $joinedTo = (string) $request->input('joined_to', '');

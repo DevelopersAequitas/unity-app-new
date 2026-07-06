@@ -196,7 +196,7 @@ class LeadSubmissionsController extends Controller
                 'index_route' => 'admin.leads.entrepreneur-certification.index',
                 'show_route' => 'admin.leads.entrepreneur-certification.show',
                 'search_columns' => ['id', 'full_name', 'business_name', 'email', 'contact_no', 'notes'],
-                'columns' => ['id', 'full_name', 'business_name', 'email', 'contact_no', 'status', 'notes', 'created_at', 'updated_at'],
+                'columns' => ['full_name', 'business_name', 'email', 'contact_no', 'status', 'notes', 'created_at', 'updated_at'],
                 'long_text_columns' => ['notes'],
                 'filter_fields' => [
                     'name' => ['full_name'],
@@ -213,7 +213,7 @@ class LeadSubmissionsController extends Controller
                 'index_route' => 'admin.leads.leadership-certification.index',
                 'show_route' => 'admin.leads.leadership-certification.show',
                 'search_columns' => ['id', 'full_name', 'business_name', 'email', 'contact_no', 'notes'],
-                'columns' => ['id', 'full_name', 'business_name', 'email', 'contact_no', 'status', 'notes', 'created_at', 'updated_at'],
+                'columns' => ['full_name', 'business_name', 'email', 'contact_no', 'status', 'notes', 'created_at', 'updated_at'],
                 'long_text_columns' => ['notes'],
                 'filter_fields' => [
                     'name' => ['full_name'],
@@ -230,7 +230,7 @@ class LeadSubmissionsController extends Controller
                 'index_route' => 'admin.leads.partner-with-us.index',
                 'show_route' => 'admin.leads.partner-with-us.show',
                 'search_columns' => ['id', 'full_name', 'email', 'contact_number', 'business_name', 'company_introduction', 'co_founders_and_partners_details', 'notes'],
-                'columns' => ['id', 'full_name', 'email', 'contact_number', 'business_name', 'company_introduction', 'co_founders_and_partners_details', 'status', 'notes', 'created_at', 'updated_at'],
+                'columns' => ['full_name', 'email', 'contact_number', 'business_name', 'company_introduction', 'co_founders_and_partners_details', 'status', 'notes', 'created_at', 'updated_at'],
                 'long_text_columns' => ['company_introduction', 'co_founders_and_partners_details', 'notes'],
                 'filter_fields' => [
                     'name' => ['full_name'],
@@ -247,7 +247,7 @@ class LeadSubmissionsController extends Controller
                 'index_route' => 'admin.leads.become-speaker.index',
                 'show_route' => 'admin.leads.become-speaker.show',
                 'search_columns' => ['id', 'first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile_url', 'company_name', 'brief_bio', 'topics_to_speak_on', 'notes'],
-                'columns' => ['id', 'first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile_url', 'company_name', 'brief_bio', 'topics_to_speak_on', 'image_file_id', 'image_url', 'status', 'notes', 'created_at', 'updated_at'],
+                'columns' => ['first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile_url', 'company_name', 'brief_bio', 'topics_to_speak_on', 'image_file_id', 'image_url', 'status', 'notes', 'created_at', 'updated_at'],
                 'long_text_columns' => ['brief_bio', 'topics_to_speak_on', 'notes'],
                 'filter_fields' => [
                     'name' => ['first_name', 'last_name'],
@@ -265,7 +265,7 @@ class LeadSubmissionsController extends Controller
                 'index_route' => 'admin.leads.become-mentor.index',
                 'show_route' => 'admin.leads.become-mentor.show',
                 'search_columns' => ['id', 'first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile', 'notes'],
-                'columns' => ['id', 'first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile', 'status', 'notes', 'created_at', 'updated_at'],
+                'columns' => ['first_name', 'last_name', 'email', 'phone', 'city', 'linkedin_profile', 'status', 'notes', 'created_at', 'updated_at'],
                 'long_text_columns' => ['notes'],
                 'filter_fields' => [
                     'name' => ['first_name', 'last_name'],

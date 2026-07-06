@@ -37,7 +37,7 @@ class AdminCircleScope
             $request->attributes->set('ded_district_name', AdminAccess::assignedDedDistrictName($admin));
 
             $routeName = $request->route()?->getName() ?? '';
-            $allowedPrefixes = ['admin.ded.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.circles.', 'admin.events.', 'admin.event-joining-requests.'];
+            $allowedPrefixes = ['admin.ded.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.circles.', 'admin.events.', 'admin.event-joining-requests.', 'admin.event-scan-credentials.'];
             $allowedRoutes = ['admin.logout', 'admin.files.upload', 'admin.impacts.pending', 'admin.impacts.show', 'admin.impacts.approve', 'admin.impacts.reject', 'admin.impacts.export.csv'];
 
             if (in_array($routeName, ['admin.dashboard', 'admin.home'], true)) {
@@ -59,10 +59,10 @@ class AdminCircleScope
             $request->attributes->set('primary_circle_role_label', AdminAccess::primaryCircleRoleLabel($admin));
 
             $routeName = $request->route()?->getName() ?? '';
-            $allowedPrefixes = ['admin.users.', 'admin.activities.', 'admin.coins.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.'];
-            $allowedRoutes = ['admin.logout', 'admin.files.upload'];
+            $allowedPrefixes = ['admin.users.', 'admin.activities.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.collaborations.', 'admin.email-logs.', 'admin.coin-claims.', 'admin.event-joining-requests.', 'admin.referral-report.', 'admin.impacts.', 'admin.leads.', 'admin.circles.members.'];
+            $allowedRoutes = ['admin.logout', 'admin.files.upload', 'admin.circles.peer-options'];
 
-            if (in_array($routeName, ['admin.dashboard', 'admin.home'], true) || Str::startsWith($routeName, 'admin.circles.')) {
+            if (in_array($routeName, ['admin.dashboard', 'admin.home'], true) || (Str::startsWith($routeName, 'admin.circles.') && ! Str::startsWith($routeName, 'admin.circles.members.') && $routeName !== 'admin.circles.peer-options')) {
                 return redirect()->route('admin.users.index');
             }
 

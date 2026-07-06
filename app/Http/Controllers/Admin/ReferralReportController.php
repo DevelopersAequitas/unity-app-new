@@ -176,7 +176,8 @@ class ReferralReportController extends Controller
             ->when($this->hasUserColumn('last_name'), fn ($query) => $query->groupBy('referrer.last_name'))
             ->when($this->hasUserColumn('email'), fn ($query) => $query->groupBy('referrer.email'))
             ->when($this->hasUserColumn('phone'), fn ($query) => $query->groupBy('referrer.phone'))
-            ->when($this->hasUserColumn('company_name'), fn ($query) => $query->groupBy('referrer.company_name'));
+            ->when($this->hasUserColumn('company_name'), fn ($query) => $query->groupBy('referrer.company_name'))
+            ->when($this->hasUserColumn('city'), fn ($query) => $query->groupBy('referrer.city'));
 
         $this->applySummaryFilters($query, $filters);
 
@@ -317,6 +318,7 @@ class ReferralReportController extends Controller
             $this->referrerEmailSummaryExpression() . ' as referrer_email',
             $this->userTextColumn('referrer', 'phone') . ' as referrer_phone',
             $this->userTextColumn('referrer', 'company_name') . ' as referrer_company',
+            $this->userTextColumn('referrer', 'city') . ' as referrer_city',
             $this->referralCodesAggregateExpression() . ' as referral_codes',
             'COUNT(DISTINCT rd.referred_user_id) as total_referred_users',
             $this->coinsGrantedExpression() . ' as total_coins_granted',
