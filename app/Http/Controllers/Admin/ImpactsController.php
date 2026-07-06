@@ -442,7 +442,8 @@ class ImpactsController extends Controller
         $impact = Impact::query()->findOrFail($id);
         $this->ensureCanAccessImpact($impact);
 
-        if (AdminAccess::isDed(Auth::guard('admin')->user()) && (string) $impact->status !== 'pending') {
+        $admin = Auth::guard('admin')->user();
+        if ((AdminAccess::isDed($admin) || AdminAccess::isCircleScoped($admin)) && (string) $impact->status !== 'pending') {
             abort(403);
         }
     }

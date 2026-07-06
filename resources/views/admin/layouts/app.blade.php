@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Peers Global Unity Admin')</title>
-    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}?v={{ time() }}">
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}?v={{ time() }}">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
@@ -26,7 +31,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="{{ asset('js/admin-filters.js') }}"></script>
+    <script src="{{ asset('js/admin-filters.js') }}?v={{ filemtime(public_path('js/admin-filters.js')) }}"></script>
     @stack('scripts')
 
     <!-- Media Preview Modal -->
@@ -49,7 +54,7 @@
                     </div>
                     <!-- Image Container -->
                     <div class="w-100 p-3 d-none" id="mediaPreviewImageWrapper">
-                        <img id="mediaPreviewImage" src="" class="img-fluid rounded border shadow-sm" alt="Preview" style="max-height: 65vh; object-fit: contain;">
+                        <img id="mediaPreviewImage" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="img-fluid rounded border shadow-sm" alt="Preview" style="max-height: 65vh; object-fit: contain;">
                     </div>
                     <!-- PDF/Iframe Container -->
                     <iframe id="mediaPreviewIframe" src="" class="w-100 d-none" style="height: 65vh; border: none;"></iframe>

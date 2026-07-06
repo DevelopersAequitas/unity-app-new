@@ -11,7 +11,7 @@
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
 
-    <div class="card shadow-sm">
+    <div class="card-activities-wrapper">
         <form method="GET" action="{{ route('admin.post-reports.index') }}">
             <div class="p-3 border-bottom">
                 <div class="row g-2 align-items-end">
@@ -64,28 +64,28 @@
             </div>
 
             <div class="table-responsive">
-                <table class="table mb-0 align-middle text-nowrap">
+                <table class="table table-premium mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th>Reported At</th>
-                            <th>Post ID</th>
-                            <th>Peer Name</th>
-                            <th>Reporter Name</th>
-                            <th>Reason</th>
-                            <th>Status</th>
-                            <th>Total Reports on Post</th>
-                            <th>Post Active?</th>
-                            <th>Media</th>
-                            <th>Actions</th>
+                            <th style="min-width: 140px;">Reported At</th>
+                            <th style="min-width: 100px;">Post ID</th>
+                            <th style="min-width: 180px;">Peer Name</th>
+                            <th style="min-width: 180px;">Reporter Name</th>
+                            <th style="min-width: 140px;">Reason</th>
+                            <th style="min-width: 120px;">Status</th>
+                            <th style="min-width: 160px;">Total Reports on Post</th>
+                            <th style="min-width: 120px;">Post Active?</th>
+                            <th style="min-width: 120px;">Media</th>
+                            <th class="text-end" style="min-width: 140px;">Actions</th>
                         </tr>
-                        <tr class="bg-light">
+                        <tr class="bg-light filter-row">
                             <th class="py-2"></th>
                             <th class="py-2"><input type="text" name="post_id" class="form-control form-control-sm" value="{{ $postId ?? '' }}" placeholder="Post ID"></th>
                             <th class="py-2"><input type="text" name="peer" class="form-control form-control-sm" value="{{ $peer ?? '' }}" placeholder="Peer Name"></th>
                             <th class="py-2"><input type="text" name="reporter" class="form-control form-control-sm" value="{{ $reporter ?? '' }}" placeholder="Reporter Name"></th>
                             <th class="py-2"><input type="text" name="reason_text" class="form-control form-control-sm" value="{{ $reasonText ?? '' }}" placeholder="Reason"></th>
                             <th class="py-2">
-                                <select name="status" class="form-select form-select-sm">
+                                <select name="status" class="form-select form-select-sm js-no-searchable-select">
                                     <option value="any">Any</option>
                                     @foreach ($statuses as $status)
                                         <option value="{{ $status }}" @selected(($filters['status'] ?? 'any') === $status)>{{ ucfirst($status) }}</option>
@@ -93,7 +93,7 @@
                                 </select>
                             </th>
                             <th class="py-2">
-                                <select name="total_reports" class="form-select form-select-sm">
+                                <select name="total_reports" class="form-select form-select-sm js-no-searchable-select">
                                     <option value="any" @selected(($totalReports ?? 'any') === 'any')>Any</option>
                                     <option value="1" @selected(($totalReports ?? '') === '1')>1</option>
                                     <option value="2-5" @selected(($totalReports ?? '') === '2-5')>2-5</option>
@@ -101,14 +101,14 @@
                                 </select>
                             </th>
                             <th class="py-2">
-                                <select name="post_active" class="form-select form-select-sm">
+                                <select name="post_active" class="form-select form-select-sm js-no-searchable-select">
                                     <option value="any" @selected(($postActive ?? 'any') === 'any')>Any</option>
                                     <option value="yes" @selected(($postActive ?? '') === 'yes')>Yes</option>
                                     <option value="no" @selected(($postActive ?? '') === 'no')>No</option>
                                 </select>
                             </th>
                             <th class="py-2">
-                                <select name="media" class="form-select form-select-sm">
+                                <select name="media" class="form-select form-select-sm js-no-searchable-select">
                                     <option value="any" @selected(($media ?? 'any') === 'any')>Any</option>
                                     <option value="has" @selected(($media ?? '') === 'has')>Has Media</option>
                                     <option value="none" @selected(($media ?? '') === 'none')>No Media</option>

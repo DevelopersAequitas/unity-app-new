@@ -12,15 +12,15 @@
                 return $display;
             }
             $computed = trim(($first ?? '') . ' ' . ($last ?? ''));
-            return $computed !== '' ? $computed : '—';
+            return $computed !== '' ? $computed : 'ΓÇö';
         };
 
         $formatDate = function ($value): string {
-            return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '—';
+            return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : 'ΓÇö';
         };
 
         $formatDateTime = function ($value): string {
-            return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d H:i') : '—';
+            return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d H:i') : 'ΓÇö';
         };
     @endphp
 
@@ -107,11 +107,10 @@
         </div>
     </div>
 
-    <div class="card-activities-wrapper">
 
     <div class="card shadow-sm">
         <div class="table-responsive">
-            <table class="table table-premium mb-0 align-middle">
+            <table class="table mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
                         <th style="width:40px">
@@ -120,6 +119,7 @@
                         <th>Visitor Name</th>
                         <th>Phone Number</th>
                         <th>Business Name</th>
+                        <th>Business Category</th>
                         <th>Submitted At</th>
                         <th>Peer Name</th>
                         <th>Peer Phone</th>
@@ -130,7 +130,7 @@
                         <th>Status</th>
                         <th class="text-end">Actions</th>
                     </tr>
-                    <tr class="bg-light filter-row">
+                    <tr>
                         <th></th>
                         <th>
                             <input type="text" name="visitor_name" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Name" value="{{ $filters['visitor_name'] }}">
@@ -140,6 +140,9 @@
                         </th>
                         <th>
                             <input type="text" name="visitor_business" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Business" value="{{ $filters['visitor_business'] }}">
+                        </th>
+                        <th>
+                            <input type="text" name="visitor_business_category" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Business Category" value="{{ $filters['visitor_business_category'] ?? '' }}">
                         </th>
                         <th></th>
                         <th>
@@ -161,7 +164,7 @@
                             <input type="text" name="visitor_city" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor City" value="{{ $filters['visitor_city'] }}">
                         </th>
                         <th>
-                            <select name="status" form="visitorRegistrationsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
+                            <select name="status" form="visitorRegistrationsFiltersForm" class="form-select form-select-sm">
                                 <option value="all" @selected($filters['status'] === 'all')>All</option>
                                 <option value="pending" @selected($filters['status'] === 'pending')>Pending</option>
                                 <option value="approved" @selected($filters['status'] === 'approved')>Approved</option>
@@ -189,19 +192,25 @@
                             <td>
                                 <input type="checkbox" name="ids[]" value="{{ $registration->id }}" form="bulkDeleteForm" class="form-check-input row-checkbox">
                             </td>
-                            <td>{{ $registration->visitor_full_name ?? '—' }}</td>
-                            <td>{{ $registration->visitor_mobile ?? '—' }}</td>
-                            <td>{{ $registration->visitor_business ?? '—' }}</td>
+                            <td>{{ $registration->visitor_full_name ?? 'ΓÇö' }}</td>
+                            <td>{{ $registration->visitor_mobile ?? 'ΓÇö' }}</td>
+                            <td>{{ $registration->visitor_business ?? 'ΓÇö' }}</td>
+                            <td>{{ $registration->visitor_business_category ?? 'ΓÇö' }}</td>
                             <td>{{ $formatDateTime($registration->created_at ?? null) }}</td>
                             <td>
-                                @include('admin.partials.peer_identity', ['user' => $member, 'circleName' => $memberCircle])
+                                <div class="d-flex flex-column">
+                                    <div class="fw-semibold">{{ $memberName }}</div>
+                                    <div class="text-muted small">{{ $memberCompany }}</div>
+                                    <div class="text-muted small">{{ $memberCity }}</div>
+                                    <div class="text-muted small">{{ $memberCircle }}</div>
+                                </div>
                             </td>
-                            <td>{{ $member->phone ?? '—' }}</td>
-                            <td>{{ ucfirst($registration->event_type ?? '—') }}</td>
-                            <td>{{ $registration->event_name ?? '—' }}</td>
+                            <td>{{ $member->phone ?? 'ΓÇö' }}</td>
+                            <td>{{ ucfirst($registration->event_type ?? 'ΓÇö') }}</td>
+                            <td>{{ $registration->event_name ?? 'ΓÇö' }}</td>
                             <td>{{ $formatDate($registration->event_date ?? null) }}</td>
-                            <td>{{ $registration->visitor_city ?? '—' }}</td>
-                            <td>{{ ucfirst($registration->status ?? '—') }}</td>
+                            <td>{{ $registration->visitor_city ?? 'ΓÇö' }}</td>
+                            <td>{{ ucfirst($registration->status ?? 'ΓÇö') }}</td>
                             <td class="text-end">
                                 <div class="d-inline-flex gap-1 justify-content-end align-items-center">
                                     <a href="{{ route('admin.visitor-registrations.export-single', $registration->id) }}" class="btn btn-sm btn-outline-primary" title="Export Single CSV">
@@ -229,7 +238,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="13" class="text-center text-muted">No visitor registrations found.</td>
+                            <td colspan="14" class="text-center text-muted">No visitor registrations found.</td>
                         </tr>
                     @endforelse
                 </tbody>

@@ -46,6 +46,14 @@ class EventGalleryController extends Controller
                 ->find($selectedEventId);
         }
 
+        if (! $selectedEvent && $events->isNotEmpty()) {
+            $selectedEvent = $events->first();
+            $selectedEvent->load(['media' => function ($query) {
+                $query->orderBy('sort_order')
+                    ->orderBy('created_at');
+            }]);
+        }
+
         return view('admin.event_gallery.index', [
             'events' => $events,
             'selectedEvent' => $selectedEvent,

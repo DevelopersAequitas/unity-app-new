@@ -9,8 +9,8 @@ use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -234,7 +234,7 @@ class CircleMemberDashboardTest extends TestCase
 
     private function createRole(string $key, string $name): Role
     {
-        $role = new Role();
+        $role = new Role;
         $role->id = (string) Str::uuid();
         $role->key = $key;
         $role->name = $name;

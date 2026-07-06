@@ -86,10 +86,7 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-12 col-md-6 col-xl-2">
-                <label class="form-label small text-muted" for="phoneFilter">Phone</label>
-                <input id="phoneFilter" type="text" name="phone" class="form-control form-control-sm" placeholder="Phone" value="{{ $filters['phone'] }}">
-            </div>
+
             <div class="col-12 col-md-6 col-xl-2">
                 <label class="form-label small text-muted" for="membershipFilter">Membership</label>
                 <select id="membershipFilter" name="membership_status" class="form-select form-select-sm">
@@ -117,15 +114,15 @@
                     <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
                 </select>
             </div>
-            <div id="joinedCustomRange" class="col-12 col-md-6 col-xl-3">
+            <div id="joinedCustomRange" @class(['col-12 col-md-6 col-xl-3', 'd-none' => ($filters['joined_filter'] ?? 'all') !== 'custom'])>
                 <div class="row g-2">
                     <div class="col-6">
                         <label for="joinedFrom" class="form-label small text-muted">Joined From</label>
-                        <input id="joinedFrom" type="date" name="joined_from" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}">
+                        <input id="joinedFrom" type="date" name="joined_from" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}" @disabled(($filters['joined_filter'] ?? 'all') !== 'custom')>
                     </div>
                     <div class="col-6">
                         <label for="joinedTo" class="form-label small text-muted">Joined To</label>
-                        <input id="joinedTo" type="date" name="joined_to" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}">
+                        <input id="joinedTo" type="date" name="joined_to" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}" @disabled(($filters['joined_filter'] ?? 'all') !== 'custom')>
                     </div>
                 </div>
             </div>
@@ -140,7 +137,7 @@
         <input type="hidden" name="q" value="{{ $filters['search'] }}">
         <input type="hidden" name="membership_status" value="{{ $filters['membership_status'] ?? '' }}">
         <input type="hidden" name="circle_id" value="{{ $filters['circle_id'] ?? 'all' }}">
-        <input type="hidden" name="phone" value="{{ $filters['phone'] ?? '' }}">
+
         <input type="hidden" name="joined_filter" value="{{ $filters['joined_filter'] ?? 'all' }}">
         <input type="hidden" name="joined_from" value="{{ $filters['joined_from'] ?? '' }}">
         <input type="hidden" name="joined_to" value="{{ $filters['joined_to'] ?? '' }}">
@@ -150,42 +147,45 @@
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
-    <div class="table-responsive">
-        <table class="table align-middle">
-            <thead class="table-light">
+    <div class="table-responsive premium-table-card">
+        <table class="table premium-table align-middle">
+            <thead>
                 <tr>
-                    <th style="width: 40px;">
+                    <th style="width: 40px; padding-left: 20px !important;">
                         <input type="checkbox" class="form-check-input" id="selectAllPeers">
                     </th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'display_name', 'dir' => $filters['sort'] === 'display_name' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'display_name', 'dir' => $filters['sort'] === 'display_name' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
                             Peer Name
                             @if ($filters['sort'] === 'display_name')
-                                <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
+                                <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short fs-6"></i>
                             @endif
                         </a>
                     </th>
+                    <th>Company Name</th>
+                    <th>City</th>
+                    <th>Circle</th>
                     <th>Phone</th>
                     <th>Membership</th>
                     <th>Membership Ends At</th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'coins_balance', 'dir' => $filters['sort'] === 'coins_balance' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
                             Coins
                             @if ($filters['sort'] === 'coins_balance')
-                                <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
+                                <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short fs-6"></i>
                             @endif
                         </a>
                     </th>
                     <th>
-                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'last_login_at', 'dir' => $filters['sort'] === 'last_login_at' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('admin.users.index', array_merge(request()->except('approval_status'), ['sort' => 'last_login_at', 'dir' => $filters['sort'] === 'last_login_at' && $filters['dir'] === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
                             Last Login
                             @if ($filters['sort'] === 'last_login_at')
-                                <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short"></i>
+                                <i class="bi bi-arrow-{{ $filters['dir'] === 'asc' ? 'up' : 'down' }}-short fs-6"></i>
                             @endif
                         </a>
                     </th>
                     <th>Status</th>
-                    <th class="text-end">Actions</th>
+                    <th class="text-end" style="padding-right: 20px !important;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -193,60 +193,174 @@
                     @php
                         $name = $user->name ?? trim((($user->first_name ?? '') . ' ' . ($user->last_name ?? '')));
                         $avatar = $user->profile_photo_url ?? ($user->profile_photo_file_id ? url('/api/v1/files/' . $user->profile_photo_file_id) : null);
-                        $cityName = $user->city->name ?? $user->city ?? 'No City';
-                        $company = $user->company_name ?? $user->company ?? $user->business_name ?? 'No Company';
-                        $circleName = optional($user->circleMembers->first()?->circle)->name ?? 'No Circle';
+                        
+                        // Parse values and strip out standard empty string placeholders
+                        $rawCity = $user->city->name ?? $user->city ?? '';
+                        if (is_string($rawCity)) {
+                            $rawCity = trim($rawCity);
+                            if (str_starts_with($rawCity, '{')) {
+                                $decodedCity = json_decode($rawCity, true);
+                                if (is_array($decodedCity)) {
+                                    $cityName = $decodedCity['name'] ?? $decodedCity['label'] ?? $rawCity;
+                                } elseif (preg_match('/name:\s*([^,}]+)/', $rawCity, $matches)) {
+                                    $cityName = trim($matches[1], " \t\n\r\0\x0B\"'");
+                                } else {
+                                    $cityName = $rawCity;
+                                }
+                            } else {
+                                $cityName = $rawCity;
+                            }
+                        } elseif (is_array($rawCity)) {
+                            $cityName = $rawCity['name'] ?? $rawCity['label'] ?? '';
+                        } elseif (is_object($rawCity)) {
+                            $cityName = $rawCity->name ?? $rawCity->label ?? '';
+                        } else {
+                            $cityName = $rawCity;
+                        }
+                        
+                        if (in_array(strtolower(trim((string)$cityName)), ['', 'no city', 'none', 'null', 'no_city'], true)) {
+                            $cityName = null;
+                        }
+                        
+                        $company = $user->company_name ?? $user->company ?? $user->business_name ?? '';
+                        if (in_array(strtolower(trim((string)$company)), ['', 'no company', 'none', 'null', 'no_company', 'peers global'], true)) {
+                            $company = null;
+                        }
+                        
+                        $circleName = optional($user->circleMembers->first()?->circle)->name ?? '';
+                        if (in_array(strtolower(trim((string)$circleName)), ['', 'no circle', 'none', 'null', 'no_circle'], true)) {
+                            $circleName = null;
+                        }
+
                         $statusValue = $user->status ?? 'active';
                         $isActive = $statusValue === 'active';
                         $detailsId = 'details-' . $user->id;
                         $canApproveMembership = $canEditUsers && in_array((string) $user->membership_status, ['free_peer', 'free_trial_peer'], true);
+                        
+                        // Pick membership class and labels
+                        $membershipStatus = (string) ($user->membership_status ?? 'free_peer');
+                        $membershipLabel = $membershipStatusLabels[$user->membership_status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $membershipStatus));
+                        $membershipBadgeClass = 'badge-membership-free';
+                        if (in_array($membershipStatus, ['only_unity_peer', 'unity_peer'], true)) {
+                            $membershipBadgeClass = 'badge-membership-unity';
+                        } elseif (in_array($membershipStatus, ['circle_peer'], true)) {
+                            $membershipBadgeClass = 'badge-membership-circle';
+                        }
+                        
+                        $gradientIndex = abs(crc32((string) $user->id)) % 5;
                     @endphp
                     <tr>
-                        <td>
+                        <td style="padding-left: 20px !important;">
                             <input type="checkbox" class="form-check-input peer-checkbox" value="{{ $user->id }}">
                         </td>
                         <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="rounded-circle bg-light d-flex align-items-center justify-content-center border" style="width: 36px; height: 36px; overflow: hidden;">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="peer-avatar-wrapper">
                                     @if ($avatar)
-                                        <img src="{{ $avatar }}" alt="{{ $name }}" class="img-fluid w-100 h-100 object-fit-cover">
+                                        <img src="{{ $avatar }}" alt="{{ $name }}" class="peer-avatar-image">
                                     @else
-                                        <span class="text-muted">{{ strtoupper(substr($name, 0, 1)) }}</span>
+                                        <div class="peer-avatar-placeholder bg-gradient-peer-{{ $gradientIndex }}">
+                                            {{ strtoupper(substr($name !== '' ? $name : 'U', 0, 1)) }}
+                                        </div>
                                     @endif
                                 </div>
                                 <div class="d-flex flex-column">
-                                    <div class="fw-semibold text-dark">{{ $name !== '' ? $name : '—' }}</div>
-                                    <div class="text-muted small">{{ $company }}</div>
-                                    <div class="text-muted small">{{ $cityName }}</div>
-                                    <div class="text-muted small">{{ $circleName }}</div>
+                                    <div class="fw-semibold text-dark text-nowrap" style="font-size: 0.92rem;">{{ $name !== '' ? $name : '—' }}</div>
                                 </div>
                             </div>
                         </td>
-                        <td>{{ $user->phone ?? '—' }}</td>
                         <td>
-                            <span class="badge bg-primary-subtle text-primary">{{ $membershipStatusLabels[$user->membership_status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', (string) ($user->membership_status ?? 'Free'))) }}</span>
+                            @if ($company)
+                                <span class="text-dark d-inline-flex align-items-center gap-1 text-nowrap" style="font-size: 0.85rem;">
+                                    <i class="bi bi-building text-muted small"></i>{{ $company }}
+                                </span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
                         </td>
-                        <td>{{ $user->membership_ends_at ? $user->membership_ends_at->format('d M Y') : '—' }}</td>
-                        <td>{{ number_format($user->coins_balance ?? 0) }}</td>
-                        <td>{{ optional($user->last_login_at)->format('Y-m-d H:i') ?? '—' }}</td>
                         <td>
-                            <span class="badge {{ $isActive ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">
-                                {{ $isActive ? 'Active' : 'Inactive' }}
+                            @if ($cityName)
+                                <span class="text-dark d-inline-flex align-items-center gap-1 text-nowrap" style="font-size: 0.85rem;">
+                                    <i class="bi bi-geo-alt text-muted small"></i>{{ $cityName }}
+                                </span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($circleName)
+                                <span class="text-primary fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="font-size: 0.85rem;">
+                                    <i class="bi bi-people text-primary small"></i>{{ $circleName }}
+                                </span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($user->phone)
+                                <span class="text-dark d-inline-flex align-items-center gap-1" style="font-size: 0.85rem;">
+                                    <i class="bi bi-telephone text-muted small"></i>{{ $user->phone }}
+                                </span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="{{ $membershipBadgeClass }}">{{ $membershipLabel }}</span>
+                        </td>
+                        <td>
+                            @if ($user->membership_ends_at)
+                                <span class="text-dark d-inline-flex align-items-center gap-1" style="font-size: 0.85rem;">
+                                    <i class="bi bi-calendar3 text-muted small"></i>{{ $user->membership_ends_at->format('d M Y') }}
+                                </span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="fw-semibold text-dark d-inline-flex align-items-center gap-1" style="font-size: 0.85rem;">
+                                <i class="bi bi-coin text-warning"></i>{{ number_format($user->coins_balance ?? 0) }}
                             </span>
                         </td>
-                        <td class="text-end">
-                            <div class="btn-group btn-group-sm" role="group">
+                        <td>
+                            @if ($user->last_login_at)
+                                <span class="text-secondary d-inline-flex align-items-center gap-1" style="font-size: 0.85rem;" title="{{ $user->last_login_at->format('Y-m-d H:i') }}">
+                                    <i class="bi bi-clock text-muted small"></i>{{ $user->last_login_at->format('d M Y') }}
+                                </span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($isActive)
+                                <span class="badge-status-active">
+                                    <span class="status-pulse-dot"></span>Active
+                                </span>
+                            @else
+                                <span class="badge-status-inactive">
+                                    <span class="status-pulse-dot"></span>Inactive
+                                </span>
+                            @endif
+                        </td>
+                        <td class="text-end" style="padding-right: 20px !important;">
+                            <div class="d-flex justify-content-end gap-2">
                                 @if ($canEditUsers)
-                                    <a href="{{ route('admin.users.edit', $user->id) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">Edit</a>
+                                    <a href="{{ route('admin.users.edit', $user->id) }}" class="btn btn-outline-secondary btn-action-custom" target="_blank" rel="noopener">
+                                        <i class="bi bi-pencil"></i>Edit
+                                    </a>
                                 @else
-                                    <a href="{{ route('admin.users.show', $user->id) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">View Profile</a>
+                                    <a href="{{ route('admin.users.show', $user->id) }}" class="btn btn-outline-secondary btn-action-custom" target="_blank" rel="noopener">
+                                        <i class="bi bi-eye"></i>View Profile
+                                    </a>
                                 @endif
-                                <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ $detailsId }}" aria-expanded="false" aria-controls="{{ $detailsId }}">Details</button>
+                                <button class="btn btn-outline-primary btn-action-custom btn-details-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ $detailsId }}" aria-expanded="false" aria-controls="{{ $detailsId }}">
+                                    Details<i class="bi bi-chevron-down details-chevron ms-1"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
                     <tr class="collapse-row">
-                        <td colspan="9" class="p-0 border-0">
+                        <td colspan="12" class="p-0 border-0">
                             <div class="collapse" id="{{ $detailsId }}">
                                 <div class="p-3 bg-light border-top">
                                     @php
@@ -315,7 +429,7 @@
                                             ['label' => 'Deleted At', 'value' => $user->deleted_at, 'type' => 'date'],
                                         ];
 
-                                        $chunks = array_chunk($fields, (int) ceil(count($fields) / 2));
+                                        $chunks = array_chunk($fields, (int) ceil(count($fields) / 3));
                                         $renderValue = function ($value, $type = 'text') {
                                             $normalizeText = static function ($input) {
                                                 if (! is_string($input)) {
@@ -385,7 +499,7 @@
                                     @endphp
                                     <div class="row g-3">
                                         @foreach ($chunks as $chunk)
-                                            <div class="col-md-6">
+                                            <div class="col-md-4">
                                                 <table class="table table-sm mb-0">
                                                     @foreach ($chunk as $field)
                                                         <tr>
@@ -495,7 +609,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="text-center text-muted py-4">No users found.</td></tr>
+                    <tr><td colspan="12" class="text-center text-muted py-4">No users found.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -573,7 +687,7 @@
         const modalMembershipEndsAt = document.getElementById('modalMembershipEndsAt');
         const modalMembershipStartsAtText = document.getElementById('modalMembershipStartsAtText');
         const modalMembershipEndsAtText = document.getElementById('modalMembershipEndsAtText');
-        const modal = approveMembershipDatesModal && window.bootstrap ? new bootstrap.Modal(approveMembershipDatesModal) : null;
+        const modal = approveMembershipDatesModal && window.bootstrap ? new window.bootstrap.Modal(approveMembershipDatesModal) : null;
         const peerCheckboxes = () => Array.from(document.querySelectorAll('.peer-checkbox'));
         const selectedPeerIds = () => peerCheckboxes().filter(cb => cb.checked).map(cb => cb.value).filter(Boolean);
         const updateSelectedCount = () => {
@@ -605,6 +719,13 @@
         };
         const submitFilters = (form) => {
             const params = new URLSearchParams(window.location.search);
+            
+            form.querySelectorAll('input:disabled, select:disabled').forEach(input => {
+                if (input.name) {
+                    params.delete(input.name);
+                }
+            });
+
             const formData = new FormData(form);
             for (const [key, value] of formData.entries()) {
                 if (value === '') {

@@ -4,9 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\CircleCategoryLevel4;
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 

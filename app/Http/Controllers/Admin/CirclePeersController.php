@@ -15,6 +15,7 @@ class CirclePeersController extends Controller
     {
         $isCircleScoped = (bool) $request->attributes->get('is_circle_scoped');
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
+        $isCircleScoped = (bool) $request->attributes->get('is_circle_scoped');
 
         if ($isCircleScoped && is_array($allowedCircleIds) && ! in_array($circle->id, $allowedCircleIds, true)) {
             abort(403);

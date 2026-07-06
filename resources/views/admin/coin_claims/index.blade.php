@@ -70,9 +70,9 @@
         </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card-activities-wrapper">
         <div class="table-responsive">
-            <table class="table mb-0 align-middle">
+            <table class="table table-premium mb-0 align-middle">
                 <thead class="table-light">
                 <tr>
                     <th>Peer Name</th>
@@ -82,7 +82,7 @@
                     <th>Status</th>
                     <th class="text-end">Actions</th>
                 </tr>
-                <tr>
+                <tr class="bg-light filter-row">
                     <th>
                         <input type="text" name="peer_q" form="coinClaimsFiltersForm" class="form-control form-control-sm" placeholder="Peer/Company/City" value="{{ $filters['peer_q'] }}">
                     </th>
@@ -96,7 +96,7 @@
                         <input type="text" name="key_fields" form="coinClaimsFiltersForm" class="form-control form-control-sm" placeholder="Search key fields" value="{{ $filters['key_fields'] }}">
                     </th>
                     <th>
-                        <select name="status" form="coinClaimsFiltersForm" class="form-select form-select-sm">
+                        <select name="status" form="coinClaimsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
                             <option value="all" @selected($filters['status'] === 'all')>All</option>
                             <option value="pending" @selected($filters['status'] === 'pending')>Pending</option>
                             <option value="approved" @selected($filters['status'] === 'approved')>Approved</option>
@@ -122,12 +122,7 @@
                     @endphp
                     <tr>
                         <td>
-                            <div class="d-flex flex-column">
-                                <div class="fw-semibold">{{ $displayName($user) }}</div>
-                                <div class="text-muted small">{{ $company }}</div>
-                                <div class="text-muted small">{{ $city }}</div>
-                                <div class="text-muted small">{{ $circleName }}</div>
-                            </div>
+                            @include('admin.partials.peer_identity', ['user' => $user, 'circleName' => $circleName])
                         </td>
                         <td>{{ $user->phone ?? '—' }}</td>
                         <td>{{ data_get($registry->get($claim->activity_code), 'label', $claim->activity_code) }}</td>

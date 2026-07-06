@@ -53,14 +53,7 @@ class VisitorRegistrationsController extends Controller
             ]);
 
         if ($status !== '' && $status !== 'all') {
-            if ($status === 'pending') {
-                $query->where(function ($q) {
-                    $q->where('status', 'pending')
-                        ->orWhereNull('status');
-                });
-            } else {
-                $query->where('status', $status);
-            }
+            $query->where('status', $status);
         }
 
         if ($circleId !== '' && $circleId !== 'all') {
@@ -168,7 +161,7 @@ class VisitorRegistrationsController extends Controller
         }
 
         if ($visitorBusinessCategory !== '') {
-            $query->where('visitor_business', 'ILIKE', "%{$visitorBusinessCategory}%");
+            $query->where('visitor_business_category', 'ILIKE', "%{$visitorBusinessCategory}%");
         }
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'visitor_registrations.user_id', null);
@@ -192,7 +185,7 @@ class VisitorRegistrationsController extends Controller
             'circles' => $circles,
             'users' => $users,
             'filters' => [
-                'status' => in_array($status, ['all', 'pending', 'approved', 'rejected'], true) ? $status : 'pending',
+                'status' => in_array($status, ['all', 'pending', 'approved', 'rejected'], true) ? $status : 'all',
                 'search' => $search,
                 'circle_id' => $circleId,
                 'peer_q' => $peerQ,
@@ -276,14 +269,7 @@ class VisitorRegistrationsController extends Controller
             ]);
 
         if ($status !== '' && $status !== 'all') {
-            if ($status === 'pending') {
-                $query->where(function ($q) {
-                    $q->where('status', 'pending')
-                        ->orWhereNull('status');
-                });
-            } else {
-                $query->where('status', $status);
-            }
+            $query->where('status', $status);
         }
 
         if ($circleId !== '' && $circleId !== 'all') {
@@ -376,25 +362,25 @@ class VisitorRegistrationsController extends Controller
             $query->chunk(250, function ($rows) use ($output): void {
                 foreach ($rows as $row) {
                     $member = $row->user;
-                    $memberName = $member ? trim(($member->first_name ?? '').' '.($member->last_name ?? '')) : '—';
-                    $memberCompany = $member ? ($member->company_name ?? $member->company ?? '—') : '—';
-                    $memberCircle = $member && $member->circleMembers->first() ? optional($member->circleMembers->first()->circle)->name : '—';
+                    $memberName = $member ? trim(($member->first_name ?? '').' '.($member->last_name ?? '')) : 'ΓÇö';
+                    $memberCompany = $member ? ($member->company_name ?? $member->company ?? 'ΓÇö') : 'ΓÇö';
+                    $memberCircle = $member && $member->circleMembers->first() ? optional($member->circleMembers->first()->circle)->name : 'ΓÇö';
 
                     fputcsv($output, [
-                        $row->created_at ? $row->created_at->format('Y-m-d H:i') : '—',
+                        $row->created_at ? $row->created_at->format('Y-m-d H:i') : 'ΓÇö',
                         $memberName,
-                        $member ? $member->phone : '—',
+                        $member ? $member->phone : 'ΓÇö',
                         $memberCompany,
                         $memberCircle,
-                        ucfirst($row->event_type ?? '—'),
-                        $row->event_name ?? '—',
-                        $row->event_date ? $row->event_date->format('Y-m-d') : '—',
-                        $row->visitor_full_name ?? '—',
-                        $row->visitor_mobile ?? '—',
-                        $row->visitor_email ?? '—',
-                        $row->visitor_city ?? '—',
-                        $row->visitor_business ?? '—',
-                        ucfirst($row->status ?? '—'),
+                        ucfirst($row->event_type ?? 'ΓÇö'),
+                        $row->event_name ?? 'ΓÇö',
+                        $row->event_date ? $row->event_date->format('Y-m-d') : 'ΓÇö',
+                        $row->visitor_full_name ?? 'ΓÇö',
+                        $row->visitor_mobile ?? 'ΓÇö',
+                        $row->visitor_email ?? 'ΓÇö',
+                        $row->visitor_city ?? 'ΓÇö',
+                        $row->visitor_business ?? 'ΓÇö',
+                        ucfirst($row->status ?? 'ΓÇö'),
                     ]);
                 }
             });
@@ -451,25 +437,25 @@ class VisitorRegistrationsController extends Controller
             fputcsv($output, $columns);
 
             $member = $row->user;
-            $memberName = $member ? trim(($member->first_name ?? '').' '.($member->last_name ?? '')) : '—';
-            $memberCompany = $member ? ($member->company_name ?? $member->company ?? '—') : '—';
-            $memberCircle = $member && $member->circleMembers->first() ? optional($member->circleMembers->first()->circle)->name : '—';
+            $memberName = $member ? trim(($member->first_name ?? '').' '.($member->last_name ?? '')) : 'ΓÇö';
+            $memberCompany = $member ? ($member->company_name ?? $member->company ?? 'ΓÇö') : 'ΓÇö';
+            $memberCircle = $member && $member->circleMembers->first() ? optional($member->circleMembers->first()->circle)->name : 'ΓÇö';
 
             fputcsv($output, [
-                $row->created_at ? $row->created_at->format('Y-m-d H:i') : '—',
+                $row->created_at ? $row->created_at->format('Y-m-d H:i') : 'ΓÇö',
                 $memberName,
-                $member ? $member->phone : '—',
+                $member ? $member->phone : 'ΓÇö',
                 $memberCompany,
                 $memberCircle,
-                ucfirst($row->event_type ?? '—'),
-                $row->event_name ?? '—',
-                $row->event_date ? $row->event_date->format('Y-m-d') : '—',
-                $row->visitor_full_name ?? '—',
-                $row->visitor_mobile ?? '—',
-                $row->visitor_email ?? '—',
-                $row->visitor_city ?? '—',
-                $row->visitor_business ?? '—',
-                ucfirst($row->status ?? '—'),
+                ucfirst($row->event_type ?? 'ΓÇö'),
+                $row->event_name ?? 'ΓÇö',
+                $row->event_date ? $row->event_date->format('Y-m-d') : 'ΓÇö',
+                $row->visitor_full_name ?? 'ΓÇö',
+                $row->visitor_mobile ?? 'ΓÇö',
+                $row->visitor_email ?? 'ΓÇö',
+                $row->visitor_city ?? 'ΓÇö',
+                $row->visitor_business ?? 'ΓÇö',
+                ucfirst($row->status ?? 'ΓÇö'),
             ]);
 
             fclose($output);
@@ -559,16 +545,16 @@ class VisitorRegistrationsController extends Controller
         $columns = [
             'peer_email',
             'peer_phone',
-            'visitor_full_name',
+            'visitor_name',
             'visitor_mobile',
             'visitor_email',
-            'visitor_city',
-            'visitor_business',
             'event_type',
             'event_name',
             'event_date',
-            'how_known',
-            'note',
+            'visitor_city',
+            'visitor_business',
+            'visitor_designation',
+            'visitor_business_brief',
         ];
 
         return response()->streamDownload(function () use ($columns): void {
@@ -580,11 +566,11 @@ class VisitorRegistrationsController extends Controller
                 'Arpan Pandya',
                 '+91 96621 72149',
                 'arpan@example.com',
-                'Ahmedabad',
-                'Interior Designer',
                 'Physical',
                 'Buildcon Circle Meet',
                 now()->format('Y-m-d'),
+                'Ahmedabad',
+                'Interior Designer',
                 'Design Consultant',
                 'Experienced interior designer specializing in residential projects',
             ]);
@@ -637,17 +623,9 @@ class VisitorRegistrationsController extends Controller
                 $rowData[$columnName] = isset($row[$index]) ? trim((string) $row[$index]) : '';
             }
 
-            $visitorName = $rowData['visitor_full_name'] ?? ($rowData['visitor_name'] ?? ($rowData['name'] ?? ''));
+            $visitorName = $rowData['visitor_name'] ?? ($rowData['visitor_full_name'] ?? ($rowData['name'] ?? ''));
             $visitorMobile = $rowData['visitor_mobile'] ?? ($rowData['mobile'] ?? ($rowData['phone'] ?? ''));
             $visitorEmail = $rowData['visitor_email'] ?? ($rowData['email'] ?? '');
-            $visitorCity = $rowData['visitor_city'] ?? ($rowData['city'] ?? null);
-            $visitorBusiness = $rowData['visitor_business'] ?? ($rowData['business_name'] ?? null);
-            $howKnown = $rowData['how_known'] ?? ($rowData['visitor_designation'] ?? null);
-            $note = $rowData['note'] ?? ($rowData['visitor_business_brief'] ?? null);
-            $eventType = $rowData['event_type'] ?? 'Physical';
-            $eventName = $rowData['event_name'] ?? 'General Meeting';
-            $eventDate = $rowData['event_date'] ?? now()->format('Y-m-d');
-            $status = $rowData['status'] ?? 'pending';
 
             if ($visitorName === '') {
                 $errors[] = "Row {$rowNumber}: Visitor name is required.";
@@ -662,7 +640,7 @@ class VisitorRegistrationsController extends Controller
             }
 
             if ($visitorEmail === '' || ! filter_var($visitorEmail, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = "Row {$rowNumber}: Visitor email is required.";
+                $errors[] = "Row {$rowNumber}: Valid visitor email is required.";
 
                 continue;
             }
@@ -670,22 +648,22 @@ class VisitorRegistrationsController extends Controller
             $peerUserId = null;
             $peerEmail = $rowData['peer_email'] ?? '';
             $peerPhone = $rowData['peer_phone'] ?? '';
+            $peerId = $rowData['peer_id'] ?? ($rowData['user_id'] ?? '');
 
-            if ($peerEmail !== '' || $peerPhone !== '') {
-                if ($peerEmail !== '') {
-                    $peerUserId = User::query()->where('email', 'ILIKE', $peerEmail)->value('id');
-                }
-                if (! $peerUserId && $peerPhone !== '') {
-                    $peerUserId = User::query()->where('phone', 'ILIKE', "%{$peerPhone}%")->value('id');
-                }
-            } else {
-                if ($defaultUserId !== '') {
-                    $peerUserId = $defaultUserId;
-                }
+            if ($peerId !== '' && Str::isUuid($peerId)) {
+                $peerUserId = $peerId;
+            } elseif ($peerEmail !== '') {
+                $peerUserId = User::query()->where('email', 'ILIKE', $peerEmail)->value('id');
+            } elseif ($peerPhone !== '') {
+                $peerUserId = User::query()->where('phone', 'ILIKE', "%{$peerPhone}%")->value('id');
+            }
+
+            if (! $peerUserId && $defaultUserId !== '') {
+                $peerUserId = $defaultUserId;
             }
 
             if (! $peerUserId) {
-                $errors[] = "Row {$rowNumber}: Peer not found.";
+                $errors[] = "Row {$rowNumber}: Peer (Inviter) could not be resolved. Please specify peer_email/phone or select a default peer.";
 
                 continue;
             }
@@ -695,14 +673,14 @@ class VisitorRegistrationsController extends Controller
                 'visitor_full_name' => $visitorName,
                 'visitor_mobile' => $visitorMobile,
                 'visitor_email' => $visitorEmail,
-                'event_type' => ! empty($eventType) ? $eventType : 'Physical',
-                'event_name' => ! empty($eventName) ? $eventName : 'General Meeting',
-                'event_date' => ! empty($eventDate) ? $eventDate : now()->format('Y-m-d'),
-                'visitor_city' => ! empty($visitorCity) ? $visitorCity : null,
-                'visitor_business' => ! empty($visitorBusiness) ? $visitorBusiness : null,
-                'how_known' => ! empty($howKnown) ? $howKnown : null,
-                'note' => ! empty($note) ? $note : null,
-                'status' => ! empty($status) ? $status : 'pending',
+                'event_type' => ! empty($rowData['event_type']) ? $rowData['event_type'] : 'Physical',
+                'event_name' => ! empty($rowData['event_name']) ? $rowData['event_name'] : 'General Meeting',
+                'event_date' => ! empty($rowData['event_date']) ? $rowData['event_date'] : now()->format('Y-m-d'),
+                'visitor_city' => ! empty($rowData['visitor_city']) ? $rowData['visitor_city'] : null,
+                'visitor_business' => ! empty($rowData['visitor_business']) ? $rowData['visitor_business'] : null,
+                'visitor_designation' => ! empty($rowData['visitor_designation']) ? $rowData['visitor_designation'] : null,
+                'visitor_business_brief' => ! empty($rowData['visitor_business_brief']) ? $rowData['visitor_business_brief'] : null,
+                'status' => 'pending',
                 'coins_awarded' => false,
             ]);
 
@@ -717,7 +695,7 @@ class VisitorRegistrationsController extends Controller
 
         $message = "Successfully imported {$imported} visitor registration(s).";
         if (! empty($errors)) {
-            $message .= ' Some rows had warnings: '.implode(' | ', $errors);
+            $message .= ' (Some rows had warnings: '.implode(' | ', array_slice($errors, 0, 3)).')';
         }
 
         return redirect()
