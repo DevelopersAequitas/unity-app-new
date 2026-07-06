@@ -49,8 +49,6 @@
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
                 ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
-                ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications']],
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
@@ -62,16 +60,6 @@
                     ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),
-                ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => 'admin.execution.finance'],
-                ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],
-                ['icon' => 'bi-calendar-event', 'label' => 'Events', 'route' => 'admin.execution.events'],
-                ['icon' => 'bi-people-fill', 'label' => 'Referrals & Visitors', 'route' => '#'],
-                ['icon' => 'bi-life-preserver', 'label' => 'Support & Feedback', 'route' => '#'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.execution.communications']],
-                ['icon' => 'bi-bell-fill', 'label' => 'Daily Notification Reminder', 'route' => 'admin.daily-notifications.index'],
-                ['icon' => 'bi-calendar2-week', 'label' => 'Meetings & Warnings', 'route' => 'admin.execution.meetings'],
-                ['icon' => 'bi-shield-lock', 'label' => 'Audit & Compliance', 'route' => 'admin.execution.reports'],
-                ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
             ]);
 
     $fullActivityMenu = [
@@ -81,10 +69,10 @@
         ['label' => 'Referrals', 'route' => 'admin.activities.referrals.index'],
         ['label' => 'P2P Meetings', 'route' => 'admin.activities.p2p-meetings.index'],
         ['label' => 'Business Deals', 'route' => 'admin.activities.business-deals.index'],
-        ['label' => 'Become A Leader', 'route' => 'admin.activities.become-a-leader.index'],
-        ['label' => 'Recommend A Peer', 'route' => 'admin.activities.recommend-peer.index'],
-        ['label' => 'Find & Build Collaborations', 'route' => 'admin.collaborations.index'],
-        ['label' => 'Register A Visitor', 'route' => 'admin.activities.register-visitor.index'],
+        ['label' => 'Leadership Requests', 'route' => 'admin.activities.become-a-leader.index'],
+        ['label' => 'Recommended Peers', 'route' => 'admin.activities.recommend-peer.index'],
+        ['label' => 'Collaborations', 'route' => 'admin.collaborations.index'],
+        ['label' => 'Registered Visitor', 'route' => 'admin.activities.register-visitor.index'],
     ];
 
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
@@ -159,7 +147,6 @@
         || request()->routeIs('admin.email-logs.*')
         || request()->routeIs('admin.execution.communications')
         || request()->routeIs('admin.daily-notifications.*');
-        || request()->routeIs('admin.execution.communications');
     $notificationsMenu = [
         ['label' => 'Overview', 'route' => 'admin.notifications.dashboard', 'icon' => 'bi-speedometer2', 'active_routes' => ['admin.notifications.dashboard']],
         ['label' => 'Campaigns', 'route' => 'admin.notifications.campaigns', 'icon' => 'bi-megaphone', 'active_routes' => ['admin.notifications.campaigns', 'admin.notifications.campaigns.*']],
@@ -209,11 +196,6 @@
 
 <aside class="admin-sidebar d-flex flex-column">
     {{-- Brand Logo --}}
-    <div class="sidebar-brand text-center">
-        <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block text-decoration-none w-100">
-            <div style="padding: 4px 0;">
-                <img src="{{ asset('images/logo.png') }}" alt="Peers Global Logo" style="max-height: 48px; max-width: 90%; height: auto; display: block; margin: 0 auto; object-fit: contain;">
-            </div>
     <div class="text-center mb-2">
         <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
@@ -389,28 +371,6 @@
             @endforeach
 
 
-            @if (! $isIndustryDirector && ! $isCircleCommittee)
-                <li class="nav-item menu-parent {{ $notificationsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $notificationsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#notificationsSubmenu" role="button" aria-expanded="{{ $notificationsActive ? 'true' : 'false' }}" aria-controls="notificationsSubmenu">
-                        <span><i class="bi bi-bell me-2"></i>Notifications</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
-                    </a>
-                    <div class="collapse {{ $notificationsActive ? 'show' : '' }}" id="notificationsSubmenu">
-                        <div class="sidebar-section-hint">Engagement Tools</div>
-                        <ul class="nav flex-column notifications-submenu">
-                            @foreach ($notificationsMenu as $notificationItem)
-                                @php($notificationItemActive = request()->routeIs(...$notificationItem['active_routes']))
-                                <li class="nav-item">
-                                    <a class="nav-link {{ $notificationItemActive ? 'active' : '' }}" href="{{ route($notificationItem['route']) }}">
-                                        <i class="bi {{ $notificationItem['icon'] }} me-2"></i>
-                                        <span>{{ $notificationItem['label'] }}</span>
-                                    </a>
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </li>
-            @endif
 
             @if ($isGlobalAdmin)
                 <li class="nav-item">

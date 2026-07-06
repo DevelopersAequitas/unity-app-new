@@ -136,9 +136,9 @@
                         <th>Business Deals</th>
                         <th>P2P Meetings</th>
                         <th>Requirements</th>
-                        <th>Become A Leader</th>
-                        <th>Recommend A Peer</th>
-                        <th>Register A Visitor</th>
+                        <th>Leadership Requests</th>
+                        <th>Recommended Peers</th>
+                        <th>Registered Visitor</th>
                     </tr>
                     <tr class="bg-light align-middle filter-row">
                         <th></th>

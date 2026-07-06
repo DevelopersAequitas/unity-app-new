@@ -45,13 +45,13 @@
             'icon' => 'bi-briefcase-fill'
         ],
         [
-            'label' => 'Become A Leader',
+            'label' => 'Leadership Requests',
             'route' => 'admin.activities.become-a-leader.index',
             'active_check' => 'admin.activities.become-a-leader.*',
             'icon' => 'bi-award-fill'
         ],
         [
-            'label' => 'Recommend A Peer',
+            'label' => 'Recommended Peers',
             'route' => 'admin.activities.recommend-peer.index',
             'active_check' => 'admin.activities.recommend-peer.*',
             'icon' => 'bi-hand-thumbs-up-fill'
@@ -63,7 +63,7 @@
             'icon' => 'bi-link-45deg'
         ],
         [
-            'label' => 'Register A Visitor',
+            'label' => 'Registered Visitor',
             'route' => 'admin.activities.register-visitor.index',
             'active_check' => 'admin.activities.register-visitor.*',
             'icon' => 'bi-person-vcard-fill'

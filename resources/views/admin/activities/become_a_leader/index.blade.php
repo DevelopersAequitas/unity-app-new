@@ -1,6 +1,6 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Become A Leader')
+@section('title', 'Leadership Requests')
 
 @section('content')
     @php
@@ -45,7 +45,7 @@
     @endphp
 
     <!-- Header Component -->
-    @include('admin.activities.partials.header', ['title' => 'Become A Leader'])
+    @include('admin.activities.partials.header', ['title' => 'Leadership Requests'])
 
     <!-- Metrics Cards -->
     <div class="activities-stats-grid">

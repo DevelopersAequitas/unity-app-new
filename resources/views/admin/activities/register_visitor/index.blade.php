@@ -1,6 +1,6 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Register A Visitor')
+@section('title', 'Registered Visitor')
 
 @section('content')
     @php
@@ -36,7 +36,7 @@
     @endphp
 
     <!-- Header Component -->
-    @include('admin.activities.partials.header', ['title' => 'Register A Visitor'])
+    @include('admin.activities.partials.header', ['title' => 'Registered Visitor'])
 
     <!-- Metrics Cards -->
     <div class="activities-stats-grid">

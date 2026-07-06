@@ -1,6 +1,6 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Recommend A Peer')
+@section('title', 'Recommended Peers')
 
 @section('content')
     @php
@@ -32,7 +32,7 @@
     @endphp
 
     <!-- Header Component -->
-    @include('admin.activities.partials.header', ['title' => 'Recommend A Peer'])
+    @include('admin.activities.partials.header', ['title' => 'Recommended Peers'])
 
     <!-- Metrics Cards -->
     <div class="activities-stats-grid">
