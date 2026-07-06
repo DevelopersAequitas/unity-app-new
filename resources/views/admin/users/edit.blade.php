@@ -112,87 +112,6 @@
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">First Name</label>
                             <input type="text" name="first_name" class="form-control" value="{{ old('first_name', $user->first_name) }}" required>
-<form id="userEditForm" action="{{ route('admin.users.update', $user->id) }}" method="POST">
-    @csrf
-    @method('PUT')
-
-    <div class="row g-3">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Basic Info</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">First Name</label>
-                        <input type="text" name="first_name" class="form-control" value="{{ old('first_name', $user->first_name) }}" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Last Name</label>
-                        <input type="text" name="last_name" class="form-control" value="{{ old('last_name', $user->last_name) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Display Name</label>
-                        <input type="text" name="display_name" class="form-control" value="{{ old('display_name', $user->display_name) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Email</label>
-                        <input type="email" name="email" class="form-control" value="{{ old('email', $user->email) }}" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Phone</label>
-                        <input type="text" name="phone" class="form-control" value="{{ old('phone', $user->phone) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Designation <span class="text-danger">*</span></label>
-                        <input type="text" name="designation" class="form-control" value="{{ old('designation', $user->designation) }}" required>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Business & Profile</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Company Name <span class="text-danger">*</span></label>
-                        <input type="text" name="company_name" class="form-control" value="{{ old('company_name', $user->company_name) }}" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Business Type</label>
-                        <input type="text" name="business_type" class="form-control" value="{{ old('business_type', $user->business_type) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Turnover Range</label>
-                        <input type="text" name="turnover_range" class="form-control" value="{{ old('turnover_range', $user->turnover_range) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Gender</label>
-                        <input type="text" name="gender" class="form-control" value="{{ old('gender', $user->gender) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Date of Birth</label>
-                        <input type="date" name="dob" class="form-control" value="{{ old('dob', optional($user->dob)->format('Y-m-d')) }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Experience Years</label>
-                        <input type="number" name="experience_years" class="form-control" min="0" max="100" value="{{ old('experience_years', $user->experience_years) }}">
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label">Experience Summary</label>
-                        <textarea name="experience_summary" class="form-control" rows="2">{{ old('experience_summary', $user->experience_summary) }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Short Bio</label>
-                        <textarea name="short_bio" class="form-control" rows="2">{{ old('short_bio', $user->short_bio) }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Profile Photo</label>
-                        <input type="hidden" name="profile_photo_file_id" id="profilePhotoFileId" value="{{ old('profile_photo_file_id', $user->profile_photo_file_id) }}">
-                        <div id="profilePhotoExisting" class="{{ $user->profile_photo_file_id ? '' : 'd-none' }}">
-                            <div class="d-flex align-items-center gap-2">
-                                <a href="{{ $user->profile_photo_file_id ? url('/api/v1/files/' . $user->profile_photo_file_id) : '#' }}" target="_blank" class="btn btn-outline-secondary btn-sm">View Image</a>
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-change-target="profilePhoto">Change</button>
-                            </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Last Name</label>
@@ -280,6 +199,11 @@
                             <input type="text" name="public_profile_slug" class="form-control" value="{{ old('public_profile_slug', $user->public_profile_slug) }}">
                         </div>
 
+                        <div class="col-md-6 mt-3">
+                            <label class="form-label fw-semibold">City <span class="text-danger">*</span></label>
+                            <input type="text" name="city" class="form-control" value="{{ old('city', $user->city) }}" required>
+                        </div>
+
                         <div class="col-12 mt-3">
                             @php
                                 $socialLinksValue = '';
@@ -339,7 +263,6 @@
                                 'leadership_roles' => $user->leadership_roles,
                                 'special_recognitions' => $user->special_recognitions,
                                 'skills' => $user->skills,
-                                'interests' => $user->interests,
                             ];
 
                             $asCsv = function ($value): string {
@@ -355,37 +278,92 @@
                                 <textarea name="{{ $field }}" class="form-control" rows="2" placeholder="Enter comma separated values...">{{ old($field, $asCsv($value)) }}</textarea>
                             </div>
                         @endforeach
-                            $membershipStatusLabels = [
-                                'free_trial_peer' => 'Free Trial Peer',
-                                'free_peer' => 'Free Peer',
-                                'Only Green Peer' => 'Only Green Peer',
-                                'only_unity_peer' => 'Only Unity Peer',
-                                'Circle Peer' => 'Circle Peer',
-                                'Multi Circle Peer' => 'Multi Circle Peer',
-                                'Charter Peer' => 'Charter Peer',
-                                'Industry Advisor' => 'Industry Advisor',
-                                'Charter Investor' => 'Charter Investor',
-                                'Circle Founder' => 'Circle Founder',
-                                'Circle Director' => 'Circle Director',
-                                'Board Advisor' => 'Board Advisor',
-                            ];
-                            $currentMembershipStatus = old('membership_status', $user->membership_status);
-                            $membershipStatusOptions = collect($membershipStatuses)
-                                ->reduce(function (array $options, string $status) use ($membershipStatusLabels, $currentMembershipStatus): array {
-                                    $label = $membershipStatusLabels[$status] ?? $status;
-                                    if (! isset($options[$label]) || $status === $currentMembershipStatus) {
-                                        $options[$label] = $status;
-                                    }
-                                    return $options;
-                                }, []);
-                        @endphp
-                        <select name="membership_status" class="form-select" required>
-                            @foreach ($membershipStatusOptions as $label => $status)
-                                <option value="{{ $status }}" @selected($currentMembershipStatus === $status)>
-                                    {{ $membershipStatusLabels[$status] ?? $status }}
-                                </option>
-                            @endforeach
-                        </select>
+                    </div>
+
+                    <h5 class="form-section-title mt-4"><i class="bi bi-leaf text-success me-2"></i>Greenpreneur Sustainability Info</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Website</label>
+                            <input type="text" name="website" class="form-control" value="{{ old('website', $user->website) }}" placeholder="https://example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">List in Community Directory?</label>
+                            <select name="community_directory_listing" class="form-select">
+                                <option value="Yes" @selected(old('community_directory_listing', $user->community_directory_listing) === 'Yes')>Yes</option>
+                                <option value="No" @selected(old('community_directory_listing', $user->community_directory_listing ?? 'No') === 'No')>No</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">How does your business contribute to sustainability?</label>
+                            <textarea name="sustainability_contribution" class="form-control" rows="3" placeholder="Describe contribution...">{{ old('sustainability_contribution', $user->sustainability_contribution) }}</textarea>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label class="form-label d-block fw-semibold mb-2">Which sustainability areas do you focus on?</label>
+                            <div class="row g-2">
+                                @php
+                                    $sustainabilityAreasOptions = [
+                                        'Renewable Energy', 'Waste Management', 'Water Conservation', 'Sustainable Agriculture',
+                                        'Green Construction', 'Circular Economy', 'ESG Consulting', 'Electric Mobility',
+                                        'Carbon Reduction', 'Recycling', 'Climate Technology', 'Sustainable Packaging',
+                                        'Biodiversity', 'Green Finance', 'Other'
+                                    ];
+                                    $userAreas = is_array($user->sustainability_areas) ? $user->sustainability_areas : [];
+                                @endphp
+                                @foreach($sustainabilityAreasOptions as $option)
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="sustainability_areas[]" value="{{ $option }}" id="area_{{ Str::slug($option) }}" @checked(in_array($option, (array) old('sustainability_areas', $userAreas)))>
+                                            <label class="form-check-label" for="area_{{ Str::slug($option) }}">{{ $option }}</label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label class="form-label d-block fw-semibold mb-2">What are you looking for through Greenpreneur?</label>
+                            <div class="row g-2">
+                                @php
+                                    $greenpreneurGoalsOptions = [
+                                        'Business Growth', 'Partnerships', 'Investors', 'Customers',
+                                        'Government Connect', 'Knowledge Sharing', 'Technology Partners',
+                                        'Global Expansion', 'Sustainability Learning'
+                                    ];
+                                    $userGoals = is_array($user->greenpreneur_goals) ? $user->greenpreneur_goals : [];
+                                @endphp
+                                @foreach($greenpreneurGoalsOptions as $option)
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="greenpreneur_goals[]" value="{{ $option }}" id="goal_{{ Str::slug($option) }}" @checked(in_array($option, (array) old('greenpreneur_goals', $userGoals)))>
+                                            <label class="form-check-label" for="goal_{{ Str::slug($option) }}">{{ $option }}</label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label class="form-label d-block fw-semibold mb-2">Are you interested in:</label>
+                            <div class="row g-2">
+                                @php
+                                    $interestsOptions = [
+                                        'Speaking Opportunities', 'Panel Discussions', 'Mentoring', 'Exhibiting',
+                                        'Sponsorship', 'Investment Opportunities', 'Greenpreneur Awards',
+                                        'Coffee Table Book Feature', 'Impact Story'
+                                    ];
+                                    $userInterests = is_array($user->interests) ? $user->interests : [];
+                                @endphp
+                                @foreach($interestsOptions as $option)
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="interests[]" value="{{ $option }}" id="interest_{{ Str::slug($option) }}" @checked(in_array($option, (array) old('interests', $userInterests)))>
+                                            <label class="form-check-label" for="interest_{{ Str::slug($option) }}">{{ $option }}</label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
 
                     <div class="d-flex justify-content-between mt-4 pt-3 border-top">
@@ -770,277 +748,136 @@
                                 </div>
                                 @endif
                             @endif
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Location</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-12">
-                        <label class="form-label">City <span class="text-danger">*</span></label>
-                        <input type="text" name="city" class="form-control" value="{{ old('city', $user->city) }}" required>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Greenpreneur Sustainability Info</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Website</label>
-                        <input type="text" name="website" class="form-control" value="{{ old('website', $user->website) }}" placeholder="https://example.com">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">List in Community Directory?</label>
-                        <select name="community_directory_listing" class="form-select">
-                            <option value="Yes" @selected(old('community_directory_listing', $user->community_directory_listing) === 'Yes')>Yes</option>
-                            <option value="No" @selected(old('community_directory_listing', $user->community_directory_listing ?? 'No') === 'No')>No</option>
-                        </select>
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label">How does your business contribute to sustainability?</label>
-                        <textarea name="sustainability_contribution" class="form-control" rows="3" placeholder="Describe contribution...">{{ old('sustainability_contribution', $user->sustainability_contribution) }}</textarea>
-                    </div>
-                    
-                    <div class="col-md-12">
-                        <label class="form-label d-block fw-semibold mb-2">Which sustainability areas do you focus on?</label>
-                        <div class="row g-2">
-                            @php
-                                $sustainabilityAreasOptions = [
-                                    'Renewable Energy', 'Waste Management', 'Water Conservation', 'Sustainable Agriculture',
-                                    'Green Construction', 'Circular Economy', 'ESG Consulting', 'Electric Mobility',
-                                    'Carbon Reduction', 'Recycling', 'Climate Technology', 'Sustainable Packaging',
-                                    'Biodiversity', 'Green Finance', 'Other'
-                                ];
-                                $userAreas = is_array($user->sustainability_areas) ? $user->sustainability_areas : [];
-                            @endphp
-                            @foreach($sustainabilityAreasOptions as $option)
-                                <div class="col-md-4 col-sm-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="sustainability_areas[]" value="{{ $option }}" id="area_{{ Str::slug($option) }}" @checked(in_array($option, old('sustainability_areas', $userAreas)))>
-                                        <label class="form-check-label" for="area_{{ Str::slug($option) }}">{{ $option }}</label>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-12">
-                        <label class="form-label d-block fw-semibold mb-2">What are you looking for through Greenpreneur?</label>
-                        <div class="row g-2">
-                            @php
-                                $greenpreneurGoalsOptions = [
-                                    'Business Growth', 'Partnerships', 'Investors', 'Customers',
-                                    'Government Connect', 'Knowledge Sharing', 'Technology Partners',
-                                    'Global Expansion', 'Sustainability Learning'
-                                ];
-                                $userGoals = is_array($user->greenpreneur_goals) ? $user->greenpreneur_goals : [];
-                            @endphp
-                            @foreach($greenpreneurGoalsOptions as $option)
-                                <div class="col-md-4 col-sm-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="greenpreneur_goals[]" value="{{ $option }}" id="goal_{{ Str::slug($option) }}" @checked(in_array($option, old('greenpreneur_goals', $userGoals)))>
-                                        <label class="form-check-label" for="goal_{{ Str::slug($option) }}">{{ $option }}</label>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-12">
-                        <label class="form-label d-block fw-semibold mb-2">Are you interested in:</label>
-                        <div class="row g-2">
-                            @php
-                                $interestsOptions = [
-                                    'Speaking Opportunities', 'Panel Discussions', 'Mentoring', 'Exhibiting',
-                                    'Sponsorship', 'Investment Opportunities', 'Greenpreneur Awards',
-                                    'Coffee Table Book Feature', 'Impact Story'
-                                ];
-                                $userInterests = is_array($user->interests) ? $user->interests : [];
-                            @endphp
-                            @foreach($interestsOptions as $option)
-                                <div class="col-md-4 col-sm-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="interests[]" value="{{ $option }}" id="interest_{{ Str::slug($option) }}" @checked(in_array($option, old('interests', $userInterests)))>
-                                        <label class="form-check-label" for="interest_{{ Str::slug($option) }}">{{ $option }}</label>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Additional Details</div>
-                <div class="card-body row g-3">
-                    @php
-                        $jsonFields = [
-                            'industry_tags' => $user->industry_tags,
-                            'target_regions' => $user->target_regions,
-                            'target_business_categories' => $user->target_business_categories,
-                            'hobbies_interests' => $user->hobbies_interests,
-                            'leadership_roles' => $user->leadership_roles,
-                            'special_recognitions' => $user->special_recognitions,
-                            'skills' => $user->skills,
-                        ];
-
-                        $asCsv = function ($value): string {
-                            if (is_array($value)) {
-                                return implode(', ', $value);
-                            }
-                            return '';
-                        };
-
-                    @endphp
-                    @foreach ($jsonFields as $field => $value)
-                        <div class="col-md-6">
-                            <label class="form-label text-capitalize">{{ str_replace('_', ' ', $field) }}</label>
-                            <textarea name="{{ $field }}" class="form-control" rows="3" placeholder="Enter comma separated values (e.g. IT, Finance, Retail)">{{ old($field, $asCsv($value)) }}</textarea>
                         </div>
                     </div>
 
-                    <h5 class="form-section-title mt-4"><i class="bi bi-geo text-primary me-2"></i>Physical Location</h5>
+                    <h5 class="form-section-title mt-4"><i class="bi bi-shield-lock text-primary me-2"></i>Admin Roles & Permissions</h5>
                     <div class="row g-3 mb-4">
-                        <div class="col-md-12">
-                            <label class="form-label fw-semibold">City (string fallback)</label>
-                            <input type="text" name="city" class="form-control" value="{{ old('city', $user->city) }}">
-                        </div>
-                    </div>
-
-                    <h5 class="form-section-title"><i class="bi bi-shield-lock text-primary me-2"></i>Admin Roles & Permissions</h5>
-                    <div class="mb-4">
-                        @php
-                            $currentRoleIds = old('role_ids', $userRoleIds);
-                            $currentRoleIds = is_array($currentRoleIds) ? $currentRoleIds : [];
-                            $currentIndustryId = old('industry_id', $selectedIndustryId);
-                        @endphp
-                        @if ($hasAssignedAdminRole)
-                            <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                <div>
-                                    <strong>Currently assigned role:</strong>
-                                    <span>{{ $assignedAdminRoleNames }}</span>
-                                </div>
-                                <button type="submit"
-                                        form="removeAdminRoleForm"
-                                        class="btn btn-sm btn-outline-danger"
-                                        onclick="return confirm('Remove the current admin role from this user?');">
-                                    Remove Role
-                                </button>
-                            </div>
-                        @endif
-                        <div class="row g-3 align-items-center bg-light p-3 rounded border mb-3">
-                            @foreach ($roles as $role)
-                                <div class="col-md-4 d-flex align-items-start">
-                                    <div class="form-check">
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               name="role_ids[]"
-                                               value="{{ $role->id }}"
-                                               id="role-{{ $role->id }}"
-                                               data-role-key="{{ $role->key }}"
-                                               @checked(in_array($role->id, $currentRoleIds))
-                                               @disabled($hasAssignedAdminRole)>
-                                        <label class="form-check-label" for="role-{{ $role->id }}">
-                                            <strong class="text-dark">{{ $role->name }}</strong>
-                                            <div class="small text-muted">{{ $role->description }}</div>
-                                        </label>
+                        <div class="col-12">
+                            @php
+                                $currentRoleIds = old('role_ids', $userRoleIds);
+                                $currentRoleIds = is_array($currentRoleIds) ? $currentRoleIds : [];
+                                $currentIndustryId = old('industry_id', $selectedIndustryId);
+                            @endphp
+                            @if ($hasAssignedAdminRole)
+                                <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <div>
+                                        <strong>Currently assigned role:</strong>
+                                        <span>{{ $assignedAdminRoleNames }}</span>
                                     </div>
+                                    <button type="submit"
+                                            form="removeAdminRoleForm"
+                                            class="btn btn-sm btn-outline-danger"
+                                            onclick="return confirm('Remove the current admin role from this user?');">
+                                        Remove Role
+                                    </button>
                                 </div>
-                            @endforeach
-                        </div>
+                            @endif
+                            <div class="row g-3 align-items-center bg-light p-3 rounded border mb-3">
+                                @foreach ($roles as $role)
+                                    <div class="col-md-4 d-flex align-items-start">
+                                        <div class="form-check">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   name="role_ids[]"
+                                                   value="{{ $role->id }}"
+                                                   id="role-{{ $role->id }}"
+                                                   data-role-key="{{ $role->key }}"
+                                                   @checked(in_array($role->id, $currentRoleIds))
+                                                   @disabled($hasAssignedAdminRole)>
+                                            <label class="form-check-label" for="role-{{ $role->id }}">
+                                                <strong class="text-dark">{{ $role->name }}</strong>
+                                                <div class="small text-muted">{{ $role->description }}</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
 
-                        @php
-                            $selectedDedStateId = old('ded_state_id', $assignedDedStateId);
-                            $selectedDedStateName = old('ded_state_name', $assignedDedStateName);
-                            $selectedDedDistrictId = old('ded_district_id', $assignedDedDistrictId);
-                            $selectedDedDistrictName = old('ded_district_name', $assignedDedDistrictName);
-                            $dedRoleId = optional($roles->firstWhere('key', 'ded'))->id;
-                            $showDedDistrict = $dedRoleId && in_array($dedRoleId, (array) $currentRoleIds);
-                        @endphp
-                        <div id="dedDistrictField" class="row g-2 mt-2 {{ $showDedDistrict ? '' : 'd-none' }}">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="dedStateId">DED State</label>
-                                <select
-                                    id="dedStateId"
-                                    name="ded_state_id"
-                                    class="form-select @error('ded_state_id') is-invalid @enderror js-no-searchable-select"
-                                    @disabled($hasAssignedAdminRole)
-                                >
-                                    <option value="">Select state</option>
-                                    @foreach ($states as $state)
-                                        <option value="{{ $state->id }}" @selected((string) $selectedDedStateId === (string) $state->id)>
-                                            {{ $state->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                <input type="hidden" id="dedStateName" name="ded_state_name" value="{{ $selectedDedStateName }}">
-                                @error('ded_state_id')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
+                            @php
+                                $selectedDedStateId = old('ded_state_id', $assignedDedStateId);
+                                $selectedDedStateName = old('ded_state_name', $assignedDedStateName);
+                                $selectedDedDistrictId = old('ded_district_id', $assignedDedDistrictId);
+                                $selectedDedDistrictName = old('ded_district_name', $assignedDedDistrictName);
+                                $dedRoleId = optional($roles->firstWhere('key', 'ded'))->id;
+                                $showDedDistrict = $dedRoleId && in_array($dedRoleId, (array) $currentRoleIds);
+                            @endphp
+                            <div id="dedDistrictField" class="row g-2 mt-2 {{ $showDedDistrict ? '' : 'd-none' }}">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" for="dedStateId">DED State</label>
+                                    <select
+                                        id="dedStateId"
+                                        name="ded_state_id"
+                                        class="form-select @error('ded_state_id') is-invalid @enderror js-no-searchable-select"
+                                        @disabled($hasAssignedAdminRole)
+                                    >
+                                        <option value="">Select state</option>
+                                        @foreach ($states as $state)
+                                            <option value="{{ $state->id }}" @selected((string) $selectedDedStateId === (string) $state->id)>
+                                                {{ $state->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <input type="hidden" id="dedStateName" name="ded_state_name" value="{{ $selectedDedStateName }}">
+                                    @error('ded_state_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" for="dedDistrictId">DED District <span class="text-danger">*</span></label>
+                                    <select
+                                        id="dedDistrictId"
+                                        name="ded_district_id"
+                                        class="form-select @error('ded_district_id') is-invalid @enderror js-no-searchable-select"
+                                        @disabled($hasAssignedAdminRole)
+                                    >
+                                        <option value="">Select district</option>
+                                        @foreach ($assignedDedDistricts as $district)
+                                            @php
+                                                $districtName = $district->district_name ?? $district->name;
+                                                $districtId = $district->district_id ?? null;
+                                            @endphp
+                                            <option
+                                                value="{{ $districtId ?: $district->id }}"
+                                                data-district-name="{{ $districtName }}"
+                                                @selected((string) $selectedDedDistrictName === (string) $districtName || (string) $selectedDedDistrictId === (string) $districtId)
+                                            >
+                                                {{ $district->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <input type="hidden" id="dedDistrictName" name="ded_district_name" value="{{ $selectedDedDistrictName }}">
+                                    @error('ded_district_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-text">Only districts currently used by users, circles, or DED assignments are shown for the selected state.</div>
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="dedDistrictId">DED District <span class="text-danger">*</span></label>
-                                <select
-                                    id="dedDistrictId"
-                                    name="ded_district_id"
-                                    class="form-select @error('ded_district_id') is-invalid @enderror js-no-searchable-select"
-                                    @disabled($hasAssignedAdminRole)
-                                >
-                                    <option value="">Select district</option>
-                                    @foreach ($assignedDedDistricts as $district)
-                                        @php
-                                            $districtName = $district->district_name ?? $district->name;
-                                            $districtId = $district->district_id ?? null;
-                                        @endphp
-                                        <option
-                                            value="{{ $districtId ?: $district->id }}"
-                                            data-district-name="{{ $districtName }}"
-                                            @selected((string) $selectedDedDistrictName === (string) $districtName || (string) $selectedDedDistrictId === (string) $districtId)
-                                        >
-                                            {{ $district->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                <input type="hidden" id="dedDistrictName" name="ded_district_name" value="{{ $selectedDedDistrictName }}">
-                                @error('ded_district_id')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="col-12">
-                                <div class="form-text">Only districts currently used by users, circles, or DED assignments are shown for the selected state.</div>
-                            </div>
-                        </div>
 
-                        @if ($hasAssignedAdminRole)
-                            <div class="form-text text-muted">
-                                Remove the existing admin role to assign a new one.
-                            </div>
-                        @endif
-                        
-                        <div id="industry-director-industry-group" class="row g-3 mt-2 d-none">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="industry-director-industry">Industry <span class="text-danger">*</span></label>
-                                <select id="industry-director-industry" name="industry_id" class="form-select @error('industry_id') is-invalid @enderror">
-                                    <option value="">Select industry</option>
-                                    @foreach ($industries as $industry)
-                                        <option value="{{ $industry->id }}" @selected((string) $currentIndustryId === (string) $industry->id)>
-                                            {{ $industry->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('industry_id')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                                <div class="form-text text-muted">Required only when Industry Director is selected.</div>
+                            @if ($hasAssignedAdminRole)
+                                <div class="form-text text-muted">
+                                    Remove the existing admin role to assign a new one.
+                                </div>
+                            @endif
+                            
+                            <div id="industry-director-industry-group" class="row g-3 mt-2 d-none">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" for="industry-director-industry">Industry <span class="text-danger">*</span></label>
+                                    <select id="industry-director-industry" name="industry_id" class="form-select @error('industry_id') is-invalid @enderror">
+                                        <option value="">Select industry</option>
+                                        @foreach ($industries as $industry)
+                                            <option value="{{ $industry->id }}" @selected((string) $currentIndustryId === (string) $industry->id)>
+                                                {{ $industry->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('industry_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                    <div class="form-text text-muted">Required only when Industry Director is selected.</div>
+                                </div>
                             </div>
                         </div>
                     </div>

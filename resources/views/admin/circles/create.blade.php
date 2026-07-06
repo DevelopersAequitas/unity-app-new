@@ -90,55 +90,7 @@
                 </button>
             </li>
         </ul>
-<form action="{{ route('admin.circles.store') }}" method="POST">
-    @csrf
 
-    <div class="row g-3">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header fw-semibold">Circle Details</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Name</label>
-                        <input type="text" name="name" class="form-control" value="{{ old('name') }}" required>
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label">Circle Founder</label>
-                        <select name="circle_founder_user_id" class="form-select" required>
-                            <option value="">Select a member</option>
-                            @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>
-                                    {{ $user->adminNameCompanyCityLabel() }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="form-label">Type</label>
-                        <select name="type" class="form-select" required>
-                            <option value="" disabled @selected(old('type') === null)>Select type</option>
-                            @foreach ($types as $type)
-                                <option value="{{ $type }}" @selected(old('type') === $type)>{{ ucfirst($type) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select">
-                            <option value="">Pending (default)</option>
-                            @foreach ($statuses as $status)
-                                <option value="{{ $status }}" @selected(old('status') === $status)>{{ ucfirst($status) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="2">{{ old('description') }}</textarea>
-                    </div>
 
         <form action="{{ route('admin.circles.store') }}" method="POST" class="p-4">
             @csrf
@@ -154,7 +106,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Circle Founder</label>
-                            <select name="founder_user_id" class="form-select" required>
+                            <select name="circle_founder_user_id" class="form-select" required>
                                 <option value="">Select a member</option>
                                 @foreach ($allUsers as $user)
                                     <option value="{{ $user->id }}" @selected((string) $founderId === (string) $user->id)>
@@ -231,18 +183,18 @@
                 <div class="tab-pane fade" id="settings" role="tabpanel" aria-labelledby="settings-tab">
                     <h5 class="form-section-title"><i class="bi bi-shield-lock text-primary me-2"></i>Leadership Assignments</h5>
                     <div class="row g-3 mb-4">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-semibold">Director</label>
-                            <select name="director_user_id" class="form-select">
+                            <select name="circle_director_user_id" class="form-select">
                                 <option value="">Select director</option>
                                 @foreach ($allUsers as $user)
-                                    <option value="{{ $user->id }}" @selected((string) old('director_user_id') === (string) $user->id)>
+                                    <option value="{{ $user->id }}" @selected((string) old('circle_director_user_id') === (string) $user->id)>
                                         {{ $user->adminNameCompanyCityLabel() }}
                                     </option>
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-semibold">Industry Director</label>
                             <select name="industry_director_user_id" class="form-select">
                                 <option value="">Select industry director</option>
@@ -253,7 +205,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-semibold">DED</label>
                             <select name="ded_user_id" class="form-select">
                                 <option value="">Select DED</option>
@@ -268,6 +220,26 @@
                                         }
                                     @endphp
                                     <option value="{{ $user->id }}" @selected((string) old('ded_user_id') === (string) $user->id)>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">EED</label>
+                            <select name="eed_user_id" class="form-select">
+                                <option value="">Select EED</option>
+                                @foreach ($allUsers as $user)
+                                    @php
+                                        $label = trim((string) ($user->display_name ?? ''));
+                                        if ($label === '') {
+                                            $label = trim(trim((string) ($user->first_name ?? '')) . ' ' . trim((string) ($user->last_name ?? '')));
+                                        }
+                                        if ($label === '') {
+                                            $label = (string) ($user->email ?? 'User');
+                                        }
+                                    @endphp
+                                    <option value="{{ $user->id }}" @selected((string) old('eed_user_id') === (string) $user->id)>
                                         {{ $label }}
                                     </option>
                                 @endforeach
@@ -300,16 +272,6 @@
                             <label class="form-label fw-semibold">Derived Country</label>
                             <input type="text" class="form-control bg-light" value="{{ old('country', $selectedCountry) }}" readonly>
                         </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Circle Director</label>
-                        <select name="circle_director_user_id" class="form-select">
-                            <option value="">Select circle director</option>
-                            @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected((string) old('circle_director_user_id') === (string) $user->id)>
-                                    {{ $user->adminNameCompanyCityLabel() }}
-                                </option>
-                            @endforeach
-                        </select>
                     </div>
 
                     <h5 class="form-section-title"><i class="bi bi-sliders text-primary me-2"></i>Meeting Settings</h5>
@@ -360,27 +322,6 @@
                             <a href="{{ route('admin.circles.index') }}" class="btn btn-outline-danger">Cancel</a>
                             <button type="submit" class="btn btn-success px-4">Create Circle</button>
                         </div>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label">EED</label>
-                        <select name="eed_user_id" class="form-select">
-                            <option value="">Select EED</option>
-                            @foreach ($allUsers as $user)
-                                @php
-                                    $label = trim((string) ($user->display_name ?? ''));
-                                    if ($label === '') {
-                                        $label = trim(trim((string) ($user->first_name ?? '')) . ' ' . trim((string) ($user->last_name ?? '')));
-                                    }
-                                    if ($label === '') {
-                                        $label = (string) ($user->email ?? 'User');
-                                    }
-                                @endphp
-                                <option value="{{ $user->id }}" @selected((string) old('eed_user_id') === (string) $user->id)>
-                                    {{ $label }}
-                                </option>
-                            @endforeach
-                        </select>
                     </div>
                 </div>
             </div>

@@ -350,12 +350,12 @@ class ReferralReportController extends Controller
     {
         return implode(",\n", [
             'rd.referrer_user_id',
-            $this->referrerNameExpression() . ' as referrer_name',
-            $this->referrerEmailSummaryExpression() . ' as referrer_email',
-            $this->userTextColumn('referrer', 'phone') . ' as referrer_phone',
-            $this->userTextColumn('referrer', 'company_name') . ' as referrer_company',
-            $this->userTextColumn('referrer', 'city') . ' as referrer_city',
-            $this->referralCodesAggregateExpression() . ' as referral_codes',
+            $this->referrerNameExpression().' as referrer_name',
+            $this->referrerEmailSummaryExpression().' as referrer_email',
+            $this->userTextColumn('referrer', 'phone').' as referrer_phone',
+            $this->userTextColumn('referrer', 'company_name').' as referrer_company',
+            $this->userTextColumn('referrer', 'city').' as referrer_city',
+            $this->referralCodesAggregateExpression().' as referral_codes',
             $this->referrerNameExpression().' as referrer_name',
             $this->referrerEmailSummaryExpression().' as referrer_email',
             $this->userTextColumn('referrer', 'phone').' as referrer_phone',

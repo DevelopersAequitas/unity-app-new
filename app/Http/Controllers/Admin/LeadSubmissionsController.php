@@ -282,3 +282,4 @@ class LeadSubmissionsController extends Controller
         return $resources[$key];
     }
 }
+// Cleaned up syntax

@@ -4,11 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\CircleCategory;
 use App\Models\User;
-use Laravel\Sanctum\Sanctum;
-use Tests\TestCase;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
 
 class CircleCategoryApiTest extends TestCase
 {
@@ -81,11 +81,11 @@ class CircleCategoryApiTest extends TestCase
                         'level',
                         'sort_order',
                         'is_active',
-                    ]
-                ]
-            ]
+                    ],
+                ],
+            ],
         ]);
-        
+
         $this->assertCount(1, $response->json('data.items'));
         $this->assertEquals('Manufacturing & Engineering Circles', $response->json('data.items.0.name'));
     }

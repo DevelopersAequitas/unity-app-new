@@ -34,6 +34,7 @@ class AccountDeletionController extends Controller
         // This handles rows where user_id is NULL but the email column is populated.
         $requests->getCollection()->transform(function ($req) {
             $req->linked_user = $req->resolveLinkedUser();
+
             return $req;
         });
 

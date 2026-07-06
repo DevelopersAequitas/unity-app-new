@@ -201,11 +201,11 @@ class CircleMemberDashboardService
         if (Schema::hasTable($visitorTable)) {
             $visitorQuery = VisitorRegistration::query()->where(function ($q) {
                 $q->where('status', 'pending')
-                  ->orWhereNull('status');
+                    ->orWhereNull('status');
             });
             $visitorQuery->where(function ($q) use ($allowedUserIds, $user, $visitorTable) {
                 $q->whereIn("{$visitorTable}.user_id", $allowedUserIds)
-                  ->orWhere("{$visitorTable}.user_id", $user->id);
+                    ->orWhere("{$visitorTable}.user_id", $user->id);
             });
             $visitorRegistrationsCount = $visitorQuery->count();
         }
@@ -317,7 +317,7 @@ class CircleMemberDashboardService
             $activityCounts['visitors'] = VisitorRegistration::query()
                 ->where(function ($q) use ($allowedUserIds, $user) {
                     $q->whereIn('user_id', $allowedUserIds)
-                      ->orWhere('user_id', $user->id);
+                        ->orWhere('user_id', $user->id);
                 })
                 ->count();
         }

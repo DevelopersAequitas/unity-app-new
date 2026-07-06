@@ -118,7 +118,7 @@ class LoginHistoryController extends Controller
                 });
             })
             ->when($companyInput !== '', function ($query) use ($companyInput, $hasUsersCompany, $hasUsersBusinessName) {
-                $like = '%' . $companyInput . '%';
+                $like = '%'.$companyInput.'%';
                 $query->where(function ($innerQuery) use ($like, $hasUsersCompany, $hasUsersBusinessName) {
                     $innerQuery->where('users.company_name', 'ilike', $like);
                     if ($hasUsersCompany) {
@@ -130,7 +130,7 @@ class LoginHistoryController extends Controller
                 });
             })
             ->when($cityInput !== '', function ($query) use ($cityInput) {
-                $like = '%' . $cityInput . '%';
+                $like = '%'.$cityInput.'%';
                 $query->where(function ($innerQuery) use ($like) {
                     $innerQuery->where('users.city', 'ilike', $like)
                         ->orWhere('cities.name', 'ilike', $like);
@@ -188,3 +188,4 @@ class LoginHistoryController extends Controller
         ]);
     }
 }
+// Cleaned up syntax
