@@ -97,10 +97,20 @@ class UsersValidationTest extends TestCase
         Schema::dropIfExists('users');
         Schema::dropIfExists('admin_audit_logs');
         Schema::dropIfExists('cities');
+        Schema::dropIfExists('circles');
 
         Schema::create('cities', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name');
+            $table->timestamps();
+        });
+
+        Schema::create('circles', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->string('zoho_addon_code')->nullable();
+            $table->string('zoho_addon_name')->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
 
@@ -179,6 +189,12 @@ class UsersValidationTest extends TestCase
             $table->timestamps();
             $table->softDeletes();
         });
+    }
+
+    public function test_admin_can_view_user_create_page(): void
+    {
+        $response = $this->get(route('admin.users.create'));
+        $response->assertStatus(200);
     }
 
     public function test_admin_user_creation_fails_when_required_fields_are_empty(): void

@@ -114,7 +114,7 @@ class CirclePeersController extends Controller
             ->orderByRaw("{$nameExpr} ASC")
             ->paginate($perPage, ['*'], 'page', $page);
 
-        $results = collect($rows->items())->map(function ($row) use ($duplicateNames) {
+        $results = collect($rows->items())->map(function ($row) {
             $name = trim((string) $row->name);
             $company = trim((string) $row->company);
             $city = trim((string) $row->city);
@@ -122,12 +122,15 @@ class CirclePeersController extends Controller
             $circleName = trim((string) $row->circle);
 
             $text = $name;
-            if (isset($duplicateNames[$name])) {
-                if ($company !== '') {
-                    $text .= " ({$company})";
-                } elseif ($city !== '') {
-                    $text .= " ({$city})";
-                }
+            $meta = [];
+            if ($city !== '') {
+                $meta[] = $city;
+            }
+            if ($company !== '') {
+                $meta[] = $company;
+            }
+            if (! empty($meta)) {
+                $text .= ' ('.implode(', ', $meta).')';
             }
 
             return [
