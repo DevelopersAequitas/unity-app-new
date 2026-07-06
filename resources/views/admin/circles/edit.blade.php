@@ -233,14 +233,6 @@
                         <button type="button" class="btn btn-primary" onclick="switchTab('leadership-tab')">
                             Next: Leadership & Location <i class="bi bi-arrow-right ms-1"></i>
                         </button>
-                    <div class="col-md-4">
-                        <label class="form-label">Circle Director</label>
-                        <select name="circle_director_user_id" class="form-select">
-                            <option value="">Select circle director</option>
-                            @foreach ($allUsers as $user)
-                                <option value="{{ $user->id }}" @selected(old('circle_director_user_id', $circle->circle_director_user_id) === $user->id)>{{ $user->adminNameCompanyCityLabel() }}</option>
-                            @endforeach
-                        </select>
                     </div>
                 </div>
 

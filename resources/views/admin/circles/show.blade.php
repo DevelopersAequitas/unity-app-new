@@ -22,6 +22,8 @@
     </div>
 </div>
 
+<div id="js-alert-container"></div>
+
 @if (session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
 @endif
@@ -570,6 +572,21 @@
         const CIRCLE_ID = @json($circle->id ?? null);
         const jQuery = window.jQuery || window.$;
 
+        // Check for pending success messages from AJAX peer addition
+        if (jQuery) {
+            const pendingSuccessMsg = sessionStorage.getItem('circle_member_success');
+            if (pendingSuccessMsg) {
+                const successAlertHtml = `
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        ${pendingSuccessMsg}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+                jQuery('#js-alert-container').html(successAlertHtml);
+                sessionStorage.removeItem('circle_member_success');
+            }
+        }
+
         if (jQuery && jQuery('#peer_select').length && jQuery.fn.select2) {
             jQuery('#peer_select').select2({
                 width: '100%',
@@ -625,6 +642,7 @@
                     data: data,
                     dataType: 'json',
                     success: function (res) {
+                        sessionStorage.setItem('circle_member_success', res.message || 'Member added to the circle.');
                         window.location.reload();
                     },
                     error: function (xhr) {

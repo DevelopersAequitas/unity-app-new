@@ -305,12 +305,13 @@
                                             </div>
                                         @endforeach
                                     </div>
-                            </td>
-                            <td>{{ optional($circle->created_at)->format('d-m-Y') ?? '—' }}</td>
-                            <td class="text-end">
-                                <div class="d-inline-flex gap-1">
-                                    <a class="btn btn-sm btn-light" href="{{ route('admin.circles.show', $circle) }}">View</a>
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete-circle" data-url="{{ route('admin.circles.destroy', $circle) }}" data-id="{{ $circle->id }}" data-name="{{ $circle->name }}" data-members="{{ $circle->members_count ?? 0 }}">Delete</button>
+                                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                                        <span class="text-muted small">Created At: {{ optional($circle->created_at)->format('d-m-Y') ?? '—' }}</span>
+                                        <div class="d-inline-flex gap-1">
+                                            <a class="btn btn-sm btn-light" href="{{ route('admin.circles.show', $circle) }}">View</a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger btn-delete-circle" data-url="{{ route('admin.circles.destroy', $circle) }}" data-id="{{ $circle->id }}" data-name="{{ $circle->name }}" data-members="{{ $circle->members_count ?? 0 }}">Delete</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </td>

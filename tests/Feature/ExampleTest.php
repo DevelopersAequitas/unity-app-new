@@ -168,7 +168,7 @@ class ExampleTest extends TestCase
 
     public function test_store_post_request_validation(): void
     {
-        $request = new \App\Http\Requests\Post\StorePostRequest();
+        $request = new \App\Http\Requests\Post\StorePostRequest;
         $rules = $request->rules();
 
         $validator = \Illuminate\Support\Facades\Validator::make([
