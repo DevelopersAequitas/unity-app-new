@@ -21,7 +21,7 @@ jobs:
           host: ${{ secrets.QA_SSH_HOST }}
           username: ${{ secrets.QA_SSH_USER }}
           key: ${{ secrets.QA_SSH_KEY }}
-          port: ${{ secrets.QA_SSH_PORT || 22 }}
+          port: ${{ secrets.QA_SSH_PORT }}
           script_stop: true
           script: |
             cd ${{ secrets.QA_DEPLOY_PATH }}
