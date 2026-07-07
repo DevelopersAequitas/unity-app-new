@@ -33,6 +33,9 @@ class PushTokenController extends BaseApiController
                     ->where(UserPushToken::getUserIdColumn(), '!=', $user->id)
                     ->delete();
             }
+            UserPushToken::where('token', $token)
+                ->where(UserPushToken::getUserIdColumn(), '!=', $user->id)
+                ->delete();
 
             if (filled($validated['device_id'] ?? null)) {
                 UserPushToken::where('device_id', $validated['device_id'])
