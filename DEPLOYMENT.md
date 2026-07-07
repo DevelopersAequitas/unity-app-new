@@ -26,7 +26,6 @@ composer install \
     --prefer-dist \
     --optimize-autoloader \
     --no-interaction
-php artisan migrate --force
 php artisan optimize:clear
 php artisan config:cache
 php artisan route:cache
@@ -106,7 +105,6 @@ git fetch origin
 git checkout develop
 git reset --hard origin/develop
 composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
-php artisan migrate --force
 php artisan optimize:clear
 php artisan config:cache
 php artisan route:cache
