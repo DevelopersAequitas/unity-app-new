@@ -13,7 +13,7 @@ class SyncPaidMembershipPayments extends Command
 {
     protected $signature = 'membership:sync-paid-payments {--dry-run : Show matching rows without updating users} {--limit=500 : Maximum payments to scan}';
 
-    protected $description = 'Upgrade users to Only Green Peer for already-paid local Zoho membership payments.';
+    protected $description = 'Upgrade users to Only Unity Peer for already-paid local Zoho membership payments.';
 
     public function handle(MembershipUpgradeService $membershipUpgradeService): int
     {

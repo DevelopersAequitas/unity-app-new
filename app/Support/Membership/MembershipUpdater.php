@@ -16,7 +16,7 @@ class MembershipUpdater
         'charter',
         'suspended',
         'free_peer',
-        'Only Green Peer',
+        'Only Unity Peer',
         'Circle Peer',
         'Multi Circle Peer',
         'Charter Peer',
@@ -90,11 +90,11 @@ class MembershipUpdater
     private function resolveMembershipStatusFromPlanCode(string $planCode): string
     {
         return match (strtolower(trim($planCode))) {
-            '01', '012', 'unity_peer', 'only_unity_peer', 'only unity peer', 'green_peer', 'only_green_peer', 'only green peer' => 'Only Green Peer',
+            '01', '012', 'unity_peer', 'only_unity_peer', 'only unity peer', 'green_peer', 'only_green_peer', 'only green peer' => 'Only Unity Peer',
             '013', 'circle_peer' => 'Circle Peer',
             '014', 'multi_circle_peer' => 'Multi Circle Peer',
             '015', 'charter_peer' => 'Charter Peer',
-            default => 'Only Green Peer',
+            default => 'Only Unity Peer',
         };
     }
 

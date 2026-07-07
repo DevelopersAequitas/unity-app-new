@@ -576,7 +576,7 @@
 
     <div class="card shadow-sm">
         <div class="table-responsive">
-            <table class="table mb-0 align-middle">
+            <table class="table table-premium mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
                         <th style="width:40px">
@@ -595,7 +595,7 @@
                         <th>Status</th>
                         <th class="text-end">Actions</th>
                     </tr>
-                    <tr>
+                    <tr class="bg-light filter-row">
                         <th></th>
                         <th>
                             <input type="text" name="visitor_name" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Name" value="{{ $filters['visitor_name'] }}">
@@ -626,7 +626,7 @@
                             <input type="text" name="visitor_city" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor City" value="{{ $filters['visitor_city'] }}">
                         </th>
                         <th>
-                            <select name="status" form="visitorRegistrationsFiltersForm" class="form-select form-select-sm">
+                            <select name="status" form="visitorRegistrationsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
                                 <option value="all" @selected($filters['status'] === 'all')>All</option>
                                 <option value="pending" @selected($filters['status'] === 'pending')>Pending</option>
                                 <option value="approved" @selected($filters['status'] === 'approved')>Approved</option>
@@ -659,12 +659,7 @@
                             <td>{{ $registration->visitor_business ?? '—' }}</td>
                             <td>{{ $formatDateTime($registration->created_at ?? null) }}</td>
                             <td>
-                                <div class="d-flex flex-column">
-                                    <div class="fw-semibold">{{ $memberName }}</div>
-                                    <div class="text-muted small">{{ $memberCompany }}</div>
-                                    <div class="text-muted small">{{ $memberCity }}</div>
-                                    <div class="text-muted small">{{ $memberCircle }}</div>
-                                </div>
+                                @include('admin.partials.peer_identity', ['user' => $member, 'circleName' => $memberCircle])
                             </td>
                             <td>{{ $member->phone ?? '—' }}</td>
                             <td>{{ ucfirst($registration->event_type ?? '—') }}</td>

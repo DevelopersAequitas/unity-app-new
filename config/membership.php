@@ -4,7 +4,7 @@ return [
     'statuses' => [
         'free_trial_peer',
         'free_peer',
-        'Only Green Peer',
+        'Only Unity Peer',
         'Circle Peer',
         'Multi Circle Peer',
         'Charter Peer',

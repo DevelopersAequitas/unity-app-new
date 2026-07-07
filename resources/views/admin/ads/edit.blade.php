@@ -40,5 +40,14 @@
             </div>
         </form>
     </div>
+    <a href="{{ route('admin.ads.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back to Ads
+    </a>
 </div>
+
+<form method="POST" action="{{ route('admin.ads.update', $ad) }}" enctype="multipart/form-data">
+    @csrf
+    @method('PUT')
+    @include('admin.ads._form')
+</form>
 @endsection

@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\ReferralReportController;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 use ReflectionMethod;
+use ReflectionMethod;
+use Tests\TestCase;
 
 class ReferralReportQueryTest extends TestCase
 {
@@ -19,6 +21,11 @@ class ReferralReportQueryTest extends TestCase
         $method = new ReflectionMethod(ReferralReportController::class, 'summaryQuery');
         $method->setAccessible(true);
         
+        $controller = new ReferralReportController;
+
+        $method = new ReflectionMethod(ReferralReportController::class, 'summaryQuery');
+        $method->setAccessible(true);
+
         $query = $method->invoke($controller, [
             'per_page' => 20,
             'sort' => 'last_referral_date',
@@ -27,6 +34,9 @@ class ReferralReportQueryTest extends TestCase
         
         $sql = $query->toSql();
         
+
+        $sql = $query->toSql();
+
         // Assert that referrer_city is selected
         $this->assertStringContainsString('referrer_city', $sql);
         // Assert that referrer.city is in the GROUP BY clause

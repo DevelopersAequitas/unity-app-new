@@ -56,7 +56,7 @@ class VisitorRegistrationsController extends Controller
             if ($status === 'pending') {
                 $query->where(function ($q) {
                     $q->where('status', 'pending')
-                      ->orWhereNull('status');
+                        ->orWhereNull('status');
                 });
             } else {
                 $query->where('status', $status);
@@ -279,7 +279,7 @@ class VisitorRegistrationsController extends Controller
             if ($status === 'pending') {
                 $query->where(function ($q) {
                     $q->where('status', 'pending')
-                      ->orWhereNull('status');
+                        ->orWhereNull('status');
                 });
             } else {
                 $query->where('status', $status);

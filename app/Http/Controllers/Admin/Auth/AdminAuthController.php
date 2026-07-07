@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminLoginOtp;
 use App\Models\AdminUser;
 use App\Models\CircleMember;
-use App\Models\EmailLog;
 use App\Models\IndustryDirectorAssignment;
 use App\Models\Role;
 use App\Models\User;
@@ -116,23 +115,6 @@ class AdminAuthController extends Controller
                 ->withInput(['email' => $email])
                 ->withErrors(['email' => 'Failed to send OTP: '.$exception->getMessage()]);
         }
-        Mail::raw(
-            "Your admin login OTP is {$otp}. It expires in 5 minutes.",
-            static function ($message) use ($email): void {
-                $message->to($email)->subject('Your Admin Login OTP');
-            }
-        );
-
-        EmailLog::query()->create([
-            'id' => (string) Str::uuid(),
-            'to_email' => $email,
-            'subject' => 'Your Admin Login OTP',
-            'template_key' => 'admin_login_otp',
-            'source_module' => 'Authentication',
-            'status' => 'Sent',
-            'sent_at' => now(),
-            'created_at' => now(),
-        ]);
 
         $request->session()->forget('errors');
         $request->session()->put('admin_login_email', $email);

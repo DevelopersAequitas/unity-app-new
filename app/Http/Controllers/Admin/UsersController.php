@@ -1490,7 +1490,6 @@ class UsersController extends Controller
             return back()->with('warning', 'Selected peer is not eligible for membership approval.');
         }
 
-        return back()->with('success', 'Peer approved successfully as Only Green Peer. Membership valid until '.$endDate->toDateString().'.');
         $this->sendMembershipApprovalNotifications(User::query()->whereKey($user->getKey())->get(), $startDate, $endDate, true, $this->normalizeMembershipApprovalAttachments($validated['attachments'] ?? []));
 
         return back()->with('success', 'Peer approved successfully as Only Unity Peer. Membership valid until '.$endDate->toDateString().'.');
@@ -1546,7 +1545,6 @@ class UsersController extends Controller
             return $this->approveEligibleUsers($users, $startDate, $endDate, $adminId ? (string) $adminId : null);
         });
 
-        return back()->with('success', "Approved {$result['approved_count']} peers as Only Green Peer. Skipped {$result['skipped_count']} non-eligible peers.");
         $this->sendMembershipApprovalNotifications(
             User::query()->whereIn('id', $userIds->all())->get(),
             $startDate,
@@ -1555,7 +1553,7 @@ class UsersController extends Controller
             $this->normalizeMembershipApprovalAttachments($validated['attachments'] ?? [])
         );
 
-        $message = $result['approved_count'].' selected peers approved and upgraded successfully.';
+        $message = "Approved {$result['approved_count']} peers as Only Unity Peer. Skipped {$result['skipped_count']} non-eligible peers.";
 
         if ($request->expectsJson() || $request->wantsJson()) {
             return response()->json([
@@ -2495,9 +2493,8 @@ class UsersController extends Controller
 
     private function approvedMembershipStatus(): string
     {
-        // Database enum membership_status_enum includes 'Only Green Peer'.
-        // Manual SQL: ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'Only Green Peer';
-        return 'Only Green Peer';
+        // Database enum membership_status_enum includes 'Only Unity Peer'.
+        return 'Only Unity Peer';
     }
 
     private function parseJoinedFilterDate(?string $value): ?Carbon

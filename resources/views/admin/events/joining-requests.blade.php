@@ -596,7 +596,7 @@
             </div>
             <div class="col-md-3">
                 <label class="form-label small text-muted">Event</label>
-                <select class="form-select" name="event_id">
+                <select class="form-select js-no-searchable-select" name="event_id">
                     <option value="">All Events</option>
                     @foreach($events as $event)
                         <option value="{{ $event->id }}" @selected(request('event_id') === $event->id)>{{ $event->title }}</option>
@@ -622,9 +622,9 @@
         </div>
     </form>
 
-    <div class="card">
+    <div class="card-activities-wrapper">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-premium mb-0 align-middle">
                 <thead>
                     <tr>
                         <th>Requested By</th>
@@ -649,11 +649,7 @@
                     @endphp
                     <tr>
                         <td>
-                            <div class="fw-semibold">{{ $user?->display_name ?: trim(($user?->first_name ?? '').' '.($user?->last_name ?? '')) ?: '-' }}</div>
-                            <div class="small text-muted">{{ $user?->email ?? '-' }}</div>
-                            <div class="small text-muted">{{ $user?->phone ?? '-' }}</div>
-                            @if($user?->company_name)<div class="small text-muted">{{ $user->company_name }}</div>@endif
-                            @if($userCircle)<span class="badge bg-light text-dark border mt-1">{{ $userCircle->name }}</span>@endif
+                            @include('admin.partials.peer_identity', ['user' => $user, 'circleName' => $userCircle?->name])
                         </td>
                         <td>
                             <div class="fw-semibold">{{ $event?->title ?? '-' }}</div>

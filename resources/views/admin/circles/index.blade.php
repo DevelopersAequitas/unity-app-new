@@ -217,6 +217,15 @@
                             @endif
                         </td>
                         <td>
+                            @if ($circle->city_name)
+                                <span class="text-dark d-inline-flex align-items-center gap-1 text-nowrap" style="font-size: 0.85rem;">
+                                    <i class="bi bi-geo-alt text-muted small"></i>{{ $circle->city_name }}
+                                </span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
                             @if ($circle->type)
                                 <span class="badge-type-custom text-uppercase">
                                     {{ $circle->type }}
@@ -248,6 +257,11 @@
                                 <span class="badge-status-inactive">
                                     <span class="status-pulse-dot"></span>{{ ucfirst($circle->status ?? 'Inactive') }}
                                 </span>
+                                </span>
+                            @else
+                                <span class="badge-status-inactive">
+                                    <span class="status-pulse-dot"></span>{{ ucfirst($circle->status ?? 'Inactive') }}
+                                </span>
                             @endif
                         </td>
                         <td class="text-end" style="padding-right: 20px !important;">
@@ -256,6 +270,7 @@
                                     <i class="bi bi-pencil"></i>Edit
                                 </a>
                                 <button class="btn btn-outline-primary btn-action-custom btn-details-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ $detailsId }}" aria-expanded="false" aria-controls="{{ $detailsId }}">
+                                <button class="btn btn-outline-primary btn-action-custom btn-details-toggle" type="button" data-bs-target="#{{ $detailsId }}" aria-expanded="false" aria-controls="{{ $detailsId }}">
                                     Details<i class="bi bi-chevron-down details-chevron ms-1"></i>
                                 </button>
                             </div>
@@ -441,6 +456,25 @@
                 });
             });
         }
+
+        // Handle details toggle manual fallback to ensure it opens and closes properly
+        document.querySelectorAll('.btn-details-toggle').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('data-bs-target');
+                const target = document.querySelector(targetId);
+                if (target) {
+                    const isVisible = target.classList.contains('show');
+                    if (isVisible) {
+                        target.classList.remove('show');
+                        this.setAttribute('aria-expanded', 'false');
+                    } else {
+                        target.classList.add('show');
+                        this.setAttribute('aria-expanded', 'true');
+                    }
+                }
+            });
+        });
     });
 
     function confirmDeleteCircle(actionUrl, circleName) {
