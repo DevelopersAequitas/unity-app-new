@@ -37,6 +37,15 @@
             color: #fff;
             font-size: 2rem;
         }
+        .list-group-item-action.active {
+            background-color: var(--primary-subtle) !important;
+            border-color: var(--border) !important;
+            color: var(--text-primary) !important;
+            border-left: 4px solid var(--primary) !important;
+        }
+        .list-group-item-action.active .text-white-50 {
+            color: var(--text-muted) !important;
+        }
     </style>
 @endpush
 

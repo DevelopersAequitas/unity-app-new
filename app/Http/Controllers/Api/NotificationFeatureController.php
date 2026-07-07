@@ -29,10 +29,6 @@ class NotificationFeatureController extends BaseApiController
         return $this->success(null, 'Latest newsletter retrieved successfully.');
     }
 
-    public function circleCategories(Request $request): JsonResponse
-    {
-        return $this->success(null, 'Circle categories retrieved successfully.');
-    }
 
     public function activeLifeImpactCycle(Request $request): JsonResponse
     {

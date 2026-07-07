@@ -43,6 +43,7 @@ class CircleController extends Controller
         $status = trim((string) $request->query('status', ''));
         $circleStage = trim((string) $request->query('circle_stage', ''));
         $rank = trim((string) $request->query('rank', ''));
+        $peers = trim((string) $request->query('peers', ''));
 
         $filters = [
             'circle_name' => trim((string) $request->query('circle_name', '')),
@@ -62,6 +63,7 @@ class CircleController extends Controller
             'status' => $status,
             'circle_stage' => $circleStage,
             'rank' => $rank,
+            'peers' => $peers,
         ];
 
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
@@ -208,7 +210,30 @@ class CircleController extends Controller
             $this->applyUserNameFilter($query, 'ded', $filters['ded']);
         }
 
+        if ($filters['peers'] !== '') {
+            $input = $filters['peers'];
+            if (preg_match('/^([<>]=?|=)\s*(\d+)$/', $input, $matches)) {
+                $operator = $matches[1];
+                $value = (int) $matches[2];
+                $query->has('members', $operator, $value);
+            } elseif (preg_match('/^(\d+)\s*-\s*(\d+)$/', $input, $matches)) {
+                $min = (int) $matches[1];
+                $max = (int) $matches[2];
+                $query->has('members', '>=', $min)->has('members', '<=', $max);
+            } elseif (ctype_digit($input)) {
+                $query->has('members', '>=', (int) $input);
+            }
+        }
+
         $circles = $query
+            ->with([
+                'founder:id,display_name,first_name,last_name',
+                'director:id,display_name,first_name,last_name',
+                'ded:id,display_name,first_name,last_name',
+                'industryDirector:id,display_name,first_name,last_name',
+                'city:id,name',
+            ])
+            ->withCount('members')
             ->orderByDesc('circles.created_at')
             ->paginate(20)
             ->appends($request->query());

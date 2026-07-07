@@ -3,14 +3,21 @@
 @section('title', 'P2P Meetings')
 
 @section('content')
-    <style>
-        .peer-name {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-    </style>
     @php
+        $getInitials = function($name) {
+            $words = explode(' ', trim($name));
+            $initials = '';
+            foreach ($words as $w) {
+                if(!empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+            }
+            return substr($initials, 0, 2) ?: 'P';
+        };
+        $getAvatarBg = function($name) {
+            $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+            $hash = crc32($name);
+            return $colors[abs($hash) % count($colors)];
+        };
+
         $displayName = function (?string $display, ?string $first, ?string $last): string {
             if ($display) {
                 return $display;
@@ -26,184 +33,258 @@
         $formatDate = function ($value): string {
             return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '—';
         };
-
-        $mediaSummary = function ($media): array {
-            if (! $media) {
-                return ['has' => false, 'count' => 0];
-            }
-
-            $decoded = is_string($media) ? json_decode($media, true) : $media;
-
-            if (is_array($decoded)) {
-                $count = count($decoded);
-                return ['has' => $count > 0, 'count' => $count];
-            }
-
-            return ['has' => true, 'count' => 1];
-        };
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <h1 class="h4 mb-0">P2P Meetings</h1>
-        <div class="d-flex gap-2 align-items-center">
-            <span class="badge bg-light text-dark border">Total Meetings: {{ number_format($total) }}</span>
+    <!-- Header Component -->
+    @include('admin.activities.partials.header', ['title' => 'P2P Meetings'])
+
+    <!-- Metrics Cards -->
+    <div class="activities-stats-grid">
+        <div class="activity-metric-card">
+            <div class="metric-icon bg-primary-subtle text-primary">
+                <i class="bi bi-people-fill"></i>
+            </div>
+            <div class="metric-val">{{ number_format($total) }}</div>
+            <div class="metric-label">Total Meetings</div>
+        </div>
+
+        <div class="activity-metric-card">
+            <div class="metric-icon bg-warning-subtle text-warning-emphasis">
+                <i class="bi bi-star-fill"></i>
+            </div>
+            <div class="metric-val">
+                @if(($topMembers ?? collect())->isNotEmpty())
+                    {{ $topMembers->first()->total_count ?? 0 }}
+                @else
+                    0
+                @endif
+            </div>
+            <div class="metric-label">Most Meetings by One Peer</div>
+        </div>
+
+        <div class="activity-metric-card">
+            <div class="metric-icon bg-success-subtle text-success">
+                <i class="bi bi-images"></i>
+            </div>
+            <div class="metric-val">
+                {{ number_format($items->filter(function($m) {
+                    $media = $m->media_reference ?? null;
+                    if (is_string($media)) {
+                        $trim = trim($media);
+                        return ($trim !== '' && $trim !== 'null' && $trim !== '[]' && $trim !== '{}');
+                    } elseif (is_array($media)) {
+                        return count($media) > 0;
+                    }
+                    return !is_null($media);
+                })->count()) }}
+            </div>
+            <div class="metric-label">Meetings with Media (Page)</div>
         </div>
     </div>
 
+    <!-- Filters Section -->
     <form id="p2pMeetingsFiltersForm" method="GET" action="{{ route('admin.activities.p2p-meetings.index') }}">
-    @include('admin.components.activity-filter-bar-v2', [
-        'actionUrl' => route('admin.activities.p2p-meetings.index'),
-        'resetUrl' => route('admin.activities.p2p-meetings.index'),
-        'filters' => $filters,
-        'circles' => $circles ?? collect(),
-        'showExport' => true,
-        'exportUrl' => route('admin.activities.p2p-meetings.export', request()->query()),
-        'renderFormTag' => false,
-        'formId' => 'p2pMeetingsFiltersForm',
-    ])
+        @include('admin.components.activity-filter-bar-v2', [
+            'actionUrl' => route('admin.activities.p2p-meetings.index'),
+            'resetUrl' => route('admin.activities.p2p-meetings.index'),
+            'filters' => $filters,
+            'circles' => $circles ?? collect(),
+            'showExport' => true,
+            'exportUrl' => route('admin.activities.p2p-meetings.export', request()->query()),
+            'renderFormTag' => false,
+            'formId' => 'p2pMeetingsFiltersForm',
+        ])
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-white">
-            <strong>Top 5 Peers</strong>
+        <!-- Top 5 & All logs row -->
+        <div class="row g-3 mb-4">
+            <!-- Top 5 Peers -->
+            <div class="col-12">
+                <div class="card-activities-wrapper h-100">
+                    <div class="card-header bg-white">
+                        <span class="fw-bold text-dark"><i class="bi bi-trophy-fill text-warning me-2"></i>Top 5 Peers</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-premium align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 70px;">Rank</th>
+                                    <th>Peer Name</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($topMembers as $index => $member)
+                                    <tr>
+                                        <td>#{{ $index + 1 }}</td>
+                                        <td>
+                                            <div class="peer-badge-wrapper">
+                                                <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($member->peer_name ?? '') }}">
+                                                    {{ $getInitials($member->peer_name ?? '') }}
+                                                </div>
+                                                <div class="peer-badge-info">
+                                                    <div class="peer-badge-name">{{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
+                                                    <div class="peer-badge-meta">
+                                                        @if($member->peer_company) <span>{{ $member->peer_company }}</span> @endif
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="text-end fw-bold text-primary">{{ $member->total_count ?? 0 }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted py-4">No data available.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- All Logs -->
+            <div class="col-12">
+                <div class="card-activities-wrapper">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-dark"><i class="bi bi-people text-primary me-2"></i>P2P Meetings Log</span>
+                        <span class="badge bg-light text-dark border">Page count: {{ number_format(count($items)) }}</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-premium align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Meeting Info</th>
+                                    <th>Remarks</th>
+                                    <th>Media</th>
+                                    <th>Created At</th>
+                                </tr>
+                                <tr class="bg-light filter-row">
+                                    <th><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="form-control form-control-sm"></th>
+                                    <th><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To name" class="form-control form-control-sm"></th>
+                                    <th>
+                                        <input type="date" name="meeting_date" value="{{ $filters['meeting_date'] ?? '' }}" class="form-control form-control-sm mb-1" placeholder="Date">
+                                        <input type="text" name="meeting_place" value="{{ $filters['meeting_place'] ?? '' }}" placeholder="Place" class="form-control form-control-sm">
+                                    </th>
+                                    <th><input type="text" name="remarks" value="{{ $filters['remarks'] ?? '' }}" placeholder="Remarks" class="form-control form-control-sm"></th>
+                                    <th>
+                                        <select name="has_media" class="form-select form-select-sm js-no-searchable-select">
+                                            <option value="">Any</option>
+                                            <option value="yes" @selected(($filters['has_media'] ?? '') === 'yes')>Yes</option>
+                                            <option value="no" @selected(($filters['has_media'] ?? '') === 'no')>No</option>
+                                        </select>
+                                    </th>
+                                    <th class="text-end">
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <button type="submit" class="btn btn-primary btn-sm px-3">Apply</button>
+                                            <a href="{{ route('admin.activities.p2p-meetings.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($items as $meeting)
+                                    @php
+                                        $mediaValue = $meeting->media_reference ?? null;
+                                        $hasMedia = false;
+
+                                        if (is_string($mediaValue)) {
+                                            $trim = trim($mediaValue);
+                                            $hasMedia = ($trim !== '' && $trim !== 'null' && $trim !== '[]' && $trim !== '{}');
+                                        } elseif (is_array($mediaValue)) {
+                                            $hasMedia = count($mediaValue) > 0;
+                                        } elseif (! is_null($mediaValue)) {
+                                            $hasMedia = true;
+                                        }
+
+                                        $actorName = $displayName($meeting->actor_display_name ?? null, $meeting->actor_first_name ?? null, $meeting->actor_last_name ?? null);
+                                        $peerName = $displayName($meeting->peer_display_name ?? null, $meeting->peer_first_name ?? null, $meeting->peer_last_name ?? null);
+
+                                        $fromName = $meeting->from_user_name ?? $actorName;
+                                        $toName = $meeting->to_user_name ?? $peerName;
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <div class="peer-badge-wrapper">
+                                                <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($fromName) }}">
+                                                    {{ $getInitials($fromName) }}
+                                                </div>
+                                                <div class="peer-badge-info">
+                                                    <div class="peer-badge-name">{{ $fromName }}</div>
+                                                    <div class="peer-badge-meta">
+                                                        @if($meeting->from_company) <span>{{ $meeting->from_company }}</span> @endif
+                                                        @if($meeting->from_city) &bull; <span>{{ $meeting->from_city }}</span> @endif
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="peer-badge-wrapper">
+                                                <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($toName) }}">
+                                                    {{ $getInitials($toName) }}
+                                                </div>
+                                                <div class="peer-badge-info">
+                                                    <div class="peer-badge-name">{{ $toName }}</div>
+                                                    <div class="peer-badge-meta">
+                                                        @if($meeting->to_company) <span>{{ $meeting->to_company }}</span> @endif
+                                                        @if($meeting->to_city) &bull; <span>{{ $meeting->to_city }}</span> @endif
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if($meeting->meeting_date)
+                                                <div class="fw-semibold text-dark small"><i class="bi bi-calendar-check me-1 text-muted"></i>{{ $formatDate($meeting->meeting_date) }}</div>
+                                            @endif
+                                            <div class="small text-muted mt-1"><i class="bi bi-geo-alt me-1 text-muted"></i>{{ $meeting->meeting_place ?? '—' }}</div>
+                                        </td>
+                                        <td>
+                                            <div class="text-truncate-multi text-secondary small" style="max-width: 180px;" title="{{ $meeting->remarks }}">
+                                                {{ $meeting->remarks ?? '—' }}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if ($hasMedia)
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                                    <i class="bi bi-paperclip me-1"></i>Yes
+                                                </span>
+                                                <button type="button" class="btn btn-xs btn-outline-primary ms-1" style="font-size: 0.72rem; padding: 2px 6px;" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $meeting->id }}">View</button>
+                                                <script type="application/json" id="media-json-{{ $meeting->id }}">{{ e(json_encode(is_string($meeting->media_reference ?? null) ? json_decode($meeting->media_reference ?? '[]', true) : ($meeting->media_reference ?? []))) }}</script>
+                                            @else
+                                                <span class="text-muted small">No Media</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <span class="small text-muted">{{ $formatDateTime($meeting->created_at ?? null) }}</span>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">No meetings found.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="table-responsive">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Rank</th>
-                        <th>Peer Name</th>
-                        <th>Total Meetings</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($topMembers as $index => $member)
-                        <tr>
-                            <td>{{ $index + 1 }}</td>
-                            <td>
-                                @include('admin.components.peer-card', [
-                                    'name' => $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null),
-                                    'company' => $member->peer_company ?? '',
-                                    'city' => $member->peer_city ?? '',
-                                    'maxWidth' => 260,
-                                ])
-                            </td>
-                            <td>{{ $member->total_count ?? 0 }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="3" class="text-center text-muted">No data available.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>From</th>
-                        <th>To</th>
-                        <th>Meeting Date</th>
-                        <th>Meeting Place</th>
-                        <th>Remarks</th>
-                        <th>Media</th>
-                        <th>Created At</th>
-                    </tr>
-                    <tr>
-                        <th><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To" class="form-control form-control-sm"></th>
-                        <th><input type="date" name="meeting_date" value="{{ $filters['meeting_date'] ?? '' }}" class="form-control form-control-sm" placeholder="dd-mm-yyyy"></th>
-                        <th><input type="text" name="meeting_place" value="{{ $filters['meeting_place'] ?? '' }}" placeholder="Meeting Place" class="form-control form-control-sm"></th>
-                        <th><input type="text" name="remarks" value="{{ $filters['remarks'] ?? '' }}" placeholder="Remarks" class="form-control form-control-sm"></th>
-                        <th>
-                            <select name="has_media" class="form-select form-select-sm">
-                                <option value="">Any</option>
-                                <option value="yes" @selected(($filters['has_media'] ?? '') === 'yes')>Yes</option>
-                                <option value="no" @selected(($filters['has_media'] ?? '') === 'no')>No</option>
-                            </select>
-                        </th>
-                        <th>
-                            <div class="d-flex justify-content-end gap-2">
-                                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
-                                <a href="{{ route('admin.activities.p2p-meetings.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($items as $meeting)
-                        @php
-                            $mediaValue = $meeting->media_reference ?? null;
-                            $hasMedia = false;
-
-                            if (is_string($mediaValue)) {
-                                $trim = trim($mediaValue);
-                                $hasMedia = ($trim !== '' && $trim !== 'null' && $trim !== '[]' && $trim !== '{}');
-                            } elseif (is_array($mediaValue)) {
-                                $hasMedia = count($mediaValue) > 0;
-                            } elseif (! is_null($mediaValue)) {
-                                $hasMedia = true;
-                            }
-
-                            $actorName = $displayName($meeting->actor_display_name ?? null, $meeting->actor_first_name ?? null, $meeting->actor_last_name ?? null);
-                            $peerName = $displayName($meeting->peer_display_name ?? null, $meeting->peer_first_name ?? null, $meeting->peer_last_name ?? null);
-                        @endphp
-                        <tr>
-                            <td>
-                                @include('admin.components.peer-card', [
-                                    'name' => $meeting->from_user_name ?? $actorName,
-                                    'company' => $meeting->from_company ?? '',
-                                    'city' => $meeting->from_city ?? '',
-                                ])
-                            </td>
-                            <td>
-                                @include('admin.components.peer-card', [
-                                    'name' => $meeting->to_user_name ?? $peerName,
-                                    'company' => $meeting->to_company ?? '',
-                                    'city' => $meeting->to_city ?? '',
-                                ])
-                            </td>
-                            <td>{{ $formatDate($meeting->meeting_date ?? null) }}</td>
-                            <td>{{ $meeting->meeting_place ?? '—' }}</td>
-                            <td class="text-muted">{{ $meeting->remarks ?? '—' }}</td>
-                            <td>
-                                @if ($hasMedia)
-                                    <span class="badge bg-success">Yes</span>
-                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $meeting->id }}">View</button>
-                                    <script type="application/json" id="media-json-{{ $meeting->id }}">{{ e(json_encode(is_string($meeting->media_reference ?? null) ? json_decode($meeting->media_reference ?? '[]', true) : ($meeting->media_reference ?? []))) }}</script>
-                                @else
-                                    <span class="text-muted">No</span>
-                                @endif
-                            </td>
-                            <td>{{ $formatDateTime($meeting->created_at ?? null) }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="text-center text-muted">No meetings found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
     </form>
 
     <div class="mt-3">
         {{ $items->links() }}
     </div>
 
+    <!-- Media Viewer Modal -->
     <div class="modal fade" id="mediaViewerModal" tabindex="-1" aria-labelledby="mediaViewerModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content shadow-lg border-0">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="mediaViewerModalLabel">Media</h5>
+                    <h5 class="modal-title fw-bold text-dark" id="mediaViewerModalLabel"><i class="bi bi-images me-2 text-primary"></i>Media Preview</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body" data-media-container>
+                <div class="modal-body bg-light" data-media-container>
                     <p class="text-muted mb-0">No media available.</p>
                 </div>
             </div>
@@ -230,7 +311,7 @@
                 container.innerHTML = '';
 
                 if (!Array.isArray(items) || items.length === 0) {
-                    container.innerHTML = '<p class="text-muted mb-0">No media available.</p>';
+                    container.innerHTML = '<p class="text-muted mb-0 py-4 text-center">No media available.</p>';
                     return;
                 }
 
@@ -252,14 +333,14 @@
                     }
 
                     const wrapper = document.createElement('div');
-                    wrapper.classList.add('border', 'rounded', 'p-2', 'mb-3');
+                    wrapper.classList.add('card', 'p-3', 'mb-3', 'border-0', 'shadow-sm');
 
                     const link = document.createElement('a');
                     link.href = url;
                     link.target = '_blank';
                     link.rel = 'noopener';
-                    link.textContent = `Media ${index + 1}`;
-                    link.classList.add('d-block', 'mb-2');
+                    link.textContent = `Open File Reference ${index + 1}`;
+                    link.classList.add('btn', 'btn-sm', 'btn-outline-primary', 'd-inline-block', 'mb-3', 'align-self-start');
 
                     wrapper.appendChild(link);
 
@@ -267,9 +348,9 @@
                         const img = document.createElement('img');
                         img.src = url;
                         img.alt = `Media ${index + 1}`;
-                        img.classList.add('img-thumbnail');
-                        img.style.maxWidth = '200px';
-                        img.style.maxHeight = '200px';
+                        img.classList.add('img-fluid', 'rounded', 'border');
+                        img.style.maxHeight = '400px';
+                        img.style.objectFit = 'contain';
                         wrapper.appendChild(img);
                     }
 

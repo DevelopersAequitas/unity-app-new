@@ -64,7 +64,7 @@
     <div class="dashboard-header p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <div class="badge bg-white text-primary mb-2 fw-semibold px-3 py-1.5 rounded-pill">Circle Dashboard</div>
-            <h2 class="mb-1 fw-bold text-white">Welcome back, {{ $data['user']->display_name }}</h2>
+            <h2 class="mb-1 fw-bold text-white">Welcome back, {{ $data['user']?->display_name ?? (auth('admin')->user()->name ?? 'Guest') }}</h2>
             <p class="mb-0 text-white-50">Here is a scoped overview of your circles, peers, and pending approvals.</p>
         </div>
         <div class="d-flex gap-2">
@@ -369,32 +369,34 @@
                                 </thead>
                                 <tbody>
                                     @foreach($data['recentPeers'] as $peerMember)
-                                        <tr>
-                                            <td>
-                                                <div class="d-flex align-items-center">
-                                                    @if($peerMember->user->profile_photo_url)
-                                                        <img src="{{ $peerMember->user->profile_photo_url }}" alt="avatar" class="peer-avatar me-2">
-                                                    @else
-                                                        <div class="peer-avatar bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold me-2" style="font-size:0.8rem;">
-                                                            {{ strtoupper(substr($peerMember->user->first_name ?? 'P', 0, 1)) }}{{ strtoupper(substr($peerMember->user->last_name ?? '', 0, 1)) }}
+                                        @if($peerMember->user)
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        @if($peerMember->user->profile_photo_url)
+                                                            <img src="{{ $peerMember->user->profile_photo_url }}" alt="avatar" class="peer-avatar me-2">
+                                                        @else
+                                                            <div class="peer-avatar bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold me-2" style="font-size:0.8rem;">
+                                                                {{ strtoupper(substr($peerMember->user->first_name ?? 'P', 0, 1)) }}{{ strtoupper(substr($peerMember->user->last_name ?? '', 0, 1)) }}
+                                                            </div>
+                                                        @endif
+                                                        <div>
+                                                            <div class="fw-semibold text-dark fs-7">{{ $peerMember->user->display_name }}</div>
+                                                            <div class="text-muted fs-8">{{ $peerMember->user->email }}</div>
                                                         </div>
-                                                    @endif
-                                                    <div>
-                                                        <div class="fw-semibold text-dark fs-7">{{ $peerMember->user->display_name }}</div>
-                                                        <div class="text-muted fs-8">{{ $peerMember->user->email }}</div>
                                                     </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span class="text-dark fs-7">{{ $peerMember->circle->name ?? 'N/A' }}</span>
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-light text-secondary text-capitalize fw-semibold px-2 py-1 fs-8">{{ str_replace('_', ' ', $peerMember->role) }}</span>
-                                            </td>
-                                            <td class="text-muted fs-8">
-                                                {{ $peerMember->joined_at ? $peerMember->joined_at->format('Y-m-d') : 'N/A' }}
-                                            </td>
-                                        </tr>
+                                                </td>
+                                                <td>
+                                                    <span class="text-dark fs-7">{{ $peerMember->circle->name ?? 'N/A' }}</span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-light text-secondary text-capitalize fw-semibold px-2 py-1 fs-8">{{ str_replace('_', ' ', $peerMember->role) }}</span>
+                                                </td>
+                                                <td class="text-muted fs-8">
+                                                    {{ $peerMember->joined_at ? $peerMember->joined_at->format('Y-m-d') : 'N/A' }}
+                                                </td>
+                                            </tr>
+                                        @endif
                                     @endforeach
                                 </tbody>
                             </table>
@@ -514,10 +516,10 @@
                                         <tr>
                                             <td>
                                                 <div class="fw-semibold text-dark fs-7">
-                                                    {{ $leftMember->user->display_name ?? '—' }}
+                                                    {{ $leftMember->user?->display_name ?? '—' }}
                                                 </div>
                                                 <div class="text-muted fs-8">
-                                                    {{ $leftMember->user->email ?? '—' }}
+                                                    {{ $leftMember->user?->email ?? '—' }}
                                                 </div>
                                             </td>
                                             <td>

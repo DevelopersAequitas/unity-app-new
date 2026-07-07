@@ -48,7 +48,7 @@
             <form method="GET" action="{{ route('admin.certifications.index') }}" class="row g-3 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label small text-muted">Status</label>
-                    <select name="status" class="form-select form-select-sm">
+                    <select name="status" class="form-select form-select-sm js-no-searchable-select">
                         <option value="">All</option>
                         @foreach (['new' => 'New', 'approved' => 'Approved', 'rejected' => 'Rejected'] as $value => $label)
                             <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
@@ -57,7 +57,7 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small text-muted">Type</label>
-                    <select name="type" class="form-select form-select-sm">
+                    <select name="type" class="form-select form-select-sm js-no-searchable-select">
                         <option value="">All</option>
                         @foreach (['leadership' => 'Leadership', 'entrepreneur' => 'Entrepreneur'] as $value => $label)
                             <option value="{{ $value }}" @selected(($filters['type'] ?? '') === $value)>{{ $label }}</option>
@@ -76,9 +76,9 @@
         </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card-activities-wrapper">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-premium mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
                         <th>Type</th>

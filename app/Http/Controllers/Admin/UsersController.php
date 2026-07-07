@@ -464,6 +464,7 @@ class UsersController extends Controller
             'greenpreneur_goals' => $request->input('greenpreneur_goals', []),
             'community_directory_listing' => $request->input('community_directory_listing', $user->community_directory_listing ?? 'No'),
         ]);
+        $request->merge($this->normalizedAdminCircleDateInputs($request));
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $adminRoles = Role::query()
             ->whereIn('key', $adminRoleKeys)
@@ -790,8 +791,7 @@ class UsersController extends Controller
                         'user_id' => $user->id,
                         'circle_id' => $selectedCircleId,
                     ]);
-                    $shouldApplySelectedCircleDates = ! $isAddingAdditionalCircle
-                        && (! $memberRecord->exists || $memberRecord->trashed());
+                    $shouldApplySelectedCircleDates = true;
 
                     $membershipAttributes = $this->circleMembershipAttributes(
                         $request,
@@ -1722,11 +1722,11 @@ class UsersController extends Controller
 
         $joinedAt = $this->parseAdminDate(
             (string) $request->input('circle_joined_date', $request->input('circle_joined_at'))
-        ) ?? now()->startOfDay();
+        ) ?? $membership->joined_at ?? now()->startOfDay();
         $expiresAt = $this->parseAdminDate(
             (string) $request->input('circle_expiry_date', $request->input('circle_expires_at')),
             true
-        ) ?? $joinedAt->copy()->addYear()->endOfDay();
+        ) ?? $membership->expires_at ?? $joinedAt->copy()->addYear()->endOfDay();
 
         if (Schema::hasColumn('circle_members', 'joined_at')) {
             $attributes['joined_at'] = $joinedAt;
@@ -1935,7 +1935,7 @@ class UsersController extends Controller
             $circleId = (string) $circleId;
         }
         $membership = $request->input('membership_status');
-        $phone = $request->input('phone');
+        $phone = null;
         $joinedFilter = (string) $request->input('joined_filter', 'all');
         $joinedFrom = (string) $request->input('joined_from', '');
         $joinedTo = (string) $request->input('joined_to', '');
@@ -2897,3 +2897,4 @@ class UsersController extends Controller
         };
     }
 }
+// Cleaned up syntax

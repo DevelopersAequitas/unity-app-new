@@ -151,6 +151,31 @@ class CircleMemberDashboardTest extends TestCase
         $response->assertSee('Test Circle Alpha');
     }
 
+    public function test_dashboard_does_not_crash_when_app_user_does_not_exist(): void
+    {
+        // Ensure the role exists in the database
+        $chairRole = $this->createRole('chair', 'Chair');
+
+        // Create the admin user but NO matching User in the database
+        $admin = AdminUser::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Orphan Admin',
+            'email' => 'orphan.admin@example.com',
+        ]);
+
+        // Attach role to admin user
+        $admin->roles()->attach($chairRole->id);
+
+        // Access the dashboard
+        $response = $this->actingAs($admin, 'admin')
+            ->get(route('admin.circle-member.dashboard'));
+
+        // Assert success and that it uses the admin user's name as fallback
+        $response->assertStatus(200);
+        $response->assertSee('Orphan Admin');
+        $response->assertSee('Circle Dashboard');
+    }
+
     public function test_founder_defaults_to_first_circle_and_conditional_dropdown(): void
     {
         $founderRole = $this->createRole('founder', 'Founder');

@@ -321,7 +321,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/insights/industry', [NotificationFeatureController::class, 'industryInsight']);
         Route::get('/rewards/store/items', [NotificationFeatureController::class, 'rewardItems']);
         Route::get('/newsletter/latest', [NotificationFeatureController::class, 'latestNewsletter']);
-        Route::get('/circle-categories', [NotificationFeatureController::class, 'circleCategories']);
+
         Route::get('/life-impact/cycles/active', [NotificationFeatureController::class, 'activeLifeImpactCycle']);
     });
 
@@ -377,7 +377,7 @@ Route::prefix('v1')->group(function () {
 
         // Members & connections
         Route::get('members/names', [MemberController::class, 'names']);
-        Route::get('members/limited', [MemberController::class, 'limited']);
+        Route::get('members/limited', [MemberController::class, 'limitedPaginated']);
 
         Route::get('/members/profile/{slug}', [MemberController::class, 'publicProfileBySlug']);
         Route::get('/members/public/{slug}', [MemberController::class, 'publicProfileBySlug']);

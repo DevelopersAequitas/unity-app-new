@@ -38,7 +38,7 @@ class AdminCircleScope
             $request->attributes->set('ded_district_name', AdminAccess::assignedDedDistrictName($admin));
 
             $routeName = $request->route()?->getName() ?? '';
-            $allowedPrefixes = ['admin.ded.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.circles.', 'admin.events.', 'admin.event-joining-requests.'];
+            $allowedPrefixes = ['admin.ded.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.circles.', 'admin.events.', 'admin.event-joining-requests.', 'admin.event-scan-credentials.'];
             $allowedRoutes = ['admin.logout', 'admin.files.upload', 'admin.impacts.pending', 'admin.impacts.show', 'admin.impacts.approve', 'admin.impacts.reject', 'admin.impacts.export.csv'];
 
             if (in_array($routeName, ['admin.dashboard', 'admin.home'], true)) {
@@ -67,7 +67,7 @@ class AdminCircleScope
                 return redirect()->route('admin.circle-member.dashboard');
             }
 
-            if (Str::startsWith($routeName, 'admin.circles.')) {
+            if (Str::startsWith($routeName, 'admin.circles.') && ! Str::startsWith($routeName, 'admin.circles.members.') && $routeName !== 'admin.circles.peer-options') {
                 return redirect()->route('admin.users.index');
             }
 

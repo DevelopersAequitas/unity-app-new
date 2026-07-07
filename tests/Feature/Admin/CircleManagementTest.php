@@ -135,11 +135,11 @@ class CircleManagementTest extends TestCase
         // Verify active options are disambiguated with company in parentheses since name is duplicate
         $activeOption = collect($results)->firstWhere('id', $activeUser->id);
         $this->assertNotNull($activeOption);
-        $this->assertEquals('Active NonMember (Aequitas Infortech)', $activeOption['text']);
+        $this->assertEquals('Active NonMember (Ahmedabad, Aequitas Infortech)', $activeOption['text']);
 
         $dupOption = collect($results)->firstWhere('id', $duplicateUser->id);
         $this->assertNotNull($dupOption);
-        $this->assertEquals('Active NonMember (Aequitas Tech)', $dupOption['text']);
+        $this->assertEquals('Active NonMember (Ahmedabad, Aequitas Tech)', $dupOption['text']);
     }
 
     public function test_cannot_remove_founder_from_circle(): void

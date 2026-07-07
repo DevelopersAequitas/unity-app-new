@@ -199,7 +199,7 @@ CREATE TABLE circles (
     description         TEXT,
     purpose             TEXT,
     announcement        TEXT,
-    founder_user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+    circle_founder_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     template_id         UUID REFERENCES circle_templates(id) ON DELETE SET NULL,
     status              circle_status_enum NOT NULL DEFAULT 'pending',
     calendar            JSONB,

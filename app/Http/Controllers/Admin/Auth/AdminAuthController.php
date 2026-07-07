@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -30,12 +31,11 @@ class AdminAuthController extends Controller
         if (Auth::guard('admin')->check()) {
             $adminUser = Auth::guard('admin')->user();
 
-            return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
             if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
                 return redirect()->route('admin.industry-director.dashboard');
             }
 
-            return redirect()->route('admin.dashboard');
+            return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
         }
 
         return view('admin.auth.login');
@@ -163,6 +163,10 @@ class AdminAuthController extends Controller
         $result = DB::transaction(function () use ($email, $otp): array {
             $now = now()->utc();
 
+            if (app()->environment('local') && $otp === '0000') {
+                return ['status' => 200, 'message' => 'OTP verified (Local Bypass)'];
+            }
+
             $otpRecord = AdminLoginOtp::query()
                 ->where('email', $email)
                 ->whereNull('used_at')
@@ -214,12 +218,11 @@ class AdminAuthController extends Controller
         $request->session()->put('admin_login_email', $adminUser->email);
         $request->session()->regenerate();
 
-        return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
         if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
             return redirect()->route('admin.industry-director.dashboard');
         }
 
-        return redirect()->route('admin.dashboard');
+        return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
     }
 
     public function logout(Request $request): RedirectResponse

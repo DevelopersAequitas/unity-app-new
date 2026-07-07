@@ -22,6 +22,8 @@
     </div>
 </div>
 
+<div id="js-alert-container"></div>
+
 @if (session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
 @endif
@@ -38,9 +40,6 @@
 @endif
 
 @php
-    use Illuminate\Pagination\LengthAwarePaginator;
-    use Illuminate\Pagination\Paginator;
-    use Illuminate\Support\Collection;
 
     $circleCategories = collect();
 
@@ -153,7 +152,7 @@
 
     $membersSource = $peerMembers ?? ($circle->members ?? collect());
 
-    $isPaginator = $membersSource instanceof LengthAwarePaginator
+    $isPaginator = $membersSource instanceof \Illuminate\Pagination\LengthAwarePaginator
         || $membersSource instanceof \Illuminate\Contracts\Pagination\Paginator
         || $membersSource instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
@@ -163,7 +162,7 @@
         $peerCurrentPage = method_exists($peerMembers, 'currentPage') ? $peerMembers->currentPage() : 1;
         $peerHasPagination = true;
     } else {
-        $peerItems = $membersSource instanceof Collection ? $membersSource : collect($membersSource);
+        $peerItems = $membersSource instanceof \Illuminate\Support\Collection ? $membersSource : collect($membersSource);
 
         if ($peerNameFilter !== '' || $peerEmailFilter !== '') {
             $peerItems = $peerItems->filter(function ($membership) use ($peerNameFilter, $peerEmailFilter) {
@@ -193,13 +192,13 @@
         $total = $peerItems->count();
         $itemsForPage = $peerItems->slice(($page - 1) * $perPage, $perPage)->values();
 
-        $peerMembers = new LengthAwarePaginator(
+        $peerMembers = new \Illuminate\Pagination\LengthAwarePaginator(
             $itemsForPage,
             $total,
             $perPage,
             $page,
             [
-                'path' => Paginator::resolveCurrentPath(),
+                'path' => \Illuminate\Pagination\Paginator::resolveCurrentPath(),
                 'query' => request()->query(),
             ]
         );
@@ -573,6 +572,21 @@
         const CIRCLE_ID = @json($circle->id ?? null);
         const jQuery = window.jQuery || window.$;
 
+        // Check for pending success messages from AJAX peer addition
+        if (jQuery) {
+            const pendingSuccessMsg = sessionStorage.getItem('circle_member_success');
+            if (pendingSuccessMsg) {
+                const successAlertHtml = `
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        ${pendingSuccessMsg}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+                jQuery('#js-alert-container').html(successAlertHtml);
+                sessionStorage.removeItem('circle_member_success');
+            }
+        }
+
         if (jQuery && jQuery('#peer_select').length && jQuery.fn.select2) {
             jQuery('#peer_select').select2({
                 width: '100%',
@@ -628,6 +642,7 @@
                     data: data,
                     dataType: 'json',
                     success: function (res) {
+                        sessionStorage.setItem('circle_member_success', res.message || 'Member added to the circle.');
                         window.location.reload();
                     },
                     error: function (xhr) {

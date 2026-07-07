@@ -48,7 +48,7 @@
                 ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications']],
+                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
@@ -60,16 +60,6 @@
                     ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),
-                ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => 'admin.execution.finance'],
-                ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],
-                ['icon' => 'bi-calendar-event', 'label' => 'Events', 'route' => 'admin.execution.events'],
-                ['icon' => 'bi-people-fill', 'label' => 'Referrals & Visitors', 'route' => '#'],
-                ['icon' => 'bi-life-preserver', 'label' => 'Support & Feedback', 'route' => '#'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.execution.communications']],
-                ['icon' => 'bi-bell-fill', 'label' => 'Daily Notification Reminder', 'route' => 'admin.daily-notifications.index'],
-                ['icon' => 'bi-calendar2-week', 'label' => 'Meetings & Warnings', 'route' => 'admin.execution.meetings'],
-                ['icon' => 'bi-shield-lock', 'label' => 'Audit & Compliance', 'route' => 'admin.execution.reports'],
-                ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
             ]);
 
     $fullActivityMenu = [
@@ -79,10 +69,10 @@
         ['label' => 'Referrals', 'route' => 'admin.activities.referrals.index'],
         ['label' => 'P2P Meetings', 'route' => 'admin.activities.p2p-meetings.index'],
         ['label' => 'Business Deals', 'route' => 'admin.activities.business-deals.index'],
-        ['label' => 'Become A Leader', 'route' => 'admin.activities.become-a-leader.index'],
-        ['label' => 'Recommend A Peer', 'route' => 'admin.activities.recommend-peer.index'],
-        ['label' => 'Find & Build Collaborations', 'route' => 'admin.collaborations.index'],
-        ['label' => 'Register A Visitor', 'route' => 'admin.activities.register-visitor.index'],
+        ['label' => 'Leadership Requests', 'route' => 'admin.activities.become-a-leader.index'],
+        ['label' => 'Recommended Peers', 'route' => 'admin.activities.recommend-peer.index'],
+        ['label' => 'Collaborations', 'route' => 'admin.collaborations.index'],
+        ['label' => 'Registered Visitor', 'route' => 'admin.activities.register-visitor.index'],
     ];
 
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
@@ -91,7 +81,7 @@
     $referralReportItem = (! $isCircleCommittee && ! $isIndustryDirector && ($isSuper || $isCircleScoped || $isDed))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
-    $activityExpanded = $isIndustryDirector || $activityActive || ! $isGlobalAdmin;
+    $activityExpanded = $activityActive;
 
     $postsMenu = ($isGlobalAdmin || $isIndustryDirector) ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
@@ -148,11 +138,15 @@
         ['label' => 'Create Campaign', 'route' => 'admin.campaigns.create', 'active_routes' => ['admin.campaigns.create']],
         ['label' => 'Campaign Email Templates', 'route' => 'admin.campaign-email-templates.index', 'active_routes' => ['admin.campaign-email-templates.*']],
         ['label' => 'Pamphlets', 'route' => 'admin.campaign-pamphlets.index', 'active_routes' => ['admin.campaign-pamphlets.*']],
+        ['label' => 'Email Logs', 'route' => 'admin.email-logs.index', 'active_routes' => ['admin.email-logs.*']],
+        ['label' => 'Daily Notification Reminder', 'route' => 'admin.daily-notifications.index', 'active_routes' => ['admin.daily-notifications.*']],
     ];
     $campaignsActive = request()->routeIs('admin.campaigns.*')
         || request()->routeIs('admin.campaign-pamphlets.*')
         || request()->routeIs('admin.campaign-email-templates.*')
-        || request()->routeIs('admin.execution.communications');
+        || request()->routeIs('admin.email-logs.*')
+        || request()->routeIs('admin.execution.communications')
+        || request()->routeIs('admin.daily-notifications.*');
     $notificationsMenu = [
         ['label' => 'Overview', 'route' => 'admin.notifications.dashboard', 'icon' => 'bi-speedometer2', 'active_routes' => ['admin.notifications.dashboard']],
         ['label' => 'Campaigns', 'route' => 'admin.notifications.campaigns', 'icon' => 'bi-megaphone', 'active_routes' => ['admin.notifications.campaigns', 'admin.notifications.campaigns.*']],
@@ -164,10 +158,16 @@
     $notificationsActive = request()->routeIs('admin.notifications.*') || request()->is('admin/notifications*');
     $eventsManagementMenu = [
         ['label' => 'Events', 'route' => 'admin.events.index'],
-        ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
         ['label' => 'Event Scan Credentials', 'route' => 'admin.event-scan-credentials.index'],
+        ['label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
     ];
 
+    $eventsManagementActive = request()->routeIs('admin.events.*');
+    $bottomNavItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) === 'Email Logs'));
+    $bottomNavItems = (! $isCircleScoped && ! $isDed && ! $isIndustryDirector) ? [] : $bottomNavItems;
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Event Gallery'], true)));
+    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-scan-credentials.*') || request()->routeIs('admin.event-gallery.*');
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Gallery'], true)));
     $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*');
     $bottomNavItems = array_map(function ($item) {
         if ($item['label'] === 'Email Logs') {
@@ -195,6 +195,7 @@
 @endphp
 
 <aside class="admin-sidebar d-flex flex-column">
+    {{-- Brand Logo --}}
     <div class="text-center mb-2">
         <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
@@ -370,28 +371,6 @@
             @endforeach
 
 
-            @if (! $isIndustryDirector && ! $isCircleCommittee)
-                <li class="nav-item menu-parent {{ $notificationsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $notificationsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#notificationsSubmenu" role="button" aria-expanded="{{ $notificationsActive ? 'true' : 'false' }}" aria-controls="notificationsSubmenu">
-                        <span><i class="bi bi-bell me-2"></i>Notifications</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
-                    </a>
-                    <div class="collapse {{ $notificationsActive ? 'show' : '' }}" id="notificationsSubmenu">
-                        <div class="sidebar-section-hint">Engagement Tools</div>
-                        <ul class="nav flex-column notifications-submenu">
-                            @foreach ($notificationsMenu as $notificationItem)
-                                @php($notificationItemActive = request()->routeIs(...$notificationItem['active_routes']))
-                                <li class="nav-item">
-                                    <a class="nav-link {{ $notificationItemActive ? 'active' : '' }}" href="{{ route($notificationItem['route']) }}">
-                                        <i class="bi {{ $notificationItem['icon'] }} me-2"></i>
-                                        <span>{{ $notificationItem['label'] }}</span>
-                                    </a>
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </li>
-            @endif
 
             @if ($isGlobalAdmin)
                 <li class="nav-item">
@@ -456,7 +435,7 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu', 'leadsSubmenu', 'campaignsSubmenu', 'notificationsSubmenu', 'eventsManagementSubmenu'].forEach((submenuId) => {
+            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu', 'leadsSubmenu', 'campaignsSubmenu', 'brandPartnersSubmenu', 'eventsManagementSubmenu'].forEach((submenuId) => {
                 const submenu = document.getElementById(submenuId);
                 if (!submenu) {
                     return;

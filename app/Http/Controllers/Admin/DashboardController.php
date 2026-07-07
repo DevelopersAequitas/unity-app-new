@@ -20,71 +20,122 @@ class DashboardController extends Controller
 {
     public function index(): View
     {
-        $today = now();
+        $today = now()->toDateString();
 
-        $totalUsers = $this->safeCountTable('users');
-        $newSignups = ($this->hasTableColumn('users', 'created_at'))
-            ? DB::table('users')->whereDate('created_at', $today->toDateString())->count()
-            : 0;
-        $premiumUpgrades = ($this->hasTableColumn('users', 'membership_status'))
-            ? DB::table('users')->where('membership_status', 'premium')->count()
-            : 0;
+        // ── Users stats: single aggregated query instead of 3 separate round-trips ──
+        $userStats = cache()->remember('admin.dashboard.user_stats', 60, function () use ($today) {
+            if (! Schema::hasTable('users')) {
+                return ['total' => 0, 'today' => 0, 'premium' => 0];
+            }
 
-        $activeCircles = ($this->hasTableColumn('circles', 'status'))
-            ? DB::table('circles')->where('status', 'active')->count()
-            : $this->safeCountTable('circles');
-        $pendingApprovals = ($this->hasTableColumn('circles', 'status'))
-            ? DB::table('circles')->where('status', 'pending')->count()
-            : 0;
+            $hasCreatedAt      = Schema::hasColumn('users', 'created_at');
+            $hasMembershipStatus = Schema::hasColumn('users', 'membership_status');
 
-        $activitiesToday = ($this->hasTableColumn('activities', 'created_at'))
-            ? DB::table('activities')->whereDate('created_at', $today->toDateString())->count()
-            : 0;
+            $row = DB::table('users')
+                ->selectRaw('COUNT(*) as total')
+                ->when($hasCreatedAt, fn ($q) => $q->selectRaw("COUNT(*) FILTER (WHERE DATE(created_at) = ?) as today", [$this->todayDate()]))
+                ->when($hasMembershipStatus, fn ($q) => $q->selectRaw("COUNT(*) FILTER (WHERE membership_status = 'premium') as premium"))
+                ->first();
 
-        $supportRequests = $this->safeCountTable('support_requests');
-        $reportedPosts = $this->safeReportedPostsCount();
-        // $totalContactPosts = ContactPost::count();
-        // $todayContactPosts = ContactPost::whereDate('created_at', $today->toDateString())->count();
-        // $recentContactPosts = ContactPost::latest('created_at')->take(5)->get();
-        $totalContactPosts = 0;
-        $todayContactPosts = 0;
+            return [
+                'total'   => (int) ($row->total ?? 0),
+                'today'   => (int) ($row->today ?? 0),
+                'premium' => (int) ($row->premium ?? 0),
+            ];
+        });
+
+        // ── Circles stats: single aggregated query instead of 2 separate round-trips ──
+        $circleStats = cache()->remember('admin.dashboard.circle_stats', 60, function () {
+            if (! Schema::hasTable('circles')) {
+                return ['active' => 0, 'pending' => 0];
+            }
+
+            if (! Schema::hasColumn('circles', 'status')) {
+                return ['active' => DB::table('circles')->count(), 'pending' => 0];
+            }
+
+            $row = DB::table('circles')
+                ->selectRaw("COUNT(*) FILTER (WHERE status = 'active') as active, COUNT(*) FILTER (WHERE status = 'pending') as pending")
+                ->first();
+
+            return [
+                'active'  => (int) ($row->active ?? 0),
+                'pending' => (int) ($row->pending ?? 0),
+            ];
+        });
+
+        // ── Other stats: cached individually ──
+        $activitiesToday = cache()->remember('admin.dashboard.activities_today', 60, function () use ($today) {
+            return $this->hasTableColumn('activities', 'created_at')
+                ? (int) DB::table('activities')->whereDate('created_at', $today)->count()
+                : 0;
+        });
+
+        $supportRequests  = cache()->remember('admin.dashboard.support_requests', 120, fn () => $this->safeCountTable('support_requests'));
+        $reportedPosts    = cache()->remember('admin.dashboard.reported_posts', 120, fn () => $this->safeReportedPostsCount());
+        $coinsIssued      = cache()->remember('admin.dashboard.coins_issued', 120, fn () => $this->safeCountTable('coin_ledgers'));
+        $walletCollections = cache()->remember('admin.dashboard.wallet_collections', 120, fn () => $this->safeCountTable('wallet_transactions'));
+
+        $totalUsers      = $userStats['total'];
+        $newSignups      = $userStats['today'];
+        $premiumUpgrades = $userStats['premium'];
+        $activeCircles   = $circleStats['active'];
+        $pendingApprovals = $circleStats['pending'];
+
+        $totalContactPosts  = 0;
+        $todayContactPosts  = 0;
         $recentContactPosts = collect();
 
-        $coinsIssued = $this->safeCountTable('coin_ledgers');
-        $walletCollections = $this->safeCountTable('wallet_transactions');
-
         $stats = [
-            'newSignups' => (int) $newSignups,
-            'premiumUpgrades' => (int) $premiumUpgrades,
-            'activeCircles' => (int) $activeCircles,
-            'pendingApprovals' => (int) $pendingApprovals,
-            'coinsIssued' => (int) $coinsIssued,
-            'walletCollections' => (int) $walletCollections,
-            'supportRequests' => (int) $supportRequests,
-            'activitiesToday' => (int) $activitiesToday,
-            'reportedPosts' => (int) $reportedPosts,
+            'newSignups'      => $newSignups,
+            'premiumUpgrades' => $premiumUpgrades,
+            'activeCircles'   => $activeCircles,
+            'pendingApprovals' => $pendingApprovals,
+            'coinsIssued'     => $coinsIssued,
+            'walletCollections' => $walletCollections,
+            'supportRequests' => $supportRequests,
+            'activitiesToday' => $activitiesToday,
+            'reportedPosts'   => $reportedPosts,
             // Legacy keys for existing blade usage
-            'total_users' => (int) $totalUsers,
-            'active_circles' => (int) $activeCircles,
-            'pending_approvals' => (int) $pendingApprovals,
-            'new_signups' => (int) $newSignups,
+            'total_users'     => $totalUsers,
+            'active_circles'  => $activeCircles,
+            'pending_approvals' => $pendingApprovals,
+            'new_signups'     => $newSignups,
         ];
 
         $pendingItems = [
-            ['title' => 'Pending Activities Today', 'count' => (int) $activitiesToday],
-            ['title' => 'Circles Awaiting Review', 'count' => (int) $pendingApprovals],
-            ['title' => 'Reported Posts', 'count' => (int) $reportedPosts],
-            ['title' => 'Support Requests', 'count' => (int) $supportRequests],
+            ['title' => 'Pending Activities Today', 'count' => $activitiesToday],
+            ['title' => 'Circles Awaiting Review',  'count' => $pendingApprovals],
+            ['title' => 'Reported Posts',           'count' => $reportedPosts],
+            ['title' => 'Support Requests',         'count' => $supportRequests],
         ];
 
+        $recentPeers = User::query()
+            ->with(['circleMembers' => function ($query) {
+                $query->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('joined_at')
+                    ->with(['circle:id,name']);
+            }])
+            ->latest('created_at')
+            ->take(5)
+            ->get();
+
         return view('admin.dashboard', [
-            'stats' => $stats,
-            'pendingItems' => $pendingItems,
+            'stats'             => $stats,
+            'pendingItems'      => $pendingItems,
             'totalContactPosts' => $totalContactPosts,
             'todayContactPosts' => $todayContactPosts,
             'recentContactPosts' => $recentContactPosts,
+            'recentPeers'       => $recentPeers,
         ]);
     }
+
+    private function todayDate(): string
+    {
+        return now()->toDateString();
+    }
+
 
     public function ded(Request $request): View
     {

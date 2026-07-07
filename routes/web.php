@@ -442,6 +442,20 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/brand-partners', [BrandPartnerController::class, 'index'])->name('brand-partners.index');
         });
 
+        Route::get('/pending-requests/certifications', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('certifications.index');
+        Route::get('/pending-requests/leads/entrepreneur-certification', [LeadSubmissionsController::class, 'entrepreneurCertification'])->name('leads.entrepreneur-certification.index');
+        Route::get('/pending-requests/leads/entrepreneur-certification/{id}', [LeadSubmissionsController::class, 'entrepreneurCertificationShow'])->name('leads.entrepreneur-certification.show');
+        Route::get('/pending-requests/leads/leadership-certification', [LeadSubmissionsController::class, 'leadershipCertification'])->name('leads.leadership-certification.index');
+        Route::get('/pending-requests/leads/leadership-certification/{id}', [LeadSubmissionsController::class, 'leadershipCertificationShow'])->name('leads.leadership-certification.show');
+        Route::get('/pending-requests/leads/partner-with-us', [LeadSubmissionsController::class, 'partnerWithUs'])->name('leads.partner-with-us.index');
+        Route::get('/pending-requests/leads/partner-with-us/{id}', [LeadSubmissionsController::class, 'partnerWithUsShow'])->name('leads.partner-with-us.show');
+        Route::get('/pending-requests/leads/become-speaker', [LeadSubmissionsController::class, 'becomeSpeaker'])->name('leads.become-speaker.index');
+        Route::get('/pending-requests/leads/become-speaker/{id}', [LeadSubmissionsController::class, 'becomeSpeakerShow'])->name('leads.become-speaker.show');
+        Route::get('/pending-requests/leads/become-mentor', [LeadSubmissionsController::class, 'becomeMentor'])->name('leads.become-mentor.index');
+        Route::get('/pending-requests/leads/become-mentor/{id}', [LeadSubmissionsController::class, 'becomeMentorShow'])->name('leads.become-mentor.show');
+        Route::get('/campaign-email-templates', [CampaignEmailTemplateController::class, 'index'])->name('campaign-email-templates.index');
+        Route::get('/campaign-email-templates/list', [CampaignEmailTemplateController::class, 'list'])->name('campaign-email-templates.list');
+
         Route::middleware('admin.role:global_admin,marketing_team,content_team')->group(function () {
             Route::get('/brand-partners/create', [BrandPartnerController::class, 'create'])->name('brand-partners.create');
             Route::post('/brand-partners', [BrandPartnerController::class, 'store'])->name('brand-partners.store');
@@ -473,6 +487,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::middleware('admin.role:global_admin,analytics_team')->group(function () {
             Route::get('/brand-partners/export', [BrandPartnerController::class, 'export'])->name('brand-partners.export');
         });
+
+        Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
+        Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');
 
         // Wildcard route defined at the bottom to avoid intercepting concrete paths
         Route::middleware('admin.role:global_admin,marketing_team,analytics_team,content_team,read_only')->group(function () {
