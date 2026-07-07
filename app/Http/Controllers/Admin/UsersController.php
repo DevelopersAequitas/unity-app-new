@@ -87,12 +87,33 @@ class UsersController extends Controller
         $q = $filters['search'] ?? '';
         $circleId = $filters['circle_id'] ?? 'all';
 
+        $selectedUser = null;
+        $selectedUserLabel = '';
+        if ($q && \Illuminate\Support\Str::isUuid($q)) {
+            $selectedUser = User::find($q);
+            if ($selectedUser) {
+                $cityName = $selectedUser->city;
+                if (is_object($cityName)) {
+                    $cityName = $cityName->name;
+                }
+                $companyName = $selectedUser->company_name ?? $selectedUser->company ?? '';
+
+                $meta = array_filter([trim((string) $cityName), trim((string) $companyName)]);
+                $selectedUserLabel = $selectedUser->adminDisplayName();
+                if (! empty($meta)) {
+                    $selectedUserLabel .= ' ('.implode(', ', $meta).')';
+                }
+            }
+        }
+
         return view('admin.users.index', [
             'users' => $users,
             'membershipStatuses' => $membershipStatuses,
             'membershipStatusLabels' => $this->membershipFilterOptions(),
             'circles' => $circles,
             'q' => $q,
+            'selectedUser' => $selectedUser,
+            'selectedUserLabel' => $selectedUserLabel,
             'circleId' => $circleId,
             'filters' => $filters,
             'canEditUsers' => $canEditUsers,
@@ -1943,46 +1964,50 @@ class UsersController extends Controller
         $perPage = $request->integer('per_page') ?: 20;
 
         if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $like = "%{$search}%";
+            if (\Illuminate\Support\Str::isUuid($search)) {
+                $query->where('users.id', $search);
+            } else {
+                $query->where(function ($q) use ($search) {
+                    $like = "%{$search}%";
 
-                $searchableColumns = [
-                    'name',
-                    'display_name',
-                    'first_name',
-                    'last_name',
-                    'email',
-                    'company',
-                    'company_name',
-                    'business_name',
-                    'city',
-                    'phone',
-                ];
+                    $searchableColumns = [
+                        'name',
+                        'display_name',
+                        'first_name',
+                        'last_name',
+                        'email',
+                        'company',
+                        'company_name',
+                        'business_name',
+                        'city',
+                        'phone',
+                    ];
 
-                $hasSearchColumn = false;
-                foreach ($searchableColumns as $column) {
-                    if (! Schema::hasColumn('users', $column)) {
-                        continue;
+                    $hasSearchColumn = false;
+                    foreach ($searchableColumns as $column) {
+                        if (! Schema::hasColumn('users', $column)) {
+                            continue;
+                        }
+
+                        if (! $hasSearchColumn) {
+                            $q->where($column, 'ILIKE', $like);
+                            $hasSearchColumn = true;
+
+                            continue;
+                        }
+
+                        $q->orWhere($column, 'ILIKE', $like);
                     }
 
                     if (! $hasSearchColumn) {
-                        $q->where($column, 'ILIKE', $like);
-                        $hasSearchColumn = true;
-
-                        continue;
+                        $q->whereRaw('1=0');
                     }
 
-                    $q->orWhere($column, 'ILIKE', $like);
-                }
-
-                if (! $hasSearchColumn) {
-                    $q->whereRaw('1=0');
-                }
-
-                $q->orWhereHas('city', function ($cityQuery) use ($like) {
-                    $cityQuery->where('name', 'ILIKE', $like);
+                    $q->orWhereHas('city', function ($cityQuery) use ($like) {
+                        $cityQuery->where('name', 'ILIKE', $like);
+                    });
                 });
-            });
+            }
         }
 
         if ($circleId !== '' && $circleId !== 'all') {

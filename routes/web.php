@@ -135,6 +135,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
+        Route::get('/users/search', UserSearchController::class)->name('users.search');
         Route::get('/users/{user}', [UsersController::class, 'show'])->name('users.show');
         Route::post('/users/bulk-approve-membership', [UsersController::class, 'bulkApproveMembership'])->name('users.bulk-approve-membership');
         Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->name('users.approve-membership');
@@ -215,7 +216,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/users/import', [UsersController::class, 'importForm'])->name('users.import');
         Route::post('/users/import', [UsersController::class, 'import'])->name('users.import.submit');
         Route::post('/users/export/csv', [UsersController::class, 'exportCsv'])->name('users.export.csv');
-        Route::get('/users/search', UserSearchController::class)->name('users.search');
 
         Route::get('/circulars', [CircularController::class, 'index'])->name('circulars.index');
         Route::get('/circulars/create', [CircularController::class, 'create'])->name('circulars.create');

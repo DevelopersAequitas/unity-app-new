@@ -75,7 +75,12 @@
         <div class="row g-3 align-items-end">
             <div class="col-12 col-md-6 col-xl-3">
                 <label class="form-label small text-muted" for="peerSearch">Search</label>
-                <input id="peerSearch" type="text" name="q" value="{{ $q ?? '' }}" class="form-control form-control-sm" placeholder="Peer, company, city">
+                <select id="peerSearch" name="q" class="form-select form-select-sm">
+                    <option value="">Peer, company, city</option>
+                    @if($selectedUser)
+                        <option value="{{ $selectedUser->id }}" selected>{{ $selectedUserLabel }}</option>
+                    @endif
+                </select>
             </div>
             <div class="col-12 col-md-6 col-xl-3">
                 <label class="form-label small text-muted" for="circleFilter">Circle</label>
@@ -1559,6 +1564,51 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        if (window.jQuery && window.jQuery.fn.select2) {
+            const $peerSearch = window.jQuery('#peerSearch');
+            $peerSearch.select2({
+                width: '100%',
+                placeholder: 'Peer, company, city',
+                allowClear: true,
+                ajax: {
+                    url: '/admin/users/search',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term || ''
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.map(function (item) {
+                                let text = item.name;
+                                let meta = [];
+                                if (item.city) meta.push(item.city);
+                                if (item.company) meta.push(item.company);
+                                if (meta.length > 0) {
+                                    text += ' (' + meta.join(', ') + ')';
+                                }
+                                return {
+                                    id: item.id,
+                                    text: text
+                                };
+                            })
+                        };
+                    },
+                    cache: true
+                },
+                language: {
+                    noResults: function () {
+                        return "No peers found.";
+                    },
+                    searching: function () {
+                        return "Searching peers...";
+                    }
+                }
+            });
+        }
+
         const selectAll = document.getElementById('selectAllPeers');
         const perPage = document.getElementById('perPage');
         const filterForm = document.getElementById('usersFiltersForm');
