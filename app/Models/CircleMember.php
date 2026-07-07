@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -19,8 +20,11 @@ class CircleMember extends Model
     use SoftDeletes;
 
     public const LEADERSHIP_ROLE_OPTIONS = [
-        'founder',
-        'director',
+        'circle_founder',
+        'circle_director',
+        'industry_director',
+        'ded',
+        'eed',
         'chair',
         'vice_chair',
         'secretary',
@@ -29,8 +33,11 @@ class CircleMember extends Model
 
     public const ROLE_OPTIONS = [
         'member',
-        'founder',
-        'director',
+        'circle_founder',
+        'circle_director',
+        'industry_director',
+        'ded',
+        'eed',
         'chair',
         'vice_chair',
         'secretary',
@@ -125,6 +132,30 @@ class CircleMember extends Model
                 ]);
 
                 throw $exception;
+            }
+        });
+
+        static::saved(function (CircleMember $member): void {
+            $admin = auth('admin')->user();
+            if ($admin) {
+                Cache::forget('admin-access:allowed-users:'.$admin->id);
+                Cache::forget('admin-access:allowed-circles:'.$admin->id);
+                Cache::forget('admin-access:primary-role:'.$admin->id);
+                Cache::forget('admin-access:assigned-circles:'.$admin->id);
+                Cache::forget('admin-access:user:'.$admin->id);
+                Cache::forget('admin-access:roles:'.$admin->id);
+            }
+        });
+
+        static::deleted(function (CircleMember $member): void {
+            $admin = auth('admin')->user();
+            if ($admin) {
+                Cache::forget('admin-access:allowed-users:'.$admin->id);
+                Cache::forget('admin-access:allowed-circles:'.$admin->id);
+                Cache::forget('admin-access:primary-role:'.$admin->id);
+                Cache::forget('admin-access:assigned-circles:'.$admin->id);
+                Cache::forget('admin-access:user:'.$admin->id);
+                Cache::forget('admin-access:roles:'.$admin->id);
             }
         });
     }

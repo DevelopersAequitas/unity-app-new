@@ -34,8 +34,6 @@ class SendUpcomingMembershipExpiryReminders extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return int
      */
     public function handle(): int
     {
@@ -49,7 +47,7 @@ class SendUpcomingMembershipExpiryReminders extends Command
             ->where('membership_ends_at', '<=', today()->addDays(30))
             ->get();
 
-        $this->info('Found ' . $upcomingUsers->count() . ' users approaching membership expiry.');
+        $this->info('Found '.$upcomingUsers->count().' users approaching membership expiry.');
 
         $sentCount = 0;
         $failedCount = 0;
@@ -62,6 +60,7 @@ class SendUpcomingMembershipExpiryReminders extends Command
             // Prevent duplicate emails/notifications within the same scheduled execution
             if ($email === '' || in_array($email, $sentEmails, true)) {
                 $skippedCount++;
+
                 continue;
             }
 

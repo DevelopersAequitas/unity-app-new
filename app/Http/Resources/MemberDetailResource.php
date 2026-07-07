@@ -30,7 +30,6 @@ class MemberDetailResource extends UserResource
         return $data;
     }
 
-
     /**
      * @return array<string, mixed>
      */

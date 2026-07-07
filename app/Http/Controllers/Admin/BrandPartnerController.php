@@ -5,14 +5,15 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BrandPartners\StoreBrandPartnerRequest;
 use App\Http\Requests\Admin\BrandPartners\UpdateBrandPartnerRequest;
+use App\Jobs\SendBulkPartnerNotificationJob;
 use App\Models\BrandPartner;
 use App\Models\BrandPartnerCategory;
-use App\Services\Media\FileUploadService;
 use App\Services\BrandPartners\BrandPartnerAnalyticsService;
-use App\Jobs\SendBulkPartnerNotificationJob;
+use App\Services\Media\FileUploadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -21,8 +22,7 @@ class BrandPartnerController extends Controller
     public function __construct(
         private readonly FileUploadService $fileUploadService,
         private readonly BrandPartnerAnalyticsService $analyticsService
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -40,9 +40,9 @@ class BrandPartnerController extends Controller
         // Search support
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'ILIKE', '%' . $search . '%')
-                  ->orWhere('slug', 'ILIKE', '%' . $search . '%')
-                  ->orWhere('offer_title', 'ILIKE', '%' . $search . '%');
+                $q->where('name', 'ILIKE', '%'.$search.'%')
+                    ->orWhere('slug', 'ILIKE', '%'.$search.'%')
+                    ->orWhere('offer_title', 'ILIKE', '%'.$search.'%');
             });
         }
 
@@ -100,12 +100,12 @@ class BrandPartnerController extends Controller
         // Image uploads reusing existing FileUploadService
         if ($request->hasFile('logo')) {
             $logoModel = $this->fileUploadService->store($request->file('logo'), null);
-            $data['logo'] = $logoModel->s3_key;
+            $data['logo'] = $logoModel->id;
         }
 
         if ($request->hasFile('cover_image')) {
             $coverModel = $this->fileUploadService->store($request->file('cover_image'), null);
-            $data['cover_image'] = $coverModel->s3_key;
+            $data['cover_image'] = $coverModel->id;
         }
 
         // Track who created it
@@ -130,19 +130,20 @@ class BrandPartnerController extends Controller
 
         try {
             $partner = BrandPartner::query()->create($data);
-            
+
             // Dispatch notifications if active
             if ($partner->is_active) {
                 SendBulkPartnerNotificationJob::dispatch($partner, 'joined');
-                if (!empty($partner->offer_title)) {
+                if (! empty($partner->offer_title)) {
                     SendBulkPartnerNotificationJob::dispatch($partner, 'offer');
                 }
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to create brand partner: ' . $e->getMessage());
+            Log::error('Failed to create brand partner: '.$e->getMessage());
+
             return redirect()->back()
                 ->withInput()
-                ->withErrors(['database' => 'Failed to save brand partner. Database error: ' . $e->getMessage()]);
+                ->withErrors(['database' => 'Failed to save brand partner. Database error: '.$e->getMessage()]);
         }
 
         return redirect()->route('admin.brand-partners.index')->with('success', 'Brand partner created successfully.');
@@ -151,6 +152,7 @@ class BrandPartnerController extends Controller
     public function show(BrandPartner $brand_partner): View
     {
         $analytics = $this->analyticsService->getPartnerAnalytics($brand_partner->id);
+
         return view('admin.brand-partners.show', compact('brand_partner', 'analytics'));
     }
 
@@ -173,12 +175,12 @@ class BrandPartnerController extends Controller
         // Image uploads reusing existing FileUploadService
         if ($request->hasFile('logo')) {
             $logoModel = $this->fileUploadService->store($request->file('logo'), null);
-            $data['logo'] = $logoModel->s3_key;
+            $data['logo'] = $logoModel->id;
         }
 
         if ($request->hasFile('cover_image')) {
             $coverModel = $this->fileUploadService->store($request->file('cover_image'), null);
-            $data['cover_image'] = $coverModel->s3_key;
+            $data['cover_image'] = $coverModel->id;
         }
 
         // Track who updated it
@@ -201,23 +203,24 @@ class BrandPartnerController extends Controller
         $data['is_sponsored'] = $request->boolean('is_sponsored', false);
 
         $wasActive = $brand_partner->is_active;
-        $hadOffer = !empty($brand_partner->offer_title);
+        $hadOffer = ! empty($brand_partner->offer_title);
 
         try {
             $brand_partner->update($data);
 
             // Dispatch notifications depending on transitions
-            if (!$wasActive && $brand_partner->is_active) {
+            if (! $wasActive && $brand_partner->is_active) {
                 SendBulkPartnerNotificationJob::dispatch($brand_partner, 'joined');
             }
-            if ($brand_partner->is_active && !$hadOffer && !empty($brand_partner->offer_title)) {
+            if ($brand_partner->is_active && ! $hadOffer && ! empty($brand_partner->offer_title)) {
                 SendBulkPartnerNotificationJob::dispatch($brand_partner, 'offer');
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to update brand partner: ' . $e->getMessage());
+            Log::error('Failed to update brand partner: '.$e->getMessage());
+
             return redirect()->back()
                 ->withInput()
-                ->withErrors(['database' => 'Failed to update brand partner. Database error: ' . $e->getMessage()]);
+                ->withErrors(['database' => 'Failed to update brand partner. Database error: '.$e->getMessage()]);
         }
 
         return redirect()->route('admin.brand-partners.index')->with('success', 'Brand partner updated successfully.');
@@ -233,8 +236,8 @@ class BrandPartnerController extends Controller
     public function duplicate(BrandPartner $brand_partner): RedirectResponse
     {
         $newPartner = $brand_partner->replicate();
-        $newPartner->name = $brand_partner->name . ' (Copy)';
-        $newPartner->slug = $brand_partner->slug . '-' . Str::lower(Str::random(4));
+        $newPartner->name = $brand_partner->name.' (Copy)';
+        $newPartner->slug = $brand_partner->slug.'-'.Str::lower(Str::random(4));
         $newPartner->uuid = (string) Str::uuid();
         $newPartner->is_active = false;
         $newPartner->save();
@@ -311,8 +314,8 @@ class BrandPartnerController extends Controller
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'ILIKE', '%' . $search . '%')
-                  ->orWhere('slug', 'ILIKE', '%' . $search . '%');
+                $q->where('name', 'ILIKE', '%'.$search.'%')
+                    ->orWhere('slug', 'ILIKE', '%'.$search.'%');
             });
         }
 
@@ -341,7 +344,7 @@ class BrandPartnerController extends Controller
         }
 
         // CSV/Excel streamed export
-        $filename = 'brand_partners_export_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'brand_partners_export_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($partners): void {
             $handle = fopen('php://output', 'w');
@@ -380,7 +383,7 @@ class BrandPartnerController extends Controller
 
         if ($index !== false && $index > 0) {
             $previousPartner = $partners->get($index - 1);
-            
+
             $temp = $brand_partner->priority;
             $brand_partner->priority = $previousPartner->priority;
             $previousPartner->priority = $temp;
@@ -425,11 +428,11 @@ class BrandPartnerController extends Controller
 
     public function sendManualNotification(BrandPartner $brand_partner): RedirectResponse
     {
-        if (!$brand_partner->is_active) {
+        if (! $brand_partner->is_active) {
             return redirect()->back()->with('error', 'Cannot send notifications for inactive brand partners.');
         }
 
-        $type = !empty($brand_partner->offer_title) ? 'offer' : 'joined';
+        $type = ! empty($brand_partner->offer_title) ? 'offer' : 'joined';
         SendBulkPartnerNotificationJob::dispatch($brand_partner, $type);
 
         return redirect()->back()->with('success', 'Manual notification broadcast triggered successfully.');

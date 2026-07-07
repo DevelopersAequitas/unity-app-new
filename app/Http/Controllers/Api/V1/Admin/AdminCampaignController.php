@@ -17,14 +17,14 @@ use RuntimeException;
 class AdminCampaignController extends BaseApiController
 {
     private const CAMPAIGN_TYPES = ['email_only', 'notification_only', 'email_and_notification'];
+
     private const AUDIENCE_TYPES = ['all_members', 'city', 'circle', 'company', 'category', 'membership_status', 'specific_members', 'custom_filter'];
 
     public function __construct(
         private readonly CampaignRecipientResolverService $recipientResolver,
         private readonly CampaignSendService $sendService,
         private readonly CampaignEmailTemplateRenderer $emailTemplateRenderer,
-    ) {
-    }
+    ) {}
 
     public function index(): JsonResponse
     {

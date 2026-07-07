@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -22,8 +23,7 @@ class CoinClaimController extends BaseApiController
     public function __construct(
         private readonly CoinClaimActivityRegistry $registry,
         private readonly CoinClaimEmailService $emailService,
-    ) {
-    }
+    ) {}
 
     public function activities(): JsonResponse
     {
@@ -55,7 +55,7 @@ class CoinClaimController extends BaseApiController
 
             foreach ($fieldMap as $fieldKey => $fieldDefinition) {
                 if (($fieldDefinition['type'] ?? null) === 'phone' && isset($normalizedFields[$fieldKey])) {
-                    $normalizedFields[$fieldKey . '_normalized'] = preg_replace('/\D+/', '', (string) $normalizedFields[$fieldKey]);
+                    $normalizedFields[$fieldKey.'_normalized'] = preg_replace('/\D+/', '', (string) $normalizedFields[$fieldKey]);
                 }
 
                 $file = $uploaded[$fieldKey] ?? null;
@@ -112,7 +112,7 @@ class CoinClaimController extends BaseApiController
         ]);
 
         try {
-            $validator = \Illuminate\Support\Facades\Validator::make($request->query(), [
+            $validator = Validator::make($request->query(), [
                 'status' => ['nullable', 'in:pending,approved,rejected'],
                 'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
             ]);
@@ -154,7 +154,7 @@ class CoinClaimController extends BaseApiController
     private function storeClaimFile(UploadedFile $file, string $userId): string
     {
         $disk = config('filesystems.default', 'public');
-        $path = $file->store('uploads/' . now()->format('Y/m/d'), $disk);
+        $path = $file->store('uploads/'.now()->format('Y/m/d'), $disk);
 
         $record = FileModel::create([
             'uploader_user_id' => $userId,

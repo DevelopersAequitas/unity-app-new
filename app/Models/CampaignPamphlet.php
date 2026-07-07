@@ -11,10 +11,13 @@ class CampaignPamphlet extends Model
     use HasFactory;
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_INACTIVE = 'inactive';
 
     protected $table = 'campaign_pamphlets';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

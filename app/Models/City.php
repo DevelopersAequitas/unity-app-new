@@ -11,7 +11,9 @@ class City extends Model
     use HasFactory;
 
     protected $table = 'cities';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

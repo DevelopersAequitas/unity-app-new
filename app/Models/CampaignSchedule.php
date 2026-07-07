@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,7 +14,9 @@ class CampaignSchedule extends Model
     use HasFactory;
 
     protected $table = 'campaign_schedules';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -68,39 +71,41 @@ class CampaignSchedule extends Model
 
     public function getNextRunAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
-        return \Carbon\Carbon::parse($value, 'UTC');
+
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setNextRunAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['next_run_at'] = null;
         } elseif ($value instanceof \DateTimeInterface) {
             $this->attributes['next_run_at'] = $value->format('Y-m-d H:i:s');
         } else {
-            $this->attributes['next_run_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['next_run_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 
     public function getLastRunAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
-        return \Carbon\Carbon::parse($value, 'UTC');
+
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setLastRunAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['last_run_at'] = null;
         } elseif ($value instanceof \DateTimeInterface) {
             $this->attributes['last_run_at'] = $value->format('Y-m-d H:i:s');
         } else {
-            $this->attributes['last_run_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['last_run_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 }

@@ -2,10 +2,10 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
 use App\Models\CampaignSchedule;
 use App\Services\AdminCampaigns\CampaignScheduleCalculator;
 use Carbon\Carbon;
+use Tests\TestCase;
 
 class CampaignScheduleCalculatorTest extends TestCase
 {
@@ -14,7 +14,7 @@ class CampaignScheduleCalculatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->calculator = new CampaignScheduleCalculator();
+        $this->calculator = new CampaignScheduleCalculator;
     }
 
     public function test_calculate_schedule_once()
@@ -27,7 +27,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-12 12:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals('2026-06-15 09:00:00', $nextRun->format('Y-m-d H:i:s'));
     }
@@ -42,7 +42,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-12 12:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         // Since it has never run, it executes today (June 12) instead of skipping to tomorrow
         $this->assertEquals('2026-06-12 09:00:00', $nextRun->format('Y-m-d H:i:s'));
@@ -61,7 +61,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-15 10:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         // Has run, so it advances to tomorrow
         $this->assertEquals('2026-06-16 09:00:00', $nextRun->format('Y-m-d H:i:s'));
@@ -80,7 +80,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-15 10:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals('2026-06-18 09:00:00', $nextRun->format('Y-m-d H:i:s'));
     }
@@ -99,7 +99,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-15 10:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals('2026-06-19 09:00:00', $nextRun->format('Y-m-d H:i:s'));
     }
@@ -118,7 +118,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-19 10:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals('2026-06-29 09:00:00', $nextRun->format('Y-m-d H:i:s'));
     }
@@ -196,7 +196,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-12 12:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals('2026-06-15 03:30:00', $nextRun->format('Y-m-d H:i:s'));
     }
@@ -228,7 +228,7 @@ class CampaignScheduleCalculatorTest extends TestCase
 
         $evalTime = Carbon::parse('2026-06-12 12:00:00', 'UTC');
         $nextRun = $this->calculator->calculateNextRunAt($schedule, $evalTime);
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals($evalTime->format('Y-m-d H:i:s'), $nextRun->format('Y-m-d H:i:s'));
     }
@@ -243,7 +243,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-12 12:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals('2026-06-15 09:30:00', $nextRun->format('Y-m-d H:i:s'));
     }
@@ -258,7 +258,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-12 12:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals('2026-06-15 09:00:00', $nextRun->format('Y-m-d H:i:s'));
     }
@@ -276,7 +276,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-15 10:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals('2026-06-16 09:00:00', $nextRun->format('Y-m-d H:i:s'));
     }
@@ -295,7 +295,7 @@ class CampaignScheduleCalculatorTest extends TestCase
         ]);
 
         $nextRun = $this->calculator->calculateNextRunAt($schedule, Carbon::parse('2026-06-15 10:00:00', 'UTC'));
-        
+
         $this->assertNotNull($nextRun);
         $this->assertEquals('2026-06-16 09:00:00', $nextRun->format('Y-m-d H:i:s'));
     }

@@ -1,4 +1,78 @@
 <?php
+
 namespace App\Services\Notifications;
-use App\Models\User; use Illuminate\Support\Collection;
-class NotificationAudienceService { public function inactiveUsers(int $days=3):Collection{return User::query()->where(function($q)use($days){$q->whereNull('last_app_opened_at')->orWhere('last_app_opened_at','<',now()->subDays($days));})->limit(500)->get();} public function incompleteProfileUsers():Collection{return User::where('profile_completed_percent','<',100)->limit(500)->get();} public function nonProUsers():Collection{return User::where(function($q){$q->whereNull('membership_tier')->orWhere('membership_tier','!=','pro');})->limit(500)->get();} public function subscriptionExpiringUsers(int $days=7):Collection{return User::whereBetween('subscription_expires_at',[now(),now()->addDays($days)])->limit(500)->get();} public function matchingIndustryUsers($industry=null):Collection{return User::when($industry,fn($q)=>$q->where('industry',$industry))->limit(500)->get();} public function matchingGiveTagUsers(array $tags=[]):Collection{return User::limit(500)->get();} public function sameCityUsers(?string $city):Collection{return User::when($city,fn($q)=>$q->where('city',$city))->limit(500)->get();} public function sameCircleUsers($circleId):Collection{return User::whereHas('circleMemberships',fn($q)=>$q->where('circle_id',$circleId))->limit(500)->get();} public function mutualConnections(User $user):Collection{return collect();} public function registeredEventAttendees($eventId):Collection{return collect();} public function rsvpYesMaybeUsers($eventId):Collection{return collect();} public function usersWithUnclaimedCoins():Collection{return User::where('coin_balance','>',0)->limit(500)->get();} public function usersWithMatchingRequirements($requirement=null):Collection{return User::limit(500)->get();} }
+
+use App\Models\User;
+use Illuminate\Support\Collection;
+
+class NotificationAudienceService
+{
+    public function inactiveUsers(int $days = 3): Collection
+    {
+        return User::query()->where(function ($q) use ($days) {
+            $q->whereNull('last_app_opened_at')->orWhere('last_app_opened_at', '<', now()->subDays($days));
+        })->limit(500)->get();
+    }
+
+    public function incompleteProfileUsers(): Collection
+    {
+        return User::where('profile_completed_percent', '<', 100)->limit(500)->get();
+    }
+
+    public function nonProUsers(): Collection
+    {
+        return User::where(function ($q) {
+            $q->whereNull('membership_tier')->orWhere('membership_tier', '!=', 'pro');
+        })->limit(500)->get();
+    }
+
+    public function subscriptionExpiringUsers(int $days = 7): Collection
+    {
+        return User::whereBetween('subscription_expires_at', [now(), now()->addDays($days)])->limit(500)->get();
+    }
+
+    public function matchingIndustryUsers($industry = null): Collection
+    {
+        return User::when($industry, fn ($q) => $q->where('industry', $industry))->limit(500)->get();
+    }
+
+    public function matchingGiveTagUsers(array $tags = []): Collection
+    {
+        return User::limit(500)->get();
+    }
+
+    public function sameCityUsers(?string $city): Collection
+    {
+        return User::when($city, fn ($q) => $q->where('city', $city))->limit(500)->get();
+    }
+
+    public function sameCircleUsers($circleId): Collection
+    {
+        return User::whereHas('circleMemberships', fn ($q) => $q->where('circle_id', $circleId))->limit(500)->get();
+    }
+
+    public function mutualConnections(User $user): Collection
+    {
+        return collect();
+    }
+
+    public function registeredEventAttendees($eventId): Collection
+    {
+        return collect();
+    }
+
+    public function rsvpYesMaybeUsers($eventId): Collection
+    {
+        return collect();
+    }
+
+    public function usersWithUnclaimedCoins(): Collection
+    {
+        return User::where('coin_balance', '>', 0)->limit(500)->get();
+    }
+
+    public function usersWithMatchingRequirements($requirement = null): Collection
+    {
+        return User::limit(500)->get();
+    }
+}

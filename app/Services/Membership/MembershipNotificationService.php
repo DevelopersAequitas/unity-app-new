@@ -50,7 +50,7 @@ class MembershipNotificationService
         ];
 
         $title = $titles[$emailType] ?? 'Membership Email Sent';
-        $message = $title . ' to ' . $sentTo . '.';
+        $message = $title.' to '.$sentTo.'.';
 
         return $this->store($user, $emailType, $title, $message, [
             'source' => $source,
@@ -68,9 +68,11 @@ class MembershipNotificationService
 
     public function sendStatusChanged(User $user, ?string $previousStatus, ?string $newStatus, ?string $updatedBy = null, bool $email = true, string $source = 'admin_status_change'): ?AppNotification
     {
-        if ((string) $previousStatus === (string) $newStatus) return null;
+        if ((string) $previousStatus === (string) $newStatus) {
+            return null;
+        }
         $title = 'Membership Status Updated';
-        $message = 'Your membership status changed from ' . $this->label($previousStatus) . ' to ' . $this->label($newStatus) . '.';
+        $message = 'Your membership status changed from '.$this->label($previousStatus).' to '.$this->label($newStatus).'.';
         $data = ['previous_status' => $previousStatus, 'updated_by_admin' => $updatedBy, 'source' => $source, 'updated_at' => now()->toIso8601String()];
         if ($email && filled($user->email)) {
             try {
@@ -79,7 +81,7 @@ class MembershipNotificationService
                 app(EmailLogService::class)->logMailableSent($mailable, [
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'membership_status_changed',
                     'source_module' => 'Membership',
                     'related_type' => User::class,
@@ -88,13 +90,12 @@ class MembershipNotificationService
                     'payload' => ['previous_status' => $previousStatus, 'new_status' => $newStatus, 'source' => $source],
                 ]);
                 $this->recordEmailSent($user, 'membership_status_email_sent', (string) $user->email, $source);
-            }
-            catch (Throwable $e) {
+            } catch (Throwable $e) {
                 if (isset($mailable)) {
                     app(EmailLogService::class)->logMailableFailed($mailable, [
                         'user_id' => (string) $user->id,
                         'to_email' => (string) $user->email,
-                        'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                        'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                         'template_key' => 'membership_status_changed',
                         'source_module' => 'Membership',
                         'related_type' => User::class,
@@ -113,6 +114,7 @@ class MembershipNotificationService
                 ]);
             }
         }
+
         return $this->store($user, 'membership_status_changed', $title, $message, $data, false);
     }
 
@@ -127,7 +129,7 @@ class MembershipNotificationService
                 app(EmailLogService::class)->logMailableSent($mailable, [
                     'user_id' => (string) $user->id,
                     'to_email' => (string) $user->email,
-                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'membership_manual_notification',
                     'source_module' => 'Membership',
                     'related_type' => User::class,
@@ -136,13 +138,12 @@ class MembershipNotificationService
                     'payload' => ['source' => 'manual_membership_notification'],
                 ]);
                 $this->recordEmailSent($user, 'membership_status_email_sent', (string) $user->email, 'manual_membership_notification');
-            }
-            catch (Throwable $e) {
+            } catch (Throwable $e) {
                 if (isset($mailable)) {
                     app(EmailLogService::class)->logMailableFailed($mailable, [
                         'user_id' => (string) $user->id,
                         'to_email' => (string) $user->email,
-                        'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))),
+                        'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                         'template_key' => 'membership_manual_notification',
                         'source_module' => 'Membership',
                         'related_type' => User::class,
@@ -161,6 +162,7 @@ class MembershipNotificationService
                 ]);
             }
         }
+
         return $this->store($user, 'membership_manual_trigger', $title, $message, ['triggered_by' => $triggeredBy, 'triggered_at' => now()->toIso8601String()], true);
     }
 
@@ -176,7 +178,7 @@ class MembershipNotificationService
             'membership_id' => (string) $user->id,
             'action_url' => '/membership',
         ], $extra);
-        $dedupe = $type . ':' . $user->id . ':' . md5(json_encode($data)) . ($minuteDedupe ? ':' . now()->format('YmdHi') : '');
+        $dedupe = $type.':'.$user->id.':'.md5(json_encode($data)).($minuteDedupe ? ':'.now()->format('YmdHi') : '');
 
         Log::info('membership.notification_create_attempt', [
             'user_id' => (string) $user->id,
@@ -188,6 +190,7 @@ class MembershipNotificationService
             if (! Schema::hasTable('app_notifications')) {
                 Log::warning('membership.app_notification_table_missing', ['user_id' => $user->id, 'type' => $type]);
                 $this->storeLegacyNotification($user, $type, $title, $message, $data);
+
                 return null;
             }
 
@@ -262,11 +265,11 @@ class MembershipNotificationService
         }
     }
 
-
     private function storeLegacyNotification(User $user, string $type, string $title, string $message, array $data): ?Notification
     {
         if (! Schema::hasTable('notifications')) {
             Log::warning('membership.legacy_notification_table_missing', ['user_id' => (string) $user->id, 'type' => $type]);
+
             return null;
         }
 
@@ -342,5 +345,8 @@ class MembershipNotificationService
         }
     }
 
-    private function label(?string $status): string { return Str::headline(str_replace('_', ' ', (string) ($status ?: 'unknown'))); }
+    private function label(?string $status): string
+    {
+        return Str::headline(str_replace('_', ' ', (string) ($status ?: 'unknown')));
+    }
 }

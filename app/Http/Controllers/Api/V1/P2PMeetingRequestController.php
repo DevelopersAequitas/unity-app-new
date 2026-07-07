@@ -10,8 +10,8 @@ use App\Models\P2PMeetingRequest;
 use App\Models\P2PMeetingRescheduleRequest;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
-use App\Services\Notifications\NotifyUserService;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +38,6 @@ class P2PMeetingRequestController extends BaseApiController
         ], [
             'to_user_id.not_in' => 'You cannot send a meeting request to yourself.',
         ]);
-
 
         if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, (string) $validated['to_user_id'])) {
             return $this->error('You cannot interact with this peer.', 422);
@@ -163,7 +162,6 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Only pending requests can be cancelled.', 422);
         }
 
-
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $meetingRequest->invitee_id)) {
             return $this->error('You cannot interact with this peer.', 422);
         }
@@ -207,7 +205,6 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Only pending requests can be updated.', 422);
         }
 
-
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $meetingRequest->requester_id)) {
             return $this->error('You cannot interact with this peer.', 422);
         }
@@ -223,7 +220,7 @@ class P2PMeetingRequestController extends BaseApiController
             $actor = $request->user();
 
             if ($requester) {
-                $notificationType = 'p2p_meeting_' . $status;
+                $notificationType = 'p2p_meeting_'.$status;
                 $this->createMeetingNotification($requester, $notificationType, $meetingRequest, $actor);
                 $this->dispatchPushNotification($notifyUserService, $requester, $actor, $notificationType, $meetingRequest);
             }
@@ -231,9 +228,8 @@ class P2PMeetingRequestController extends BaseApiController
 
         $meetingRequest->refresh()->load(['requester', 'invitee']);
 
-        return $this->success(new P2PMeetingRequestResource($meetingRequest), 'Meeting request ' . $status . ' successfully.');
+        return $this->success(new P2PMeetingRequestResource($meetingRequest), 'Meeting request '.$status.' successfully.');
     }
-
 
     public function requestReschedule(Request $request, string $id, NotifyUserService $notifyUserService, PeerBlockService $peerBlockService)
     {
@@ -378,7 +374,6 @@ class P2PMeetingRequestController extends BaseApiController
         );
     }
 
-
     private function canRequestReschedule(P2PMeetingRequest $meetingRequest, string $authUserId, ?string $status = null): bool
     {
         $status ??= $this->normalizedMeetingStatus($meetingRequest);
@@ -424,7 +419,6 @@ class P2PMeetingRequestController extends BaseApiController
         return null;
     }
 
-
     private function sendWorkflowEmail(User $recipient, User $actor, string $eventType, P2PMeetingRequest $meetingRequest, ?P2PMeetingRescheduleRequest $rescheduleRequest = null, ?string $responseReason = null): void
     {
         $email = trim((string) $recipient->email);
@@ -437,8 +431,8 @@ class P2PMeetingRequestController extends BaseApiController
         $logData = [
             'user_id' => (string) $recipient->id,
             'to_email' => $email,
-            'to_name' => (string) ($recipient->display_name ?: trim(($recipient->first_name ?? '') . ' ' . ($recipient->last_name ?? ''))),
-            'template_key' => 'p2p_meeting_' . $eventType,
+            'to_name' => (string) ($recipient->display_name ?: trim(($recipient->first_name ?? '').' '.($recipient->last_name ?? ''))),
+            'template_key' => 'p2p_meeting_'.$eventType,
             'source_module' => 'P2P Meetings',
             'related_type' => P2PMeetingRequest::class,
             'related_id' => (string) $meetingRequest->id,

@@ -36,11 +36,11 @@ class PublicProfileSlugService
         $candidate = $base;
 
         if (count($parts) < 2) {
-            $candidate .= '-' . $this->suffix();
+            $candidate .= '-'.$this->suffix();
         }
 
         while ($this->slugExistsForAnotherUser($candidate, $user)) {
-            $candidate = $base . '-' . $this->suffix();
+            $candidate = $base.'-'.$this->suffix();
         }
 
         return $candidate;

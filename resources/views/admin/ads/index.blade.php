@@ -59,7 +59,15 @@
                         </td>
                         <td>{{ $ad->title }}</td>
                         <td>
-                            <span class="badge {{ $ad->is_active ? 'bg-success' : 'bg-secondary' }}">{{ $ad->is_active ? 'Active' : 'Inactive' }}</span>
+                            @if(!$ad->is_active)
+                                <span class="badge bg-secondary">Inactive</span>
+                            @elseif($ad->ends_at && $ad->ends_at->isPast())
+                                <span class="badge bg-danger">Expired</span>
+                            @elseif($ad->starts_at && $ad->starts_at->isFuture())
+                                <span class="badge bg-info">Scheduled</span>
+                            @else
+                                <span class="badge bg-success">Active</span>
+                            @endif
                         </td>
                         <td>{{ $ad->starts_at ? $ad->starts_at->timezone('Asia/Kolkata')->format('Y-m-d H:i') : '—' }}</td>
                         <td>{{ $ad->ends_at ? $ad->ends_at->timezone('Asia/Kolkata')->format('Y-m-d H:i') : '—' }}</td>

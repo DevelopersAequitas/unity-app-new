@@ -59,7 +59,6 @@ return new class extends Migration
         });
     }
 
-
     private function level4CategoriesTable(): string
     {
         foreach (['level4_categories', 'circle_category_level4'] as $table) {
@@ -77,21 +76,25 @@ return new class extends Migration
 
         if ($referencedType === null) {
             $table->unsignedInteger($column)->nullable();
+
             return;
         }
 
         if ($referencedType === 'uuid') {
             $table->uuid($column)->nullable();
+
             return;
         }
 
         if (in_array($referencedType, ['bigint', 'bigserial'], true)) {
             $table->unsignedBigInteger($column)->nullable();
+
             return;
         }
 
         if (in_array($referencedType, ['integer', 'serial'], true)) {
             $table->unsignedInteger($column)->nullable();
+
             return;
         }
 
@@ -108,7 +111,7 @@ return new class extends Migration
             return;
         }
 
-        $constraint = $table . '_' . $column . '_foreign';
+        $constraint = $table.'_'.$column.'_foreign';
         if ($this->foreignKeyExists($constraint)) {
             return;
         }
@@ -123,7 +126,7 @@ return new class extends Migration
 
     private function dropForeignIfExists(string $table, string $column): void
     {
-        $constraint = $table . '_' . $column . '_foreign';
+        $constraint = $table.'_'.$column.'_foreign';
         if (! $this->foreignKeyExists($constraint)) {
             return;
         }
@@ -143,7 +146,7 @@ return new class extends Migration
             return null;
         }
 
-        $schema = config('database.connections.' . config('database.default') . '.schema', 'public');
+        $schema = config('database.connections.'.config('database.default').'.schema', 'public');
 
         $row = DB::table('information_schema.columns')
             ->where('table_schema', $schema)
@@ -161,7 +164,7 @@ return new class extends Migration
             return false;
         }
 
-        $schema = config('database.connections.' . config('database.default') . '.schema', 'public');
+        $schema = config('database.connections.'.config('database.default').'.schema', 'public');
 
         return DB::table('information_schema.table_constraints')
             ->where('constraint_schema', $schema)

@@ -13,9 +13,7 @@ use Illuminate\Support\Str;
 
 class FcmService
 {
-    public function __construct(private FirebaseFcmService $firebase)
-    {
-    }
+    public function __construct(private FirebaseFcmService $firebase) {}
 
     public function sendToToken(UserPushToken|string $token, string $title, string $body, array $data, ?AppNotification $notification = null, ?string $imageUrl = null): array
     {
@@ -25,7 +23,7 @@ class FcmService
         // Resolve image URL from data payload if not explicitly provided
         if ($imageUrl === null) {
             $imageUrl = $data['image_url'] ?? $data['event_banner'] ?? null;
-            if (!is_string($imageUrl) || trim($imageUrl) === '') {
+            if (! is_string($imageUrl) || trim($imageUrl) === '') {
                 $imageUrl = null;
             }
         }

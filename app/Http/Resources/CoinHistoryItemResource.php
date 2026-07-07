@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Http\Resources\UserMiniResource;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class CoinHistoryItemResource extends JsonResource

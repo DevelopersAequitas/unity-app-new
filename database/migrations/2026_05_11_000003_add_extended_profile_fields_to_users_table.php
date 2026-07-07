@@ -173,5 +173,4 @@ return new class extends Migration
         // with Schema::hasColumn(). Avoid dropping profile columns that may have
         // existed before this migration on live databases.
     }
-
 };

@@ -235,6 +235,7 @@ class ZohoBillingPaymentLinkService
                         'registration_id' => (string) $registration->id,
                         'path' => $endpoint['path'],
                     ]);
+
                     return $registration;
                 }
             } catch (\Throwable $e) {

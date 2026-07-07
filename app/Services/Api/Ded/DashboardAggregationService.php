@@ -4,10 +4,7 @@ namespace App\Services\Api\Ded;
 
 use App\Models\AdminUser;
 use App\Models\Circle;
-use App\Models\CircleMember;
-use App\Models\CircleSubscription;
 use App\Models\User;
-use App\Models\Event;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -35,7 +32,7 @@ class DashboardAggregationService
 
         // 1. Leadership Summary & Role Breakdown
         $leadershipSummary = $this->leadership->getLeadershipSummary($admin, $selectedCircleId);
-        
+
         $totalRolesSum = $leadershipSummary['industry_directors']['count']
             + $leadershipSummary['circle_founders']['count']
             + $leadershipSummary['circle_directors']['count']
@@ -91,9 +88,9 @@ class DashboardAggregationService
 
         // 3. Master Search & Finder lists for Quick Finder
         $quickFinder = [
-            'circle_founders' => $leadershipSummary['circle_founders']['recent']->map(fn($u) => $this->userMeta($u))->all(),
-            'circle_directors' => $leadershipSummary['circle_directors']['recent']->map(fn($u) => $this->userMeta($u))->all(),
-            'industry_directors' => $leadershipSummary['industry_directors']['recent']->map(fn($u) => $this->userMeta($u))->all(),
+            'circle_founders' => $leadershipSummary['circle_founders']['recent']->map(fn ($u) => $this->userMeta($u))->all(),
+            'circle_directors' => $leadershipSummary['circle_directors']['recent']->map(fn ($u) => $this->userMeta($u))->all(),
+            'industry_directors' => $leadershipSummary['industry_directors']['recent']->map(fn ($u) => $this->userMeta($u))->all(),
             'chairs' => User::query()
                 ->whereExists(function ($q) use ($districtCircleIds) {
                     $q->selectRaw(1)->from('circle_members')
@@ -102,7 +99,7 @@ class DashboardAggregationService
                         ->whereIn('circle_members.role', ['chair', 'vice_chair'])
                         ->where('circle_members.status', 'approved')
                         ->whereNull('circle_members.deleted_at');
-                })->limit(10)->get(['id', 'display_name', 'email', 'phone', 'company_name', 'first_name', 'last_name'])->map(fn($u) => $this->userMeta($u))->all(),
+                })->limit(10)->get(['id', 'display_name', 'email', 'phone', 'company_name', 'first_name', 'last_name'])->map(fn ($u) => $this->userMeta($u))->all(),
         ];
 
         return [
@@ -167,20 +164,20 @@ class DashboardAggregationService
             'leadership_overview' => [
                 'industry_directors' => [
                     'count' => $leadershipSummary['industry_directors']['count'],
-                    'recent' => $leadershipSummary['industry_directors']['recent']->map(fn($u) => $this->userMeta($u))->all(),
+                    'recent' => $leadershipSummary['industry_directors']['recent']->map(fn ($u) => $this->userMeta($u))->all(),
                 ],
                 'circle_founders' => [
                     'count' => $leadershipSummary['circle_founders']['count'],
-                    'recent' => $leadershipSummary['circle_founders']['recent']->map(fn($u) => $this->userMeta($u))->all(),
+                    'recent' => $leadershipSummary['circle_founders']['recent']->map(fn ($u) => $this->userMeta($u))->all(),
                 ],
                 'circle_direct' => [
                     'count' => $leadershipSummary['circle_directors']['count'],
-                    'recent' => $leadershipSummary['circle_directors']['recent']->map(fn($u) => $this->userMeta($u))->all(),
+                    'recent' => $leadershipSummary['circle_directors']['recent']->map(fn ($u) => $this->userMeta($u))->all(),
                 ],
                 'leadership_team' => [
                     'count' => $leadershipSummary['leadership_team']['count'],
                     'breakdown' => $leadershipSummary['leadership_team']['breakdown'],
-                    'recent' => $leadershipSummary['leadership_team']['recent']->map(fn($u) => $this->userMeta($u))->all(),
+                    'recent' => $leadershipSummary['leadership_team']['recent']->map(fn ($u) => $this->userMeta($u))->all(),
                 ],
                 'members' => [
                     'count' => $leadershipSummary['members']['count'],
@@ -217,7 +214,7 @@ class DashboardAggregationService
     {
         return [
             'id' => $u->id,
-            'name' => $u->display_name ?: trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')),
+            'name' => $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')),
             'email' => $u->email,
             'phone' => $u->phone,
             'company' => $u->company_name,

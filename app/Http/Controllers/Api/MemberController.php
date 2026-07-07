@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Resources\ConnectionResource;
 use App\Http\Resources\MemberDetailResource;
 use App\Http\Resources\UserResource;
+use App\Http\Resources\V1\LimitedUserResource;
 use App\Models\Connection;
 use App\Models\User;
 use App\Models\UserFollow;
@@ -45,6 +46,10 @@ class MemberController extends BaseApiController
 
         if (Schema::hasColumn('users', 'profile_visibility')) {
             $selectColumns[] = 'profile_visibility';
+        }
+
+        if (Schema::hasColumn('users', 'contact_visibility')) {
+            $selectColumns[] = 'contact_visibility';
         }
 
         $profileMatchColumns = [
@@ -107,11 +112,17 @@ class MemberController extends BaseApiController
                 'following as following_count',
             ]);
 
+        if (Schema::hasTable('connections')) {
+            $query->withCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
+
         // Manual test: inactive members should be excluded from the members list API.
         $query->where(function ($statusQuery) {
             $statusQuery->whereNull('status')->orWhere('status', 'active');
         });
-
 
         $authUser = auth('sanctum')->user();
 
@@ -195,15 +206,13 @@ class MemberController extends BaseApiController
         ]);
     }
 
-
     private function applyProfileMatchOrdering(
         Collection $members,
         User $authUser,
         ProfileMatchService $profileMatchService,
         array $selectColumns,
         bool $includeAuthUserWhenMissing = true
-    ): Collection
-    {
+    ): Collection {
         $authUserId = (string) $authUser->id;
 
         if ($includeAuthUserWhenMissing && ! $members->contains(fn (User $member): bool => (string) $member->id === $authUserId)) {
@@ -273,28 +282,55 @@ class MemberController extends BaseApiController
         );
     }
 
-    public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
+    protected function buildLimitedUsersQuery(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
+        $selectColumns = [
+            'id',
+            'first_name',
+            'last_name',
+            'display_name',
+            'company_name',
+            'profile_photo_file_id',
+            'profile_photo_url',
+            'city_id',
+            'city',
+            'city_of_residence',
+            'life_impacted_count',
+            'status',
+            'deleted_at',
+            'business_category_id',
+            'public_profile_slug',
+            'email',
+            'phone',
+            'membership_status',
+            'coins_balance',
+            'business_type',
+            'created_at',
+            'updated_at',
+        ];
+
+        if (Schema::hasColumn('users', 'profile_visibility')) {
+            $selectColumns[] = 'profile_visibility';
+        }
+
+        if (Schema::hasColumn('users', 'contact_visibility')) {
+            $selectColumns[] = 'contact_visibility';
+        }
+
         $query = User::query()
-            ->select([
-                'id',
-                'first_name',
-                'last_name',
-                'display_name',
-                'company_name',
-                'profile_photo_file_id',
-                'profile_photo_url',
-                'city_id',
-                'city',
-                'city_of_residence',
-                'life_impacted_count',
-                'status',
-                'deleted_at',
-            ])
-            ->when(Schema::hasColumn('users', 'profile_visibility'), function ($query): void {
-                $query->addSelect('profile_visibility');
-            })
-            ->with(['city:id,name']);
+            ->select($selectColumns)
+            ->with([
+                'city:id,name',
+                'level4Category:id,name',
+                'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+            ]);
+
+        if (Schema::hasTable('connections')) {
+            $query->withCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
 
         // Exclude inactive members
         $query->where(function ($statusQuery) {
@@ -316,12 +352,29 @@ class MemberController extends BaseApiController
             }
         }
 
+        return $query;
+    }
+
+    public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
+    {
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
         $users = $query->orderByDesc('created_at')->get();
 
-        return $this->success(
-            \App\Http\Resources\V1\LimitedUserResource::collection($users),
-            'Limited user data fetched successfully.'
-        );
+        return LimitedUserResource::collection($users)->additional([
+            'success' => true,
+            'message' => 'Limited user data fetched successfully.',
+        ]);
+    }
+
+    public function limitedPaginated(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
+    {
+        $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
+        $users = $query->orderByDesc('created_at')->paginate(15);
+
+        return LimitedUserResource::collection($users)->additional([
+            'success' => true,
+            'message' => 'Limited user data fetched successfully.',
+        ]);
     }
 
     public function show(Request $request, string $id, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
@@ -336,7 +389,6 @@ class MemberController extends BaseApiController
         if (! $user) {
             return $this->error('Member not found', 404);
         }
-
 
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
@@ -362,7 +414,6 @@ class MemberController extends BaseApiController
         if (! $user) {
             return $this->error('Public profile not found', 404);
         }
-
 
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $user->id)) {
             return $this->error('Peer not found.', 404);
@@ -440,7 +491,7 @@ class MemberController extends BaseApiController
             'life_impacted_count' => (int) ($follower->life_impacted_count ?? 0),
             'profile_photo_id' => $profilePhotoId,
             'profile_photo_url' => $profilePhotoId
-                ? url('/api/v1/files/' . $profilePhotoId)
+                ? url('/api/v1/files/'.$profilePhotoId)
                 : null,
         ];
     }
@@ -505,15 +556,14 @@ class MemberController extends BaseApiController
             return $this->error('Member not found', 404);
         }
 
-
         if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, (string) $target->id)) {
             return $this->error('You cannot interact with this peer.', 422);
         }
 
         $existing = Connection::where(function ($q) use ($authUser, $target) {
-                $q->where('requester_id', $authUser->id)
-                    ->where('addressee_id', $target->id);
-            })
+            $q->where('requester_id', $authUser->id)
+                ->where('addressee_id', $target->id);
+        })
             ->orWhere(function ($q) use ($authUser, $target) {
                 $q->where('requester_id', $target->id)
                     ->where('addressee_id', $authUser->id);
@@ -543,7 +593,7 @@ class MemberController extends BaseApiController
             [
                 'request_id' => (string) $connection->id,
                 'title' => 'New Connection Request',
-                'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' sent you a connection request',
+                'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' sent you a connection request',
             ],
             $connection
         );
@@ -587,7 +637,7 @@ class MemberController extends BaseApiController
                     'from_user_id' => (string) $authUser->id,
                     'to_user_id' => (string) $requesterUser->id,
                     'title' => 'Connection Accepted',
-                    'body' => ($authUser->display_name ?? $authUser->name ?? 'A member') . ' accepted your connection request',
+                    'body' => ($authUser->display_name ?? $authUser->name ?? 'A member').' accepted your connection request',
                 ],
                 $connection
             );
@@ -606,9 +656,9 @@ class MemberController extends BaseApiController
         $authUser = $request->user();
 
         $connection = Connection::where(function ($q) use ($authUser, $id) {
-                $q->where('requester_id', $authUser->id)
-                    ->where('addressee_id', $id);
-            })
+            $q->where('requester_id', $authUser->id)
+                ->where('addressee_id', $id);
+        })
             ->orWhere(function ($q) use ($authUser, $id) {
                 $q->where('requester_id', $id)
                     ->where('addressee_id', $authUser->id);

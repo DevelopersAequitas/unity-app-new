@@ -70,6 +70,6 @@ class MutualConnectionController extends BaseApiController
             return $displayName;
         }
 
-        return trim((string) ($user->first_name ?? '') . ' ' . (string) ($user->last_name ?? ''));
+        return trim((string) ($user->first_name ?? '').' '.(string) ($user->last_name ?? ''));
     }
 }

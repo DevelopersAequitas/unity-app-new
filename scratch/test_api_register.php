@@ -1,6 +1,11 @@
 <?php
-$email = 'new-api-user-' . time() . '@example.com';
-$phone = '9' . substr(time(), 0, 9);
+
+use App\Models\EmailLog;
+use App\Models\User;
+use Illuminate\Contracts\Console\Kernel;
+
+$email = 'new-api-user-'.time().'@example.com';
+$phone = '9'.substr(time(), 0, 9);
 $payload = [
     'first_name' => 'MobileApp',
     'last_name' => 'Simulator',
@@ -13,7 +18,7 @@ $payload = [
 $url = 'http://127.0.0.1:8000/api/v1/auth/register';
 
 echo "Sending registration request to: {$url}\n";
-echo "Payload:\n" . json_encode($payload, JSON_PRETTY_PRINT) . "\n\n";
+echo "Payload:\n".json_encode($payload, JSON_PRETTY_PRINT)."\n\n";
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_POST, 1);
@@ -29,12 +34,12 @@ echo "HTTP Code: {$httpCode}\n";
 echo "Response Body:\n{$response}\n\n";
 
 // Now, connect to the database to inspect the state of the user we just created.
-require __DIR__ . '/../vendor/autoload.php';
-$app = require_once __DIR__ . '/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+require __DIR__.'/../vendor/autoload.php';
+$app = require_once __DIR__.'/../bootstrap/app.php';
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
-$user = \App\Models\User::where('email', $email)->first();
+$user = User::where('email', $email)->first();
 if ($user) {
     echo "=== DATABASE RECORD FOUND ===\n";
     echo "User ID: {$user->id}\n";
@@ -43,7 +48,7 @@ if ($user) {
     echo "Created At: {$user->created_at}\n\n";
 
     // Verify email log
-    $emailLog = \App\Models\EmailLog::where('user_id', $user->id)->first();
+    $emailLog = EmailLog::where('user_id', $user->id)->first();
     if ($emailLog) {
         echo "=== EMAIL LOG FOUND ===\n";
         echo "Log ID: {$emailLog->id}\n";

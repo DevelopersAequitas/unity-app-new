@@ -13,9 +13,7 @@ class CollaborationCreatedMail extends Mailable
     use Queueable;
     use SerializesModels;
 
-    public function __construct(public CollaborationPost $collaboration, public User $recipient)
-    {
-    }
+    public function __construct(public CollaborationPost $collaboration, public User $recipient) {}
 
     public function build(): self
     {

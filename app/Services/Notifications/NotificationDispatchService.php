@@ -11,9 +11,7 @@ use Illuminate\Support\Str;
 
 class NotificationDispatchService
 {
-    public function __construct(private NotificationService $notifications)
-    {
-    }
+    public function __construct(private NotificationService $notifications) {}
 
     public function sendCampaignNotification(
         string $campaignCode,
@@ -45,7 +43,7 @@ class NotificationDispatchService
             $rendered = $this->renderCampaign($campaign, $basePlaceholders);
             $dedupeKey = $options['dedupe_key'] ?? $data['dedupe_key'] ?? null;
             if ($dedupeKey) {
-                $dedupeKey .= ':' . $user->id;
+                $dedupeKey .= ':'.$user->id;
             }
 
             return $this->notifications->sendToUser(
@@ -83,10 +81,10 @@ class NotificationDispatchService
         foreach ($placeholders as $key => $value) {
             $value = (string) $value;
             $template = str_replace([
-                '{{' . $key . '}}',
-                '{' . $key . '}',
-                '<' . $key . '>',
-                '[' . Str::of($key)->replace('_', ' ')->title() . ']',
+                '{{'.$key.'}}',
+                '{'.$key.'}',
+                '<'.$key.'>',
+                '['.Str::of($key)->replace('_', ' ')->title().']',
             ], $value, $template);
         }
 
@@ -95,7 +93,7 @@ class NotificationDispatchService
 
     private function defaultPlaceholders(?User $actor): array
     {
-        $name = $actor ? (trim((string) ($actor->display_name ?? '')) ?: trim(((string) ($actor->first_name ?? '')) . ' ' . ((string) ($actor->last_name ?? ''))) ?: (string) ($actor->name ?? 'A member')) : 'A member';
+        $name = $actor ? (trim((string) ($actor->display_name ?? '')) ?: trim(((string) ($actor->first_name ?? '')).' '.((string) ($actor->last_name ?? ''))) ?: (string) ($actor->name ?? 'A member')) : 'A member';
 
         return ['person' => $name, 'name' => $name];
     }

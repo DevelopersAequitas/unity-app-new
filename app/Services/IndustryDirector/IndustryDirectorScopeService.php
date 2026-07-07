@@ -55,6 +55,7 @@ class IndustryDirectorScopeService
         if ($requestedIndustryId !== '') {
             $this->ensureAdminCanAccessIndustry($adminUserId, $requestedIndustryId);
             $this->setSelectedIndustry($requestedIndustryId);
+
             return $requestedIndustryId;
         }
 
@@ -336,6 +337,7 @@ class IndustryDirectorScopeService
 
         if ($userColumn === 'users.id') {
             $this->applyPeersScope($query, $adminUser->id);
+
             return;
         }
 
@@ -368,7 +370,6 @@ class IndustryDirectorScopeService
 
         return in_array((string) $circleId, $this->circleIdsForAdmin($adminUser), true);
     }
-
 
     private function memberIdsFromMappingView(string $selectedIndustryId, array $industryIds): array
     {
@@ -424,6 +425,7 @@ class IndustryDirectorScopeService
 
         if ($industryIds === []) {
             $query->whereRaw('1 = 0');
+
             return $query;
         }
 
@@ -491,6 +493,7 @@ class IndustryDirectorScopeService
 
         if ($memberIds === []) {
             $query->whereRaw('1 = 0');
+
             return $query;
         }
 
@@ -643,7 +646,7 @@ class IndustryDirectorScopeService
 
     private function schemaName(): string
     {
-        $schema = (string) config('database.connections.' . config('database.default') . '.search_path', 'public');
+        $schema = (string) config('database.connections.'.config('database.default').'.search_path', 'public');
         $schema = trim((string) explode(',', $schema)[0], " \t\n\r\0\x0B\"");
 
         return $schema !== '' ? $schema : 'public';

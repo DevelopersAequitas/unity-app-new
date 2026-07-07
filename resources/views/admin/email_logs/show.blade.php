@@ -70,7 +70,11 @@
     <div class="card shadow-sm mb-3">
         <div class="card-header"><strong>Email Content</strong></div>
         <div class="card-body">
-            @if (! empty($emailLog->body_html))
+            @if (! empty($bodyHtml))
+                <div class="border rounded mb-3" style="min-height: 420px; overflow: hidden;">
+                    <iframe title="Email HTML Preview" sandbox srcdoc="{{ $bodyHtml }}" style="width: 100%; min-height: 420px; border: 0;"></iframe>
+                </div>
+            @elseif (! empty($emailLog->body_html))
                 <div class="border rounded mb-3" style="min-height: 420px; overflow: hidden;">
                     <iframe title="Email HTML Preview" sandbox srcdoc="{{ $emailLog->body_html }}" style="width: 100%; min-height: 420px; border: 0;"></iframe>
                 </div>

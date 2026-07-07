@@ -72,7 +72,7 @@ class CampaignRecipientResolverService
         $this->applyActiveUserScope($query);
 
         if ($search !== '') {
-            $like = '%' . Str::lower($search) . '%';
+            $like = '%'.Str::lower($search).'%';
             $query->where(function (Builder $builder) use ($like): void {
                 foreach (['first_name', 'last_name', 'display_name', 'email', 'phone', 'company_name'] as $column) {
                     if (Schema::hasColumn('users', $column)) {
@@ -154,7 +154,6 @@ class CampaignRecipientResolverService
     {
         return $this->cleanArray($filters['business_category_ids'] ?? $filters['category_ids'] ?? $filters['categories'] ?? []);
     }
-
 
     public function resolveBusinessCategoryValues(array $values): array
     {
@@ -251,7 +250,7 @@ class CampaignRecipientResolverService
                 }
 
                 $applied = true;
-                $builder->orWhereIn('users.' . $column, $values);
+                $builder->orWhereIn('users.'.$column, $values);
             }
 
             if (Schema::hasColumn('users', 'business_category')) {
@@ -275,7 +274,7 @@ class CampaignRecipientResolverService
         }
         $values = $this->cleanArray($values);
         if ($values !== []) {
-            $query->whereIn('users.' . $column, $values);
+            $query->whereIn('users.'.$column, $values);
         }
     }
 
@@ -335,7 +334,7 @@ class CampaignRecipientResolverService
         }
 
         return $categories
-            ->unique(fn (array $category): string => $category['id'] . '|' . $category['name'])
+            ->unique(fn (array $category): string => $category['id'].'|'.$category['name'])
             ->sortBy('name')
             ->values()
             ->all();

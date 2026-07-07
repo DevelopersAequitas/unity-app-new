@@ -15,8 +15,7 @@ class FollowRequestedNotification extends Notification
     public function __construct(
         private readonly User $fromUser,
         private readonly UserFollow $follow
-    ) {
-    }
+    ) {}
 
     public function toArray($notifiable): array
     {

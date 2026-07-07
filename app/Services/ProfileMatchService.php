@@ -43,6 +43,7 @@ class ProfileMatchService
     ];
 
     private const SIMILARITY_THRESHOLD = 0.65;
+
     private const PRODUCTS_SERVICES_SIMILARITY_THRESHOLD = 0.45;
 
     /**
@@ -330,7 +331,7 @@ class ProfileMatchService
     }
 
     /**
-     * @param array<int, string> $commonValues
+     * @param  array<int, string>  $commonValues
      */
     private function addCommonMatch(
         int &$score,

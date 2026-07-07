@@ -28,9 +28,9 @@
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
 
-    <div class="card shadow-sm">
+    <div class="card-activities-wrapper">
         <div class="table-responsive">
-            <table class="table mb-0 align-middle">
+            <table class="table table-premium mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
                         <th>Date</th>
@@ -40,7 +40,7 @@
                         <th>Story to Share</th>
                         <th>Additional Remarks</th>
                         <th>Created At</th>
-                        <th class="text-end">Actions</th>
+                        <th class="text-end" style="width: 320px; min-width: 320px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -48,17 +48,21 @@
                         <tr>
                             <td>{{ optional($impact->impact_date)->toDateString() }}</td>
                             <td>{{ $impact->action }}</td>
-                            <td>{{ $displayUser($impact->impactedPeer) }}</td>
-                            <td>{{ $displayUser($impact->user) }}</td>
+                             <td>
+                                 @include('admin.partials.peer_identity', ['user' => $impact->impactedPeer])
+                             </td>
+                             <td>
+                                 @include('admin.partials.peer_identity', ['user' => $impact->user])
+                             </td>
                             <td>{{ \Illuminate\Support\Str::limit((string) $impact->story_to_share, 120) }}</td>
                             <td>{{ \Illuminate\Support\Str::limit((string) ($impact->additional_remarks ?? '—'), 100) }}</td>
                             <td>{{ optional($impact->created_at)->format('Y-m-d H:i') }}</td>
-                            <td class="text-end">
+                            <td class="text-end text-nowrap" style="width: 320px; min-width: 320px;">
                                 <a href="{{ route('admin.impacts.show', $impact->id) }}" class="btn btn-sm btn-outline-primary">View</a>
                                 <form method="POST" action="{{ route('admin.impacts.approve', $impact->id) }}" class="d-inline-flex gap-1">
                                     @csrf
-                                    <input type="text" name="review_remarks" class="form-control form-control-sm" placeholder="Review remarks">
-                                    <button class="btn btn-sm btn-success" onclick="return confirm('Approve this impact?')">Approve</button>
+                                    <input type="text" name="review_remarks" class="form-control form-control-sm" placeholder="Remarks" style="max-width: 140px;">
+                                    <button class="btn btn-sm btn-success text-nowrap" onclick="return confirm('Approve this impact?')">Approve</button>
                                 </form>
                             </td>
                         </tr>

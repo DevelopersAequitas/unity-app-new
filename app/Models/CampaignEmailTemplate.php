@@ -11,10 +11,13 @@ class CampaignEmailTemplate extends Model
     use HasFactory;
 
     public const STATUS_ACTIVE = 'active';
+
     public const CATEGORY_BASIC = 'basic';
 
     protected $table = 'campaign_email_templates';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

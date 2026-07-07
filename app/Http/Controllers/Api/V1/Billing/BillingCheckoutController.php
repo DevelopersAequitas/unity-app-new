@@ -25,8 +25,7 @@ class BillingCheckoutController extends Controller
         private readonly MembershipSyncService $membershipSyncService,
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
         private readonly MembershipUpgradeService $membershipUpgradeService,
-    ) {
-    }
+    ) {}
 
     public function checkout(Request $request)
     {
@@ -82,7 +81,6 @@ class BillingCheckoutController extends Controller
             ], 500);
         }
     }
-
 
     public function syncHostedPage(Request $request, string $hostedpageId)
     {
@@ -338,7 +336,7 @@ class BillingCheckoutController extends Controller
         $payment = $paymentQuery->first();
 
         if (! $payment) {
-            $payment = new Payment();
+            $payment = new Payment;
             $payment->id = (string) Str::uuid();
         }
 
@@ -355,7 +353,7 @@ class BillingCheckoutController extends Controller
 
         foreach ([
             'metadata' => ['source' => 'membership_payment', 'user_id' => (string) $user->id, 'plan_code' => $planCode, 'zoho_hostedpage_id' => $hostedpageId],
-            'description' => 'membership_payment | user_id=' . $user->id . ' | plan=' . $planCode,
+            'description' => 'membership_payment | user_id='.$user->id.' | plan='.$planCode,
         ] as $column => $value) {
             if (Schema::hasColumn('payments', $column)) {
                 $payload[$column] = $value;

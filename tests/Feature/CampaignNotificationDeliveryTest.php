@@ -2,31 +2,36 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\AdminUser;
+use App\Jobs\ProcessCampaignDeliveryJob;
+use App\Jobs\SendCampaignRecipientJob;
+use App\Mail\AdminCampaignMailable;
 use App\Models\AdminCampaign;
-use App\Models\CampaignSchedule;
+use App\Models\AdminUser;
 use App\Models\CampaignDelivery;
 use App\Models\CampaignLog;
 use App\Models\Notification;
+use App\Models\OtpCode;
+use App\Models\Role;
 use App\Models\User;
 use App\Models\UserPushToken;
-use App\Models\Role;
-use App\Jobs\ProcessCampaignDeliveryJob;
+use App\Services\AdminCampaigns\CampaignRecipientResolverService;
+use App\Services\EmailLogs\EmailLogService;
 use App\Services\Firebase\FcmService;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Str;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Mockery;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Tests\TestCase;
 
 class CampaignNotificationDeliveryTest extends TestCase
 {
     use DatabaseTransactions;
 
     protected AdminUser $admin;
+
     protected User $userWithToken;
+
     protected User $userWithoutToken;
 
     protected function setUp(): void
@@ -45,7 +50,7 @@ class CampaignNotificationDeliveryTest extends TestCase
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
         $globalAdminRoleId = null;
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;
@@ -58,9 +63,9 @@ class CampaignNotificationDeliveryTest extends TestCase
         $this->admin->roles()->attach($globalAdminRoleId);
 
         // Auto-generate UUID for Notification model in tests
-        \App\Models\Notification::creating(function ($notification) {
+        Notification::creating(function ($notification) {
             if (empty($notification->id)) {
-                $notification->id = (string) \Illuminate\Support\Str::uuid();
+                $notification->id = (string) Str::uuid();
             }
         });
 
@@ -137,7 +142,6 @@ class CampaignNotificationDeliveryTest extends TestCase
             $table->softDeletes();
         });
 
-
         Schema::create('users', function ($table) {
             $table->uuid('id')->primary();
             $table->string('first_name')->nullable();
@@ -165,7 +169,6 @@ class CampaignNotificationDeliveryTest extends TestCase
             $table->text('user_agent')->nullable();
             $table->timestamps();
         });
-
 
         Schema::create('user_push_tokens', function ($table) {
             $table->uuid('id')->primary();
@@ -200,7 +203,6 @@ class CampaignNotificationDeliveryTest extends TestCase
             $table->timestamp('expires_at')->nullable();
             $table->timestamps();
         });
-
 
         Schema::create('admin_users', function ($table) {
             $table->uuid('id')->primary();
@@ -395,15 +397,15 @@ class CampaignNotificationDeliveryTest extends TestCase
             'scheduled_at' => now(),
         ]);
 
-        $job = new \App\Jobs\ProcessCampaignDeliveryJob($delivery->id);
-        $job->handle(app(\App\Services\AdminCampaigns\CampaignRecipientResolverService::class));
+        $job = new ProcessCampaignDeliveryJob($delivery->id);
+        $job->handle(app(CampaignRecipientResolverService::class));
 
         $this->assertDatabaseHas('campaign_deliveries', [
             'id' => $delivery->id,
             'total_recipients' => 2,
         ]);
 
-        Mail::assertSent(\App\Mail\AdminCampaignMailable::class, 2);
+        Mail::assertSent(AdminCampaignMailable::class, 2);
     }
 
     /**
@@ -420,7 +422,7 @@ class CampaignNotificationDeliveryTest extends TestCase
             ->andReturn([
                 'success' => true,
                 'firebase_response' => ['name' => 'mock-message-id'],
-                'error' => null
+                'error' => null,
             ]);
 
         // Create campaign targetted only to userWithToken (use filter)
@@ -442,8 +444,8 @@ class CampaignNotificationDeliveryTest extends TestCase
             'scheduled_at' => now(),
         ]);
 
-        $job = new \App\Jobs\ProcessCampaignDeliveryJob($delivery->id);
-        $job->handle(app(\App\Services\AdminCampaigns\CampaignRecipientResolverService::class));
+        $job = new ProcessCampaignDeliveryJob($delivery->id);
+        $job->handle(app(CampaignRecipientResolverService::class));
 
         // Wait for batch jobs (since we are synchronously calling SendCampaignRecipientJob inside process, or let's execute the job directly)
         $log = CampaignLog::where('delivery_id', $delivery->id)->first();
@@ -471,7 +473,7 @@ class CampaignNotificationDeliveryTest extends TestCase
             ->andReturn([
                 'success' => true,
                 'firebase_response' => ['name' => 'mock-message-id-2'],
-                'error' => null
+                'error' => null,
             ]);
 
         $campaign = AdminCampaign::create([
@@ -503,10 +505,10 @@ class CampaignNotificationDeliveryTest extends TestCase
             'notification_status' => 'queued',
         ]);
 
-        $recipientJob = new \App\Jobs\SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
-        $recipientJob->handle(app(\App\Services\EmailLogs\EmailLogService::class), $fcmMock);
+        $recipientJob = new SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
+        $recipientJob->handle(app(EmailLogService::class), $fcmMock);
 
-        Mail::assertSent(\App\Mail\AdminCampaignMailable::class, 1);
+        Mail::assertSent(AdminCampaignMailable::class, 1);
         $this->assertDatabaseHas('campaign_logs', [
             'id' => $log->id,
             'email_status' => 'sent',
@@ -530,7 +532,7 @@ class CampaignNotificationDeliveryTest extends TestCase
             ->andReturn([
                 'success' => false,
                 'firebase_response' => ['error' => 'InvalidRegistration'],
-                'error' => 'Invalid or unregistered Firebase device token.'
+                'error' => 'Invalid or unregistered Firebase device token.',
             ]);
 
         $campaign = AdminCampaign::create([
@@ -560,8 +562,8 @@ class CampaignNotificationDeliveryTest extends TestCase
             'notification_status' => 'queued',
         ]);
 
-        $recipientJob = new \App\Jobs\SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
-        $recipientJob->handle(app(\App\Services\EmailLogs\EmailLogService::class), $fcmMock);
+        $recipientJob = new SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
+        $recipientJob->handle(app(EmailLogService::class), $fcmMock);
 
         $this->assertDatabaseHas('campaign_logs', [
             'id' => $log->id,
@@ -608,8 +610,8 @@ class CampaignNotificationDeliveryTest extends TestCase
             'notification_status' => 'queued',
         ]);
 
-        $recipientJob = new \App\Jobs\SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithoutToken->id);
-        $recipientJob->handle(app(\App\Services\EmailLogs\EmailLogService::class), $fcmMock);
+        $recipientJob = new SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithoutToken->id);
+        $recipientJob->handle(app(EmailLogService::class), $fcmMock);
 
         $this->assertDatabaseHas('campaign_logs', [
             'id' => $log->id,
@@ -630,7 +632,7 @@ class CampaignNotificationDeliveryTest extends TestCase
             'last_name' => 'Login',
             'display_name' => 'John Login',
             'email' => 'john-login@example.com',
-            'password_hash' => \Illuminate\Support\Facades\Hash::make('password123'),
+            'password_hash' => Hash::make('password123'),
             'membership_status' => 'active',
             'status' => 'active',
         ]);
@@ -671,13 +673,13 @@ class CampaignNotificationDeliveryTest extends TestCase
             'status' => 'active',
         ]);
 
-        \App\Models\OtpCode::create([
-            'user_id'    => $user->id,
-            'email'      => $user->email,
-            'purpose'    => 'login_otp',
-            'code'       => \Illuminate\Support\Facades\Hash::make('1234'),
+        OtpCode::create([
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'purpose' => 'login_otp',
+            'code' => Hash::make('1234'),
             'expires_at' => now()->addMinutes(5),
-            'used_at'    => null,
+            'used_at' => null,
         ]);
 
         $payload = [
@@ -826,4 +828,3 @@ class CampaignNotificationDeliveryTest extends TestCase
         ]);
     }
 }
-

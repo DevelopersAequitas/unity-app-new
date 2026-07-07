@@ -12,7 +12,9 @@ class AdminCampaignRecipient extends Model
     use HasFactory;
 
     protected $table = 'admin_campaign_recipients';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

@@ -9,13 +9,11 @@ use RuntimeException;
 
 class ZohoBillingClient
 {
-    public function __construct(private readonly ZohoBillingTokenService $tokenService)
-    {
-    }
+    public function __construct(private readonly ZohoBillingTokenService $tokenService) {}
 
     public function request(string $method, string $path, array $payload = [], bool $asQuery = false): array
     {
-        $url = rtrim((string) config('zoho_billing.base_url'), '/') . '/' . ltrim($path, '/');
+        $url = rtrim((string) config('zoho_billing.base_url'), '/').'/'.ltrim($path, '/');
         $token = $this->tokenService->getAccessToken();
 
         $request = Http::timeout(config('zoho_billing.http_timeout', 20))
@@ -23,7 +21,7 @@ class ZohoBillingClient
             ->acceptJson()
             ->asJson()
             ->withHeaders([
-                'Authorization' => 'Zoho-oauthtoken ' . $token,
+                'Authorization' => 'Zoho-oauthtoken '.$token,
                 'X-com-zoho-subscriptions-organizationid' => (string) (config('services.zoho.billing_org_id') ?: config('zoho_billing.org_id') ?: env('ZOHO_BILLING_ORG_ID')),
                 'Content-Type' => 'application/json',
             ]);
@@ -93,14 +91,14 @@ class ZohoBillingClient
 
     public function postZohoAction(string $path, array $jsonStringPayload = []): array
     {
-        $url = rtrim((string) config('zoho_billing.base_url'), '/') . '/' . ltrim($path, '/');
+        $url = rtrim((string) config('zoho_billing.base_url'), '/').'/'.ltrim($path, '/');
         $token = $this->tokenService->getAccessToken();
 
         $request = Http::timeout(config('zoho_billing.http_timeout', 20))
             ->retry(config('zoho_billing.http_retry_times', 2), config('zoho_billing.http_retry_sleep_ms', 200))
             ->acceptJson()
             ->withHeaders([
-                'Authorization' => 'Zoho-oauthtoken ' . $token,
+                'Authorization' => 'Zoho-oauthtoken '.$token,
                 'X-com-zoho-subscriptions-organizationid' => (string) (config('services.zoho.billing_org_id') ?: config('zoho_billing.org_id') ?: env('ZOHO_BILLING_ORG_ID')),
                 'Accept' => 'application/json',
             ])->asForm();
@@ -123,13 +121,13 @@ class ZohoBillingClient
 
     public function putZohoJsonString(string $path, array $payload): array
     {
-        $url = rtrim((string) config('zoho_billing.base_url'), '/') . '/' . ltrim($path, '/');
+        $url = rtrim((string) config('zoho_billing.base_url'), '/').'/'.ltrim($path, '/');
         $token = $this->tokenService->getAccessToken();
         $jsonString = json_encode($payload);
         $response = Http::timeout(config('zoho_billing.http_timeout', 20))
             ->retry(config('zoho_billing.http_retry_times', 2), config('zoho_billing.http_retry_sleep_ms', 200))
             ->withHeaders([
-                'Authorization' => 'Zoho-oauthtoken ' . $token,
+                'Authorization' => 'Zoho-oauthtoken '.$token,
                 'X-com-zoho-subscriptions-organizationid' => (string) (config('services.zoho.billing_org_id') ?: config('zoho_billing.org_id') ?: env('ZOHO_BILLING_ORG_ID')),
                 'Accept' => 'application/json',
             ])->asForm()->put($url, ['JSONString' => $jsonString]);
@@ -137,18 +135,19 @@ class ZohoBillingClient
             Log::error('zoho_billing_action_failed', ['status' => $response->status(), 'response_body' => $response->body(), 'path' => $path, 'JSONString' => $jsonString]);
             $this->throwZohoException($response->status(), $response->json(), $response->body());
         }
+
         return $response->json() ?? [];
     }
 
     public function requestPdf(string $path, array $query = []): array
     {
-        $url = rtrim((string) config('zoho_billing.base_url'), '/') . '/' . ltrim($path, '/');
+        $url = rtrim((string) config('zoho_billing.base_url'), '/').'/'.ltrim($path, '/');
         $token = $this->tokenService->getAccessToken();
 
         $response = Http::timeout(config('zoho_billing.http_timeout', 20))
             ->retry(config('zoho_billing.http_retry_times', 2), config('zoho_billing.http_retry_sleep_ms', 200))
             ->withHeaders([
-                'Authorization' => 'Zoho-oauthtoken ' . $token,
+                'Authorization' => 'Zoho-oauthtoken '.$token,
                 'X-com-zoho-subscriptions-organizationid' => (string) (config('services.zoho.billing_org_id') ?: config('zoho_billing.org_id') ?: env('ZOHO_BILLING_ORG_ID')),
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/pdf',
@@ -177,8 +176,8 @@ class ZohoBillingClient
             'response' => $json ?? $body,
         ]);
 
-        $formattedCode = $code ? ' code ' . $code : '';
-        throw new RuntimeException('Zoho API request failed' . $formattedCode . ': ' . $message, $status);
+        $formattedCode = $code ? ' code '.$code : '';
+        throw new RuntimeException('Zoho API request failed'.$formattedCode.': '.$message, $status);
     }
 
     private function payloadContainsKey(array $payload, string $targetKey): bool

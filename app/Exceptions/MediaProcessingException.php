@@ -4,6 +4,4 @@ namespace App\Exceptions;
 
 use RuntimeException;
 
-class MediaProcessingException extends RuntimeException
-{
-}
+class MediaProcessingException extends RuntimeException {}

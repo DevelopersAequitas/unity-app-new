@@ -1,0 +1,41 @@
+name: Deploy to QA Server
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to QA Server via SSH
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.QA_SSH_HOST }}
+          username: ${{ secrets.QA_SSH_USER }}
+          key: ${{ secrets.QA_SSH_KEY }}
+          port: ${{ secrets.QA_SSH_PORT }}
+          script_stop: true
+          script: |
+            cd ${{ secrets.QA_DEPLOY_PATH }}
+            git fetch origin
+            git checkout develop
+            git reset --hard origin/develop
+            composer install \
+                --no-dev \
+                --prefer-dist \
+                --optimize-autoloader \
+                --no-interaction
+            php artisan optimize:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan queue:restart
+            php artisan reverb:restart

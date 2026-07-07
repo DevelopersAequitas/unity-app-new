@@ -179,7 +179,6 @@ class BusinessCategoryController extends BaseApiController
             ->values();
     }
 
-
     private function level2CategoriesTable(): string
     {
         return $this->firstExistingTable(['level2_categories', 'circle_category_level2']);

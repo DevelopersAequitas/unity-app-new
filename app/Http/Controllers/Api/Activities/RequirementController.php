@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api\Activities;
 
+use App\Events\ActivityCreated;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Activities\StoreRequirementRequest;
-use App\Events\ActivityCreated;
 use App\Models\Post;
 use App\Models\Requirement;
 use App\Services\Coins\CoinsService;
@@ -21,13 +21,13 @@ class RequirementController extends BaseApiController
         }
 
         return collect($media)->map(function ($item) {
-            $id   = $item['id']   ?? null;
+            $id = $item['id'] ?? null;
             $type = $item['type'] ?? 'image';
 
             return [
-                'id'   => $id,
+                'id' => $id,
                 'type' => $type,
-                'url'  => $id ? url('/api/v1/files/' . $id) : null,
+                'url' => $id ? url('/api/v1/files/'.$id) : null,
             ];
         })->all();
     }
@@ -51,22 +51,22 @@ class RequirementController extends BaseApiController
             $mediaForPost = $this->addUrlsToMedia($requirement->media ?? []);
 
             Post::create([
-                'user_id'           => $requirement->user_id,
-                'circle_id'         => null,
-                'content_text'      => trim(($requirement->subject ?? '') . ' - ' . ($requirement->description ?? '')),
-                'media'             => $mediaForPost,
-                'tags'              => $requirement->tags ?? [],
-                'visibility'        => $requirement->visibility ?? 'public',
+                'user_id' => $requirement->user_id,
+                'circle_id' => null,
+                'content_text' => trim(($requirement->subject ?? '').' - '.($requirement->description ?? '')),
+                'media' => $mediaForPost,
+                'tags' => $requirement->tags ?? [],
+                'visibility' => $requirement->visibility ?? 'public',
                 'moderation_status' => 'pending',
-                'sponsored'         => false,
-                'is_deleted'        => false,
-                'source_type'       => 'requirement',
-                'source_id'         => $requirement->id,
+                'sponsored' => false,
+                'is_deleted' => false,
+                'source_type' => 'requirement',
+                'source_id' => $requirement->id,
             ]);
         } catch (Throwable $e) {
             Log::error('Failed to create post for requirement', [
                 'requirement_id' => $requirement->id,
-                'error'          => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

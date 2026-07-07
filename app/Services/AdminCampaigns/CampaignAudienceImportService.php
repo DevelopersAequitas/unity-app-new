@@ -45,9 +45,7 @@ class CampaignAudienceImportService
         ],
     ];
 
-    public function __construct(private readonly CampaignRecipientResolverService $recipientResolver)
-    {
-    }
+    public function __construct(private readonly CampaignRecipientResolverService $recipientResolver) {}
 
     public function import(UploadedFile $file, string $audienceType): array
     {
@@ -185,7 +183,7 @@ class CampaignAudienceImportService
             if ($user) {
                 $ids->push([
                     'value' => (string) $user->id,
-                    'label' => $user->adminDisplayName() . ' (' . ($user->email ?: $user->phone ?: $user->id) . ')',
+                    'label' => $user->adminDisplayName().' ('.($user->email ?: $user->phone ?: $user->id).')',
                 ]);
             }
         }
@@ -271,6 +269,7 @@ class CampaignAudienceImportService
             $line = array_map(fn ($value): string => trim((string) $value), $line);
             if ($headers === []) {
                 $headers = $this->normalizeHeaders($line);
+
                 continue;
             }
             $rows[] = $this->combineRow($headers, $line);
@@ -294,7 +293,7 @@ class CampaignAudienceImportService
 
     private function readXlsx(string $path): array
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($path) !== true) {
             throw new InvalidArgumentException('Unable to open the XLSX file.');
         }
@@ -332,6 +331,7 @@ class CampaignAudienceImportService
             }
             if ($headers === []) {
                 $headers = $this->normalizeHeaders($line);
+
                 continue;
             }
             $rows[] = $this->combineRow($headers, $line);
@@ -359,6 +359,7 @@ class CampaignAudienceImportService
         foreach ($shared->si as $item) {
             if (isset($item->t)) {
                 $strings[] = (string) $item->t;
+
                 continue;
             }
             $text = '';
@@ -390,7 +391,8 @@ class CampaignAudienceImportService
         foreach ($relsXml->Relationship as $relationship) {
             if ((string) $relationship['Id'] === $relationshipId) {
                 $target = ltrim((string) $relationship['Target'], '/');
-                return str_starts_with($target, 'xl/') ? $target : 'xl/' . $target;
+
+                return str_starts_with($target, 'xl/') ? $target : 'xl/'.$target;
             }
         }
 
@@ -412,7 +414,7 @@ class CampaignAudienceImportService
 
     private function normalizeHeaders(array $headers): array
     {
-        return collect($headers)->map(fn ($header, int $index): string => trim((string) $header) ?: 'column_' . ($index + 1))->all();
+        return collect($headers)->map(fn ($header, int $index): string => trim((string) $header) ?: 'column_'.($index + 1))->all();
     }
 
     private function combineRow(array $headers, array $line): array

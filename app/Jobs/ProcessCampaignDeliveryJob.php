@@ -2,9 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Models\AdminCampaign;
 use App\Models\CampaignDelivery;
 use App\Models\CampaignLog;
-use App\Models\AdminCampaign;
 use App\Services\AdminCampaigns\CampaignRecipientResolverService;
 use Illuminate\Bus\Batch;
 use Illuminate\Bus\Queueable;
@@ -15,6 +15,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ProcessCampaignDeliveryJob implements ShouldQueue
@@ -23,15 +24,14 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
 
     public $timeout = 600; // Allow ample time for large audiences
 
-    public function __construct(protected string $deliveryId)
-    {
-    }
+    public function __construct(protected string $deliveryId) {}
 
     public function handle(CampaignRecipientResolverService $resolver): void
     {
         $delivery = CampaignDelivery::with('campaign')->find($this->deliveryId);
-        if (!$delivery || !$delivery->campaign) {
+        if (! $delivery || ! $delivery->campaign) {
             Log::error('ProcessCampaignDeliveryJob failed: Delivery or campaign not found', ['delivery_id' => $this->deliveryId]);
+
             return;
         }
 
@@ -66,9 +66,10 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
                     'status' => 'sent',
                     'completed_at' => now(),
                 ]);
-                
+
                 // For immediate/once campaigns, sync status to parent campaign
                 $this->syncCampaignStatus($campaign);
+
                 return;
             }
 
@@ -80,9 +81,9 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
             $query->chunk(250, function ($users) use ($deliveryId, &$jobs) {
                 $logsData = [];
                 $now = now();
-                
+
                 foreach ($users as $user) {
-                    $logId = (string) \Illuminate\Support\Str::uuid();
+                    $logId = (string) Str::uuid();
                     $logsData[] = [
                         'id' => $logId,
                         'delivery_id' => $deliveryId,
@@ -95,20 +96,20 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
-                    
+
                     // Instantiate job
                     $jobs[] = new SendCampaignRecipientJob($deliveryId, $logId, $user->id);
                 }
-                
+
                 // Bulk insert logs to avoid query overhead
                 CampaignLog::insert($logsData);
             });
 
             // 3. Dispatch Jobs Batch
-            $batchName = 'Campaign Send: ' . $campaign->title . ' (Run: ' . $delivery->scheduled_at->format('Y-m-d H:i') . ')';
-            
+            $batchName = 'Campaign Send: '.$campaign->title.' (Run: '.$delivery->scheduled_at->format('Y-m-d H:i').')';
+
             $queueName = env('CAMPAIGN_QUEUE_NAME', 'default');
-            
+
             Log::info('Dispatching SendCampaignRecipientJob batch', [
                 'delivery_id' => $deliveryId,
                 'campaign_id' => $campaign->id,
@@ -124,7 +125,7 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
                         'delivery_id' => $deliveryId,
                         'batch_id' => $batch->id,
                     ]);
-                    
+
                     // Success callback
                     $del = CampaignDelivery::with('campaign')->find($deliveryId);
                     if ($del) {
@@ -136,10 +137,10 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
                             'status' => $status,
                             'completed_at' => now(),
                         ]);
-                        
+
                         $campaign = $del->campaign;
                         if ($campaign) {
-                            (new \App\Jobs\ProcessCampaignDeliveryJob($deliveryId))->syncCampaignStatus($campaign);
+                            (new ProcessCampaignDeliveryJob($deliveryId))->syncCampaignStatus($campaign);
                         }
                     }
                 })
@@ -149,19 +150,19 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
                         'batch_id' => $batch->id,
                         'error' => $e->getMessage(),
                     ]);
-                    
+
                     // Failure callback
                     $del = CampaignDelivery::with('campaign')->find($deliveryId);
                     if ($del) {
                         $del->update([
                             'status' => 'failed',
-                            'error_message' => 'Batch Execution Failed: ' . $e->getMessage(),
+                            'error_message' => 'Batch Execution Failed: '.$e->getMessage(),
                             'completed_at' => now(),
                         ]);
-                        
+
                         $campaign = $del->campaign;
                         if ($campaign) {
-                            (new \App\Jobs\ProcessCampaignDeliveryJob($deliveryId))->syncCampaignStatus($campaign);
+                            (new ProcessCampaignDeliveryJob($deliveryId))->syncCampaignStatus($campaign);
                         }
                     }
                 });
@@ -183,10 +184,10 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
 
             $delivery->update([
                 'status' => 'failed',
-                'error_message' => 'System Execution Error: ' . $e->getMessage(),
+                'error_message' => 'System Execution Error: '.$e->getMessage(),
                 'completed_at' => now(),
             ]);
-            
+
             $this->syncCampaignStatus($campaign);
         }
     }
@@ -220,10 +221,10 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
             }
 
             $campaign->update([
-                'total_recipients' => (int)($aggregates->total_recipients ?? 0),
-                'total_email_sent' => (int)($aggregates->total_email_sent ?? 0),
-                'total_notification_sent' => (int)($aggregates->total_notification_sent ?? 0),
-                'total_failed' => (int)($aggregates->total_failed ?? 0),
+                'total_recipients' => (int) ($aggregates->total_recipients ?? 0),
+                'total_email_sent' => (int) ($aggregates->total_email_sent ?? 0),
+                'total_notification_sent' => (int) ($aggregates->total_notification_sent ?? 0),
+                'total_failed' => (int) ($aggregates->total_failed ?? 0),
                 'status' => $newStatus,
                 'sent_at' => $latestDelivery->completed_at ?: $campaign->sent_at,
             ]);

@@ -16,9 +16,7 @@ use Illuminate\Http\Request;
 
 class FollowController extends Controller
 {
-    public function __construct(private readonly PushNotificationService $pushNotificationService)
-    {
-    }
+    public function __construct(private readonly PushNotificationService $pushNotificationService) {}
 
     public function requestFollow(Request $request, User $user): JsonResponse
     {

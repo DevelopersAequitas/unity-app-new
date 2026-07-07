@@ -12,9 +12,7 @@ use Illuminate\Support\Facades\Log;
 
 class CoinClaimUserNotificationService
 {
-    public function __construct(private readonly CoinClaimActivityRegistry $registry)
-    {
-    }
+    public function __construct(private readonly CoinClaimActivityRegistry $registry) {}
 
     public function sendApproved(CoinClaimRequest $claim): Notification
     {
@@ -25,7 +23,7 @@ class CoinClaimUserNotificationService
         $payload = [
             'notification_type' => 'coin_claim_approved',
             'title' => 'Coin claim approved',
-            'body' => 'Your claim for ' . $activityLabel . ' was approved. ' . ($coinsAwarded ?? 0) . ' coins added.',
+            'body' => 'Your claim for '.$activityLabel.' was approved. '.($coinsAwarded ?? 0).' coins added.',
             'coin_claim_id' => (string) $claim->id,
             'activity_code' => (string) $claim->activity_code,
             'coins_awarded' => $coinsAwarded,
@@ -45,7 +43,7 @@ class CoinClaimUserNotificationService
         $payload = [
             'notification_type' => 'coin_claim_rejected',
             'title' => 'Coin claim rejected',
-            'body' => 'Your claim for ' . $activityLabel . ' was rejected. Reason: ' . $reason,
+            'body' => 'Your claim for '.$activityLabel.' was rejected. Reason: '.$reason,
             'coin_claim_id' => (string) $claim->id,
             'activity_code' => (string) $claim->activity_code,
             'coins_awarded' => null,

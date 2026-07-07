@@ -20,6 +20,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class AdminExecutionController extends Controller
 {
@@ -75,6 +76,7 @@ class AdminExecutionController extends Controller
         return view('admin/execution/industries', compact('industries'));
     }
 
+
     public function events()
     {
         $sponsorTable = $this->resolveFirstExistingTable(['event_sponsors', 'event_sponsorships', 'sponsorships']);
@@ -111,7 +113,7 @@ class AdminExecutionController extends Controller
         $payments->setCollection($payments->getCollection()->map(function (Payment $payment) use ($amountColumn, $categoryColumn) {
             $payment->display_amount = (float) ($payment->{$amountColumn} ?? 0);
             $payment->display_source = $categoryColumn ? (string) ($payment->{$categoryColumn} ?? '-') : $this->derivePaymentCategory($payment);
-            $payment->display_user = $payment->user?->display_name ?: trim(($payment->user?->first_name ?? '') . ' ' . ($payment->user?->last_name ?? ''));
+            $payment->display_user = $payment->user?->display_name ?: trim(($payment->user?->first_name ?? '').' '.($payment->user?->last_name ?? ''));
             if ($payment->display_user === '') {
                 $payment->display_user = $payment->user?->email ?: (string) $payment->user_id;
             }
@@ -119,7 +121,7 @@ class AdminExecutionController extends Controller
             return $payment;
         }));
 
-        $baseRevenueQuery = Payment::query()->whereRaw('LOWER(status) IN (' . implode(',', array_fill(0, count($successStatuses), '?')) . ')', $successStatuses);
+        $baseRevenueQuery = Payment::query()->whereRaw('LOWER(status) IN ('.implode(',', array_fill(0, count($successStatuses), '?')).')', $successStatuses);
         $categoryTotals = $this->aggregatePaymentCategories((clone $baseRevenueQuery)->get(), $amountColumn, $categoryColumn);
 
         $summary = [
@@ -139,7 +141,7 @@ class AdminExecutionController extends Controller
             ->limit(50)
             ->get()
             ->map(function (User $user) {
-                $user->display_user = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+                $user->display_user = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
                 if ($user->display_user === '') {
                     $user->display_user = $user->email ?: (string) $user->id;
                 }
@@ -172,7 +174,7 @@ class AdminExecutionController extends Controller
         ]);
 
         DB::table('broadcast_messages')->insert([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'title' => $validated['title'],
             'message' => $validated['message'],
             'channel' => $validated['channel'] ?? 'in_app',
@@ -190,7 +192,7 @@ class AdminExecutionController extends Controller
         $warningTable = $this->resolveFirstExistingTable(['absence_warnings', 'warnings']);
 
         $meetings = $meetingTable
-            ? DB::table($meetingTable . ' as cm')
+            ? DB::table($meetingTable.' as cm')
                 ->leftJoin('circles', 'circles.id', '=', 'cm.circle_id')
                 ->select('cm.*', 'circles.name as circle_name')
                 ->orderByDesc(Schema::hasColumn($meetingTable, 'meeting_date') ? 'cm.meeting_date' : 'cm.created_at')
@@ -198,7 +200,7 @@ class AdminExecutionController extends Controller
             : $this->emptyPaginator();
 
         $warnings = $warningTable
-            ? DB::table($warningTable . ' as aw')
+            ? DB::table($warningTable.' as aw')
                 ->leftJoin('users', 'users.id', '=', 'aw.user_id')
                 ->leftJoin('circles', 'circles.id', '=', 'aw.circle_id')
                 ->select('aw.*', DB::raw("COALESCE(NULLIF(users.display_name, ''), NULLIF(TRIM(CONCAT_WS(' ', users.first_name, users.last_name)), ''), users.email, aw.user_id::text) as user_name"), 'circles.name as circle_name')
@@ -214,7 +216,7 @@ class AdminExecutionController extends Controller
         $amountColumn = $this->resolvePaymentAmountColumn();
         $successStatuses = $this->resolvePaidStatuses();
 
-        $baseRevenueQuery = Payment::query()->whereRaw('LOWER(status) IN (' . implode(',', array_fill(0, count($successStatuses), '?')) . ')', $successStatuses);
+        $baseRevenueQuery = Payment::query()->whereRaw('LOWER(status) IN ('.implode(',', array_fill(0, count($successStatuses), '?')).')', $successStatuses);
         $reportCards = [
             'users' => User::query()->count(),
             'circles' => Circle::query()->count(),
@@ -233,7 +235,7 @@ class AdminExecutionController extends Controller
         $latestPayments->transform(function (Payment $payment) use ($amountColumn, $categoryColumn) {
             $payment->display_amount = (float) ($payment->{$amountColumn} ?? 0);
             $payment->display_source = $categoryColumn ? (string) ($payment->{$categoryColumn} ?? '-') : $this->derivePaymentCategory($payment);
-            $payment->display_user = $payment->user?->display_name ?: trim(($payment->user?->first_name ?? '') . ' ' . ($payment->user?->last_name ?? ''));
+            $payment->display_user = $payment->user?->display_name ?: trim(($payment->user?->first_name ?? '').' '.($payment->user?->last_name ?? ''));
             if ($payment->display_user === '') {
                 $payment->display_user = $payment->user?->email ?: (string) $payment->user_id;
             }
@@ -354,7 +356,7 @@ class AdminExecutionController extends Controller
 
         return (float) Payment::query()
             ->where('event_id', $eventId)
-            ->whereRaw('LOWER(status) IN (' . implode(',', array_fill(0, count($this->resolvePaidStatuses()), '?')) . ')', $this->resolvePaidStatuses())
+            ->whereRaw('LOWER(status) IN ('.implode(',', array_fill(0, count($this->resolvePaidStatuses()), '?')).')', $this->resolvePaidStatuses())
             ->sum($this->resolvePaymentAmountColumn());
     }
 

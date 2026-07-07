@@ -4,7 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         if (Schema::hasTable('entrepreneur_certification_submissions')) {
@@ -38,20 +39,20 @@ return new class extends Migration {
                 ];
 
                 foreach ($columns as $column) {
-                    if (!Schema::hasColumn('entrepreneur_certification_submissions', $column)) {
+                    if (! Schema::hasColumn('entrepreneur_certification_submissions', $column)) {
                         $table->text($column)->nullable();
                     }
                 }
 
-                if (!Schema::hasColumn('entrepreneur_certification_submissions', 'total_score')) {
+                if (! Schema::hasColumn('entrepreneur_certification_submissions', 'total_score')) {
                     $table->integer('total_score')->default(0);
                 }
 
-                if (!Schema::hasColumn('entrepreneur_certification_submissions', 'percentage')) {
+                if (! Schema::hasColumn('entrepreneur_certification_submissions', 'percentage')) {
                     $table->decimal('percentage', 5, 2)->default(0);
                 }
 
-                if (!Schema::hasColumn('entrepreneur_certification_submissions', 'certification_tier')) {
+                if (! Schema::hasColumn('entrepreneur_certification_submissions', 'certification_tier')) {
                     $table->string('certification_tier', 100)->nullable();
                 }
             });
@@ -71,7 +72,7 @@ return new class extends Migration {
                     'networking_belief', 'conflict_handling', 'team_motivation_method',
                     'business_meet_frequency', 'community_growth_belief', 'five_year_business_vision',
                     'success_meaning', 'work_life_balance_method', 'society_value_belief',
-                    'future_mentorship_belief', 'total_score', 'percentage', 'certification_tier'
+                    'future_mentorship_belief', 'total_score', 'percentage', 'certification_tier',
                 ];
 
                 foreach ($columns as $column) {

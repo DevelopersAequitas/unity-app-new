@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
-use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ActivitiesExportRequest;
 use App\Models\BusinessDeal;
+use App\Models\File;
 use App\Models\LeaderInterestSubmission;
 use App\Models\P2pMeeting;
 use App\Models\PeerRecommendation;
@@ -15,17 +15,18 @@ use App\Models\Testimonial;
 use App\Models\User;
 use App\Models\VisitorRegistration;
 use App\Services\Admin\IndustryScopeService;
+use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 // NOTE: After deploy run `php artisan optimize:clear` (optional) `composer dump-autoload`.
 class ActivitiesController extends Controller
 {
-
     public function index(Request $request): View
     {
         $filters = $this->buildFilters($request);
@@ -53,7 +54,6 @@ class ActivitiesController extends Controller
             'topDistrictPeers' => $topDistrictPeers,
         ]);
     }
-
 
     private function buildTopDistrictPeers($summaryQuery)
     {
@@ -190,7 +190,6 @@ class ActivitiesController extends Controller
             });
         }
 
-
         if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'any') {
             $query->whereExists(function ($sub) use ($filters) {
                 $sub->selectRaw('1')
@@ -275,7 +274,7 @@ class ActivitiesController extends Controller
             ->select('circles.id', 'circles.name')
             ->orderBy('circles.name');
 
-        if (\App\Support\AdminAccess::isCircleScoped($admin)) {
+        if (AdminAccess::isCircleScoped($admin)) {
             $circleId = AdminCircleScope::resolveCircleId($admin);
             if ($circleId) {
                 $query->where('circles.id', $circleId);
@@ -306,9 +305,9 @@ class ActivitiesController extends Controller
 
         $allMediaIds = [];
         foreach ($items as $item) {
-            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+            $allMediaIds = array_merge($allMediaIds, File::extractIdsFromMedia($item->media));
         }
-        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+        $validMediaIds = File::getValidMediaIds(array_unique($allMediaIds));
 
         return view('admin.activities.list-testimonials', [
             'member' => $member,
@@ -409,9 +408,9 @@ class ActivitiesController extends Controller
 
         $allMediaIds = [];
         foreach ($items as $item) {
-            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+            $allMediaIds = array_merge($allMediaIds, File::extractIdsFromMedia($item->media));
         }
-        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+        $validMediaIds = File::getValidMediaIds(array_unique($allMediaIds));
 
         return view('admin.activities.list-requirements', [
             'member' => $member,
@@ -425,8 +424,8 @@ class ActivitiesController extends Controller
     {
         $validated = $request->validated();
         $activityType = $validated['activity_type'];
-        $filenamePrefix = $activityType === 'summary' ? 'activities_summary' : 'activity_' . $activityType;
-        $filename = $filenamePrefix . '_' . now()->format('Ymd_His') . '.csv';
+        $filenamePrefix = $activityType === 'summary' ? 'activities_summary' : 'activity_'.$activityType;
+        $filename = $filenamePrefix.'_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($request, $activityType) {
             @ini_set('zlib.output_compression', '0');
@@ -572,8 +571,8 @@ class ActivitiesController extends Controller
     {
         $memberKey = $this->resolveMemberKey($activityType);
 
-        $query = DB::table($this->activityTable($activityType) . ' as activity')
-            ->leftJoin('users as member_user', 'member_user.id', '=', 'activity.' . $memberKey)
+        $query = DB::table($this->activityTable($activityType).' as activity')
+            ->leftJoin('users as member_user', 'member_user.id', '=', 'activity.'.$memberKey)
             ->select($this->exportSelectColumns($activityType));
 
         $requiresPeer = $this->activityRequiresPeer($activityType);
@@ -583,7 +582,7 @@ class ActivitiesController extends Controller
         $this->applyCircleScopeToActivityQuery(
             $query,
             auth('admin')->user(),
-            'activity.' . $memberKey,
+            'activity.'.$memberKey,
             $requiresPeer ? $this->relatedUserJoinColumn($activityType) : null
         );
 
@@ -756,6 +755,7 @@ class ActivitiesController extends Controller
         $decoded = is_string($value) ? json_decode($value, true) : $value;
         if (is_array($decoded)) {
             $decoded = array_filter($decoded);
+
             return $decoded ? implode(', ', $decoded) : null;
         }
 
@@ -780,7 +780,7 @@ class ActivitiesController extends Controller
 
         $regionLabel = $decoded['region_label'] ?? null;
         $cityName = $decoded['city_name'] ?? null;
-        $region = trim(($regionLabel ?? '') . ($cityName ? ', ' . $cityName : ''));
+        $region = trim(($regionLabel ?? '').($cityName ? ', '.$cityName : ''));
 
         return $region !== '' ? $region : null;
     }
@@ -824,7 +824,7 @@ class ActivitiesController extends Controller
             default => Requirement::class,
         };
 
-        return (new $modelClass())->getTable();
+        return (new $modelClass)->getTable();
     }
 
     private function relatedUserJoinColumn(string $activityType): string
@@ -950,7 +950,7 @@ class ActivitiesController extends Controller
             ->mapWithKeys(function ($user) {
                 $name = $user->display_name;
                 if (! $name) {
-                    $name = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+                    $name = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
                 }
 
                 $name = $name ?: $user->email;
@@ -1026,7 +1026,7 @@ class ActivitiesController extends Controller
         }
 
         if (is_string($value) && Str::isUuid($value)) {
-            return url('/api/v1/files/' . $value);
+            return url('/api/v1/files/'.$value);
         }
 
         return null;

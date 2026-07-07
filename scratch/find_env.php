@@ -1,10 +1,14 @@
 <?php
+
 // Scan all directories recursively and print env files or files with config.
-function scan($dir) {
+function scan($dir)
+{
     $files = [];
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir));
     foreach ($iterator as $file) {
-        if ($file->isDir()) continue;
+        if ($file->isDir()) {
+            continue;
+        }
         $path = $file->getPathname();
         // Ignore vendor and node_modules directories
         if (strpos($path, 'vendor') !== false || strpos($path, 'node_modules') !== false || strpos($path, '.git') !== false) {
@@ -15,6 +19,7 @@ function scan($dir) {
             $files[] = $path;
         }
     }
+
     return $files;
 }
 

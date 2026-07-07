@@ -184,14 +184,14 @@ class P2pMeetingCoinsApiTest extends TestCase
         $creator = User::query()->create([
             'id' => (string) Str::uuid(),
             'display_name' => 'Jay',
-            'email' => Str::uuid() . '@example.com',
+            'email' => Str::uuid().'@example.com',
             'coins_balance' => 0,
         ]);
 
         $peer = User::query()->create([
             'id' => (string) Str::uuid(),
             'display_name' => 'Mohit Chavda',
-            'email' => Str::uuid() . '@example.com',
+            'email' => Str::uuid().'@example.com',
             'coins_balance' => 0,
         ]);
 

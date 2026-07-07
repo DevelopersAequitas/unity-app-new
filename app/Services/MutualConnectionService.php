@@ -76,8 +76,6 @@ class MutualConnectionService
 
     /**
      * Build a subquery of accepted peer IDs for the given user ID.
-     *
-     * @param  string  $userId
      */
     private function acceptedConnectionPeerIdsSubquery(string $userId): \Illuminate\Database\Query\Builder
     {

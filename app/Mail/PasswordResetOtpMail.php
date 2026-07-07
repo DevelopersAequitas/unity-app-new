@@ -12,11 +12,12 @@ class PasswordResetOtpMail extends Mailable
     use Queueable, SerializesModels;
 
     public string $otp;
+
     public User $user;
 
     public function __construct(string $otp, User $user)
     {
-        $this->otp  = $otp;
+        $this->otp = $otp;
         $this->user = $user;
     }
 
@@ -25,7 +26,7 @@ class PasswordResetOtpMail extends Mailable
         return $this->subject('Your Peers Global Unity password reset OTP')
             ->view('emails.auth.password_reset_otp')
             ->with([
-                'otp'  => $this->otp,
+                'otp' => $this->otp,
                 'user' => $this->user,
             ]);
     }

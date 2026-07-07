@@ -20,9 +20,7 @@ class RazorpayWebhookController extends Controller
     public function __construct(
         private readonly MembershipService $membershipService,
         private readonly EventRazorpayPaymentFinalizer $eventPaymentFinalizer,
-    )
-    {
-    }
+    ) {}
 
     public function handle(Request $request): JsonResponse
     {
@@ -67,7 +65,6 @@ class RazorpayWebhookController extends Controller
 
         return response()->json(['ok' => true]);
     }
-
 
     private function filterEventRegistrationColumns(array $data): array
     {

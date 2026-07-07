@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,7 +14,9 @@ class CampaignDelivery extends Model
     use HasFactory;
 
     protected $table = 'campaign_deliveries';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [
@@ -58,52 +61,55 @@ class CampaignDelivery extends Model
 
     public function getScheduledAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
-        return \Carbon\Carbon::parse($value, 'UTC');
+
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setScheduledAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['scheduled_at'] = null;
         } else {
-            $this->attributes['scheduled_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['scheduled_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 
     public function getStartedAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
-        return \Carbon\Carbon::parse($value, 'UTC');
+
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setStartedAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['started_at'] = null;
         } else {
-            $this->attributes['started_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['started_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 
     public function getCompletedAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
-        return \Carbon\Carbon::parse($value, 'UTC');
+
+        return Carbon::parse($value, 'UTC');
     }
 
     public function setCompletedAtAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             $this->attributes['completed_at'] = null;
         } else {
-            $this->attributes['completed_at'] = \Carbon\Carbon::parse($value)->setTimezone('UTC');
+            $this->attributes['completed_at'] = Carbon::parse($value)->setTimezone('UTC');
         }
     }
 
@@ -112,15 +118,16 @@ class CampaignDelivery extends Model
         return $this->hasMany(CampaignLog::class, 'delivery_id');
     }
 
-    public function formatTimestamp(?\Carbon\Carbon $dateTime): ?string
+    public function formatTimestamp(?Carbon $dateTime): ?string
     {
-        if (!$dateTime) {
+        if (! $dateTime) {
             return null;
         }
         $campaign = $this->campaign;
         if ($campaign) {
             return $campaign->formatTimestamp($dateTime);
         }
+
         return $dateTime->copy()->setTimezone('Asia/Kolkata')->format('d M Y H:i');
     }
 }

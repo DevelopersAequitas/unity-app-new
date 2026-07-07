@@ -10,7 +10,6 @@ class MutualConnectionResource extends JsonResource
     /**
      * Transform a mutual connection user into the API response shape.
      *
-     * @param  Request  $request
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
@@ -38,7 +37,7 @@ class MutualConnectionResource extends JsonResource
             return $name;
         }
 
-        return trim((string) ($this->first_name ?? '') . ' ' . (string) ($this->last_name ?? ''));
+        return trim((string) ($this->first_name ?? '').' '.(string) ($this->last_name ?? ''));
     }
 
     /**
@@ -47,7 +46,7 @@ class MutualConnectionResource extends JsonResource
     private function profilePhotoUrl(): string
     {
         if ($this->profile_photo_file_id) {
-            return url('/api/v1/files/' . $this->profile_photo_file_id);
+            return url('/api/v1/files/'.$this->profile_photo_file_id);
         }
 
         return (string) ($this->profile_photo_url ?? '');

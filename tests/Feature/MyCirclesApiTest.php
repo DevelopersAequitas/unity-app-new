@@ -37,27 +37,27 @@ class MyCirclesApiTest extends TestCase
 
         $activeCircle = Circle::create([
             'name' => 'Active Circle',
-            'slug' => 'active-circle-' . Str::lower(Str::random(6)),
+            'slug' => 'active-circle-'.Str::lower(Str::random(6)),
             'status' => 'active',
             'type' => 'private',
-            'founder_user_id' => $founder->id,
-            'director_user_id' => $director->id,
+            'circle_founder_user_id' => $founder->id,
+            'circle_director_user_id' => $director->id,
             'meeting_mode' => 'online',
             'meeting_frequency' => 'monthly',
         ]);
 
         $expiredCircle = Circle::create([
             'name' => 'Expired Circle',
-            'slug' => 'expired-circle-' . Str::lower(Str::random(6)),
+            'slug' => 'expired-circle-'.Str::lower(Str::random(6)),
             'status' => 'active',
             'type' => 'private',
-            'founder_user_id' => $founder->id,
-            'director_user_id' => $director->id,
+            'circle_founder_user_id' => $founder->id,
+            'circle_director_user_id' => $director->id,
         ]);
 
         $leftCircle = Circle::create([
             'name' => 'Left Circle',
-            'slug' => 'left-circle-' . Str::lower(Str::random(6)),
+            'slug' => 'left-circle-'.Str::lower(Str::random(6)),
             'status' => 'active',
             'type' => 'public',
         ]);

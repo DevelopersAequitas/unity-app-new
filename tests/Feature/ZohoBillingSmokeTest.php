@@ -90,7 +90,7 @@ class ZohoBillingSmokeTest extends TestCase
             'membership_status' => 'free_peer',
         ]);
 
-        $payment = new Payment();
+        $payment = new Payment;
         $payment->id = (string) Str::uuid();
         $payment->forceFill([
             'user_id' => $user->id,
@@ -128,5 +128,4 @@ class ZohoBillingSmokeTest extends TestCase
             'success' => false,
         ]);
     }
-
 }

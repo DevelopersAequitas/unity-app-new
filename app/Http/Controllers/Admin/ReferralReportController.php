@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Support\AdminAccess;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use App\Support\AdminAccess;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -60,7 +61,7 @@ class ReferralReportController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->filters($request);
-        $filename = 'referral_report_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'referral_report_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($filters): void {
             @ini_set('zlib.output_compression', '0');
@@ -178,7 +179,8 @@ class ReferralReportController extends Controller
             ->when($this->hasUserColumn('last_name'), fn ($query) => $query->groupBy('referrer.last_name'))
             ->when($this->hasUserColumn('email'), fn ($query) => $query->groupBy('referrer.email'))
             ->when($this->hasUserColumn('phone'), fn ($query) => $query->groupBy('referrer.phone'))
-            ->when($this->hasUserColumn('company_name'), fn ($query) => $query->groupBy('referrer.company_name'));
+            ->when($this->hasUserColumn('company_name'), fn ($query) => $query->groupBy('referrer.company_name'))
+            ->when($this->hasUserColumn('city'), fn ($query) => $query->groupBy('referrer.city'));
 
         $this->applySummaryFilters($query, $filters);
         $this->applyReferralCircleScope($query, ['rd.referrer_user_id']);
@@ -208,7 +210,7 @@ class ReferralReportController extends Controller
         return $query;
     }
 
-    private function referredUsersForSummaryRows(array $referrerUserIds, array $filters): \Illuminate\Support\Collection
+    private function referredUsersForSummaryRows(array $referrerUserIds, array $filters): Collection
     {
         if ($referrerUserIds === []) {
             return collect();
@@ -260,6 +262,7 @@ class ReferralReportController extends Controller
         $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
         if ($allowedCircleIds === []) {
             $query->whereRaw('1=0');
+
             return;
         }
 
@@ -281,7 +284,7 @@ class ReferralReportController extends Controller
         }
 
         if (($filters['q'] ?? '') !== '') {
-            $like = '%' . $filters['q'] . '%';
+            $like = '%'.$filters['q'].'%';
             $query->where(function (Builder $inner) use ($like): void {
                 if ($this->hasReferralColumn('referral_code')) {
                     $inner->where('rd.referral_code', 'ilike', $like);
@@ -295,7 +298,7 @@ class ReferralReportController extends Controller
 
                 foreach (['display_name', 'first_name', 'last_name', 'email', 'phone'] as $column) {
                     if ($this->hasUserColumn($column)) {
-                        $inner->orWhere('referrer.' . $column, 'ilike', $like);
+                        $inner->orWhere('referrer.'.$column, 'ilike', $like);
                     }
                 }
             });
@@ -308,7 +311,7 @@ class ReferralReportController extends Controller
     private function applyReferralDataFilters(Builder $query, array $filters): void
     {
         if (($filters['referral_code'] ?? '') !== '' && $this->hasReferralColumn('referral_code')) {
-            $query->where('rd.referral_code', 'ilike', '%' . $filters['referral_code'] . '%');
+            $query->where('rd.referral_code', 'ilike', '%'.$filters['referral_code'].'%');
         }
 
         $dateExpression = DB::raw($this->referralDateExpression());
@@ -331,13 +334,13 @@ class ReferralReportController extends Controller
             return;
         }
 
-        $like = '%' . $filters['referred_q'] . '%';
+        $like = '%'.$filters['referred_q'].'%';
         $query->where(function (Builder $inner) use ($like): void {
             $inner->whereRaw('1 = 0');
 
             foreach (['display_name', 'first_name', 'last_name', 'email', 'phone'] as $column) {
                 if ($this->hasUserColumn($column)) {
-                    $inner->orWhere('referred.' . $column, 'ilike', $like);
+                    $inner->orWhere('referred.'.$column, 'ilike', $like);
                 }
             }
         });
@@ -347,14 +350,20 @@ class ReferralReportController extends Controller
     {
         return implode(",\n", [
             'rd.referrer_user_id',
-            $this->referrerNameExpression() . ' as referrer_name',
-            $this->referrerEmailSummaryExpression() . ' as referrer_email',
-            $this->userTextColumn('referrer', 'phone') . ' as referrer_phone',
-            $this->userTextColumn('referrer', 'company_name') . ' as referrer_company',
-            $this->referralCodesAggregateExpression() . ' as referral_codes',
+            $this->referrerNameExpression().' as referrer_name',
+            $this->referrerEmailSummaryExpression().' as referrer_email',
+            $this->userTextColumn('referrer', 'phone').' as referrer_phone',
+            $this->userTextColumn('referrer', 'company_name').' as referrer_company',
+            $this->userTextColumn('referrer', 'city').' as referrer_city',
+            $this->referralCodesAggregateExpression().' as referral_codes',
+            $this->referrerNameExpression().' as referrer_name',
+            $this->referrerEmailSummaryExpression().' as referrer_email',
+            $this->userTextColumn('referrer', 'phone').' as referrer_phone',
+            $this->userTextColumn('referrer', 'company_name').' as referrer_company',
+            $this->referralCodesAggregateExpression().' as referral_codes',
             'COUNT(DISTINCT rd.referred_user_id) as total_referred_users',
-            $this->coinsGrantedExpression() . ' as total_coins_granted',
-            'MAX(' . $this->referralDateExpression() . ') as last_referral_date',
+            $this->coinsGrantedExpression().' as total_coins_granted',
+            'MAX('.$this->referralDateExpression().') as last_referral_date',
         ]);
     }
 
@@ -364,40 +373,39 @@ class ReferralReportController extends Controller
             'rd.id',
             'rd.referrer_user_id',
             'rd.referred_user_id',
-            $this->referredNameExpression() . ' as referred_name',
-            $this->userTextColumn('referred', 'email') . ' as referred_email',
-            $this->userTextColumn('referred', 'phone') . ' as referred_phone',
-            $this->userTextColumn('referred', 'company_name') . ' as company_name',
-            $this->userTextColumn('referred', 'city') . ' as city',
-            $this->referralCodeExpression() . ' as referral_code',
+            $this->referredNameExpression().' as referred_name',
+            $this->userTextColumn('referred', 'email').' as referred_email',
+            $this->userTextColumn('referred', 'phone').' as referred_phone',
+            $this->userTextColumn('referred', 'company_name').' as company_name',
+            $this->userTextColumn('referred', 'city').' as city',
+            $this->referralCodeExpression().' as referral_code',
             $this->hasReferralColumn('coins') ? 'COALESCE(rd.coins, 0) as coins' : '0 as coins',
             $this->hasReferralColumn('reward_status') ? "COALESCE(NULLIF(rd.reward_status, ''), 'pending') as reward_status" : "'—' as reward_status",
-            $this->referralDateExpression() . ' as used_at',
+            $this->referralDateExpression().' as used_at',
         ]);
     }
-
 
     private function exportRowsSelectSql(): string
     {
         return implode(",\n", [
             'rd.referrer_user_id',
-            $this->referrerNameExpression() . ' as referrer_name',
-            $this->referrerEmailRowExpression() . ' as referrer_email',
-            $this->userTextColumn('referrer', 'phone') . ' as referrer_phone',
-            $this->userTextColumn('referrer', 'company_name') . ' as referrer_company',
-            $this->referralCodeExpression() . ' as referral_code',
+            $this->referrerNameExpression().' as referrer_name',
+            $this->referrerEmailRowExpression().' as referrer_email',
+            $this->userTextColumn('referrer', 'phone').' as referrer_phone',
+            $this->userTextColumn('referrer', 'company_name').' as referrer_company',
+            $this->referralCodeExpression().' as referral_code',
             'COUNT(rd.referred_user_id) OVER (PARTITION BY rd.referrer_user_id) as total_referred_users',
-            $this->coinsGrantedWindowExpression() . ' as total_coins_granted',
-            'MAX(' . $this->referralDateExpression() . ') OVER (PARTITION BY rd.referrer_user_id) as last_referral_date',
+            $this->coinsGrantedWindowExpression().' as total_coins_granted',
+            'MAX('.$this->referralDateExpression().') OVER (PARTITION BY rd.referrer_user_id) as last_referral_date',
             'rd.referred_user_id',
-            $this->referredNameExpression() . ' as referred_name',
-            $this->userTextColumn('referred', 'email') . ' as referred_email',
-            $this->userTextColumn('referred', 'phone') . ' as referred_phone',
-            $this->userTextColumn('referred', 'company_name') . ' as company_name',
-            $this->userTextColumn('referred', 'city') . ' as city',
+            $this->referredNameExpression().' as referred_name',
+            $this->userTextColumn('referred', 'email').' as referred_email',
+            $this->userTextColumn('referred', 'phone').' as referred_phone',
+            $this->userTextColumn('referred', 'company_name').' as company_name',
+            $this->userTextColumn('referred', 'city').' as city',
             $this->hasReferralColumn('coins') ? 'COALESCE(rd.coins, 0) as coins' : '0 as coins',
             $this->hasReferralColumn('reward_status') ? "COALESCE(NULLIF(rd.reward_status, ''), 'pending') as reward_status" : "'—' as reward_status",
-            $this->referralDateExpression() . ' as used_at',
+            $this->referralDateExpression().' as used_at',
         ]);
     }
 
@@ -447,7 +455,7 @@ class ReferralReportController extends Controller
             $parts[] = 'referrer.last_name';
         }
 
-        $fullName = $parts ? "NULLIF(trim(concat_ws(' ', " . implode(', ', $parts) . ")), '')" : 'NULL';
+        $fullName = $parts ? "NULLIF(trim(concat_ws(' ', ".implode(', ', $parts).")), '')" : 'NULL';
         $display = $this->hasUserColumn('display_name') ? "NULLIF(referrer.display_name, '')" : 'NULL';
 
         return "COALESCE({$display}, {$fullName}, 'Deleted / Unknown User')";
@@ -463,7 +471,7 @@ class ReferralReportController extends Controller
             $parts[] = 'referred.last_name';
         }
 
-        $fullName = $parts ? "NULLIF(trim(concat_ws(' ', " . implode(', ', $parts) . ")), '')" : 'NULL';
+        $fullName = $parts ? "NULLIF(trim(concat_ws(' ', ".implode(', ', $parts).")), '')" : 'NULL';
         $display = $this->hasUserColumn('display_name') ? "NULLIF(referred.display_name, '')" : 'NULL';
 
         return "COALESCE({$display}, {$fullName}, 'Deleted / Unknown User')";
@@ -484,7 +492,7 @@ class ReferralReportController extends Controller
             $columns[] = 'rd.created_at';
         }
 
-        return $columns ? 'COALESCE(' . implode(', ', $columns) . ')' : 'NULL';
+        return $columns ? 'COALESCE('.implode(', ', $columns).')' : 'NULL';
     }
 
     private function coinsGrantedExpression(): string
@@ -516,12 +524,14 @@ class ReferralReportController extends Controller
     private function hasReferralColumn(string $column): bool
     {
         static $columns = [];
+
         return $columns[$column] ??= Schema::hasColumn('referraldata', $column);
     }
 
     private function hasUserColumn(string $column): bool
     {
         static $columns = [];
+
         return $columns[$column] ??= Schema::hasColumn('users', $column);
     }
 }

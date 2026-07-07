@@ -16,8 +16,9 @@ use Throwable;
 
 class MembershipUpgradeService
 {
-    public const ONLY_GREEN_PEER_STATUS = 'Only Green Peer';
-    public const ONLY_GREEN_PEER_LABEL = 'Only Green Peer';
+    public const ONLY_GREEN_PEER_STATUS = 'Only Unity Peer';
+
+    public const ONLY_GREEN_PEER_LABEL = 'Only Unity Peer';
 
     /**
      * Mark a successfully paid membership purchase as Only Green Peer without touching coins or circle data.

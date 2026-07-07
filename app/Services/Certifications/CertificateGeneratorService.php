@@ -77,10 +77,10 @@ class CertificateGeneratorService
     {
         $typePrefix = $submission->certification_type === CertificationSubmission::TYPE_LEADERSHIP ? 'LEAD' : 'ENT';
         $year = now()->format('Y');
-        $prefix = $typePrefix . '-' . $year . '-';
+        $prefix = $typePrefix.'-'.$year.'-';
 
         $numbers = CertificationSubmission::query()
-            ->where('certificate_number', 'like', $prefix . '%')
+            ->where('certificate_number', 'like', $prefix.'%')
             ->lockForUpdate()
             ->pluck('certificate_number')
             ->all();
@@ -92,7 +92,7 @@ class CertificateGeneratorService
         }
 
         do {
-            $candidate = $prefix . str_pad((string) (++$max), 6, '0', STR_PAD_LEFT);
+            $candidate = $prefix.str_pad((string) (++$max), 6, '0', STR_PAD_LEFT);
         } while (CertificationSubmission::query()->where('certificate_number', $candidate)->exists());
 
         return $candidate;
@@ -100,6 +100,6 @@ class CertificateGeneratorService
 
     private function downloadUrl(CertificationSubmission $submission): string
     {
-        return url('/admin/certificates/' . $submission->id . '/view');
+        return url('/admin/certificates/'.$submission->id.'/view');
     }
 }

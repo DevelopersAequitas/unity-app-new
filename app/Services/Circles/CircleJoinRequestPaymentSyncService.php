@@ -14,21 +14,21 @@ use Throwable;
 
 class CircleJoinRequestPaymentSyncService
 {
-    public function __construct(private readonly CircleJoinRequestNotificationService $notificationService)
-    {
-    }
+    public function __construct(private readonly CircleJoinRequestNotificationService $notificationService) {}
 
     public function markRequestPaidFromUserCircle(User $user): void
     {
         $freshUser = User::query()->find($user->id);
         if (! $freshUser) {
             Log::warning('circle join request sync skipped - user not found during refresh', ['user_id' => $user->id]);
+
             return;
         }
 
         $activeCircleId = (string) ($freshUser->active_circle_id ?? '');
         if ($activeCircleId === '') {
             Log::info('circle join request payment sync skipped - empty active_circle_id', ['user_id' => $freshUser->id]);
+
             return;
         }
 

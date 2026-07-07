@@ -2,22 +2,21 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
+use App\Exceptions\MediaProcessingException;
 use App\Http\Resources\FileResource;
 use App\Models\File;
 use App\Services\Media\FileUploadService;
-use Illuminate\Http\UploadedFile;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use App\Exceptions\MediaProcessingException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class FileController extends BaseApiController
 {
     public function __construct(
         private readonly FileUploadService $fileUploadService
-    ) {
-    }
+    ) {}
 
     /**
      * Serve a file by its UUID.
@@ -27,7 +26,7 @@ class FileController extends BaseApiController
         try {
             $file = File::find($id);
 
-            if (!$file) {
+            if (! $file) {
                 Log::warning("File API lookup failed: Database record not found for UUID: {$id}", [
                     'uuid' => $id,
                     'ip' => $request->ip(),
@@ -38,8 +37,8 @@ class FileController extends BaseApiController
 
             $disk = config('filesystems.default', 'public');
 
-            if (!$file->s3_key || !Storage::disk($disk)->exists($file->s3_key)) {
-                if (!$file->is_orphaned) {
+            if (! $file->s3_key || ! Storage::disk($disk)->exists($file->s3_key)) {
+                if (! $file->is_orphaned) {
                     $file->is_orphaned = true;
                     $file->save();
                 }
@@ -60,9 +59,9 @@ class FileController extends BaseApiController
 
             if ($request->isMethod('HEAD')) {
                 return response('', 200, [
-                    'Content-Type'  => $mime,
+                    'Content-Type' => $mime,
                     'Content-Length' => $file->size_bytes ?: Storage::disk($disk)->size($file->s3_key),
-                    'Cache-Control' => 'public, max-age=31536000',
+                    'Cache-Control' => 'no-cache, must-revalidate',
                 ]);
             }
 
@@ -70,12 +69,12 @@ class FileController extends BaseApiController
                 $file->s3_key,
                 null,
                 [
-                    'Content-Type'  => $mime,
-                    'Cache-Control' => 'public, max-age=31536000',
+                    'Content-Type' => $mime,
+                    'Cache-Control' => 'no-cache, must-revalidate',
                 ]
             );
         } catch (\Throwable $e) {
-            Log::error("File API error for UUID {$id}: " . $e->getMessage(), [
+            Log::error("File API error for UUID {$id}: ".$e->getMessage(), [
                 'uuid' => $id,
                 'exception' => $e,
             ]);
@@ -102,7 +101,7 @@ class FileController extends BaseApiController
 
                 $result = $this->processSingleUpload($file, $request);
 
-                if ($result instanceof \Illuminate\Http\JsonResponse) {
+                if ($result instanceof JsonResponse) {
                     return $result;
                 }
 
@@ -139,5 +138,4 @@ class FileController extends BaseApiController
 
         return new FileResource($model);
     }
-
 }

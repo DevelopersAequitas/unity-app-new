@@ -8,9 +8,9 @@
         <div class="card-header">
             <div class="text-center mb-3">
                 <img
-                    src="/api/v1/files/019bd9d7-7e13-71fc-8395-0e1dd20a268b"
+                    src="{{ asset('images/logo.png') }}"
                     alt="Peers Global Unity"
-                    style="max-height:100px; width:auto;"
+                    style="max-height: 60px; max-width: 100%; width: auto; object-fit: contain; clip-path: inset(0px 2px 0px 0px);"
                     class="d-block mx-auto mb-4"
                     loading="lazy"
                 />

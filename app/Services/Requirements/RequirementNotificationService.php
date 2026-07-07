@@ -10,9 +10,7 @@ use Throwable;
 
 class RequirementNotificationService
 {
-    public function __construct(private readonly NotifyUserService $notifyUserService)
-    {
-    }
+    public function __construct(private readonly NotifyUserService $notifyUserService) {}
 
     public function notifyRequirementCreated(Requirement $requirement): int
     {
@@ -89,7 +87,7 @@ class RequirementNotificationService
                     'comment' => $comment,
                     'to_user_id' => (string) $creator->id,
                     'title' => 'New requirement interest',
-                    'body' => $this->resolveUserName($interestedUser) . ' expressed interest in: ' . $requirement->subject,
+                    'body' => $this->resolveUserName($interestedUser).' expressed interest in: '.$requirement->subject,
                 ],
                 $requirement
             );
@@ -108,7 +106,7 @@ class RequirementNotificationService
         return (string) ($user->display_name
             ?? $user->name
             ?? $user->full_name
-            ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))
+            ?? trim(($user->first_name ?? '').' '.($user->last_name ?? ''))
             ?? 'Peer');
     }
 

@@ -4,7 +4,6 @@ namespace App\Services\AdminCampaigns;
 
 use App\Models\AdminCampaign;
 use App\Models\CampaignEmailTemplate;
-use Illuminate\Support\Str;
 
 class CampaignEmailTemplateRenderer
 {
@@ -56,7 +55,7 @@ class CampaignEmailTemplateRenderer
     {
         $content = trim($content) !== '' ? $content : '<p>Add your campaign content here.</p>';
         $imageHtml = $imageUrl !== ''
-            ? '<img src="' . e($imageUrl) . '" alt="Campaign image" style="max-width:100%;height:auto;border-radius:12px;display:block;">'
+            ? '<img src="'.e($imageUrl).'" alt="Campaign image" style="max-width:100%;height:auto;border-radius:12px;display:block;">'
             : '<div style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:12px;padding:28px;text-align:center;color:#64748b;">Image / visual block</div>';
 
         [$left, $right] = $this->splitContent($content, 2);
@@ -76,7 +75,7 @@ class CampaignEmailTemplateRenderer
         $html = str_replace(array_keys($replacements), array_values($replacements), $html);
         $css = trim((string) ($template['css_styles'] ?? ''));
 
-        return $css !== '' ? '<style>' . $css . '</style>' . $html : $html;
+        return $css !== '' ? '<style>'.$css.'</style>'.$html : $html;
     }
 
     private function splitContent(string $content, int $parts): array

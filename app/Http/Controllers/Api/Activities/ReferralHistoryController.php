@@ -7,7 +7,6 @@ use App\Http\Resources\TableRowResource;
 use App\Models\Referral;
 use App\Support\ActivityHistory\OtherUserNameResolver;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 
 class ReferralHistoryController extends BaseApiController
 {
@@ -32,16 +31,16 @@ class ReferralHistoryController extends BaseApiController
 
         if ($filter === 'given') {
             $query->where('from_user_id', $authUserId);
-            $whereParts[] = 'from_user_id = "' . $authUserId . '"';
+            $whereParts[] = 'from_user_id = "'.$authUserId.'"';
         } elseif ($filter === 'received') {
             $query->where('to_user_id', $authUserId);
-            $whereParts[] = 'to_user_id = "' . $authUserId . '"';
+            $whereParts[] = 'to_user_id = "'.$authUserId.'"';
         } else {
             $query->where(function ($q) use ($authUserId, &$whereParts) {
                 $q->where('from_user_id', $authUserId)
                     ->orWhere('to_user_id', $authUserId);
 
-                $whereParts[] = '(from_user_id = "' . $authUserId . '" OR to_user_id = "' . $authUserId . '")';
+                $whereParts[] = '(from_user_id = "'.$authUserId.'" OR to_user_id = "'.$authUserId.'")';
             });
             $filter = 'all';
         }

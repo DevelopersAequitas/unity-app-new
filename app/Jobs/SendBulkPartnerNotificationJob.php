@@ -4,8 +4,8 @@ namespace App\Jobs;
 
 use App\Models\BrandPartner;
 use App\Models\User;
-use App\Notifications\BrandPartners\NewPartnerJoinedNotification;
 use App\Notifications\BrandPartners\NewOfferAddedNotification;
+use App\Notifications\BrandPartners\NewPartnerJoinedNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -23,8 +23,7 @@ class SendBulkPartnerNotificationJob implements ShouldQueue
     public function __construct(
         protected BrandPartner $partner,
         protected string $notificationType // 'joined' or 'offer'
-    ) {
-    }
+    ) {}
 
     public function handle(): void
     {

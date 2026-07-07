@@ -5,7 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         DB::statement("DO $$ BEGIN
@@ -57,7 +58,7 @@ return new class extends Migration {
             $table->index(['user_id', 'status']);
         });
 
-        DB::statement("ALTER TABLE circle_join_requests ALTER COLUMN status TYPE circle_join_request_status_enum USING status::circle_join_request_status_enum");
+        DB::statement('ALTER TABLE circle_join_requests ALTER COLUMN status TYPE circle_join_request_status_enum USING status::circle_join_request_status_enum');
     }
 
     public function down(): void

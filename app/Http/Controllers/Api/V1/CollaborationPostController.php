@@ -20,8 +20,7 @@ class CollaborationPostController extends Controller
         private readonly CollaborationPostService $collaborationPostService,
         private readonly CollaborationTimelinePostService $collaborationTimelinePostService,
         private readonly CollaborationNotificationService $collaborationNotificationService
-    ) {
-    }
+    ) {}
 
     public function history(Request $request): JsonResponse
     {

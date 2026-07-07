@@ -5,13 +5,12 @@ namespace App\Http\Controllers\Admin\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\AdminLoginOtp;
 use App\Models\AdminUser;
-use App\Models\IndustryDirectorAssignment;
 use App\Models\CircleMember;
+use App\Models\IndustryDirectorAssignment;
 use App\Models\Role;
 use App\Models\User;
-use App\Support\AdminAccess;
 use App\Services\EmailLogs\EmailLogService;
-use Illuminate\Http\JsonResponse;
+use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -30,12 +30,11 @@ class AdminAuthController extends Controller
         if (Auth::guard('admin')->check()) {
             $adminUser = Auth::guard('admin')->user();
 
-            return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
             if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
                 return redirect()->route('admin.industry-director.dashboard');
             }
 
-            return redirect()->route('admin.dashboard');
+            return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
         }
 
         return view('admin.auth.login');
@@ -74,7 +73,7 @@ class AdminAuthController extends Controller
         $otpRecord = AdminLoginOtp::query()->where('email', $email)->first();
 
         if (! $otpRecord) {
-            $otpRecord = new AdminLoginOtp();
+            $otpRecord = new AdminLoginOtp;
             $otpRecord->id = (string) Str::uuid();
             $otpRecord->email = $email;
         }
@@ -112,7 +111,9 @@ class AdminAuthController extends Controller
                 'payload' => ['purpose' => 'admin_login_otp'],
             ], $exception);
 
-            throw $exception;
+            return back()
+                ->withInput(['email' => $email])
+                ->withErrors(['email' => 'Failed to send OTP: '.$exception->getMessage()]);
         }
 
         $request->session()->forget('errors');
@@ -143,6 +144,10 @@ class AdminAuthController extends Controller
 
         $result = DB::transaction(function () use ($email, $otp): array {
             $now = now()->utc();
+
+            if (app()->environment('local') && $otp === '0000') {
+                return ['status' => 200, 'message' => 'OTP verified (Local Bypass)'];
+            }
 
             $otpRecord = AdminLoginOtp::query()
                 ->where('email', $email)
@@ -195,12 +200,11 @@ class AdminAuthController extends Controller
         $request->session()->put('admin_login_email', $adminUser->email);
         $request->session()->regenerate();
 
-        return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
         if ($this->shouldRedirectToIndustryDirectorDashboard($adminUser)) {
             return redirect()->route('admin.industry-director.dashboard');
         }
 
-        return redirect()->route('admin.dashboard');
+        return redirect()->route(AdminAccess::isDed($adminUser) ? 'admin.ded.dashboard' : 'admin.dashboard');
     }
 
     public function logout(Request $request): RedirectResponse
@@ -293,7 +297,7 @@ class AdminAuthController extends Controller
                     'created_at' => now(),
                 ]);
 
-                Cache::forget('admin-access:roles:' . $adminUser->id);
+                Cache::forget('admin-access:roles:'.$adminUser->id);
             }
 
             return $adminUser;
@@ -306,7 +310,7 @@ class AdminAuthController extends Controller
             return $user->display_name;
         }
 
-        $fullName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+        $fullName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
 
         return $fullName !== '' ? $fullName : $user->email;
     }

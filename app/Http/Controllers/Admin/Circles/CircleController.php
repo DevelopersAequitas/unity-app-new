@@ -6,21 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Circles\StoreCircleRequest;
 use App\Http\Requests\Admin\Circles\UpdateCircleRequest;
 use App\Models\Circle;
-use App\Models\CircleMember;
 use App\Models\CircleCategory;
+use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\User;
+use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
-use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\Zoho\ZohoBillingService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -29,8 +32,7 @@ class CircleController extends Controller
     public function __construct(
         private readonly ZohoBillingService $zohoBillingService,
         private readonly IndustryScopeService $industryScope,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -41,6 +43,7 @@ class CircleController extends Controller
         $status = trim((string) $request->query('status', ''));
         $circleStage = trim((string) $request->query('circle_stage', ''));
         $rank = trim((string) $request->query('rank', ''));
+        $peers = trim((string) $request->query('peers', ''));
 
         $filters = [
             'circle_name' => trim((string) $request->query('circle_name', '')),
@@ -60,6 +63,7 @@ class CircleController extends Controller
             'status' => $status,
             'circle_stage' => $circleStage,
             'rank' => $rank,
+            'peers' => $peers,
         ];
 
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
@@ -206,7 +210,30 @@ class CircleController extends Controller
             $this->applyUserNameFilter($query, 'ded', $filters['ded']);
         }
 
+        if ($filters['peers'] !== '') {
+            $input = $filters['peers'];
+            if (preg_match('/^([<>]=?|=)\s*(\d+)$/', $input, $matches)) {
+                $operator = $matches[1];
+                $value = (int) $matches[2];
+                $query->has('members', $operator, $value);
+            } elseif (preg_match('/^(\d+)\s*-\s*(\d+)$/', $input, $matches)) {
+                $min = (int) $matches[1];
+                $max = (int) $matches[2];
+                $query->has('members', '>=', $min)->has('members', '<=', $max);
+            } elseif (ctype_digit($input)) {
+                $query->has('members', '>=', (int) $input);
+            }
+        }
+
         $circles = $query
+            ->with([
+                'founder:id,display_name,first_name,last_name',
+                'director:id,display_name,first_name,last_name',
+                'ded:id,display_name,first_name,last_name',
+                'industryDirector:id,display_name,first_name,last_name',
+                'city:id,name',
+            ])
+            ->withCount('members')
             ->orderByDesc('circles.created_at')
             ->paginate(20)
             ->appends($request->query());
@@ -265,7 +292,7 @@ class CircleController extends Controller
             ->get();
 
         return view('admin.circles.create', [
-            'circle' => new Circle(),
+            'circle' => new Circle,
             'countries' => $countries,
             'selectedCountry' => $selectedCountry,
             'cities' => $cities,
@@ -314,6 +341,11 @@ class CircleController extends Controller
             'announcement' => $validated['announcement'] ?? null,
             'industry_tags' => $this->normalizeIndustryTags($validated['industry_tags'] ?? null),
             'circle_stage' => $validated['circle_stage'] ?? null,
+            'circle_founder_user_id' => $validated['circle_founder_user_id'] ?? null,
+            'circle_director_user_id' => $validated['circle_director_user_id'] ?? null,
+            'industry_director_user_id' => $validated['industry_director_user_id'] ?? null,
+            'ded_user_id' => $validated['ded_user_id'] ?? null,
+            'eed_user_id' => $validated['eed_user_id'] ?? null,
         ];
 
         if (empty($payload['status'])) {
@@ -323,7 +355,7 @@ class CircleController extends Controller
         $payload = array_merge($payload, $this->buildCirclePackagePayload($circlePackage));
         $payload = $this->pruneEmptyPayload($payload);
 
-        $circle = new Circle();
+        $circle = new Circle;
         $circle->forceFill($this->filterCircleDataByExistingColumns($payload));
 
         $calendar = is_array($circle->calendar) ? $circle->calendar : [];
@@ -368,7 +400,7 @@ class CircleController extends Controller
             'peer_email' => $this->sanitizeFilterInput($validatedFilters['peer_email'] ?? ''),
         ];
 
-        $relations = ['city', 'founder', 'director', 'industryDirector', 'ded'];
+        $relations = ['city', 'circleFounder', 'circleDirector', 'industryDirector', 'ded', 'eed'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
             $relations[] = 'categories';
@@ -433,7 +465,6 @@ class CircleController extends Controller
         ]);
     }
 
-
     private function authorizeCircleView(Request $request, Circle $circle): void
     {
         $admin = Auth::guard('admin')->user();
@@ -481,7 +512,7 @@ class CircleController extends Controller
 
     public function edit(Request $request, Circle $circle): View
     {
-        $relations = ['city'];
+        $relations = ['city', 'circleFounder', 'circleDirector', 'eed'];
 
         if ($this->categoryFeatureEnabled() && method_exists($circle, 'categories')) {
             $relations[] = 'categories';
@@ -489,7 +520,7 @@ class CircleController extends Controller
 
         $circle->load($relations);
 
-        $defaultFounder = $circle->founder ?? $this->defaultFounderUser();
+        $defaultFounder = $circle->circleFounder ?? $circle->founder ?? $this->defaultFounderUser();
         $countries = $this->countriesList();
         $selectedCountry = $request->input('country', $circle->country ?? $circle->city?->country ?? $countries->first() ?? 'India');
 
@@ -536,7 +567,11 @@ class CircleController extends Controller
             'type',
             'status',
             'industry_tags',
-            'founder_user_id',
+            'circle_founder_user_id',
+            'circle_director_user_id',
+            'industry_director_user_id',
+            'ded_user_id',
+            'eed_user_id',
             'city_id',
             'description',
             'purpose',
@@ -595,9 +630,107 @@ class CircleController extends Controller
             ->with('success', 'Circle updated successfully.');
     }
 
-    public function destroy(Circle $circle): RedirectResponse
+    public function deleteStats(Request $request, Circle $circle): JsonResponse
     {
-        $circle->delete();
+        $this->authorizeCircleView($request, $circle);
+
+        $membersCount = $circle->members()->count();
+        $meetingsCount = DB::table('circle_meetings')->where('circle_id', $circle->id)->count();
+
+        $postsCount = $circle->posts()->count();
+        $chatMessagesCount = $circle->chatMessages()->count();
+        $joinRequestsCount = DB::table('circle_join_requests')->where('circle_id', $circle->id)->count();
+        $activitiesCount = $circle->activities()->count();
+
+        $relatedCount = $postsCount + $chatMessagesCount + $joinRequestsCount + $activitiesCount;
+
+        return response()->json([
+            'success' => true,
+            'name' => $circle->name,
+            'members_count' => $membersCount,
+            'meetings_count' => $meetingsCount,
+            'related_count' => $relatedCount,
+        ]);
+    }
+
+    public function destroy(Request $request, Circle $circle): RedirectResponse
+    {
+        $this->authorizeCircleView($request, $circle);
+
+        DB::transaction(function () use ($circle) {
+            // 1. Soft delete members of the circle and set left_at, delete categories
+            $members = $circle->members()->get();
+            foreach ($members as $member) {
+                $member->forceFill(['left_at' => now()])->save();
+                if (Schema::hasTable('joined_circle_categories')) {
+                    DB::table('joined_circle_categories')->where('circle_member_id', $member->id)->delete();
+                }
+                $member->delete();
+            }
+
+            // 2. Cascade delete mappings / pivot tables & child records
+            $circle->categories()->detach();
+
+            if (Schema::hasTable('event_circles')) {
+                DB::table('event_circles')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circle_meetings')) {
+                DB::table('circle_meetings')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circle_join_requests')) {
+                DB::table('circle_join_requests')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circle_subscriptions')) {
+                DB::table('circle_subscriptions')->where('circle_id', $circle->id)->delete();
+            }
+
+            if (Schema::hasTable('circle_chat_messages')) {
+                $messageIds = DB::table('circle_chat_messages')->where('circle_id', $circle->id)->pluck('id')->toArray();
+                if (! empty($messageIds)) {
+                    if (Schema::hasTable('circle_chat_message_reads')) {
+                        DB::table('circle_chat_message_reads')->whereIn('message_id', $messageIds)->delete();
+                    }
+                    DB::table('circle_chat_messages')->where('circle_id', $circle->id)->delete();
+                }
+            }
+
+            if (Schema::hasTable('activities')) {
+                DB::table('activities')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('circulars')) {
+                DB::table('circulars')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('leadership_group_messages')) {
+                DB::table('leadership_group_messages')->where('circle_id', $circle->id)->delete();
+            }
+            if (Schema::hasTable('leadership_group_members')) {
+                DB::table('leadership_group_members')->where('circle_id', $circle->id)->delete();
+            }
+
+            if (Schema::hasTable('joined_circle_categories')) {
+                DB::table('joined_circle_categories')->where('circle_id', $circle->id)->delete();
+            }
+
+            if (Schema::hasTable('circle_member_category_selections')) {
+                DB::table('circle_member_category_selections')->where('circle_id', $circle->id)->delete();
+            }
+
+            // 3. Update users who have this circle as their active_circle_id
+            DB::table('users')->where('active_circle_id', $circle->id)->update([
+                'active_circle_id' => null,
+                'active_circle_addon_code' => null,
+                'active_circle_addon_name' => null,
+                'circle_joined_at' => null,
+                'circle_expires_at' => null,
+                'active_circle_subscription_id' => null,
+            ]);
+
+            // 4. Soft delete the circle itself
+            $circle->delete();
+        });
+
+        Cache::forget('admin.circles.index');
+        Cache::forget('admin.circles.filters');
 
         return redirect()
             ->route('admin.circles.index')
@@ -626,6 +759,7 @@ class CircleController extends Controller
 
         if (is_string($tags)) {
             $trimmed = array_filter(array_map('trim', explode(',', $tags)));
+
             return $trimmed ? array_values($trimmed) : null;
         }
 
@@ -732,13 +866,13 @@ class CircleController extends Controller
         try {
             $addon = $this->zohoBillingService->findCirclePackageAddonByCodeOrId($selection, true);
         } catch (Throwable $throwable) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'circle_package' => 'Failed to fetch selected Circle Package from Zoho Billing.',
             ]);
         }
 
         if (! is_array($addon)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'circle_package' => 'Selected Circle Package is invalid or inactive.',
             ]);
         }
@@ -817,9 +951,13 @@ class CircleController extends Controller
 
         data_set($calendar, 'settings.meeting_repeat', $validated['meeting_repeat'] ?? null);
 
-        data_set($calendar, 'leadership.director_user_id', $validated['director_user_id'] ?? null);
+        data_set($calendar, 'leadership.circle_founder_user_id', $validated['circle_founder_user_id'] ?? null);
+        data_set($calendar, 'leadership.founder_user_id', $validated['circle_founder_user_id'] ?? null);
+        data_set($calendar, 'leadership.circle_director_user_id', $validated['circle_director_user_id'] ?? null);
+        data_set($calendar, 'leadership.director_user_id', $validated['circle_director_user_id'] ?? null);
         data_set($calendar, 'leadership.industry_director_user_id', $validated['industry_director_user_id'] ?? null);
         data_set($calendar, 'leadership.ded_user_id', $validated['ded_user_id'] ?? null);
+        data_set($calendar, 'leadership.eed_user_id', $validated['eed_user_id'] ?? null);
 
         $coverFileId = trim((string) ($validated['cover_file_id'] ?? ''));
         data_set($calendar, 'cover.file_id', $coverFileId !== '' ? $coverFileId : null);
@@ -860,6 +998,7 @@ class CircleController extends Controller
         foreach ($payload as $key => $value) {
             if ($value === null) {
                 unset($payload[$key]);
+
                 continue;
             }
 

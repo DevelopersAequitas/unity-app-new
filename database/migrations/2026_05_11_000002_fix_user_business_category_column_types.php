@@ -68,7 +68,7 @@ return new class extends Migration
             return;
         }
 
-        $constraint = $table . '_' . $column . '_foreign';
+        $constraint = $table.'_'.$column.'_foreign';
         if ($this->foreignKeyExists($constraint)) {
             return;
         }
@@ -83,7 +83,7 @@ return new class extends Migration
 
     private function dropForeignIfExists(string $table, string $column): void
     {
-        $constraint = $table . '_' . $column . '_foreign';
+        $constraint = $table.'_'.$column.'_foreign';
         if (! $this->foreignKeyExists($constraint)) {
             return;
         }
@@ -103,7 +103,7 @@ return new class extends Migration
             return null;
         }
 
-        $schema = config('database.connections.' . config('database.default') . '.schema', 'public');
+        $schema = config('database.connections.'.config('database.default').'.schema', 'public');
 
         $row = DB::table('information_schema.columns')
             ->where('table_schema', $schema)
@@ -128,7 +128,7 @@ return new class extends Migration
             return false;
         }
 
-        $schema = config('database.connections.' . config('database.default') . '.schema', 'public');
+        $schema = config('database.connections.'.config('database.default').'.schema', 'public');
 
         return DB::table('information_schema.table_constraints')
             ->where('constraint_schema', $schema)

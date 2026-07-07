@@ -8,12 +8,13 @@ class CircleResource extends JsonResource
 {
     public function toArray($request): array
     {
-        $founder = $this->whenLoaded('founder');
-        $director = $this->whenLoaded('director');
-        $industryDirector = $this->whenLoaded('industryDirector');
-        $ded = $this->whenLoaded('ded');
-        $city = $this->whenLoaded('city');
-        $currentMember = $this->whenLoaded('currentMember');
+        $founder = $this->relationLoaded('circleFounder') ? $this->circleFounder : ($this->relationLoaded('founder') ? $this->founder : null);
+        $director = $this->relationLoaded('circleDirector') ? $this->circleDirector : ($this->relationLoaded('director') ? $this->director : null);
+        $industryDirector = $this->relationLoaded('industryDirector') ? $this->industryDirector : null;
+        $ded = $this->relationLoaded('ded') ? $this->ded : null;
+        $eed = $this->relationLoaded('eed') ? $this->eed : null;
+        $city = $this->relationLoaded('city') ? $this->city : null;
+        $currentMember = $this->relationLoaded('currentMember') ? $this->currentMember : null;
 
         $resolveUserCity = static function ($user): ?string {
             if (! $user) {
@@ -40,7 +41,7 @@ class CircleResource extends JsonResource
 
             return [
                 'id' => $user->id,
-                'name' => $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')),
+                'name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
                 'profile_photo_url' => $user->profile_photo_url,
@@ -101,10 +102,13 @@ class CircleResource extends JsonResource
                 'country' => $city->country,
                 'country_code' => $city->country_code,
             ] : null,
-            'founder_user_id' => $this->founder_user_id,
-            'director_user_id' => $this->director_user_id,
+            'founder_user_id' => $this->circle_founder_user_id,
+            'director_user_id' => $this->circle_director_user_id,
+            'circle_founder_user_id' => $this->circle_founder_user_id,
+            'circle_director_user_id' => $this->circle_director_user_id,
             'industry_director_user_id' => $this->industry_director_user_id,
             'ded_user_id' => $this->ded_user_id,
+            'eed_user_id' => $this->eed_user_id,
             'founder' => $founder ? [
                 'id' => $founder->id,
                 'display_name' => $founder->display_name,
@@ -119,6 +123,7 @@ class CircleResource extends JsonResource
             'director' => $userMini($director),
             'industry_director' => $userMini($industryDirector),
             'ded' => $userMini($ded),
+            'eed' => $userMini($eed),
             'categories' => $categories,
             'cover_file_id' => $this->cover_file_id,
             'cover_image_url' => $this->cover_file_id

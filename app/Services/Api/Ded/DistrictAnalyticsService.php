@@ -3,21 +3,21 @@
 namespace App\Services\Api\Ded;
 
 use App\Models\AdminUser;
-use App\Models\Circle;
-use App\Models\CircleMember;
-use App\Models\User;
-use App\Models\Referral;
-use App\Models\P2pMeeting;
 use App\Models\BusinessDeal;
+use App\Models\Circle;
+use App\Models\CircleJoinRequest;
+use App\Models\CircleMember;
+use App\Models\CircleSubscription;
+use App\Models\Event;
+use App\Models\P2pMeeting;
+use App\Models\Referral;
 use App\Models\Requirement;
 use App\Models\Testimonial;
-use App\Models\CircleJoinRequest;
-use App\Models\Event;
-use App\Models\CircleSubscription;
+use App\Models\User;
 use App\Support\AdminCircleScope;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Carbon;
 
 class DistrictAnalyticsService
 {
@@ -100,7 +100,7 @@ class DistrictAnalyticsService
                     ->whereNull('deleted_at')
                     ->where(function ($q) use ($peersQuery) {
                         $q->whereIn('from_user_id', (clone $peersQuery)->select('id'))
-                          ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
+                            ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
                     })
                     ->distinct()
                     ->count('from_user_id');
@@ -114,7 +114,7 @@ class DistrictAnalyticsService
                     ->whereNull('deleted_at')
                     ->where(function ($q) use ($peersQuery) {
                         $q->whereIn('initiator_user_id', (clone $peersQuery)->select('id'))
-                          ->orWhereIn('peer_user_id', (clone $peersQuery)->select('id'));
+                            ->orWhereIn('peer_user_id', (clone $peersQuery)->select('id'));
                     })
                     ->distinct()
                     ->count('initiator_user_id');
@@ -128,7 +128,7 @@ class DistrictAnalyticsService
                     ->whereNull('deleted_at')
                     ->where(function ($q) use ($peersQuery) {
                         $q->whereIn('from_user_id', (clone $peersQuery)->select('id'))
-                          ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
+                            ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
                     })
                     ->distinct()
                     ->count('from_user_id');
@@ -203,7 +203,7 @@ class DistrictAnalyticsService
                 $feed[] = [
                     'type' => 'deal',
                     'title' => 'Business Deal Closed',
-                    'description' => "{$fromName} closed a deal with {$toName} valued at INR " . number_format($d->deal_amount ?? 0) . ".",
+                    'description' => "{$fromName} closed a deal with {$toName} valued at INR ".number_format($d->deal_amount ?? 0).'.',
                     'timestamp' => optional($d->created_at)->toISOString(),
                     'raw_time' => $d->created_at,
                 ];
@@ -250,6 +250,7 @@ class DistrictAnalyticsService
         if ($selectedCircleId && $selectedCircleId !== 'all') {
             $this->applyCircleFilterToUsersQuery($query, $selectedCircleId);
         }
+
         return (int) $query->count();
     }
 
@@ -260,6 +261,7 @@ class DistrictAnalyticsService
         if ($selectedCircleId && $selectedCircleId !== 'all') {
             $query->where('id', $selectedCircleId);
         }
+
         return (int) $query->count();
     }
 
@@ -271,13 +273,13 @@ class DistrictAnalyticsService
             $query->where('id', $selectedCircleId);
         }
         $circleIds = $query->pluck('id')->all();
-        
+
         return $this->getIndustryCountForCircles($circleIds);
     }
 
     public function getRevenueCount(AdminUser $admin, ?string $selectedCircleId = null): float
     {
-        if (!Schema::hasTable('circle_subscriptions')) {
+        if (! Schema::hasTable('circle_subscriptions')) {
             return 0.0;
         }
         $query = Circle::query();
@@ -300,12 +302,13 @@ class DistrictAnalyticsService
         if ($selectedCircleId && $selectedCircleId !== 'all') {
             $this->applyCircleFilterToUsersQuery($query, $selectedCircleId);
         }
+
         return (int) $query->sum('users.life_impacted_count');
     }
 
     public function getUpcomingEventsCount(AdminUser $admin, ?string $selectedCircleId = null): int
     {
-        if (!Schema::hasTable('events')) {
+        if (! Schema::hasTable('events')) {
             return 0;
         }
         $query = Circle::query();
@@ -323,7 +326,7 @@ class DistrictAnalyticsService
 
     public function getPendingApprovalsCount(AdminUser $admin, ?string $selectedCircleId = null): int
     {
-        if (!Schema::hasTable('circle_join_requests')) {
+        if (! Schema::hasTable('circle_join_requests')) {
             return 0;
         }
         $query = CircleJoinRequest::query();
@@ -334,13 +337,13 @@ class DistrictAnalyticsService
         }
 
         $query->whereIn('circle_join_requests.status', [
-                CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
-                CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
-            ])
+            CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
+            CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
+        ])
             ->where(function ($q) {
                 $q->whereNull('circle_join_requests.ded_approval_status')
-                  ->orWhere('circle_join_requests.ded_approval_status', '!=', 'approved')
-                  ->orWhereNull('circle_join_requests.ded_approved_at');
+                    ->orWhere('circle_join_requests.ded_approval_status', '!=', 'approved')
+                    ->orWhereNull('circle_join_requests.ded_approved_at');
             });
 
         return (int) $query->count();
@@ -348,7 +351,7 @@ class DistrictAnalyticsService
 
     public function getPendingPaymentsCount(AdminUser $admin, ?string $selectedCircleId = null): int
     {
-        if (!Schema::hasTable('circle_join_requests')) {
+        if (! Schema::hasTable('circle_join_requests')) {
             return 0;
         }
         $query = CircleJoinRequest::query();
@@ -371,12 +374,13 @@ class DistrictAnalyticsService
         if ($selectedCircleId && $selectedCircleId !== 'all') {
             $this->applyCircleFilterToUsersQuery($query, $selectedCircleId);
         }
+
         return (int) $query->sum('users.coins_balance');
     }
 
     public function getP2pMeetingsCount(AdminUser $admin, ?string $selectedCircleId = null): int
     {
-        if (!Schema::hasTable('p2p_meetings')) {
+        if (! Schema::hasTable('p2p_meetings')) {
             return 0;
         }
         $query = P2pMeeting::query();
@@ -395,7 +399,7 @@ class DistrictAnalyticsService
 
     public function getBusinessDealsCount(AdminUser $admin, ?string $selectedCircleId = null): int
     {
-        if (!Schema::hasTable('business_deals')) {
+        if (! Schema::hasTable('business_deals')) {
             return 0;
         }
         $query = BusinessDeal::query();
@@ -414,7 +418,7 @@ class DistrictAnalyticsService
 
     public function getTestimonialsCount(AdminUser $admin, ?string $selectedCircleId = null): int
     {
-        if (!Schema::hasTable('testimonials')) {
+        if (! Schema::hasTable('testimonials')) {
             return 0;
         }
         $query = Testimonial::query();
@@ -433,7 +437,7 @@ class DistrictAnalyticsService
 
     public function getRequirementsCount(AdminUser $admin, ?string $selectedCircleId = null): int
     {
-        if (!Schema::hasTable('requirements')) {
+        if (! Schema::hasTable('requirements')) {
             return 0;
         }
         $query = Requirement::query();
@@ -448,7 +452,7 @@ class DistrictAnalyticsService
 
     public function getReferralsCount(AdminUser $admin, ?string $selectedCircleId = null): int
     {
-        if (!Schema::hasTable('referrals')) {
+        if (! Schema::hasTable('referrals')) {
             return 0;
         }
         $query = Referral::query();
@@ -496,7 +500,7 @@ class DistrictAnalyticsService
             ->toArray();
 
         $circles = DB::table('circles')->whereIn('id', $circleIds)->get();
-        
+
         $categoryMap = [
             'manufacturing' => 14,
             'engineering' => 14,
@@ -552,7 +556,7 @@ class DistrictAnalyticsService
                     $matched = true;
                 }
             }
-            if (!$matched && !empty($circle->industry_tags)) {
+            if (! $matched && ! empty($circle->industry_tags)) {
                 $tags = is_string($circle->industry_tags) ? json_decode($circle->industry_tags, true) : $circle->industry_tags;
                 if (is_array($tags)) {
                     foreach ($tags as $tag) {
@@ -573,10 +577,11 @@ class DistrictAnalyticsService
     private function calculatePercentageTrend(int $current30d, int $previous30d): string
     {
         if ($previous30d === 0) {
-            return $current30d > 0 ? "+100% vs previous 30 days" : "0% vs previous 30 days";
+            return $current30d > 0 ? '+100% vs previous 30 days' : '0% vs previous 30 days';
         }
         $diffPct = round((($current30d - $previous30d) / $previous30d) * 100);
-        $sign = $diffPct >= 0 ? "+" : "";
+        $sign = $diffPct >= 0 ? '+' : '';
+
         return "{$sign}{$diffPct}% vs previous 30 days";
     }
 
@@ -584,13 +589,16 @@ class DistrictAnalyticsService
     {
         $diff = $current - $previous;
         if ($diff > 0) {
-            $formattedVal = $isCurrency ? '₹' . number_format(round($diff)) : number_format(abs($diff));
+            $formattedVal = $isCurrency ? '₹'.number_format(round($diff)) : number_format(abs($diff));
+
             return "↑ {$formattedVal} {$label}";
         } elseif ($diff < 0) {
-            $formattedVal = $isCurrency ? '₹' . number_format(round(abs($diff))) : number_format(abs($diff));
+            $formattedVal = $isCurrency ? '₹'.number_format(round(abs($diff))) : number_format(abs($diff));
+
             return "↓ {$formattedVal} {$label}";
         }
-        return "No Change";
+
+        return 'No Change';
     }
 
     public function getPeersTrend(AdminUser $admin, ?string $selectedCircleId = null): string
@@ -654,8 +662,8 @@ class DistrictAnalyticsService
 
     public function getRevenueTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('circle_subscriptions')) {
-            return "";
+        if (! Schema::hasTable('circle_subscriptions')) {
+            return '';
         }
         $query = Circle::query();
         AdminCircleScope::applyToCirclesQuery($query, $admin);
@@ -681,8 +689,8 @@ class DistrictAnalyticsService
 
     public function getLivesImpactedTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('life_impact_histories')) {
-            return "";
+        if (! Schema::hasTable('life_impact_histories')) {
+            return '';
         }
         $peersQuery = User::query();
         AdminCircleScope::applyToUsersQuery($peersQuery, $admin);
@@ -706,8 +714,8 @@ class DistrictAnalyticsService
 
     public function getUpcomingEventsTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('events')) {
-            return "";
+        if (! Schema::hasTable('events')) {
+            return '';
         }
         $query = Circle::query();
         AdminCircleScope::applyToCirclesQuery($query, $admin);
@@ -731,8 +739,8 @@ class DistrictAnalyticsService
 
     public function getPendingApprovalsTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('circle_join_requests')) {
-            return "";
+        if (! Schema::hasTable('circle_join_requests')) {
+            return '';
         }
         $query = CircleJoinRequest::query()->visibleToAdminUser($admin);
         if ($selectedCircleId && $selectedCircleId !== 'all') {
@@ -742,11 +750,11 @@ class DistrictAnalyticsService
             CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
             CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
         ])
-        ->where(function ($q) {
-            $q->whereNull('circle_join_requests.ded_approval_status')
-              ->orWhere('circle_join_requests.ded_approval_status', '!=', 'approved')
-              ->orWhereNull('circle_join_requests.ded_approved_at');
-        });
+            ->where(function ($q) {
+                $q->whereNull('circle_join_requests.ded_approval_status')
+                    ->orWhere('circle_join_requests.ded_approval_status', '!=', 'approved')
+                    ->orWhereNull('circle_join_requests.ded_approved_at');
+            });
 
         $currentWeek = (int) (clone $query)->where('created_at', '>=', now()->subDays(7))->count();
         $previousWeek = (int) (clone $query)->whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count();
@@ -756,8 +764,8 @@ class DistrictAnalyticsService
 
     public function getPendingPaymentsTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('circle_join_requests')) {
-            return "";
+        if (! Schema::hasTable('circle_join_requests')) {
+            return '';
         }
         $query = CircleJoinRequest::query()->visibleToAdminUser($admin)
             ->where('circle_join_requests.status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
@@ -775,8 +783,8 @@ class DistrictAnalyticsService
 
     public function getCoinsEarnedTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('coins_ledger')) {
-            return "";
+        if (! Schema::hasTable('coins_ledger')) {
+            return '';
         }
         $peersQuery = User::query();
         AdminCircleScope::applyToUsersQuery($peersQuery, $admin);
@@ -789,19 +797,19 @@ class DistrictAnalyticsService
 
         $query = DB::table('users as u')
             ->whereIn('u.id', $peersQuery->select('id'))
-            ->leftJoin(DB::raw("(
+            ->leftJoin(DB::raw('(
                 SELECT user_id, SUM(amount) as sum_amount
                 FROM coins_ledger
-                WHERE created_at >= " . DB::getPdo()->quote($date_30d_ago) . "
+                WHERE created_at >= '.DB::getPdo()->quote($date_30d_ago).'
                 GROUP BY user_id
-            ) as l30"), 'l30.user_id', '=', 'u.id')
-            ->leftJoin(DB::raw("(
+            ) as l30'), 'l30.user_id', '=', 'u.id')
+            ->leftJoin(DB::raw('(
                 SELECT user_id, SUM(amount) as sum_amount
                 FROM coins_ledger
-                WHERE created_at >= " . DB::getPdo()->quote($date_60d_ago) . "
+                WHERE created_at >= '.DB::getPdo()->quote($date_60d_ago).'
                 GROUP BY user_id
-            ) as l60"), 'l60.user_id', '=', 'u.id')
-            ->selectRaw("
+            ) as l60'), 'l60.user_id', '=', 'u.id')
+            ->selectRaw('
                 SUM(u.coins_balance) as balance_now,
                 SUM(CASE 
                     WHEN u.created_at >= ? THEN 0
@@ -819,7 +827,7 @@ class DistrictAnalyticsService
                             ELSE (u.coins_balance - COALESCE(l60.sum_amount, 0)) 
                         END
                 END) as balance_60d
-            ", [$date_30d_ago, $date_60d_ago])
+            ', [$date_30d_ago, $date_60d_ago])
             ->first();
 
         $balance_now = (int) ($query->balance_now ?? 0);
@@ -834,8 +842,8 @@ class DistrictAnalyticsService
 
     public function getP2pMeetingsTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('p2p_meetings')) {
-            return "";
+        if (! Schema::hasTable('p2p_meetings')) {
+            return '';
         }
         $queryCurrent = P2pMeeting::query()->where('created_at', '>=', now()->subDays(30));
         $queryPrevious = P2pMeeting::query()->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)]);
@@ -861,8 +869,8 @@ class DistrictAnalyticsService
 
     public function getBusinessDealsTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('business_deals')) {
-            return "";
+        if (! Schema::hasTable('business_deals')) {
+            return '';
         }
         $queryCurrent = BusinessDeal::query()->where('created_at', '>=', now()->subDays(30));
         $queryPrevious = BusinessDeal::query()->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)]);
@@ -888,8 +896,8 @@ class DistrictAnalyticsService
 
     public function getTestimonialsTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('testimonials')) {
-            return "";
+        if (! Schema::hasTable('testimonials')) {
+            return '';
         }
         $queryCurrent = Testimonial::query()->where('created_at', '>=', now()->subDays(30));
         $queryPrevious = Testimonial::query()->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)]);
@@ -915,8 +923,8 @@ class DistrictAnalyticsService
 
     public function getRequirementsTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('requirements')) {
-            return "";
+        if (! Schema::hasTable('requirements')) {
+            return '';
         }
         $queryCurrent = Requirement::query()->where('created_at', '>=', now()->subDays(30));
         $queryPrevious = Requirement::query()->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)]);
@@ -937,8 +945,8 @@ class DistrictAnalyticsService
 
     public function getReferralsTrend(AdminUser $admin, ?string $selectedCircleId = null): string
     {
-        if (!Schema::hasTable('referrals')) {
-            return "";
+        if (! Schema::hasTable('referrals')) {
+            return '';
         }
         $queryCurrent = Referral::query()->where('created_at', '>=', now()->subDays(30));
         $queryPrevious = Referral::query()->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)]);
@@ -971,27 +979,27 @@ class DistrictAnalyticsService
         $meetings = DB::table('p2p_meetings')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
-            ->where(function($q) use ($userIds) {
+            ->where(function ($q) use ($userIds) {
                 $q->whereIn('initiator_user_id', $userIds)
-                  ->orWhereIn('peer_user_id', $userIds);
+                    ->orWhereIn('peer_user_id', $userIds);
             })
             ->get();
 
         $deals = DB::table('business_deals')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
-            ->where(function($q) use ($userIds) {
+            ->where(function ($q) use ($userIds) {
                 $q->whereIn('from_user_id', $userIds)
-                  ->orWhereIn('to_user_id', $userIds);
+                    ->orWhereIn('to_user_id', $userIds);
             })
             ->get();
 
         $referrals = DB::table('referrals')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
-            ->where(function($q) use ($userIds) {
+            ->where(function ($q) use ($userIds) {
                 $q->whereIn('from_user_id', $userIds)
-                  ->orWhereIn('to_user_id', $userIds);
+                    ->orWhereIn('to_user_id', $userIds);
             })
             ->get();
 
@@ -1004,19 +1012,19 @@ class DistrictAnalyticsService
         $testimonials = DB::table('testimonials')
             ->where('is_deleted', false)
             ->whereNull('deleted_at')
-            ->where(function($q) use ($userIds) {
+            ->where(function ($q) use ($userIds) {
                 $q->whereIn('from_user_id', $userIds)
-                  ->orWhereIn('to_user_id', $userIds);
+                    ->orWhereIn('to_user_id', $userIds);
             })
             ->get();
 
         $results = [];
         foreach ($userIds as $uid) {
-            $userMeetings = $meetings->filter(fn($m) => $m->initiator_user_id === $uid || $m->peer_user_id === $uid)->count();
-            $userDeals = $deals->filter(fn($d) => $d->from_user_id === $uid || $d->to_user_id === $uid)->count();
-            $userReferrals = $referrals->filter(fn($r) => $r->from_user_id === $uid || $r->to_user_id === $uid)->count();
+            $userMeetings = $meetings->filter(fn ($m) => $m->initiator_user_id === $uid || $m->peer_user_id === $uid)->count();
+            $userDeals = $deals->filter(fn ($d) => $d->from_user_id === $uid || $d->to_user_id === $uid)->count();
+            $userReferrals = $referrals->filter(fn ($r) => $r->from_user_id === $uid || $r->to_user_id === $uid)->count();
             $userReqs = isset($requirements[$uid]) ? $requirements[$uid]->count() : 0;
-            $userTestimonials = $testimonials->filter(fn($t) => $t->from_user_id === $uid || $t->to_user_id === $uid)->count();
+            $userTestimonials = $testimonials->filter(fn ($t) => $t->from_user_id === $uid || $t->to_user_id === $uid)->count();
 
             $results[$uid] = [
                 'meetings' => $userMeetings,
@@ -1115,7 +1123,7 @@ class DistrictAnalyticsService
                 ->whereIn('circle_id', $districtCircleIds)
                 ->where('status', 'active')
                 ->get()
-                ->groupBy(fn($s) => $s->user_id . '_' . $s->circle_id);
+                ->groupBy(fn ($s) => $s->user_id.'_'.$s->circle_id);
 
             foreach ($users as $u) {
                 if ($role === 'industry_director') {
@@ -1135,14 +1143,14 @@ class DistrictAnalyticsService
                 $acts = $activityMap[$u->id] ?? ['meetings' => 0, 'deals' => 0, 'referrals' => 0, 'requirements' => 0, 'testimonials' => 0, 'score' => 0];
 
                 $circleMembershipsList = $u->circleMembers
-                    ->filter(fn($cm) => $cm->status === 'approved' && !$cm->deleted_at && $cm->circle)
-                    ->map(fn($cm) => $cm->circle->name)
+                    ->filter(fn ($cm) => $cm->status === 'approved' && ! $cm->deleted_at && $cm->circle)
+                    ->map(fn ($cm) => $cm->circle->name)
                     ->unique()
                     ->implode(', ') ?: 'No Circles';
 
                 $rolesList = $u->circleMembers
-                    ->filter(fn($cm) => $cm->status === 'approved' && !$cm->deleted_at)
-                    ->map(fn($cm) => ucfirst($cm->role))
+                    ->filter(fn ($cm) => $cm->status === 'approved' && ! $cm->deleted_at)
+                    ->map(fn ($cm) => ucfirst($cm->role))
                     ->unique()
                     ->implode(', ');
 
@@ -1156,7 +1164,7 @@ class DistrictAnalyticsService
                 if ($circles->where('industry_director_user_id', $u->id)->isNotEmpty()) {
                     $extraRoles[] = 'Industry Director';
                 }
-                if (!empty($extraRoles)) {
+                if (! empty($extraRoles)) {
                     $rolesList = collect(explode(', ', $rolesList))
                         ->merge($extraRoles)
                         ->filter()
@@ -1169,7 +1177,7 @@ class DistrictAnalyticsService
 
                 $records[] = [
                     'id' => $u->id,
-                    'name' => $u->display_name ?: trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')),
+                    'name' => $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')),
                     'company' => $u->company_name ?: '—',
                     'phone' => $u->phone ?: '—',
                     'email' => $u->email ?: '—',
@@ -1207,7 +1215,7 @@ class DistrictAnalyticsService
             }
 
             if ($status && $status !== 'all') {
-                $membershipQuery->whereHas('user', function($q) use ($status) {
+                $membershipQuery->whereHas('user', function ($q) use ($status) {
                     $q->where('status', $status);
                 });
             }
@@ -1230,32 +1238,34 @@ class DistrictAnalyticsService
                 ->whereIn('circle_id', $districtCircleIds)
                 ->where('status', 'active')
                 ->get()
-                ->groupBy(fn($s) => $s->user_id . '_' . $s->circle_id);
+                ->groupBy(fn ($s) => $s->user_id.'_'.$s->circle_id);
 
             $coveredCircleIds = [];
 
             foreach ($memberships as $m) {
                 $u = $m->user;
-                if (!$u) continue;
+                if (! $u) {
+                    continue;
+                }
 
                 $c = $m->circle;
                 $circleName = $c ? $c->name : '—';
                 $circleMembers = $c ? $circles->firstWhere('id', $c->id)?->members_count ?? 0 : 0;
                 $circleRev = $c ? (float) $circles->firstWhere('id', $c->id)?->active_revenue ?? 0.0 : 0.0;
 
-                $subKey = $m->user_id . '_' . $m->circle_id;
+                $subKey = $m->user_id.'_'.$m->circle_id;
                 $rev = isset($subscriptions[$subKey]) ? (float) $subscriptions[$subKey]->sum('amount') : 0.0;
                 $acts = $activityMap[$m->user_id] ?? ['meetings' => 0, 'deals' => 0, 'referrals' => 0, 'requirements' => 0, 'testimonials' => 0, 'score' => 0];
 
                 $circleMembershipsList = $u->circleMembers
-                    ->filter(fn($cm) => $cm->status === 'approved' && !$cm->deleted_at && $cm->circle)
-                    ->map(fn($cm) => $cm->circle->name)
+                    ->filter(fn ($cm) => $cm->status === 'approved' && ! $cm->deleted_at && $cm->circle)
+                    ->map(fn ($cm) => $cm->circle->name)
                     ->unique()
                     ->implode(', ') ?: 'No Circles';
 
                 $rolesList = $u->circleMembers
-                    ->filter(fn($cm) => $cm->status === 'approved' && !$cm->deleted_at)
-                    ->map(fn($cm) => ucfirst($cm->role))
+                    ->filter(fn ($cm) => $cm->status === 'approved' && ! $cm->deleted_at)
+                    ->map(fn ($cm) => ucfirst($cm->role))
                     ->unique()
                     ->implode(', ');
 
@@ -1269,7 +1279,7 @@ class DistrictAnalyticsService
                 if ($circles->where('industry_director_user_id', $u->id)->isNotEmpty()) {
                     $extraRoles[] = 'Industry Director';
                 }
-                if (!empty($extraRoles)) {
+                if (! empty($extraRoles)) {
                     $rolesList = collect(explode(', ', $rolesList))
                         ->merge($extraRoles)
                         ->filter()
@@ -1282,7 +1292,7 @@ class DistrictAnalyticsService
 
                 $records[] = [
                     'id' => $u->id,
-                    'name' => $u->display_name ?: trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')),
+                    'name' => $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')),
                     'company' => $u->company_name ?: '—',
                     'phone' => $u->phone ?: '—',
                     'email' => $u->email ?: '—',
@@ -1320,7 +1330,7 @@ class DistrictAnalyticsService
                 'total_members_managed' => $totalMembersManaged,
                 'total_circles_covered' => $totalCirclesCovered,
                 'district_coverage_pct' => $coveragePct,
-            ]
+            ],
         ];
     }
 
@@ -1329,33 +1339,32 @@ class DistrictAnalyticsService
         $query = User::query();
         AdminCircleScope::applyToUsersQuery($query, $admin);
 
-        if (!empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
+        if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
             $this->applyCircleFilterToUsersQuery($query, $filters['circle_id']);
         }
 
-        if (!empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
+        if (! empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
             $industryId = $filters['industry_id'];
             $query->where(function ($q) use ($industryId) {
                 $q->where('users.main_business_category_id', $industryId)
-                  ->orWhereExists(function ($sub) use ($industryId) {
-                      $sub->selectRaw(1)
-                          ->from('circle_categories')
-                          ->whereColumn('circle_categories.id', 'users.main_business_category_id')
-                          ->where('circle_categories.parent_id', $industryId);
-                  });
+                    ->orWhereExists(function ($sub) use ($industryId) {
+                        $sub->selectRaw(1)
+                            ->from('circle_categories')
+                            ->whereColumn('circle_categories.id', 'users.main_business_category_id')
+                            ->where('circle_categories.parent_id', $industryId);
+                    });
             });
         }
 
         // Base query count for total members (denominator) - filtered by creation range if provided
         $totalQuery = clone $query;
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $totalQuery->where('users.created_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
         }
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $totalQuery->where('users.created_at', '<=', Carbon::parse($filters['date_to'])->endOfDay());
         }
         $totalPeers = (int) $totalQuery->count();
-
 
         // Count based on user status
         $activePeersCount = (int) (clone $totalQuery)->where('users.status', 'active')->count();
@@ -1364,7 +1373,7 @@ class DistrictAnalyticsService
 
         // Apply status filter to records query if provided
         $recordsQuery = clone $totalQuery;
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $recordsQuery->where('users.status', $filters['status']);
         }
 
@@ -1374,7 +1383,7 @@ class DistrictAnalyticsService
             'circleMembers' => function ($q) {
                 $q->where('status', 'approved')->whereNull('deleted_at');
             },
-            'circleMembers.circle:id,name'
+            'circleMembers.circle:id,name',
         ])
             ->orderBy('display_name')
             ->orderBy('first_name')
@@ -1386,12 +1395,12 @@ class DistrictAnalyticsService
 
         $formattedRecords = [];
         foreach ($records as $r) {
-            $circleNames = $r->circleMembers->map(fn($cm) => $cm->circle?->name)->filter()->unique()->implode(', ') ?: '—';
+            $circleNames = $r->circleMembers->map(fn ($cm) => $cm->circle?->name)->filter()->unique()->implode(', ') ?: '—';
             $activityScore = $activityMap[$r->id]['score'] ?? 0;
             $formattedRecords[] = [
                 'id' => $r->id,
-                'name' => $r->display_name ?: trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')),
-                'member_name' => $r->display_name ?: trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')),
+                'name' => $r->display_name ?: trim(($r->first_name ?? '').' '.($r->last_name ?? '')),
+                'member_name' => $r->display_name ?: trim(($r->first_name ?? '').' '.($r->last_name ?? '')),
                 'email' => $r->email ?: '—',
                 'phone' => $r->phone ?: '—',
                 'company' => $r->company_name ?: '—',
@@ -1416,7 +1425,7 @@ class DistrictAnalyticsService
                 'denominator' => $totalPeers,
                 'percentage' => $percentage,
                 'formula' => 'Active Percentage = (Active Members / Total Members) * 100',
-            ]
+            ],
         ];
     }
 
@@ -1425,15 +1434,15 @@ class DistrictAnalyticsService
         $circleQuery = Circle::query();
         AdminCircleScope::applyToCirclesQuery($circleQuery, $admin);
 
-        if (!empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
+        if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
             $circleQuery->where('circles.id', $filters['circle_id']);
         }
 
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $circleQuery->where('circles.status', $filters['status']);
         }
 
-        if (!empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
+        if (! empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
             $industryId = $filters['industry_id'];
             $circleQuery->whereExists(function ($q) use ($industryId) {
                 $q->selectRaw(1)->from('circle_category_mappings')
@@ -1442,17 +1451,17 @@ class DistrictAnalyticsService
             });
         }
 
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $circleQuery->where('circles.created_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
         }
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $circleQuery->where('circles.created_at', '<=', Carbon::parse($filters['date_to'])->endOfDay());
         }
 
         $circlesList = $circleQuery->with([
             'founder:id,display_name,first_name,last_name',
             'director:id,display_name,first_name,last_name',
-            'industryDirector:id,display_name,first_name,last_name'
+            'industryDirector:id,display_name,first_name,last_name',
         ])->orderBy('name')->get(['id', 'name', 'status', 'created_at', 'founder_user_id', 'director_user_id', 'industry_director_user_id']);
         $circleIds = $circlesList->pluck('id')->all();
         $totalCircles = count($circleIds);
@@ -1471,10 +1480,10 @@ class DistrictAnalyticsService
                 'users.last_name'
             );
 
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $membersQuery->where('circle_members.joined_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
         }
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $membersQuery->where('circle_members.joined_at', '<=', Carbon::parse($filters['date_to'])->endOfDay());
         }
 
@@ -1489,27 +1498,27 @@ class DistrictAnalyticsService
             $vc = $cm->firstWhere('role', 'vice_chair');
             $sec = $cm->firstWhere('role', 'secretary');
 
-            $hasChair = !empty($chair);
-            $hasVc = !empty($vc);
-            $hasSec = !empty($sec);
+            $hasChair = ! empty($chair);
+            $hasVc = ! empty($vc);
+            $hasSec = ! empty($sec);
 
             $isFilled = $hasChair && $hasVc && $hasSec;
             if ($isFilled) {
                 $filledCirclesCount++;
             }
 
-            $founderName = $c->founder ? ($c->founder->display_name ?: trim(($c->founder->first_name ?? '') . ' ' . ($c->founder->last_name ?? ''))) : null;
-            $directorName = $c->director ? ($c->director->display_name ?: trim(($c->director->first_name ?? '') . ' ' . ($c->director->last_name ?? ''))) : null;
-            $indDirName = $c->industryDirector ? ($c->industryDirector->display_name ?: trim(($c->industryDirector->first_name ?? '') . ' ' . ($c->industryDirector->last_name ?? ''))) : null;
+            $founderName = $c->founder ? ($c->founder->display_name ?: trim(($c->founder->first_name ?? '').' '.($c->founder->last_name ?? ''))) : null;
+            $directorName = $c->director ? ($c->director->display_name ?: trim(($c->director->first_name ?? '').' '.($c->director->last_name ?? ''))) : null;
+            $indDirName = $c->industryDirector ? ($c->industryDirector->display_name ?: trim(($c->industryDirector->first_name ?? '').' '.($c->industryDirector->last_name ?? ''))) : null;
 
             $records[] = [
                 'circle_id' => $c->id,
                 'circle_name' => $c->name,
                 'circle_status' => $c->status,
                 'created_at' => $c->created_at,
-                'chair' => $chair ? ($chair->display_name ?: trim(($chair->first_name ?? '') . ' ' . ($chair->last_name ?? ''))) : null,
-                'vice_chair' => $vc ? ($vc->display_name ?: trim(($vc->first_name ?? '') . ' ' . ($vc->last_name ?? ''))) : null,
-                'secretary' => $sec ? ($sec->display_name ?: trim(($sec->first_name ?? '') . ' ' . ($sec->last_name ?? ''))) : null,
+                'chair' => $chair ? ($chair->display_name ?: trim(($chair->first_name ?? '').' '.($chair->last_name ?? ''))) : null,
+                'vice_chair' => $vc ? ($vc->display_name ?: trim(($vc->first_name ?? '').' '.($vc->last_name ?? ''))) : null,
+                'secretary' => $sec ? ($sec->display_name ?: trim(($sec->first_name ?? '').' '.($sec->last_name ?? ''))) : null,
                 'has_chair' => $hasChair,
                 'has_vc' => $hasVc,
                 'has_sec' => $hasSec,
@@ -1529,7 +1538,7 @@ class DistrictAnalyticsService
                 'denominator' => $totalCircles,
                 'percentage' => $percentage,
                 'formula' => 'Leadership Spots Filled = (Circles with Chair, VC & Sec Filled / Total Circles) * 100',
-            ]
+            ],
         ];
     }
 
@@ -1538,11 +1547,11 @@ class DistrictAnalyticsService
         $joinRequestsQuery = CircleJoinRequest::query();
         $joinRequestsQuery->visibleToAdminUser($admin);
 
-        if (!empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
+        if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
             $joinRequestsQuery->where('circle_join_requests.circle_id', $filters['circle_id']);
         }
 
-        if (!empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
+        if (! empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
             $industryId = $filters['industry_id'];
             $joinRequestsQuery->whereExists(function ($q) use ($industryId) {
                 $q->selectRaw(1)->from('circle_category_mappings')
@@ -1551,10 +1560,10 @@ class DistrictAnalyticsService
             });
         }
 
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $joinRequestsQuery->where('circle_join_requests.created_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
         }
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $joinRequestsQuery->where('circle_join_requests.created_at', '<=', Carbon::parse($filters['date_to'])->endOfDay());
         }
 
@@ -1564,16 +1573,16 @@ class DistrictAnalyticsService
 
         $requestsList = $joinRequestsQuery->with([
             'user:id,first_name,last_name,display_name,email,phone,company_name',
-            'circle:id,name'
+            'circle:id,name',
         ])
-        ->orderBy('created_at', 'desc')
-        ->get();
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         $records = [];
         foreach ($requestsList as $r) {
             $records[] = [
                 'id' => $r->id,
-                'user_name' => $r->user ? ($r->user->display_name ?: trim(($r->user->first_name ?? '') . ' ' . ($r->user->last_name ?? ''))) : '—',
+                'user_name' => $r->user ? ($r->user->display_name ?: trim(($r->user->first_name ?? '').' '.($r->user->last_name ?? ''))) : '—',
                 'user_email' => $r->user?->email ?: '—',
                 'user_phone' => $r->user?->phone ?: '—',
                 'circle_name' => $r->circle?->name ?: '—',
@@ -1586,7 +1595,7 @@ class DistrictAnalyticsService
         $rejectedRequests = (int) (clone $joinRequestsQuery)
             ->whereIn('circle_join_requests.status', [
                 CircleJoinRequest::STATUS_REJECTED_BY_CD,
-                CircleJoinRequest::STATUS_REJECTED_BY_ID
+                CircleJoinRequest::STATUS_REJECTED_BY_ID,
             ])->count();
 
         return [
@@ -1597,7 +1606,7 @@ class DistrictAnalyticsService
                 'percentage' => $percentage,
                 'rejected' => $rejectedRequests,
                 'formula' => 'Membership Conversion = (Approved Requests / Total Requests) * 100',
-            ]
+            ],
         ];
     }
 
@@ -1606,35 +1615,35 @@ class DistrictAnalyticsService
         $peersQuery = User::query();
         AdminCircleScope::applyToUsersQuery($peersQuery, $admin);
 
-        if (!empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
+        if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
             $this->applyCircleFilterToUsersQuery($peersQuery, $filters['circle_id']);
         }
 
-        if (!empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
+        if (! empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
             $industryId = $filters['industry_id'];
             $peersQuery->where(function ($q) use ($industryId) {
                 $q->where('users.main_business_category_id', $industryId)
-                  ->orWhereExists(function ($sub) use ($industryId) {
-                      $sub->selectRaw(1)
-                          ->from('circle_categories')
-                          ->whereColumn('circle_categories.id', 'users.main_business_category_id')
-                          ->where('circle_categories.parent_id', $industryId);
-                  });
+                    ->orWhereExists(function ($sub) use ($industryId) {
+                        $sub->selectRaw(1)
+                            ->from('circle_categories')
+                            ->whereColumn('circle_categories.id', 'users.main_business_category_id')
+                            ->where('circle_categories.parent_id', $industryId);
+                    });
             });
         }
 
         // Denominator: Total Peers
         $totalPeersQuery = clone $peersQuery;
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $totalPeersQuery->where('users.created_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
         }
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $totalPeersQuery->where('users.created_at', '<=', Carbon::parse($filters['date_to'])->endOfDay());
         }
         $totalPeers = (int) $totalPeersQuery->count();
 
         // Referrals base query
-        if (!Schema::hasTable('referrals')) {
+        if (! Schema::hasTable('referrals')) {
             return [
                 'records' => [],
                 'summary' => [
@@ -1642,7 +1651,7 @@ class DistrictAnalyticsService
                     'denominator' => $totalPeers,
                     'percentage' => 0.0,
                     'formula' => 'Referral Activity (30d) = (Unique Referring Peers / Total Peers) * 100',
-                ]
+                ],
             ];
         }
 
@@ -1651,14 +1660,14 @@ class DistrictAnalyticsService
             ->whereNull('deleted_at')
             ->where(function ($q) use ($peersQuery) {
                 $q->whereIn('from_user_id', (clone $peersQuery)->select('id'))
-                  ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
+                    ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
             });
 
-        if (!empty($filters['date_from']) || !empty($filters['date_to'])) {
-            if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from']) || ! empty($filters['date_to'])) {
+            if (! empty($filters['date_from'])) {
                 $referralQuery->where('created_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
             }
-            if (!empty($filters['date_to'])) {
+            if (! empty($filters['date_to'])) {
                 $referralQuery->where('created_at', '<=', Carbon::parse($filters['date_to'])->endOfDay());
             }
         } else {
@@ -1673,28 +1682,28 @@ class DistrictAnalyticsService
             ->with([
                 'fromUser:id,first_name,last_name,display_name,email,phone,company_name,main_business_category_id',
                 'fromUser.mainBusinessCategory:id,name',
-                'fromUser.circleMembers' => function($q) {
+                'fromUser.circleMembers' => function ($q) {
                     $q->where('status', 'approved')->whereNull('deleted_at');
                 },
                 'fromUser.circleMembers.circle:id,name',
-                'toUser:id,first_name,last_name,display_name,email,phone,company_name'
+                'toUser:id,first_name,last_name,display_name,email,phone,company_name',
             ])
             ->orderBy('created_at', 'desc')
             ->get();
 
         $records = [];
         foreach ($referralsList as $ref) {
-            $circleName = $ref->fromUser?->circleMembers?->map(fn($cm) => $cm->circle?->name)->filter()->unique()->implode(', ') ?: '—';
+            $circleName = $ref->fromUser?->circleMembers?->map(fn ($cm) => $cm->circle?->name)->filter()->unique()->implode(', ') ?: '—';
             $industryName = $ref->fromUser?->mainBusinessCategory?->name ?: '—';
             $records[] = [
                 'id' => $ref->id,
-                'from_user_name' => $ref->fromUser ? ($ref->fromUser->display_name ?: trim(($ref->fromUser->first_name ?? '') . ' ' . ($ref->fromUser->last_name ?? ''))) : '—',
-                'referral_by' => $ref->fromUser ? ($ref->fromUser->display_name ?: trim(($ref->fromUser->first_name ?? '') . ' ' . ($ref->fromUser->last_name ?? ''))) : '—',
+                'from_user_name' => $ref->fromUser ? ($ref->fromUser->display_name ?: trim(($ref->fromUser->first_name ?? '').' '.($ref->fromUser->last_name ?? ''))) : '—',
+                'referral_by' => $ref->fromUser ? ($ref->fromUser->display_name ?: trim(($ref->fromUser->first_name ?? '').' '.($ref->fromUser->last_name ?? ''))) : '—',
                 'from_user_email' => $ref->fromUser?->email ?: '—',
                 'from_user_phone' => $ref->fromUser?->phone ?: '—',
                 'from_user_company' => $ref->fromUser?->company_name ?: '—',
-                'to_user_name' => $ref->toUser ? ($ref->toUser->display_name ?: trim(($ref->toUser->first_name ?? '') . ' ' . ($ref->toUser->last_name ?? ''))) : '—',
-                'referral_to' => $ref->toUser ? ($ref->toUser->display_name ?: trim(($ref->toUser->first_name ?? '') . ' ' . ($ref->toUser->last_name ?? ''))) : '—',
+                'to_user_name' => $ref->toUser ? ($ref->toUser->display_name ?: trim(($ref->toUser->first_name ?? '').' '.($ref->toUser->last_name ?? ''))) : '—',
+                'referral_to' => $ref->toUser ? ($ref->toUser->display_name ?: trim(($ref->toUser->first_name ?? '').' '.($ref->toUser->last_name ?? ''))) : '—',
                 'to_user_email' => $ref->toUser?->email ?: '—',
                 'to_user_phone' => $ref->toUser?->phone ?: '—',
                 'to_user_company' => $ref->toUser?->company_name ?: '—',
@@ -1713,7 +1722,7 @@ class DistrictAnalyticsService
                 'denominator' => $totalPeers,
                 'percentage' => $percentage,
                 'formula' => 'Referral Activity (30d) = (Unique Referring Peers / Total Peers) * 100',
-            ]
+            ],
         ];
     }
 
@@ -1790,21 +1799,21 @@ class DistrictAnalyticsService
             $matched = false;
             foreach ($categoryMap as $keyword => $catId) {
                 if (str_contains($nameLower, $keyword)) {
-                    if (!isset($circleToIndustry[$circle->id]) || !in_array($catId, $circleToIndustry[$circle->id], true)) {
+                    if (! isset($circleToIndustry[$circle->id]) || ! in_array($catId, $circleToIndustry[$circle->id], true)) {
                         $circleToIndustry[$circle->id][] = $catId;
                         $industryToCircles[$catId][] = $circle->id;
                     }
                     $matched = true;
                 }
             }
-            if (!$matched && !empty($circle->industry_tags)) {
+            if (! $matched && ! empty($circle->industry_tags)) {
                 $tags = is_string($circle->industry_tags) ? json_decode($circle->industry_tags, true) : $circle->industry_tags;
                 if (is_array($tags)) {
                     foreach ($tags as $tag) {
                         $tagLower = mb_strtolower($tag);
                         foreach ($categoryMap as $keyword => $catId) {
                             if (str_contains($tagLower, $keyword)) {
-                                if (!isset($circleToIndustry[$circle->id]) || !in_array($catId, $circleToIndustry[$circle->id], true)) {
+                                if (! isset($circleToIndustry[$circle->id]) || ! in_array($catId, $circleToIndustry[$circle->id], true)) {
                                     $circleToIndustry[$circle->id][] = $catId;
                                     $industryToCircles[$catId][] = $circle->id;
                                 }
@@ -1831,10 +1840,10 @@ class DistrictAnalyticsService
 
         // Get all parent categories
         $categoriesQuery = DB::table('circle_categories')->whereNull('parent_id');
-        if (!empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
+        if (! empty($filters['industry_id']) && $filters['industry_id'] !== 'all') {
             $categoriesQuery->where('id', $filters['industry_id']);
         }
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $categoriesQuery->where('is_active', $filters['status'] === 'active');
         }
         $categories = $categoriesQuery->orderBy('name')->get();
@@ -1842,13 +1851,13 @@ class DistrictAnalyticsService
         // Scoped users
         $usersQuery = User::query();
         AdminCircleScope::applyToUsersQuery($usersQuery, $admin);
-        if (!empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
+        if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
             $this->applyCircleFilterToUsersQuery($usersQuery, $filters['circle_id']);
         }
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $usersQuery->where('users.created_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
         }
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $usersQuery->where('users.created_at', '<=', Carbon::parse($filters['date_to'])->endOfDay());
         }
         $users = $usersQuery->get(['id', 'first_name', 'last_name', 'display_name', 'main_business_category_id', 'last_login_at', 'created_at', 'status']);
@@ -1865,7 +1874,7 @@ class DistrictAnalyticsService
         // Scoped circles
         $circlesQuery = Circle::query();
         AdminCircleScope::applyToCirclesQuery($circlesQuery, $admin);
-        if (!empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
+        if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
             $circlesQuery->where('id', $filters['circle_id']);
         }
         $circles = $circlesQuery->get();
@@ -1886,7 +1895,7 @@ class DistrictAnalyticsService
         foreach ($categories as $cat) {
             $catId = (int) $cat->id;
             $industryCircleIds = $industryToCircles[$catId] ?? [];
-            if (!empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
+            if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
                 $industryCircleIds = array_intersect($industryCircleIds, [$filters['circle_id']]);
             }
 
@@ -1903,6 +1912,7 @@ class DistrictAnalyticsService
                         }
                     }
                 }
+
                 return false;
             });
 
@@ -1986,26 +1996,26 @@ class DistrictAnalyticsService
         $circleMappings = $this->getCircleIndustryMappings($admin, $filters['circle_id'] ?? null);
         $circleToIndustry = $circleMappings['circle_to_industry'];
         $industryToCircles = $circleMappings['industry_to_circles'];
-        
+
         $cat = DB::table('circle_categories')->where('id', $industryId)->first();
         abort_unless($cat !== null, 404);
 
         $catId = (int) $industryId;
         $industryCircleIds = $industryToCircles[$catId] ?? [];
-        if (!empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
+        if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
             $industryCircleIds = array_intersect($industryCircleIds, [$filters['circle_id']]);
         }
 
         // Get all users in district
         $usersQuery = User::query();
         AdminCircleScope::applyToUsersQuery($usersQuery, $admin);
-        if (!empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
+        if (! empty($filters['circle_id']) && $filters['circle_id'] !== 'all') {
             $this->applyCircleFilterToUsersQuery($usersQuery, $filters['circle_id']);
         }
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $usersQuery->where('users.created_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
         }
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $usersQuery->where('users.created_at', '<=', Carbon::parse($filters['date_to'])->endOfDay());
         }
         $users = $usersQuery->with(['mainBusinessCategory'])->get();
@@ -2034,6 +2044,7 @@ class DistrictAnalyticsService
                     }
                 }
             }
+
             return false;
         });
 
@@ -2044,8 +2055,8 @@ class DistrictAnalyticsService
         foreach ($industryUsers as $u) {
             $userMems = $memberships->get($u->id) ?? collect();
             $circleNames = $userMems->pluck('circle_name')->unique()->implode(', ') ?: '—';
-            $roles = $userMems->map(fn($m) => ucfirst($m->role))->unique()->implode(', ') ?: 'Member';
-            
+            $roles = $userMems->map(fn ($m) => ucfirst($m->role))->unique()->implode(', ') ?: 'Member';
+
             $joinedDate = null;
             if ($userMems->isNotEmpty()) {
                 $joinedDate = $userMems->min('joined_at') ?: $userMems->min('created_at');
@@ -2055,7 +2066,7 @@ class DistrictAnalyticsService
 
             $membersList[] = [
                 'id' => $u->id,
-                'name' => $u->display_name ?: trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')),
+                'name' => $u->display_name ?: trim(($u->first_name ?? '').' '.($u->last_name ?? '')),
                 'company' => $u->company_name ?: '—',
                 'role' => $roles,
                 'circle' => $circleNames,
@@ -2083,8 +2094,8 @@ class DistrictAnalyticsService
 
         $circlesData = [];
         foreach ($circlesList as $c) {
-            $founderName = $c->founder ? ($c->founder->display_name ?: trim(($c->founder->first_name ?? '') . ' ' . ($c->founder->last_name ?? ''))) : '—';
-            $directorName = $c->director ? ($c->director->display_name ?: trim(($c->director->first_name ?? '') . ' ' . ($c->director->last_name ?? ''))) : '—';
+            $founderName = $c->founder ? ($c->founder->display_name ?: trim(($c->founder->first_name ?? '').' '.($c->founder->last_name ?? ''))) : '—';
+            $directorName = $c->director ? ($c->director->display_name ?: trim(($c->director->first_name ?? '').' '.($c->director->last_name ?? ''))) : '—';
             $rev = isset($subscriptions[$c->id]) ? (float) $subscriptions[$c->id]->sum('amount') : 0.0;
 
             $circlesData[] = [
@@ -2179,7 +2190,7 @@ class DistrictAnalyticsService
         $prevActivePct = $totalPeersPrev > 0 ? ($activePeersPrev / $totalPeersPrev) * 100 : 0.0;
 
         $activeTrend = round($currentActivePct - $prevActivePct, 1);
-        $activeTrendLabel = ($activeTrend >= 0 ? '+' : '') . $activeTrend . '% vs previous period';
+        $activeTrendLabel = ($activeTrend >= 0 ? '+' : '').$activeTrend.'% vs previous period';
 
         // 2. Leadership Filled Trend
         $totalCircles = (int) Circle::query()->whereIn('id', $circleSubquery)->count();
@@ -2196,7 +2207,7 @@ class DistrictAnalyticsService
                 )
                 ->groupBy('circle_id')
                 ->get();
-            $filledCount = $rolesByCircle->filter(fn($c) => $c->has_chair >= 1 && $c->has_vc >= 1 && $c->has_sec >= 1)->count();
+            $filledCount = $rolesByCircle->filter(fn ($c) => $c->has_chair >= 1 && $c->has_vc >= 1 && $c->has_sec >= 1)->count();
             $currentLeadPct = ($filledCount / $totalCircles) * 100;
         }
 
@@ -2215,18 +2226,18 @@ class DistrictAnalyticsService
                 )
                 ->groupBy('circle_id')
                 ->get();
-            $filledCountPrev = $rolesByCirclePrev->filter(fn($c) => $c->has_chair >= 1 && $c->has_vc >= 1 && $c->has_sec >= 1)->count();
+            $filledCountPrev = $rolesByCirclePrev->filter(fn ($c) => $c->has_chair >= 1 && $c->has_vc >= 1 && $c->has_sec >= 1)->count();
             $prevLeadPct = ($filledCountPrev / $totalCirclesPrev) * 100;
         }
         $leadTrend = round($currentLeadPct - $prevLeadPct, 1);
-        $leadTrendLabel = ($leadTrend >= 0 ? '+' : '') . $leadTrend . '% vs previous period';
+        $leadTrendLabel = ($leadTrend >= 0 ? '+' : '').$leadTrend.'% vs previous period';
 
         // 3. Membership Conversion Trend
         $joinRequestsQuery = CircleJoinRequest::query()->visibleToAdminUser($admin);
         if ($selectedCircleId && $selectedCircleId !== 'all') {
             $joinRequestsQuery->where('circle_id', $selectedCircleId);
         }
-        
+
         $totalRequests = (int) $joinRequestsQuery->count();
         $approvedRequests = (int) (clone $joinRequestsQuery)->where('status', 'paid')->count();
         $currentConvPct = $totalRequests > 0 ? ($approvedRequests / $totalRequests) * 100 : 0.0;
@@ -2236,7 +2247,7 @@ class DistrictAnalyticsService
         $prevConvPct = $totalRequestsPrev > 0 ? ($approvedRequestsPrev / $totalRequestsPrev) * 100 : 0.0;
 
         $convTrend = round($currentConvPct - $prevConvPct, 1);
-        $convTrendLabel = ($convTrend >= 0 ? '+' : '') . $convTrend . '% vs previous period';
+        $convTrendLabel = ($convTrend >= 0 ? '+' : '').$convTrend.'% vs previous period';
 
         // 4. Referral Activity Trend
         $referralPeers = 0;
@@ -2247,7 +2258,7 @@ class DistrictAnalyticsService
                 ->whereNull('deleted_at')
                 ->where(function ($q) use ($peersQuery) {
                     $q->whereIn('from_user_id', (clone $peersQuery)->select('id'))
-                      ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
+                        ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
                 })
                 ->distinct()
                 ->count('from_user_id');
@@ -2262,7 +2273,7 @@ class DistrictAnalyticsService
                 ->whereNull('deleted_at')
                 ->where(function ($q) use ($peersQuery) {
                     $q->whereIn('from_user_id', (clone $peersQuery)->select('id'))
-                      ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
+                        ->orWhereIn('to_user_id', (clone $peersQuery)->select('id'));
                 })
                 ->distinct()
                 ->count('from_user_id');
@@ -2270,7 +2281,7 @@ class DistrictAnalyticsService
         $prevRefPct = $totalPeers > 0 ? ($referralPeersPrev / $totalPeers) * 100 : 0.0;
 
         $refTrend = round($currentRefPct - $prevRefPct, 1);
-        $refTrendLabel = ($refTrend >= 0 ? '+' : '') . $refTrend . '% vs previous period';
+        $refTrendLabel = ($refTrend >= 0 ? '+' : '').$refTrend.'% vs previous period';
 
         return [
             'active_members' => [

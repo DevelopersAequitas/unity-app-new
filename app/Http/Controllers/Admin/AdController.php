@@ -8,19 +8,22 @@ use App\Http\Requests\Admin\Ads\UpdateAdRequest;
 use App\Models\Ad;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class AdController extends Controller
 {
+    private const PLACEMENTS = ['timeline', 'dashboard', 'home', 'banner', 'popup', 'sidebar'];
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('q', ''));
 
         $ads = Ad::query()
             ->when($search !== '', function ($query) use ($search) {
-                $query->where('title', 'ILIKE', '%' . $search . '%');
+                $query->where('title', 'ILIKE', '%'.$search.'%');
             })
             ->orderByDesc('created_at')
             ->paginate(20)
@@ -32,7 +35,8 @@ class AdController extends Controller
     public function create(): View
     {
         return view('admin.ads.create', [
-            'ad' => new Ad(['is_active' => true]),
+            'ad'        => new Ad(['is_active' => true]),
+            'placements' => self::PLACEMENTS,
         ]);
     }
 
@@ -55,7 +59,8 @@ class AdController extends Controller
     public function edit(Ad $ad): View
     {
         return view('admin.ads.edit', [
-            'ad' => $ad,
+            'ad'        => $ad,
+            'placements' => self::PLACEMENTS,
         ]);
     }
 
@@ -106,16 +111,20 @@ class AdController extends Controller
         $data['is_active'] = $request->boolean('is_active');
 
         if (! empty($data['starts_at'])) {
-            $data['starts_at'] = \Illuminate\Support\Carbon::parse($data['starts_at'], 'Asia/Kolkata')->utc();
+            $data['starts_at'] = Carbon::parse($data['starts_at'], 'Asia/Kolkata')->utc();
         } else {
             $data['starts_at'] = null;
         }
 
         if (! empty($data['ends_at'])) {
-            $data['ends_at'] = \Illuminate\Support\Carbon::parse($data['ends_at'], 'Asia/Kolkata')->utc();
+            $data['ends_at'] = Carbon::parse($data['ends_at'], 'Asia/Kolkata')->utc();
         } else {
             $data['ends_at'] = null;
         }
+
+        // Handle nullable integer fields
+        $data['timeline_position'] = isset($data['timeline_position']) && $data['timeline_position'] !== '' ? (int) $data['timeline_position'] : null;
+        $data['sort_order'] = isset($data['sort_order']) && $data['sort_order'] !== '' ? (int) $data['sort_order'] : 0;
 
         return $data;
     }

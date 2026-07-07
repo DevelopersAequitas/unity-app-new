@@ -22,8 +22,7 @@ class SendFcmNotificationJob implements ShouldQueue
         public string $title,
         public string $body,
         public array $data = [],
-    ) {
-    }
+    ) {}
 
     public function handle(): void
     {

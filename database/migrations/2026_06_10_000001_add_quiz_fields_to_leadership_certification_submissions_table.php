@@ -4,7 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         if (Schema::hasTable('leadership_certification_submissions')) {
@@ -38,20 +39,20 @@ return new class extends Migration {
                 ];
 
                 foreach ($columns as $column) {
-                    if (!Schema::hasColumn('leadership_certification_submissions', $column)) {
+                    if (! Schema::hasColumn('leadership_certification_submissions', $column)) {
                         $table->text($column)->nullable();
                     }
                 }
 
-                if (!Schema::hasColumn('leadership_certification_submissions', 'total_score')) {
+                if (! Schema::hasColumn('leadership_certification_submissions', 'total_score')) {
                     $table->integer('total_score')->default(0);
                 }
 
-                if (!Schema::hasColumn('leadership_certification_submissions', 'percentage')) {
+                if (! Schema::hasColumn('leadership_certification_submissions', 'percentage')) {
                     $table->decimal('percentage', 5, 2)->default(0);
                 }
 
-                if (!Schema::hasColumn('leadership_certification_submissions', 'certification_level')) {
+                if (! Schema::hasColumn('leadership_certification_submissions', 'certification_level')) {
                     $table->string('certification_level', 100)->nullable();
                 }
             });
@@ -71,7 +72,7 @@ return new class extends Migration {
                     'business_community_approach', 'low_confidence_person_action', 'support_most_in_team',
                     'good_leadership_means', 'feedback_frequency', 'unhappy_customer_action',
                     'new_network_person_action', 'local_event_speaking_action', 'leadership_role_offer_action',
-                    'great_leader_opinion', 'total_score', 'percentage', 'certification_level'
+                    'great_leader_opinion', 'total_score', 'percentage', 'certification_level',
                 ];
 
                 foreach ($columns as $column) {

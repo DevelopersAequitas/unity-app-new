@@ -66,7 +66,7 @@ class AppConfigAdminController extends Controller
                 ->values()
                 ->toArray(),
             'membership_labels' => AppMembershipLabel::query()
-                ->when(\Illuminate\Support\Facades\Schema::hasColumn('app_membership_labels', 'app_instance_id'), fn ($query) => $query->where('app_instance_id', $appInstanceId))
+                ->when(Schema::hasColumn('app_membership_labels', 'app_instance_id'), fn ($query) => $query->where('app_instance_id', $appInstanceId))
                 ->orderBy('membership_key')
                 ->get()
                 ->values()
@@ -84,8 +84,6 @@ class AppConfigAdminController extends Controller
 
         return $this->changed($model, 'Branding updated successfully.');
     }
-
-
 
     public function icons(): JsonResponse
     {
@@ -151,12 +149,12 @@ class AppConfigAdminController extends Controller
         }
 
         $filename = Str::of($data['icon_key'])->replace('_', '-')->slug('-')
-            . '-' . $data['target_field']
-            . '-' . now()->format('Ymd-His')
-            . '-' . Str::lower(Str::random(8))
-            . '.' . $extension;
+            .'-'.$data['target_field']
+            .'-'.now()->format('Ymd-His')
+            .'-'.Str::lower(Str::random(8))
+            .'.'.$extension;
         $path = $request->file('file')->storeAs('app-config/greenpreneur/icons', $filename, 'public');
-        $url = asset('storage/' . $path);
+        $url = asset('storage/'.$path);
 
         AppIconAsset::query()
             ->where('app_instance_id', $this->appInstanceId())
@@ -314,11 +312,11 @@ class AppConfigAdminController extends Controller
             'sort_order' => $data['sort_order'] ?? $model->sort_order,
         ];
 
-        if (\Illuminate\Support\Facades\Schema::hasColumn('app_dashboard_widgets', 'is_enabled')) {
+        if (Schema::hasColumn('app_dashboard_widgets', 'is_enabled')) {
             $payload['is_enabled'] = array_key_exists('is_enabled', $data) ? $request->boolean('is_enabled') : $model->is_enabled;
         }
 
-        if (\Illuminate\Support\Facades\Schema::hasColumn('app_dashboard_widgets', 'is_enable')) {
+        if (Schema::hasColumn('app_dashboard_widgets', 'is_enable')) {
             $payload['is_enable'] = array_key_exists('is_enabled', $data) ? $request->boolean('is_enabled') : ($model->is_enable ?? $model->is_enabled);
         }
 
@@ -363,7 +361,7 @@ class AppConfigAdminController extends Controller
     {
         $data = $request->validate(['display_label' => 'required|string|max:255', 'description' => 'nullable|string']);
         $query = AppMembershipLabel::query()->where('membership_key', $membership_key);
-        if (\Illuminate\Support\Facades\Schema::hasColumn('app_membership_labels', 'app_instance_id')) {
+        if (Schema::hasColumn('app_membership_labels', 'app_instance_id')) {
             $query->where('app_instance_id', $this->appInstanceId());
         }
         $model = $query->firstOrFail();

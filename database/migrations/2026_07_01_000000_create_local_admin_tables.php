@@ -2,15 +2,15 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('admin_users')) {
+        if (! Schema::hasTable('admin_users')) {
             Schema::create('admin_users', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->string('name');
@@ -19,7 +19,7 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('roles')) {
+        if (! Schema::hasTable('roles')) {
             Schema::create('roles', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->string('name');
@@ -29,7 +29,7 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('admin_user_roles')) {
+        if (! Schema::hasTable('admin_user_roles')) {
             Schema::create('admin_user_roles', function (Blueprint $table) {
                 $table->uuid('user_id');
                 $table->uuid('role_id');
@@ -37,7 +37,7 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('admin_login_otps')) {
+        if (! Schema::hasTable('admin_login_otps')) {
             Schema::create('admin_login_otps', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->string('email');
@@ -51,8 +51,11 @@ return new class extends Migration
         }
 
         // Seed default roles and admin user
-        $globalAdminRoleId = (string) Str::uuid();
-        $adminUserId = (string) Str::uuid();
+        $existingAdminRole = DB::table('roles')->where('key', 'global_admin')->first();
+        $globalAdminRoleId = $existingAdminRole ? $existingAdminRole->id : (string) Str::uuid();
+
+        $existingUser = DB::table('admin_users')->where('email', 'work.jaykanzariya@gmail.com')->first();
+        $adminUserId = $existingUser ? $existingUser->id : (string) Str::uuid();
 
         DB::table('roles')->insertOrIgnore([
             [

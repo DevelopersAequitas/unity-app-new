@@ -16,6 +16,5 @@ class ActivityCreated
         public Model $activityModel,
         public string $actorUserId,
         public ?string $otherUserId = null,
-    ) {
-    }
+    ) {}
 }

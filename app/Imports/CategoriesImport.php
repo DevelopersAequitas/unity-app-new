@@ -47,12 +47,14 @@ class CategoriesImport
 
             if ($name === '') {
                 $skippedEmptyCount++;
+
                 continue;
             }
 
             $normalizedName = $this->normalizeName($name);
             if (isset($existingNormalized[$normalizedName]) || isset($seenInFile[$normalizedName])) {
                 $skippedDuplicateCount++;
+
                 continue;
             }
 
@@ -105,6 +107,7 @@ class CategoriesImport
         $headers = fgetcsv($stream);
         if (! is_array($headers)) {
             fclose($stream);
+
             return [];
         }
 
@@ -115,6 +118,7 @@ class CategoriesImport
         while (($data = fgetcsv($stream)) !== false) {
             if ($data === [null] || $data === []) {
                 $rows[] = [];
+
                 continue;
             }
 
@@ -140,7 +144,7 @@ class CategoriesImport
      */
     private function readXlsxRows(UploadedFile $file): array
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $opened = $zip->open($file->getRealPath());
 
         if ($opened !== true) {
@@ -161,6 +165,7 @@ class CategoriesImport
                 foreach ($shared->si as $si) {
                     if (isset($si->t)) {
                         $sharedStrings[] = (string) $si->t;
+
                         continue;
                     }
 
@@ -269,6 +274,7 @@ class CategoriesImport
     private function nullableTrim(mixed $value): ?string
     {
         $trimmed = trim((string) ($value ?? ''));
+
         return $trimmed === '' ? null : $trimmed;
     }
 

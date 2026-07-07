@@ -37,7 +37,7 @@ class UserSearchController extends Controller
             }])
             ->orderByRaw("COALESCE(NULLIF(display_name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),''), email) ASC")
             ->limit(10)
-            ->get(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'company', 'business_name', 'city']);
+            ->get();
 
         if ($users->isEmpty()) {
             Log::info('admin.users.search.no_results', [

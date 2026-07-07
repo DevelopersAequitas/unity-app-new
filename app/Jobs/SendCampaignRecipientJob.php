@@ -29,6 +29,7 @@ class SendCampaignRecipientJob implements ShouldQueue
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 3;
+
     public $backoff = [10, 30, 60];
 
     private ?string $notificationType = null;
@@ -37,8 +38,7 @@ class SendCampaignRecipientJob implements ShouldQueue
         protected string $deliveryId,
         protected string $logId,
         protected string $userId
-    ) {
-    }
+    ) {}
 
     public function handle(EmailLogService $emailLogService, FcmService $fcmService): void
     {
@@ -50,7 +50,7 @@ class SendCampaignRecipientJob implements ShouldQueue
         $user = User::find($this->userId);
         $delivery = CampaignDelivery::with('campaign')->find($this->deliveryId);
 
-        if (!$log || !$user || !$delivery) {
+        if (! $log || ! $user || ! $delivery) {
             return;
         }
 
@@ -62,7 +62,7 @@ class SendCampaignRecipientJob implements ShouldQueue
             'user_id' => $this->userId,
             'campaign_id' => $campaign->id,
         ]);
-        
+
         $emailSent = false;
         $notificationSent = false;
         $emailStatus = $campaign->includesEmail() ? 'pending' : 'skipped';
@@ -71,7 +71,7 @@ class SendCampaignRecipientJob implements ShouldQueue
 
         // 1. Send Email if required
         if ($campaign->includesEmail()) {
-            $email = trim((string)$user->email);
+            $email = trim((string) $user->email);
             if ($email === '') {
                 $emailStatus = 'skipped';
             } else {
@@ -80,7 +80,7 @@ class SendCampaignRecipientJob implements ShouldQueue
                     Mail::to($email)->send($mailable);
                     $emailSent = true;
                     $emailStatus = 'sent';
-                    
+
                     // Log to EmailLogService
                     $emailLogService->logMailableSent($mailable, $this->emailLogData($campaign, $user, $email));
                     Log::info('SendCampaignRecipientJob email sent successfully', [
@@ -90,17 +90,18 @@ class SendCampaignRecipientJob implements ShouldQueue
                     ]);
                 } catch (Throwable $e) {
                     $emailStatus = 'failed';
-                    $errors[] = 'Email Error: ' . $e->getMessage();
+                    $errors[] = 'Email Error: '.$e->getMessage();
                     Log::error('SendCampaignRecipientJob email failed', [
                         'user_id' => $this->userId,
                         'email' => $email,
                         'campaign_id' => $campaign->id,
                         'error' => $e->getMessage(),
                     ]);
-                    
+
                     try {
                         $emailLogService->logMailableFailed(new AdminCampaignMailable($campaign, $user), $this->emailLogData($campaign, $user, $email), $e);
-                    } catch (Throwable $ignore) {}
+                    } catch (Throwable $ignore) {
+                    }
                 }
             }
         }
@@ -122,7 +123,8 @@ class SendCampaignRecipientJob implements ShouldQueue
                             'is_read' => false,
                             'created_at' => $notification->created_at,
                         ]));
-                    } catch (Throwable $ignore) {}
+                    } catch (Throwable $ignore) {
+                    }
                 }
 
                 // Call FCM service synchronously
@@ -131,19 +133,19 @@ class SendCampaignRecipientJob implements ShouldQueue
                 if ($tokens->isEmpty()) {
                     $notificationStatus = 'failed';
                     $errors[] = 'Push Error: No device token found';
-                    
+
                     Log::error('Notification delivery failed: No device token found', [
                         'campaign_id' => $campaign->id,
                         'user_id' => $user->id,
                         'device_token' => null,
                         'provider_response' => null,
-                        'reason' => 'No device token found'
+                        'reason' => 'No device token found',
                     ]);
                 } else {
                     $title = $this->notificationTitle($campaign);
                     $message = $this->notificationMessage($campaign);
                     $pamphletImageUrl = $this->pamphletImageUrl($campaign);
-                    
+
                     $pushData = [
                         'type' => 'admin_campaign',
                         'notification_type' => 'admin_campaign',
@@ -184,7 +186,7 @@ class SendCampaignRecipientJob implements ShouldQueue
                                 'user_id' => $user->id,
                                 'device_token' => $token->token,
                                 'provider_response' => $result['firebase_response'] ?? null,
-                                'reason' => 'Success'
+                                'reason' => 'Success',
                             ]);
                         } else {
                             $tokenErrors[] = $result['error'] ?? 'Unknown provider error';
@@ -193,7 +195,7 @@ class SendCampaignRecipientJob implements ShouldQueue
                                 'user_id' => $user->id,
                                 'device_token' => $token->token,
                                 'provider_response' => $result['firebase_response'] ?? null,
-                                'reason' => $result['error'] ?? 'Unknown provider error'
+                                'reason' => $result['error'] ?? 'Unknown provider error',
                             ]);
                         }
                     }
@@ -203,12 +205,12 @@ class SendCampaignRecipientJob implements ShouldQueue
                         $notificationStatus = 'sent';
                     } else {
                         $notificationStatus = 'failed';
-                        $errors[] = 'Push Error: ' . implode(' | ', $tokenErrors);
+                        $errors[] = 'Push Error: '.implode(' | ', $tokenErrors);
                     }
                 }
             } catch (Throwable $e) {
                 $notificationStatus = 'failed';
-                $errors[] = 'Push Error: ' . $e->getMessage();
+                $errors[] = 'Push Error: '.$e->getMessage();
                 Log::error('Notification delivery exception', [
                     'campaign_id' => $campaign->id,
                     'user_id' => $user->id,
@@ -225,11 +227,11 @@ class SendCampaignRecipientJob implements ShouldQueue
         if ($notificationSent) {
             $incData['total_notification_sent'] = DB::raw('total_notification_sent + 1');
         }
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             $incData['total_failed'] = DB::raw('total_failed + 1');
         }
 
-        if (!empty($incData)) {
+        if (! empty($incData)) {
             CampaignDelivery::where('id', $this->deliveryId)->update($incData);
         }
 
@@ -290,7 +292,8 @@ class SendCampaignRecipientJob implements ShouldQueue
                     return $this->notificationType = $type;
                 }
             }
-        } catch (Throwable) {}
+        } catch (Throwable) {
+        }
 
         return $this->notificationType = 'system';
     }
@@ -322,7 +325,7 @@ class SendCampaignRecipientJob implements ShouldQueue
         $title = (string) ($campaign->notification_title ?: $campaign->title ?: 'New notification');
         $message = (string) ($campaign->notification_message ?: 'You have a new notification.');
         $payload = $notification->payload ?? [];
-        
+
         $pamphletImageUrl = null;
         $imageUrl = $campaign->pamphlet_snapshot['image_url'] ?? null;
         if (is_string($imageUrl) && $imageUrl !== '') {
@@ -429,6 +432,7 @@ class SendCampaignRecipientJob implements ShouldQueue
     protected function pamphletImageUrl(AdminCampaign $campaign): ?string
     {
         $imageUrl = $campaign->pamphlet_snapshot['image_url'] ?? null;
+
         return is_string($imageUrl) && $imageUrl !== '' ? $imageUrl : null;
     }
 }

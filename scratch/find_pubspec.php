@@ -1,5 +1,7 @@
 <?php
-function scan_pubspec($dir) {
+
+function scan_pubspec($dir)
+{
     $results = [];
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
@@ -8,9 +10,9 @@ function scan_pubspec($dir) {
     foreach ($iterator as $file) {
         $path = $file->getPathname();
         // Skip common large directories
-        if (strpos($path, 'vendor') !== false 
-            || strpos($path, 'node_modules') !== false 
-            || strpos($path, '.git') !== false 
+        if (strpos($path, 'vendor') !== false
+            || strpos($path, 'node_modules') !== false
+            || strpos($path, '.git') !== false
             || strpos($path, '$RECYCLE.BIN') !== false
             || strpos($path, 'System Volume Information') !== false) {
             continue;
@@ -19,6 +21,7 @@ function scan_pubspec($dir) {
             $results[] = $path;
         }
     }
+
     return $results;
 }
 

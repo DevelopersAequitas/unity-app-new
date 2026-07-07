@@ -9,14 +9,12 @@ use Symfony\Component\Process\Process;
 
 class MediaProcessor
 {
-    public function __construct(private readonly Probe $probe)
-    {
-    }
+    public function __construct(private readonly Probe $probe) {}
 
     /**
-        * @param  string  $type  image|video|document
-        * @return array{path:string,mime_type:string,size_bytes:int|null,width:int|null,height:int|null,duration:int|null}
-        */
+     * @param  string  $type  image|video|document
+     * @return array{path:string,mime_type:string,size_bytes:int|null,width:int|null,height:int|null,duration:int|null}
+     */
     public function optimize(string $sourcePath, string $type, ?string $mimeType = null): array
     {
         if ($type === 'image') {
@@ -296,7 +294,7 @@ class MediaProcessor
     {
         if ($this->probe->imagickAvailable()) {
             try {
-                $formats = (new \Imagick())->queryFormats('WEBP');
+                $formats = (new \Imagick)->queryFormats('WEBP');
 
                 return ! empty($formats);
             } catch (\Throwable) {
@@ -342,8 +340,8 @@ class MediaProcessor
         }
 
         $extension = ltrim($extension, '.');
-        $extension = $extension ? '.' . $extension : '';
+        $extension = $extension ? '.'.$extension : '';
 
-        return $dir . '/' . uniqid('media_', true) . $extension;
+        return $dir.'/'.uniqid('media_', true).$extension;
     }
 }

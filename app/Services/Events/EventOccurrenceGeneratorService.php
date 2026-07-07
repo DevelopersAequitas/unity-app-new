@@ -44,6 +44,7 @@ class EventOccurrenceGeneratorService
                     }
                     $existingOccurrence->save();
                     $created->push($existingOccurrence);
+
                     continue;
                 }
 
@@ -146,7 +147,6 @@ class EventOccurrenceGeneratorService
 
         return $dates;
     }
-
 
     private function normalizeDayOfWeek(int $dayOfWeek): int
     {

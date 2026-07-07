@@ -3,7 +3,6 @@
 namespace App\Services\Events;
 
 use App\Models\Event;
-use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\User;
 use App\Services\Zoho\ZohoBillingPaymentLinkService;
@@ -70,7 +69,7 @@ class EventPaymentService
         if (! in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)) {
             if ($gateway === 'zoho_billing_payment_link') {
                 if (empty($currentPaymentUrl)) {
-                    $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
+                    $registration = app(ZohoBillingPaymentLinkService::class)
                         ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
                     Log::warning('event_registration_payment_url_missing_creating_zoho_link', [
                         'registration_id' => (string) $registration->id,
@@ -79,7 +78,7 @@ class EventPaymentService
                         'payment_gateway' => $registration->payment_gateway,
                         'payment_status' => $registration->payment_status,
                     ]);
-                    $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
+                    $registration = app(ZohoBillingPaymentLinkService::class)
                         ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
                 } else {
                     $registration->forceFill($this->filterRegistrationColumns([
@@ -193,7 +192,6 @@ class EventPaymentService
             'invited_by_user' => $this->invitedByUserPayload($registration->invitedByUser),
         ];
     }
-
 
     private function invitedByUserPayload(?User $user): ?array
     {

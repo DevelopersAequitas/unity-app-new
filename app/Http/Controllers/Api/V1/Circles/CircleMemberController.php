@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api\V1\Circles;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CircleMemberResource;
 use App\Models\Circle;
+use App\Models\CircleMember;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
@@ -25,7 +27,7 @@ class CircleMemberController extends Controller
             };
         }
 
-        $query = \App\Models\CircleMember::query()
+        $query = CircleMember::query()
             ->where('circle_id', $circle->id)
             ->whereNull('deleted_at')
             ->with($with);
@@ -52,7 +54,7 @@ class CircleMemberController extends Controller
         return response()->json([
             'success' => true,
             'message' => null,
-            'data' => \App\Http\Resources\CircleMemberResource::collection($members),
+            'data' => CircleMemberResource::collection($members),
         ]);
     }
 }

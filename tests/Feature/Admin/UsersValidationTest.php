@@ -3,15 +3,16 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\AdminUser;
-use App\Models\User;
-use App\Models\Role;
 use App\Models\City;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class UsersValidationTest extends TestCase
 {
@@ -62,7 +63,7 @@ class UsersValidationTest extends TestCase
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $globalAdminRoleId = null;
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;
@@ -76,7 +77,7 @@ class UsersValidationTest extends TestCase
         $this->actingAs($this->admin, 'admin');
 
         // Create dummy city
-        \Illuminate\Support\Facades\DB::table('cities')->insert([
+        DB::table('cities')->insert([
             'id' => (string) Str::uuid(),
             'name' => 'Ahmedabad',
             'created_at' => now(),
@@ -96,10 +97,20 @@ class UsersValidationTest extends TestCase
         Schema::dropIfExists('users');
         Schema::dropIfExists('admin_audit_logs');
         Schema::dropIfExists('cities');
+        Schema::dropIfExists('circles');
 
         Schema::create('cities', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name');
+            $table->timestamps();
+        });
+
+        Schema::create('circles', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->string('zoho_addon_code')->nullable();
+            $table->string('zoho_addon_name')->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
 
@@ -178,6 +189,12 @@ class UsersValidationTest extends TestCase
             $table->timestamps();
             $table->softDeletes();
         });
+    }
+
+    public function test_admin_can_view_user_create_page(): void
+    {
+        $response = $this->get(route('admin.users.create'));
+        $response->assertStatus(200);
     }
 
     public function test_admin_user_creation_fails_when_required_fields_are_empty(): void

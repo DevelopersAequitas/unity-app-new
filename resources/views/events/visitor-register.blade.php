@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $event->title }} - Visitor Registration</title>
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}?v={{ time() }}">
     <style>
         :root { color-scheme: light; --brand: #1f5eff; --danger: #b42318; --muted: #667085; --border: #d0d5dd; --success: #067647; }
         body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #101828; }

@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\BaseApiController;
-use App\Http\Requests\Activity\StoreRequirementRequest;
 use App\Events\ActivityCreated;
-use App\Models\Requirement;
+use App\Http\Requests\Activity\StoreRequirementRequest;
 use App\Models\Post;
+use App\Models\Requirement;
 use App\Services\Coins\CoinsService;
 use Illuminate\Http\Request;
 use Throwable;

@@ -1,14 +1,16 @@
 <?php
-require __DIR__ . '/../vendor/autoload.php';
-$app = require_once __DIR__ . '/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+
+require __DIR__.'/../vendor/autoload.php';
+$app = require_once __DIR__.'/../bootstrap/app.php';
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
-use App\Models\User;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
+use App\Models\AdminUser;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Http\Request;
 
-$admin = \App\Models\AdminUser::first();
+$admin = AdminUser::first();
 if ($admin) {
     Auth::guard('admin')->setUser($admin);
 }
@@ -18,7 +20,7 @@ $controller = app(PendingRegistrationsController::class);
 $view = $controller->index($request);
 
 $registrations = $view->getData()['registrations'];
-echo "Total Inactive Registrations: " . $registrations->total() . "\n";
+echo 'Total Inactive Registrations: '.$registrations->total()."\n";
 echo "Listing users:\n";
 foreach ($registrations as $reg) {
     echo "- ID: {$reg->id} | Email: {$reg->email} | Status: {$reg->status} | Source: {$reg->registration_source}\n";

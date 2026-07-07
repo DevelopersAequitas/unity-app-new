@@ -153,6 +153,7 @@ class NotificationEngineController extends BaseApiController
     public function readAll(Request $request, NotificationService $service)
     {
         $updated = $service->markAllAsRead($request->user());
+
         return $this->success(['updated_count' => $updated, 'updated' => $updated], $updated > 0 ? 'All notifications marked as read.' : 'No unread notifications found.');
     }
 
@@ -160,7 +161,6 @@ class NotificationEngineController extends BaseApiController
     {
         return $this->success($service->recordClick($request->user(), $id), 'Notification click recorded.');
     }
-
 
     public function check(Request $request)
     {
@@ -733,7 +733,7 @@ class NotificationEngineController extends BaseApiController
         }
 
         return trim((string) ($user->display_name ?? ''))
-            ?: trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? '')))
+            ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? '')))
             ?: (string) ($user->name ?? $user->email ?? $user->id);
     }
 }

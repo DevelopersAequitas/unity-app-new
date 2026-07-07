@@ -16,16 +16,20 @@ use Throwable;
 
 class MembershipWelcomeEmailService
 {
-    public function __construct(private readonly EmailLogService $emailLogService, private readonly MembershipNotificationService $notifications)
-    {
-    }
+    public function __construct(private readonly EmailLogService $emailLogService, private readonly MembershipNotificationService $notifications) {}
 
     public function sendIfEligible(User $user, bool $force = false, string $flow = 'membership_purchase', array $uploadedAttachments = []): array
     {
         $freshUser = User::query()->find($user->id);
-        if (! $freshUser) return ['sent' => false, 'reason' => 'user_not_found'];
-        if (! config('membership_welcome.enabled', true)) return ['sent' => false, 'reason' => 'disabled'];
-        if (! $force && filled($freshUser->welcome_membership_email_sent_at)) return ['sent' => false, 'reason' => 'already_sent'];
+        if (! $freshUser) {
+            return ['sent' => false, 'reason' => 'user_not_found'];
+        }
+        if (! config('membership_welcome.enabled', true)) {
+            return ['sent' => false, 'reason' => 'disabled'];
+        }
+        if (! $force && filled($freshUser->welcome_membership_email_sent_at)) {
+            return ['sent' => false, 'reason' => 'already_sent'];
+        }
 
         if (! $freshUser) {
             Log::warning('membership.welcome_email.user_not_found', [
@@ -61,8 +65,12 @@ class MembershipWelcomeEmailService
         }
 
         $email = trim((string) ($freshUser->email ?? ''));
-        if ($email === '') return ['sent' => false, 'reason' => 'missing_email'];
-        if (! $this->isEligiblePaidMembershipUser($freshUser) && ! $force) return ['sent' => false, 'reason' => 'not_paid'];
+        if ($email === '') {
+            return ['sent' => false, 'reason' => 'missing_email'];
+        }
+        if (! $this->isEligiblePaidMembershipUser($freshUser) && ! $force) {
+            return ['sent' => false, 'reason' => 'not_paid'];
+        }
 
         $attachments = $this->resolveAttachments($uploadedAttachments);
         $mailable = new MembershipWelcomeMail($freshUser, $attachments, $this->resolveBannerUrl());
@@ -92,6 +100,7 @@ class MembershipWelcomeEmailService
                 'to_email' => $email,
                 'from_address' => config('mail.membership_from.address', 'support@peersglobal.com'),
             ]);
+
             return ['sent' => true, 'reason' => 'sent'];
         } catch (Throwable $throwable) {
             $message = Str::limit($throwable->getMessage(), 2000, '');
@@ -116,6 +125,7 @@ class MembershipWelcomeEmailService
                 'file' => $throwable->getFile(),
                 'line' => $throwable->getLine(),
             ]);
+
             return ['sent' => false, 'reason' => 'failed'];
         }
     }
@@ -128,9 +138,12 @@ class MembershipWelcomeEmailService
     private function resolveBannerUrl(): ?string
     {
         $url = trim((string) config('membership_welcome.banner_url', ''));
-        if ($url !== '') return $url;
+        if ($url !== '') {
+            return $url;
+        }
         $fileId = trim((string) config('membership_welcome.banner_file_id', ''));
-        return $fileId !== '' ? url('/api/v1/files/' . $fileId) : null;
+
+        return $fileId !== '' ? url('/api/v1/files/'.$fileId) : null;
     }
 
     private function resolveAttachments(array $uploadedAttachments = []): array
@@ -155,18 +168,21 @@ class MembershipWelcomeEmailService
 
             if ($fileId === '') {
                 Log::warning('membership.welcome_email.attachment_missing', ['slot' => $slot, 'reason' => 'not_configured']);
+
                 continue;
             }
 
             $file = FileModel::query()->find($fileId);
             if (! $file || blank($file->s3_key)) {
                 Log::warning('membership.welcome_email.attachment_missing', ['slot' => $slot, 'file_id' => $fileId, 'reason' => 'file_record_missing']);
+
                 continue;
             }
 
             $disk = config('filesystems.default', 'public');
             if (! Storage::disk($disk)->exists($file->s3_key)) {
                 Log::warning('membership.welcome_email.attachment_missing', ['slot' => $slot, 'file_id' => $fileId, 'reason' => 'storage_file_missing']);
+
                 continue;
             }
 
@@ -191,7 +207,6 @@ class MembershipWelcomeEmailService
 
         return $attachments;
     }
-
 
     private function normalizeUploadedAttachments(array $uploadedAttachments): array
     {

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class FeedbackController extends BaseApiController
 {
@@ -42,7 +43,7 @@ class FeedbackController extends BaseApiController
         }
 
         if ($request->filled('search')) {
-            $search = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $request->string('search')->toString()) . '%';
+            $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $request->string('search')->toString()).'%';
 
             $query->where(function ($q) use ($search): void {
                 $q->where('subject', 'ILIKE', $search)
@@ -67,7 +68,7 @@ class FeedbackController extends BaseApiController
                 'last_page' => $feedbacks->lastPage(),
                 'items' => $feedbacks->getCollection()->map(function (FeedbackForm $feedback): array {
                     $displayName = $feedback->user?->display_name
-                        ?: trim(($feedback->user?->first_name ?? '') . ' ' . ($feedback->user?->last_name ?? ''));
+                        ?: trim(($feedback->user?->first_name ?? '').' '.($feedback->user?->last_name ?? ''));
 
                     return [
                         'id' => $feedback->id,
@@ -124,7 +125,7 @@ class FeedbackController extends BaseApiController
             $category = FeedbackCategory::query()->findOrFail($request->category_id);
 
             $feedback = FeedbackForm::query()->create([
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'user_id' => auth()->id(),
                 'category_id' => $category->id,
                 'category' => $category->name,
@@ -155,7 +156,7 @@ class FeedbackController extends BaseApiController
                     $media = FeedbackMedia::query()->create([
                         'feedback_form_id' => $feedback->id,
                         'file_path' => $path,
-                        'file_url' => asset('storage/' . $path),
+                        'file_url' => asset('storage/'.$path),
                         'file_type' => $fileType,
                         'mime_type' => $mimeType,
                         'original_name' => $file->getClientOriginalName(),
