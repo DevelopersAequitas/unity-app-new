@@ -54,6 +54,7 @@ use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
 use App\Http\Controllers\Admin\ReferralReportController;
+use App\Http\Controllers\Admin\SupportTicketController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
@@ -63,6 +64,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('landing');
+});
+
+Route::get('/congratulations', function () {
+    return view('congratulations');
 });
 
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
@@ -420,9 +425,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/account-deletion-requests/{id}/deactivate-account', [App\Http\Controllers\Admin\AccountDeletionController::class, 'deactivateAccount'])->name('account-deletion.deactivate-account');
 
         // Support Tickets Module
-        Route::get('/support-tickets', [\App\Http\Controllers\Admin\SupportTicketController::class, 'index'])->name('support-tickets.index');
-        Route::get('/support-tickets/{id}', [\App\Http\Controllers\Admin\SupportTicketController::class, 'show'])->name('support-tickets.show');
-        Route::put('/support-tickets/{id}', [\App\Http\Controllers\Admin\SupportTicketController::class, 'update'])->name('support-tickets.update');
+        Route::get('/support-tickets', [SupportTicketController::class, 'index'])->name('support-tickets.index');
+        Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show'])->name('support-tickets.show');
+        Route::put('/support-tickets/{id}', [SupportTicketController::class, 'update'])->name('support-tickets.update');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');
