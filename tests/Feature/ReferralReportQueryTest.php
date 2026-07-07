@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\Admin\ReferralReportController;
 use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+use ReflectionMethod;
 use ReflectionMethod;
 use Tests\TestCase;
 
@@ -14,6 +16,11 @@ class ReferralReportQueryTest extends TestCase
         Schema::shouldReceive('hasColumn')
             ->andReturn(true);
 
+        $controller = new ReferralReportController();
+        
+        $method = new ReflectionMethod(ReferralReportController::class, 'summaryQuery');
+        $method->setAccessible(true);
+        
         $controller = new ReferralReportController;
 
         $method = new ReflectionMethod(ReferralReportController::class, 'summaryQuery');
@@ -24,6 +31,9 @@ class ReferralReportQueryTest extends TestCase
             'sort' => 'last_referral_date',
             'direction' => 'desc',
         ]);
+        
+        $sql = $query->toSql();
+        
 
         $sql = $query->toSql();
 
