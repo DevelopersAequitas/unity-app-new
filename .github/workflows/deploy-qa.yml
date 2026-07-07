@@ -25,8 +25,6 @@ jobs:
           script_stop: true
           script: |
             cd ${{ secrets.QA_DEPLOY_PATH }}
-            sudo chown -R $USER:$USER .git || true
-            sudo chmod -R g+w .git || true
             git fetch origin
             git checkout develop
             git reset --hard origin/develop
