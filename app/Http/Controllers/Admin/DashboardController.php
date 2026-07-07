@@ -104,9 +104,9 @@ class DashboardController extends Controller
 
         $pendingItems = [
             ['title' => 'Pending Activities Today', 'count' => $activitiesToday],
-            ['title' => 'Circles Awaiting Review',  'count' => $pendingApprovals],
-            ['title' => 'Reported Posts',           'count' => $reportedPosts],
-            ['title' => 'Support Requests',         'count' => $supportRequests],
+            ['title' => 'Circles Awaiting Review', 'count' => $pendingApprovals],
+            ['title' => 'Reported Posts', 'count' => $reportedPosts],
+            ['title' => 'Support Requests', 'count' => $supportRequests],
         ];
 
         $recentPeers = User::query()
