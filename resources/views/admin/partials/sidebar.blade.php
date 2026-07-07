@@ -220,7 +220,7 @@
 
             @if ($activityMenu)
                 <li class="nav-item menu-parent {{ $activityExpanded ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $activityExpanded ? 'active' : '' }}" data-bs-toggle="collapse" href="#activitiesSubmenu" role="button" aria-expanded="{{ $activityExpanded ? 'true' : 'false' }}" aria-controls="activitiesSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $activityExpanded ? 'active' : '' }}" href="#activitiesSubmenu" role="button" aria-expanded="{{ $activityExpanded ? 'true' : 'false' }}" aria-controls="activitiesSubmenu">
                         <span><i class="bi bi-activity me-2"></i>Activities</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -248,7 +248,7 @@
 
             @if ($postsMenu)
                 <li class="nav-item menu-parent {{ $postsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $postsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#postsSubmenu" role="button" aria-expanded="{{ $postsActive ? 'true' : 'false' }}" aria-controls="postsSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $postsActive ? 'active' : '' }}" href="#postsSubmenu" role="button" aria-expanded="{{ $postsActive ? 'true' : 'false' }}" aria-controls="postsSubmenu">
                         <span><i class="bi bi-chat-dots me-2"></i>Posts &amp; Timeline</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -267,7 +267,7 @@
             @endif
 
             <li class="nav-item menu-parent {{ $pendingRequestsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#pendingRequestsSubmenu" role="button" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
+                <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" href="#pendingRequestsSubmenu" role="button" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
                     <span><i class="bi bi-hourglass-split me-2"></i>Pending Requests</span>
                     <i class="bi bi-chevron-right menu-arrow"></i>
                 </a>
@@ -294,7 +294,7 @@
 
             @if ($isGlobalAdmin)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -312,7 +312,7 @@
 
             @if ($hasBrandPartnersRole)
                 <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
                         <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -336,7 +336,7 @@
                 @if ($item['label'] === 'Notifications & Email')
                     @if (Route::has($item['route']))
                         <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
-                            <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
+                            <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
                                 <span><i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}</span>
                                 <i class="bi bi-chevron-right menu-arrow"></i>
                             </a>
@@ -383,7 +383,7 @@
 
             @if (! $isDed && ! $isCircleCommittee && $leadsMenu !== [])
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
+                <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
                     <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
                     <i class="bi bi-chevron-right menu-arrow"></i>
                 </a>
@@ -404,7 +404,7 @@
 
             @if ($isDed)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -435,27 +435,71 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            ['activitiesSubmenu', 'postsSubmenu', 'pendingRequestsSubmenu', 'leadsSubmenu', 'campaignsSubmenu', 'brandPartnersSubmenu', 'eventsManagementSubmenu'].forEach((submenuId) => {
-                const submenu = document.getElementById(submenuId);
-                if (!submenu) {
-                    return;
-                }
+            const submenuIds = [
+                'activitiesSubmenu',
+                'postsSubmenu',
+                'pendingRequestsSubmenu',
+                'leadsSubmenu',
+                'campaignsSubmenu',
+                'brandPartnersSubmenu',
+                'eventsManagementSubmenu',
+            ];
 
+            // Collect all existing submenus
+            const submenus = submenuIds
+                .map(id => document.getElementById(id))
+                .filter(Boolean);
+
+            submenus.forEach((submenu) => {
                 const parentItem = submenu.closest('.menu-parent');
-                if (!parentItem) {
-                    return;
-                }
+                if (!parentItem) return;
 
+                // Sync the .open class on page load
                 if (submenu.classList.contains('show')) {
                     parentItem.classList.add('open');
                 }
 
-                submenu.addEventListener('show.bs.collapse', () => {
-                    parentItem.classList.add('open');
-                });
+                // Find the toggle anchor for this submenu (matches href="#submenuId")
+                const toggle = parentItem.querySelector(`a[href="#${submenu.id}"]`);
+                if (!toggle) return;
 
-                submenu.addEventListener('hide.bs.collapse', () => {
-                    parentItem.classList.remove('open');
+                toggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+
+                    const isCurrentlyOpen = submenu.classList.contains('show');
+
+                    // Close ALL open submenus first
+                    submenus.forEach((otherSubmenu) => {
+                        if (otherSubmenu !== submenu && otherSubmenu.classList.contains('show')) {
+                            const bsCollapse = bootstrap.Collapse.getInstance(otherSubmenu);
+                            if (bsCollapse) {
+                                bsCollapse.hide();
+                            } else {
+                                new bootstrap.Collapse(otherSubmenu, { toggle: false }).hide();
+                            }
+                            const otherParent = otherSubmenu.closest('.menu-parent');
+                            if (otherParent) otherParent.classList.remove('open');
+                        }
+                    });
+
+                    // Toggle the clicked submenu
+                    if (isCurrentlyOpen) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(submenu);
+                        if (bsCollapse) {
+                            bsCollapse.hide();
+                        } else {
+                            new bootstrap.Collapse(submenu, { toggle: false }).hide();
+                        }
+                        parentItem.classList.remove('open');
+                    } else {
+                        const bsCollapse = bootstrap.Collapse.getInstance(submenu);
+                        if (bsCollapse) {
+                            bsCollapse.show();
+                        } else {
+                            new bootstrap.Collapse(submenu, { toggle: false }).show();
+                        }
+                        parentItem.classList.add('open');
+                    }
                 });
             });
         });
