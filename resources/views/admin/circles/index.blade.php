@@ -255,7 +255,7 @@
                                 <a href="{{ route('admin.circles.edit', $circle) }}" class="btn btn-outline-secondary btn-action-custom" target="_blank" rel="noopener">
                                     <i class="bi bi-pencil"></i>Edit
                                 </a>
-                                <button class="btn btn-outline-primary btn-action-custom btn-details-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ $detailsId }}" aria-expanded="false" aria-controls="{{ $detailsId }}">
+                                <button class="btn btn-outline-primary btn-action-custom btn-details-toggle" type="button" data-bs-target="#{{ $detailsId }}" aria-expanded="false" aria-controls="{{ $detailsId }}">
                                     Details<i class="bi bi-chevron-down details-chevron ms-1"></i>
                                 </button>
                             </div>
@@ -441,6 +441,25 @@
                 });
             });
         }
+
+        // Handle details toggle manual fallback to ensure it opens and closes properly
+        document.querySelectorAll('.btn-details-toggle').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('data-bs-target');
+                const target = document.querySelector(targetId);
+                if (target) {
+                    const isVisible = target.classList.contains('show');
+                    if (isVisible) {
+                        target.classList.remove('show');
+                        this.setAttribute('aria-expanded', 'false');
+                    } else {
+                        target.classList.add('show');
+                        this.setAttribute('aria-expanded', 'true');
+                    }
+                }
+            });
+        });
     });
 
     function confirmDeleteCircle(actionUrl, circleName) {
