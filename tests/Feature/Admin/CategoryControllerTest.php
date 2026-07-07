@@ -123,6 +123,18 @@ class CategoryControllerTest extends TestCase
         ]);
     }
 
+    public function test_can_view_category(): void
+    {
+        $response = $this->actingAs($this->admin, 'admin')
+            ->get(route('admin.categories.view', $this->category1));
+
+        $response->assertStatus(200);
+        $response->assertSee('Level 2 Category');
+        $response->assertSee('Level 3 Category');
+        $response->assertSee('Level 4 Category');
+    }
+
+
     public function test_can_delete_level4_category(): void
     {
         $response = $this->actingAs($this->admin, 'admin')

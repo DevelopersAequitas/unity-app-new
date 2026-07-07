@@ -6,8 +6,6 @@ use App\Http\Controllers\Admin\ReferralReportController;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 use ReflectionMethod;
-use ReflectionMethod;
-use Tests\TestCase;
 
 class ReferralReportQueryTest extends TestCase
 {
