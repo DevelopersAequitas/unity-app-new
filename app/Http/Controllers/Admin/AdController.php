@@ -15,6 +15,8 @@ use Illuminate\View\View;
 
 class AdController extends Controller
 {
+    private const PLACEMENTS = ['timeline', 'dashboard', 'home', 'banner', 'popup', 'sidebar'];
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('q', ''));
@@ -33,7 +35,8 @@ class AdController extends Controller
     public function create(): View
     {
         return view('admin.ads.create', [
-            'ad' => new Ad(['is_active' => true]),
+            'ad'        => new Ad(['is_active' => true]),
+            'placements' => self::PLACEMENTS,
         ]);
     }
 
@@ -56,7 +59,8 @@ class AdController extends Controller
     public function edit(Ad $ad): View
     {
         return view('admin.ads.edit', [
-            'ad' => $ad,
+            'ad'        => $ad,
+            'placements' => self::PLACEMENTS,
         ]);
     }
 
@@ -117,6 +121,10 @@ class AdController extends Controller
         } else {
             $data['ends_at'] = null;
         }
+
+        // Handle nullable integer fields
+        $data['timeline_position'] = isset($data['timeline_position']) && $data['timeline_position'] !== '' ? (int) $data['timeline_position'] : null;
+        $data['sort_order'] = isset($data['sort_order']) && $data['sort_order'] !== '' ? (int) $data['sort_order'] : 0;
 
         return $data;
     }
