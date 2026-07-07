@@ -1,6 +1,6 @@
-    <?php
+<?php
 
-    use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\Admin\ActivitiesBusinessDealsController;
 use App\Http\Controllers\Admin\ActivitiesConnectionsController;
 use App\Http\Controllers\Admin\ActivitiesController;

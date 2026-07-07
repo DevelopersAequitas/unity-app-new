@@ -61,7 +61,7 @@ class FileController extends BaseApiController
                 return response('', 200, [
                     'Content-Type' => $mime,
                     'Content-Length' => $file->size_bytes ?: Storage::disk($disk)->size($file->s3_key),
-                    'Cache-Control' => 'public, max-age=31536000',
+                    'Cache-Control' => 'no-cache, must-revalidate',
                 ]);
             }
 
@@ -70,7 +70,7 @@ class FileController extends BaseApiController
                 null,
                 [
                     'Content-Type' => $mime,
-                    'Cache-Control' => 'public, max-age=31536000',
+                    'Cache-Control' => 'no-cache, must-revalidate',
                 ]
             );
         } catch (\Throwable $e) {
