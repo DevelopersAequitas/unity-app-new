@@ -403,4 +403,102 @@ class CategoryController extends Controller
             ->with('skipped_duplicate_count', $result['skipped_duplicate_count'])
             ->with('skipped_empty_count', $result['skipped_empty_count']);
     }
+
+    public function destroyLevel2(CircleCategoryLevel2 $level2): RedirectResponse
+    {
+        try {
+            DB::transaction(function () use ($level2): void {
+                $now = now();
+
+                DB::table('circle_category_level4')
+                    ->where('level2_id', $level2->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => $now,
+                    ]);
+
+                DB::table('circle_category_level3')
+                    ->where('level2_id', $level2->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => $now,
+                    ]);
+
+                $level2->update([
+                    'is_active' => false,
+                    'updated_at' => $now,
+                ]);
+            });
+
+            return redirect()
+                ->back()
+                ->with('success', 'Level 2 category and its subcategories deleted successfully.');
+        } catch (\Throwable $e) {
+            Log::error('admin.circle_category.level2_delete_failed', [
+                'level2_id' => (int) $level2->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->back()
+                ->with('error', 'Something went wrong: '.$e->getMessage());
+        }
+    }
+
+    public function destroyLevel3(CircleCategoryLevel3 $level3): RedirectResponse
+    {
+        try {
+            DB::transaction(function () use ($level3): void {
+                $now = now();
+
+                DB::table('circle_category_level4')
+                    ->where('level3_id', $level3->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => $now,
+                    ]);
+
+                $level3->update([
+                    'is_active' => false,
+                    'updated_at' => $now,
+                ]);
+            });
+
+            return redirect()
+                ->back()
+                ->with('success', 'Level 3 category and its subcategories deleted successfully.');
+        } catch (\Throwable $e) {
+            Log::error('admin.circle_category.level3_delete_failed', [
+                'level3_id' => (int) $level3->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->back()
+                ->with('error', 'Something went wrong: '.$e->getMessage());
+        }
+    }
+
+    public function destroyLevel4(CircleCategoryLevel4 $level4): RedirectResponse
+    {
+        try {
+            $level4->update([
+                'is_active' => false,
+                'updated_at' => now(),
+            ]);
+
+            return redirect()
+                ->back()
+                ->with('success', 'Level 4 category deleted successfully.');
+        } catch (\Throwable $e) {
+            Log::error('admin.circle_category.level4_delete_failed', [
+                'level4_id' => (int) $level4->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->back()
+                ->with('error', 'Something went wrong: '.$e->getMessage());
+        }
+    }
 }
