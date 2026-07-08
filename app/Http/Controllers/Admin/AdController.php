@@ -111,13 +111,13 @@ class AdController extends Controller
         $data['is_active'] = $request->boolean('is_active');
 
         if (! empty($data['starts_at'])) {
-            $data['starts_at'] = Carbon::parse($data['starts_at'], 'Asia/Kolkata')->utc();
+            $data['starts_at'] = Carbon::parse($data['starts_at'], 'UTC')->utc();
         } else {
             $data['starts_at'] = null;
         }
 
         if (! empty($data['ends_at'])) {
-            $data['ends_at'] = Carbon::parse($data['ends_at'], 'Asia/Kolkata')->utc();
+            $data['ends_at'] = Carbon::parse($data['ends_at'], 'UTC')->utc();
         } else {
             $data['ends_at'] = null;
         }

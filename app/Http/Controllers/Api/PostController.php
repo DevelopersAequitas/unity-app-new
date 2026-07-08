@@ -342,7 +342,7 @@ class PostController extends BaseApiController
         }
 
         return Carbon::parse((string) $value)
-            ->timezone('Asia/Kolkata')
+            ->timezone('UTC')
             ->format('Y-m-d H:i:s');
     }
 

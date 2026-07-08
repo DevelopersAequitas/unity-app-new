@@ -96,7 +96,7 @@ class PostResource extends JsonResource
         }
 
         return Carbon::parse((string) $value)
-            ->timezone('Asia/Kolkata')
+            ->timezone('UTC')
             ->format('Y-m-d H:i:s');
     }
 }
