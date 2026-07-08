@@ -66,6 +66,10 @@ Route::get('/', function () {
     return view('landing');
 });
 
+Route::get('/congratulations', function () {
+    return view('congratulations');
+});
+
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
     ->whereUuid('occurrence')
