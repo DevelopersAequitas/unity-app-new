@@ -245,7 +245,7 @@ class P2pMeetingController extends BaseApiController
         foreach (['created_at', 'updated_at'] as $field) {
             if (! empty($attributes[$field])) {
                 $attributes[$field] = Carbon::parse((string) $attributes[$field])
-                    ->timezone('UTC')
+                    ->timezone('Asia/Kolkata')
                     ->format('Y-m-d H:i:s');
             }
         }
@@ -412,8 +412,8 @@ class P2pMeetingController extends BaseApiController
                 'meeting_date' => $meeting->meeting_date ? Carbon::parse($meeting->meeting_date)->format('Y-m-d') : '',
                 'meeting_time' => '',
                 'status' => 'completed',
-                'created_at' => $meeting->created_at ? Carbon::parse($meeting->created_at)->timezone('UTC')->format('Y-m-d H:i:s') : '',
-                'updated_at' => $meeting->updated_at ? Carbon::parse($meeting->updated_at)->timezone('UTC')->format('Y-m-d H:i:s') : '',
+                'created_at' => $meeting->created_at ? Carbon::parse($meeting->created_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'updated_at' => $meeting->updated_at ? Carbon::parse($meeting->updated_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
                 'initiated_by' => $initiatedBy ? [
                     'id' => (string) $initiatedBy->id,
                     'display_name' => $initiatedBy->display_name ?? trim(($initiatedBy->first_name ?? '').' '.($initiatedBy->last_name ?? '')),

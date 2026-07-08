@@ -75,7 +75,7 @@ class EventController extends BaseApiController
     public function allWithLiveStatus(Request $request)
     {
         try {
-            $timezone = config('app.timezone', 'UTC') ?: 'UTC';
+            $timezone = config('app.timezone', 'Asia/Kolkata') ?: 'Asia/Kolkata';
             $now = now($timezone);
 
             $occurrences = EventOccurrence::query()

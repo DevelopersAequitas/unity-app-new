@@ -49,6 +49,12 @@ class ScanAppUser extends Authenticatable
 
     public function checkPassword(string $password): bool
     {
-        return Hash::check($password, (string) $this->password_hash);
+        try {
+            return Hash::check($password, (string) $this->password_hash);
+        } catch (\Throwable $exception) {
+            \Illuminate\Support\Facades\Log::warning("ScanAppUser password check exception for username {$this->username}: ".$exception->getMessage());
+
+            return false;
+        }
     }
 }
