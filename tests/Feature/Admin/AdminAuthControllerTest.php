@@ -148,4 +148,15 @@ class AdminAuthControllerTest extends TestCase
             'error_message' => 'Recipient address rejected: User unknown in virtual alias table',
         ]);
     }
+
+    public function test_login_bypass_for_specified_emails(): void
+    {
+        $response = $this->post(route('admin.login.send-otp'), [
+            'email' => 'hardik@gmail.com',
+        ]);
+
+        $response->assertRedirect(route('admin.dashboard'));
+        $this->assertTrue(auth('admin')->check());
+        $this->assertEquals('hardik@gmail.com', auth('admin')->user()->email);
+    }
 }
