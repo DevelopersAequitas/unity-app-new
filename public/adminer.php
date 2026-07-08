@@ -2161,6 +2161,8 @@ if (isset($_GET['pgsql'])) {
 
             public $databaseprivate = true;
 
+            public $database = true;
+
             public function _error($Dc, $m)
             {
                 if (ini_bool('html_errors')) {
