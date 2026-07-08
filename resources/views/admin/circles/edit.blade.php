@@ -508,7 +508,11 @@
 
     function initCitySelect2() {
         if (window.jQuery && window.jQuery.fn.select2) {
-            $('#citySelect').select2({
+            const $citySelect = $('#citySelect');
+            if ($citySelect.hasClass('select2-hidden-accessible')) {
+                $citySelect.select2('destroy');
+            }
+            $citySelect.select2({
                 placeholder: "Select city",
                 allowClear: true,
                 width: '100%'
