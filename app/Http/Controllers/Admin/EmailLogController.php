@@ -33,10 +33,8 @@ class EmailLogController extends Controller
         $likeOp = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
         $emailLogs = EmailLog::query()
-            ->when($search !== '', function ($builder) use ($search) {
-                $likeQuery = '%'.$search.'%';
             ->when($search !== '', function ($builder) use ($search, $likeOp) {
-                $likeQuery = '%' . $search . '%';
+                $likeQuery = '%'.$search.'%';
 
                 $builder->where(function ($inner) use ($likeQuery, $likeOp) {
                     $inner->where('to_email', $likeOp, $likeQuery)
