@@ -246,9 +246,9 @@
                         $membershipStatus = (string) ($user->membership_status ?? 'free_peer');
                         $membershipLabel = $membershipStatusLabels[$user->membership_status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $membershipStatus));
                         $membershipBadgeClass = 'badge-membership-free';
-                        if (in_array($membershipStatus, ['only_unity_peer', 'unity_peer'], true)) {
+                        if (in_array(strtolower(trim($membershipStatus)), ['only_unity_peer', 'unity_peer', 'only unity peer'], true)) {
                             $membershipBadgeClass = 'badge-membership-unity';
-                        } elseif (in_array($membershipStatus, ['circle_peer'], true)) {
+                        } elseif (in_array(strtolower(trim($membershipStatus)), ['circle_peer', 'circle peer'], true)) {
                             $membershipBadgeClass = 'badge-membership-circle';
                         }
                         
@@ -1136,9 +1136,9 @@
                         $membershipStatus = (string) ($user->membership_status ?? 'free_peer');
                         $membershipLabel = $membershipStatusLabels[$user->membership_status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $membershipStatus));
                         $membershipBadgeClass = 'badge-membership-free';
-                        if (in_array($membershipStatus, ['only_unity_peer', 'unity_peer'], true)) {
+                        if (in_array(strtolower(trim($membershipStatus)), ['only_unity_peer', 'unity_peer', 'only unity peer'], true)) {
                             $membershipBadgeClass = 'badge-membership-unity';
-                        } elseif (in_array($membershipStatus, ['circle_peer'], true)) {
+                        } elseif (in_array(strtolower(trim($membershipStatus)), ['circle_peer', 'circle peer'], true)) {
                             $membershipBadgeClass = 'badge-membership-circle';
                         }
                         
