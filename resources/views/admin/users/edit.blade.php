@@ -1157,10 +1157,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         const uploadUrl = '{{ route('admin.files.upload') }}';
         const circleCategoryOptionsByCircle = @json($circleCategoryOptionsByCircle ?? []);
-        const oldLevel1 = '{{ old('level1_category_id', '') }}';
-        const oldLevel2 = '{{ old('level2_category_id', '') }}';
-        const oldLevel3 = '{{ old('level3_category_id', '') }}';
-        const oldLevel4 = '{{ old('level4_category_id', '') }}';
+        const oldLevel1 = '{{ old('level1_category_id', old('level_1_category_id', '')) }}';
+        const oldLevel2 = '{{ old('level2_category_id', old('level_2_category_id', '')) }}';
+        const oldLevel3 = '{{ old('level3_category_id', old('level_3_category_id', '')) }}';
+        const oldLevel4 = '{{ old('level4_category_id', old('level_4_category_id', '')) }}';
 
         const setupUploader = (prefix) => {
             const fileInput = document.getElementById(`${prefix}File`);
