@@ -134,7 +134,6 @@ class CategoryControllerTest extends TestCase
         $response->assertSee('Level 4 Category');
     }
 
-
     public function test_can_delete_level4_category(): void
     {
         $response = $this->actingAs($this->admin, 'admin')

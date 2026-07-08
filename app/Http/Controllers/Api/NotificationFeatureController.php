@@ -29,7 +29,6 @@ class NotificationFeatureController extends BaseApiController
         return $this->success(null, 'Latest newsletter retrieved successfully.');
     }
 
-
     public function activeLifeImpactCycle(Request $request): JsonResponse
     {
         return $this->success(null, 'Active life impact cycle retrieved successfully.');

@@ -124,7 +124,7 @@
                                                             <span></span><span></span><span></span>
                                                         </div>
                                                         <h6 class="fw-bold mb-1 small">{{ $tpl['name'] }}</h6>
-                                                        <p class="text-muted mb-3" style="font-size: 10px; line-height: 1.2;">{{ $tpl['description'] }}</p>
+                                                        <p class="text-muted mb-3" style="font-size: 10px; line-height: 1.2;">{{ $tpl['description'] ?? 'Layout template' }}</p>
                                                     </div>
                                                     <button type="button" class="btn btn-xs w-100 template-select-label {{ $selectedEmailTemplateId == $tpl['id'] ? 'btn-primary' : 'btn-outline-primary' }}" style="font-size: 11px;">
                                                         {{ $selectedEmailTemplateId == $tpl['id'] ? 'Selected' : 'Select Template' }}

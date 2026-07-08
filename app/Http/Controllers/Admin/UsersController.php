@@ -2075,7 +2075,15 @@ class UsersController extends Controller
 
         $allowedMembershipStatuses = array_keys($this->membershipFilterOptions());
         if ($membership && in_array($membership, $allowedMembershipStatuses, true)) {
-            $query->where('membership_status', $membership);
+            $dbValue = match ($membership) {
+                'only_unity_peer' => 'Only Unity Peer',
+                'circle_peer' => 'Circle Peer',
+                'multi_circle_peer' => 'Multi Circle Peer',
+                'free_peer' => 'free_peer',
+                'free_trial_peer' => 'free_trial_peer',
+                default => $membership,
+            };
+            $query->where('membership_status', $dbValue);
         } else {
             $membership = null;
         }
