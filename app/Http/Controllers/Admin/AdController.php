@@ -35,7 +35,7 @@ class AdController extends Controller
     public function create(): View
     {
         return view('admin.ads.create', [
-            'ad'        => new Ad(['is_active' => true]),
+            'ad' => new Ad(['is_active' => true]),
             'placements' => self::PLACEMENTS,
         ]);
     }
@@ -59,7 +59,7 @@ class AdController extends Controller
     public function edit(Ad $ad): View
     {
         return view('admin.ads.edit', [
-            'ad'        => $ad,
+            'ad' => $ad,
             'placements' => self::PLACEMENTS,
         ]);
     }
