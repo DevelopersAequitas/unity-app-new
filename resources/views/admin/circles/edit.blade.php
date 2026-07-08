@@ -290,7 +290,7 @@
                         </div>
                         <div class="col-md-5">
                             <label class="form-label fw-semibold">City</label>
-                            <select name="city_id" class="form-select" required>
+                            <select name="city_id" id="citySelect" class="form-select" required>
                                 <option value="" disabled>Select city</option>
                                 @foreach ($cities as $city)
                                     <option value="{{ $city->id }}" @selected(old('city_id', $circle->city_id) == $city->id)>
@@ -505,6 +505,24 @@
     });
 
     @include('admin.circles.partials.categories-selector-script')
+
+    function initCitySelect2() {
+        if (window.jQuery && window.jQuery.fn.select2) {
+            $('#citySelect').select2({
+                placeholder: "Select city",
+                allowClear: true,
+                width: '100%'
+            });
+        }
+    }
+
+    // Initialize on page load
+    initCitySelect2();
+
+    // Re-initialize when leadership tab is shown to fix Select2 width calculations inside hidden tabs
+    document.getElementById('leadership-tab')?.addEventListener('shown.bs.tab', function () {
+        initCitySelect2();
+    });
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     const uploadUrl = @json(route('admin.files.upload'));
