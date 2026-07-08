@@ -76,7 +76,6 @@ class AdminExecutionController extends Controller
         return view('admin/execution/industries', compact('industries'));
     }
 
-
     public function events()
     {
         $sponsorTable = $this->resolveFirstExistingTable(['event_sponsors', 'event_sponsorships', 'sponsorships']);

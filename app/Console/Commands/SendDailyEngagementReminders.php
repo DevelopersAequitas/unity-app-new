@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Events\UserNotificationCreated;
 use App\Jobs\SendFcmNotificationJob;
 use App\Models\Ad;
+use App\Models\AppNotification;
 use App\Models\Category;
 use App\Models\Circle;
 use App\Models\CollaborationPost;
@@ -493,12 +494,38 @@ class SendDailyEngagementReminders extends Command
                 'read_at' => null,
             ]);
 
+            // Create in-app AppNotification for the new system
+            $appNotification = AppNotification::create([
+                'user_id' => $user->id,
+                'type' => 'system',
+                'category' => 'engagement_reminder',
+                'title' => $title,
+                'body' => $body,
+                'message' => $body,
+                'channel' => 'push',
+                'priority' => 'medium',
+                'screen' => 'home',
+                'data' => [
+                    'notification_type' => 'engagement_reminder',
+                    'title' => $title,
+                    'body' => $body,
+                    'feature' => $reminder->feature,
+                    'activity' => $reminder->activity,
+                ],
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+
             // Broadcast real-time notifications event
             event(new UserNotificationCreated((string) $user->id, [
-                'id' => (string) $dbNotification->id,
-                'type' => (string) $dbNotification->type,
-                'payload' => $dbNotification->payload,
-                'created_at' => optional($dbNotification->created_at)->toISOString(),
+                'id' => (string) $appNotification->id,
+                'type' => (string) $appNotification->type,
+                'category' => (string) $appNotification->category,
+                'title' => (string) $appNotification->title,
+                'body' => (string) $appNotification->body,
+                'message' => (string) $appNotification->body,
+                'payload' => $appNotification->data,
+                'created_at' => optional($appNotification->created_at)->toISOString(),
             ]));
 
             // Dispatch async FCM push notification delivery job
@@ -508,7 +535,7 @@ class SendDailyEngagementReminders extends Command
                 $body,
                 [
                     'notification_type' => 'engagement_reminder',
-                    'notification_id' => (string) $dbNotification->id,
+                    'notification_id' => (string) $appNotification->id,
                 ]
             );
         } catch (Throwable $e) {

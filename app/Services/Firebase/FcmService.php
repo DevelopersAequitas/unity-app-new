@@ -108,7 +108,7 @@ class FcmService
                     $tokenUpdates['failed_at'] = now();
                 }
                 if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
-                    $tokenUpdates['failure_reason'] = $message ?: 'Invalid Firebase token';
+                    $tokenUpdates['failure_reason'] = ($firebaseResponse['error']['message'] ?? null) ?: 'Invalid Firebase token';
                 }
                 if ($tokenUpdates !== []) {
                     UserPushToken::where('token', $deviceToken)->update($tokenUpdates);
