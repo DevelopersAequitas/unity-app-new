@@ -159,6 +159,13 @@ class AnniversaryTest extends TestCase
             'push_enabled' => true,
         ]);
 
+        // System Admin / Fallback user
+        $adminUser = User::factory()->create([
+            'email' => 'info@peersglobal.com',
+            'display_name' => 'PeersGlobal Unity',
+            'status' => 'active',
+        ]);
+
         // Non-celebrating user today (tomorrow anniversary)
         $nonCelebratingUser = User::factory()->create([
             'first_name' => 'Tomorrow',
@@ -176,9 +183,9 @@ class AnniversaryTest extends TestCase
         // 1. Run the command
         $this->artisan('app:send-anniversary-notifications')->assertExitCode(0);
 
-        // Verify Timeline Post was created for celebrating user
+        // Verify Timeline Post was created for celebrating user, owned by the admin user
         $this->assertDatabaseHas('posts', [
-            'user_id' => $celebratingUser->id,
+            'user_id' => $adminUser->id,
             'source_type' => 'anniversary',
             'source_id' => $celebratingUser->id,
             'source_event' => 'anniversary',
@@ -186,7 +193,7 @@ class AnniversaryTest extends TestCase
             'moderation_status' => 'approved',
         ]);
 
-        $post = Post::where('user_id', $celebratingUser->id)->where('source_type', 'anniversary')->firstOrFail();
+        $post = Post::where('source_id', $celebratingUser->id)->where('source_type', 'anniversary')->firstOrFail();
         $this->assertStringContainsString($celebratingUser->display_name, $post->content_text);
 
         // Verify post has creative fields populated correctly
@@ -233,7 +240,7 @@ class AnniversaryTest extends TestCase
         $this->artisan('app:send-anniversary-notifications')->assertExitCode(0);
 
         // Verify duplicate prevention worked: only ONE post and ONE notification exist
-        $this->assertEquals(1, Post::where('user_id', $celebratingUser->id)->where('source_type', 'anniversary')->count());
+        $this->assertEquals(1, Post::where('source_id', $celebratingUser->id)->where('source_type', 'anniversary')->count());
         $this->assertEquals(1, AppNotification::where('user_id', $celebratingUser->id)->where('type', 'birthday_anniversary')->count());
 
         Carbon::setTestNow();

@@ -61,8 +61,8 @@ class SendAnniversaryNotifications extends Command
             try {
                 // 1. Check for duplicate timeline post today
                 $alreadyPosted = Post::query()
-                    ->where('user_id', $user->id)
                     ->where('source_type', 'anniversary')
+                    ->where('source_id', $user->id)
                     ->whereDate('created_at', today(config('app.timezone', 'UTC')))
                     ->exists();
 
@@ -77,9 +77,24 @@ class SendAnniversaryNotifications extends Command
                     $imageUrl = url('/api/v1/files/'.$fileRecord->id);
                     $description = "Happy Wedding Anniversary to our peer {$user->display_name}! Wishing you a lifetime of love and happiness. 🎉🥂";
 
+                    // Retrieve system/admin fallback account to own the automated post
+                    $systemUser = User::where('email', 'info@peersglobal.com')->first();
+                    if (! $systemUser) {
+                        $systemUser = User::create([
+                            'id' => (string) \Illuminate\Support\Str::uuid(),
+                            'first_name' => 'PeersGlobal',
+                            'last_name' => 'Unity',
+                            'display_name' => 'PeersGlobal Unity',
+                            'email' => 'info@peersglobal.com',
+                            'password_hash' => bcrypt(\Illuminate\Support\Str::random(16)),
+                            'status' => 'active',
+                        ]);
+                    }
+                    $authorUserId = $systemUser ? $systemUser->id : $user->id;
+
                     // Create timeline announcement post with creative image references
                     $post = Post::create([
-                        'user_id' => $user->id,
+                        'user_id' => $authorUserId,
                         'circle_id' => null,
                         'content_text' => $description,
                         'media' => [
@@ -105,7 +120,7 @@ class SendAnniversaryNotifications extends Command
                         'status' => 'active',
                     ]);
 
-                    Log::info("{$logPrefix} Generated creative ID {$fileRecord->id} and created timeline post ID {$post->id} for user {$user->id}");
+                    Log::info("{$logPrefix} Generated creative ID {$fileRecord->id} and created timeline post ID {$post->id} owned by admin/system user {$authorUserId} for user {$user->id}");
                 }
 
                 // 2. Dispatch push notification using NotificationService
