@@ -21,11 +21,12 @@
 <div class="container-fluid">
     <div class="card mb-3"><div class="card-body">
         <form method="GET" class="row g-2">
-            <div class="col-md-3"><input type="text" name="search" class="form-control" placeholder="Search peer/email/phone/company" value="{{ $filters['search'] ?? '' }}"></div>
+            <div class="col-md-2"><input type="text" name="search" class="form-control" placeholder="Search peer/email/phone/company" value="{{ $filters['search'] ?? '' }}"></div>
             <div class="col-md-2"><select name="circle_id" class="form-select js-no-searchable-select"><option value="">All Circles</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '')===$circle->id)>{{ $circle->name }}</option>@endforeach</select></div>
+            <div class="col-md-2"><select name="circle_category_id" class="form-select js-no-searchable-select"><option value="">All Categories</option>@foreach($categories as $cat)<option value="{{ $cat->id }}" @selected(($filters['circle_category_id'] ?? '')===(string)$cat->id)>{{ $cat->name }}</option>@endforeach</select></div>
             <div class="col-md-2"><select name="status" class="form-select js-no-searchable-select"><option value="">All Statuses</option>@foreach(array_keys($statusLabels) as $status)<option value="{{ $status }}" @selected(($filters['status'] ?? '')===$status)>{{ $statusLabels[$status] }}</option>@endforeach</select></div>
-            <div class="col-md-2"><input type="date" name="date_from" class="form-control" value="{{ $filters['date_from'] ?? '' }}"></div>
-            <div class="col-md-2"><input type="date" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}"></div>
+            <div class="col-md-1.5" style="width: 12.5%;"><input type="date" name="date_from" class="form-control" value="{{ $filters['date_from'] ?? '' }}"></div>
+            <div class="col-md-1.5" style="width: 12.5%;"><input type="date" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}"></div>
             <div class="col-md-1"><button class="btn btn-primary w-100">Apply</button></div>
         </form>
     </div></div>
@@ -46,12 +47,9 @@
                         @if($row->circle?->template)
                             <div class="small text-muted" style="font-size: 0.75rem;">Template: {{ $row->circle->template->name }} ({{ $row->circle->template->slug }})</div>
                         @endif
-                        @if($row->circle?->categories && $row->circle->categories->isNotEmpty())
-                            <div class="mt-1 d-flex flex-wrap gap-1">
-                                @foreach($row->circle->categories as $cat)
-                                    <span class="badge bg-light text-secondary border border-secondary-subtle" style="font-size: 0.7rem; padding: 2px 6px;">{{ $cat->name }}</span>
-                                @endforeach
-                            </div>
+                        @if($row->circleCategory)
+                            <div class="mt-1 small text-dark" style="font-size: 0.75rem;">Category: {{ $row->circleCategory->name }}</div>
+                            <div class="small text-muted" style="font-size: 0.75rem;">Category ID: {{ $row->circleCategory->id }}</div>
                         @endif
                     </td>
                     <td>{{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 50) }}</td>

@@ -154,6 +154,164 @@ class CircleJoiningRequestsTest extends TestCase
         $this->assertEquals($category->name, $showRequestData['category_name']);
     }
 
+    public function test_api_submit_join_request_validation_and_backward_compatibility(): void
+    {
+        // 1. Create role and admin
+        $admin = AdminUser::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Super Admin',
+            'email' => 'superadmin@example.com',
+        ]);
+
+        // 2. Create Template
+        $template = new CircleTemplate();
+        $template->id = (string) Str::uuid();
+        $template->name = 'Standard Template';
+        $template->slug = 'standard-template-slug';
+        $template->description = 'A standard template';
+        $template->save();
+
+        // 3. Create Circle with Template
+        $circle1 = new Circle();
+        $circle1->id = (string) Str::uuid();
+        $circle1->name = 'First active Circle';
+        $circle1->slug = 'first-active-circle';
+        $circle1->status = 'active';
+        $circle1->template_id = $template->id;
+        $circle1->save();
+
+        $circle2 = new Circle();
+        $circle2->id = (string) Str::uuid();
+        $circle2->name = 'Second active Circle';
+        $circle2->slug = 'second-active-circle';
+        $circle2->status = 'active';
+        $circle2->template_id = $template->id;
+        $circle2->save();
+
+        // 4. Create Category
+        $category = CircleCategory::query()->create([
+            'name' => 'Test Target Categories',
+            'slug' => 'test-target-categories',
+            'level' => 1,
+            'is_active' => true,
+        ]);
+
+        // 5. Create Peer user
+        $user = new User();
+        $user->id = (string) Str::uuid();
+        $user->first_name = 'Amit';
+        $user->last_name = 'Shah';
+        $user->email = 'amit@example.com';
+        $user->status = 'active';
+        $user->password_hash = bcrypt('password');
+        $user->save();
+
+        // Test POST with valid circle_category_id
+        Sanctum::actingAs($user);
+        $payload1 = [
+            'circle_id' => $circle1->id,
+            'reason_for_joining' => 'Interest in first active circle',
+            'circle_category_id' => $category->id,
+        ];
+        $response1 = $this->postJson('/api/v1/circle-join-requests', $payload1);
+        $response1->assertStatus(201);
+        $response1->assertJsonFragment([
+            'circle_id' => $circle1->id,
+            'circle_category_id' => $category->id,
+            'circle_category_name' => $category->name,
+            'category_id' => $category->id,
+            'category_name' => $category->name,
+        ]);
+
+        // Test POST with valid category_id
+        Sanctum::actingAs($user);
+        $payload2 = [
+            'circle_id' => $circle2->id,
+            'reason_for_joining' => 'Interest in second active circle',
+            'category_id' => $category->id,
+        ];
+        $response2 = $this->postJson('/api/v1/circle-join-requests', $payload2);
+        $response2->assertStatus(201);
+        $response2->assertJsonFragment([
+            'circle_id' => $circle2->id,
+            'circle_category_id' => $category->id,
+            'circle_category_name' => $category->name,
+            'category_id' => $category->id,
+            'category_name' => $category->name,
+        ]);
+
+        // Test POST with invalid category id returns 422
+        $circle3 = new Circle();
+        $circle3->id = (string) Str::uuid();
+        $circle3->name = 'Third active Circle';
+        $circle3->slug = 'third-active-circle';
+        $circle3->status = 'active';
+        $circle3->template_id = $template->id;
+        $circle3->save();
+
+        Sanctum::actingAs($user);
+        $payload3 = [
+            'circle_id' => $circle3->id,
+            'reason_for_joining' => 'Interest in third active circle',
+            'circle_category_id' => 999999, // invalid ID
+        ];
+        $response3 = $this->postJson('/api/v1/circle-join-requests', $payload3);
+        $response3->assertStatus(422);
+        $response3->assertJsonValidationErrors(['circle_category_id']);
+    }
+
+    public function test_dynamic_category_tracing_fallback(): void
+    {
+        // 1. Create Category
+        $category = CircleCategory::query()->create([
+            'name' => 'Manufacturing & Engineering Circles',
+            'slug' => 'manufacturing-engineering',
+            'level' => 1,
+            'is_active' => true,
+        ]);
+
+        // 2. Create Level 4 Category pointing to Category
+        DB::table('circle_category_level4')->insert([
+            'id' => 1,
+            'circle_category_id' => $category->id,
+            'name' => 'Specialized Manufacturing Subcategory',
+        ]);
+
+        // 3. Create Circle
+        $circle = new Circle();
+        $circle->id = (string) Str::uuid();
+        $circle->name = 'Test Circle';
+        $circle->slug = 'test-circle';
+        $circle->status = 'active';
+        $circle->save();
+
+        // 4. Create User
+        $user = new User();
+        $user->id = (string) Str::uuid();
+        $user->first_name = 'Amit';
+        $user->last_name = 'Shah';
+        $user->email = 'amit@example.com';
+        $user->status = 'active';
+        $user->password_hash = bcrypt('password');
+        $user->save();
+
+        // 5. Create Join Request with only level4_category_id = 1
+        $joinRequest = new CircleJoinRequest();
+        $joinRequest->id = (string) Str::uuid();
+        $joinRequest->user_id = $user->id;
+        $joinRequest->circle_id = $circle->id;
+        $joinRequest->level4_category_id = 1;
+        $joinRequest->status = CircleJoinRequest::STATUS_PENDING_CD_APPROVAL;
+        $joinRequest->requested_at = now();
+        $joinRequest->save();
+
+        // Verify that the relationship resolves successfully to the level 1 Category
+        $resolvedCategory = $joinRequest->circleCategory;
+        $this->assertNotNull($resolvedCategory);
+        $this->assertEquals($category->id, $resolvedCategory->id);
+        $this->assertEquals($category->name, $resolvedCategory->name);
+    }
+
     private function createSchema(): void
     {
         Schema::create('admin_users', function (Blueprint $table): void {
@@ -199,6 +357,27 @@ class CircleJoiningRequestsTest extends TestCase
             $table->string('slug')->nullable();
             $table->integer('level')->default(1);
             $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        Schema::create('circle_category_level2', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('circle_category_id');
+            $table->string('name');
+            $table->timestamps();
+        });
+
+        Schema::create('circle_category_level3', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('circle_category_id');
+            $table->string('name');
+            $table->timestamps();
+        });
+
+        Schema::create('circle_category_level4', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('circle_category_id');
+            $table->string('name');
             $table->timestamps();
         });
 
@@ -250,6 +429,17 @@ class CircleJoiningRequestsTest extends TestCase
             $table->timestamp('requested_at')->nullable();
             $table->jsonb('notes')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('circle_members', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('circle_id');
+            $table->uuid('user_id');
+            $table->string('role')->nullable();
+            $table->string('status')->nullable();
+            $table->timestamp('joined_at')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
         });
     }
 }
