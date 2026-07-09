@@ -25,6 +25,19 @@ class PostResource extends JsonResource
             ? (int) $this->saves_count
             : ($this->relationLoaded('saves') ? $this->saves->count() : 0);
 
+        $isAnniversary = ($this->post_type === 'anniversary' || $this->source_type === 'anniversary');
+        $image = $this->image;
+        if ($isAnniversary && $this->image) {
+            $path = parse_url($this->image, PHP_URL_PATH);
+            $fileId = basename($path);
+            if (\Illuminate\Support\Str::isUuid($fileId)) {
+                $fileModel = \App\Models\File::find($fileId);
+                if ($fileModel && $fileModel->s3_key) {
+                    $image = asset('storage/'.$fileModel->s3_key);
+                }
+            }
+        }
+
         return [
             'id' => $this->id,
 
@@ -34,22 +47,28 @@ class PostResource extends JsonResource
             'template_id' => $this->template_id ?? null,
             'title' => $this->title ?? null,
             'description' => $this->description ?? $this->content_text,
-            'image' => $this->image ?? null,
+            'image' => $image,
             'status' => $this->status ?? ($this->active ? 'active' : 'inactive'),
             'media' => $this->media
-                ? collect($this->media)->map(function ($item) {
+                ? collect($this->media)->map(function ($item) use ($isAnniversary) {
                     if (! is_array($item)) {
                         return null;
                     }
 
                     $id = $item['id'] ?? null;
+                    $url = $id ? url("/api/v1/files/{$id}") : null;
+
+                    if ($isAnniversary && $id) {
+                        $fileModel = \App\Models\File::find($id);
+                        if ($fileModel && $fileModel->s3_key) {
+                            $url = asset('storage/'.$fileModel->s3_key);
+                        }
+                    }
 
                     return [
                         'id' => $id,
                         'type' => $item['type'] ?? null,
-                        'url' => $id
-                            ? url("/api/v1/files/{$id}")
-                            : null,
+                        'url' => $url,
                     ];
                 })->filter()->values()->all()
                 : null,
