@@ -40,7 +40,20 @@
                     <td>
                         @include('admin.partials.peer_identity', ['user' => $row->user])
                     </td>
-                    <td>{{ $row->circle?->name }}</td>
+                    <td>
+                        <div class="fw-semibold text-dark">{{ $row->circle?->name }}</div>
+                        <div class="small text-muted mt-1" style="font-size: 0.75rem;">ID: <span class="user-select-all">{{ $row->circle_id }}</span></div>
+                        @if($row->circle?->template)
+                            <div class="small text-muted" style="font-size: 0.75rem;">Template: {{ $row->circle->template->name }} ({{ $row->circle->template->slug }})</div>
+                        @endif
+                        @if($row->circle?->categories && $row->circle->categories->isNotEmpty())
+                            <div class="mt-1 d-flex flex-wrap gap-1">
+                                @foreach($row->circle->categories as $cat)
+                                    <span class="badge bg-light text-secondary border border-secondary-subtle" style="font-size: 0.7rem; padding: 2px 6px;">{{ $cat->name }}</span>
+                                @endforeach
+                            </div>
+                        @endif
+                    </td>
                     <td>{{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 50) }}</td>
                     <td>
                         <span class="badge text-bg-secondary">{{ $statusLabels[$row->status] ?? $row->status }}</span>

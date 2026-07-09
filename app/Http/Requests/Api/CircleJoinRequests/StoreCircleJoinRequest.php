@@ -20,6 +20,8 @@ class StoreCircleJoinRequest extends FormRequest
             'level2_category_id' => ['nullable', 'integer', 'exists:circle_category_level2,id'],
             'level3_category_id' => ['nullable', 'integer', 'exists:circle_category_level3,id'],
             'level4_category_id' => ['nullable', 'integer', 'exists:circle_category_level4,id'],
+            'circle_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
         ];
     }
 }
