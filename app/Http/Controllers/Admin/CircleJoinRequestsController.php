@@ -37,7 +37,7 @@ class CircleJoinRequestsController extends Controller
         $actor = AdminAccess::resolveAppUser($admin);
         $this->reconcileDedApprovalWorkflowState();
 
-        $query = CircleJoinRequest::query()->with(['user', 'circle.template', 'circle.categories', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy', 'dedApprovedBy']);
+        $query = CircleJoinRequest::query()->with(['user', 'circle.template', 'circle.categories', 'circleCategory', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy', 'dedApprovedBy']);
 
         if ($this->industryScope->isIndustryDirector($admin)) {
             $industryCircleIds = $this->industryScope->circleIdsForAdmin($admin);
@@ -82,6 +82,7 @@ class CircleJoinRequestsController extends Controller
                     });
             }
             $query->when($request->query('circle_id'), fn ($q, $v) => $q->where('circle_id', $v))
+                ->when($request->query('circle_category_id'), fn ($q, $v) => $q->where('level1_category_id', $v))
                 ->when($request->query('date_from'), fn ($q, $v) => $q->whereDate('requested_at', '>=', $v))
                 ->when($request->query('date_to'), fn ($q, $v) => $q->whereDate('requested_at', '<=', $v));
         } else {
@@ -93,6 +94,7 @@ class CircleJoinRequestsController extends Controller
 
             $query->whereIn('status', $pendingStatuses)
                 ->when($request->query('circle_id'), fn ($q, $v) => $q->where('circle_id', $v))
+                ->when($request->query('circle_category_id'), fn ($q, $v) => $q->where('level1_category_id', $v))
                 ->when($request->query('status'), fn ($q, $v) => in_array($v, $pendingStatuses, true) ? $q->where('status', $v) : $q->whereRaw('1=0'))
                 ->when($request->query('date_from'), fn ($q, $v) => $q->whereDate('requested_at', '>=', $v))
                 ->when($request->query('date_to'), fn ($q, $v) => $q->whereDate('requested_at', '<=', $v));
@@ -114,10 +116,13 @@ class CircleJoinRequestsController extends Controller
             return $joinRequest;
         });
 
+        $categories = CircleCategory::query()->orderBy('name')->get();
+
         return view('admin.circle_join_requests.index', [
             'requests' => $requests,
             'circles' => $this->circleOptions($admin),
-            'filters' => $request->only(['search', 'circle_id', 'status', 'date_from', 'date_to']),
+            'categories' => $categories,
+            'filters' => $request->only(['search', 'circle_id', 'circle_category_id', 'status', 'date_from', 'date_to']),
         ]);
     }
 
@@ -127,7 +132,7 @@ class CircleJoinRequestsController extends Controller
         $actor = AdminAccess::resolveAppUser($admin);
         $this->reconcileDedApprovalWorkflowState($id);
 
-        $record = CircleJoinRequest::query()->with(['user', 'circle.template', 'circle.categories', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy', 'dedApprovedBy'])->findOrFail($id);
+        $record = CircleJoinRequest::query()->with(['user', 'circle.template', 'circle.categories', 'circleCategory', 'cdApprovedBy', 'cdRejectedBy', 'idApprovedBy', 'idRejectedBy', 'dedApprovedBy'])->findOrFail($id);
         abort_unless($this->canAccessRecord($admin, $actor, $record), 403);
 
         $selectedCategoryIds = $this->resolveSelectedCategoryIds($record);
