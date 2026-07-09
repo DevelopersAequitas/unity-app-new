@@ -38,3 +38,6 @@ Schedule::command('notifications:campaigns every-five-minutes')->everyFiveMinute
 Schedule::command('notifications:campaigns hourly')->hourly();
 Schedule::command('notifications:campaigns daily')->dailyAt('09:15')->timezone('Asia/Kolkata');
 Schedule::command('notifications:campaigns weekly')->sundays()->at('18:00')->timezone('Asia/Kolkata');
+Schedule::command('app:send-anniversary-notifications')
+    ->dailyAt('09:00')
+    ->timezone('Asia/Kolkata');

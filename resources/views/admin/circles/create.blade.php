@@ -92,7 +92,7 @@
         </ul>
 
 
-        <form action="{{ route('admin.circles.store') }}" method="POST" class="p-4">
+        <form action="{{ route('admin.circles.store') }}" method="POST" class="p-4" novalidate>
             @csrf
 
             <div class="tab-content" id="createCircleTabsContent">

@@ -789,6 +789,7 @@ class AuthController extends BaseApiController
         $this->fillIfUserColumnExists($user, 'greenpreneur_goals', $data['greenpreneur_goals'] ?? []);
         $this->fillIfUserColumnExists($user, 'interests', $data['interests'] ?? []);
         $this->fillIfUserColumnExists($user, 'community_directory_listing', $data['community_directory_listing'] ?? 'No');
+        $this->fillIfUserColumnExists($user, 'anniversary_date', $data['anniversary_date'] ?? null);
 
         if (Schema::hasColumn('users', 'city_of_residence')) {
             $user->city_of_residence = $data['city_of_residence'] ?? $data['city'] ?? null;

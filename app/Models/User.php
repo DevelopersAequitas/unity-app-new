@@ -171,6 +171,7 @@ class User extends Authenticatable
         'sustainability_areas',
         'greenpreneur_goals',
         'community_directory_listing',
+        'anniversary_date',
     ];
 
     protected $hidden = [
@@ -201,6 +202,7 @@ class User extends Authenticatable
         'circle_expires_at' => 'datetime',
         'welcome_membership_email_sent_at' => 'datetime',
         'dob' => 'date',
+        'anniversary_date' => 'date',
         'skills' => 'array',
         'interests' => 'array',
         'social_links' => 'array',

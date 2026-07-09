@@ -186,6 +186,7 @@ class ProfileController extends BaseApiController
             'about',
             'gender',
             'dob',
+            'anniversary_date',
             'experience_years',
             'experience_summary',
             'city_id',

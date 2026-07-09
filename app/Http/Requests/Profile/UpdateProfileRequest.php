@@ -35,6 +35,7 @@ class UpdateProfileRequest extends FormRequest
             'about' => ['sometimes', 'nullable', 'string'],
             'gender' => ['sometimes', 'nullable', 'in:male,female,other'],
             'dob' => ['sometimes', 'nullable', 'date'],
+            'anniversary_date' => ['sometimes', 'nullable', 'date'],
             'experience_years' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:80'],
             'experience_summary' => ['sometimes', 'nullable', 'string'],
             'city_id' => ['sometimes', 'nullable'],

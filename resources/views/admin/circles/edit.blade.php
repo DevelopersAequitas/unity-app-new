@@ -119,7 +119,7 @@
         </ul>
 
 
-        <form action="{{ route('admin.circles.update', $circle) }}" method="POST" class="p-4">
+        <form action="{{ route('admin.circles.update', $circle) }}" method="POST" class="p-4" novalidate>
             @csrf
             @method('PUT')
 
@@ -191,7 +191,13 @@
                             <div class="form-text" id="coverUploadStatus">Upload an image file up to 10MB.</div>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-end mt-4 pt-3 border-top">
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-danger">Cancel</a>
+                            <button type="submit" class="btn btn-success px-4">
+                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            </button>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="switchTab('details-tab')">
                             Next: Description & Tags <i class="bi bi-arrow-right ms-1"></i>
                         </button>
@@ -230,6 +236,12 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('basic-info-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-danger">Cancel</a>
+                            <button type="submit" class="btn btn-success px-4">
+                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            </button>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="switchTab('leadership-tab')">
                             Next: Leadership & Location <i class="bi bi-arrow-right ms-1"></i>
                         </button>
@@ -309,6 +321,12 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('details-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-danger">Cancel</a>
+                            <button type="submit" class="btn btn-success px-4">
+                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            </button>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="switchTab('schedule-tab')">
                             Next: Meeting Settings <i class="bi bi-arrow-right ms-1"></i>
                         </button>
@@ -366,10 +384,7 @@
 
                     <div id="meetingRows">
                         @php
-                            $meetings = old('meetings', $circle->meetings ?? []);
-                            if (!is_array($meetings)) {
-                                $meetings = [];
-                            }
+                            $meetings = $calendarMeetings;
                         @endphp
 
                         @forelse($meetings as $rowIndex => $meeting)
@@ -383,7 +398,7 @@
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-4">
                                         <label class="form-label small fw-semibold">Frequency</label>
-                                        <select name="meetings[{{ $rowIndex }}][frequency]" class="form-select js-meeting-frequency">
+                                        <select name="meeting_schedule_frequency[{{ $rowIndex }}]" class="form-select js-meeting-frequency">
                                             <option value="">Select Frequency</option>
                                             <option value="weekly" {{ $rowFrequency === 'weekly' ? 'selected' : '' }}>Weekly</option>
                                             <option value="monthly" {{ $rowFrequency === 'monthly' ? 'selected' : '' }}>Monthly</option>
@@ -392,7 +407,7 @@
 
                                     <div class="col-md-4 js-meeting-day-wrap">
                                         <label class="form-label small fw-semibold">Day of Week</label>
-                                        <select name="meetings[{{ $rowIndex }}][day_of_week]" class="form-select js-meeting-day">
+                                        <select name="meeting_schedule_day_of_week[{{ $rowIndex }}]" class="form-select js-meeting-day">
                                             <option value="">Select Day</option>
                                             <option value="monday" {{ $rowDay === 'monday' ? 'selected' : '' }}>Monday</option>
                                             <option value="tuesday" {{ $rowDay === 'tuesday' ? 'selected' : '' }}>Tuesday</option>
@@ -408,14 +423,14 @@
                                         <label class="form-label small fw-semibold">Default Meet Time</label>
                                         <input
                                             type="time"
-                                            name="meetings[{{ $rowIndex }}][default_meet_time]"
+                                            name="meeting_schedule_default_meet_time[{{ $rowIndex }}]"
                                             class="form-control js-meeting-time"
                                             value="{{ $rowTime }}"
                                         >
                                     </div>
 
                                     <div class="col-md-1">
-                                        <button type="button" class="btn btn-outline-danger w-100 js-remove-meeting">
+                                        <button type="button" class="btn btn-outline-danger w-100 js-remove-meeting" {{ $rowIndex === 0 && count($meetings) === 1 ? 'disabled' : '' }}>
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -427,7 +442,7 @@
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-4">
                                         <label class="form-label small fw-semibold">Frequency</label>
-                                        <select name="meetings[0][frequency]" class="form-select js-meeting-frequency">
+                                        <select name="meeting_schedule_frequency[0]" class="form-select js-meeting-frequency">
                                             <option value="">Select Frequency</option>
                                             <option value="weekly">Weekly</option>
                                             <option value="monthly">Monthly</option>
@@ -436,7 +451,7 @@
 
                                     <div class="col-md-4 js-meeting-day-wrap">
                                         <label class="form-label small fw-semibold">Day of Week</label>
-                                        <select name="meetings[0][day_of_week]" class="form-select js-meeting-day">
+                                        <select name="meeting_schedule_day_of_week[0]" class="form-select js-meeting-day">
                                             <option value="">Select Day</option>
                                             <option value="monday">Monday</option>
                                             <option value="tuesday">Tuesday</option>
@@ -452,7 +467,7 @@
                                         <label class="form-label small fw-semibold">Default Meet Time</label>
                                         <input
                                             type="time"
-                                            name="meetings[0][default_meet_time]"
+                                            name="meeting_schedule_default_meet_time[0]"
                                             class="form-control js-meeting-time"
                                             value=""
                                         >
@@ -631,7 +646,7 @@
             row.querySelectorAll('select, input').forEach((el) => {
                 const name = el.getAttribute('name');
                 if (!name) return;
-                el.setAttribute('name', name.replace(/meetings\[\d+\]/, `meetings[${index}]`));
+                el.setAttribute('name', name.replace(/\[\d+\]/, `[${index}]`));
             });
 
             const removeBtn = row.querySelector('.js-remove-meeting');
