@@ -69,8 +69,8 @@
                                 <span class="badge bg-success">Active</span>
                             @endif
                         </td>
-                        <td>{{ $ad->starts_at ? $ad->starts_at->timezone('Asia/Kolkata')->format('Y-m-d H:i') : '—' }}</td>
-                        <td>{{ $ad->ends_at ? $ad->ends_at->timezone('Asia/Kolkata')->format('Y-m-d H:i') : '—' }}</td>
+                        <td>{{ $ad->starts_at ? $ad->starts_at->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i') : '—' }}</td>
+                        <td>{{ $ad->ends_at ? $ad->ends_at->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i') : '—' }}</td>
                         <td>
                             <div class="d-flex flex-wrap gap-1">
                                 <a href="{{ route('admin.ads.edit', $ad) }}" class="btn btn-sm btn-outline-primary">Edit</a>

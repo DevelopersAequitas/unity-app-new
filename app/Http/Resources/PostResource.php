@@ -90,19 +90,19 @@ class PostResource extends JsonResource
             'saves_count' => $savesCount,
             'is_saved' => $isSaved,
 
-            'created_at' => $this->formatToIstDateTime($this->created_at),
-            'updated_at' => $this->formatToIstDateTime($this->updated_at),
+            'created_at' => $this->formatToDefaultDateTime($this->created_at),
+            'updated_at' => $this->formatToDefaultDateTime($this->updated_at),
         ];
     }
 
-    private function formatToIstDateTime(mixed $value): ?string
+    private function formatToDefaultDateTime(mixed $value): ?string
     {
         if (empty($value)) {
             return null;
         }
 
         return Carbon::parse((string) $value)
-            ->timezone('Asia/Kolkata')
+            ->timezone(config('app.timezone', 'UTC'))
             ->format('Y-m-d H:i:s');
     }
 }

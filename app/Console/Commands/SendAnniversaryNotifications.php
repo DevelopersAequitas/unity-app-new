@@ -36,7 +36,7 @@ class SendAnniversaryNotifications extends Command
         $this->info('Anniversary notifications scheduler run started.');
 
         $targetUserId = $this->option('user-id');
-        $today = Carbon::now('Asia/Kolkata');
+        $today = Carbon::now(config('app.timezone', 'UTC'));
 
         // Query users celebrating their anniversary today
         $query = User::query()
@@ -63,7 +63,7 @@ class SendAnniversaryNotifications extends Command
                 $alreadyPosted = Post::query()
                     ->where('user_id', $user->id)
                     ->where('source_type', 'anniversary')
-                    ->whereDate('created_at', today('Asia/Kolkata'))
+                    ->whereDate('created_at', today(config('app.timezone', 'UTC')))
                     ->exists();
 
                 if ($alreadyPosted) {

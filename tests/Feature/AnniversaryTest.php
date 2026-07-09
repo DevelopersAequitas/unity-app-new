@@ -142,8 +142,8 @@ class AnniversaryTest extends TestCase
      */
     public function test_anniversary_notifications_command_execution(): void
     {
-        // Fix time to specific date (Asia/Kolkata context)
-        Carbon::setTestNow(Carbon::parse('2026-08-15 10:00:00', 'Asia/Kolkata'));
+        // Fix time to specific date (config timezone context)
+        Carbon::setTestNow(Carbon::parse('2026-08-15 10:00:00', config('app.timezone', 'UTC')));
 
         // Celebrating user today
         $celebratingUser = User::factory()->create([

@@ -86,7 +86,7 @@ class P2pMeetingHistoryController extends BaseApiController
         foreach (['created_at', 'updated_at'] as $field) {
             if (! empty($attributes[$field])) {
                 $attributes[$field] = Carbon::parse((string) $attributes[$field])
-                    ->timezone('Asia/Kolkata')
+                    ->timezone(config('app.timezone', 'UTC'))
                     ->format('Y-m-d H:i:s');
             }
         }
