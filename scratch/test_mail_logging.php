@@ -1,11 +1,13 @@
 <?php
 
 use App\Models\EmailLog;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 require __DIR__.'/../vendor/autoload.php';
 $app = require_once __DIR__.'/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 // 1. Manually create a pending log (simulating application flow)
@@ -13,7 +15,7 @@ $recipient = 'test_logger_recipient_'.time().'@example.com';
 $subject = 'Test Mail Logging - '.time();
 
 $preLog = EmailLog::create([
-    'id' => (string) \Illuminate\Support\Str::uuid(),
+    'id' => (string) Str::uuid(),
     'to_email' => $recipient,
     'template_key' => 'test_template',
     'subject' => $subject,

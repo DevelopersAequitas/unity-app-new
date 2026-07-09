@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Services\Creative;
 
 use App\Models\AnniversaryTemplate;
+use App\Models\File;
 use App\Models\FileModel;
 use App\Models\User;
 use App\Services\Media\FileUploadService;
 use Exception;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -79,7 +81,7 @@ class AnniversaryImageGenerator
         $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? null;
 
         if ($profilePhotoId) {
-            $fileRecord = \App\Models\File::find($profilePhotoId);
+            $fileRecord = File::find($profilePhotoId);
             if ($fileRecord && $fileRecord->s3_key) {
                 $disk = config('filesystems.default', 'public');
                 if (Storage::disk($disk)->exists($fileRecord->s3_key)) {
@@ -218,7 +220,7 @@ class AnniversaryImageGenerator
         imagewebp($canvas, $tempPath, 95); // Set premium quality to 95 as requested
         imagedestroy($canvas);
 
-        $uploadedFile = new \Illuminate\Http\UploadedFile(
+        $uploadedFile = new UploadedFile(
             $tempPath,
             $filename,
             'image/webp',

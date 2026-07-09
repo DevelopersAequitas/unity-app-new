@@ -130,7 +130,7 @@ class Post extends Model
         }
         $path = parse_url($value, PHP_URL_PATH);
         $id = basename($path);
-        if (\Illuminate\Support\Str::isUuid($id)) {
+        if (Str::isUuid($id)) {
             return url('/api/v1/files/'.$id);
         }
 

@@ -1,12 +1,15 @@
 <?php
 
+use App\Models\AccountDeletionRequest;
+use Illuminate\Contracts\Console\Kernel;
+
 require __DIR__.'/../vendor/autoload.php';
 $app = require __DIR__.'/../bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app->make(Kernel::class)->bootstrap();
 
 echo '=== Simulating index() controller logic ==='.PHP_EOL.PHP_EOL;
 
-$reqs = App\Models\AccountDeletionRequest::with(['user' => fn ($q) => $q->withTrashed()])
+$reqs = AccountDeletionRequest::with(['user' => fn ($q) => $q->withTrashed()])
     ->orderBy('created_at', 'desc')
     ->get();
 

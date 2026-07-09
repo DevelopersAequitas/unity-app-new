@@ -11,6 +11,8 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -79,8 +81,8 @@ class CircleMemberDashboardTest extends TestCase
         ];
 
         foreach ($tables as $name => $callback) {
-            if (! \Illuminate\Support\Facades\Schema::hasTable($name)) {
-                \Illuminate\Support\Facades\Schema::create($name, $callback);
+            if (! Schema::hasTable($name)) {
+                Schema::create($name, $callback);
             }
         }
     }
@@ -237,7 +239,7 @@ class CircleMemberDashboardTest extends TestCase
         ]);
 
         // Clear AdminAccess caching by flushing cache to make sure the new circle is picked up
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
 
         // 2. Access dashboard with multiple circles: it should default to circle1 but render the dropdown in the topbar
         $response2 = $this->actingAs($admin, 'admin')

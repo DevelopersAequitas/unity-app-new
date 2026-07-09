@@ -383,6 +383,11 @@ class User extends Authenticatable
         return $this->belongsTo(User::class, 'introduced_by');
     }
 
+    public function introducedPeers(): HasMany
+    {
+        return $this->hasMany(User::class, 'introduced_by');
+    }
+
     public function referredByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'referred_by_user_id');

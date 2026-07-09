@@ -60,6 +60,12 @@ class UserResource extends JsonResource
             'designation' => $this->designation,
             'email' => $this->email,
             'phone' => $this->phone,
+            'introduced_by' => $this->introduced_by,
+            'introduced_by_user' => $this->relationLoaded('introducedBy') && $this->introducedBy ? [
+                'id' => $this->introducedBy->id,
+                'name' => $this->introducedBy->display_name ?: trim(($this->introducedBy->first_name ?? '').' '.($this->introducedBy->last_name ?? '')),
+                'profile_photo_url' => $this->introducedBy->profile_photo_url,
+            ] : null,
             'city' => $resolvedCity ? new CityResource($resolvedCity) : null,
             'city_of_residence' => $this->city_of_residence,
             'membership_status' => $membershipStatus,
