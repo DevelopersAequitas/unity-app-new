@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class VisitorRegistration extends Model
 {
@@ -49,7 +50,7 @@ class VisitorRegistration extends Model
     {
         static::creating(function (self $model): void {
             if (! $model->id) {
-                $model->id = (string) \Illuminate\Support\Str::uuid();
+                $model->id = (string) Str::uuid();
             }
             if (empty($model->status)) {
                 $model->status = 'pending';

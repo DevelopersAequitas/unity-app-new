@@ -87,10 +87,14 @@ class File extends Model
             }
 
             if (! $file->s3_key || ! Storage::disk($disk)->exists($file->s3_key)) {
-                $file->is_orphaned = true;
-                $file->save();
+                if ($file->s3_key && Storage::disk('public')->exists($file->s3_key)) {
+                    // File exists on public disk, not orphaned
+                } else {
+                    $file->is_orphaned = true;
+                    $file->save();
 
-                continue;
+                    continue;
+                }
             }
 
             $validIds[] = $file->id;

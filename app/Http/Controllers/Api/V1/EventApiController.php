@@ -27,7 +27,7 @@ class EventApiController extends BaseApiController
 
         $circleId = $validated['circle_id'] ?? null;
         $status = $validated['status'] ?? 'all';
-        $timezone = config('app.timezone') ?: 'Asia/Kolkata';
+        $timezone = config('app.timezone') ?: 'UTC';
         $now = now($timezone);
         $circle = null;
 

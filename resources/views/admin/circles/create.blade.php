@@ -309,8 +309,8 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Calendar Timezone</label>
-                            <input type="text" class="form-control bg-light" value="Asia/Kolkata" readonly>
-                            <input type="hidden" name="calendar_timezone" value="Asia/Kolkata">
+                            <input type="text" class="form-control bg-light" value="{{ config('app.timezone', 'UTC') }}" readonly>
+                            <input type="hidden" name="calendar_timezone" value="{{ config('app.timezone', 'UTC') }}">
                         </div>
                     </div>
 

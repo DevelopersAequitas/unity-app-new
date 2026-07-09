@@ -29,7 +29,9 @@ class CircleJoinRequestController extends BaseApiController
                 $circle,
                 $request->validated('reason_for_joining'),
                 [
-                    'level1_category_id' => $request->validated('level1_category_id'),
+                    'level1_category_id' => $request->validated('level1_category_id')
+                        ?? $request->validated('circle_category_id')
+                        ?? $request->validated('category_id'),
                     'level2_category_id' => $request->validated('level2_category_id'),
                     'level3_category_id' => $request->validated('level3_category_id'),
                     'level4_category_id' => $request->validated('level4_category_id'),
@@ -37,7 +39,7 @@ class CircleJoinRequestController extends BaseApiController
             );
 
             $record->load([
-                'circle:id,name',
+                'circle.categories',
                 'user:id,display_name,email,phone,company_name,city',
                 'level1Category:id,name',
                 'level2Category:id,name',
@@ -59,7 +61,7 @@ class CircleJoinRequestController extends BaseApiController
             ->where('user_id', $request->user()->id)
             ->when($status, fn ($q) => $q->where('status', $status))
             ->with([
-                'circle:id,name',
+                'circle.categories',
                 'level1Category:id,name',
                 'level2Category:id,name',
                 'level3Category:id,name',
@@ -82,7 +84,7 @@ class CircleJoinRequestController extends BaseApiController
     public function show(Request $request, string $id): JsonResponse
     {
         $record = CircleJoinRequest::query()->with([
-            'circle',
+            'circle.categories',
             'user',
             'cdApprovedBy',
             'cdRejectedBy',
@@ -129,8 +131,15 @@ class CircleJoinRequestController extends BaseApiController
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
         ]);
 
-        if ($request->relationLoaded('level1Category') && $request->level1Category) {
-            $payload['level1_category'] = ['id' => $request->level1Category->id, 'name' => $request->level1Category->name];
+        $circleCategory = $request->circleCategory;
+        $level1Id = $circleCategory?->id;
+        $payload['circle_category_id'] = $level1Id;
+        $payload['category_id'] = $level1Id;
+        $payload['circle_category_name'] = $circleCategory?->name;
+        $payload['category_name'] = $circleCategory?->name;
+
+        if ($circleCategory) {
+            $payload['level1_category'] = ['id' => $circleCategory->id, 'name' => $circleCategory->name];
         }
 
         if ($request->relationLoaded('level2Category') && $request->level2Category) {
@@ -143,6 +152,22 @@ class CircleJoinRequestController extends BaseApiController
 
         if ($request->relationLoaded('level4Category') && $request->level4Category) {
             $payload['level4_category'] = ['id' => $request->level4Category->id, 'name' => $request->level4Category->name];
+        }
+
+        if ($request->relationLoaded('circle') && $request->circle) {
+            $circleArray = [
+                'id' => $request->circle->id,
+                'name' => $request->circle->name,
+            ];
+            if ($request->circle->relationLoaded('categories')) {
+                $circleArray['categories'] = $request->circle->categories->map(fn ($cat) => [
+                    'id' => $cat->id,
+                    'name' => $cat->name,
+                ])->toArray();
+
+                $payload['circle_categories'] = $circleArray['categories'];
+            }
+            $payload['circle'] = $circleArray;
         }
 
         return $payload;

@@ -21,18 +21,19 @@
 <div class="container-fluid">
     <div class="card mb-3"><div class="card-body">
         <form method="GET" class="row g-2">
-            <div class="col-md-3"><input type="text" name="search" class="form-control" placeholder="Search peer/email/phone/company" value="{{ $filters['search'] ?? '' }}"></div>
+            <div class="col-md-2"><input type="text" name="search" class="form-control" placeholder="Search peer/email/phone/company" value="{{ $filters['search'] ?? '' }}"></div>
             <div class="col-md-2"><select name="circle_id" class="form-select js-no-searchable-select"><option value="">All Circles</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '')===$circle->id)>{{ $circle->name }}</option>@endforeach</select></div>
+            <div class="col-md-2"><select name="circle_category_id" class="form-select js-no-searchable-select"><option value="">All Categories</option>@foreach($categories as $cat)<option value="{{ $cat->id }}" @selected(($filters['circle_category_id'] ?? '')===(string)$cat->id)>{{ $cat->name }}</option>@endforeach</select></div>
             <div class="col-md-2"><select name="status" class="form-select js-no-searchable-select"><option value="">All Statuses</option>@foreach(array_keys($statusLabels) as $status)<option value="{{ $status }}" @selected(($filters['status'] ?? '')===$status)>{{ $statusLabels[$status] }}</option>@endforeach</select></div>
-            <div class="col-md-2"><input type="date" name="date_from" class="form-control" value="{{ $filters['date_from'] ?? '' }}"></div>
-            <div class="col-md-2"><input type="date" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}"></div>
+            <div class="col-md-1.5" style="width: 12.5%;"><input type="date" name="date_from" class="form-control" value="{{ $filters['date_from'] ?? '' }}"></div>
+            <div class="col-md-1.5" style="width: 12.5%;"><input type="date" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}"></div>
             <div class="col-md-1"><button class="btn btn-primary w-100">Apply</button></div>
         </form>
     </div></div>
 
     <div class="card-activities-wrapper"><div class="table-responsive">
         <table class="table table-premium mb-0 align-middle">
-            <thead><tr><th>Submitted At</th><th>Peer</th><th>Circle</th><th>Reason for Joining</th><th>Status</th><th>DED Approval</th><th>Payment</th><th class="text-end">Actions</th></tr></thead>
+            <thead><tr><th>Submitted At</th><th>Peer</th><th>Category</th><th>Reason for Joining</th><th>Status</th><th>DED Approval</th><th>Payment</th><th class="text-end">Actions</th></tr></thead>
             <tbody>
             @forelse($requests as $row)
                 <tr>
@@ -40,7 +41,14 @@
                     <td>
                         @include('admin.partials.peer_identity', ['user' => $row->user])
                     </td>
-                    <td>{{ $row->circle?->name }}</td>
+                    <td>
+                        @if($row->circleCategory)
+                            <div class="fw-semibold text-dark">Category: {{ $row->circleCategory->name }}</div>
+                            <div class="small text-muted mt-1" style="font-size: 0.75rem;">Category ID: {{ $row->circleCategory->id }}</div>
+                        @else
+                            <div class="text-muted">—</div>
+                        @endif
+                    </td>
                     <td>{{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 50) }}</td>
                     <td>
                         <span class="badge text-bg-secondary">{{ $statusLabels[$row->status] ?? $row->status }}</span>

@@ -100,7 +100,7 @@
             </li>
         </ul>
 
-        <form id="userEditForm" action="{{ route('admin.users.update', $user->id) }}" method="POST" class="p-4">
+        <form id="userEditForm" action="{{ route('admin.users.update', $user->id) }}" method="POST" class="p-4" novalidate>
             @csrf
             @method('PUT')
 
@@ -227,7 +227,13 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-end mt-4 pt-3 border-top">
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('admin.users.index') }}" class="btn btn-outline-danger">Cancel</a>
+                            <button type="submit" class="btn btn-success px-4">
+                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            </button>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="switchTab('business-tab')">
                             Next: Business Details <i class="bi bi-arrow-right ms-1"></i>
                         </button>
@@ -370,6 +376,12 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('personal-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('admin.users.index') }}" class="btn btn-outline-danger">Cancel</a>
+                            <button type="submit" class="btn btn-success px-4">
+                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            </button>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="switchTab('membership-tab')">
                             Next: Membership & Coins <i class="bi bi-arrow-right ms-1"></i>
                         </button>
@@ -386,8 +398,8 @@
                                 $membershipStatusLabels = [
                                     'free_trial_peer' => 'Free Trial Peer',
                                     'free_peer' => 'Free Peer',
-                                    'only_unity_peer' => 'Only Unity Peer',
-                                    'Only Unity Peer' => 'Only Unity Peer',
+                                    'only_unity_peer' => 'Global Peer',
+                                    'Only Unity Peer' => 'Global Peer',
                                     'Circle Peer' => 'Circle Peer',
                                     'Multi Circle Peer' => 'Multi Circle Peer',
                                     'Charter Peer' => 'Charter Peer',
@@ -521,6 +533,12 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('business-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('admin.users.index') }}" class="btn btn-outline-danger">Cancel</a>
+                            <button type="submit" class="btn btn-success px-4">
+                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            </button>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="switchTab('circles-tab')">
                             Next: Circles & Admin <i class="bi bi-arrow-right ms-1"></i>
                         </button>

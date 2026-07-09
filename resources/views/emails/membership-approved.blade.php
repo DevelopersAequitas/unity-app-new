@@ -29,7 +29,7 @@
 
                             <p style="margin:0 0 20px 0;font-size:17px;line-height:1.6;color:#d9d9d9;">
                                 Congratulations! Your PeersGlobal membership has been approved and upgraded to
-                                <strong style="color:#ffffff;">Only Unity Peer</strong>.
+                                <strong style="color:#ffffff;">Global Peer</strong>.
                             </p>
 
                             <p style="margin:0 0 22px 0;font-size:17px;line-height:1.6;color:#d9d9d9;">
@@ -59,7 +59,7 @@
                                 </tr>
                                 <tr>
                                     <td style="padding:12px 18px;color:#a8a8a8;font-size:14px;border-bottom:1px solid #2f2f2f;">Membership</td>
-                                    <td style="padding:12px 18px;color:#ffffff;font-size:14px;font-weight:700;border-bottom:1px solid #2f2f2f;">Only Unity Peer</td>
+                                    <td style="padding:12px 18px;color:#ffffff;font-size:14px;font-weight:700;border-bottom:1px solid #2f2f2f;">Global Peer</td>
                                 </tr>
                                 <tr>
                                     <td style="padding:12px 18px;color:#a8a8a8;font-size:14px;border-bottom:1px solid #2f2f2f;">Membership Starts At</td>

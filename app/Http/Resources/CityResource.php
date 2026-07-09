@@ -20,6 +20,7 @@ class CityResource extends JsonResource
             return [
                 'id' => null,
                 'name' => $this->resource,
+                'formatted_location' => $this->resource,
             ];
         }
 
@@ -29,6 +30,7 @@ class CityResource extends JsonResource
             'name' => $this->name ?? $this->city_name ?? null,
             'state' => $this->state ?? null,
             'country' => $this->country ?? null,
+            'formatted_location' => $this->formatted_location ?? null,
         ];
     }
 }

@@ -26,7 +26,7 @@ class User extends Authenticatable
 
     public const STATUS_GREEN_PEER = 'Only Unity Peer';
 
-    public const STATUS_GREEN_PEER_LABEL = 'Only Unity Peer';
+    public const STATUS_GREEN_PEER_LABEL = 'Global Peer';
 
     private const FREE_PEER_STATUS_CANDIDATES = [self::STATUS_FREE, 'Free Peer', 'Free_peer'];
 
@@ -171,6 +171,7 @@ class User extends Authenticatable
         'sustainability_areas',
         'greenpreneur_goals',
         'community_directory_listing',
+        'anniversary_date',
     ];
 
     protected $hidden = [
@@ -201,6 +202,7 @@ class User extends Authenticatable
         'circle_expires_at' => 'datetime',
         'welcome_membership_email_sent_at' => 'datetime',
         'dob' => 'date',
+        'anniversary_date' => 'date',
         'skills' => 'array',
         'interests' => 'array',
         'social_links' => 'array',
@@ -379,6 +381,11 @@ class User extends Authenticatable
     public function introducedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'introduced_by');
+    }
+
+    public function introducedPeers(): HasMany
+    {
+        return $this->hasMany(User::class, 'introduced_by');
     }
 
     public function referredByUser(): BelongsTo

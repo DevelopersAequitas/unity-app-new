@@ -12,10 +12,12 @@ use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\BirthdayCreativeController;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\AdminCampaignController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\AdminFileUploadController;
+use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\BrandPartnerAnalyticsController;
@@ -104,6 +106,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
             return redirect()->route('admin.dashboard');
         })->name('home');
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
+        Route::get('/birthday-creative', [BirthdayCreativeController::class, 'index'])->name('birthday-creative.index');
+        Route::post('/birthday-creative', [BirthdayCreativeController::class, 'update'])->name('birthday-creative.update');
+        Route::get('/birthday-creative/preview/{userId}', [BirthdayCreativeController::class, 'preview'])->name('birthday-creative.preview');
         Route::put('/app-config/branding', [AppConfigPageController::class, 'updateBranding'])->name('app-config.branding');
         Route::post('/app-config/upload-brand-asset', [AppConfigPageController::class, 'uploadBrandAsset'])->name('app-config.upload-brand-asset');
         Route::put('/app-config/labels', [AppConfigPageController::class, 'bulkLabels'])->name('app-config.labels');
@@ -222,6 +227,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users/export/csv', [UsersController::class, 'exportCsv'])->name('users.export.csv');
 
         Route::get('/circulars', [CircularController::class, 'index'])->name('circulars.index');
+
+        Route::get('/anniversary-creatives', [AnniversaryTemplateController::class, 'index'])->name('anniversary-creatives.index');
+        Route::post('/anniversary-creatives', [AnniversaryTemplateController::class, 'store'])->name('anniversary-creatives.store');
+        Route::post('/anniversary-creatives/{template}/toggle', [AnniversaryTemplateController::class, 'toggleActive'])->name('anniversary-creatives.toggle');
+        Route::delete('/anniversary-creatives/{template}', [AnniversaryTemplateController::class, 'destroy'])->name('anniversary-creatives.destroy');
         Route::get('/circulars/create', [CircularController::class, 'create'])->name('circulars.create');
         Route::post('/circulars', [CircularController::class, 'store'])->name('circulars.store');
         Route::get('/circulars/{circular}', [CircularController::class, 'show'])->name('circulars.show');

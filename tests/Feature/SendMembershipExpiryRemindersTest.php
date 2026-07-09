@@ -566,18 +566,18 @@ class SendMembershipExpiryRemindersTest extends TestCase
         $expiryEvent = $events->first(fn ($event) => str_contains((string) $event->command, 'memberships:send-expiry-reminders'));
         $this->assertNotNull($expiryEvent);
         $this->assertSame('25 11 * * *', $expiryEvent->expression);
-        $this->assertSame('Asia/Kolkata', $expiryEvent->timezone);
+        $this->assertSame(config('app.timezone', 'UTC'), $expiryEvent->timezone);
 
-        // Assert memberships:send-upcoming-expiry-reminders is scheduled daily at 11:25 AM (25 11 * * *) in Asia/Kolkata timezone
+        // Assert memberships:send-upcoming-expiry-reminders is scheduled daily at 11:25 AM (25 11 * * *) in configured timezone
         $upcomingEvent = $events->first(fn ($event) => str_contains((string) $event->command, 'memberships:send-upcoming-expiry-reminders'));
         $this->assertNotNull($upcomingEvent);
         $this->assertSame('25 11 * * *', $upcomingEvent->expression);
-        $this->assertSame('Asia/Kolkata', $upcomingEvent->timezone);
+        $this->assertSame(config('app.timezone', 'UTC'), $upcomingEvent->timezone);
 
-        // Assert memberships:send-circle-expiry-reminders is scheduled daily at 11:25 AM (25 11 * * *) in Asia/Kolkata timezone
+        // Assert memberships:send-circle-expiry-reminders is scheduled daily at 11:25 AM (25 11 * * *) in configured timezone
         $circleEvent = $events->first(fn ($event) => str_contains((string) $event->command, 'memberships:send-circle-expiry-reminders'));
         $this->assertNotNull($circleEvent);
         $this->assertSame('25 11 * * *', $circleEvent->expression);
-        $this->assertSame('Asia/Kolkata', $circleEvent->timezone);
+        $this->assertSame(config('app.timezone', 'UTC'), $circleEvent->timezone);
     }
 }

@@ -3,14 +3,19 @@
 namespace App\Providers;
 
 use App\Models\AdminCampaign;
+use App\Models\EmailLog;
 use App\Policies\AdminCampaignPolicy;
 use App\Support\SqliteMigrator;
 use Illuminate\Database\Connection;
 use Illuminate\Database\SQLiteConnection;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -111,22 +116,22 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         // Register global listener to capture outgoing email bodies and save them to email_logs
-        \Illuminate\Support\Facades\Event::listen(
-            \Illuminate\Mail\Events\MessageSending::class,
-            function (\Illuminate\Mail\Events\MessageSending $event) {
-                \Illuminate\Support\Facades\Log::info('Mail Listener triggered');
+        Event::listen(
+            MessageSending::class,
+            function (MessageSending $event) {
+                Log::info('Mail Listener triggered');
                 try {
                     $message = $event->message;
                     $subject = $message->getSubject();
                     $to = collect($message->getTo())->map(fn ($addr) => $addr->getAddress())->first();
 
-                    \Illuminate\Support\Facades\Log::info('Mail listener processing', [
+                    Log::info('Mail listener processing', [
                         'to' => $to,
                         'subject' => $subject,
                     ]);
 
                     if (empty($to)) {
-                        \Illuminate\Support\Facades\Log::warning('Mail listener: No recipient found.');
+                        Log::warning('Mail listener: No recipient found.');
 
                         return;
                     }
@@ -135,7 +140,7 @@ class AppServiceProvider extends ServiceProvider
                     $text = $message->getTextBody();
 
                     // Find a recently created log within the last 30 seconds for this recipient
-                    $log = \App\Models\EmailLog::where('to_email', $to)
+                    $log = EmailLog::where('to_email', $to)
                         ->where(function ($query) use ($subject) {
                             if (! empty($subject)) {
                                 $query->where('subject', $subject)
@@ -148,7 +153,7 @@ class AppServiceProvider extends ServiceProvider
                         ->first();
 
                     if ($log) {
-                        \Illuminate\Support\Facades\Log::info('Mail listener: Found matching email log, updating body', ['log_id' => $log->id]);
+                        Log::info('Mail listener: Found matching email log, updating body', ['log_id' => $log->id]);
                         $updates = [];
                         if (empty($log->body_html) && ! empty($html)) {
                             $updates['body_html'] = $html;
@@ -160,10 +165,10 @@ class AppServiceProvider extends ServiceProvider
                             $log->update($updates);
                         }
                     } else {
-                        \Illuminate\Support\Facades\Log::info('Mail listener: No matching log found, creating a new one.');
+                        Log::info('Mail listener: No matching log found, creating a new one.');
                         // Create a new log if none exists
-                        \App\Models\EmailLog::create([
-                            'id' => (string) \Illuminate\Support\Str::uuid(),
+                        EmailLog::create([
+                            'id' => (string) Str::uuid(),
                             'to_email' => $to,
                             'template_key' => 'raw_email',
                             'subject' => $subject,
@@ -175,7 +180,7 @@ class AppServiceProvider extends ServiceProvider
                         ]);
                     }
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Error logging outgoing mail body: '.$e->getMessage(), [
+                    Log::error('Error logging outgoing mail body: '.$e->getMessage(), [
                         'exception' => $e,
                     ]);
                 }

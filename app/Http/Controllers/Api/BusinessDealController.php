@@ -347,8 +347,8 @@ class BusinessDealController extends BaseApiController
                 'deal_amount' => $deal->deal_amount,
                 'business_type' => $deal->business_type ?? '',
                 'comment' => $deal->comment ?? '',
-                'created_at' => $deal->created_at ? Carbon::parse($deal->created_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
-                'updated_at' => $deal->updated_at ? Carbon::parse($deal->updated_at)->timezone('Asia/Kolkata')->format('Y-m-d H:i:s') : '',
+                'created_at' => $deal->created_at ? Carbon::parse($deal->created_at)->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s') : '',
+                'updated_at' => $deal->updated_at ? Carbon::parse($deal->updated_at)->timezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s') : '',
                 'from_user' => $fromUser ? [
                     'id' => (string) $fromUser->id,
                     'display_name' => $fromUser->display_name ?? trim(($fromUser->first_name ?? '').' '.($fromUser->last_name ?? '')),

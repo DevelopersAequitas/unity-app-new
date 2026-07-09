@@ -388,7 +388,7 @@
                     </li>
                 @endforeach
             </ul>
-            <div class="small text-muted mt-2">Timezone: {{ $timezone ?? 'Asia/Kolkata' }}</div>
+            <div class="small text-muted mt-2">Timezone: {{ $timezone ?? config('app.timezone', 'UTC') }}</div>
         @endif
     </div>
 </div>

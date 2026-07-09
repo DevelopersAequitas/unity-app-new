@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Laravel\Sanctum\HasApiTokens;
 
 class ScanAppUser extends Authenticatable
@@ -52,7 +53,7 @@ class ScanAppUser extends Authenticatable
         try {
             return Hash::check($password, (string) $this->password_hash);
         } catch (\Throwable $exception) {
-            \Illuminate\Support\Facades\Log::warning("ScanAppUser password check exception for username {$this->username}: ".$exception->getMessage());
+            Log::warning("ScanAppUser password check exception for username {$this->username}: ".$exception->getMessage());
 
             return false;
         }

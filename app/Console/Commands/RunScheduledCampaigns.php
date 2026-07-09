@@ -4,9 +4,11 @@ namespace App\Console\Commands;
 
 use App\Jobs\ProcessCampaignDeliveryJob;
 use App\Models\AdminAuditLog;
+use App\Models\AdminCampaign;
 use App\Models\CampaignDelivery;
 use App\Models\CampaignSchedule;
 use App\Services\AdminCampaigns\CampaignScheduleCalculator;
+use App\Services\AdminCampaigns\CampaignSendService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -122,11 +124,38 @@ class RunScheduledCampaigns extends Command
                         Log::error("Failed to trigger campaign ID {$schedule->campaign_id}: ".$e->getMessage());
                     }
                 }
-            } else {
+            }
+
+            // 2. Process queued/immediate admin campaigns directly
+            $queuedCampaigns = AdminCampaign::query()
+                ->where('status', 'queued')
+                ->whereNull('sent_at')
+                ->has('recipients')
+                ->get();
+
+            $queuedTriggered = 0;
+            foreach ($queuedCampaigns as $campaign) {
+                $this->info("Processing queued campaign '{$campaign->title}' (ID: {$campaign->id})");
+                try {
+                    // Temporarily set to draft so CampaignSendService will accept it
+                    $campaign->update(['status' => AdminCampaign::STATUS_DRAFT]);
+                    app(CampaignSendService::class)->send($campaign);
+                    $queuedTriggered++;
+                } catch (\Exception $e) {
+                    Log::error("Failed to run queued campaign ID {$campaign->id}: ".$e->getMessage());
+                    $campaign->update(['status' => 'failed']);
+                }
+            }
+
+            if ($processedCount > 0) {
+                $this->info("Triggered {$triggeredCount} of {$processedCount} campaign schedules.");
+            } elseif ($queuedTriggered === 0) {
                 $this->info('No campaign schedules due at this time.');
             }
 
-            $this->info("Triggered {$triggeredCount} of {$processedCount} campaign schedules.");
+            if ($queuedTriggered > 0) {
+                $this->info("Processed {$queuedTriggered} queued campaigns.");
+            }
 
             return Command::SUCCESS;
 

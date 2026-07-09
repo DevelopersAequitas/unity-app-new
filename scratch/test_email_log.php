@@ -21,7 +21,7 @@ try {
     } else {
         echo "RETURNED NULL - Check laravel.log for 'Email logging failed' warning".PHP_EOL;
     }
-} catch (\Throwable $e) {
+} catch (Throwable $e) {
     echo 'EXCEPTION: '.$e->getMessage().PHP_EOL;
     echo $e->getTraceAsString().PHP_EOL;
 }

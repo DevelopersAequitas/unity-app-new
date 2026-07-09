@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendPushNotificationJob;
 use App\Mail\CollaborationCompletedMail;
 use App\Mail\CollaborationCreatedMail;
 use App\Models\CollaborationPost;
@@ -161,7 +162,7 @@ class CollaborationNotificationService
     private function insertNotificationsForActiveUsers(CollaborationPost $collaboration, string $sourceEvent, string $title, string $message, array $data): void
     {
         $this->activeUsersQuery()
-            ->select('id')
+            ->select('users.*')
             ->chunkById(500, function (Collection $users) use ($collaboration, $sourceEvent, $title, $message, $data): void {
                 $userIds = $users->pluck('id')->map(fn ($id): string => (string) $id)->values();
                 if ($userIds->isEmpty()) {
@@ -190,6 +191,29 @@ class CollaborationNotificationService
 
                 if ($rows !== []) {
                     DB::table('notifications')->insert($rows);
+
+                    // Send push notifications to the active users who received the notification
+                    foreach ($users as $user) {
+                        if (! $existingUserIds->contains((string) $user->id)) {
+                            try {
+                                SendPushNotificationJob::dispatch(
+                                    $user,
+                                    $title,
+                                    $message,
+                                    [
+                                        'type' => $data['type'] ?? $sourceEvent,
+                                        'collaboration_id' => (string) $collaboration->id,
+                                        'user_id' => (string) $collaboration->user_id,
+                                    ]
+                                );
+                            } catch (Throwable $e) {
+                                Log::error('collaboration.push_dispatch_failed', [
+                                    'user_id' => (string) $user->id,
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
+                        }
+                    }
                 }
             });
     }
@@ -207,7 +231,28 @@ class CollaborationNotificationService
             return;
         }
 
-        Notification::query()->create($this->notificationRow($userId, $collaboration, $sourceEvent, $title, $message, $data, now()));
+        $notification = Notification::query()->create($this->notificationRow($userId, $collaboration, $sourceEvent, $title, $message, $data, now()));
+
+        $user = User::find($userId);
+        if ($user) {
+            try {
+                SendPushNotificationJob::dispatch(
+                    $user,
+                    $title,
+                    $message,
+                    [
+                        'type' => $data['type'] ?? $sourceEvent,
+                        'collaboration_id' => (string) $collaboration->id,
+                        'notification_id' => (string) $notification->id,
+                    ]
+                );
+            } catch (Throwable $e) {
+                Log::error('collaboration.single_push_dispatch_failed', [
+                    'user_id' => $userId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     private function notificationRow(string $userId, CollaborationPost $collaboration, string $sourceEvent, string $title, string $message, array $data, mixed $createdAt): array

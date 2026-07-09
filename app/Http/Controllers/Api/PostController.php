@@ -74,6 +74,7 @@ class PostController extends BaseApiController
             ->selectRaw('NULL::date as impact_date')
             ->selectRaw('NULL::text as impact_action')
             ->selectRaw('NULL::integer as life_impacted')
+            ->selectRaw('posts.post_type as post_type')
             ->where('posts.visibility', 'public')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at');
@@ -109,6 +110,7 @@ class PostController extends BaseApiController
             ->selectRaw('impacts.impact_date as impact_date')
             ->selectRaw('impacts.action as impact_action')
             ->selectRaw('COALESCE(impacts.life_impacted, 1) as life_impacted')
+            ->selectRaw('NULL::text as post_type')
             ->where('impacts.status', 'approved')
             ->whereNotNull('impacts.timeline_posted_at');
 
@@ -231,6 +233,7 @@ class PostController extends BaseApiController
                 'type' => (string) $row->source_type,
                 'id' => (string) $row->id,
                 'content_text' => (string) ($row->content_text ?? ''),
+                'post_type' => isset($row->post_type) ? (string) $row->post_type : null,
                 'media' => $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId),
                 'tags' => $this->decodeJsonColumn($row->tags),
                 'visibility' => (string) $row->visibility,
@@ -254,8 +257,8 @@ class PostController extends BaseApiController
                 'is_liked_by_me' => (bool) $row->is_liked_by_me,
                 'saves_count' => (int) $row->saves_count,
                 'is_saved' => (bool) $row->is_saved_by_me,
-                'created_at' => $this->formatToIstDateTime($row->created_at),
-                'updated_at' => $this->formatToIstDateTime($row->updated_at),
+                'created_at' => $this->formatToDefaultDateTime($row->created_at),
+                'updated_at' => $this->formatToDefaultDateTime($row->updated_at),
             ];
 
             if (
@@ -335,14 +338,14 @@ class PostController extends BaseApiController
         ];
     }
 
-    private function formatToIstDateTime(mixed $value): ?string
+    private function formatToDefaultDateTime(mixed $value): ?string
     {
         if (empty($value)) {
             return null;
         }
 
         return Carbon::parse((string) $value)
-            ->timezone('Asia/Kolkata')
+            ->timezone(config('app.timezone', 'UTC'))
             ->format('Y-m-d H:i:s');
     }
 

@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\AccountDeletionRequestedMail;
 use App\Models\AccountDeletionRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class AccountDeletionController extends Controller
@@ -63,9 +66,9 @@ class AccountDeletionController extends Controller
         ]);
 
         try {
-            \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\AccountDeletionRequestedMail($user));
+            Mail::to($user->email)->send(new AccountDeletionRequestedMail($user));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to send account deletion requested email: '.$e->getMessage());
+            Log::error('Failed to send account deletion requested email: '.$e->getMessage());
         }
 
         return back()->with('success', 'Your request has been submitted. Our compliance team will review and process your deletion request.');

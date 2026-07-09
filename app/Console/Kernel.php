@@ -10,6 +10,7 @@ use App\Console\Commands\RetryIgnoredZohoWebhooks;
 use App\Console\Commands\RetryZohoWebhook;
 use App\Console\Commands\RetryZohoWebhooks;
 use App\Console\Commands\RunNotificationCampaignsCommand;
+use App\Console\Commands\SendAnniversaryNotifications;
 use App\Console\Commands\SendAppUpdateReminderNotifications;
 use App\Console\Commands\SendBrandPartnerOfferExpiryNotifications;
 use App\Console\Commands\SendCircleMembershipExpiryReminders;
@@ -21,6 +22,7 @@ use App\Console\Commands\SyncZohoSubscriptionPayment;
 use App\Console\Commands\TestZohoConvertInvoice;
 use App\Console\Commands\TestZohoCustomerPaymentWebhook;
 use App\Console\Commands\TestZohoPaidWebhook;
+use App\Console\Commands\GenerateBirthdayCreatives;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -46,10 +48,13 @@ class Kernel extends ConsoleKernel
         SendUpcomingMembershipExpiryReminders::class,
         SendCircleMembershipExpiryReminders::class,
         RunNotificationCampaignsCommand::class,
+        GenerateBirthdayCreatives::class,
+        SendAnniversaryNotifications::class,
     ];
 
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command('birthday:generate-creatives')->dailyAt('00:00')->timezone('UTC');
         $schedule->command('collaborations:expire')->dailyAt('00:10');
         $schedule->command('memberships:expire-users')->hourly();
         $schedule->command('users:expire-trial')->hourly();
@@ -63,5 +68,6 @@ class Kernel extends ConsoleKernel
         $schedule->command('notifications:campaigns hourly')->hourly();
         $schedule->command('notifications:campaigns daily')->dailyAt('09:15');
         $schedule->command('notifications:campaigns weekly')->sundays()->at('18:00');
+        $schedule->command('app:send-anniversary-notifications')->everyMinute();
     }
 }

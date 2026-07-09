@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -234,6 +235,61 @@ class CircleJoinRequest extends Model
         return $this->belongsTo(CircleCategory::class, 'level1_category_id');
     }
 
+    public function circleCategory(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'level1_category_id', 'id');
+    }
+
+    public function getCircleCategoryAttribute()
+    {
+        if ($this->relationLoaded('circleCategory')) {
+            $relation = $this->getRelation('circleCategory');
+            if ($relation !== null) {
+                return $relation;
+            }
+        }
+
+        $id = $this->level1_category_id;
+
+        if (! $id && $this->level2_category_id && Schema::hasTable('circle_category_level2')) {
+            $id = DB::table('circle_category_level2')->where('id', $this->level2_category_id)->value('circle_category_id');
+        }
+
+        if (! $id && $this->level3_category_id && Schema::hasTable('circle_category_level3')) {
+            $id = DB::table('circle_category_level3')->where('id', $this->level3_category_id)->value('circle_category_id');
+        }
+
+        if (! $id && $this->level4_category_id && Schema::hasTable('circle_category_level4')) {
+            $id = DB::table('circle_category_level4')->where('id', $this->level4_category_id)->value('circle_category_id');
+        }
+
+        if (! $id) {
+            $notes = $this->notes;
+            $notesSelection = is_array($notes) ? ($notes['category_selection'] ?? []) : [];
+            $id = $notesSelection['level1_category_id'] ?? null;
+            if (! $id && isset($notesSelection['level2_category_id']) && Schema::hasTable('circle_category_level2')) {
+                $id = DB::table('circle_category_level2')->where('id', $notesSelection['level2_category_id'])->value('circle_category_id');
+            }
+            if (! $id && isset($notesSelection['level3_category_id']) && Schema::hasTable('circle_category_level3')) {
+                $id = DB::table('circle_category_level3')->where('id', $notesSelection['level3_category_id'])->value('circle_category_id');
+            }
+            if (! $id && isset($notesSelection['level4_category_id']) && Schema::hasTable('circle_category_level4')) {
+                $id = DB::table('circle_category_level4')->where('id', $notesSelection['level4_category_id'])->value('circle_category_id');
+            }
+        }
+
+        if ($id) {
+            $cat = CircleCategory::find($id);
+            if ($cat) {
+                $this->setRelation('circleCategory', $cat);
+
+                return $cat;
+            }
+        }
+
+        return null;
+    }
+
     public function level2Category(): BelongsTo
     {
         return $this->belongsTo(CircleCategoryLevel2::class, 'level2_category_id');
@@ -247,5 +303,32 @@ class CircleJoinRequest extends Model
     public function level4Category(): BelongsTo
     {
         return $this->belongsTo(CircleCategoryLevel4::class, 'level4_category_id');
+    }
+
+    public function toArray(): array
+    {
+        $array = parent::toArray();
+
+        $circleCategory = $this->circleCategory;
+        $level1Id = $circleCategory?->id;
+
+        $array['circle_category_id'] = $level1Id;
+        $array['category_id'] = $level1Id;
+        $array['circle_category_name'] = $circleCategory?->name;
+        $array['category_name'] = $circleCategory?->name;
+
+        // Backward compatibility for circle_categories array
+        $array['circle_categories'] = $circleCategory ? [
+            [
+                'id' => $circleCategory->id,
+                'category_id' => $circleCategory->id,
+                'name' => $circleCategory->name,
+                'slug' => $circleCategory->slug,
+                'circle_key' => $circleCategory->circle_key,
+                'level' => $circleCategory->level,
+            ]
+        ] : [];
+
+        return $array;
     }
 }

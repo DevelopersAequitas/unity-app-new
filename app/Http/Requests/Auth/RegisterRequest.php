@@ -129,6 +129,7 @@ class RegisterRequest extends FormRequest
             'greenpreneur_goals' => ['nullable', 'array'],
             'interests' => ['nullable', 'array'],
             'community_directory_listing' => ['sometimes', 'required', 'in:Yes,No'],
+            'anniversary_date' => ['nullable', 'date'],
         ];
     }
 

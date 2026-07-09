@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\Circles\UpdateCircleMemberRequest;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\JoinedCircleCategory;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -52,7 +53,7 @@ class CircleMemberController extends Controller
             }
 
             $circle->members()->create($payload);
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
