@@ -328,9 +328,15 @@ class MemberWithCircleController extends BaseApiController
             return null;
         }
 
-        return match ($status) {
-            User::STATUS_FREE => 'Free Peer',
-            User::STATUS_FREE_TRIAL => 'Free Trial Peer',
+        $normalized = strtolower(trim(str_replace(' ', '_', $status)));
+
+        return match ($normalized) {
+            'free_peer' => 'Free Peer',
+            'free_trial_peer' => 'Free Trial Peer',
+            'only_unity_peer' => 'Global Peer',
+            'unity_peer' => 'Green Member',
+            'chartered_peer' => 'Premium Green Member',
+            'charter_investor' => 'Green Investor',
             default => Str::of($status)
                 ->replace(['-', '_'], ' ')
                 ->title()
