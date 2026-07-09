@@ -131,16 +131,15 @@ class CircleJoinRequestController extends BaseApiController
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
         ]);
 
-        $level1Id = $this->resolveCategoryIdFromJoinRequest($request, 'level1_category_id');
+        $circleCategory = $request->circleCategory;
+        $level1Id = $circleCategory?->id;
         $payload['circle_category_id'] = $level1Id;
         $payload['category_id'] = $level1Id;
-        $payload['circle_category_name'] = null;
-        $payload['category_name'] = null;
+        $payload['circle_category_name'] = $circleCategory?->name;
+        $payload['category_name'] = $circleCategory?->name;
 
-        if ($request->relationLoaded('level1Category') && $request->level1Category) {
-            $payload['level1_category'] = ['id' => $request->level1Category->id, 'name' => $request->level1Category->name];
-            $payload['circle_category_name'] = $request->level1Category->name;
-            $payload['category_name'] = $request->level1Category->name;
+        if ($circleCategory) {
+            $payload['level1_category'] = ['id' => $circleCategory->id, 'name' => $circleCategory->name];
         }
 
         if ($request->relationLoaded('level2Category') && $request->level2Category) {

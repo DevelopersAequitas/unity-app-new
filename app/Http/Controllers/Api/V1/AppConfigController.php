@@ -458,7 +458,7 @@ class AppConfigController extends Controller
         return [
             'free_peer' => 'Free Member',
             'unity_peer' => 'Green Member',
-            'only_unity_peer' => 'Eco Member',
+            'only_unity_peer' => 'Global Peer',
             'chartered_peer' => 'Premium Green Member',
             'charter_investor' => 'Green Investor',
         ];
