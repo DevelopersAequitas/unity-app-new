@@ -57,6 +57,8 @@ class UpdateProfileRequest extends FormRequest
             'social_links.website' => ['nullable', 'url', 'max:500'],
             'profile_photo_id' => ['sometimes', 'nullable'],
             'cover_photo_id' => ['sometimes', 'nullable'],
+            'intro_video_id' => ['sometimes', 'nullable'],
+            'profile_video_id' => ['sometimes', 'nullable'],
 
             'state' => ['sometimes', 'nullable', 'string', 'max:100'],
             'country' => ['sometimes', 'nullable', 'string', 'max:100'],

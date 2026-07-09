@@ -78,6 +78,8 @@ class UserProfileResource extends JsonResource
 
             'profile_photo_id' => $this->profile_photo_file_id,
             'cover_photo_id' => $this->cover_photo_file_id,
+            'intro_video_id' => $this->profile_video_id,
+            'profile_video_id' => $this->profile_video_id,
             'media' => $this->mediaValue(),
 
             'profile_photo_url' => $this->profile_photo_file_id
@@ -85,6 +87,12 @@ class UserProfileResource extends JsonResource
                 : null,
             'cover_photo_url' => $this->cover_photo_file_id
                 ? url("/api/v1/files/{$this->cover_photo_file_id}")
+                : null,
+            'intro_video_url' => $this->profile_video_id
+                ? url("/api/v1/files/{$this->profile_video_id}")
+                : null,
+            'profile_video_url' => $this->profile_video_id
+                ? url("/api/v1/files/{$this->profile_video_id}")
                 : null,
 
             'created_at' => $this->created_at,
