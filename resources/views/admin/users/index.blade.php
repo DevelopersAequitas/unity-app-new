@@ -51,7 +51,7 @@
         <div class="d-flex flex-column flex-xl-row justify-content-between gap-3">
             <div class="flex-shrink-0">
                 <div class="fw-semibold text-dark">Membership Approval</div>
-                <div class="small text-muted">Select peers and approve their membership as Only Unity Peer.</div>
+                <div class="small text-muted">Select peers and approve their membership as Global Peer.</div>
             </div>
             <div class="d-flex flex-column flex-md-row align-items-md-end gap-2 gap-md-3 flex-grow-1 justify-content-xl-end">
                 <div>
@@ -646,7 +646,7 @@
                 <div class="modal-body pt-3">
                     <div class="alert alert-success-subtle border-success-subtle mb-3">
                         <div class="fw-semibold">Selected peers: <span id="selectedPeersCount">0</span></div>
-                        <div class="small text-muted">Membership Upgrade: <strong>Only Unity Peer</strong></div>
+                        <div class="small text-muted">Membership Upgrade: <strong>Global Peer</strong></div>
                     </div>
                     <div class="border rounded-3 p-3 bg-light-subtle mb-3">
                         <div class="d-flex justify-content-between gap-3 mb-2">
@@ -943,7 +943,7 @@
         <div class="d-flex flex-column flex-xl-row justify-content-between gap-3">
             <div class="flex-shrink-0">
                 <div class="fw-semibold text-dark">Membership Approval</div>
-                <div class="small text-muted">Select peers and approve their membership as Only Unity Peer.</div>
+                <div class="small text-muted">Select peers and approve their membership as Global Peer.</div>
             </div>
             <div class="d-flex flex-column flex-md-row align-items-md-end gap-2 gap-md-3 flex-grow-1 justify-content-xl-end">
                 <div>
@@ -1536,7 +1536,7 @@
                 <div class="modal-body pt-3">
                     <div class="alert alert-success-subtle border-success-subtle mb-3">
                         <div class="fw-semibold">Selected peers: <span id="selectedPeersCount">0</span></div>
-                        <div class="small text-muted">Membership Upgrade: <strong>Only Unity Peer</strong></div>
+                        <div class="small text-muted">Membership Upgrade: <strong>Global Peer</strong></div>
                     </div>
                     <div class="border rounded-3 p-3 bg-light-subtle mb-3">
                         <div class="d-flex justify-content-between gap-3 mb-2">

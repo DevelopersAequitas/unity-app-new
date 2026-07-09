@@ -277,8 +277,8 @@
                                 $membershipStatusLabels = [
                                     'free_trial_peer' => 'Free Trial Peer',
                                     'free_peer' => 'Free Peer',
-                                    'only_unity_peer' => 'Only Unity Peer',
-                                    'Only Unity Peer' => 'Only Unity Peer',
+                                    'only_unity_peer' => 'Global Peer',
+                                    'Only Unity Peer' => 'Global Peer',
                                     'Circle Peer' => 'Circle Peer',
                                     'Multi Circle Peer' => 'Multi Circle Peer',
                                     'Charter Peer' => 'Charter Peer',
