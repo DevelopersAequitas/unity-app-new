@@ -226,7 +226,7 @@ class AnniversaryImageGenerator
             true // test mode
         );
 
-        $disk = config('filesystems.default', 'public');
+        $disk = 'public';
         $fileModel = $this->fileUploadService->store($uploadedFile, null, $disk);
 
         @unlink($tempPath);
