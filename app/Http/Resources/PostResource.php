@@ -30,6 +30,12 @@ class PostResource extends JsonResource
 
             'content_text' => $this->content_text,
             'content' => $this->content_text,
+            'post_type' => $this->post_type ?? 'standard',
+            'template_id' => $this->template_id ?? null,
+            'title' => $this->title ?? null,
+            'description' => $this->description ?? $this->content_text,
+            'image' => $this->image ?? null,
+            'status' => $this->status ?? ($this->active ? 'active' : 'inactive'),
             'media' => $this->media
                 ? collect($this->media)->map(function ($item) {
                     if (! is_array($item)) {

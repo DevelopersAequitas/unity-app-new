@@ -378,6 +378,11 @@
                         <i class="bi bi-sliders me-2"></i>App Configuration
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.anniversary-creatives.*') ? 'active' : '' }}" href="{{ route('admin.anniversary-creatives.index') }}">
+                        <i class="bi bi-images me-2"></i>Anniversary Creative
+                    </a>
+                </li>
             @endif
 
 

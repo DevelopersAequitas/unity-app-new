@@ -36,8 +36,8 @@ class UserProfileResource extends JsonResource
             'business_keywords' => $this->business_keywords ?? [],
             'products_services_offered' => $this->products_services_offered,
 
-            'gender' => $this->gender,
             'dob' => optional($this->dob)?->format('Y-m-d'),
+            'anniversary_date' => optional($this->anniversary_date)?->format('Y-m-d'),
 
             'experience_years' => $this->experience_years,
             'experience_summary' => $this->experience_summary,

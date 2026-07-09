@@ -21,3 +21,7 @@ Schedule::command('memberships:send-upcoming-expiry-reminders')->dailyAt('11:25'
 Schedule::command('memberships:send-circle-expiry-reminders')->dailyAt('11:25')->timezone('Asia/Kolkata');
 
 Schedule::command('app:send-daily-engagement-reminders')->hourly();
+
+Schedule::command('app:send-anniversary-notifications')
+    ->dailyAt('09:00')
+    ->timezone('Asia/Kolkata');
