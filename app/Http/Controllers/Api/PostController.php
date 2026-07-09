@@ -74,6 +74,7 @@ class PostController extends BaseApiController
             ->selectRaw('NULL::date as impact_date')
             ->selectRaw('NULL::text as impact_action')
             ->selectRaw('NULL::integer as life_impacted')
+            ->selectRaw('posts.post_type as post_type')
             ->where('posts.visibility', 'public')
             ->where('posts.is_deleted', false)
             ->whereNull('posts.deleted_at');
@@ -109,6 +110,7 @@ class PostController extends BaseApiController
             ->selectRaw('impacts.impact_date as impact_date')
             ->selectRaw('impacts.action as impact_action')
             ->selectRaw('COALESCE(impacts.life_impacted, 1) as life_impacted')
+            ->selectRaw('NULL::text as post_type')
             ->where('impacts.status', 'approved')
             ->whereNotNull('impacts.timeline_posted_at');
 
@@ -231,6 +233,7 @@ class PostController extends BaseApiController
                 'type' => (string) $row->source_type,
                 'id' => (string) $row->id,
                 'content_text' => (string) ($row->content_text ?? ''),
+                'post_type' => isset($row->post_type) ? (string) $row->post_type : null,
                 'media' => $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId),
                 'tags' => $this->decodeJsonColumn($row->tags),
                 'visibility' => (string) $row->visibility,

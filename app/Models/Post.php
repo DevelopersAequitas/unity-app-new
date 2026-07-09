@@ -34,6 +34,7 @@ class Post extends Model
         'source_type',
         'source_id',
         'source_event',
+        'post_type',
     ];
 
     protected $casts = [

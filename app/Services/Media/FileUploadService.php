@@ -6,6 +6,7 @@ use App\Exceptions\MediaProcessingException;
 use App\Models\FileModel;
 use App\Models\User;
 use App\Support\Media\Probe;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -17,7 +18,7 @@ class FileUploadService
         private readonly Probe $probe
     ) {}
 
-    public function store(UploadedFile $file, ?User $user = null, ?string $disk = null): FileModel
+    public function store(UploadedFile $file, ?Authenticatable $user = null, ?string $disk = null): FileModel
     {
         $disk = $disk ?: config('filesystems.default', 'public');
         $tempOriginal = $this->storeTemporary($file);
@@ -52,7 +53,7 @@ class FileUploadService
             $optimizedTemp = $optimized['path'];
 
             $model = new FileModel;
-            $model->uploader_user_id = $user?->id;
+            $model->uploader_user_id = ($user instanceof User) ? $user->id : null;
             $model->s3_key = $this->storeOptimized($optimizedTemp, $disk);
             $model->mime_type = $optimized['mime_type'];
             $model->size_bytes = $optimized['size_bytes'];
@@ -75,7 +76,12 @@ class FileUploadService
         $disk = config('filesystems.default', 'public');
 
         if ($file->s3_key) {
-            Storage::disk($disk)->delete($file->s3_key);
+            if (Storage::disk($disk)->exists($file->s3_key)) {
+                Storage::disk($disk)->delete($file->s3_key);
+            }
+            if ($disk !== 'public' && Storage::disk('public')->exists($file->s3_key)) {
+                Storage::disk('public')->delete($file->s3_key);
+            }
         }
 
         $file->delete();

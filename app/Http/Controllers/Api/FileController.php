@@ -38,19 +38,23 @@ class FileController extends BaseApiController
             $disk = config('filesystems.default', 'public');
 
             if (! $file->s3_key || ! Storage::disk($disk)->exists($file->s3_key)) {
-                if (! $file->is_orphaned) {
-                    $file->is_orphaned = true;
-                    $file->save();
-                }
+                if ($file->s3_key && Storage::disk('public')->exists($file->s3_key)) {
+                    $disk = 'public';
+                } else {
+                    if (! $file->is_orphaned) {
+                        $file->is_orphaned = true;
+                        $file->save();
+                    }
 
-                Log::warning("File API lookup failed: Physical file missing in storage for UUID: {$id}", [
-                    'uuid' => $id,
-                    's3_key' => $file->s3_key,
-                    'disk' => $disk,
-                    'ip' => $request->ip(),
-                    'user_id' => auth()->id() ?? auth('admin')->id(),
-                ]);
-                abort(404, 'File not found');
+                    Log::warning("File API lookup failed: Physical file missing in storage for UUID: {$id}", [
+                        'uuid' => $id,
+                        's3_key' => $file->s3_key,
+                        'disk' => $disk,
+                        'ip' => $request->ip(),
+                        'user_id' => auth()->id() ?? auth('admin')->id(),
+                    ]);
+                    abort(404, 'File not found');
+                }
             }
 
             $mime = $file->mime_type
