@@ -1513,7 +1513,7 @@ class UsersController extends Controller
 
         $this->sendMembershipApprovalNotifications(User::query()->whereKey($user->getKey())->get(), $startDate, $endDate, true, $this->normalizeMembershipApprovalAttachments($validated['attachments'] ?? []));
 
-        return back()->with('success', 'Peer approved successfully as Only Unity Peer. Membership valid until '.$endDate->toDateString().'.');
+        return back()->with('success', 'Peer approved successfully as Global Peer. Membership valid until '.$endDate->toDateString().'.');
     }
 
     public function bulkApproveMembership(Request $request)
@@ -1574,7 +1574,7 @@ class UsersController extends Controller
             $this->normalizeMembershipApprovalAttachments($validated['attachments'] ?? [])
         );
 
-        $message = "Approved {$result['approved_count']} peers as Only Unity Peer. Skipped {$result['skipped_count']} non-eligible peers.";
+        $message = "Approved {$result['approved_count']} peers as Global Peer. Skipped {$result['skipped_count']} non-eligible peers.";
 
         if ($request->expectsJson() || $request->wantsJson()) {
             return response()->json([
@@ -2211,7 +2211,7 @@ class UsersController extends Controller
         return [
             'circle_peer' => 'Circle Peer',
             'multi_circle_peer' => 'Multi Circle Peer',
-            'only_unity_peer' => 'Only Unity Peer',
+            'only_unity_peer' => 'Global Peer',
             'free_peer' => 'Free Peer',
             'free_trial_peer' => 'Free Trial Peer',
         ];
@@ -2309,8 +2309,8 @@ class UsersController extends Controller
         $title = 'Membership Approved';
         $startDateLabel = $startDate->format('d M Y');
         $endDateLabel = $endDate->format('d M Y');
-        $message = "Congratulations! Your PeersGlobal membership has been upgraded to Only Unity Peer and is valid from {$startDateLabel} to {$endDateLabel}.";
-        $pushMessage = "Your PeersGlobal membership is now Only Unity Peer, valid until {$endDateLabel}.";
+        $message = "Congratulations! Your PeersGlobal membership has been upgraded to Global Peer and is valid from {$startDateLabel} to {$endDateLabel}.";
+        $pushMessage = "Your PeersGlobal membership is now Global Peer, valid until {$endDateLabel}.";
 
         foreach ($users as $user) {
             $notificationData = [

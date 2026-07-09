@@ -67,6 +67,7 @@ class UserResource extends JsonResource
             'membership_status_label' => match ($membershipStatus) {
                 User::STATUS_FREE_TRIAL => 'Free Trial Peer',
                 User::STATUS_FREE => 'Free Peer',
+                User::STATUS_GREEN_PEER => 'Global Peer',
                 default => $membershipStatus,
             },
             'membership_starts_at' => $this->membership_starts_at,
