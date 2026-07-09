@@ -36,7 +36,7 @@ class SendDailyEngagementReminders extends Command
         $this->info('Daily engagement reminders command started.');
 
         $targetUserId = $this->option('user-id');
-        $now = now()->tz('Asia/Kolkata');
+        $now = now()->tz(config('app.timezone', 'UTC'));
 
         // Fetch all reminder templates and key by activity to prevent feature duplication overlap
         $reminders = DailyNotificationReminder::all()->keyBy('activity');

@@ -100,7 +100,7 @@
             </li>
         </ul>
 
-        <form id="userCreateForm" action="{{ route('admin.users.store') }}" method="POST" class="p-4">
+        <form id="userCreateForm" action="{{ route('admin.users.store') }}" method="POST" class="p-4" novalidate>
             @csrf
 
             <div class="tab-content" id="createPeerTabsContent">
@@ -277,8 +277,8 @@
                                 $membershipStatusLabels = [
                                     'free_trial_peer' => 'Free Trial Peer',
                                     'free_peer' => 'Free Peer',
-                                    'only_unity_peer' => 'Only Unity Peer',
-                                    'Only Unity Peer' => 'Only Unity Peer',
+                                    'only_unity_peer' => 'Global Peer',
+                                    'Only Unity Peer' => 'Global Peer',
                                     'Circle Peer' => 'Circle Peer',
                                     'Multi Circle Peer' => 'Multi Circle Peer',
                                     'Charter Peer' => 'Charter Peer',

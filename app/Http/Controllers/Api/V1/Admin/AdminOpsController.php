@@ -40,12 +40,12 @@ class AdminOpsController extends BaseApiController
     // Join requests
     public function joinRequests(Request $request): JsonResponse
     {
-        return $this->success(CircleJoinRequest::query()->latest('created_at')->paginate(20));
+        return $this->success(CircleJoinRequest::query()->with('circle.categories')->latest('created_at')->paginate(20));
     }
 
     public function joinRequestShow(string $id): JsonResponse
     {
-        return $this->success(CircleJoinRequest::query()->findOrFail($id));
+        return $this->success(CircleJoinRequest::query()->with('circle.categories')->findOrFail($id));
     }
 
     public function joinCdApprove(Request $request, string $id): JsonResponse

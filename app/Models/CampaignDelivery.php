@@ -128,6 +128,6 @@ class CampaignDelivery extends Model
             return $campaign->formatTimestamp($dateTime);
         }
 
-        return $dateTime->copy()->setTimezone('Asia/Kolkata')->format('d M Y H:i');
+        return $dateTime->copy()->setTimezone(config('app.timezone', 'UTC'))->format('d M Y H:i');
     }
 }

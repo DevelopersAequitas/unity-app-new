@@ -10,7 +10,7 @@ use App\Models\CampaignLog;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
-use App\Services\Firebase\FcmService;
+use App\Services\Notifications\FcmService;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -128,7 +128,7 @@ class SendCampaignRecipientJob implements ShouldQueue
                 }
 
                 // Call FCM service synchronously
-                $tokens = $user->pushTokens()->get();
+                $tokens = $fcmService->activeTokensForUser($user->id);
 
                 if ($tokens->isEmpty()) {
                     $notificationStatus = 'failed';
@@ -160,22 +160,12 @@ class SendCampaignRecipientJob implements ShouldQueue
                     $tokenErrors = [];
 
                     foreach ($tokens as $token) {
-                        $context = [
-                            'user_id' => (string) $user->id,
-                            'device_id' => $token->device_id,
-                            'platform' => $token->platform,
-                            'device_type' => $token->platform,
-                            'notification_type' => 'admin_campaign',
-                        ];
-
-                        $result = $fcmService->sendToDevice(
-                            (string) $token->token,
+                        $result = $fcmService->sendToToken(
+                            $token,
                             $title,
                             $message,
                             $pushData,
                             null,
-                            1,
-                            $context,
                             $pamphletImageUrl
                         );
 

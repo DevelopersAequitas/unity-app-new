@@ -24,11 +24,11 @@ class NotificationReadAllApiTest extends TestCase
         $authRead = (string) Str::uuid();
         $otherUnread = (string) Str::uuid();
 
-        DB::table('notifications')->insert([
-            $this->notificationRow($authUnreadOne, $authUser->id, false, null),
-            $this->notificationRow($authUnreadTwo, $authUser->id, false, null),
-            $this->notificationRow($authRead, $authUser->id, true, now()),
-            $this->notificationRow($otherUnread, $otherUser->id, false, null),
+        DB::table('app_notifications')->insert([
+            $this->notificationRow($authUnreadOne, $authUser->id, null),
+            $this->notificationRow($authUnreadTwo, $authUser->id, null),
+            $this->notificationRow($authRead, $authUser->id, now()),
+            $this->notificationRow($otherUnread, $otherUser->id, null),
         ]);
 
         Sanctum::actingAs($authUser);
@@ -43,20 +43,21 @@ class NotificationReadAllApiTest extends TestCase
                 ],
             ]);
 
-        $this->assertDatabaseHas('notifications', [
+        $this->assertDatabaseHas('app_notifications', [
             'id' => $authUnreadOne,
             'user_id' => $authUser->id,
-            'is_read' => true,
         ]);
-        $this->assertDatabaseHas('notifications', [
+        $this->assertNotNull(DB::table('app_notifications')->where('id', $authUnreadOne)->value('read_at'));
+
+        $this->assertDatabaseHas('app_notifications', [
             'id' => $authUnreadTwo,
             'user_id' => $authUser->id,
-            'is_read' => true,
         ]);
-        $this->assertDatabaseHas('notifications', [
+        $this->assertNotNull(DB::table('app_notifications')->where('id', $authUnreadTwo)->value('read_at'));
+
+        $this->assertDatabaseHas('app_notifications', [
             'id' => $otherUnread,
             'user_id' => $otherUser->id,
-            'is_read' => false,
             'read_at' => null,
         ]);
     }
@@ -67,8 +68,8 @@ class NotificationReadAllApiTest extends TestCase
 
         $authUser = $this->createUser('auth@example.com');
 
-        DB::table('notifications')->insert([
-            $this->notificationRow((string) Str::uuid(), $authUser->id, true, now()),
+        DB::table('app_notifications')->insert([
+            $this->notificationRow((string) Str::uuid(), $authUser->id, now()),
         ]);
 
         Sanctum::actingAs($authUser);
@@ -97,7 +98,7 @@ class NotificationReadAllApiTest extends TestCase
 
     private function createSchema(): void
     {
-        Schema::dropIfExists('notifications');
+        Schema::dropIfExists('app_notifications');
         Schema::dropIfExists('users');
 
         Schema::create('users', function (Blueprint $table): void {
@@ -111,15 +112,17 @@ class NotificationReadAllApiTest extends TestCase
             $table->softDeletes();
         });
 
-        Schema::create('notifications', function (Blueprint $table): void {
+        Schema::create('app_notifications', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->uuid('user_id');
             $table->string('type');
             $table->json('payload')->nullable();
             $table->json('data')->nullable();
-            $table->boolean('is_read')->default(false);
+            $table->string('title')->nullable();
+            $table->text('message')->nullable();
             $table->timestamp('created_at')->nullable();
             $table->timestamp('read_at')->nullable();
+            $table->timestamp('updated_at')->nullable();
         });
     }
 
@@ -133,7 +136,7 @@ class NotificationReadAllApiTest extends TestCase
         ]);
     }
 
-    private function notificationRow(string $id, string $userId, bool $isRead, mixed $readAt): array
+    private function notificationRow(string $id, string $userId, mixed $readAt): array
     {
         return [
             'id' => $id,
@@ -141,7 +144,6 @@ class NotificationReadAllApiTest extends TestCase
             'type' => 'test',
             'payload' => json_encode(['message' => 'Test notification']),
             'data' => null,
-            'is_read' => $isRead,
             'created_at' => now(),
             'read_at' => $readAt,
         ];

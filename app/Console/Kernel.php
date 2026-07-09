@@ -10,6 +10,7 @@ use App\Console\Commands\RetryIgnoredZohoWebhooks;
 use App\Console\Commands\RetryZohoWebhook;
 use App\Console\Commands\RetryZohoWebhooks;
 use App\Console\Commands\RunNotificationCampaignsCommand;
+use App\Console\Commands\SendAnniversaryNotifications;
 use App\Console\Commands\SendAppUpdateReminderNotifications;
 use App\Console\Commands\SendBrandPartnerOfferExpiryNotifications;
 use App\Console\Commands\SendCircleMembershipExpiryReminders;
@@ -48,6 +49,7 @@ class Kernel extends ConsoleKernel
         SendCircleMembershipExpiryReminders::class,
         RunNotificationCampaignsCommand::class,
         GenerateBirthdayCreatives::class,
+        SendAnniversaryNotifications::class,
     ];
 
     protected function schedule(Schedule $schedule): void
@@ -66,5 +68,6 @@ class Kernel extends ConsoleKernel
         $schedule->command('notifications:campaigns hourly')->hourly();
         $schedule->command('notifications:campaigns daily')->dailyAt('09:15');
         $schedule->command('notifications:campaigns weekly')->sundays()->at('18:00');
+        $schedule->command('app:send-anniversary-notifications')->everyMinute();
     }
 }

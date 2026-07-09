@@ -89,7 +89,7 @@ class UsersController extends Controller
 
         $selectedUser = null;
         $selectedUserLabel = '';
-        if ($q && \Illuminate\Support\Str::isUuid($q)) {
+        if ($q && Str::isUuid($q)) {
             $selectedUser = User::find($q);
             if ($selectedUser) {
                 $cityName = $selectedUser->city;
@@ -628,7 +628,7 @@ class UsersController extends Controller
             ]);
         }
 
-        if ($request->has('add_circle_membership') && filled($validated['additional_circle_id'] ?? null)) {
+        if (filled($validated['additional_circle_id'] ?? null)) {
             $alreadyJoined = CircleMember::query()
                 ->where('user_id', $user->id)
                 ->where('circle_id', $validated['additional_circle_id'])
@@ -707,7 +707,7 @@ class UsersController extends Controller
             'circle_meeting_frequency',
         ];
 
-        if ($request->has('add_circle_membership') && $request->filled('additional_circle_id')) {
+        if ($request->filled('additional_circle_id')) {
             $updatableExclusions[] = 'circle_joined_at';
             $updatableExclusions[] = 'circle_expires_at';
         }
@@ -805,7 +805,7 @@ class UsersController extends Controller
                 }
 
                 $additionalCircleId = $validated['additional_circle_id'] ?? null;
-                $isAddingAdditionalCircle = $request->has('add_circle_membership') && filled($additionalCircleId);
+                $isAddingAdditionalCircle = filled($additionalCircleId);
 
                 if ($selectedCircleId && ! $isAddingAdditionalCircle) {
                     $memberRecord = CircleMember::query()->withTrashed()->firstOrNew([
@@ -1058,7 +1058,7 @@ class UsersController extends Controller
             $this->membershipNotificationService->sendStatusChanged($updatedUser, $previousMembershipStatus, (string) $updatedUser->membership_status, $adminName);
         }
 
-        $statusMessage = $request->has('add_circle_membership')
+        $statusMessage = $request->filled('additional_circle_id')
             ? 'Circle membership added successfully.'
             : 'User updated successfully.';
 
@@ -1513,7 +1513,7 @@ class UsersController extends Controller
 
         $this->sendMembershipApprovalNotifications(User::query()->whereKey($user->getKey())->get(), $startDate, $endDate, true, $this->normalizeMembershipApprovalAttachments($validated['attachments'] ?? []));
 
-        return back()->with('success', 'Peer approved successfully as Only Unity Peer. Membership valid until '.$endDate->toDateString().'.');
+        return back()->with('success', 'Peer approved successfully as Global Peer. Membership valid until '.$endDate->toDateString().'.');
     }
 
     public function bulkApproveMembership(Request $request)
@@ -1574,7 +1574,7 @@ class UsersController extends Controller
             $this->normalizeMembershipApprovalAttachments($validated['attachments'] ?? [])
         );
 
-        $message = "Approved {$result['approved_count']} peers as Only Unity Peer. Skipped {$result['skipped_count']} non-eligible peers.";
+        $message = "Approved {$result['approved_count']} peers as Global Peer. Skipped {$result['skipped_count']} non-eligible peers.";
 
         if ($request->expectsJson() || $request->wantsJson()) {
             return response()->json([
@@ -1964,7 +1964,7 @@ class UsersController extends Controller
         $perPage = $request->integer('per_page') ?: 20;
 
         if ($search !== '') {
-            if (\Illuminate\Support\Str::isUuid($search)) {
+            if (Str::isUuid($search)) {
                 $query->where('users.id', $search);
             } else {
                 $query->where(function ($q) use ($search) {
@@ -2211,7 +2211,7 @@ class UsersController extends Controller
         return [
             'circle_peer' => 'Circle Peer',
             'multi_circle_peer' => 'Multi Circle Peer',
-            'only_unity_peer' => 'Only Unity Peer',
+            'only_unity_peer' => 'Global Peer',
             'free_peer' => 'Free Peer',
             'free_trial_peer' => 'Free Trial Peer',
         ];
@@ -2309,8 +2309,8 @@ class UsersController extends Controller
         $title = 'Membership Approved';
         $startDateLabel = $startDate->format('d M Y');
         $endDateLabel = $endDate->format('d M Y');
-        $message = "Congratulations! Your PeersGlobal membership has been upgraded to Only Unity Peer and is valid from {$startDateLabel} to {$endDateLabel}.";
-        $pushMessage = "Your PeersGlobal membership is now Only Unity Peer, valid until {$endDateLabel}.";
+        $message = "Congratulations! Your PeersGlobal membership has been upgraded to Global Peer and is valid from {$startDateLabel} to {$endDateLabel}.";
+        $pushMessage = "Your PeersGlobal membership is now Global Peer, valid until {$endDateLabel}.";
 
         foreach ($users as $user) {
             $notificationData = [

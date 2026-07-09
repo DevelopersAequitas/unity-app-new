@@ -36,7 +36,16 @@
 
             <p>Email: {{ $record->user?->email }} | Phone: {{ $record->user?->phone }}</p>
             <p>Company: {{ $record->user?->adminCompanyLabel() }} | City: {{ $record->user?->adminCityLabel() }}</p>
-            <p>Circle: {{ $record->circle?->name }}</p>
+            <p>
+                Circle: <strong>{{ $record->circle?->name }}</strong><br>
+                <span class="small text-muted">Circle ID: <span class="user-select-all">{{ $record->circle_id }}</span></span>
+                @if($record->circle?->template)
+                    <span class="small text-muted ms-3">Template: {{ $record->circle->template->name }} ({{ $record->circle->template->slug }})</span>
+                @endif
+                <br>
+                <span class="small text-muted">Circle Category ID: <span class="user-select-all">{{ $record->circleCategory?->id ?? '—' }}</span></span>
+                <span class="small text-muted ms-3">Circle Category Name: {{ $record->circleCategory?->name ?? '—' }}</span>
+            </p>
             <p>Reason: {{ $record->reason_for_joining }}</p>
             <p>Status: <span class="badge text-bg-secondary">{{ $statusLabels[$record->status] ?? $record->status }}</span></p>
             <p>

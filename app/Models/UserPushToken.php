@@ -65,6 +65,61 @@ class UserPushToken extends Model
         $this->attributes[$col] = $value;
     }
 
+    public static function registerTokenForUser($user, array $attributes): self
+    {
+        $userId = $user->id;
+        $token = $attributes['token'];
+        $deviceId = $attributes['device_id'] ?? null;
+
+        // Delete token if it belongs to a different user
+        self::where('token', $token)
+            ->where(self::getUserIdColumn(), '!=', $userId)
+            ->delete();
+
+        // Clean up duplicates for the same user on the same device
+        if (filled($deviceId)) {
+            self::where('device_id', $deviceId)
+                ->where(self::getUserIdColumn(), $userId)
+                ->where('token', '!=', $token)
+                ->delete();
+        }
+
+        $updates = [
+            self::getUserIdColumn() => $userId,
+            'platform' => isset($attributes['platform']) ? strtolower((string) $attributes['platform']) : null,
+            'device_id' => $deviceId,
+            'app_version' => $attributes['app_version'] ?? null,
+        ];
+
+        if (Schema::hasColumn('user_push_tokens', 'is_active')) {
+            $updates['is_active'] = true;
+        }
+        if (Schema::hasColumn('user_push_tokens', 'last_used_at')) {
+            $updates['last_used_at'] = now();
+        }
+
+        if (Schema::hasColumn('user_push_tokens', 'last_seen_at')) {
+            $updates['last_seen_at'] = now();
+        }
+        if (Schema::hasColumn('user_push_tokens', 'status')) {
+            $updates['status'] = 'active';
+        }
+        if (Schema::hasColumn('user_push_tokens', 'token_status')) {
+            $updates['token_status'] = 'active';
+        }
+        if (Schema::hasColumn('user_push_tokens', 'failed_at')) {
+            $updates['failed_at'] = null;
+        }
+        if (Schema::hasColumn('user_push_tokens', 'failure_reason')) {
+            $updates['failure_reason'] = null;
+        }
+
+        return self::updateOrCreate(
+            ['token' => $token],
+            $updates
+        );
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, self::getUserIdColumn());

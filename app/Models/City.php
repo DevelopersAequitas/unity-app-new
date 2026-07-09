@@ -62,6 +62,56 @@ class City extends Model
         return $this->attributes['state_name'] ?? $this->attributes['state'] ?? null;
     }
 
+    private static array $stateCodes = [
+        'andhra pradesh' => 'AP',
+        'arunachal pradesh' => 'AR',
+        'assam' => 'AS',
+        'bihar' => 'BR',
+        'chhattisgarh' => 'CG',
+        'goa' => 'GA',
+        'gujarat' => 'GJ',
+        'haryana' => 'HR',
+        'himachal pradesh' => 'HP',
+        'jharkhand' => 'JH',
+        'karnataka' => 'KA',
+        'kerala' => 'KL',
+        'madhya pradesh' => 'MP',
+        'maharashtra' => 'MH',
+        'manipur' => 'MN',
+        'meghalaya' => 'ML',
+        'mizoram' => 'MZ',
+        'nagaland' => 'NL',
+        'odisha' => 'OD',
+        'punjab' => 'PB',
+        'rajasthan' => 'RJ',
+        'sikkim' => 'SK',
+        'tamil nadu' => 'TN',
+        'telangana' => 'TG',
+        'tripura' => 'TR',
+        'uttarakhand' => 'UT',
+        'uttar pradesh' => 'UP',
+        'west bengal' => 'WB',
+        'andaman and nicobar islands' => 'AN',
+        'chandigarh' => 'CH',
+        'dadra and nagar haveli and daman and diu' => 'DN',
+        'delhi' => 'DL',
+        'jammu and kashmir' => 'JK',
+        'ladakh' => 'LA',
+        'lakshadweep' => 'LD',
+        'puducherry' => 'PY',
+    ];
+
+    public function getFormattedLocationAttribute(): string
+    {
+        $cityName = $this->name;
+        $stateName = $this->state;
+        $stateKey = strtolower(trim($stateName ?? ''));
+        $stateCode = self::$stateCodes[$stateKey] ?? strtoupper(substr($stateName ?? '', 0, 2));
+        $countryCode = strtoupper($this->country_code ?? 'IN');
+
+        return "{$cityName}, {$stateCode}, {$countryCode}";
+    }
+
     public function getCountryNameAttribute(): ?string
     {
         return $this->attributes['country_name'] ?? $this->attributes['country'] ?? null;

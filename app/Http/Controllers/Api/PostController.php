@@ -257,8 +257,8 @@ class PostController extends BaseApiController
                 'is_liked_by_me' => (bool) $row->is_liked_by_me,
                 'saves_count' => (int) $row->saves_count,
                 'is_saved' => (bool) $row->is_saved_by_me,
-                'created_at' => $this->formatToIstDateTime($row->created_at),
-                'updated_at' => $this->formatToIstDateTime($row->updated_at),
+                'created_at' => $this->formatToDefaultDateTime($row->created_at),
+                'updated_at' => $this->formatToDefaultDateTime($row->updated_at),
             ];
 
             if (
@@ -338,14 +338,14 @@ class PostController extends BaseApiController
         ];
     }
 
-    private function formatToIstDateTime(mixed $value): ?string
+    private function formatToDefaultDateTime(mixed $value): ?string
     {
         if (empty($value)) {
             return null;
         }
 
         return Carbon::parse((string) $value)
-            ->timezone('Asia/Kolkata')
+            ->timezone(config('app.timezone', 'UTC'))
             ->format('Y-m-d H:i:s');
     }
 

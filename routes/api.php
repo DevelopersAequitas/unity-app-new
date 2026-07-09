@@ -68,6 +68,7 @@ use App\Http\Controllers\Api\V1\BusinessCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryController;
 use App\Http\Controllers\Api\V1\CircleCategoryUsageController;
 use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMemberController;
+use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinsController;
@@ -274,6 +275,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/circle-categories', [CircleCategoryController::class, 'index']);
     Route::get('/circle-categories/{idOrSlug}', [CircleCategoryController::class, 'show']);
     Route::get('/collaboration-types', [CollaborationTypeController::class, 'index']);
+    Route::get('/cities', [CityController::class, 'index']);
 
     Route::post('/contacts/sync', [UserContactController::class, 'syncContacts']);
     Route::get('/contacts', [UserContactController::class, 'getContacts']);
@@ -361,6 +363,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 
         Route::get('/profile', [ProfileController::class, 'show']);
+        Route::get('/profile/introducer', [ProfileController::class, 'introducer']);
+        Route::get('/profile/introduced-peers', [ProfileController::class, 'introducedPeers']);
+        Route::post('/profile/introduced-peers', [ProfileController::class, 'addIntroducedPeer']);
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);

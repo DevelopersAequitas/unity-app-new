@@ -185,7 +185,7 @@ class GreenpreneurAppConfigSeeder extends Seeder
 
     private function membershipLabels(): array
     {
-        return ['free_peer' => 'Free Member', 'unity_peer' => 'Green Member', 'only_unity_peer' => 'Eco Member', 'chartered_peer' => 'Premium Green Member', 'charter_investor' => 'Green Investor'];
+        return ['free_peer' => 'Free Member', 'unity_peer' => 'Green Member', 'only_unity_peer' => 'Global Peer', 'chartered_peer' => 'Premium Green Member', 'charter_investor' => 'Green Investor'];
     }
 
     private function labelGroup(string $key): string

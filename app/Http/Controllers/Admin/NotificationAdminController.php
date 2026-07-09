@@ -627,9 +627,9 @@ class NotificationAdminController extends Controller
             return $this->recordDelivery($notification, 'push', false, 'No valid Firebase device token found.', 'firebase');
         }
 
+        $userIdColumn = UserPushToken::getUserIdColumn();
         $tokens = UserPushToken::query()
-            ->where('user_id', $notification->user_id)
-            ->where('is_active', true)
+            ->where($userIdColumn, $notification->user_id)
             ->whereNotNull('token')
             ->get();
 
@@ -804,7 +804,13 @@ class NotificationAdminController extends Controller
             return;
         }
 
-        $result = $channel === 'push' ? $results['push'] : $results['email'];
+        if ($channel === 'push') {
+            $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
+
+            return;
+        }
+
+        $result = $results['email'];
         if ($result['success'] ?? false) {
             $notification->update(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'failure_reason' => null]);
 

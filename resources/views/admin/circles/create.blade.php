@@ -92,7 +92,7 @@
         </ul>
 
 
-        <form action="{{ route('admin.circles.store') }}" method="POST" class="p-4">
+        <form action="{{ route('admin.circles.store') }}" method="POST" class="p-4" novalidate>
             @csrf
 
             <div class="tab-content" id="createCircleTabsContent">
@@ -259,7 +259,7 @@
                         </div>
                         <div class="col-md-5">
                             <label class="form-label fw-semibold">City</label>
-                            <select name="city_id" class="form-select" required>
+                            <select name="city_id" id="citySelect" class="form-select" required>
                                 <option value="" disabled @selected(old('city_id') === null)>Select city</option>
                                 @foreach ($cities as $city)
                                     <option value="{{ $city->id }}" @selected((string) old('city_id') === (string) $city->id)>
@@ -309,8 +309,8 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Calendar Timezone</label>
-                            <input type="text" class="form-control bg-light" value="Asia/Kolkata" readonly>
-                            <input type="hidden" name="calendar_timezone" value="Asia/Kolkata">
+                            <input type="text" class="form-control bg-light" value="{{ config('app.timezone', 'UTC') }}" readonly>
+                            <input type="hidden" name="calendar_timezone" value="{{ config('app.timezone', 'UTC') }}">
                         </div>
                     </div>
 
@@ -348,5 +348,27 @@
     });
 
     @include('admin.circles.partials.categories-selector-script')
+
+    function initCitySelect2() {
+        if (window.jQuery && window.jQuery.fn.select2) {
+            const $citySelect = $('#citySelect');
+            if ($citySelect.hasClass('select2-hidden-accessible')) {
+                $citySelect.select2('destroy');
+            }
+            $citySelect.select2({
+                placeholder: "Select city",
+                allowClear: true,
+                width: '100%'
+            });
+        }
+    }
+
+    // Initialize on page load
+    initCitySelect2();
+
+    // Re-initialize when settings tab is shown to fix Select2 width calculations inside hidden tabs
+    document.getElementById('settings-tab')?.addEventListener('shown.bs.tab', function () {
+        initCitySelect2();
+    });
 </script>
 @endpush
