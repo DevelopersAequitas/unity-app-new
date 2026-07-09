@@ -25,7 +25,7 @@ class CircleJoiningRequestsTest extends TestCase
 
         $roleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader', 'chair', 'vice_chair', 'secretary', 'member'];
         foreach ($roleKeys as $k) {
-            $role = new Role();
+            $role = new Role;
             $role->id = (string) Str::uuid();
             $role->name = ucfirst(str_replace('_', ' ', $k));
             $role->key = $k;
@@ -48,7 +48,7 @@ class CircleJoiningRequestsTest extends TestCase
         $admin->roles()->attach($role->id);
 
         // 2. Create Template
-        $template = new CircleTemplate();
+        $template = new CircleTemplate;
         $template->id = (string) Str::uuid();
         $template->name = 'Standard Template';
         $template->slug = 'standard-template-slug';
@@ -56,7 +56,7 @@ class CircleJoiningRequestsTest extends TestCase
         $template->save();
 
         // 3. Create Circle with Template
-        $circle = new Circle();
+        $circle = new Circle;
         $circle->id = (string) Str::uuid();
         $circle->name = 'Aequitas Ahmedabad Circle';
         $circle->slug = 'aequitas-ahmedabad-circle';
@@ -78,7 +78,7 @@ class CircleJoiningRequestsTest extends TestCase
         ]);
 
         // 5. Create Peer user and Join Request
-        $user = new User();
+        $user = new User;
         $user->id = (string) Str::uuid();
         $user->first_name = 'Rahul';
         $user->last_name = 'Parmar';
@@ -87,7 +87,7 @@ class CircleJoiningRequestsTest extends TestCase
         $user->password_hash = bcrypt('password');
         $user->save();
 
-        $joinRequest = new CircleJoinRequest();
+        $joinRequest = new CircleJoinRequest;
         $joinRequest->id = (string) Str::uuid();
         $joinRequest->user_id = $user->id;
         $joinRequest->circle_id = $circle->id;
@@ -109,7 +109,7 @@ class CircleJoiningRequestsTest extends TestCase
 
         // 7. Request show page
         $responseShow = $this->actingAs($admin, 'admin')
-            ->get('/admin/pending-requests/circle-joining-requests/' . $joinRequest->id);
+            ->get('/admin/pending-requests/circle-joining-requests/'.$joinRequest->id);
 
         $responseShow->assertOk();
         $responseShow->assertSee($circle->name);
@@ -125,7 +125,7 @@ class CircleJoiningRequestsTest extends TestCase
         $apiResponseMy->assertJsonFragment([
             'circle_id' => $circle->id,
         ]);
-        
+
         $myRequestsData = $apiResponseMy->json('data.items');
         $this->assertNotEmpty($myRequestsData);
         $this->assertEquals($circle->id, $myRequestsData[0]['circle']['id']);
@@ -138,12 +138,12 @@ class CircleJoiningRequestsTest extends TestCase
 
         // 9. Act as User and request show API
         Sanctum::actingAs($user);
-        $apiResponseShow = $this->getJson('/api/v1/circle-join-requests/' . $joinRequest->id);
+        $apiResponseShow = $this->getJson('/api/v1/circle-join-requests/'.$joinRequest->id);
         $apiResponseShow->assertOk();
         $apiResponseShow->assertJsonFragment([
             'circle_id' => $circle->id,
         ]);
-        
+
         $showRequestData = $apiResponseShow->json('data');
         $this->assertEquals($circle->id, $showRequestData['circle']['id']);
         $this->assertEquals($category->name, $showRequestData['circle']['categories'][0]['name']);
@@ -164,7 +164,7 @@ class CircleJoiningRequestsTest extends TestCase
         ]);
 
         // 2. Create Template
-        $template = new CircleTemplate();
+        $template = new CircleTemplate;
         $template->id = (string) Str::uuid();
         $template->name = 'Standard Template';
         $template->slug = 'standard-template-slug';
@@ -172,7 +172,7 @@ class CircleJoiningRequestsTest extends TestCase
         $template->save();
 
         // 3. Create Circle with Template
-        $circle1 = new Circle();
+        $circle1 = new Circle;
         $circle1->id = (string) Str::uuid();
         $circle1->name = 'First active Circle';
         $circle1->slug = 'first-active-circle';
@@ -180,7 +180,7 @@ class CircleJoiningRequestsTest extends TestCase
         $circle1->template_id = $template->id;
         $circle1->save();
 
-        $circle2 = new Circle();
+        $circle2 = new Circle;
         $circle2->id = (string) Str::uuid();
         $circle2->name = 'Second active Circle';
         $circle2->slug = 'second-active-circle';
@@ -197,7 +197,7 @@ class CircleJoiningRequestsTest extends TestCase
         ]);
 
         // 5. Create Peer user
-        $user = new User();
+        $user = new User;
         $user->id = (string) Str::uuid();
         $user->first_name = 'Amit';
         $user->last_name = 'Shah';
@@ -241,7 +241,7 @@ class CircleJoiningRequestsTest extends TestCase
         ]);
 
         // Test POST with invalid category id returns 422
-        $circle3 = new Circle();
+        $circle3 = new Circle;
         $circle3->id = (string) Str::uuid();
         $circle3->name = 'Third active Circle';
         $circle3->slug = 'third-active-circle';
@@ -278,7 +278,7 @@ class CircleJoiningRequestsTest extends TestCase
         ]);
 
         // 3. Create Circle
-        $circle = new Circle();
+        $circle = new Circle;
         $circle->id = (string) Str::uuid();
         $circle->name = 'Test Circle';
         $circle->slug = 'test-circle';
@@ -286,7 +286,7 @@ class CircleJoiningRequestsTest extends TestCase
         $circle->save();
 
         // 4. Create User
-        $user = new User();
+        $user = new User;
         $user->id = (string) Str::uuid();
         $user->first_name = 'Amit';
         $user->last_name = 'Shah';
@@ -296,7 +296,7 @@ class CircleJoiningRequestsTest extends TestCase
         $user->save();
 
         // 5. Create Join Request with only level4_category_id = 1
-        $joinRequest = new CircleJoinRequest();
+        $joinRequest = new CircleJoinRequest;
         $joinRequest->id = (string) Str::uuid();
         $joinRequest->user_id = $user->id;
         $joinRequest->circle_id = $circle->id;

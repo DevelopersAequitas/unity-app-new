@@ -251,29 +251,29 @@ class CircleJoinRequest extends Model
 
         $id = $this->level1_category_id;
 
-        if (!$id && $this->level2_category_id && Schema::hasTable('circle_category_level2')) {
+        if (! $id && $this->level2_category_id && Schema::hasTable('circle_category_level2')) {
             $id = DB::table('circle_category_level2')->where('id', $this->level2_category_id)->value('circle_category_id');
         }
 
-        if (!$id && $this->level3_category_id && Schema::hasTable('circle_category_level3')) {
+        if (! $id && $this->level3_category_id && Schema::hasTable('circle_category_level3')) {
             $id = DB::table('circle_category_level3')->where('id', $this->level3_category_id)->value('circle_category_id');
         }
 
-        if (!$id && $this->level4_category_id && Schema::hasTable('circle_category_level4')) {
+        if (! $id && $this->level4_category_id && Schema::hasTable('circle_category_level4')) {
             $id = DB::table('circle_category_level4')->where('id', $this->level4_category_id)->value('circle_category_id');
         }
 
-        if (!$id) {
+        if (! $id) {
             $notes = $this->notes;
             $notesSelection = is_array($notes) ? ($notes['category_selection'] ?? []) : [];
             $id = $notesSelection['level1_category_id'] ?? null;
-            if (!$id && isset($notesSelection['level2_category_id']) && Schema::hasTable('circle_category_level2')) {
+            if (! $id && isset($notesSelection['level2_category_id']) && Schema::hasTable('circle_category_level2')) {
                 $id = DB::table('circle_category_level2')->where('id', $notesSelection['level2_category_id'])->value('circle_category_id');
             }
-            if (!$id && isset($notesSelection['level3_category_id']) && Schema::hasTable('circle_category_level3')) {
+            if (! $id && isset($notesSelection['level3_category_id']) && Schema::hasTable('circle_category_level3')) {
                 $id = DB::table('circle_category_level3')->where('id', $notesSelection['level3_category_id'])->value('circle_category_id');
             }
-            if (!$id && isset($notesSelection['level4_category_id']) && Schema::hasTable('circle_category_level4')) {
+            if (! $id && isset($notesSelection['level4_category_id']) && Schema::hasTable('circle_category_level4')) {
                 $id = DB::table('circle_category_level4')->where('id', $notesSelection['level4_category_id'])->value('circle_category_id');
             }
         }
@@ -282,6 +282,7 @@ class CircleJoinRequest extends Model
             $cat = CircleCategory::find($id);
             if ($cat) {
                 $this->setRelation('circleCategory', $cat);
+
                 return $cat;
             }
         }
