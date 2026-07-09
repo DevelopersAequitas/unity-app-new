@@ -33,7 +33,7 @@ class PostResource extends JsonResource
             if (\Illuminate\Support\Str::isUuid($fileId)) {
                 $fileModel = \App\Models\File::find($fileId);
                 if ($fileModel && $fileModel->s3_key) {
-                    $image = asset('storage/'.$fileModel->s3_key);
+                    $image = 'https://dev.peersunity.com/storage/'.ltrim($fileModel->s3_key, '/');
                 }
             }
         }
@@ -61,7 +61,7 @@ class PostResource extends JsonResource
                     if ($isAnniversary && $id) {
                         $fileModel = \App\Models\File::find($id);
                         if ($fileModel && $fileModel->s3_key) {
-                            $url = asset('storage/'.$fileModel->s3_key);
+                            $url = 'https://dev.peersunity.com/storage/'.ltrim($fileModel->s3_key, '/');
                         }
                     }
 
@@ -75,22 +75,31 @@ class PostResource extends JsonResource
             'tags' => $this->tags,
             'visibility' => $this->visibility,
             'moderation_status' => $this->moderation_status ?? null,
+            'is_system_announcement' => $isAnniversary,
 
-            'author' => $this->when(
-                ($this->relationLoaded('user') && $this->user)
-                || ($this->relationLoaded('author') && $this->author),
-                function () {
-                    $author = $this->user ?? $this->author;
+            'author' => $isAnniversary
+                ? [
+                    'id' => null,
+                    'display_name' => 'Community Update',
+                    'first_name' => 'Community',
+                    'last_name' => 'Update',
+                    'profile_photo_url' => null,
+                ]
+                : $this->when(
+                    ($this->relationLoaded('user') && $this->user)
+                    || ($this->relationLoaded('author') && $this->author),
+                    function () {
+                        $author = $this->user ?? $this->author;
 
-                    return [
-                        'id' => $author?->id,
-                        'display_name' => $author?->display_name,
-                        'first_name' => $author?->first_name,
-                        'last_name' => $author?->last_name,
-                        'profile_photo_url' => $author?->profile_photo_url,
-                    ];
-                }
-            ),
+                        return [
+                            'id' => $author?->id,
+                            'display_name' => $author?->display_name,
+                            'first_name' => $author?->first_name,
+                            'last_name' => $author?->last_name,
+                            'profile_photo_url' => $author?->profile_photo_url,
+                        ];
+                    }
+                ),
 
             'circle' => $this->when(
                 $this->relationLoaded('circle') && $this->circle,
