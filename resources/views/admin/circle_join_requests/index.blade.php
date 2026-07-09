@@ -33,7 +33,7 @@
 
     <div class="card-activities-wrapper"><div class="table-responsive">
         <table class="table table-premium mb-0 align-middle">
-            <thead><tr><th>Submitted At</th><th>Peer</th><th>Circle</th><th>Reason for Joining</th><th>Status</th><th>DED Approval</th><th>Payment</th><th class="text-end">Actions</th></tr></thead>
+            <thead><tr><th>Submitted At</th><th>Peer</th><th>Category</th><th>Reason for Joining</th><th>Status</th><th>DED Approval</th><th>Payment</th><th class="text-end">Actions</th></tr></thead>
             <tbody>
             @forelse($requests as $row)
                 <tr>
@@ -42,14 +42,11 @@
                         @include('admin.partials.peer_identity', ['user' => $row->user])
                     </td>
                     <td>
-                        <div class="fw-semibold text-dark">{{ $row->circle?->name }}</div>
-                        <div class="small text-muted mt-1" style="font-size: 0.75rem;">ID: <span class="user-select-all">{{ $row->circle_id }}</span></div>
-                        @if($row->circle?->template)
-                            <div class="small text-muted" style="font-size: 0.75rem;">Template: {{ $row->circle->template->name }} ({{ $row->circle->template->slug }})</div>
-                        @endif
                         @if($row->circleCategory)
-                            <div class="mt-1 small text-dark" style="font-size: 0.75rem;">Category: {{ $row->circleCategory->name }}</div>
-                            <div class="small text-muted" style="font-size: 0.75rem;">Category ID: {{ $row->circleCategory->id }}</div>
+                            <div class="fw-semibold text-dark">Category: {{ $row->circleCategory->name }}</div>
+                            <div class="small text-muted mt-1" style="font-size: 0.75rem;">Category ID: {{ $row->circleCategory->id }}</div>
+                        @else
+                            <div class="text-muted">—</div>
                         @endif
                     </td>
                     <td>{{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 50) }}</td>

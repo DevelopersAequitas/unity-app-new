@@ -303,4 +303,31 @@ class CircleJoinRequest extends Model
     {
         return $this->belongsTo(CircleCategoryLevel4::class, 'level4_category_id');
     }
+
+    public function toArray(): array
+    {
+        $array = parent::toArray();
+
+        $circleCategory = $this->circleCategory;
+        $level1Id = $circleCategory?->id;
+
+        $array['circle_category_id'] = $level1Id;
+        $array['category_id'] = $level1Id;
+        $array['circle_category_name'] = $circleCategory?->name;
+        $array['category_name'] = $circleCategory?->name;
+
+        // Backward compatibility for circle_categories array
+        $array['circle_categories'] = $circleCategory ? [
+            [
+                'id' => $circleCategory->id,
+                'category_id' => $circleCategory->id,
+                'name' => $circleCategory->name,
+                'slug' => $circleCategory->slug,
+                'circle_key' => $circleCategory->circle_key,
+                'level' => $circleCategory->level,
+            ]
+        ] : [];
+
+        return $array;
+    }
 }
