@@ -100,7 +100,7 @@
             </li>
         </ul>
 
-        <form id="userCreateForm" action="{{ route('admin.users.store') }}" method="POST" class="p-4">
+        <form id="userCreateForm" action="{{ route('admin.users.store') }}" method="POST" class="p-4" novalidate>
             @csrf
 
             <div class="tab-content" id="createPeerTabsContent">
