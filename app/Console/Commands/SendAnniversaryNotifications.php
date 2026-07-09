@@ -78,11 +78,17 @@ class SendAnniversaryNotifications extends Command
                     $description = "Happy Wedding Anniversary to our peer {$user->display_name}! Wishing you a lifetime of love and happiness. 🎉🥂";
 
                     // Retrieve system/admin fallback account to own the automated post
-                    $systemUser = User::where('email', 'connect@smecosystems.com')->first();
+                    $systemUser = User::where('email', 'info@peersglobal.com')->first();
                     if (! $systemUser) {
-                        $systemUser = User::where('email', 'like', '%admin%')->first()
-                            ?: User::where('email', 'like', '%system%')->first()
-                            ?: User::first();
+                        $systemUser = User::create([
+                            'id' => (string) \Illuminate\Support\Str::uuid(),
+                            'first_name' => 'PeersGlobal',
+                            'last_name' => 'Unity',
+                            'display_name' => 'PeersGlobal Unity',
+                            'email' => 'info@peersglobal.com',
+                            'password_hash' => bcrypt(\Illuminate\Support\Str::random(16)),
+                            'status' => 'active',
+                        ]);
                     }
                     $authorUserId = $systemUser ? $systemUser->id : $user->id;
 

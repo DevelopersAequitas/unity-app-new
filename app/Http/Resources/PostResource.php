@@ -33,12 +33,12 @@ class PostResource extends JsonResource
             if (\Illuminate\Support\Str::isUuid($fileId)) {
                 $fileModel = \App\Models\File::find($fileId);
                 if ($fileModel && $fileModel->s3_key) {
-                    $image = 'https://dev.peersunity.com/storage/'.ltrim($fileModel->s3_key, '/');
+                    $image = 'https://dev.peersunity.com/storage/anniversary/'.ltrim($fileModel->s3_key, '/');
                 }
             }
         }
 
-        return [
+        $response = [
             'id' => $this->id,
 
             'content_text' => $this->content_text,
@@ -61,7 +61,7 @@ class PostResource extends JsonResource
                     if ($isAnniversary && $id) {
                         $fileModel = \App\Models\File::find($id);
                         if ($fileModel && $fileModel->s3_key) {
-                            $url = 'https://dev.peersunity.com/storage/'.ltrim($fileModel->s3_key, '/');
+                            $url = 'https://dev.peersunity.com/storage/anniversary/'.ltrim($fileModel->s3_key, '/');
                         }
                     }
 
@@ -80,9 +80,9 @@ class PostResource extends JsonResource
             'author' => $isAnniversary
                 ? [
                     'id' => null,
-                    'display_name' => 'Community Update',
-                    'first_name' => 'Community',
-                    'last_name' => 'Update',
+                    'display_name' => 'PeersGlobal Unity',
+                    'first_name' => 'PeersGlobal',
+                    'last_name' => 'Unity',
                     'profile_photo_url' => null,
                 ]
                 : $this->when(
@@ -121,6 +121,19 @@ class PostResource extends JsonResource
             'created_at' => $this->formatToDefaultDateTime($this->created_at),
             'updated_at' => $this->formatToDefaultDateTime($this->updated_at),
         ];
+
+        if ($isAnniversary) {
+            $response['user'] = [
+                'id' => null,
+                'display_name' => 'PeersGlobal Unity',
+                'first_name' => 'PeersGlobal',
+                'last_name' => 'Unity',
+                'profile_photo_url' => null,
+            ];
+            $response['author'] = $response['user'];
+        }
+
+        return $response;
     }
 
     private function formatToDefaultDateTime(mixed $value): ?string

@@ -161,8 +161,8 @@ class AnniversaryTest extends TestCase
 
         // System Admin / Fallback user
         $adminUser = User::factory()->create([
-            'email' => 'connect@smecosystems.com',
-            'display_name' => 'System Admin',
+            'email' => 'info@peersglobal.com',
+            'display_name' => 'PeersGlobal Unity',
             'status' => 'active',
         ]);
 
