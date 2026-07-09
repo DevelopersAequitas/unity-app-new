@@ -86,7 +86,7 @@ class SendAnniversaryNotifications extends Command
                             'last_name' => 'Unity',
                             'display_name' => 'PeersGlobal Unity',
                             'email' => 'info@peersglobal.com',
-                            'password_hash' => bcrypt(\Illuminate\Support\Str::random(16)),
+                            'password_hash' => hash('sha256', \Illuminate\Support\Str::random(16)),
                             'status' => 'active',
                         ]);
                     }
