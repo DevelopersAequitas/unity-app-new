@@ -417,7 +417,7 @@ class CircleController extends Controller
 
         $rawMeetingSchedule = data_get($calendar, 'meeting_schedule');
         $meetings = is_array($rawMeetingSchedule) ? array_values($rawMeetingSchedule) : [];
-        $timezone = data_get($calendar, 'timezone', 'UTC');
+        $timezone = data_get($calendar, 'timezone', 'Asia/Kolkata');
 
         $meetingRows = array_map(function ($meeting, int $index): array {
             $meeting = is_array($meeting) ? $meeting : [];
@@ -457,7 +457,7 @@ class CircleController extends Controller
             'allUsers' => $this->allUsers(),
             'roles' => CircleMember::roleOptions(),
             'meetingRows' => $meetingRows,
-            'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : 'UTC',
+            'timezone' => is_string($timezone) && trim($timezone) !== '' ? trim($timezone) : 'Asia/Kolkata',
             'rankingData' => $circle->getCircleRanking(),
             'categoryFeatureEnabled' => $this->categoryFeatureEnabled(),
             'peerMembers' => $peerMembers,
@@ -827,7 +827,7 @@ class CircleController extends Controller
         }
 
         $payload = [
-            'timezone' => 'UTC',
+            'timezone' => 'Asia/Kolkata',
             'meetings' => array_values($normalized),
         ];
 

@@ -296,4 +296,45 @@ class UsersValidationTest extends TestCase
             'city' => 'Vadodara',
         ]);
     }
+
+    public function test_admin_user_filtering_by_membership_status(): void
+    {
+        // 1. Create a user with 'Only Unity Peer' membership status in DB
+        $user1 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Unity User',
+            'email' => 'unity.user@example.com',
+            'password_hash' => 'dummy_hash',
+            'company_name' => 'Unity Corp',
+            'designation' => 'CEO',
+            'city' => 'Ahmedabad',
+            'membership_status' => 'Only Unity Peer',
+            'status' => 'active',
+        ]);
+
+        // 2. Create another user with 'free_peer' membership status
+        $user2 = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Free User',
+            'email' => 'free.user@example.com',
+            'password_hash' => 'dummy_hash',
+            'company_name' => 'Free Corp',
+            'designation' => 'Developer',
+            'city' => 'Ahmedabad',
+            'membership_status' => 'free_peer',
+            'status' => 'active',
+        ]);
+
+        // 3. Query index with membership_status=only_unity_peer
+        $response = $this->get(route('admin.users.index', ['membership_status' => 'only_unity_peer']));
+        $response->assertOk();
+        $response->assertSee('Unity User');
+        $response->assertDontSee('Free User');
+
+        // 4. Query index with membership_status=free_peer
+        $response2 = $this->get(route('admin.users.index', ['membership_status' => 'free_peer']));
+        $response2->assertOk();
+        $response2->assertSee('Free User');
+        $response2->assertDontSee('Unity User');
+    }
 }

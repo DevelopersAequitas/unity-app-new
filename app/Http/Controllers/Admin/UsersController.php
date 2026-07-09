@@ -628,7 +628,7 @@ class UsersController extends Controller
             ]);
         }
 
-        if ($request->has('add_circle_membership') && filled($validated['additional_circle_id'] ?? null)) {
+        if (filled($validated['additional_circle_id'] ?? null)) {
             $alreadyJoined = CircleMember::query()
                 ->where('user_id', $user->id)
                 ->where('circle_id', $validated['additional_circle_id'])
@@ -707,7 +707,7 @@ class UsersController extends Controller
             'circle_meeting_frequency',
         ];
 
-        if ($request->has('add_circle_membership') && $request->filled('additional_circle_id')) {
+        if ($request->filled('additional_circle_id')) {
             $updatableExclusions[] = 'circle_joined_at';
             $updatableExclusions[] = 'circle_expires_at';
         }
@@ -805,7 +805,7 @@ class UsersController extends Controller
                 }
 
                 $additionalCircleId = $validated['additional_circle_id'] ?? null;
-                $isAddingAdditionalCircle = $request->has('add_circle_membership') && filled($additionalCircleId);
+                $isAddingAdditionalCircle = filled($additionalCircleId);
 
                 if ($selectedCircleId && ! $isAddingAdditionalCircle) {
                     $memberRecord = CircleMember::query()->withTrashed()->firstOrNew([
@@ -1058,7 +1058,7 @@ class UsersController extends Controller
             $this->membershipNotificationService->sendStatusChanged($updatedUser, $previousMembershipStatus, (string) $updatedUser->membership_status, $adminName);
         }
 
-        $statusMessage = $request->has('add_circle_membership')
+        $statusMessage = $request->filled('additional_circle_id')
             ? 'Circle membership added successfully.'
             : 'User updated successfully.';
 
@@ -2075,7 +2075,15 @@ class UsersController extends Controller
 
         $allowedMembershipStatuses = array_keys($this->membershipFilterOptions());
         if ($membership && in_array($membership, $allowedMembershipStatuses, true)) {
-            $query->where('membership_status', $membership);
+            $dbValue = match ($membership) {
+                'only_unity_peer' => 'Only Unity Peer',
+                'circle_peer' => 'Circle Peer',
+                'multi_circle_peer' => 'Multi Circle Peer',
+                'free_peer' => 'free_peer',
+                'free_trial_peer' => 'free_trial_peer',
+                default => $membership,
+            };
+            $query->where('membership_status', $dbValue);
         } else {
             $membership = null;
         }

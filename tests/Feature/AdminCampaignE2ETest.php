@@ -337,6 +337,7 @@ class AdminCampaignE2ETest extends TestCase
             'notification_message' => 'Immediate Push Msg',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send', // Click Send Campaign
             'schedule' => [
                 'schedule_type' => 'immediately',
@@ -390,6 +391,8 @@ class AdminCampaignE2ETest extends TestCase
     {
         $this->actingAs($this->admin, 'admin');
 
+        $startDate = now()->addDays(5)->toDateString();
+
         $response = $this->post(route('admin.campaigns.store'), [
             'title' => 'Once Campaign E2E',
             'campaign_type' => 'email_only',
@@ -397,10 +400,11 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Once Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'once',
-                'start_date' => '2026-06-20',
+                'start_date' => $startDate,
                 'send_time' => '10:00:00',
                 'timezone' => 'UTC',
             ],
@@ -412,7 +416,7 @@ class AdminCampaignE2ETest extends TestCase
 
         $this->assertEquals('scheduled', $campaign->status);
         $this->assertEquals('once', $campaign->schedule->schedule_type);
-        $this->assertEquals('2026-06-20 10:00:00', $campaign->schedule->next_run_at->format('Y-m-d H:i:s'));
+        $this->assertEquals($startDate.' 10:00:00', $campaign->schedule->next_run_at->format('Y-m-d H:i:s'));
     }
 
     /**
@@ -429,6 +433,7 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Daily Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'recurring',
@@ -465,6 +470,7 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Weekly Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'recurring',
@@ -502,6 +508,7 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Monthly Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'recurring',
@@ -540,6 +547,7 @@ class AdminCampaignE2ETest extends TestCase
             'email_body' => 'Yearly Body',
             'audience_type' => 'all_members',
             'filters' => [],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'send',
             'schedule' => [
                 'schedule_type' => 'recurring',
@@ -580,6 +588,7 @@ class AdminCampaignE2ETest extends TestCase
             'filters' => [
                 'user_ids' => [$this->user1->id],
             ],
+            'sender_email' => 'noreply@peersunity.com',
             'action' => 'draft',
             'schedule' => [
                 'schedule_type' => 'immediately',

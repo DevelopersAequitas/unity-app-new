@@ -113,7 +113,7 @@ class AdminCampaign extends Model
     {
         $schedule = $this->schedule;
         if (! $schedule || $schedule->schedule_type === 'immediately' || empty($schedule->timezone)) {
-            return 'UTC'; // Fallback to UTC
+            return 'Asia/Kolkata'; // Fallback to local IST
         }
 
         return $schedule->timezone;

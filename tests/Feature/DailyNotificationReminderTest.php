@@ -310,6 +310,12 @@ class DailyNotificationReminderTest extends TestCase
             'user_id' => $userId,
             'type' => 'system',
         ]);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $userId,
+            'type' => 'system',
+            'category' => 'engagement_reminder',
+        ]);
     }
 
     private function createRequiredTables(): void
@@ -395,6 +401,25 @@ class DailyNotificationReminderTest extends TestCase
             $table->string('type');
             $table->json('payload');
             $table->boolean('is_read')->default(false);
+            $table->timestamp('read_at')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::dropIfExists('app_notifications');
+        Schema::create('app_notifications', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->string('type');
+            $table->string('category')->nullable();
+            $table->string('title')->nullable();
+            $table->text('body')->nullable();
+            $table->text('message')->nullable();
+            $table->string('channel')->nullable();
+            $table->string('priority')->nullable();
+            $table->string('screen')->nullable();
+            $table->json('data')->nullable();
+            $table->string('status')->nullable();
+            $table->timestamp('sent_at')->nullable();
             $table->timestamp('read_at')->nullable();
             $table->timestamps();
         });

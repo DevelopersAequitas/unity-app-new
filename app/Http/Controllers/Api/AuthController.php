@@ -909,7 +909,14 @@ class AuthController extends BaseApiController
         }
 
         // IMPORTANT: use password_hash column
-        if (! Hash::check($credentials['password'], $user->password_hash)) {
+        try {
+            $passwordCheck = Hash::check($credentials['password'], $user->password_hash);
+        } catch (\Throwable $exception) {
+            Log::warning("Password check exception for user {$user->email}: ".$exception->getMessage());
+            $passwordCheck = false;
+        }
+
+        if (! $passwordCheck) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials.',
