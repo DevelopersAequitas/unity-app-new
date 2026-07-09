@@ -51,6 +51,8 @@ class UserResource extends JsonResource
                 'url' => $profileVideoUrl,
             ] : null,
             'profile_video_url' => $profileVideoUrl,
+            'intro_video_id' => $profileVideoId,
+            'intro_video_url' => $profileVideoUrl,
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
             'display_name' => $this->display_name,
