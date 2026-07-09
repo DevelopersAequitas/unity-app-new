@@ -56,10 +56,9 @@ class CircleController extends BaseApiController
                 'ded.cityRelation:id,name',
                 'city:id,name,state,district,country,country_code',
                 'categories' => function ($query) {
-                    $query->select([
-                        'circle_categories.id',
-                        DB::raw('circle_categories.name as category_name'),
-                    ])->orderBy('circle_categories.name');
+                    $query->select('circle_categories.*')
+                        ->selectRaw('circle_categories.name as category_name')
+                        ->orderBy('circle_categories.name');
                 },
             ])
             ->withCount([
@@ -123,10 +122,9 @@ class CircleController extends BaseApiController
             'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
             'ded.cityRelation:id,name',
             'categories' => function ($query) {
-                $query->select([
-                    'circle_categories.id',
-                    DB::raw('circle_categories.name as category_name'),
-                ])->orderBy('circle_categories.name');
+                $query->select('circle_categories.*')
+                    ->selectRaw('circle_categories.name as category_name')
+                    ->orderBy('circle_categories.name');
             },
         ])
             ->withCount([
