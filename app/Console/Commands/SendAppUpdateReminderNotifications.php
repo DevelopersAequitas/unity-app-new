@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use App\Models\AppVersion;
 use App\Models\Notification;
 use App\Models\UserPushToken;
-use App\Services\Firebase\FcmService;
+use App\Services\Notifications\FcmService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -44,6 +44,15 @@ class SendAppUpdateReminderNotifications extends Command
 
         $outdatedTokens = UserPushToken::query()
             ->with('user')
+            ->where('is_active', true)
+            ->where(function ($query): void {
+                if (\Schema::hasColumn('user_push_tokens', 'status')) {
+                    $query->where('status', 'active');
+                }
+                if (\Schema::hasColumn('user_push_tokens', 'token_status')) {
+                    $query->where('token_status', 'active');
+                }
+            })
             ->whereNotNull('token')
             ->where('token', '!=', '')
             ->whereNotNull('app_version')
@@ -90,19 +99,13 @@ class SendAppUpdateReminderNotifications extends Command
             ];
 
             try {
-                $fcmService->sendToDevice(
-                    (string) $pushToken->token,
+                // Centralized send using Notifications\FcmService wrapper
+                $result = $fcmService->sendToToken(
+                    $pushToken,
                     $title,
                     $body,
                     $data,
-                    null,
-                    1,
-                    [
-                        'user_id' => (string) $pushToken->user_id,
-                        'device_id' => $pushToken->device_id,
-                        'platform' => $pushToken->platform,
-                        'notification_type' => 'app_update',
-                    ],
+                    null
                 );
 
                 Notification::create([
@@ -124,7 +127,11 @@ class SendAppUpdateReminderNotifications extends Command
                     'last_update_notification_sent_at' => now(),
                 ])->save();
 
-                $sentCount++;
+                if ($result['success'] ?? false) {
+                    $sentCount++;
+                } else {
+                    $failedCount++;
+                }
             } catch (Throwable $exception) {
                 $failedCount++;
 
