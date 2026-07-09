@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendPushNotificationJob;
 use App\Mail\CollaborationCompletedMail;
 use App\Mail\CollaborationCreatedMail;
 use App\Models\CollaborationPost;
@@ -195,7 +196,7 @@ class CollaborationNotificationService
                     foreach ($users as $user) {
                         if (! $existingUserIds->contains((string) $user->id)) {
                             try {
-                                \App\Jobs\SendPushNotificationJob::dispatch(
+                                SendPushNotificationJob::dispatch(
                                     $user,
                                     $title,
                                     $message,
@@ -205,7 +206,7 @@ class CollaborationNotificationService
                                         'user_id' => (string) $collaboration->user_id,
                                     ]
                                 );
-                            } catch (\Throwable $e) {
+                            } catch (Throwable $e) {
                                 Log::error('collaboration.push_dispatch_failed', [
                                     'user_id' => (string) $user->id,
                                     'error' => $e->getMessage(),
@@ -235,7 +236,7 @@ class CollaborationNotificationService
         $user = User::find($userId);
         if ($user) {
             try {
-                \App\Jobs\SendPushNotificationJob::dispatch(
+                SendPushNotificationJob::dispatch(
                     $user,
                     $title,
                     $message,
@@ -245,7 +246,7 @@ class CollaborationNotificationService
                         'notification_id' => (string) $notification->id,
                     ]
                 );
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::error('collaboration.single_push_dispatch_failed', [
                     'user_id' => $userId,
                     'error' => $e->getMessage(),

@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Requests\Profile\StoreIntroducedPeerRequest;
 use App\Http\Requests\Profile\StoreUserLinkRequest;
 use App\Http\Requests\Profile\UpdateProfileRequest;
 use App\Http\Requests\Profile\UpdateTimezoneRequest;
 use App\Http\Requests\Profile\UpdateUserLinkRequest;
 use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserProfileResource;
+use App\Http\Resources\V1\LimitedUserResource;
+use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\PublicProfileSlugService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -318,5 +322,48 @@ class ProfileController extends BaseApiController
         $link->delete();
 
         return $this->success(null, 'Link deleted successfully');
+    }
+
+    public function introducedPeers(Request $request, IntroducedPeerService $service): JsonResponse
+    {
+        $user = $request->user();
+        $peers = $service->getIntroducedPeers($user);
+
+        return $this->success(
+            LimitedUserResource::collection($peers),
+            'Introduced peers fetched successfully'
+        );
+    }
+
+    public function introducer(Request $request): JsonResponse
+    {
+        $user = $request->user()->loadMissing('introducedBy');
+
+        if (! $user->introducedBy) {
+            return $this->success(null, 'No introducer set for this peer.');
+        }
+
+        return $this->success(
+            new LimitedUserResource($user->introducedBy),
+            'Introducer fetched successfully'
+        );
+    }
+
+    public function addIntroducedPeer(StoreIntroducedPeerRequest $request, IntroducedPeerService $service): JsonResponse
+    {
+        $user = $request->user();
+        $peerId = $request->validated('peer_id');
+
+        try {
+            $introduced = $service->introducePeer($user, $peerId);
+
+            return $this->success(
+                new LimitedUserResource($introduced),
+                'Peer introduced successfully',
+                201
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
     }
 }

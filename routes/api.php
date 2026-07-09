@@ -363,6 +363,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 
         Route::get('/profile', [ProfileController::class, 'show']);
+        Route::get('/profile/introducer', [ProfileController::class, 'introducer']);
+        Route::get('/profile/introduced-peers', [ProfileController::class, 'introducedPeers']);
+        Route::post('/profile/introduced-peers', [ProfileController::class, 'addIntroducedPeer']);
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);

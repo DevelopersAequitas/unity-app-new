@@ -2,8 +2,10 @@
 
 namespace App\Http\Resources;
 
+use App\Models\File;
 use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 
 class PostResource extends JsonResource
 {
@@ -30,8 +32,8 @@ class PostResource extends JsonResource
         if ($isAnniversary && $this->image) {
             $path = parse_url($this->image, PHP_URL_PATH);
             $fileId = basename($path);
-            if (\Illuminate\Support\Str::isUuid($fileId)) {
-                $fileModel = \App\Models\File::find($fileId);
+            if (Str::isUuid($fileId)) {
+                $fileModel = File::find($fileId);
                 if ($fileModel && $fileModel->s3_key) {
                     $image = 'https://dev.peersunity.com/storage/anniversary/'.ltrim($fileModel->s3_key, '/');
                 }
@@ -59,7 +61,7 @@ class PostResource extends JsonResource
                     $url = $id ? url("/api/v1/files/{$id}") : null;
 
                     if ($isAnniversary && $id) {
-                        $fileModel = \App\Models\File::find($id);
+                        $fileModel = File::find($id);
                         if ($fileModel && $fileModel->s3_key) {
                             $url = 'https://dev.peersunity.com/storage/anniversary/'.ltrim($fileModel->s3_key, '/');
                         }

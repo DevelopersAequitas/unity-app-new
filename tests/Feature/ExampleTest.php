@@ -5,12 +5,15 @@ namespace Tests\Feature;
 // use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Console\Commands\ExpireTrialUsers;
 use App\Console\Commands\SyncMembershipExpiryFields;
+use App\Http\Requests\Post\StorePostRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -168,10 +171,10 @@ class ExampleTest extends TestCase
 
     public function test_store_post_request_validation(): void
     {
-        $request = new \App\Http\Requests\Post\StorePostRequest;
+        $request = new StorePostRequest;
         $rules = $request->rules();
 
-        $validator = \Illuminate\Support\Facades\Validator::make([
+        $validator = Validator::make([
             'content_text' => null,
             'visibility' => 'public',
         ], $rules);
@@ -181,7 +184,7 @@ class ExampleTest extends TestCase
 
     public function test_post_controller_store_validation(): void
     {
-        $request = \Illuminate\Http\Request::create('/api/posts', 'POST', [
+        $request = Request::create('/api/posts', 'POST', [
             'content_text' => null,
             'visibility' => 'public',
         ]);
@@ -197,7 +200,7 @@ class ExampleTest extends TestCase
             'circle_id' => ['nullable', 'uuid'],
         ];
 
-        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), $rules);
+        $validator = Validator::make($request->all(), $rules);
         $this->assertFalse($validator->fails(), 'Controller validation should pass when content_text is null');
     }
 }

@@ -2,14 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Models\AdminUser;
+use App\Models\AnniversaryTemplate;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationPreference;
 use App\Models\Post;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -252,12 +258,12 @@ class AnniversaryTest extends TestCase
     public function test_anniversary_template_admin_workflow(): void
     {
         // 1. Create global admin role and user
-        $role = \App\Models\Role::firstOrCreate(
+        $role = Role::firstOrCreate(
             ['key' => 'global_admin'],
             ['name' => 'Global Admin']
         );
-        $admin = \App\Models\AdminUser::forceCreate([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+        $admin = AdminUser::forceCreate([
+            'id' => (string) Str::uuid(),
             'name' => 'Global Admin User',
             'email' => 'admin_test@example.com',
         ]);
@@ -267,8 +273,8 @@ class AnniversaryTest extends TestCase
 
         // 2. Upload template image
         $disk = config('filesystems.default', 'public');
-        \Illuminate\Support\Facades\Storage::fake($disk);
-        $file = \Illuminate\Http\UploadedFile::fake()->image('test_template.png', 1080, 1080);
+        Storage::fake($disk);
+        $file = UploadedFile::fake()->image('test_template.png', 1080, 1080);
 
         $payload = [
             'image' => $file,
@@ -284,8 +290,8 @@ class AnniversaryTest extends TestCase
             'is_active' => true,
         ]);
 
-        $template = \App\Models\AnniversaryTemplate::where('message', 'like', '%work anniversary%')->firstOrFail();
-        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk($disk)->exists($template->image_path));
+        $template = AnniversaryTemplate::where('message', 'like', '%work anniversary%')->firstOrFail();
+        $this->assertTrue(Storage::disk($disk)->exists($template->image_path));
 
         // 3. Toggle template status
         $response = $this->post("/admin/anniversary-creatives/{$template->id}/toggle");
@@ -296,6 +302,6 @@ class AnniversaryTest extends TestCase
         $response = $this->delete("/admin/anniversary-creatives/{$template->id}");
         $response->assertRedirect('/admin/anniversary-creatives');
         $this->assertDatabaseMissing('anniversary_templates', ['id' => $template->id]);
-        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk($disk)->exists($template->image_path));
+        $this->assertFalse(Storage::disk($disk)->exists($template->image_path));
     }
 }

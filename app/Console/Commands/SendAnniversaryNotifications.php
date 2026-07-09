@@ -2,12 +2,15 @@
 
 namespace App\Console\Commands;
 
+use App\Models\AnniversaryTemplate;
 use App\Models\Post;
 use App\Models\User;
+use App\Services\Creative\AnniversaryImageGenerator;
 use App\Services\Notifications\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class SendAnniversaryNotifications extends Command
@@ -69,10 +72,10 @@ class SendAnniversaryNotifications extends Command
                 if ($alreadyPosted) {
                     Log::info("{$logPrefix} Duplicate timeline post already exists today for user {$user->id}. Skipping post creation.");
                 } else {
-                    $activeTemplate = \App\Models\AnniversaryTemplate::where('is_active', true)->first();
+                    $activeTemplate = AnniversaryTemplate::where('is_active', true)->first();
 
                     // Generate backend creative image
-                    $imageGenerator = app(\App\Services\Creative\AnniversaryImageGenerator::class);
+                    $imageGenerator = app(AnniversaryImageGenerator::class);
                     $fileRecord = $imageGenerator->generate($user, $activeTemplate);
                     $imageUrl = url('/api/v1/files/'.$fileRecord->id);
                     $description = "Happy Wedding Anniversary to our peer {$user->display_name}! Wishing you a lifetime of love and happiness. 🎉🥂";
@@ -81,12 +84,12 @@ class SendAnniversaryNotifications extends Command
                     $systemUser = User::where('email', 'info@peersglobal.com')->first();
                     if (! $systemUser) {
                         $systemUser = User::create([
-                            'id' => (string) \Illuminate\Support\Str::uuid(),
+                            'id' => (string) Str::uuid(),
                             'first_name' => 'PeersGlobal',
                             'last_name' => 'Unity',
                             'display_name' => 'PeersGlobal Unity',
                             'email' => 'info@peersglobal.com',
-                            'password_hash' => hash('sha256', \Illuminate\Support\Str::random(16)),
+                            'password_hash' => bcrypt(Str::random(16)),
                             'status' => 'active',
                         ]);
                     }

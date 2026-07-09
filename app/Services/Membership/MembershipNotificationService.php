@@ -2,6 +2,7 @@
 
 namespace App\Services\Membership;
 
+use App\Jobs\Notifications\SendNotificationChannelJob;
 use App\Mail\MembershipStatusChangedMail;
 use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
@@ -254,8 +255,8 @@ class MembershipNotificationService
             // Trigger FCM push notification if active tokens exist and it's not a log email
             if (! str_ends_with($type, '_email_sent')) {
                 try {
-                    \App\Jobs\Notifications\SendNotificationChannelJob::dispatch($insert['id'], 'push');
-                } catch (\Throwable $e) {
+                    SendNotificationChannelJob::dispatch($insert['id'], 'push');
+                } catch (Throwable $e) {
                     Log::error('membership.notification_push_dispatch_failed', [
                         'notification_id' => $insert['id'],
                         'error' => $e->getMessage(),

@@ -23,7 +23,7 @@ foreach ($sqlFiles as $file) {
             $sql = file_get_contents($path);
             DB::unprepared($sql);
             echo "Success!\n";
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             echo "ERROR in $file: ".$e->getMessage()."\n";
         }
     } else {
@@ -46,6 +46,6 @@ try {
     foreach ($states as $s) {
         echo " - {$s->name} ({$s->id})\n";
     }
-} catch (\Exception $e) {
+} catch (Exception $e) {
     echo 'ERROR during sync: '.$e->getMessage()."\n";
 }

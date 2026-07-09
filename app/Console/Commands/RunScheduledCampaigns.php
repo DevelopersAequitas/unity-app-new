@@ -8,6 +8,7 @@ use App\Models\AdminCampaign;
 use App\Models\CampaignDelivery;
 use App\Models\CampaignSchedule;
 use App\Services\AdminCampaigns\CampaignScheduleCalculator;
+use App\Services\AdminCampaigns\CampaignSendService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -138,7 +139,7 @@ class RunScheduledCampaigns extends Command
                 try {
                     // Temporarily set to draft so CampaignSendService will accept it
                     $campaign->update(['status' => AdminCampaign::STATUS_DRAFT]);
-                    app(\App\Services\AdminCampaigns\CampaignSendService::class)->send($campaign);
+                    app(CampaignSendService::class)->send($campaign);
                     $queuedTriggered++;
                 } catch (\Exception $e) {
                     Log::error("Failed to run queued campaign ID {$campaign->id}: ".$e->getMessage());

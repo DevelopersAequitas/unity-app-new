@@ -8,6 +8,7 @@ use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\Notifications\FcmService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 class SendTestAppNotificationCommand extends Command
 {
@@ -20,7 +21,7 @@ class SendTestAppNotificationCommand extends Command
         $userInput = $this->argument('user');
 
         $query = User::where('email', $userInput);
-        if (\Illuminate\Support\Str::isUuid($userInput)) {
+        if (Str::isUuid($userInput)) {
             $query->orWhere('id', $userInput);
         }
         $user = $query->first();

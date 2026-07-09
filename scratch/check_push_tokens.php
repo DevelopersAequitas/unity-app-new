@@ -1,10 +1,11 @@
 <?php
 
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 
 require __DIR__.'/../vendor/autoload.php';
 $app = require_once __DIR__.'/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 $userId = '8963c869-0f37-41f4-9b74-4fc82aa7d068';
@@ -25,7 +26,7 @@ try {
     if (empty($tokens)) {
         echo "0 tokens found for user_id.\n";
     }
-} catch (\Exception $e) {
+} catch (Exception $e) {
     echo 'user_id check failed: '.$e->getMessage()."\n";
 
     // Fallback to usr_id
@@ -37,7 +38,7 @@ try {
         if (empty($tokens)) {
             echo "0 tokens found for usr_id.\n";
         }
-    } catch (\Exception $e2) {
+    } catch (Exception $e2) {
         echo 'usr_id check failed: '.$e2->getMessage()."\n";
     }
 }
