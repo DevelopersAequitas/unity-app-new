@@ -20,6 +20,7 @@ use App\Models\OtpCode;
 use App\Models\ReferralData;
 use App\Models\User;
 use App\Models\UserLoginHistory;
+use App\Models\UserPushToken;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Media\FileUploadService;
 use App\Services\OnlineStatusService;
@@ -153,6 +154,20 @@ class AuthController extends BaseApiController
         $this->sendRegistrationRequestReceivedEmail($persistedUser);
 
         $token = $persistedUser->createToken('auth_token')->plainTextToken;
+
+        $pushToken = $request->input('token')
+            ?? $request->input('device_token')
+            ?? $request->input('fcm_token')
+            ?? $request->input('push_token')
+            ?? $request->input('firebase_token');
+        if (filled($pushToken)) {
+            UserPushToken::registerTokenForUser($persistedUser, [
+                'token' => $pushToken,
+                'platform' => $request->input('platform') ?? $request->input('device_type'),
+                'device_id' => $request->input('device_id'),
+                'app_version' => $request->input('app_version'),
+            ]);
+        }
 
         Log::info('auth.register.before_response', [
             'user_id' => (string) $persistedUser->id,
@@ -774,6 +789,7 @@ class AuthController extends BaseApiController
         $this->fillIfUserColumnExists($user, 'greenpreneur_goals', $data['greenpreneur_goals'] ?? []);
         $this->fillIfUserColumnExists($user, 'interests', $data['interests'] ?? []);
         $this->fillIfUserColumnExists($user, 'community_directory_listing', $data['community_directory_listing'] ?? 'No');
+        $this->fillIfUserColumnExists($user, 'anniversary_date', $data['anniversary_date'] ?? null);
 
         if (Schema::hasColumn('users', 'city_of_residence')) {
             $user->city_of_residence = $data['city_of_residence'] ?? $data['city'] ?? null;
@@ -949,6 +965,20 @@ class AuthController extends BaseApiController
         // Create Sanctum token
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        $pushToken = $request->input('token')
+            ?? $request->input('device_token')
+            ?? $request->input('fcm_token')
+            ?? $request->input('push_token')
+            ?? $request->input('firebase_token');
+        if (filled($pushToken)) {
+            UserPushToken::registerTokenForUser($user, [
+                'token' => $pushToken,
+                'platform' => $request->input('platform') ?? $request->input('device_type'),
+                'device_id' => $request->input('device_id'),
+                'app_version' => $request->input('app_version'),
+            ]);
+        }
+
         // If you already have a UserResource, you can use it here instead of returning $user directly
         return response()->json([
             'success' => true,
@@ -1121,6 +1151,20 @@ class AuthController extends BaseApiController
 
         $token = $user->createToken('api')->plainTextToken;
 
+        $pushToken = $request->input('token')
+            ?? $request->input('device_token')
+            ?? $request->input('fcm_token')
+            ?? $request->input('push_token')
+            ?? $request->input('firebase_token');
+        if (filled($pushToken)) {
+            UserPushToken::registerTokenForUser($user, [
+                'token' => $pushToken,
+                'platform' => $request->input('platform') ?? $request->input('device_type'),
+                'device_id' => $request->input('device_id'),
+                'app_version' => $request->input('app_version'),
+            ]);
+        }
+
         UserLoginHistory::create([
             'user_id' => $user->id,
             'logged_in_at' => now(),
@@ -1276,13 +1320,27 @@ class AuthController extends BaseApiController
         ]);
     }
 
-    public function logout(): JsonResponse
+    public function logout(Request $request): JsonResponse
     {
         $user = Auth::guard('sanctum')->user();
 
-        if ($user && $user->currentAccessToken()) {
-            app(OnlineStatusService::class)->markOffline($user, true, 'Last seen just now');
-            $user->currentAccessToken()->delete();
+        if ($user) {
+            $deviceId = $request->input('device_id');
+            $token = $request->input('token') ?? $request->input('fcm_token');
+
+            if (Schema::hasTable('user_push_tokens')) {
+                $query = UserPushToken::where(UserPushToken::getUserIdColumn(), $user->id);
+                if ($deviceId || $token) {
+                    $query->when($deviceId, fn ($q) => $q->where('device_id', $deviceId))
+                        ->when($token, fn ($q) => $q->where('token', $token));
+                    $query->delete();
+                }
+            }
+
+            if ($user->currentAccessToken()) {
+                app(OnlineStatusService::class)->markOffline($user, true, 'Last seen just now');
+                $user->currentAccessToken()->delete();
+            }
         }
 
         return $this->success(null, 'Logged out successfully');

@@ -115,6 +115,7 @@ class UserResource extends JsonResource
             'turnover_range' => $this->turnover_range,
             'gender' => $this->gender,
             'dob' => optional($this->dob)?->format('Y-m-d'),
+            'anniversary_date' => optional($this->anniversary_date)?->format('Y-m-d'),
             'experience_years' => $this->experience_years,
             'experience_summary' => $this->experience_summary,
             'bio' => $this->short_bio,

@@ -34,6 +34,12 @@ class Post extends Model
         'source_type',
         'source_id',
         'source_event',
+        'post_type',
+        'template_id',
+        'title',
+        'description',
+        'image',
+        'status',
     ];
 
     protected $casts = [
@@ -96,5 +102,38 @@ class Post extends Model
     public function savers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'post_saves', 'post_id', 'user_id');
+    }
+
+    public function getMediaAttribute($value)
+    {
+        if (! $value) {
+            return [];
+        }
+        $media = is_string($value) ? json_decode($value, true) : $value;
+        if (! is_array($media)) {
+            return [];
+        }
+
+        return array_map(function ($item) {
+            if (isset($item['id'])) {
+                $item['url'] = url('/api/v1/files/'.$item['id']);
+            }
+
+            return $item;
+        }, $media);
+    }
+
+    public function getImageAttribute($value)
+    {
+        if (! $value) {
+            return null;
+        }
+        $path = parse_url($value, PHP_URL_PATH);
+        $id = basename($path);
+        if (\Illuminate\Support\Str::isUuid($id)) {
+            return url('/api/v1/files/'.$id);
+        }
+
+        return $value;
     }
 }

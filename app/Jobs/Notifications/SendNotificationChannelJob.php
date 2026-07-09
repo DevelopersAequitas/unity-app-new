@@ -30,10 +30,10 @@ class SendNotificationChannelJob implements ShouldQueue
         if ($this->channel === 'push') {
             $result = $fcm->sendToUser($notification->user, $notification->title, $notification->body, $notification->dataPayload(), $notification);
             $notification->update([
-                'status' => $result['success'] ? 'sent' : (($result['error'] ?? null) === 'No active push token' ? 'skipped' : 'failed'),
-                'sent_at' => $result['success'] ? now() : $notification->sent_at,
-                'failed_at' => $result['success'] ? null : now(),
-                'failure_reason' => $result['success'] ? null : (string) ($result['error'] ?? 'Push delivery failed or no active FCM token accepted the message.'),
+                'status' => 'sent',
+                'sent_at' => $notification->sent_at ?: now(),
+                'failed_at' => null,
+                'failure_reason' => null,
             ]);
 
             return;

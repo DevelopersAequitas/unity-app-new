@@ -141,6 +141,7 @@ class ProfileController extends Controller
             'about',
             'gender',
             'dob',
+            'anniversary_date',
             'experience_years',
             'experience_summary',
             'city_id',
