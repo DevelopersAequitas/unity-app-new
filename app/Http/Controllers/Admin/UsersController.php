@@ -89,7 +89,7 @@ class UsersController extends Controller
 
         $selectedUser = null;
         $selectedUserLabel = '';
-        if ($q && \Illuminate\Support\Str::isUuid($q)) {
+        if ($q && Str::isUuid($q)) {
             $selectedUser = User::find($q);
             if ($selectedUser) {
                 $cityName = $selectedUser->city;
@@ -1964,7 +1964,7 @@ class UsersController extends Controller
         $perPage = $request->integer('per_page') ?: 20;
 
         if ($search !== '') {
-            if (\Illuminate\Support\Str::isUuid($search)) {
+            if (Str::isUuid($search)) {
                 $query->where('users.id', $search);
             } else {
                 $query->where(function ($q) use ($search) {

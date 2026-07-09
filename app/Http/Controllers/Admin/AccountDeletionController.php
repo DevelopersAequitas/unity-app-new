@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AccountDeletedMail;
+use App\Mail\AccountDeletionRequestedMail;
 use App\Models\AccountDeletionRequest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class AccountDeletionController extends Controller
@@ -54,9 +57,9 @@ class AccountDeletionController extends Controller
             if ($deletionRequest->user) {
                 $user = $deletionRequest->user;
                 try {
-                    \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\AccountDeletedMail($user));
+                    Mail::to($user->email)->send(new AccountDeletedMail($user));
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send account deleted email in approve: '.$e->getMessage());
+                    Log::error('Failed to send account deleted email in approve: '.$e->getMessage());
                 }
                 $user->delete();
             }
@@ -174,7 +177,7 @@ class AccountDeletionController extends Controller
 
         if (! $user) {
             // Mock dummy user for preview if no request is chosen
-            $user = new \App\Models\User;
+            $user = new User;
             $user->display_name = 'John Doe';
             $user->first_name = 'John';
             $user->last_name = 'Doe';
@@ -183,9 +186,9 @@ class AccountDeletionController extends Controller
         }
 
         if ($template === 'requested') {
-            return new \App\Mail\AccountDeletionRequestedMail($user);
+            return new AccountDeletionRequestedMail($user);
         } elseif ($template === 'deleted') {
-            return new \App\Mail\AccountDeletedMail($user);
+            return new AccountDeletedMail($user);
         }
 
         abort(404, 'Template not found');
@@ -204,7 +207,7 @@ class AccountDeletionController extends Controller
         $user = $deletionRequest->user;
 
         if (! $user) {
-            $user = \App\Models\User::withTrashed()->find($deletionRequest->user_id);
+            $user = User::withTrashed()->find($deletionRequest->user_id);
         }
 
         if (! $user || ! $user->email) {
@@ -213,9 +216,9 @@ class AccountDeletionController extends Controller
 
         try {
             if ($template === 'requested') {
-                \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\AccountDeletionRequestedMail($user));
+                Mail::to($user->email)->send(new AccountDeletionRequestedMail($user));
             } elseif ($template === 'deleted') {
-                \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\AccountDeletedMail($user));
+                Mail::to($user->email)->send(new AccountDeletedMail($user));
             } else {
                 return back()->with('error', 'Invalid email template requested.');
             }
@@ -232,7 +235,7 @@ class AccountDeletionController extends Controller
 
             return back()->with('success', 'Email ('.($template === 'requested' ? 'Request Submitted' : 'Account Deleted').') successfully sent to '.$user->email);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Manual email send failed: '.$e->getMessage());
+            Log::error('Manual email send failed: '.$e->getMessage());
 
             $log = session()->get('manual_email_logs', []);
             $log[] = [
