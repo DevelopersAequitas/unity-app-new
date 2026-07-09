@@ -9,6 +9,3 @@
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore
-
-public/adminer.php binary
-public/adminer_old.php binary
