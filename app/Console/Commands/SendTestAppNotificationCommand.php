@@ -6,7 +6,6 @@ namespace App\Console\Commands;
 
 use App\Models\Notifications\AppNotification;
 use App\Models\User;
-use App\Models\UserPushToken;
 use App\Services\Notifications\FcmService;
 use Illuminate\Console\Command;
 
