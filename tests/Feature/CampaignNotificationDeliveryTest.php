@@ -506,7 +506,7 @@ class CampaignNotificationDeliveryTest extends TestCase
         ]);
 
         $recipientJob = new SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
-        $recipientJob->handle(app(EmailLogService::class), $fcmMock);
+        $recipientJob->handle(app(EmailLogService::class), app(\App\Services\Notifications\FcmService::class));
 
         Mail::assertSent(AdminCampaignMailable::class, 1);
         $this->assertDatabaseHas('campaign_logs', [
@@ -563,13 +563,13 @@ class CampaignNotificationDeliveryTest extends TestCase
         ]);
 
         $recipientJob = new SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithToken->id);
-        $recipientJob->handle(app(EmailLogService::class), $fcmMock);
+        $recipientJob->handle(app(EmailLogService::class), app(\App\Services\Notifications\FcmService::class));
 
         $this->assertDatabaseHas('campaign_logs', [
             'id' => $log->id,
             'notification_status' => 'failed',
             'notification_sent' => false,
-            'error_message' => 'Push Error: Invalid or unregistered Firebase device token.',
+            'error_message' => 'Push Error: Invalid Firebase token',
         ]);
     }
 
@@ -611,7 +611,7 @@ class CampaignNotificationDeliveryTest extends TestCase
         ]);
 
         $recipientJob = new SendCampaignRecipientJob($delivery->id, $log->id, $this->userWithoutToken->id);
-        $recipientJob->handle(app(EmailLogService::class), $fcmMock);
+        $recipientJob->handle(app(EmailLogService::class), app(\App\Services\Notifications\FcmService::class));
 
         $this->assertDatabaseHas('campaign_logs', [
             'id' => $log->id,
