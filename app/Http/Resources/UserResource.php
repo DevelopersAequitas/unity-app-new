@@ -13,6 +13,7 @@ use App\Services\ProfileMatchService;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class UserResource extends JsonResource
 {
@@ -77,7 +78,7 @@ class UserResource extends JsonResource
                 'unity_peer' => 'Green Member',
                 'chartered_peer' => 'Premium Green Member',
                 'charter_investor' => 'Green Investor',
-                default => \Illuminate\Support\Str::headline(str_replace('_', ' ', (string) $membershipStatus)),
+                default => Str::headline(str_replace('_', ' ', (string) $membershipStatus)),
             },
             'membership_starts_at' => $this->membership_starts_at,
             'membership_ends_at' => $this->membership_ends_at,

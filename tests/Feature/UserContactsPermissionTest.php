@@ -27,7 +27,7 @@ class UserContactsPermissionTest extends TestCase
                     'contacts_allowed' => true,
                     'android_contacts_permission' => 'yes',
                     'ios_contacts_permission' => 'yes',
-                ]
+                ],
             ]);
     }
 
@@ -53,7 +53,7 @@ class UserContactsPermissionTest extends TestCase
                     'contacts_allowed' => false,
                     'android_contacts_permission' => 'no',
                     'ios_contacts_permission' => 'no',
-                ]
+                ],
             ]);
     }
 }

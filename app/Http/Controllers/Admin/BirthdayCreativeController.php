@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use App\Models\FileModel;
 use App\Models\BirthdayCreativeConfig;
+use App\Models\FileModel;
+use App\Models\User;
 use App\Services\Media\BirthdayCreativeImageService;
 use App\Services\Media\FileUploadService;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\View\View;
 use Intervention\Image\Facades\Image;
 use Log;
 
@@ -24,7 +24,7 @@ class BirthdayCreativeController extends Controller
     public function index(Request $request): View
     {
         $config = BirthdayCreativeConfig::first();
-        if (!$config) {
+        if (! $config) {
             $config = BirthdayCreativeConfig::create([
                 'is_enabled' => true,
                 'background_gradient_start' => '#8E2DE2',
@@ -62,8 +62,8 @@ class BirthdayCreativeController extends Controller
         ]);
 
         $config = BirthdayCreativeConfig::first();
-        if (!$config) {
-            $config = new BirthdayCreativeConfig();
+        if (! $config) {
+            $config = new BirthdayCreativeConfig;
         }
 
         $config->is_enabled = (bool) $request->input('is_enabled');
@@ -104,23 +104,23 @@ class BirthdayCreativeController extends Controller
     {
         try {
             $user = User::findOrFail($userId);
-            
+
             // Generate the image temporarily using our service
             $fileModel = $this->imageService->generate($user);
-            
+
             // Fetch the physical file content and respond
             $disk = 'public';
-            
-            if (!$fileModel->s3_key || !Storage::disk($disk)->exists($fileModel->s3_key)) {
-                abort(404, "Generated creative image not found in storage.");
+
+            if (! $fileModel->s3_key || ! Storage::disk($disk)->exists($fileModel->s3_key)) {
+                abort(404, 'Generated creative image not found in storage.');
             }
 
             $path = Storage::disk($disk)->path($fileModel->s3_key);
-            
-            if (!file_exists($path)) {
-                abort(404, "Generated creative image file not found on disk.");
+
+            if (! file_exists($path)) {
+                abort(404, 'Generated creative image file not found on disk.');
             }
-            
+
             $response = response()->file($path, [
                 'Content-Type' => 'image/jpeg',
                 'Cache-Control' => 'no-cache, must-revalidate',
@@ -131,8 +131,8 @@ class BirthdayCreativeController extends Controller
 
             return $response;
         } catch (\Throwable $e) {
-            Log::error("Failed to generate preview for birthday creative: " . $e->getMessage());
-            abort(500, "Error generating preview: " . $e->getMessage());
+            Log::error('Failed to generate preview for birthday creative: '.$e->getMessage());
+            abort(500, 'Error generating preview: '.$e->getMessage());
         }
     }
 }

@@ -102,7 +102,7 @@ class CircleJoiningRequestsTest extends TestCase
 
         $response->assertOk();
         $response->assertSee($category->name);
-        $response->assertSee('Category ID: ' . $category->id);
+        $response->assertSee('Category ID: '.$category->id);
 
         // 7. Request show page
         $responseShow = $this->actingAs($admin, 'admin')
