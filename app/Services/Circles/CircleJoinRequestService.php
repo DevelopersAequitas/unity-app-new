@@ -175,6 +175,11 @@ class CircleJoinRequestService
                 fn () => $this->circleJoinRequestNotificationService->sendCdApprovedToUser($updated)
             );
 
+            $this->safeSendTransitionNotifications(
+                $updated,
+                fn () => $this->circleJoinRequestNotificationService->sendJoinRequestApprovedCongratulations($updated)
+            );
+
             return $updated;
         });
     }
@@ -232,6 +237,11 @@ class CircleJoinRequestService
             $this->safeSendTransitionNotifications(
                 $updated,
                 fn () => $this->circleJoinRequestNotificationService->sendIdApprovedToUser($updated)
+            );
+
+            $this->safeSendTransitionNotifications(
+                $updated,
+                fn () => $this->circleJoinRequestNotificationService->sendJoinRequestApprovedCongratulations($updated)
             );
 
             return $updated;

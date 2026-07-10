@@ -288,6 +288,16 @@ class CircleJoinRequestsController extends Controller
                 'to' => $request->status,
             ]);
         });
+
+        $record->refresh();
+        try {
+            app(\App\Services\Circles\CircleJoinRequestNotificationService::class)->sendJoinRequestApprovedCongratulations($record);
+        } catch (\Throwable $e) {
+            Log::error('Failed to trigger congratulations email from admin controller', [
+                'request_id' => $record->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function approveRequestByDed(CircleJoinRequest $record, $admin, $actor, ?string $remarks = null): void
