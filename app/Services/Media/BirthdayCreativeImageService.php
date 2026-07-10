@@ -227,7 +227,7 @@ class BirthdayCreativeImageService
                 $avatar->mask($mask, true);
 
                 // Insert avatar
-                $img->insert($avatar, 'top-left', $insertX, $insertY);
+                $img->insert($avatar, 'center', 0, 0);
                 $drawnSuccessfully = true;
             } catch (\Throwable $e) {
                 Log::warning('Could not process user avatar for birthday creative: '.$e->getMessage());
