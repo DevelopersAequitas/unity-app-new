@@ -19,6 +19,13 @@
 
     @section('content')
     <div class="container-fluid">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h1 class="h4 mb-0 fw-bold">Circle Joining Request Detail</h1>
+            <a href="{{ route('admin.circle-joining-requests.index') }}"
+               class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
         <div class="card"><div class="card-body">
             <div class="d-flex justify-content-between align-items-start">
                 <h5>Peer: {{ $record->user?->adminDisplayName() }}</h5>

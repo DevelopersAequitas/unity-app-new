@@ -2,8 +2,21 @@
 @section('title', 'Edit Circular')
 @section('content')
 <div class="container-fluid">
-    <h1 class="h4 mb-3">Edit Circular</h1>
-    <form method="POST" action="{{ route('admin.circulars.update', $circular) }}">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h4 mb-1 text-dark fw-bold">Edit Circular</h1>
+            <p class="text-muted small mb-0">Update circular details and targets</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route('admin.circulars.show', $circular) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <button type="submit" form="editCircularForm" class="btn btn-success d-inline-flex align-items-center gap-2">
+                <i class="bi bi-check-circle"></i> Save
+            </button>
+        </div>
+    </div>
+    <form id="editCircularForm" method="POST" action="{{ route('admin.circulars.update', $circular) }}">
         @method('PUT')
         @include('admin.circulars._form')
     </form>

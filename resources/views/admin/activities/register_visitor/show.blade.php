@@ -48,8 +48,8 @@
                 </ol>
             </nav>
         </div>
-        <a href="{{ route('admin.activities.register-visitor.index') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Back to Visitors Index
+        <a href="{{ route('admin.activities.register-visitor.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
         </a>
     </div>
 

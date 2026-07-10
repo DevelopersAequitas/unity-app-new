@@ -3,22 +3,24 @@
 @section('title', ($circle->name ?? 'Circle') . ' Circle')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-        <h5 class="mb-0">{{ $circle->name ?? 'Circle' }}</h5>
+        <h5 class="mb-0 fw-bold">{{ $circle->name ?? 'Circle' }}</h5>
         <small class="text-muted">Circle details and peers</small>
     </div>
-    <div class="d-flex gap-2">
-        <a href="{{ route('admin.circles.edit', $circle) }}" class="btn btn-outline-primary btn-sm">Edit Circle</a>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ route('admin.circles.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
 
-        <form action="{{ route('admin.circles.destroy', $circle) }}" method="POST" class="d-inline"
+        <a href="{{ route('admin.circles.edit', $circle) }}" class="btn btn-outline-primary">Edit Circle</a>
+
+        <form action="{{ route('admin.circles.destroy', $circle) }}" method="POST" class="d-inline mb-0"
               onsubmit="return confirm('Delete this circle? This is a soft delete and can be restored by admin.');">
             @csrf
             @method('DELETE')
-            <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+            <button type="submit" class="btn btn-outline-danger">Delete</button>
         </form>
-
-        <a href="{{ route('admin.circles.index') }}" class="btn btn-outline-secondary btn-sm">Back to Circles</a>
     </div>
 </div>
 

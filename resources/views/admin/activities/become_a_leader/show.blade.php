@@ -57,8 +57,8 @@
                 </ol>
             </nav>
         </div>
-        <a href="{{ route('admin.activities.become-a-leader.index') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Back to Leader Submissions
+        <a href="{{ route('admin.activities.become-a-leader.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
         </a>
     </div>
 

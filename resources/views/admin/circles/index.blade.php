@@ -217,15 +217,6 @@
                             @endif
                         </td>
                         <td>
-                            @if ($circle->city_name)
-                                <span class="text-dark d-inline-flex align-items-center gap-1 text-nowrap" style="font-size: 0.85rem;">
-                                    <i class="bi bi-geo-alt text-muted small"></i>{{ $circle->city_name }}
-                                </span>
-                            @else
-                                <span class="text-muted">—</span>
-                            @endif
-                        </td>
-                        <td>
                             @if ($circle->type)
                                 <span class="badge-type-custom text-uppercase">
                                     {{ $circle->type }}

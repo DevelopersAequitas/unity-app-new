@@ -4,12 +4,9 @@
 
 @section('content')
 <div class="bg-white border rounded-4 shadow-sm p-3 p-lg-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <div>
-            <a href="{{ route('admin.referral-report.index') }}" class="btn btn-link btn-sm px-0 mb-2">
-                <i class="bi bi-arrow-left me-1"></i>Back to Referral Report
-            </a>
-            <h1 class="h4 mb-1">Users Referred by {{ $summary?->referrer_name ?: 'Deleted / Unknown User' }}</h1>
+            <h1 class="h4 mb-1 fw-bold">Users Referred by {{ $summary?->referrer_name ?: 'Deleted / Unknown User' }}</h1>
             <div class="text-muted small">
                 <span>Email: {{ $summary?->referrer_email ?: 'No email' }}</span>
                 <span class="mx-1">•</span><span>Phone: {{ $summary?->referrer_phone ?: 'No phone' }}</span>
@@ -18,10 +15,13 @@
                 @endif
             </div>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-            <span class="badge bg-light text-dark border">Referral Code: {{ $summary?->referral_codes ?: '—' }}</span>
-            <span class="badge bg-light text-dark border">Total Users: {{ number_format((int) ($summary?->total_referred_users ?? 0)) }}</span>
-            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Coins Granted: {{ number_format((int) ($summary?->total_coins_granted ?? 0)) }}</span>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <a href="{{ route('admin.referral-report.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <span class="badge bg-light text-dark border p-2">Referral Code: {{ $summary?->referral_codes ?: '—' }}</span>
+            <span class="badge bg-light text-dark border p-2">Total Users: {{ number_format((int) ($summary?->total_referred_users ?? 0)) }}</span>
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle p-2">Coins Granted: {{ number_format((int) ($summary?->total_coins_granted ?? 0)) }}</span>
         </div>
     </div>
 
