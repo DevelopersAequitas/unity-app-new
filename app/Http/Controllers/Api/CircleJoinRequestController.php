@@ -6,9 +6,11 @@ use App\Http\Requests\Api\CircleJoinRequests\ListMyCircleJoinRequests;
 use App\Http\Requests\Api\CircleJoinRequests\StoreCircleJoinRequest;
 use App\Models\Circle;
 use App\Models\CircleJoinRequest;
+use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestController extends BaseApiController
@@ -17,23 +19,33 @@ class CircleJoinRequestController extends BaseApiController
 
     public function store(StoreCircleJoinRequest $request): JsonResponse
     {
-        $circle = Circle::query()->where('id', $request->validated('circle_id'))->firstOrFail();
+        $circleId = $request->validated('circle_id');
+
+        if (! $circleId) {
+            $categoryId = $request->validated('category_id');
+            $circleId = DB::table('circle_category_mappings')
+                ->where('category_id', $categoryId)
+                ->value('circle_id');
+        }
+
+        if (! $circleId) {
+            return $this->error('Could not resolve Circle ID for the given category.', 422);
+        }
+
+        $circle = Circle::query()->where('id', $circleId)->firstOrFail();
 
         if ($circle->status !== 'active') {
             return $this->error('Circle is not active.', 422);
         }
 
         try {
+            $reason = $request->validated('reason') ?? $request->validated('reason_for_joining');
             $record = $this->service->submitRequest(
                 $request->user(),
                 $circle,
-                $request->validated('reason_for_joining'),
+                $reason,
                 [
-                    'level1_category_id' => $request->validated('level1_category_id')
-                        ?? $request->validated('circle_category_id')
-                        ?? $request->validated('category_id'),
-                    'level2_category_id' => $request->validated('level2_category_id'),
-                    'level3_category_id' => $request->validated('level3_category_id'),
+                    'level1_category_id' => $request->validated('category_id'),
                     'level4_category_id' => $request->validated('level4_category_id'),
                 ]
             );
@@ -47,7 +59,18 @@ class CircleJoinRequestController extends BaseApiController
                 'level4Category:id,name',
             ]);
 
-            return $this->success($this->transformJoinRequest($record), 'Circle join request submitted successfully.', 201);
+            $transformed = $this->transformJoinRequest($record);
+            $transformed['user_id'] = $record->user_id;
+            $transformed['category_id'] = $record->level1_category_id;
+            $transformed['status'] = $record->status;
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => 'Circle join request submitted successfully.',
+                'data' => $transformed,
+                'meta' => null,
+            ], 201);
         } catch (ValidationException $exception) {
             return $this->error('Validation failed.', 422, $exception->errors());
         }
@@ -129,6 +152,7 @@ class CircleJoinRequestController extends BaseApiController
             'status_label' => $isPaid ? 'Paid' : $this->statusLabel($status),
             'payment_status' => $isPaid ? 'paid' : 'unpaid',
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
+            'reason' => $request->reason_for_joining,
         ]);
 
         $circleCategory = $request->circleCategory;
@@ -188,6 +212,154 @@ class CircleJoinRequestController extends BaseApiController
         }
 
         return (int) $notesSelection[$key];
+    }
+
+    public function status(Request $request, string $id): JsonResponse
+    {
+        $userId = $request->user()->id;
+
+        $record = CircleJoinRequest::query()
+            ->with([
+                'circle',
+                'user',
+                'cdApprovedBy',
+                'idApprovedBy',
+                'cdRejectedBy',
+                'idRejectedBy',
+                'circleCategory',
+            ])
+            ->where('id', $id)
+            ->first();
+
+        if (! $record || (string) $record->user_id !== (string) $userId) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'Circle joining request not found.',
+                'data' => null,
+                'meta' => null,
+            ], 404);
+        }
+
+        $circleName = $record->circle?->name ?? 'N/A';
+        $categoryId = $record->level1_category_id ?? ($record->circleCategory?->id ? (int) $record->circleCategory->id : null);
+        $categoryName = $record->circleCategory?->name ?? 'N/A';
+
+        // CD Approval
+        $cdStatus = 'pending';
+        if ($record->cd_approved_at !== null) {
+            $cdStatus = 'approved';
+        } elseif ($record->cd_rejected_at !== null) {
+            $cdStatus = 'rejected';
+        }
+
+        $cdApprovedBy = null;
+        if ($record->cdApprovedBy) {
+            $cdApprovedBy = [
+                'id' => (string) $record->cdApprovedBy->id,
+                'name' => (string) ($record->cdApprovedBy->display_name ?: trim(($record->cdApprovedBy->first_name ?? '').' '.($record->cdApprovedBy->last_name ?? '')) ?: 'Admin'),
+            ];
+        }
+
+        // ID Approval
+        $idStatus = 'pending';
+        if ($record->id_approved_at !== null) {
+            $idStatus = 'approved';
+        } elseif ($record->id_rejected_at !== null) {
+            $idStatus = 'rejected';
+        }
+
+        $idApprovedBy = null;
+        if ($record->idApprovedBy) {
+            $idApprovedBy = [
+                'id' => (string) $record->idApprovedBy->id,
+                'name' => (string) ($record->idApprovedBy->display_name ?: trim(($record->idApprovedBy->first_name ?? '').' '.($record->idApprovedBy->last_name ?? '')) ?: 'Admin'),
+            ];
+        }
+
+        // Rejection Info
+        $isRejected = in_array((string) $record->status, [CircleJoinRequest::STATUS_REJECTED_BY_CD, CircleJoinRequest::STATUS_REJECTED_BY_ID], true);
+        $rejectedBy = null;
+        $rejectionReason = null;
+        $rejectedAt = null;
+
+        if ((string) $record->status === CircleJoinRequest::STATUS_REJECTED_BY_CD) {
+            $rejectedBy = 'cd';
+            $rejectionReason = $record->cd_rejection_reason;
+            $rejectedAt = $record->cd_rejected_at ? $record->cd_rejected_at->toIso8601String() : null;
+        } elseif ((string) $record->status === CircleJoinRequest::STATUS_REJECTED_BY_ID) {
+            $rejectedBy = 'id';
+            $rejectionReason = $record->id_rejection_reason;
+            $rejectedAt = $record->id_rejected_at ? $record->id_rejected_at->toIso8601String() : null;
+        }
+
+        // Payment Info
+        $paymentStatus = 'unpaid';
+        $isPaid = in_array((string) $record->status, [CircleJoinRequest::STATUS_PAID, CircleJoinRequest::STATUS_CIRCLE_MEMBER], true) || $record->fee_paid_at !== null;
+        if ($isPaid) {
+            $paymentStatus = 'paid';
+        }
+
+        $paymentUrl = null;
+        $canPay = false;
+
+        if ((string) $record->status === CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE) {
+            $paymentUrl = app(CircleJoinRequestNotificationService::class)->resolvePaymentUrl($record);
+            $canPay = $paymentUrl !== null;
+        }
+
+        $paidAt = null;
+        if ($isPaid) {
+            $paidAtTimestamp = $record->fee_paid_at ?: $record->fee_marked_at ?: $record->updated_at;
+            $paidAt = $paidAtTimestamp ? $paidAtTimestamp->toIso8601String() : null;
+        }
+
+        $data = [
+            'id' => (string) $record->id,
+            'user_id' => (string) $record->user_id,
+            'circle_id' => (string) $record->circle_id,
+            'circle_name' => $circleName,
+            'circle_category_id' => $categoryId,
+            'category_name' => $categoryName,
+            'status' => (string) $record->status,
+            'status_label' => $this->statusLabel($record->status),
+            'cd_approval' => [
+                'status' => $cdStatus,
+                'approved_at' => $record->cd_approved_at ? $record->cd_approved_at->toIso8601String() : null,
+                'approved_by' => $cdApprovedBy,
+            ],
+            'id_approval' => [
+                'status' => $idStatus,
+                'approved_at' => $record->id_approved_at ? $record->id_approved_at->toIso8601String() : null,
+                'approved_by' => $idApprovedBy,
+            ],
+            'rejection' => [
+                'is_rejected' => $isRejected,
+                'rejected_by' => $rejectedBy,
+                'reason' => $rejectionReason,
+                'rejected_at' => $rejectedAt,
+            ],
+            'payment' => [
+                'required' => true,
+                'status' => $paymentStatus,
+                'amount' => (int) ($record->circle?->circle_price_amount ?: 5000),
+                'currency' => $record->circle?->circle_price_currency ?: 'INR',
+                'payment_url' => $paymentUrl,
+                'button_label' => 'Pay Now',
+                'paid_at' => $paidAt,
+            ],
+            'can_pay' => $canPay,
+            'created_at' => $record->created_at ? $record->created_at->toIso8601String() : null,
+            'updated_at' => $record->updated_at ? $record->updated_at->toIso8601String() : null,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'status' => true,
+            'message' => 'Circle joining request status fetched successfully.',
+            'data' => $data,
+            'meta' => null,
+        ], 200);
     }
 
     private function statusLabel(string $status): string

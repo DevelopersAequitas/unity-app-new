@@ -11,6 +11,7 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleJoinRequest;
 use App\Services\Admin\IndustryScopeService;
+use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
@@ -288,6 +289,16 @@ class CircleJoinRequestsController extends Controller
                 'to' => $request->status,
             ]);
         });
+
+        $record->refresh();
+        try {
+            app(CircleJoinRequestNotificationService::class)->sendJoinRequestApprovedCongratulations($record);
+        } catch (\Throwable $e) {
+            Log::error('Failed to trigger congratulations email from admin controller', [
+                'request_id' => $record->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function approveRequestByDed(CircleJoinRequest $record, $admin, $actor, ?string $remarks = null): void

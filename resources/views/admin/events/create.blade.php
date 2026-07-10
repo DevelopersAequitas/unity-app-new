@@ -156,7 +156,9 @@
         <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-calendar-event text-primary me-2"></i>{{ $isEdit ? 'Edit Event' : 'Create Event' }}</h4>
         <p class="text-muted small mb-0">Use this guided form to publish an event and generate upcoming occurrences automatically.</p>
     </div>
-    <a href="{{ route('admin.events.index') }}" class="btn btn-outline-secondary btn-sm">Back</a>
+    <a href="{{ $isEdit ? route('admin.events.show', $event) : route('admin.events.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
 </div>
 
 <div class="card-activities-wrapper mb-4">
@@ -296,10 +298,16 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-end mt-4 pt-3 border-top">
-                        <button type="button" class="btn btn-primary" onclick="switchTab('schedule-tab')">
-                            Next: Date, Recurrence & Location <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <div></div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('schedule-tab')">
+                                Next: Date, Recurrence & Location <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -435,9 +443,14 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('basic-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('agenda-tab')">
-                            Next: Agenda & Speakers <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('agenda-tab')">
+                                Next: Agenda & Speakers <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -533,9 +546,14 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('schedule-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('registration-tab')">
-                            Next: Registration & Settings <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('registration-tab')">
+                                Next: Registration & Settings <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
+use App\Models\File;
 use App\Models\Impact;
 use App\Models\Post;
+use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Services\Media\BirthdayCreativeImageService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +17,9 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class PostModerationController extends Controller
@@ -61,7 +66,7 @@ class PostModerationController extends Controller
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
-        $industryScope->applyToActivityQuery($query, $admin, ['posts.user_id']);
+        $industryScope->applyToActivityQuery($query, $admin, ['posts.user_id', 'posts.source_id']);
 
         if (filled($filters['visibility']) && $filters['visibility'] !== 'any') {
             $query->where('posts.visibility', $filters['visibility']);
@@ -349,8 +354,55 @@ class PostModerationController extends Controller
             ])
             ->findOrFail($postId);
 
-        if (! app(IndustryScopeService::class)->userInScope($admin, (string) $post->user_id)) {
+        $targetUserIdForScope = $post->user_id;
+        if (in_array($post->post_type, ['birthday', 'anniversary'], true) && $post->source_id) {
+            $targetUserIdForScope = $post->source_id;
+        }
+
+        if (! app(IndustryScopeService::class)->userInScope($admin, (string) $targetUserIdForScope)) {
             abort(403);
+        }
+
+        if ($post->post_type === 'birthday') {
+            $celebratingUser = $post->source_id ? User::find($post->source_id) : $post->user;
+            if ($celebratingUser) {
+                $hasValidMedia = false;
+                $mediaItems = is_array($post->media) ? $post->media : [];
+                if (! empty($mediaItems)) {
+                    foreach ($mediaItems as $mediaItem) {
+                        $fileId = data_get($mediaItem, 'id');
+                        if ($fileId) {
+                            $fileRecord = File::find($fileId);
+                            if ($fileRecord && $fileRecord->s3_key) {
+                                $disk = config('filesystems.default', 'public');
+                                if (Storage::disk($disk)->exists($fileRecord->s3_key) ||
+                                    Storage::disk('public')->exists($fileRecord->s3_key)) {
+                                    $hasValidMedia = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (! $hasValidMedia) {
+                    try {
+                        $imageService = app(BirthdayCreativeImageService::class);
+                        $fileModel = $imageService->generate($celebratingUser);
+                        $mediaUrl = url("/api/v1/files/{$fileModel->id}");
+                        $post->media = [
+                            [
+                                'id' => $fileModel->id,
+                                'type' => 'image',
+                                'url' => $mediaUrl,
+                            ],
+                        ];
+                        $post->save();
+                    } catch (\Throwable $e) {
+                        Log::error('Failed to dynamically generate birthday image on View: '.$e->getMessage());
+                    }
+                }
+            }
         }
 
         return view('admin.posts.show', [

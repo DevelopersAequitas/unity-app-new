@@ -1967,45 +1967,52 @@ class UsersController extends Controller
             if (Str::isUuid($search)) {
                 $query->where('users.id', $search);
             } else {
-                $query->where(function ($q) use ($search) {
-                    $like = "%{$search}%";
+                $words = array_filter(explode(' ', $search));
+                $query->where(function ($q) use ($words) {
+                    foreach ($words as $word) {
+                        $like = "%{$word}%";
+                        $q->where(function ($sub) use ($like) {
+                            $searchableColumns = [
+                                'name',
+                                'display_name',
+                                'first_name',
+                                'last_name',
+                                'email',
+                                'company',
+                                'company_name',
+                                'business_name',
+                                'city',
+                                'phone',
+                            ];
 
-                    $searchableColumns = [
-                        'name',
-                        'display_name',
-                        'first_name',
-                        'last_name',
-                        'email',
-                        'company',
-                        'company_name',
-                        'business_name',
-                        'city',
-                        'phone',
-                    ];
+                            $hasSearchColumn = false;
+                            foreach ($searchableColumns as $column) {
+                                if (! Schema::hasColumn('users', $column)) {
+                                    continue;
+                                }
 
-                    $hasSearchColumn = false;
-                    foreach ($searchableColumns as $column) {
-                        if (! Schema::hasColumn('users', $column)) {
-                            continue;
-                        }
+                                if (! $hasSearchColumn) {
+                                    $sub->where($column, 'ILIKE', $like);
+                                    $hasSearchColumn = true;
 
-                        if (! $hasSearchColumn) {
-                            $q->where($column, 'ILIKE', $like);
-                            $hasSearchColumn = true;
+                                    continue;
+                                }
 
-                            continue;
-                        }
+                                $sub->orWhere($column, 'ILIKE', $like);
+                            }
 
-                        $q->orWhere($column, 'ILIKE', $like);
+                            $driver = DB::connection()->getDriverName();
+                            if ($driver === 'sqlite') {
+                                $sub->orWhereRaw("LOWER(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) LIKE ?", [strtolower($like)]);
+                            } else {
+                                $sub->orWhereRaw("TRIM(CONCAT_WS(' ', COALESCE(first_name, ''), COALESCE(last_name, ''))) ILIKE ?", [$like]);
+                            }
+
+                            $sub->orWhereHas('city', function ($cityQuery) use ($like) {
+                                $cityQuery->where('name', 'ILIKE', $like);
+                            });
+                        });
                     }
-
-                    if (! $hasSearchColumn) {
-                        $q->whereRaw('1=0');
-                    }
-
-                    $q->orWhereHas('city', function ($cityQuery) use ($like) {
-                        $cityQuery->where('name', 'ILIKE', $like);
-                    });
                 });
             }
         }

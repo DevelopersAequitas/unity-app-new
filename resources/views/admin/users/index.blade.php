@@ -75,7 +75,7 @@
         <div class="row g-3 align-items-end">
             <div class="col-12 col-md-6 col-xl-3">
                 <label class="form-label small text-muted" for="peerSearch">Search</label>
-                <select id="peerSearch" name="q" class="form-select form-select-sm">
+                <select id="peerSearch" name="q" class="form-select form-select-sm js-no-searchable-select">
                     <option value="">Peer, company, city</option>
                     @if($selectedUser)
                         <option value="{{ $selectedUser->id }}" selected>{{ $selectedUserLabel }}</option>
@@ -84,7 +84,7 @@
             </div>
             <div class="col-12 col-md-6 col-xl-3">
                 <label class="form-label small text-muted" for="circleFilter">Circle</label>
-                <select id="circleFilter" name="circle_id" class="form-select form-select-sm">
+                <select id="circleFilter" name="circle_id" class="form-select form-select-sm admin-filter-dropdown">
                     <option value="all">All Circles</option>
                     @foreach($circles as $c)
                         <option value="{{ $c->id }}" @selected(($circleId ?? 'all') == $c->id)>{{ $c->name }}</option>
@@ -94,7 +94,7 @@
 
             <div class="col-12 col-md-6 col-xl-2">
                 <label class="form-label small text-muted" for="membershipFilter">Membership</label>
-                <select id="membershipFilter" name="membership_status" class="form-select form-select-sm">
+                <select id="membershipFilter" name="membership_status" class="form-select form-select-sm admin-filter-dropdown">
                     <option value="">All</option>
                     @foreach ($membershipStatuses as $status)
                         <option value="{{ $status }}" @selected(request('membership_status') === $status)>{{ $membershipStatusLabels[$status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $status)) }}</option>
@@ -111,7 +111,7 @@
             </div>
             <div class="col-12 col-md-6 col-xl-3">
                 <label class="form-label small text-muted" for="joinedFilter">Date Filter</label>
-                <select name="joined_filter" id="joinedFilter" class="form-select form-select-sm">
+                <select name="joined_filter" id="joinedFilter" class="form-select form-select-sm admin-filter-dropdown">
                     <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
                     <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
                     <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
@@ -674,6 +674,43 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        const $peerSearch = jQuery('#peerSearch');
+        if ($peerSearch.length && jQuery.fn.select2) {
+            $peerSearch.select2({
+                width: '100%',
+                placeholder: 'Peer, company, city',
+                allowClear: true,
+                containerCssClass: 'admin-filter-dropdown-container',
+                dropdownCssClass: 'admin-filter-dropdown-menu',
+                ajax: {
+                    url: '/admin/users/search',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term || ''
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.map(function (item) {
+                                return {
+                                    id: item.id,
+                                    text: item.label_inline || item.label || item.name
+                                };
+                            })
+                        };
+                    },
+                    cache: true
+                },
+                language: {
+                    noResults: function () {
+                        return "No peers found.";
+                    }
+                }
+            });
+        }
+
         const selectAll = document.getElementById('selectAllPeers');
         const perPage = document.getElementById('perPage');
         const filterForm = document.getElementById('usersFiltersForm');
@@ -779,6 +816,7 @@
                 membershipEndDate.value = '';
             }
 
+            $peerSearch.val(null).trigger('change');
         });
 
         selectAll?.addEventListener('change', () => {

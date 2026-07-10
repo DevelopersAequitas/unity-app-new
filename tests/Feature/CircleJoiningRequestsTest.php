@@ -203,11 +203,12 @@ class CircleJoiningRequestsTest extends TestCase
         $user->password_hash = bcrypt('password');
         $user->save();
 
-        // Test POST with valid circle_category_id
+        // Test POST with valid category_id and circle_category_id
         Sanctum::actingAs($user);
         $payload1 = [
             'circle_id' => $circle1->id,
             'reason_for_joining' => 'Interest in first active circle',
+            'category_id' => $category->id,
             'circle_category_id' => $category->id,
         ];
         $response1 = $this->postJson('/api/v1/circle-join-requests', $payload1);
@@ -250,11 +251,75 @@ class CircleJoiningRequestsTest extends TestCase
         $payload3 = [
             'circle_id' => $circle3->id,
             'reason_for_joining' => 'Interest in third active circle',
-            'circle_category_id' => 999999, // invalid ID
+            'category_id' => 999999, // invalid ID
         ];
         $response3 = $this->postJson('/api/v1/circle-join-requests', $payload3);
         $response3->assertStatus(422);
-        $response3->assertJsonValidationErrors(['circle_category_id']);
+        $response3->assertJsonValidationErrors(['category_id']);
+
+        // Test POST with 'reason' field instead of 'reason_for_joining'
+        $circle4 = new Circle;
+        $circle4->id = (string) Str::uuid();
+        $circle4->name = 'Fourth active Circle';
+        $circle4->slug = 'fourth-active-circle';
+        $circle4->status = 'active';
+        $circle4->template_id = $template->id;
+        $circle4->save();
+
+        $payload4 = [
+            'circle_id' => $circle4->id,
+            'reason' => 'Interest in fourth active circle with short reason field',
+            'category_id' => $category->id,
+        ];
+        $response4 = $this->postJson('/api/v1/circle-join-requests', $payload4);
+        $response4->assertStatus(201);
+        $response4->assertJsonFragment([
+            'reason' => 'Interest in fourth active circle with short reason field',
+            'reason_for_joining' => 'Interest in fourth active circle with short reason field',
+        ]);
+
+        $this->assertDatabaseHas('circle_join_requests', [
+            'circle_id' => $circle4->id,
+            'reason_for_joining' => 'Interest in fourth active circle with short reason field',
+        ]);
+
+        // Test POST without 'circle_id' but with 'category_id' (resolving from mapping)
+        $circle5 = new Circle;
+        $circle5->id = (string) Str::uuid();
+        $circle5->name = 'Fifth active Circle';
+        $circle5->slug = 'fifth-active-circle';
+        $circle5->status = 'active';
+        $circle5->template_id = $template->id;
+        $circle5->save();
+
+        $category5 = CircleCategory::query()->create([
+            'name' => 'Fifth Target Categories',
+            'slug' => 'fifth-target-categories',
+            'level' => 1,
+            'is_active' => true,
+        ]);
+
+        DB::table('circle_category_mappings')->insert([
+            'circle_id' => $circle5->id,
+            'category_id' => $category5->id,
+        ]);
+
+        $payload5 = [
+            'category_id' => $category5->id,
+            'reason' => 'Should resolve circle_id automatically',
+        ];
+        $response5 = $this->postJson('/api/v1/circle-join-requests', $payload5);
+        $response5->assertStatus(201);
+        $response5->assertJsonFragment([
+            'circle_id' => $circle5->id,
+            'category_id' => $category5->id,
+            'reason' => 'Should resolve circle_id automatically',
+        ]);
+
+        $this->assertDatabaseHas('circle_join_requests', [
+            'circle_id' => $circle5->id,
+            'reason_for_joining' => 'Should resolve circle_id automatically',
+        ]);
     }
 
     public function test_dynamic_category_tracing_fallback(): void
@@ -307,6 +372,236 @@ class CircleJoiningRequestsTest extends TestCase
         $this->assertNotNull($resolvedCategory);
         $this->assertEquals($category->id, $resolvedCategory->id);
         $this->assertEquals($category->name, $resolvedCategory->name);
+    }
+
+    public function test_api_submit_join_request_success_with_authenticated_user(): void
+    {
+        // 1. Create Template
+        $template = new CircleTemplate;
+        $template->id = (string) Str::uuid();
+        $template->name = 'Standard Template';
+        $template->slug = 'standard-template-slug';
+        $template->description = 'A standard template';
+        $template->save();
+
+        // 2. Create Circle
+        $circle = new Circle;
+        $circle->id = (string) Str::uuid();
+        $circle->name = 'Active Circle';
+        $circle->slug = 'active-circle';
+        $circle->status = 'active';
+        $circle->template_id = $template->id;
+        $circle->save();
+
+        // 3. Create Category
+        $category = CircleCategory::query()->create([
+            'name' => 'Manufacturing Circles',
+            'slug' => 'manufacturing-circles',
+            'level' => 1,
+            'is_active' => true,
+        ]);
+
+        // 4. Create User
+        $user = new User;
+        $user->id = (string) Str::uuid();
+        $user->first_name = 'Amit';
+        $user->last_name = 'Shah';
+        $user->email = 'amit@example.com';
+        $user->status = 'active';
+        $user->password_hash = bcrypt('password');
+        $user->save();
+
+        // 5. Submit valid request
+        Sanctum::actingAs($user);
+        $payload = [
+            'circle_id' => $circle->id,
+            'category_id' => $category->id,
+            'reason_for_joining' => 'Valid join request',
+        ];
+        $response = $this->postJson('/api/v1/circle-join-requests', $payload);
+        $response->assertStatus(201);
+
+        // Check successful response structure
+        $response->assertJson([
+            'success' => true,
+            'status' => true,
+            'message' => 'Circle join request submitted successfully.',
+        ]);
+
+        $responseData = $response->json('data');
+        $this->assertNotNull($responseData['id']);
+        $this->assertEquals($user->id, $responseData['user_id']);
+        $this->assertEquals($circle->id, $responseData['circle_id']);
+        $this->assertEquals($category->id, $responseData['category_id']);
+        $this->assertEquals(CircleJoinRequest::STATUS_PENDING_CD_APPROVAL, $responseData['status']);
+    }
+
+    public function test_api_submit_join_request_ignores_request_user_id(): void
+    {
+        // 1. Create Template & Circle & Category
+        $template = new CircleTemplate;
+        $template->id = (string) Str::uuid();
+        $template->name = 'Template';
+        $template->slug = 'slug';
+        $template->save();
+
+        $circle = new Circle;
+        $circle->id = (string) Str::uuid();
+        $circle->name = 'Active Circle';
+        $circle->slug = 'active-circle';
+        $circle->status = 'active';
+        $circle->template_id = $template->id;
+        $circle->save();
+
+        $category = CircleCategory::query()->create([
+            'name' => 'Category',
+            'slug' => 'category',
+        ]);
+
+        // 2. Create two users
+        $user = new User;
+        $user->id = (string) Str::uuid();
+        $user->first_name = 'Auth';
+        $user->email = 'auth@example.com';
+        $user->status = 'active';
+        $user->password_hash = bcrypt('password');
+        $user->save();
+
+        $otherUser = new User;
+        $otherUser->id = (string) Str::uuid();
+        $otherUser->first_name = 'Other';
+        $otherUser->email = 'other@example.com';
+        $otherUser->status = 'active';
+        $otherUser->password_hash = bcrypt('password');
+        $otherUser->save();
+
+        // 3. Act as auth user but send otherUser id in payload
+        Sanctum::actingAs($user);
+        $payload = [
+            'circle_id' => $circle->id,
+            'category_id' => $category->id,
+            'user_id' => $otherUser->id,
+        ];
+        $response = $this->postJson('/api/v1/circle-join-requests', $payload);
+        $response->assertStatus(201);
+
+        // Verify the created request is associated with user, not otherUser
+        $this->assertEquals($user->id, $response->json('data.user_id'));
+        $this->assertDatabaseHas('circle_join_requests', [
+            'circle_id' => $circle->id,
+            'user_id' => $user->id,
+        ]);
+        $this->assertDatabaseMissing('circle_join_requests', [
+            'circle_id' => $circle->id,
+            'user_id' => $otherUser->id,
+        ]);
+    }
+
+    public function test_api_submit_join_request_invalid_circle_id(): void
+    {
+        $category = CircleCategory::query()->create([
+            'name' => 'Category',
+            'slug' => 'category',
+        ]);
+        $user = new User;
+        $user->id = (string) Str::uuid();
+        $user->first_name = 'Auth';
+        $user->email = 'auth@example.com';
+        $user->status = 'active';
+        $user->password_hash = bcrypt('password');
+        $user->save();
+
+        Sanctum::actingAs($user);
+        // Non-existent or invalid UUID circle_id
+        $payload = [
+            'circle_id' => 'not-a-uuid',
+            'category_id' => $category->id,
+        ];
+        $response = $this->postJson('/api/v1/circle-join-requests', $payload);
+        $response->assertStatus(422);
+        $response->assertJson([
+            'success' => false,
+            'status' => false,
+        ]);
+        $response->assertJsonValidationErrors(['circle_id']);
+    }
+
+    public function test_api_submit_join_request_invalid_category_id(): void
+    {
+        $circle = Circle::query()->create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Active Circle',
+            'status' => 'active',
+        ]);
+        $user = new User;
+        $user->id = (string) Str::uuid();
+        $user->first_name = 'Auth';
+        $user->email = 'auth@example.com';
+        $user->status = 'active';
+        $user->password_hash = bcrypt('password');
+        $user->save();
+
+        Sanctum::actingAs($user);
+        // Invalid category_id
+        $payload = [
+            'circle_id' => $circle->id,
+            'category_id' => 999999,
+        ];
+        $response = $this->postJson('/api/v1/circle-join-requests', $payload);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['category_id']);
+    }
+
+    public function test_api_submit_join_request_unauthenticated(): void
+    {
+        $payload = [
+            'circle_id' => (string) Str::uuid(),
+            'category_id' => 1,
+        ];
+        $response = $this->postJson('/api/v1/circle-join-requests', $payload);
+        $response->assertStatus(401);
+    }
+
+    public function test_api_submit_join_request_duplicate_request(): void
+    {
+        $template = new CircleTemplate;
+        $template->id = (string) Str::uuid();
+        $template->name = 'Template';
+        $template->slug = 'slug';
+        $template->save();
+
+        $circle = new Circle;
+        $circle->id = (string) Str::uuid();
+        $circle->name = 'Active Circle';
+        $circle->status = 'active';
+        $circle->template_id = $template->id;
+        $circle->save();
+
+        $category = CircleCategory::query()->create([
+            'name' => 'Category',
+            'slug' => 'category',
+        ]);
+        $user = new User;
+        $user->id = (string) Str::uuid();
+        $user->first_name = 'Auth';
+        $user->email = 'auth@example.com';
+        $user->status = 'active';
+        $user->password_hash = bcrypt('password');
+        $user->save();
+
+        Sanctum::actingAs($user);
+        // First request
+        $payload = [
+            'circle_id' => $circle->id,
+            'category_id' => $category->id,
+        ];
+        $response1 = $this->postJson('/api/v1/circle-join-requests', $payload);
+        $response1->assertStatus(201);
+
+        // Second duplicate request
+        $response2 = $this->postJson('/api/v1/circle-join-requests', $payload);
+        $response2->assertStatus(422);
+        $response2->assertJsonValidationErrors(['circle_id']);
     }
 
     private function createSchema(): void

@@ -90,10 +90,16 @@
                             <textarea name="summary" class="form-control" maxlength="500" rows="3" placeholder="Provide a brief summary of this circular (max 500 chars)...">{{ old('summary', $circular->summary) }}</textarea>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-end mt-4 pt-3 border-top">
-                        <button type="button" class="btn btn-primary" onclick="switchTab('content-tab')">
-                            Next: Content & Media <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <div></div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('content-tab')">
+                                Next: Content & Media <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -150,9 +156,14 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('basic-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('audience-tab')">
-                            Next: Audience & Settings <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('audience-tab')">
+                                Next: Audience & Settings <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

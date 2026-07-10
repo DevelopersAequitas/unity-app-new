@@ -450,6 +450,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/circle-join-requests', [CircleJoinRequestController::class, 'store']);
         Route::get('/circle-join-requests/my', [CircleJoinRequestController::class, 'myRequests']);
         Route::get('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'show'])->whereUuid('id');
+        Route::get('/circle-join-requests/{id}/status', [CircleJoinRequestController::class, 'status'])->whereUuid('id');
         Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
 
         Route::prefix('admin')->group(function () {

@@ -44,14 +44,9 @@
         <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-circle-fill text-primary me-2"></i>Edit Circle</h4>
         <p class="text-muted small mb-0">Update circle details, settings, and meeting schedule</p>
     </div>
-    <div class="d-flex gap-2 align-items-center">
-        <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
-            <i class="bi bi-arrow-left"></i> Back
-        </a>
-        <button type="submit" form="editCircleForm" class="btn btn-success d-inline-flex align-items-center gap-2">
-            <i class="bi bi-check-circle"></i> Save
-        </button>
-    </div>
+    <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
 </div>
 
 @if ($errors->any())
@@ -197,15 +192,15 @@
                         </div>
                     </div>
                     <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-secondary">Cancel</a>
                         <div class="d-flex gap-2">
-                            <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-danger">Cancel</a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('details-tab')">
+                                Next: Description & Tags <i class="bi bi-arrow-right ms-1"></i>
                             </button>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('details-tab')">
-                            Next: Description & Tags <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -242,14 +237,13 @@
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
                         <div class="d-flex gap-2">
-                            <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-danger">Cancel</a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('leadership-tab')">
+                                Next: Leadership & Location <i class="bi bi-arrow-right ms-1"></i>
                             </button>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('leadership-tab')">
-                            Next: Leadership & Location <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -327,14 +321,13 @@
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
                         <div class="d-flex gap-2">
-                            <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-danger">Cancel</a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('schedule-tab')">
+                                Next: Meeting Settings <i class="bi bi-arrow-right ms-1"></i>
                             </button>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('schedule-tab')">
-                            Next: Meeting Settings <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -493,12 +486,9 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('leadership-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
-                        <div class="d-flex gap-2">
-                            <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-danger">Cancel</a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-check-circle me-1"></i>Save Changes
-                            </button>
-                        </div>
+                        <button type="submit" class="btn btn-success px-4">
+                            <i class="bi bi-check-circle me-1"></i>Save Changes
+                        </button>
                     </div>
                 </div>
             </div>

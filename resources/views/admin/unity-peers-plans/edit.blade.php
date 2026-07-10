@@ -8,14 +8,9 @@
         <h1 class="h4 mb-1 text-dark fw-bold">Edit Membership Plan</h1>
         <p class="text-muted small mb-0">Update pricing and duration details</p>
     </div>
-    <div class="d-flex gap-2 align-items-center">
-        <a href="{{ route('admin.unity-peers-plans.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
-            <i class="bi bi-arrow-left"></i> Back
-        </a>
-        <button type="submit" form="editMembershipPlanForm" class="btn btn-success d-inline-flex align-items-center gap-2">
-            <i class="bi bi-check-circle"></i> Save
-        </button>
-    </div>
+    <a href="{{ route('admin.unity-peers-plans.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
 </div>
 
     @if ($errors->any())

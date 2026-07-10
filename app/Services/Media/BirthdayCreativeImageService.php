@@ -172,8 +172,11 @@ class BirthdayCreativeImageService
         });
 
         // Dynamic center coordinates for the actual profile photo / letter
-        $x = 540; // Center X
-        $y = 535; // Center Y
+        $centerX = (int) ($width / 2);
+        $centerY = (int) ($height / 2);
+
+        $insertX = (int) (($width - $avatarSize) / 2);
+        $insertY = (int) (($height - $avatarSize) / 2);
 
         // 2. Resolve avatar image source
         $avatarSource = null;
@@ -224,7 +227,7 @@ class BirthdayCreativeImageService
                 $avatar->mask($mask, true);
 
                 // Insert avatar
-                $img->insert($avatar, 'center', $x, $y);
+                $img->insert($avatar, 'center', 0, 0);
                 $drawnSuccessfully = true;
             } catch (\Throwable $e) {
                 Log::warning('Could not process user avatar for birthday creative: '.$e->getMessage());
@@ -241,13 +244,13 @@ class BirthdayCreativeImageService
             $initial = strtoupper(substr($displayName, 0, 1));
 
             // Fill the avatar circle with deep blue for initials
-            $img->circle($avatarSize, $x, $y, function ($draw) {
+            $img->circle($avatarSize, $centerX, $centerY, function ($draw) {
                 $draw->background('#00238C');
             });
 
             // Draw initial letter
             $fontPath = $this->getFontPath(true);
-            $img->text($initial, $x, $y, function ($font) use ($fontPath) {
+            $img->text($initial, $centerX, $centerY, function ($font) use ($fontPath) {
                 $font->file($fontPath);
                 $font->size(110);
                 $font->color('#FFFFFF');

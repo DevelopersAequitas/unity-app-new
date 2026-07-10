@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Media\BirthdayCreativeImageService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 use Log;
 
 class GenerateBirthdayCreatives extends Command
@@ -51,31 +52,52 @@ class GenerateBirthdayCreatives extends Command
 
         $this->info("Deactivated {$deactivatedCount} expired birthday posts.");
 
-        // 2. Identify users whose birthday is today
+        // 2. Identify users whose birthday is today based on timezone
         $testUserId = $this->option('test-user-id');
         if ($testUserId) {
             $this->info("Running in test mode for user ID: {$testUserId}");
             $users = User::query()->whereKey($testUserId)->get();
         } else {
-            // Find users where DOB month and day match today
-            $todayMmDd = Carbon::now()->format('m-d'); // 'MM-DD'
+            // Fetch users with DOB set
             $users = User::query()
                 ->whereNotNull('dob')
-                ->whereRaw("to_char(dob, 'MM-DD') = ?", [$todayMmDd])
                 ->whereNull('deleted_at')
                 ->get();
         }
 
-        $this->info("Found {$users->count()} users with birthdays today.");
+        $this->info("Found {$users->count()} users with birthdays/DOB set.");
 
         $postsCreated = 0;
         foreach ($users as $user) {
             try {
-                // Check if a birthday post was already created for this user today
+                if (! $testUserId) {
+                    $timezone = $user->timezone ?: config('app.timezone', 'UTC');
+                    try {
+                        $localTime = Carbon::now($timezone);
+                    } catch (\Throwable $tzError) {
+                        $localTime = Carbon::now('UTC');
+                    }
+
+                    // Check if today is the user's birthday in their local timezone
+                    $dobLocal = Carbon::parse($user->dob);
+                    if ($localTime->format('m-d') !== $dobLocal->format('m-d')) {
+                        continue;
+                    }
+
+                    // Check if current local time is exactly between 12:00 AM and 12:59 AM (hour is 0)
+                    if ($localTime->hour !== 0) {
+                        continue;
+                    }
+                }
+
+                // Check if a birthday post was already created for this user recently (last 20 hours)
                 $alreadyExists = Post::query()
-                    ->where('user_id', $user->id)
+                    ->where(function ($q) use ($user) {
+                        $q->where('source_id', $user->id)
+                            ->orWhere('user_id', $user->id);
+                    })
                     ->where('post_type', 'birthday')
-                    ->whereDate('created_at', Carbon::today())
+                    ->where('created_at', '>=', Carbon::now()->subHours(20))
                     ->exists();
 
                 if ($alreadyExists && ! $testUserId) {
@@ -89,15 +111,33 @@ class GenerateBirthdayCreatives extends Command
                 // Generate image using Intervention Image
                 $fileModel = $imageService->generate($user);
 
+                // Retrieve system/admin fallback account to own the automated post
+                $systemUser = User::where('email', 'info@peersglobal.com')->first();
+                if (! $systemUser) {
+                    $systemUser = User::create([
+                        'id' => (string) Str::uuid(),
+                        'first_name' => 'PeersGlobal',
+                        'last_name' => 'Unity',
+                        'display_name' => 'PeersGlobal Unity',
+                        'email' => 'info@peersglobal.com',
+                        'password_hash' => bcrypt(Str::random(16)),
+                        'status' => 'active',
+                    ]);
+                }
+                $authorUserId = $systemUser ? $systemUser->id : $user->id;
+
                 // Create Timeline post
                 $displayName = $user->display_name ?: ($user->first_name.' '.$user->last_name);
                 $post = Post::create([
-                    'user_id' => $user->id,
+                    'user_id' => $authorUserId,
                     'content_text' => "Wishing {$displayName} a very Happy Birthday! 🎂",
                     'post_type' => 'birthday',
                     'active' => true,
                     'visibility' => 'public',
                     'moderation_status' => 'approved',
+                    'source_type' => 'birthday',
+                    'source_id' => $user->id,
+                    'source_event' => 'birthday',
                     'media' => [
                         [
                             'id' => $fileModel->id,

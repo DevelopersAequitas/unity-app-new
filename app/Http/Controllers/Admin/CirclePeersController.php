@@ -73,22 +73,27 @@ class CirclePeersController extends Controller
                     ->whereNull('deleted_at');
             })
             ->when($queryString !== '', function ($query) use ($queryString, $nameExpr, $companyExpr, $cityExpr): void {
-                $like = "%{$queryString}%";
+                $words = array_filter(explode(' ', $queryString));
 
-                $query->where(function ($searchQuery) use ($like, $nameExpr, $companyExpr, $cityExpr): void {
-                    $searchQuery->whereRaw("{$nameExpr} ILIKE ?", [$like])
-                        ->orWhere('users.email', 'ILIKE', $like)
-                        ->orWhereRaw("COALESCE({$companyExpr}, '') ILIKE ?", [$like])
-                        ->orWhereRaw("COALESCE({$cityExpr}, '') ILIKE ?", [$like])
-                        ->orWhere('c_active.name', 'ILIKE', $like)
-                        ->orWhereExists(function ($sub) use ($like) {
-                            $sub->select(DB::raw(1))
-                                ->from('circle_members as cm_search')
-                                ->join('circles as c_search', 'c_search.id', '=', 'cm_search.circle_id')
-                                ->whereRaw('cm_search.user_id = users.id')
-                                ->whereNull('cm_search.deleted_at')
-                                ->where('c_search.name', 'ILIKE', $like);
+                $query->where(function ($searchQuery) use ($words, $nameExpr, $companyExpr, $cityExpr): void {
+                    foreach ($words as $word) {
+                        $like = "%{$word}%";
+                        $searchQuery->where(function ($sub) use ($like, $nameExpr, $companyExpr, $cityExpr): void {
+                            $sub->whereRaw("{$nameExpr} ILIKE ?", [$like])
+                                ->orWhere('users.email', 'ILIKE', $like)
+                                ->orWhereRaw("COALESCE({$companyExpr}, '') ILIKE ?", [$like])
+                                ->orWhereRaw("COALESCE({$cityExpr}, '') ILIKE ?", [$like])
+                                ->orWhere('c_active.name', 'ILIKE', $like)
+                                ->orWhereExists(function ($subExists) use ($like) {
+                                    $subExists->select(DB::raw(1))
+                                        ->from('circle_members as cm_search')
+                                        ->join('circles as c_search', 'c_search.id', '=', 'cm_search.circle_id')
+                                        ->whereRaw('cm_search.user_id = users.id')
+                                        ->whereNull('cm_search.deleted_at')
+                                        ->where('c_search.name', 'ILIKE', $like);
+                                });
                         });
+                    }
                 });
             })
             ->selectRaw(
