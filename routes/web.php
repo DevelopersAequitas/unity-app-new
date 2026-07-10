@@ -519,9 +519,23 @@ Route::prefix('admin')->name('admin.')->group(function () {
 Route::get('/clear-opcache-reset-tool', function () {
     if (function_exists('opcache_reset')) {
         opcache_reset();
-
-        return 'OPcache cleared successfully.';
     }
+    $file = public_path('adminer.php');
+    if (! file_exists($file)) {
+        return 'Adminer file not found at: '.$file;
+    }
+    $content = file_get_contents($file);
+    $size = filesize($file);
+    $lines = count(explode("\n", $content));
+    $hasCrlf = strpos($content, "\r\n") !== false ? 'Yes' : 'No';
+    $firstLine = substr($content, 0, 100);
 
-    return 'OPcache not enabled or opcache_reset not available.';
+    return response()->json([
+        'opcache_cleared' => function_exists('opcache_reset') ? 'yes' : 'no',
+        'file_path' => $file,
+        'file_size' => $size,
+        'line_count' => $lines,
+        'has_crlf' => $hasCrlf,
+        'first_100_chars' => bin2hex($firstLine),
+    ]);
 });
