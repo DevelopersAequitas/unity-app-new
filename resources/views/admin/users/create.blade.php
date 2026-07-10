@@ -35,8 +35,8 @@
         <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-person-plus-fill text-primary me-2"></i>Add Peer</h4>
         <p class="text-muted small mb-0">Create a new platform member</p>
     </div>
-    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i>Back to Peers
+    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-arrow-left"></i> Back
     </a>
 </div>
 
@@ -203,10 +203,16 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-end mt-4 pt-3 border-top">
-                        <button type="button" class="btn btn-primary" onclick="switchTab('business-tab')">
-                            Next: Business Details <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <div></div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('business-tab')">
+                                Next: Business Details <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -239,7 +245,6 @@
                                 'leadership_roles' => null,
                                 'special_recognitions' => null,
                                 'skills' => null,
-                                'interests' => null,
                             ];
 
                             $asCsv = function ($value): string {
@@ -257,13 +262,104 @@
                         @endforeach
                     </div>
 
+                    <h5 class="form-section-title mt-4"><i class="bi bi-leaf text-success me-2"></i>Greenpreneur Sustainability Info</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Website</label>
+                            <input type="text" name="website" class="form-control" value="{{ old('website', $user->website) }}" placeholder="https://example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">List in Community Directory?</label>
+                            <select name="community_directory_listing" class="form-select">
+                                <option value="Yes" @selected(old('community_directory_listing', $user->community_directory_listing) === 'Yes')>Yes</option>
+                                <option value="No" @selected(old('community_directory_listing', $user->community_directory_listing ?? 'No') === 'No')>No</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">How does your business contribute to sustainability?</label>
+                            <textarea name="sustainability_contribution" class="form-control" rows="3" placeholder="Describe contribution...">{{ old('sustainability_contribution', $user->sustainability_contribution) }}</textarea>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label class="form-label d-block fw-semibold mb-2">Which sustainability areas do you focus on?</label>
+                            <div class="row g-2">
+                                @php
+                                    $sustainabilityAreasOptions = [
+                                        'Renewable Energy', 'Waste Management', 'Water Conservation', 'Sustainable Agriculture',
+                                        'Green Construction', 'Circular Economy', 'ESG Consulting', 'Electric Mobility',
+                                        'Carbon Reduction', 'Recycling', 'Climate Technology', 'Sustainable Packaging',
+                                        'Biodiversity', 'Green Finance', 'Other'
+                                    ];
+                                    $userAreas = is_array($user->sustainability_areas) ? $user->sustainability_areas : [];
+                                @endphp
+                                @foreach($sustainabilityAreasOptions as $option)
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="sustainability_areas[]" value="{{ $option }}" id="area_{{ Str::slug($option) }}" @checked(in_array($option, (array) old('sustainability_areas', $userAreas)))>
+                                            <label class="form-check-label" for="area_{{ Str::slug($option) }}">{{ $option }}</label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label class="form-label d-block fw-semibold mb-2">What are you looking for through Greenpreneur?</label>
+                            <div class="row g-2">
+                                @php
+                                    $greenpreneurGoalsOptions = [
+                                        'Business Growth', 'Partnerships', 'Investors', 'Customers',
+                                        'Government Connect', 'Knowledge Sharing', 'Technology Partners',
+                                        'Global Expansion', 'Sustainability Learning'
+                                    ];
+                                    $userGoals = is_array($user->greenpreneur_goals) ? $user->greenpreneur_goals : [];
+                                @endphp
+                                @foreach($greenpreneurGoalsOptions as $option)
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="greenpreneur_goals[]" value="{{ $option }}" id="goal_{{ Str::slug($option) }}" @checked(in_array($option, (array) old('greenpreneur_goals', $userGoals)))>
+                                            <label class="form-check-label" for="goal_{{ Str::slug($option) }}">{{ $option }}</label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label class="form-label d-block fw-semibold mb-2">Are you interested in:</label>
+                            <div class="row g-2">
+                                @php
+                                    $interestsOptions = [
+                                        'Speaking Opportunities', 'Panel Discussions', 'Mentoring', 'Exhibiting',
+                                        'Sponsorship', 'Investment Opportunities', 'Greenpreneur Awards',
+                                        'Coffee Table Book Feature', 'Impact Story'
+                                    ];
+                                    $userInterests = is_array($user->interests) ? $user->interests : [];
+                                @endphp
+                                @foreach($interestsOptions as $option)
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="interests[]" value="{{ $option }}" id="interest_{{ Str::slug($option) }}" @checked(in_array($option, (array) old('interests', $userInterests)))>
+                                            <label class="form-check-label" for="interest_{{ Str::slug($option) }}">{{ $option }}</label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="d-flex justify-content-between mt-4 pt-3 border-top">
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('personal-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('membership-tab')">
-                            Next: Membership & Coins <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('membership-tab')">
+                                Next: Membership & Coins <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -339,9 +435,14 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('business-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('circles-tab')">
-                            Next: Circles & Location <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('circles-tab')">
+                                Next: Circles & Location <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

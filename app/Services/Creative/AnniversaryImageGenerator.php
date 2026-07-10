@@ -234,11 +234,11 @@ class AnniversaryImageGenerator
         // Also copy the file to the public disk so it is accessible via direct public URLs
         if ($disk !== 'public') {
             try {
-                $fileContent = \Illuminate\Support\Facades\Storage::disk($disk)->get($fileModel->s3_key);
-                \Illuminate\Support\Facades\Storage::disk('public')->put($fileModel->s3_key, $fileContent);
-                \Illuminate\Support\Facades\Log::info("AnniversaryImageGenerator: Copied creative {$fileModel->s3_key} to public disk.");
+                $fileContent = Storage::disk($disk)->get($fileModel->s3_key);
+                Storage::disk('public')->put($fileModel->s3_key, $fileContent);
+                Log::info("AnniversaryImageGenerator: Copied creative {$fileModel->s3_key} to public disk.");
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('AnniversaryImageGenerator: Failed to copy creative to public disk: '.$e->getMessage());
+                Log::error('AnniversaryImageGenerator: Failed to copy creative to public disk: '.$e->getMessage());
             }
         }
 

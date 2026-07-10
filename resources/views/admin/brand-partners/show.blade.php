@@ -4,11 +4,13 @@
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Partner Details: {{ $brand_partner->name }}</h1>
-    <div class="d-flex gap-2">
-        <a href="{{ route('admin.brand-partners.index') }}" class="btn btn-sm btn-outline-secondary">Back to List</a>
+    <h1 class="h4 mb-0 fw-bold">Partner Details: {{ $brand_partner->name }}</h1>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ route('admin.brand-partners.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
         @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
-            <a href="{{ route('admin.brand-partners.edit', $brand_partner) }}" class="btn btn-sm btn-primary"><i class="bi bi-pencil me-1"></i>Edit Partner</a>
+            <a href="{{ route('admin.brand-partners.edit', $brand_partner) }}" class="btn btn-primary"><i class="bi bi-pencil me-1"></i>Edit Partner</a>
         @endif
     </div>
 </div>

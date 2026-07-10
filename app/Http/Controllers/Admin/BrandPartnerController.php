@@ -223,7 +223,7 @@ class BrandPartnerController extends Controller
                 ->withErrors(['database' => 'Failed to update brand partner. Database error: '.$e->getMessage()]);
         }
 
-        return redirect()->route('admin.brand-partners.index')->with('success', 'Brand partner updated successfully.');
+        return redirect()->route('admin.brand-partners.show', $brand_partner)->with('success', 'Brand partner updated successfully.');
     }
 
     public function destroy(BrandPartner $brand_partner): RedirectResponse

@@ -37,8 +37,8 @@
         </h4>
         <small class="text-muted">ID: {{ $user->id }}</small>
     </div>
-    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i>Back to Peers
+    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-arrow-left"></i> Back
     </a>
 </div>
 
@@ -228,15 +228,15 @@
                     </div>
 
                     <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary">Cancel</a>
                         <div class="d-flex gap-2">
-                            <a href="{{ route('admin.users.index') }}" class="btn btn-outline-danger">Cancel</a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('business-tab')">
+                                Next: Business Details <i class="bi bi-arrow-right ms-1"></i>
                             </button>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('business-tab')">
-                            Next: Business Details <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -377,14 +377,13 @@
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
                         <div class="d-flex gap-2">
-                            <a href="{{ route('admin.users.index') }}" class="btn btn-outline-danger">Cancel</a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('membership-tab')">
+                                Next: Membership & Coins <i class="bi bi-arrow-right ms-1"></i>
                             </button>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('membership-tab')">
-                            Next: Membership & Coins <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -534,14 +533,13 @@
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
                         <div class="d-flex gap-2">
-                            <a href="{{ route('admin.users.index') }}" class="btn btn-outline-danger">Cancel</a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('circles-tab')">
+                                Next: Circles & Admin <i class="bi bi-arrow-right ms-1"></i>
                             </button>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('circles-tab')">
-                            Next: Circles & Admin <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -924,12 +922,9 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('membership-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
-                        <div class="d-flex gap-2">
-                            <a href="{{ route('admin.users.index') }}" class="btn btn-outline-danger">Cancel</a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-check-circle me-1"></i>Save Changes
-                            </button>
-                        </div>
+                        <button type="submit" class="btn btn-success px-4">
+                            <i class="bi bi-check-circle me-1"></i>Save Changes
+                        </button>
                     </div>
                 </div>
             </div>

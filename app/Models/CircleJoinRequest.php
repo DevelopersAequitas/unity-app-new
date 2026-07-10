@@ -326,7 +326,7 @@ class CircleJoinRequest extends Model
                 'slug' => $circleCategory->slug,
                 'circle_key' => $circleCategory->circle_key,
                 'level' => $circleCategory->level,
-            ]
+            ],
         ] : [];
 
         return $array;

@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
-use App\Models\User;
-use App\Models\Post;
 use App\Models\BirthdayCreativeConfig;
+use App\Models\Post;
+use App\Models\User;
 use App\Services\Media\BirthdayCreativeImageService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -34,8 +34,9 @@ class GenerateBirthdayCreatives extends Command
         $this->info('Starting Birthday Creative generation process...');
 
         $config = BirthdayCreativeConfig::first();
-        if ($config && !$config->is_enabled) {
+        if ($config && ! $config->is_enabled) {
             $this->warn('Birthday Creative feature is currently disabled in configuration.');
+
             return 0;
         }
 
@@ -98,8 +99,9 @@ class GenerateBirthdayCreatives extends Command
                     ->where('created_at', '>=', Carbon::now()->subHours(20))
                     ->exists();
 
-                if ($alreadyExists && !$testUserId) {
+                if ($alreadyExists && ! $testUserId) {
                     $this->line("Birthday post already exists for user: {$user->display_name} today. Skipping.");
+
                     continue;
                 }
 
@@ -124,7 +126,7 @@ class GenerateBirthdayCreatives extends Command
                 $authorUserId = $systemUser ? $systemUser->id : $user->id;
 
                 // Create Timeline post
-                $displayName = $user->display_name ?: ($user->first_name . ' ' . $user->last_name);
+                $displayName = $user->display_name ?: ($user->first_name.' '.$user->last_name);
                 $post = Post::create([
                     'user_id' => $authorUserId,
                     'content_text' => "Wishing {$displayName} a very Happy Birthday! 🎂",
@@ -140,22 +142,23 @@ class GenerateBirthdayCreatives extends Command
                             'id' => $fileModel->id,
                             'type' => 'image',
                             'url' => url("/api/v1/files/{$fileModel->id}"),
-                        ]
+                        ],
                     ],
                 ]);
 
                 $this->info("Post created successfully for user: {$user->display_name}. Post ID: {$post->id}");
                 $postsCreated++;
             } catch (\Throwable $e) {
-                $this->error("Failed to generate birthday creative for user {$user->id}: " . $e->getMessage());
-                Log::error("Birthday creative generation error: " . $e->getMessage(), [
+                $this->error("Failed to generate birthday creative for user {$user->id}: ".$e->getMessage());
+                Log::error('Birthday creative generation error: '.$e->getMessage(), [
                     'user_id' => $user->id,
-                    'exception' => $e
+                    'exception' => $e,
                 ]);
             }
         }
 
         $this->info("Completed. Generated {$postsCreated} birthday wish posts.");
+
         return 0;
     }
 }

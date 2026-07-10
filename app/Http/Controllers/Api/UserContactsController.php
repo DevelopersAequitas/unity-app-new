@@ -22,7 +22,7 @@ class UserContactsController extends BaseApiController
         }
 
         // Return allowed as true only if they have not synced yet
-        $allowed = !$hasSynced;
+        $allowed = ! $hasSynced;
 
         return response()->json([
             'success' => true,
@@ -36,4 +36,3 @@ class UserContactsController extends BaseApiController
         ]);
     }
 }
-

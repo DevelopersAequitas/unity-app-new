@@ -2,9 +2,10 @@
 
 namespace App\Services\Media;
 
-use App\Models\User;
-use App\Models\FileModel;
 use App\Models\BirthdayCreativeConfig;
+use App\Models\FileModel;
+use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Facades\Image;
@@ -14,15 +15,12 @@ class BirthdayCreativeImageService
 {
     /**
      * Generate birthday creative image for a user.
-     *
-     * @param User $user
-     * @return FileModel
      */
     public function generate(User $user): FileModel
     {
         try {
             $config = BirthdayCreativeConfig::first();
-            if (!$config) {
+            if (! $config) {
                 // Default config if none exists
                 $config = new BirthdayCreativeConfig([
                     'is_enabled' => true,
@@ -85,17 +83,17 @@ class BirthdayCreativeImageService
 
             // Save image to storage
             $diskName = 'public';
-            $folder = 'uploads/birthday/' . now()->format('Y/m/d');
-            if (!Storage::disk($diskName)->exists($folder)) {
+            $folder = 'uploads/birthday/'.now()->format('Y/m/d');
+            if (! Storage::disk($diskName)->exists($folder)) {
                 Storage::disk($diskName)->makeDirectory($folder);
             }
 
-            $fileName = Str::uuid() . '.jpg';
-            $relativeFilePath = $folder . '/' . $fileName;
+            $fileName = Str::uuid().'.jpg';
+            $relativeFilePath = $folder.'/'.$fileName;
             $absolutePath = Storage::disk($diskName)->path($relativeFilePath);
 
             // Ensure directories exist
-            if (!is_dir(dirname($absolutePath))) {
+            if (! is_dir(dirname($absolutePath))) {
                 mkdir(dirname($absolutePath), 0755, true);
             }
 
@@ -113,8 +111,8 @@ class BirthdayCreativeImageService
 
             return $fileModel;
         } catch (\Throwable $e) {
-            Log::error("Failed to generate birthday creative for user {$user->id}: " . $e->getMessage(), [
-                'exception' => $e
+            Log::error("Failed to generate birthday creative for user {$user->id}: ".$e->getMessage(), [
+                'exception' => $e,
             ]);
             throw $e;
         }
@@ -126,18 +124,18 @@ class BirthdayCreativeImageService
     private function createGradientImage(int $width, int $height, string $startColor, string $endColor)
     {
         $img = Image::canvas(1, 2);
-        
+
         $start = $this->hexToRgb($startColor);
         $end = $this->hexToRgb($endColor);
-        
+
         $colorStart = sprintf('rgb(%d, %d, %d)', $start['r'], $start['g'], $start['b']);
         $colorEnd = sprintf('rgb(%d, %d, %d)', $end['r'], $end['g'], $end['b']);
-        
+
         $img->pixel($colorStart, 0, 0);
         $img->pixel($colorEnd, 0, 1);
-        
+
         $img->resize($width, $height);
-        
+
         return $img;
     }
 
@@ -148,14 +146,15 @@ class BirthdayCreativeImageService
     {
         $hex = str_replace('#', '', $hex);
         if (strlen($hex) == 3) {
-            $r = hexdec(substr($hex, 0, 1) . substr($hex, 0, 1));
-            $g = hexdec(substr($hex, 1, 1) . substr($hex, 1, 1));
-            $b = hexdec(substr($hex, 2, 1) . substr($hex, 2, 1));
+            $r = hexdec(substr($hex, 0, 1).substr($hex, 0, 1));
+            $g = hexdec(substr($hex, 1, 1).substr($hex, 1, 1));
+            $b = hexdec(substr($hex, 2, 1).substr($hex, 2, 1));
         } else {
             $r = hexdec(substr($hex, 0, 2));
             $g = hexdec(substr($hex, 2, 2));
             $b = hexdec(substr($hex, 4, 2));
         }
+
         return ['r' => $r, 'g' => $g, 'b' => $b];
     }
 
@@ -164,7 +163,7 @@ class BirthdayCreativeImageService
      */
     private function drawAvatarOrInitial($img, User $user, int $width, int $height, $config): void
     {
-        $avatarSize = 260; 
+        $avatarSize = 260;
 
         // 1. Wipe out the pre-printed double-line circle ring from the template completely (Restore white rectangle mask)
         // Center white rectangle mask from Y = 320 to Y = 710, X = 320 to X = 760
@@ -182,7 +181,7 @@ class BirthdayCreativeImageService
         // 2. Resolve avatar image source
         $avatarSource = null;
         $tempFilePath = null;
-        if (!empty($user->profile_photo_file_id)) {
+        if (! empty($user->profile_photo_file_id)) {
             $fileRecord = FileModel::find($user->profile_photo_file_id);
             if ($fileRecord && $fileRecord->s3_key) {
                 $disk = config('filesystems.default', 'public');
@@ -194,17 +193,17 @@ class BirthdayCreativeImageService
             }
         }
 
-        if (!$avatarSource && !empty($user->profile_photo_url)) {
+        if (! $avatarSource && ! empty($user->profile_photo_url)) {
             if (filter_var($user->profile_photo_url, FILTER_VALIDATE_URL)) {
                 try {
-                    $response = \Illuminate\Support\Facades\Http::timeout(5)->get($user->profile_photo_url);
+                    $response = Http::timeout(5)->get($user->profile_photo_url);
                     if ($response->successful()) {
                         $tempFilePath = tempnam(sys_get_temp_dir(), 'avatar_');
                         file_put_contents($tempFilePath, $response->body());
                         $avatarSource = $tempFilePath;
                     }
                 } catch (\Throwable $e) {
-                    Log::warning("Could not download remote user avatar: " . $e->getMessage());
+                    Log::warning('Could not download remote user avatar: '.$e->getMessage());
                 }
             } else {
                 $avatarSource = $user->profile_photo_url;
@@ -220,7 +219,7 @@ class BirthdayCreativeImageService
 
                 // Create mask circle
                 $mask = Image::canvas($avatarSize, $avatarSize);
-                $mask->circle($avatarSize, (int)($avatarSize / 2), (int)($avatarSize / 2), function ($draw) {
+                $mask->circle($avatarSize, (int) ($avatarSize / 2), (int) ($avatarSize / 2), function ($draw) {
                     $draw->background('#ffffff');
                 });
 
@@ -231,7 +230,7 @@ class BirthdayCreativeImageService
                 $img->insert($avatar, 'top-left', $insertX, $insertY);
                 $drawnSuccessfully = true;
             } catch (\Throwable $e) {
-                Log::warning("Could not process user avatar for birthday creative: " . $e->getMessage());
+                Log::warning('Could not process user avatar for birthday creative: '.$e->getMessage());
             } finally {
                 if ($tempFilePath && file_exists($tempFilePath)) {
                     @unlink($tempFilePath);
@@ -240,7 +239,7 @@ class BirthdayCreativeImageService
         }
 
         // Draw initial if avatar failed or is missing
-        if (!$drawnSuccessfully) {
+        if (! $drawnSuccessfully) {
             $displayName = $user->display_name ?: $user->first_name ?: 'User';
             $initial = strtoupper(substr($displayName, 0, 1));
 
@@ -253,7 +252,7 @@ class BirthdayCreativeImageService
             $fontPath = $this->getFontPath(true);
             $img->text($initial, $centerX, $centerY, function ($font) use ($fontPath) {
                 $font->file($fontPath);
-                $font->size(110); 
+                $font->size(110);
                 $font->color('#FFFFFF');
                 $font->align('center');
                 $font->valign('middle');
@@ -270,11 +269,11 @@ class BirthdayCreativeImageService
         $fontPathRegular = $this->getFontPath(false);
 
         // 1. User Name (Upper Case, Bold Deep Blue) - Positioned at Y = 745
-        $displayName = strtoupper($user->display_name ?: ($user->first_name . ' ' . $user->last_name));
+        $displayName = strtoupper($user->display_name ?: ($user->first_name.' '.$user->last_name));
         $img->text($displayName, 540, 745, function ($font) use ($fontPathBold) {
             $font->file($fontPathBold);
-            $font->size(52); 
-            $font->color('#00238C'); 
+            $font->size(52);
+            $font->color('#00238C');
             $font->align('center');
             $font->valign('middle');
         });
@@ -284,7 +283,7 @@ class BirthdayCreativeImageService
         $img->text($designation, 540, 805, function ($font) use ($fontPathRegular) {
             $font->file($fontPathRegular);
             $font->size(24);
-            $font->color('#A81D34'); 
+            $font->color('#A81D34');
             $font->align('center');
             $font->valign('middle');
         });
@@ -296,10 +295,11 @@ class BirthdayCreativeImageService
     private function getFontPath(bool $bold = false): string
     {
         $fontName = $bold ? 'Montserrat-Bold.ttf' : 'Montserrat-Regular.ttf';
-        $fontPath = public_path('fonts/' . $fontName);
-        if (!file_exists($fontPath)) {
+        $fontPath = public_path('fonts/'.$fontName);
+        if (! file_exists($fontPath)) {
             $fontPath = base_path('vendor/endroid/qr-code/assets/open_sans.ttf');
         }
+
         return $fontPath;
     }
 }

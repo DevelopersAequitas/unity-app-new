@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Console\Commands\GenerateBirthdayCreatives;
 use App\Console\Commands\GenerateMissingCertificationCertificates;
 use App\Console\Commands\LifeImpactBackfillCommand;
 use App\Console\Commands\LifeImpactRecalculateUsersCommand;
@@ -22,7 +23,6 @@ use App\Console\Commands\SyncZohoSubscriptionPayment;
 use App\Console\Commands\TestZohoConvertInvoice;
 use App\Console\Commands\TestZohoCustomerPaymentWebhook;
 use App\Console\Commands\TestZohoPaidWebhook;
-use App\Console\Commands\GenerateBirthdayCreatives;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 

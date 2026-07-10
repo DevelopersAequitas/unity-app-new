@@ -35,8 +35,8 @@
         <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-plus-circle text-primary me-2"></i>Create Circle</h4>
         <p class="text-muted small mb-0">Add a new community circle to the platform</p>
     </div>
-    <a href="{{ route('admin.circles.index') }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i>Back to Circles
+    <a href="{{ route('admin.circles.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-arrow-left"></i> Back
     </a>
 </div>
 
@@ -92,7 +92,7 @@
         </ul>
 
 
-        <form action="{{ route('admin.circles.store') }}" method="POST" class="p-4" novalidate>
+        <form id="createCircleForm" action="{{ route('admin.circles.store') }}" method="POST" class="p-4" novalidate>
             @csrf
 
             <div class="tab-content" id="createCircleTabsContent">
@@ -140,10 +140,16 @@
                             </div>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-end mt-4 pt-3 border-top">
-                        <button type="button" class="btn btn-primary" onclick="switchTab('details-tab')">
-                            Next: Description & Tags <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <div></div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('details-tab')">
+                                Next: Description & Tags <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -173,9 +179,14 @@
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('basic-info-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
                         </button>
-                        <button type="button" class="btn btn-primary" onclick="switchTab('settings-tab')">
-                            Next: Leadership & Settings <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="switchTab('settings-tab')">
+                                Next: Leadership & Settings <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

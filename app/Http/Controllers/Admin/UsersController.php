@@ -148,9 +148,9 @@ class UsersController extends Controller
             'level_2_category_id' => $request->input('level_2_category_id', $request->input('level2_category_id')),
             'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
             'level_4_category_id' => $request->input('level_4_category_id', $request->input('level4_category_id')),
-            'interests' => $request->input('interests', []),
-            'sustainability_areas' => $request->input('sustainability_areas', []),
-            'greenpreneur_goals' => $request->input('greenpreneur_goals', []),
+            'interests' => $request->input('interests') ?: [],
+            'sustainability_areas' => $request->input('sustainability_areas') ?: [],
+            'greenpreneur_goals' => $request->input('greenpreneur_goals') ?: [],
             'community_directory_listing' => $request->input('community_directory_listing', 'No'),
         ]);
         $request->merge($this->normalizedAdminCircleDateInputs($request));
@@ -223,9 +223,9 @@ class UsersController extends Controller
             $validated[$field] = $this->csvToArray($request->input($field, ''));
         }
 
-        $validated['interests'] = $request->input('interests', []);
-        $validated['sustainability_areas'] = $request->input('sustainability_areas', []);
-        $validated['greenpreneur_goals'] = $request->input('greenpreneur_goals', []);
+        $validated['interests'] = $request->input('interests') ?: [];
+        $validated['sustainability_areas'] = $request->input('sustainability_areas') ?: [];
+        $validated['greenpreneur_goals'] = $request->input('greenpreneur_goals') ?: [];
 
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
         $validated = $this->syncMembershipExpiryInput($validated, $request);
@@ -480,9 +480,9 @@ class UsersController extends Controller
             'level_2_category_id' => $request->input('level_2_category_id', $request->input('level2_category_id')),
             'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
             'level_4_category_id' => $request->input('level_4_category_id', $request->input('level4_category_id')),
-            'interests' => $request->input('interests', []),
-            'sustainability_areas' => $request->input('sustainability_areas', []),
-            'greenpreneur_goals' => $request->input('greenpreneur_goals', []),
+            'interests' => $request->input('interests') ?: [],
+            'sustainability_areas' => $request->input('sustainability_areas') ?: [],
+            'greenpreneur_goals' => $request->input('greenpreneur_goals') ?: [],
             'community_directory_listing' => $request->input('community_directory_listing', $user->community_directory_listing ?? 'No'),
         ]);
         $request->merge($this->normalizedAdminCircleDateInputs($request));
@@ -675,9 +675,9 @@ class UsersController extends Controller
             $validated[$field] = $this->csvToArray($request->input($field, ''));
         }
 
-        $validated['interests'] = $request->input('interests', []);
-        $validated['sustainability_areas'] = $request->input('sustainability_areas', []);
-        $validated['greenpreneur_goals'] = $request->input('greenpreneur_goals', []);
+        $validated['interests'] = $request->input('interests') ?: [];
+        $validated['sustainability_areas'] = $request->input('sustainability_areas') ?: [];
+        $validated['greenpreneur_goals'] = $request->input('greenpreneur_goals') ?: [];
 
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
         $validated = $this->syncMembershipExpiryInput($validated, $request, $user);
@@ -1063,7 +1063,7 @@ class UsersController extends Controller
             : 'User updated successfully.';
 
         return redirect()
-            ->route('admin.users.edit', $user->id)
+            ->route('admin.users.show', $user->id)
             ->with('success', $statusMessage);
     }
 
