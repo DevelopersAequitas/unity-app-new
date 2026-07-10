@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
+use App\Models\File;
 use App\Models\Impact;
 use App\Models\Post;
+use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Services\Media\BirthdayCreativeImageService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +17,9 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class PostModerationController extends Controller
@@ -359,19 +364,19 @@ class PostModerationController extends Controller
         }
 
         if ($post->post_type === 'birthday') {
-            $celebratingUser = $post->source_id ? \App\Models\User::find($post->source_id) : $post->user;
+            $celebratingUser = $post->source_id ? User::find($post->source_id) : $post->user;
             if ($celebratingUser) {
                 $hasValidMedia = false;
                 $mediaItems = is_array($post->media) ? $post->media : [];
-                if (!empty($mediaItems)) {
+                if (! empty($mediaItems)) {
                     foreach ($mediaItems as $mediaItem) {
                         $fileId = data_get($mediaItem, 'id');
                         if ($fileId) {
-                            $fileRecord = \App\Models\File::find($fileId);
+                            $fileRecord = File::find($fileId);
                             if ($fileRecord && $fileRecord->s3_key) {
                                 $disk = config('filesystems.default', 'public');
-                                if (\Illuminate\Support\Facades\Storage::disk($disk)->exists($fileRecord->s3_key) ||
-                                    \Illuminate\Support\Facades\Storage::disk('public')->exists($fileRecord->s3_key)) {
+                                if (Storage::disk($disk)->exists($fileRecord->s3_key) ||
+                                    Storage::disk('public')->exists($fileRecord->s3_key)) {
                                     $hasValidMedia = true;
                                     break;
                                 }
@@ -380,9 +385,9 @@ class PostModerationController extends Controller
                     }
                 }
 
-                if (!$hasValidMedia) {
+                if (! $hasValidMedia) {
                     try {
-                        $imageService = app(\App\Services\Media\BirthdayCreativeImageService::class);
+                        $imageService = app(BirthdayCreativeImageService::class);
                         $fileModel = $imageService->generate($celebratingUser);
                         $mediaUrl = url("/api/v1/files/{$fileModel->id}");
                         $post->media = [
@@ -390,11 +395,11 @@ class PostModerationController extends Controller
                                 'id' => $fileModel->id,
                                 'type' => 'image',
                                 'url' => $mediaUrl,
-                            ]
+                            ],
                         ];
                         $post->save();
                     } catch (\Throwable $e) {
-                        \Illuminate\Support\Facades\Log::error("Failed to dynamically generate birthday image on View: " . $e->getMessage());
+                        Log::error('Failed to dynamically generate birthday image on View: '.$e->getMessage());
                     }
                 }
             }

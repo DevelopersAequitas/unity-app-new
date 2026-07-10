@@ -2,15 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Models\AdminUser;
 use App\Models\Post;
-use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class BirthdayCreativeTest extends TestCase
@@ -56,9 +56,11 @@ class BirthdayCreativeTest extends TestCase
         });
 
         if (config('database.default') === 'sqlite') {
-            $db = \Illuminate\Support\Facades\DB::connection()->getPdo();
+            $db = DB::connection()->getPdo();
             $db->sqliteCreateFunction('to_char', function ($value, $format) {
-                if (empty($value)) return null;
+                if (empty($value)) {
+                    return null;
+                }
                 $date = \Carbon\Carbon::parse($value);
                 if ($format === 'MM-DD') {
                     return $date->format('m-d');
@@ -66,6 +68,7 @@ class BirthdayCreativeTest extends TestCase
                 if ($format === 'YYYY-MM') {
                     return $date->format('Y-m');
                 }
+
                 return $date->format($format);
             });
         }
@@ -78,7 +81,7 @@ class BirthdayCreativeTest extends TestCase
         // Setup users:
         // 1. Celebrating user in America/New_York, currently 12:30 AM there
         $celebratingUser = User::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'John',
             'last_name' => 'Doe',
             'display_name' => 'John Doe',
@@ -91,7 +94,7 @@ class BirthdayCreativeTest extends TestCase
 
         // 2. Celebrating user but local time is NOT 12:00 AM - 12:59 AM (e.g. currently 2:30 AM)
         $celebratingUserWrongHour = User::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'Wrong',
             'last_name' => 'Hour',
             'display_name' => 'Wrong Hour',
@@ -104,7 +107,7 @@ class BirthdayCreativeTest extends TestCase
 
         // 3. Non-celebrating user
         $nonCelebratingUser = User::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'Jane',
             'last_name' => 'Smith',
             'display_name' => 'Jane Smith',

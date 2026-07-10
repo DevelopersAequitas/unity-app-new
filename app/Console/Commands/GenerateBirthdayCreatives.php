@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Media\BirthdayCreativeImageService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 use Log;
 
 class GenerateBirthdayCreatives extends Command
@@ -69,7 +70,7 @@ class GenerateBirthdayCreatives extends Command
         $postsCreated = 0;
         foreach ($users as $user) {
             try {
-                if (!$testUserId) {
+                if (! $testUserId) {
                     $timezone = $user->timezone ?: config('app.timezone', 'UTC');
                     try {
                         $localTime = Carbon::now($timezone);
@@ -112,14 +113,14 @@ class GenerateBirthdayCreatives extends Command
 
                 // Retrieve system/admin fallback account to own the automated post
                 $systemUser = User::where('email', 'info@peersglobal.com')->first();
-                if (!$systemUser) {
+                if (! $systemUser) {
                     $systemUser = User::create([
-                        'id' => (string) \Illuminate\Support\Str::uuid(),
+                        'id' => (string) Str::uuid(),
                         'first_name' => 'PeersGlobal',
                         'last_name' => 'Unity',
                         'display_name' => 'PeersGlobal Unity',
                         'email' => 'info@peersglobal.com',
-                        'password_hash' => bcrypt(\Illuminate\Support\Str::random(16)),
+                        'password_hash' => bcrypt(Str::random(16)),
                         'status' => 'active',
                     ]);
                 }

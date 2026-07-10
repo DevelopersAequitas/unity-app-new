@@ -172,11 +172,11 @@ class BirthdayCreativeImageService
         });
 
         // Dynamic center coordinates for the actual profile photo / letter
-        $centerX = (int)($width / 2);
-        $centerY = (int)($height / 2);
+        $centerX = (int) ($width / 2);
+        $centerY = (int) ($height / 2);
 
-        $insertX = (int)(($width - $avatarSize) / 2);
-        $insertY = (int)(($height - $avatarSize) / 2);
+        $insertX = (int) (($width - $avatarSize) / 2);
+        $insertY = (int) (($height - $avatarSize) / 2);
 
         // 2. Resolve avatar image source
         $avatarSource = null;
