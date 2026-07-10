@@ -7,14 +7,9 @@
             <h1 class="h4 mb-1 text-dark fw-bold">Edit Circular</h1>
             <p class="text-muted small mb-0">Update circular details and targets</p>
         </div>
-        <div class="d-flex gap-2 align-items-center">
-            <a href="{{ route('admin.circulars.show', $circular) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
-                <i class="bi bi-arrow-left"></i> Back
-            </a>
-            <button type="submit" form="editCircularForm" class="btn btn-success d-inline-flex align-items-center gap-2">
-                <i class="bi bi-check-circle"></i> Save
-            </button>
-        </div>
+        <a href="{{ route('admin.circulars.show', $circular) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
     </div>
     <form id="editCircularForm" method="POST" action="{{ route('admin.circulars.update', $circular) }}">
         @method('PUT')

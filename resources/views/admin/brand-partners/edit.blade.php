@@ -8,14 +8,9 @@
         <h1 class="h4 mb-1 text-dark fw-bold">Edit Brand Partner</h1>
         <p class="text-muted small mb-0">Update brand partner details and settings</p>
     </div>
-    <div class="d-flex gap-2 align-items-center">
-        <a href="{{ route('admin.brand-partners.show', $partner) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
-            <i class="bi bi-arrow-left"></i> Back
-        </a>
-        <button type="submit" form="editBrandPartnerForm" class="btn btn-success d-inline-flex align-items-center gap-2">
-            <i class="bi bi-check-circle"></i> Save
-        </button>
-    </div>
+    <a href="{{ route('admin.brand-partners.show', $partner) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
 </div>
 
 @if($errors->any())
