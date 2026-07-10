@@ -515,3 +515,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
     });
 });
+
+Route::get('/clear-opcache-reset-tool', function () {
+    if (function_exists('opcache_reset')) {
+        opcache_reset();
+
+        return 'OPcache cleared successfully.';
+    }
+
+    return 'OPcache not enabled or opcache_reset not available.';
+});
