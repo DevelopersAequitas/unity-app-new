@@ -88,6 +88,10 @@ class CircleJoinRequest extends Model
         'level4_category_id' => 'integer',
     ];
 
+    protected $appends = [
+        'reason',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (self $request): void {
@@ -303,6 +307,11 @@ class CircleJoinRequest extends Model
     public function level4Category(): BelongsTo
     {
         return $this->belongsTo(CircleCategoryLevel4::class, 'level4_category_id');
+    }
+
+    public function getReasonAttribute(): ?string
+    {
+        return $this->reason_for_joining;
     }
 
     public function toArray(): array

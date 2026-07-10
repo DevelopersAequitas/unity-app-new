@@ -6,7 +6,7 @@ use App\Http\Requests\Api\CircleJoinRequests\ListMyCircleJoinRequests;
 use App\Http\Requests\Api\CircleJoinRequests\StoreCircleJoinRequest;
 use App\Models\Circle;
 use App\Models\CircleJoinRequest;
-use App\Models\User;
+use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,10 +25,11 @@ class CircleJoinRequestController extends BaseApiController
         }
 
         try {
+            $reason = $request->validated('reason') ?? $request->validated('reason_for_joining');
             $record = $this->service->submitRequest(
                 $request->user(),
                 $circle,
-                $request->validated('reason_for_joining'),
+                $reason,
                 [
                     'level1_category_id' => $request->validated('category_id'),
                 ]
@@ -136,6 +137,7 @@ class CircleJoinRequestController extends BaseApiController
             'status_label' => $isPaid ? 'Paid' : $this->statusLabel($status),
             'payment_status' => $isPaid ? 'paid' : 'unpaid',
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
+            'reason' => $request->reason_for_joining,
         ]);
 
         $circleCategory = $request->circleCategory;
@@ -287,7 +289,7 @@ class CircleJoinRequestController extends BaseApiController
         $canPay = false;
 
         if ((string) $record->status === CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE) {
-            $paymentUrl = app(\App\Services\Circles\CircleJoinRequestNotificationService::class)->resolvePaymentUrl($record);
+            $paymentUrl = app(CircleJoinRequestNotificationService::class)->resolvePaymentUrl($record);
             $canPay = $paymentUrl !== null;
         }
 

@@ -256,6 +256,32 @@ class CircleJoiningRequestsTest extends TestCase
         $response3 = $this->postJson('/api/v1/circle-join-requests', $payload3);
         $response3->assertStatus(422);
         $response3->assertJsonValidationErrors(['category_id']);
+
+        // Test POST with 'reason' field instead of 'reason_for_joining'
+        $circle4 = new Circle;
+        $circle4->id = (string) Str::uuid();
+        $circle4->name = 'Fourth active Circle';
+        $circle4->slug = 'fourth-active-circle';
+        $circle4->status = 'active';
+        $circle4->template_id = $template->id;
+        $circle4->save();
+
+        $payload4 = [
+            'circle_id' => $circle4->id,
+            'reason' => 'Interest in fourth active circle with short reason field',
+            'category_id' => $category->id,
+        ];
+        $response4 = $this->postJson('/api/v1/circle-join-requests', $payload4);
+        $response4->assertStatus(201);
+        $response4->assertJsonFragment([
+            'reason' => 'Interest in fourth active circle with short reason field',
+            'reason_for_joining' => 'Interest in fourth active circle with short reason field',
+        ]);
+
+        $this->assertDatabaseHas('circle_join_requests', [
+            'circle_id' => $circle4->id,
+            'reason_for_joining' => 'Interest in fourth active circle with short reason field',
+        ]);
     }
 
     public function test_dynamic_category_tracing_fallback(): void

@@ -17,6 +17,7 @@ class StoreCircleJoinRequest extends FormRequest
             'circle_id' => ['required', 'uuid', 'exists:circles,id'],
             'category_id' => ['required', 'integer', 'exists:circle_categories,id'],
             'reason_for_joining' => ['nullable', 'string', 'max:2000'],
+            'reason' => ['nullable', 'string', 'max:2000'],
         ];
     }
 }

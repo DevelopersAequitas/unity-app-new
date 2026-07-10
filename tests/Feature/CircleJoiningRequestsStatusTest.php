@@ -2,15 +2,17 @@
 
 namespace Tests\Feature;
 
-use App\Models\AdminUser;
+use App\Mail\CircleJoinCongratulationsMail;
 use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleJoinRequest;
 use App\Models\CircleTemplate;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Circles\CircleJoinRequestNotificationService;
+use App\Services\Circles\CircleJoinRequestService;
+use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -77,7 +79,7 @@ class CircleJoiningRequestsStatusTest extends TestCase
 
     public function test_unauthenticated_request_returns_401(): void
     {
-        $response = $this->getJson('/api/v1/circle-join-requests/' . (string) Str::uuid() . '/status');
+        $response = $this->getJson('/api/v1/circle-join-requests/'.(string) Str::uuid().'/status');
         $response->assertStatus(401);
     }
 
@@ -132,7 +134,7 @@ class CircleJoiningRequestsStatusTest extends TestCase
         ]);
 
         // Mock ZohoBillingService
-        $mock = $this->createMock(\App\Support\Zoho\ZohoBillingService::class);
+        $mock = $this->createMock(ZohoBillingService::class);
         $mock->method('createHostedPageForCircleAddon')->willReturn([
             'checkout_url' => 'https://checkout.zoho.com/test-url',
             'hostedpage_id' => 'hp_123',
@@ -140,7 +142,7 @@ class CircleJoiningRequestsStatusTest extends TestCase
             'subscription_id' => 'sub_123',
             'raw' => ['hostedpage' => ['url' => 'https://checkout.zoho.com/test-url']],
         ]);
-        $this->app->instance(\App\Support\Zoho\ZohoBillingService::class, $mock);
+        $this->app->instance(ZohoBillingService::class, $mock);
 
         Sanctum::actingAs($user);
 
@@ -249,10 +251,10 @@ class CircleJoiningRequestsStatusTest extends TestCase
         $circle = $this->createCircle();
         $request = $this->createJoinRequest($user, $circle, CircleJoinRequest::STATUS_PENDING_CD_APPROVAL);
 
-        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
+        $service = app(CircleJoinRequestService::class);
         $service->approveByCd($request, $admin);
 
-        Mail::assertNotSent(\App\Mail\CircleJoinCongratulationsMail::class);
+        Mail::assertNotSent(CircleJoinCongratulationsMail::class);
     }
 
     public function test_completing_second_required_approval_sends_one_congratulations_email(): void
@@ -260,7 +262,7 @@ class CircleJoiningRequestsStatusTest extends TestCase
         Mail::fake();
 
         // Mock ZohoBillingService
-        $mock = $this->createMock(\App\Support\Zoho\ZohoBillingService::class);
+        $mock = $this->createMock(ZohoBillingService::class);
         $mock->method('createHostedPageForCircleAddon')->willReturn([
             'checkout_url' => 'https://checkout.zoho.com/test-url',
             'hostedpage_id' => 'hp_123',
@@ -268,7 +270,7 @@ class CircleJoiningRequestsStatusTest extends TestCase
             'subscription_id' => 'sub_123',
             'raw' => ['hostedpage' => ['url' => 'https://checkout.zoho.com/test-url']],
         ]);
-        $this->app->instance(\App\Support\Zoho\ZohoBillingService::class, $mock);
+        $this->app->instance(ZohoBillingService::class, $mock);
 
         $admin = $this->createUser('admin@example.com');
         $user = $this->createUser();
@@ -279,10 +281,10 @@ class CircleJoiningRequestsStatusTest extends TestCase
             'cd_approved_by' => $admin->id,
         ]);
 
-        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
+        $service = app(CircleJoinRequestService::class);
         $service->approveById($request, $admin);
 
-        Mail::assertSent(\App\Mail\CircleJoinCongratulationsMail::class, 1);
+        Mail::assertSent(CircleJoinCongratulationsMail::class, 1);
     }
 
     public function test_repeated_approval_does_not_send_duplicate_email(): void
@@ -290,7 +292,7 @@ class CircleJoiningRequestsStatusTest extends TestCase
         Mail::fake();
 
         // Mock ZohoBillingService
-        $mock = $this->createMock(\App\Support\Zoho\ZohoBillingService::class);
+        $mock = $this->createMock(ZohoBillingService::class);
         $mock->method('createHostedPageForCircleAddon')->willReturn([
             'checkout_url' => 'https://checkout.zoho.com/test-url',
             'hostedpage_id' => 'hp_123',
@@ -298,7 +300,7 @@ class CircleJoiningRequestsStatusTest extends TestCase
             'subscription_id' => 'sub_123',
             'raw' => ['hostedpage' => ['url' => 'https://checkout.zoho.com/test-url']],
         ]);
-        $this->app->instance(\App\Support\Zoho\ZohoBillingService::class, $mock);
+        $this->app->instance(ZohoBillingService::class, $mock);
 
         $admin = $this->createUser('admin@example.com');
         $user = $this->createUser();
@@ -312,11 +314,11 @@ class CircleJoiningRequestsStatusTest extends TestCase
         ]);
 
         // Manually trigger congratulations twice
-        $notifier = app(\App\Services\Circles\CircleJoinRequestNotificationService::class);
+        $notifier = app(CircleJoinRequestNotificationService::class);
         $notifier->sendJoinRequestApprovedCongratulations($request);
         $notifier->sendJoinRequestApprovedCongratulations($request);
 
-        Mail::assertSent(\App\Mail\CircleJoinCongratulationsMail::class, 1);
+        Mail::assertSent(CircleJoinCongratulationsMail::class, 1);
     }
 
     public function test_rejection_does_not_send_payment_email(): void
@@ -328,10 +330,10 @@ class CircleJoiningRequestsStatusTest extends TestCase
         $circle = $this->createCircle();
         $request = $this->createJoinRequest($user, $circle, CircleJoinRequest::STATUS_PENDING_CD_APPROVAL);
 
-        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
+        $service = app(CircleJoinRequestService::class);
         $service->rejectByCd($request, $admin, 'Rejection reason');
 
-        Mail::assertNotSent(\App\Mail\CircleJoinCongratulationsMail::class);
+        Mail::assertNotSent(CircleJoinCongratulationsMail::class);
     }
 
     public function test_payment_url_generation_failure_is_logged_and_does_not_crash(): void
@@ -339,9 +341,9 @@ class CircleJoiningRequestsStatusTest extends TestCase
         Mail::fake();
 
         // Mock ZohoBillingService to throw exception
-        $mock = $this->createMock(\App\Support\Zoho\ZohoBillingService::class);
+        $mock = $this->createMock(ZohoBillingService::class);
         $mock->method('createHostedPageForCircleAddon')->willThrowException(new \RuntimeException('Zoho down'));
-        $this->app->instance(\App\Support\Zoho\ZohoBillingService::class, $mock);
+        $this->app->instance(ZohoBillingService::class, $mock);
 
         $admin = $this->createUser('admin@example.com');
         $user = $this->createUser();
@@ -352,13 +354,13 @@ class CircleJoiningRequestsStatusTest extends TestCase
             'cd_approved_by' => $admin->id,
         ]);
 
-        $service = app(\App\Services\Circles\CircleJoinRequestService::class);
-        
+        $service = app(CircleJoinRequestService::class);
+
         // This approval should proceed successfully without crashing
         $result = $service->approveById($request, $admin);
-        
+
         $this->assertEquals(CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE, $result->status);
-        Mail::assertSent(\App\Mail\CircleJoinCongratulationsMail::class, function ($mail) {
+        Mail::assertSent(CircleJoinCongratulationsMail::class, function ($mail) {
             return $mail->paymentUrl === null;
         });
     }
