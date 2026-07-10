@@ -84,7 +84,7 @@
             </div>
             <div class="col-12 col-md-6 col-xl-3">
                 <label class="form-label small text-muted" for="circleFilter">Circle</label>
-                <select id="circleFilter" name="circle_id" class="form-select form-select-sm">
+                <select id="circleFilter" name="circle_id" class="form-select form-select-sm admin-filter-dropdown">
                     <option value="all">All Circles</option>
                     @foreach($circles as $c)
                         <option value="{{ $c->id }}" @selected(($circleId ?? 'all') == $c->id)>{{ $c->name }}</option>
@@ -94,7 +94,7 @@
 
             <div class="col-12 col-md-6 col-xl-2">
                 <label class="form-label small text-muted" for="membershipFilter">Membership</label>
-                <select id="membershipFilter" name="membership_status" class="form-select form-select-sm">
+                <select id="membershipFilter" name="membership_status" class="form-select form-select-sm admin-filter-dropdown">
                     <option value="">All</option>
                     @foreach ($membershipStatuses as $status)
                         <option value="{{ $status }}" @selected(request('membership_status') === $status)>{{ $membershipStatusLabels[$status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $status)) }}</option>
@@ -111,7 +111,7 @@
             </div>
             <div class="col-12 col-md-6 col-xl-3">
                 <label class="form-label small text-muted" for="joinedFilter">Date Filter</label>
-                <select name="joined_filter" id="joinedFilter" class="form-select form-select-sm">
+                <select name="joined_filter" id="joinedFilter" class="form-select form-select-sm admin-filter-dropdown">
                     <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
                     <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
                     <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
