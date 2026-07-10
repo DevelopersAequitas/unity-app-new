@@ -668,15 +668,24 @@ class VisitorRegistrationsController extends Controller
             }
 
             $peerUserId = null;
-            $peerEmail = $rowData['peer_email'] ?? '';
-            $peerPhone = $rowData['peer_phone'] ?? '';
+            $peerEmail = isset($rowData['peer_email']) ? trim($rowData['peer_email']) : '';
+            $peerPhone = isset($rowData['peer_phone']) ? trim($rowData['peer_phone']) : '';
 
-            if ($peerEmail !== '' || $peerPhone !== '') {
+            $hasPeerInRow = ($peerEmail !== '' || $peerPhone !== '');
+            $peerFoundInDb = false;
+            $peerInScope = false;
+
+            if ($hasPeerInRow) {
                 if ($peerEmail !== '') {
                     $peerUserId = User::query()->where('email', 'ILIKE', $peerEmail)->value('id');
                 }
                 if (! $peerUserId && $peerPhone !== '') {
                     $peerUserId = User::query()->where('phone', 'ILIKE', "%{$peerPhone}%")->value('id');
+                }
+
+                if ($peerUserId) {
+                    $peerFoundInDb = true;
+                    $peerInScope = AdminCircleScope::userInScope($admin, $peerUserId);
                 }
             } else {
                 if ($defaultUserId !== '') {
@@ -684,10 +693,32 @@ class VisitorRegistrationsController extends Controller
                 }
             }
 
-            if (! $peerUserId) {
-                $errors[] = "Row {$rowNumber}: Peer not found.";
+            if ($hasPeerInRow) {
+                if (! $peerFoundInDb) {
+                    if ($defaultUserId !== '') {
+                        $peerUserId = $defaultUserId;
+                        $errors[] = "Row {$rowNumber}: Peer ('{$peerEmail}' / '{$peerPhone}') not found in database. Imported under default peer.";
+                    } else {
+                        $errors[] = "Row {$rowNumber}: Peer not found.";
 
-                continue;
+                        continue;
+                    }
+                } elseif (! $peerInScope) {
+                    if ($defaultUserId !== '') {
+                        $peerUserId = $defaultUserId;
+                        $errors[] = "Row {$rowNumber}: Peer ('{$peerEmail}' / '{$peerPhone}') is outside your scope. Imported under default peer.";
+                    } else {
+                        $errors[] = "Row {$rowNumber}: Peer is outside your scope.";
+
+                        continue;
+                    }
+                }
+            } else {
+                if (! $peerUserId) {
+                    $errors[] = "Row {$rowNumber}: Peer not found.";
+
+                    continue;
+                }
             }
 
             VisitorRegistration::create([

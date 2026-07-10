@@ -172,6 +172,8 @@ class User extends Authenticatable
         'greenpreneur_goals',
         'community_directory_listing',
         'anniversary_date',
+        'android_fcm_token',
+        'ios_fcm_token',
     ];
 
     protected $hidden = [
