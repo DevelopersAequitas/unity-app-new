@@ -10,6 +10,7 @@ use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestController extends BaseApiController
@@ -18,7 +19,20 @@ class CircleJoinRequestController extends BaseApiController
 
     public function store(StoreCircleJoinRequest $request): JsonResponse
     {
-        $circle = Circle::query()->where('id', $request->validated('circle_id'))->firstOrFail();
+        $circleId = $request->validated('circle_id');
+
+        if (! $circleId) {
+            $categoryId = $request->validated('category_id');
+            $circleId = DB::table('circle_category_mappings')
+                ->where('category_id', $categoryId)
+                ->value('circle_id');
+        }
+
+        if (! $circleId) {
+            return $this->error('Could not resolve Circle ID for the given category.', 422);
+        }
+
+        $circle = Circle::query()->where('id', $circleId)->firstOrFail();
 
         if ($circle->status !== 'active') {
             return $this->error('Circle is not active.', 422);
@@ -32,6 +46,7 @@ class CircleJoinRequestController extends BaseApiController
                 $reason,
                 [
                     'level1_category_id' => $request->validated('category_id'),
+                    'level4_category_id' => $request->validated('level4_category_id'),
                 ]
             );
 

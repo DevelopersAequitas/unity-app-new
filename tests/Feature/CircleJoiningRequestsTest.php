@@ -282,6 +282,44 @@ class CircleJoiningRequestsTest extends TestCase
             'circle_id' => $circle4->id,
             'reason_for_joining' => 'Interest in fourth active circle with short reason field',
         ]);
+
+        // Test POST without 'circle_id' but with 'category_id' (resolving from mapping)
+        $circle5 = new Circle;
+        $circle5->id = (string) Str::uuid();
+        $circle5->name = 'Fifth active Circle';
+        $circle5->slug = 'fifth-active-circle';
+        $circle5->status = 'active';
+        $circle5->template_id = $template->id;
+        $circle5->save();
+
+        $category5 = CircleCategory::query()->create([
+            'name' => 'Fifth Target Categories',
+            'slug' => 'fifth-target-categories',
+            'level' => 1,
+            'is_active' => true,
+        ]);
+
+        DB::table('circle_category_mappings')->insert([
+            'circle_id' => $circle5->id,
+            'category_id' => $category5->id,
+        ]);
+
+        $payload5 = [
+            'category_id' => $category5->id,
+            'reason' => 'Should resolve circle_id automatically',
+        ];
+        $response5 = $this->postJson('/api/v1/circle-join-requests', $payload5);
+        $response5->assertStatus(201);
+        $response5->assertJsonFragment([
+            'circle_id' => $circle5->id,
+            'category_id' => $category5->id,
+            'reason' => 'Should resolve circle_id automatically',
+        ]);
+
+        $this->assertDatabaseHas('circle_join_requests', [
+            'circle_id' => $circle5->id,
+            'reason_for_joining' => 'Should resolve circle_id automatically',
+        ]);
     }
 
     public function test_dynamic_category_tracing_fallback(): void
