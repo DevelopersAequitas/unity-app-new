@@ -120,6 +120,62 @@ class UserPushToken extends Model
         );
     }
 
+    protected static function booted(): void
+    {
+        static::saved(function (self $pushToken): void {
+            $user = $pushToken->user;
+            if ($user) {
+                $platform = strtolower((string) $pushToken->platform);
+                $token = $pushToken->token;
+                $isActive = (bool) ($pushToken->is_active ?? true);
+
+                $hasAndroid = Schema::hasColumn('users', 'android_fcm_token');
+                $hasIos = Schema::hasColumn('users', 'ios_fcm_token');
+
+                if ($isActive) {
+                    if ($platform === 'android' && $hasAndroid) {
+                        if ($user->android_fcm_token !== $token) {
+                            $user->android_fcm_token = $token;
+                            $user->save();
+                        }
+                    } elseif (in_array($platform, ['ios', 'apple', 'iphone']) && $hasIos) {
+                        if ($user->ios_fcm_token !== $token) {
+                            $user->ios_fcm_token = $token;
+                            $user->save();
+                        }
+                    }
+                } else {
+                    if ($hasAndroid && $user->android_fcm_token === $token) {
+                        $user->android_fcm_token = null;
+                        $user->save();
+                    }
+                    if ($hasIos && $user->ios_fcm_token === $token) {
+                        $user->ios_fcm_token = null;
+                        $user->save();
+                    }
+                }
+            }
+        });
+
+        static::deleted(function (self $pushToken): void {
+            $user = $pushToken->user;
+            if ($user) {
+                $token = $pushToken->token;
+                $hasAndroid = Schema::hasColumn('users', 'android_fcm_token');
+                $hasIos = Schema::hasColumn('users', 'ios_fcm_token');
+
+                if ($hasAndroid && $user->android_fcm_token === $token) {
+                    $user->android_fcm_token = null;
+                    $user->save();
+                }
+                if ($hasIos && $user->ios_fcm_token === $token) {
+                    $user->ios_fcm_token = null;
+                    $user->save();
+                }
+            }
+        });
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, self::getUserIdColumn());
