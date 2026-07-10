@@ -8,14 +8,16 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h1 class="h4 mb-0">{{ $campaign->title }}</h1>
+            <h1 class="h4 mb-0 fw-bold">{{ $campaign->title }}</h1>
             <div class="text-muted small">Campaign Detail / Report</div>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{{ route('admin.campaigns.index') }}" class="btn btn-outline-secondary">Back</a>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route('admin.campaigns.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
             @if ($campaign->isEditable())
                 <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-outline-primary">Edit</a>
-                <form method="POST" action="{{ route('admin.campaigns.send', $campaign) }}" onsubmit="return confirm('Send this campaign now? This cannot be undone.');">
+                <form method="POST" action="{{ route('admin.campaigns.send', $campaign) }}" class="mb-0" onsubmit="return confirm('Send this campaign now? This cannot be undone.');">
                     @csrf
                     <button class="btn btn-success">Send Campaign</button>
                 </form>

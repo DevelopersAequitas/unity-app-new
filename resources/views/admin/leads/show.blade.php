@@ -15,9 +15,13 @@
         };
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <h1 class="h4 mb-0">{{ $resource['menu_label'] }} Details</h1>
-        <a href="{{ route($resource['index_route'], request()->query()) }}" class="btn btn-outline-secondary btn-sm">Back</a>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0 fw-bold">{{ $resource['menu_label'] }} Details</h1>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route($resource['index_route'], request()->query()) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
     </div>
 
     <div class="card shadow-sm">

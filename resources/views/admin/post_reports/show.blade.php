@@ -19,13 +19,15 @@
         $mediaUrl = $report->post ? data_get($report->post->media, '0.url') : null;
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h2 class="h4 mb-1">Post Report Details</h2>
+            <h2 class="h4 mb-1 fw-bold">Post Report Details</h2>
             <div class="text-muted small">Report ID: {{ $report->id }}</div>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{{ route('admin.post-reports.index') }}" class="btn btn-sm btn-outline-secondary">Back to Reports</a>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route('admin.post-reports.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
         </div>
     </div>
 

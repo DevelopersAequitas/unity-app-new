@@ -39,9 +39,9 @@
             </ol>
         </nav>
     </div>
-    <div>
-        <a href="{{ $backUrl }}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left me-1"></i>Back to Collaborations
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ $backUrl }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
         </a>
     </div>
 </div>

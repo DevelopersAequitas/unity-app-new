@@ -7,12 +7,14 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h4 class="mb-1">Support Ticket #{{ $ticket->ticket_number }}</h4>
+            <h4 class="mb-1 fw-bold text-dark">Support Ticket #{{ $ticket->ticket_number }}</h4>
             <p class="text-muted small mb-0">View full ticket details and update status/notes.</p>
         </div>
-        <a href="{{ route('admin.support-tickets.index') }}" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i> Back to Tickets
-        </a>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route('admin.support-tickets.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
     </div>
 
     @if(session('success'))

@@ -44,9 +44,14 @@
         <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-circle-fill text-primary me-2"></i>Edit Circle</h4>
         <p class="text-muted small mb-0">Update circle details, settings, and meeting schedule</p>
     </div>
-    <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i>Back to Details
-    </a>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        <button type="submit" form="editCircleForm" class="btn btn-success d-inline-flex align-items-center gap-2">
+            <i class="bi bi-check-circle"></i> Save
+        </button>
+    </div>
 </div>
 
 @if ($errors->any())
@@ -119,7 +124,7 @@
         </ul>
 
 
-        <form action="{{ route('admin.circles.update', $circle) }}" method="POST" class="p-4" novalidate>
+        <form id="editCircleForm" action="{{ route('admin.circles.update', $circle) }}" method="POST" class="p-4" novalidate>
             @csrf
             @method('PUT')
 

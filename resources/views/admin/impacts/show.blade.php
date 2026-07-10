@@ -4,7 +4,12 @@
 
 @section('content')
 <div class="container-fluid">
-    <h1 class="mb-3">Impact Detail</h1>
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h4 mb-0 fw-bold">Impact Detail</h1>
+        <a href="{{ route('admin.impacts.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
     <div class="card p-3 mb-3">
         <p><strong>Date:</strong> {{ optional($impact->impact_date)->toDateString() }}</p>
         <p><strong>User:</strong> {{ $impact->user->display_name ?? $impact->user->first_name }}</p>

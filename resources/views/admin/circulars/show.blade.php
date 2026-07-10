@@ -2,7 +2,15 @@
 @section('title', 'Circular Details')
 @section('content')
 <div class="container-fluid">
-    <div class="d-flex justify-content-between mb-3"><h1 class="h4">Circular Details</h1><div><a href="{{ route('admin.circulars.edit', $circular) }}" class="btn btn-outline-secondary">Edit</a></div></div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0 fw-bold">Circular Details</h1>
+        <div class="d-flex gap-2">
+            <a href="{{ route('admin.circulars.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <a href="{{ route('admin.circulars.edit', $circular) }}" class="btn btn-primary">Edit</a>
+        </div>
+    </div>
     <div class="card p-3">
         <dl class="row mb-0">
             @foreach([

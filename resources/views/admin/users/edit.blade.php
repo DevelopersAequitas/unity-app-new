@@ -37,9 +37,16 @@
         </h4>
         <small class="text-muted">ID: {{ $user->id }}</small>
     </div>
-    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i>Back to Peers
-    </a>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        @if(!($isReadOnly ?? false))
+            <button type="submit" form="userEditForm" class="btn btn-success d-inline-flex align-items-center gap-2">
+                <i class="bi bi-check-circle"></i> Save
+            </button>
+        @endif
+    </div>
 </div>
 
 @if (session('status'))

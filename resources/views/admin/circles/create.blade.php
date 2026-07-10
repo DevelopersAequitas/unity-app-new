@@ -35,8 +35,8 @@
         <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-plus-circle text-primary me-2"></i>Create Circle</h4>
         <p class="text-muted small mb-0">Add a new community circle to the platform</p>
     </div>
-    <a href="{{ route('admin.circles.index') }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i>Back to Circles
+    <a href="{{ route('admin.circles.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-arrow-left"></i> Back
     </a>
 </div>
 

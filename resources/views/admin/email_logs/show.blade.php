@@ -16,10 +16,14 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h1 class="h4 mb-0">Email Log #{{ $emailLog->id }}</h1>
+            <h1 class="h4 mb-0 fw-bold">Email Log #{{ $emailLog->id }}</h1>
             <div class="text-muted small">Complete delivery and content details for this email log.</div>
         </div>
-        <a href="{{ route('admin.email-logs.index') }}" class="btn btn-sm btn-outline-secondary">Back to Email Logs</a>
+        <div class="d-flex gap-2 align-items-center">
+            <a href="{{ route('admin.email-logs.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
     </div>
 
     <div class="card shadow-sm mb-3">

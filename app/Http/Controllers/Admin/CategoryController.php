@@ -247,7 +247,7 @@ class CategoryController extends Controller
         $category->update($payload);
 
         return redirect()
-            ->route('admin.categories.index')
+            ->route('admin.categories.view', $category)
             ->with('success', 'Category updated successfully.');
     }
 
