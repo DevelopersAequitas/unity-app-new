@@ -256,6 +256,70 @@ class CircleJoiningRequestsTest extends TestCase
         $response3 = $this->postJson('/api/v1/circle-join-requests', $payload3);
         $response3->assertStatus(422);
         $response3->assertJsonValidationErrors(['category_id']);
+
+        // Test POST with 'reason' field instead of 'reason_for_joining'
+        $circle4 = new Circle;
+        $circle4->id = (string) Str::uuid();
+        $circle4->name = 'Fourth active Circle';
+        $circle4->slug = 'fourth-active-circle';
+        $circle4->status = 'active';
+        $circle4->template_id = $template->id;
+        $circle4->save();
+
+        $payload4 = [
+            'circle_id' => $circle4->id,
+            'reason' => 'Interest in fourth active circle with short reason field',
+            'category_id' => $category->id,
+        ];
+        $response4 = $this->postJson('/api/v1/circle-join-requests', $payload4);
+        $response4->assertStatus(201);
+        $response4->assertJsonFragment([
+            'reason' => 'Interest in fourth active circle with short reason field',
+            'reason_for_joining' => 'Interest in fourth active circle with short reason field',
+        ]);
+
+        $this->assertDatabaseHas('circle_join_requests', [
+            'circle_id' => $circle4->id,
+            'reason_for_joining' => 'Interest in fourth active circle with short reason field',
+        ]);
+
+        // Test POST without 'circle_id' but with 'category_id' (resolving from mapping)
+        $circle5 = new Circle;
+        $circle5->id = (string) Str::uuid();
+        $circle5->name = 'Fifth active Circle';
+        $circle5->slug = 'fifth-active-circle';
+        $circle5->status = 'active';
+        $circle5->template_id = $template->id;
+        $circle5->save();
+
+        $category5 = CircleCategory::query()->create([
+            'name' => 'Fifth Target Categories',
+            'slug' => 'fifth-target-categories',
+            'level' => 1,
+            'is_active' => true,
+        ]);
+
+        DB::table('circle_category_mappings')->insert([
+            'circle_id' => $circle5->id,
+            'category_id' => $category5->id,
+        ]);
+
+        $payload5 = [
+            'category_id' => $category5->id,
+            'reason' => 'Should resolve circle_id automatically',
+        ];
+        $response5 = $this->postJson('/api/v1/circle-join-requests', $payload5);
+        $response5->assertStatus(201);
+        $response5->assertJsonFragment([
+            'circle_id' => $circle5->id,
+            'category_id' => $category5->id,
+            'reason' => 'Should resolve circle_id automatically',
+        ]);
+
+        $this->assertDatabaseHas('circle_join_requests', [
+            'circle_id' => $circle5->id,
+            'reason_for_joining' => 'Should resolve circle_id automatically',
+        ]);
     }
 
     public function test_dynamic_category_tracing_fallback(): void
@@ -651,9 +715,21 @@ class CircleJoiningRequestsTest extends TestCase
             $table->unsignedBigInteger('level3_category_id')->nullable();
             $table->unsignedBigInteger('level4_category_id')->nullable();
             $table->string('status')->nullable();
+            $table->uuid('cd_approved_by')->nullable();
+            $table->timestamp('cd_approved_at')->nullable();
+            $table->uuid('cd_rejected_by')->nullable();
+            $table->timestamp('cd_rejected_at')->nullable();
+            $table->text('cd_rejection_reason')->nullable();
+            $table->uuid('id_approved_by')->nullable();
+            $table->timestamp('id_approved_at')->nullable();
+            $table->uuid('id_rejected_by')->nullable();
+            $table->timestamp('id_rejected_at')->nullable();
+            $table->text('id_rejection_reason')->nullable();
             $table->string('ded_approval_status')->nullable();
+            $table->uuid('ded_approved_by')->nullable();
             $table->timestamp('ded_approved_at')->nullable();
             $table->timestamp('fee_paid_at')->nullable();
+            $table->timestamp('fee_marked_at')->nullable();
             $table->timestamp('requested_at')->nullable();
             $table->jsonb('notes')->nullable();
             $table->timestamps();

@@ -6,10 +6,11 @@ use App\Http\Requests\Api\CircleJoinRequests\ListMyCircleJoinRequests;
 use App\Http\Requests\Api\CircleJoinRequests\StoreCircleJoinRequest;
 use App\Models\Circle;
 use App\Models\CircleJoinRequest;
-use App\Models\User;
+use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestController extends BaseApiController
@@ -18,19 +19,34 @@ class CircleJoinRequestController extends BaseApiController
 
     public function store(StoreCircleJoinRequest $request): JsonResponse
     {
-        $circle = Circle::query()->where('id', $request->validated('circle_id'))->firstOrFail();
+        $circleId = $request->validated('circle_id');
+
+        if (! $circleId) {
+            $categoryId = $request->validated('category_id');
+            $circleId = DB::table('circle_category_mappings')
+                ->where('category_id', $categoryId)
+                ->value('circle_id');
+        }
+
+        if (! $circleId) {
+            return $this->error('Could not resolve Circle ID for the given category.', 422);
+        }
+
+        $circle = Circle::query()->where('id', $circleId)->firstOrFail();
 
         if ($circle->status !== 'active') {
             return $this->error('Circle is not active.', 422);
         }
 
         try {
+            $reason = $request->validated('reason') ?? $request->validated('reason_for_joining');
             $record = $this->service->submitRequest(
                 $request->user(),
                 $circle,
-                $request->validated('reason_for_joining'),
+                $reason,
                 [
                     'level1_category_id' => $request->validated('category_id'),
+                    'level4_category_id' => $request->validated('level4_category_id'),
                 ]
             );
 
@@ -136,6 +152,7 @@ class CircleJoinRequestController extends BaseApiController
             'status_label' => $isPaid ? 'Paid' : $this->statusLabel($status),
             'payment_status' => $isPaid ? 'paid' : 'unpaid',
             'display_status' => $isPaid ? 'Paid' : $this->statusLabel($status),
+            'reason' => $request->reason_for_joining,
         ]);
 
         $circleCategory = $request->circleCategory;
@@ -209,6 +226,7 @@ class CircleJoinRequestController extends BaseApiController
                 'idApprovedBy',
                 'cdRejectedBy',
                 'idRejectedBy',
+                'dedApprovedBy',
                 'circleCategory',
             ])
             ->where('id', $id)
@@ -228,9 +246,15 @@ class CircleJoinRequestController extends BaseApiController
         $categoryId = $record->level1_category_id ?? ($record->circleCategory?->id ? (int) $record->circleCategory->id : null);
         $categoryName = $record->circleCategory?->name ?? 'N/A';
 
+        $isPassed = in_array((string) $record->status, [
+            CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
+            CircleJoinRequest::STATUS_PAID,
+            CircleJoinRequest::STATUS_CIRCLE_MEMBER,
+        ], true) || (string) ($record->ded_approval_status ?? '') === 'approved';
+
         // CD Approval
         $cdStatus = 'pending';
-        if ($record->cd_approved_at !== null) {
+        if ($record->cd_approved_at !== null || $isPassed) {
             $cdStatus = 'approved';
         } elseif ($record->cd_rejected_at !== null) {
             $cdStatus = 'rejected';
@@ -242,11 +266,16 @@ class CircleJoinRequestController extends BaseApiController
                 'id' => (string) $record->cdApprovedBy->id,
                 'name' => (string) ($record->cdApprovedBy->display_name ?: trim(($record->cdApprovedBy->first_name ?? '').' '.($record->cdApprovedBy->last_name ?? '')) ?: 'Admin'),
             ];
+        } elseif ($isPassed && $record->dedApprovedBy) {
+            $cdApprovedBy = [
+                'id' => (string) $record->dedApprovedBy->id,
+                'name' => (string) ($record->dedApprovedBy->display_name ?: trim(($record->dedApprovedBy->first_name ?? '').' '.($record->dedApprovedBy->last_name ?? '')) ?: 'DED'),
+            ];
         }
 
         // ID Approval
         $idStatus = 'pending';
-        if ($record->id_approved_at !== null) {
+        if ($record->id_approved_at !== null || $isPassed) {
             $idStatus = 'approved';
         } elseif ($record->id_rejected_at !== null) {
             $idStatus = 'rejected';
@@ -257,6 +286,11 @@ class CircleJoinRequestController extends BaseApiController
             $idApprovedBy = [
                 'id' => (string) $record->idApprovedBy->id,
                 'name' => (string) ($record->idApprovedBy->display_name ?: trim(($record->idApprovedBy->first_name ?? '').' '.($record->idApprovedBy->last_name ?? '')) ?: 'Admin'),
+            ];
+        } elseif ($isPassed && $record->dedApprovedBy) {
+            $idApprovedBy = [
+                'id' => (string) $record->dedApprovedBy->id,
+                'name' => (string) ($record->dedApprovedBy->display_name ?: trim(($record->dedApprovedBy->first_name ?? '').' '.($record->dedApprovedBy->last_name ?? '')) ?: 'DED'),
             ];
         }
 
@@ -287,7 +321,7 @@ class CircleJoinRequestController extends BaseApiController
         $canPay = false;
 
         if ((string) $record->status === CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE) {
-            $paymentUrl = app(\App\Services\Circles\CircleJoinRequestNotificationService::class)->resolvePaymentUrl($record);
+            $paymentUrl = app(CircleJoinRequestNotificationService::class)->resolvePaymentUrl($record);
             $canPay = $paymentUrl !== null;
         }
 
@@ -308,12 +342,12 @@ class CircleJoinRequestController extends BaseApiController
             'status_label' => $this->statusLabel($record->status),
             'cd_approval' => [
                 'status' => $cdStatus,
-                'approved_at' => $record->cd_approved_at ? $record->cd_approved_at->toIso8601String() : null,
+                'approved_at' => ($record->cd_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null)) ? ($record->cd_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null))->toIso8601String() : null,
                 'approved_by' => $cdApprovedBy,
             ],
             'id_approval' => [
                 'status' => $idStatus,
-                'approved_at' => $record->id_approved_at ? $record->id_approved_at->toIso8601String() : null,
+                'approved_at' => ($record->id_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null)) ? ($record->id_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null))->toIso8601String() : null,
                 'approved_by' => $idApprovedBy,
             ],
             'rejection' => [

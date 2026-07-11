@@ -53,6 +53,15 @@ class AppServiceProvider extends ServiceProvider
         Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) {
             return new class($connection, $database, $prefix, $config) extends SQLiteConnection
             {
+                public function __construct($pdo, $database = '', $tablePrefix = '', array $config = [])
+                {
+                    parent::__construct($pdo, $database, $tablePrefix, $config);
+
+                    $this->getPdo()->sqliteCreateFunction('now', function () {
+                        return date('Y-m-d H:i:s');
+                    });
+                }
+
                 public function statement($query, $bindings = [])
                 {
                     $query = SqliteMigrator::translate($query);

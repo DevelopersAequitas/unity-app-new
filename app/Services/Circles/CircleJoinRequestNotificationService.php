@@ -3,11 +3,16 @@
 namespace App\Services\Circles;
 
 use App\Jobs\SendPushNotificationJob;
+use App\Mail\CircleJoinCongratulationsMail;
 use App\Mail\CircleJoinRequestStatusMail;
+use App\Models\CircleCategory;
 use App\Models\CircleJoinRequest;
+use App\Models\CircleSubscription;
+use App\Models\EmailLog;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
+use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -228,7 +233,7 @@ class CircleJoinRequestNotificationService
         }
 
         // Try to find a pending/existing circle subscription first
-        $existing = \App\Models\CircleSubscription::query()
+        $existing = CircleSubscription::query()
             ->where('user_id', $user->id)
             ->where('circle_id', $circle->id)
             ->where('status', 'pending')
@@ -251,11 +256,11 @@ class CircleJoinRequestNotificationService
 
         // Generate checkout URL dynamically
         try {
-            $checkout = app(\App\Support\Zoho\ZohoBillingService::class)->createHostedPageForCircleAddon($user, $circle);
+            $checkout = app(ZohoBillingService::class)->createHostedPageForCircleAddon($user, $circle);
             $checkoutUrl = $checkout['checkout_url'] ?? null;
 
             if ($checkoutUrl) {
-                \App\Models\CircleSubscription::query()->create([
+                CircleSubscription::query()->create([
                     'user_id' => $user->id,
                     'circle_id' => $circle->id,
                     'zoho_customer_id' => $checkout['customer_id'] ?? $user->zoho_customer_id,
@@ -293,6 +298,7 @@ class CircleJoinRequestNotificationService
                     'cd_approved_at' => $request->cd_approved_at,
                     'id_approved_at' => $request->id_approved_at,
                 ]);
+
                 return;
             }
 
@@ -301,11 +307,12 @@ class CircleJoinRequestNotificationService
                 Log::warning('Congratulations email skipped: user email not found', [
                     'request_id' => $request->id,
                 ]);
+
                 return;
             }
 
             // Deduplicate
-            $alreadySent = \App\Models\EmailLog::query()
+            $alreadySent = EmailLog::query()
                 ->where('related_type', CircleJoinRequest::class)
                 ->where('related_id', (string) $request->id)
                 ->where('template_key', 'circle_join_request_approved_congratulations')
@@ -313,6 +320,7 @@ class CircleJoinRequestNotificationService
 
             if ($alreadySent) {
                 Log::info('Congratulations email already sent for request', ['request_id' => $request->id]);
+
                 return;
             }
 
@@ -321,7 +329,7 @@ class CircleJoinRequestNotificationService
             if ($request->circleCategory) {
                 $categoryName = $request->circleCategory->name;
             } elseif ($request->level1_category_id) {
-                $cat = \App\Models\CircleCategory::query()->find($request->level1_category_id);
+                $cat = CircleCategory::query()->find($request->level1_category_id);
                 if ($cat) {
                     $categoryName = $cat->name;
                 }
@@ -335,12 +343,12 @@ class CircleJoinRequestNotificationService
 
             $amount = $request->circle?->circle_price_amount ?? 5000;
             $currency = $request->circle?->circle_price_currency ?? 'INR';
-            $formattedAmount = trim($currency . ' ' . number_format($amount, 2));
+            $formattedAmount = trim($currency.' '.number_format($amount, 2));
 
             // Fetch or generate payment URL
             $paymentUrl = $this->resolvePaymentUrl($request);
 
-            $mailable = new \App\Mail\CircleJoinCongratulationsMail(
+            $mailable = new CircleJoinCongratulationsMail(
                 $displayName,
                 $circleName,
                 $categoryName,
