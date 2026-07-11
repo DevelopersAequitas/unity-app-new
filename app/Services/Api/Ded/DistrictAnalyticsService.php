@@ -1104,13 +1104,13 @@ class DistrictAnalyticsService
             } elseif ($role === 'founder') {
                 $userQuery->whereExists(function ($q) use ($districtCircleIds) {
                     $q->selectRaw(1)->from('circles')
-                        ->whereColumn('circles.founder_user_id', 'users.id')
+                        ->whereColumn('circles.circle_founder_user_id', 'users.id')
                         ->whereIn('circles.id', $districtCircleIds);
                 });
             } elseif ($role === 'director') {
                 $userQuery->whereExists(function ($q) use ($districtCircleIds) {
                     $q->selectRaw(1)->from('circles')
-                        ->whereColumn('circles.director_user_id', 'users.id')
+                        ->whereColumn('circles.circle_director_user_id', 'users.id')
                         ->whereIn('circles.id', $districtCircleIds);
                 });
             }
@@ -1129,9 +1129,9 @@ class DistrictAnalyticsService
                 if ($role === 'industry_director') {
                     $userCircles = $circles->where('industry_director_user_id', $u->id);
                 } elseif ($role === 'founder') {
-                    $userCircles = $circles->where('founder_user_id', $u->id);
+                    $userCircles = $circles->where('circle_founder_user_id', $u->id);
                 } else {
-                    $userCircles = $circles->where('director_user_id', $u->id);
+                    $userCircles = $circles->where('circle_director_user_id', $u->id);
                 }
 
                 if ($userCircles->isEmpty()) {
@@ -1155,10 +1155,10 @@ class DistrictAnalyticsService
                     ->implode(', ');
 
                 $extraRoles = [];
-                if ($circles->where('founder_user_id', $u->id)->isNotEmpty()) {
+                if ($circles->where('circle_founder_user_id', $u->id)->isNotEmpty()) {
                     $extraRoles[] = 'Circle Founder';
                 }
-                if ($circles->where('director_user_id', $u->id)->isNotEmpty()) {
+                if ($circles->where('circle_director_user_id', $u->id)->isNotEmpty()) {
                     $extraRoles[] = 'Circle Director';
                 }
                 if ($circles->where('industry_director_user_id', $u->id)->isNotEmpty()) {
@@ -1270,10 +1270,10 @@ class DistrictAnalyticsService
                     ->implode(', ');
 
                 $extraRoles = [];
-                if ($circles->where('founder_user_id', $u->id)->isNotEmpty()) {
+                if ($circles->where('circle_founder_user_id', $u->id)->isNotEmpty()) {
                     $extraRoles[] = 'Circle Founder';
                 }
-                if ($circles->where('director_user_id', $u->id)->isNotEmpty()) {
+                if ($circles->where('circle_director_user_id', $u->id)->isNotEmpty()) {
                     $extraRoles[] = 'Circle Director';
                 }
                 if ($circles->where('industry_director_user_id', $u->id)->isNotEmpty()) {
@@ -1462,7 +1462,7 @@ class DistrictAnalyticsService
             'founder:id,display_name,first_name,last_name',
             'director:id,display_name,first_name,last_name',
             'industryDirector:id,display_name,first_name,last_name',
-        ])->orderBy('name')->get(['id', 'name', 'status', 'created_at', 'founder_user_id', 'director_user_id', 'industry_director_user_id']);
+        ])->orderBy('name')->get(['id', 'name', 'status', 'created_at', 'circle_founder_user_id', 'circle_director_user_id', 'industry_director_user_id']);
         $circleIds = $circlesList->pluck('id')->all();
         $totalCircles = count($circleIds);
 
@@ -1932,7 +1932,7 @@ class DistrictAnalyticsService
 
             // Circle Directors (distinct)
             $catCircles = $circles->whereIn('id', $industryCircleIds);
-            $circleDirectors = $catCircles->pluck('director_user_id')->filter()->unique()->count();
+            $circleDirectors = $catCircles->pluck('circle_director_user_id')->filter()->unique()->count();
             $industryDirectors = $catCircles->pluck('industry_director_user_id')->filter()->unique()->count();
 
             // Activity totals
@@ -2133,7 +2133,7 @@ class DistrictAnalyticsService
         $activePercentage = $totalMembers > 0 ? round(($activeMembers / $totalMembers) * 100, 1) : 0.0;
 
         $totalCircles = count($industryCircleIds);
-        $circleDirectors = $circlesList->pluck('director_user_id')->filter()->unique()->count();
+        $circleDirectors = $circlesList->pluck('circle_director_user_id')->filter()->unique()->count();
         $industryDirectors = $circlesList->pluck('industry_director_user_id')->filter()->unique()->count();
 
         $totalRevenue = 0.0;

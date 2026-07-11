@@ -1022,9 +1022,11 @@ class DedCommandCenterTest extends TestCase
         });
 
         Schema::create('circle_category_mappings', function (Blueprint $table): void {
+            $table->id();
             $table->uuid('circle_id');
             $table->unsignedBigInteger('category_id');
-            $table->primary(['circle_id', 'category_id']);
+            $table->timestamps();
+            $table->unique(['circle_id', 'category_id']);
         });
 
         Schema::create('referrals', function (Blueprint $table): void {

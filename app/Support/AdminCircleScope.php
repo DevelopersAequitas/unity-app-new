@@ -330,8 +330,8 @@ class AdminCircleScope
                         ->from('circles as sc')
                         ->whereIn('sc.id', $allowedCircleIds)
                         ->where(function ($q) use ($userIdExpression) {
-                            $q->whereColumn('sc.founder_user_id', $userIdExpression)
-                                ->orWhereColumn('sc.director_user_id', $userIdExpression)
+                            $q->whereColumn('sc.circle_founder_user_id', $userIdExpression)
+                                ->orWhereColumn('sc.circle_director_user_id', $userIdExpression)
                                 ->orWhereColumn('sc.industry_director_user_id', $userIdExpression);
                         });
                 });
