@@ -57,7 +57,7 @@
     <div class="col-6 col-sm-4 col-lg-2">
         <a href="{{ route('admin.contacts.index') }}" class="quick-action-btn w-100">
             <i class="bi bi-person-lines-fill" style="color: var(--stat-purple);"></i>
-            <span>Contacts</span>
+            <span>Unity Contacts</span>
         </a>
     </div>
 </div>
@@ -66,7 +66,7 @@
 <div class="row g-3 mb-4">
     {{-- Total Peers --}}
     <div class="col-12 col-sm-6 col-xl-3 fade-in-up fade-in-up-delay-1">
-        <div class="card hover-elevate p-3 h-100">
+        <a href="{{ route('admin.users.index') }}" class="card hover-elevate p-3 h-100 text-decoration-none text-reset">
             <div class="d-flex align-items-start justify-content-between mb-3">
                 <div>
                     <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">Total Peers</span>
@@ -87,12 +87,12 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     {{-- Active Circles --}}
     <div class="col-12 col-sm-6 col-xl-3 fade-in-up fade-in-up-delay-2">
-        <div class="card hover-elevate p-3 h-100">
+        <a href="{{ route('admin.circles.index') }}" class="card hover-elevate p-3 h-100 text-decoration-none text-reset">
             <div class="d-flex align-items-start justify-content-between mb-3">
                 <div>
                     <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">Active Circles</span>
@@ -113,12 +113,12 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     {{-- Pending Approvals --}}
     <div class="col-12 col-sm-6 col-xl-3 fade-in-up fade-in-up-delay-3">
-        <div class="card hover-elevate p-3 h-100">
+        <a href="{{ route('admin.circles.index', ['status' => 'pending']) }}" class="card hover-elevate p-3 h-100 text-decoration-none text-reset">
             <div class="d-flex align-items-start justify-content-between mb-3">
                 <div>
                     <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">Awaiting Review</span>
@@ -139,12 +139,12 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     {{-- New Signups --}}
     <div class="col-12 col-sm-6 col-xl-3 fade-in-up fade-in-up-delay-4">
-        <div class="card hover-elevate p-3 h-100">
+        <a href="{{ route('admin.users.index', ['joined_filter' => 'custom', 'joined_from' => now()->toDateString(), 'joined_to' => now()->toDateString()]) }}" class="card hover-elevate p-3 h-100 text-decoration-none text-reset">
             <div class="d-flex align-items-start justify-content-between mb-3">
                 <div>
                     <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">New Signups</span>
@@ -165,7 +165,7 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 </div>
 
