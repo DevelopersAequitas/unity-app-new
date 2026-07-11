@@ -243,7 +243,7 @@ class UsersController extends Controller
         $user = null;
 
         DB::transaction(function () use (&$user, $validated, $circleId, $request) {
-            $user = User::create($validated);
+            $user = User::create(Arr::only($validated, Schema::getColumnListing('users')));
             $user->registration_source = 'Admin Panel';
             $user->save();
 
@@ -718,6 +718,7 @@ class UsersController extends Controller
             $updatable['membership_ends_at'] = null;
             $updatable['membership_expiry'] = null;
         }
+        $updatable = Arr::only($updatable, Schema::getColumnListing('users'));
         $activeCircleMemberStatus = $this->activeCircleMemberStatus();
         $selectedCircleId = $validated['active_circle_id'] ?? ($validated['circle_id'] ?? null);
         $validated['active_circle_id'] = $selectedCircleId;
@@ -993,20 +994,6 @@ class UsersController extends Controller
                         }
 
                         Cache::forget('admin-access:ded-location:'.$adminUser->id);
-                    }
-
-                    DB::table('admin_user_roles')
-                        ->where('user_id', $adminUser->id)
-                        ->whereIn('role_id', $adminRoleIds)
-                        ->delete();
-
-                    foreach ($selectedRoleIds as $roleId) {
-                        DB::table('admin_user_roles')->insert([
-                            'id' => (string) Str::uuid(),
-                            'user_id' => $adminUser->id,
-                            'role_id' => $roleId,
-                            'created_at' => now(),
-                        ]);
                     }
 
                     $industryDirectorSelected = $industryDirectorRoleId

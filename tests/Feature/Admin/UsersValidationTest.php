@@ -287,7 +287,7 @@ class UsersValidationTest extends TestCase
         ];
 
         $response = $this->put(route('admin.users.update', $user->id), $payload);
-        $response->assertRedirect(route('admin.users.edit', $user->id));
+        $response->assertRedirect(route('admin.users.show', $user->id));
         $this->assertDatabaseHas('users', [
             'id' => $user->id,
             'first_name' => 'Acme User Updated',

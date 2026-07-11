@@ -85,10 +85,8 @@ class AdminAuthController extends Controller
 
                 if (! $hasRole) {
                     DB::table('admin_user_roles')->insert([
-                        'id' => (string) Str::uuid(),
                         'user_id' => $adminUser->id,
                         'role_id' => $globalAdminRoleId,
-                        'created_at' => now(),
                     ]);
                     Cache::forget('admin-access:roles:'.$adminUser->id);
                 }
@@ -350,10 +348,8 @@ class AdminAuthController extends Controller
 
             if (! $hasCircleLeaderRole) {
                 DB::table('admin_user_roles')->insert([
-                    'id' => (string) Str::uuid(),
                     'user_id' => $adminUser->id,
                     'role_id' => $circleLeaderRoleId,
-                    'created_at' => now(),
                 ]);
 
                 Cache::forget('admin-access:roles:'.$adminUser->id);
