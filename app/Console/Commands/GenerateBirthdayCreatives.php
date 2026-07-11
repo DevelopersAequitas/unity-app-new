@@ -85,10 +85,10 @@ class GenerateBirthdayCreatives extends Command
                     }
 
                     // Check if current local time is exactly between 12:00 AM and 12:59 AM (hour is 0)
-                    if ($localTime->hour !== 0) {
+                    /*if ($localTime->hour !== 0) {
                         continue;
                     }
-                }
+                }*/
 
                 // Check if a birthday post was already created for this user recently (last 20 hours)
                 $alreadyExists = Post::query()
