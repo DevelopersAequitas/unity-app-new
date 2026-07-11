@@ -243,17 +243,24 @@
                                     <div class="text-muted" style="font-size: 0.75rem;">{{ $peer->city ?? '—' }}</div>
                                 </td>
                                 <td>
-                                    @php
-                                        $circleName = $peer->circleMembers->first()?->circle?->name ?? null;
-                                    @endphp
-                                    @if($circleName)
-                                        <span class="badge rounded-pill bg-light text-primary border px-2 py-1" style="font-size: 0.7rem; font-weight: 550;">
-                                            {{ $circleName }}
-                                        </span>
-                                    @else
-                                        <span class="text-muted">—</span>
-                                    @endif
-                                </td>
+                                     @php
+                                         $peerCircles = $peer->circleMembers
+                                             ->map(fn($cm) => $cm->circle)
+                                             ->filter()
+                                             ->unique('id');
+                                     @endphp
+                                     @if($peerCircles->isNotEmpty())
+                                         <div class="d-flex flex-column gap-1 align-items-start">
+                                             @foreach($peerCircles as $circle)
+                                                 <span class="badge rounded-pill bg-light text-primary border px-2 py-1" style="font-size: 0.7rem; font-weight: 550; white-space: nowrap;">
+                                                     {{ $circle->name }}
+                                                 </span>
+                                             @endforeach
+                                         </div>
+                                     @else
+                                         <span class="text-muted">—</span>
+                                     @endif
+                                 </td>
                                 <td class="text-muted small">
                                     @php
                                         $joinDate = $peer->membership_approved_at

@@ -141,6 +141,7 @@ class MyCirclesApiTest extends TestCase
             ->assertJsonPath('data.items.0.role', 'member')
             ->assertJsonPath('data.items.0.status', 'approved')
             ->assertJsonPath('data.items.0.joined_at', $activeMembership->joined_at ? $activeMembership->joined_at->toIso8601String() : null)
+            ->assertJsonPath('data.items.0.type', $activeCircle->type)
             ->assertJsonPath('data.items.1.circle_id', $expiredCircle->id)
             ->assertJsonPath('data.items.1.circle_name', 'Expired Circle');
 

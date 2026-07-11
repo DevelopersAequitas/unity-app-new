@@ -511,28 +511,28 @@ class User extends Authenticatable
     public function adminCircleLabel(): string
     {
         if ($this->relationLoaded('circleMembers')) {
-            $name = trim((string) optional($this->circleMembers->first()?->circle)->name);
+            $names = $this->circleMembers->map(fn($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
 
-            return $name !== '' ? $name : 'No Circle';
+            return $names->isNotEmpty() ? $names->implode(', ') : 'No Circle';
         }
 
         if ($this->relationLoaded('circles')) {
-            $name = trim((string) optional($this->circles->first())->name);
+            $names = $this->circles->map(fn($c) => trim((string) $c->name))->filter()->unique();
 
-            return $name !== '' ? $name : 'No Circle';
+            return $names->isNotEmpty() ? $names->implode(', ') : 'No Circle';
         }
 
         try {
-            $member = $this->circleMembers()
+            $members = $this->circleMembers()
                 ->where('status', 'approved')
                 ->whereNull('deleted_at')
                 ->with(['circle:id,name'])
                 ->orderByDesc('joined_at')
-                ->first();
+                ->get();
 
-            $name = trim((string) optional($member?->circle)->name);
+            $names = $members->map(fn($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
 
-            return $name !== '' ? $name : 'No Circle';
+            return $names->isNotEmpty() ? $names->implode(', ') : 'No Circle';
         } catch (Throwable $e) {
             return 'No Circle';
         }

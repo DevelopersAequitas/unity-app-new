@@ -378,7 +378,10 @@ class VisitorRegistrationsController extends Controller
                     $member = $row->user;
                     $memberName = $member ? trim(($member->first_name ?? '').' '.($member->last_name ?? '')) : '—';
                     $memberCompany = $member ? ($member->company_name ?? $member->company ?? '—') : '—';
-                    $memberCircle = $member && $member->circleMembers->first() ? optional($member->circleMembers->first()->circle)->name : '—';
+                    $memberCircles = $member
+                        ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
+                        : '';
+                    $memberCircle = $memberCircles !== '' ? $memberCircles : '—';
 
                     fputcsv($output, [
                         $row->created_at ? $row->created_at->format('Y-m-d H:i') : '—',
@@ -453,7 +456,10 @@ class VisitorRegistrationsController extends Controller
             $member = $row->user;
             $memberName = $member ? trim(($member->first_name ?? '').' '.($member->last_name ?? '')) : '—';
             $memberCompany = $member ? ($member->company_name ?? $member->company ?? '—') : '—';
-            $memberCircle = $member && $member->circleMembers->first() ? optional($member->circleMembers->first()->circle)->name : '—';
+            $memberCircles = $member
+                ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
+                : '';
+            $memberCircle = $memberCircles !== '' ? $memberCircles : '—';
 
             fputcsv($output, [
                 $row->created_at ? $row->created_at->format('Y-m-d H:i') : '—',

@@ -232,10 +232,10 @@
                             $company = null;
                         }
                         
-                        $circleName = optional($user->circleMembers->first()?->circle)->name ?? '';
-                        if (in_array(strtolower(trim((string)$circleName)), ['', 'no circle', 'none', 'null', 'no_circle'], true)) {
-                            $circleName = null;
-                        }
+                        $userCircles = $user->circleMembers
+                            ->map(fn($cm) => $cm->circle)
+                            ->filter()
+                            ->unique('id');
 
                         $statusValue = $user->status ?? 'active';
                         $isActive = $statusValue === 'active';
@@ -293,10 +293,14 @@
                             @endif
                         </td>
                         <td>
-                            @if ($circleName)
-                                <span class="text-primary fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="font-size: 0.85rem;">
-                                    <i class="bi bi-people text-primary small"></i>{{ $circleName }}
-                                </span>
+                            @if ($userCircles->isNotEmpty())
+                                <div class="d-flex flex-column gap-1">
+                                    @foreach ($userCircles as $circle)
+                                        <span class="text-primary fw-semibold d-inline-flex align-items-center gap-1 text-nowrap" style="font-size: 0.85rem;">
+                                            <i class="bi bi-people text-primary small"></i>{{ $circle->name }}
+                                        </span>
+                                    @endforeach
+                                </div>
                             @else
                                 <span class="text-muted">—</span>
                             @endif
@@ -369,9 +373,7 @@
                             <div class="collapse" id="{{ $detailsId }}">
                                 <div class="p-3 bg-light border-top">
                                     @php
-                                        $joinedCircle = $user->circleMembers->first()?->circle;
-                                        $joinedCircleName = $joinedCircle?->name;
-                                        $joinedCircleId = $joinedCircle?->id;
+                                        // $userCircles was computed at the top of the loop
                                         $joinedCircleCategoryTrees = collect($joinedCircleCategoryTreesByUserId[(string) $user->id] ?? []);
 
                                         $fields = [
@@ -395,7 +397,7 @@
                                             ['label' => 'City (string)', 'value' => $user->city],
                                             ['label' => 'Membership Status', 'value' => $user->membership_status],
                                             ['label' => 'Membership Ends At', 'value' => $user->membership_ends_at, 'type' => 'membership_date'],
-                                            ['label' => 'Circles', 'value' => $joinedCircleName ?: 'No Circle', 'circle_id' => $joinedCircleId],
+                                            ['label' => 'Circles', 'value' => $userCircles, 'type' => 'user_circles'],
                                             ['label' => 'Zoho Customer ID', 'value' => $user->zoho_customer_id],
                                             ['label' => 'Zoho Subscription ID', 'value' => $user->zoho_subscription_id],
                                             ['label' => 'Zoho Plan Code', 'value' => $user->zoho_plan_code],
@@ -510,10 +512,16 @@
                                                         <tr>
                                                             <th class="w-50 text-muted">{{ $field['label'] }}</th>
                                                             <td class="text-break">
-                                                                @if (($field['label'] ?? null) === 'Circles' && ! empty($field['circle_id']))
-                                                                    <div class="d-flex align-items-center gap-2">
-                                                                        <span>{{ $field['value'] }}</span>
-                                                                        <a href="{{ route('admin.circles.edit', $field['circle_id']) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                                                @if (($field['type'] ?? null) === 'user_circles')
+                                                                    <div class="d-flex flex-column gap-2">
+                                                                        @forelse ($field['value'] as $circle)
+                                                                            <div class="d-flex align-items-center gap-2">
+                                                                                <span>{{ $circle->name }}</span>
+                                                                                <a href="{{ route('admin.circles.edit', $circle->id) }}" class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size: 0.75rem;">View</a>
+                                                                            </div>
+                                                                        @empty
+                                                                            <span class="text-muted">—</span>
+                                                                        @endforelse
                                                                     </div>
                                                                 @else
                                                                     {!! $renderValue($field['value'], $field['type'] ?? 'text') !!}

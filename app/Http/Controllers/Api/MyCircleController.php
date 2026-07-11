@@ -14,7 +14,7 @@ class MyCircleController extends BaseApiController
             ->whereNull('deleted_at')
             ->whereNull('left_at')
             ->with(['circle' => function ($query) {
-                $query->select('id', 'name', 'cover_file_id', 'status');
+                $query->select('id', 'name', 'cover_file_id', 'status', 'type');
             }])
             ->orderByRaw('CASE WHEN paid_starts_at IS NULL THEN 1 ELSE 0 END ASC')
             ->orderByDesc('paid_starts_at')
@@ -32,6 +32,7 @@ class MyCircleController extends BaseApiController
                     'role' => $membership->role,
                     'status' => $membership->status,
                     'joined_at' => $membership->joined_at ? $membership->joined_at->toIso8601String() : null,
+                    'type' => $membership->circle?->type,
                 ];
             });
 

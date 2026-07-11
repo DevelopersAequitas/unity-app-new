@@ -183,7 +183,10 @@
                             $memberName = $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null, $member->name ?? null);
                             $memberCompany = $member->company_name ?? $member->company ?? $member->business_name ?? 'No Company';
                             $memberCity = $member->city ?? 'No City';
-                            $memberCircle = optional($member?->circleMembers?->first()?->circle)->name ?? 'No Circle';
+                            $memberCircles = $member
+                                ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
+                                : '';
+                            $memberCircle = $memberCircles !== '' ? $memberCircles : 'No Circle';
                         @endphp
                         <tr>
                             <td>

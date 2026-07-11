@@ -23,13 +23,17 @@
         $city = 'No City';
     }
 
-    $circleName = trim((string) optional($user?->circleMembers?->first()?->circle)->name);
-    if ($circleName === '') {
-        $circleName = trim((string) optional($user?->circles?->first())->name);
+    $circleNames = collect();
+    if ($user?->relationLoaded('circleMembers')) {
+        $circleNames = $user->circleMembers->map(fn($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
     }
-    if ($circleName === '') {
-        $circleName = 'No Circle';
+    if ($circleNames->isEmpty() && $user?->relationLoaded('circles')) {
+        $circleNames = $user->circles->map(fn($c) => trim((string) $c->name))->filter()->unique();
     }
+    if ($circleNames->isEmpty()) {
+        $circleNames = collect([$user?->adminCircleLabel() ?? 'No Circle']);
+    }
+    $circleName = $circleNames->filter()->unique()->implode(', ') ?: 'No Circle';
 @endphp
 
 <div class="d-flex flex-column">
