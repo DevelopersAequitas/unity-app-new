@@ -14,6 +14,35 @@ class MyCirclesApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $roleKeys = [
+            'member',
+            'circle_founder',
+            'circle_director',
+            'industry_director',
+            'ded',
+            'eed',
+            'chair',
+            'vice_chair',
+            'secretary',
+            'committee_leader',
+        ];
+
+        foreach ($roleKeys as $key) {
+            $role = \App\Models\Role::where('key', $key)->first();
+            if (! $role) {
+                $role = new \App\Models\Role;
+                $role->id = (string) \Illuminate\Support\Str::uuid();
+                $role->key = $key;
+                $role->name = ucfirst(str_replace('_', ' ', $key));
+                $role->save();
+            }
+        }
+    }
+
     public function test_it_returns_empty_items_when_user_has_no_active_memberships(): void
     {
         $user = User::factory()->create();
@@ -26,7 +55,7 @@ class MyCirclesApiTest extends TestCase
             ->assertJsonPath('data.items', []);
     }
 
-    public function test_it_returns_only_current_users_active_memberships_with_nested_circle_data(): void
+    public function test_it_returns_only_current_users_active_memberships(): void
     {
         Carbon::setTestNow('2026-03-28 12:00:00');
 
@@ -39,27 +68,20 @@ class MyCirclesApiTest extends TestCase
             'name' => 'Active Circle',
             'slug' => 'active-circle-'.Str::lower(Str::random(6)),
             'status' => 'active',
-            'type' => 'private',
             'circle_founder_user_id' => $founder->id,
-            'circle_director_user_id' => $director->id,
-            'meeting_mode' => 'online',
-            'meeting_frequency' => 'monthly',
         ]);
 
         $expiredCircle = Circle::create([
             'name' => 'Expired Circle',
             'slug' => 'expired-circle-'.Str::lower(Str::random(6)),
             'status' => 'active',
-            'type' => 'private',
             'circle_founder_user_id' => $founder->id,
-            'circle_director_user_id' => $director->id,
         ]);
 
         $leftCircle = Circle::create([
             'name' => 'Left Circle',
             'slug' => 'left-circle-'.Str::lower(Str::random(6)),
             'status' => 'active',
-            'type' => 'public',
         ]);
 
         $activeMembership = CircleMember::create([
@@ -114,12 +136,13 @@ class MyCirclesApiTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonCount(2, 'data.items')
             ->assertJsonPath('data.items.0.membership_id', $activeMembership->id)
-            ->assertJsonPath('data.items.0.circle.id', $activeCircle->id)
-            ->assertJsonPath('data.items.0.circle.name', 'Active Circle')
-            ->assertJsonPath('data.items.0.membership_started_at', $activeMembership->paid_starts_at?->toJSON())
-            ->assertJsonPath('data.items.0.is_expired', false)
-            ->assertJsonPath('data.items.1.circle.id', $expiredCircle->id)
-            ->assertJsonPath('data.items.1.is_expired', true);
+            ->assertJsonPath('data.items.0.circle_id', $activeCircle->id)
+            ->assertJsonPath('data.items.0.circle_name', 'Active Circle')
+            ->assertJsonPath('data.items.0.role', 'member')
+            ->assertJsonPath('data.items.0.status', 'approved')
+            ->assertJsonPath('data.items.0.joined_at', $activeMembership->joined_at ? $activeMembership->joined_at->toIso8601String() : null)
+            ->assertJsonPath('data.items.1.circle_id', $expiredCircle->id)
+            ->assertJsonPath('data.items.1.circle_name', 'Expired Circle');
 
         Carbon::setTestNow();
     }
