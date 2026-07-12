@@ -17,7 +17,6 @@
     $navItems = $isIndustryDirector
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-            ['icon' => 'bi-diagram-3', 'label' => 'Circle', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
         ]
@@ -82,14 +81,14 @@
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
-    $referralReportItem = (! $isCircleCommittee && ! $isIndustryDirector && ($isSuper || $isCircleScoped || $isDed))
+    $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
     $activityExpanded = $activityActive;
 
-    $postsMenu = ($isGlobalAdmin || $isIndustryDirector) ? [
+    $postsMenu = ($isGlobalAdmin) ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
-        ...($isIndustryDirector ? [] : [['label' => 'Post Reports', 'route' => 'admin.post-reports.index']]),
+        ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
     ] : [];
     $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*');
 
@@ -191,7 +190,6 @@
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
     $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*') || request()->routeIs('admin.event-scan-credentials.*');
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
-    $eventsManagementMenu = $isIndustryDirector ? [] : $eventsManagementMenu;
     
     $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
     $brandPartnersMenu = [
@@ -361,7 +359,7 @@
                 </li>
             @endforeach
 
-            @if ($isGlobalAdmin)
+            @if ($isGlobalAdmin || $isIndustryDirector)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
