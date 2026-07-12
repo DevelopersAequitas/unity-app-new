@@ -1037,7 +1037,10 @@ class UsersController extends Controller
                                 'assigned_by' => Auth::guard('admin')->id(),
                                 'is_active' => true,
                                 'updated_at' => now(),
-                            ], $assignmentExists ? [] : ['created_at' => now()]),
+                            ], $assignmentExists ? [] : [
+                                'id' => (string) Str::uuid(),
+                                'created_at' => now(),
+                            ]),
                         );
                     } elseif ($this->industryDirectorAssignmentsTableExists()) {
                         DB::table('industry_director_assignments')
