@@ -1063,7 +1063,7 @@ class UsersController extends Controller
             return redirect()
                 ->route('admin.users.edit', $user->id)
                 ->withInput()
-                ->withErrors(['roles' => 'Unable to update user roles right now. Please try again or contact support.']);
+                ->withErrors(['roles' => 'Unable to update user roles: ' . $exception->getMessage()]);
         }
 
         $updatedUser = $user->fresh();
