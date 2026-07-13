@@ -376,4 +376,29 @@ class CircleController extends BaseApiController
 
         return $this->success(new CircleMemberResource($member), 'Circle member updated');
     }
+
+    public function joinedCircles(Request $request)
+    {
+        $user = $request->user();
+        $userName = $user->name ?? $this->resolveDisplayName($user);
+
+        $memberships = CircleMember::query()
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->whereNull('left_at')
+            ->with('circle:id,name')
+            ->get()
+            ->map(function ($membership) use ($user, $userName) {
+                return [
+                    'circle_id' => $membership->circle_id,
+                    'member_id' => $user->id,
+                    'circle_name' => $membership->circle?->name,
+                    'member_name' => $userName,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return $this->success($memberships, 'Joined circles fetched successfully.');
+    }
 }
