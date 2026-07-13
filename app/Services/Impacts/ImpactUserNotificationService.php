@@ -5,6 +5,7 @@ namespace App\Services\Impacts;
 use App\Jobs\SendFcmNotificationJob;
 use App\Models\Impact;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -53,6 +54,32 @@ class ImpactUserNotificationService
             'created_at' => now(),
             'read_at' => null,
         ]);
+
+        try {
+            AppNotification::create([
+                'user_id' => $impact->user_id,
+                'type' => $type,
+                'category' => 'life_impact',
+                'title' => (string) ($payload['title'] ?? 'Notification'),
+                'body' => (string) ($payload['body'] ?? 'You have a new notification'),
+                'message' => (string) ($payload['body'] ?? 'You have a new notification'),
+                'channel' => 'push',
+                'priority' => 'medium',
+                'reference_type' => Impact::class,
+                'reference_id' => (string) $impact->id,
+                'screen' => 'life_impact',
+                'data' => array_merge($payload, [
+                    'notification_id' => (string) $notification->id,
+                ]),
+                'status' => 'pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to create AppNotification in ImpactUserNotificationService', [
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         DB::afterCommit(function () use ($impact, $type, $payload): void {
             SendFcmNotificationJob::dispatch(

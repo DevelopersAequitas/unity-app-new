@@ -116,6 +116,7 @@ use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController
 use App\Http\Controllers\Api\V1\RequirementInterestController;
 use App\Http\Controllers\Api\V1\ScanAppAuthController;
 use App\Http\Controllers\Api\V1\ScanAppEventController;
+use App\Http\Controllers\Api\V1\StorySubmissionApiController;
 use App\Http\Controllers\Api\V1\SupportTicketController;
 use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
@@ -346,9 +347,9 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         // Story Submissions API
-        Route::post('/story/submit', [\App\Http\Controllers\Api\V1\StorySubmissionApiController::class, 'submit']);
-        Route::get('/story/my-submissions', [\App\Http\Controllers\Api\V1\StorySubmissionApiController::class, 'mySubmissions']);
-        Route::get('/story/{id}', [\App\Http\Controllers\Api\V1\StorySubmissionApiController::class, 'show'])->whereUuid('id');
+        Route::post('/story/submit', [StorySubmissionApiController::class, 'submit']);
+        Route::get('/story/my-submissions', [StorySubmissionApiController::class, 'mySubmissions']);
+        Route::get('/story/{id}', [StorySubmissionApiController::class, 'show'])->whereUuid('id');
 
         Route::get('network/mutual-connections/{user_uuid}', [MutualConnectionController::class, 'index'])
             ->whereUuid('user_uuid');

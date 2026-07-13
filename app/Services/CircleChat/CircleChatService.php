@@ -12,6 +12,7 @@ use App\Models\CircleChatMessage;
 use App\Models\CircleChatMessageRead;
 use App\Models\CircleMember;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -278,6 +279,36 @@ class CircleChatService
                 'created_at' => now(),
                 'read_at' => null,
             ]);
+
+            try {
+                AppNotification::create([
+                    'user_id' => $recipientId,
+                    'type' => 'new_message',
+                    'category' => 'chat',
+                    'title' => 'New message in '.$circle->name,
+                    'body' => $senderName.': '.$preview,
+                    'message' => $senderName.': '.$preview,
+                    'channel' => 'push',
+                    'priority' => 'medium',
+                    'reference_type' => Circle::class,
+                    'reference_id' => (string) $circle->id,
+                    'screen' => 'circle_chat',
+                    'data' => [
+                        'notification_id' => (string) $notification->id,
+                        'circle_id' => (string) $circle->id,
+                        'message_id' => (string) $message->id,
+                        'sender_id' => (string) $sender->id,
+                        'type' => 'new_message',
+                    ],
+                    'status' => 'pending',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Failed to create AppNotification in CircleChatService', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             event(new UserNotificationCreated((string) $recipientId, [
                 'id' => (string) $notification->id,
