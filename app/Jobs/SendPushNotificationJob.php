@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\Notifications\FcmService;
 use Illuminate\Bus\Queueable;
@@ -37,8 +38,16 @@ class SendPushNotificationJob implements ShouldQueue
                 return;
             }
 
+            $notification = null;
+            $notificationId = $this->data['notification_id'] ?? null;
+            if ($notificationId) {
+                $notification = AppNotification::where('id', $notificationId)
+                    ->orWhere('data->notification_id', $notificationId)
+                    ->first();
+            }
+
             // Centralized send using Notifications\FcmService wrapper
-            $result = $fcmService->sendToUser($this->user, $this->title, $this->body, $this->data, null);
+            $result = $fcmService->sendToUser($this->user, $this->title, $this->body, $this->data, $notification);
 
             Log::info('SendPushNotificationJob completed', [
                 'user_id' => $this->user->id,
