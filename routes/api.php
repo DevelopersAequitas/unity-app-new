@@ -442,6 +442,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/circles/{circle}/members', [V1CircleMemberController::class, 'index']);
         Route::put('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
         Route::patch('/circles/{circleId}/members/{memberId}', [CircleController::class, 'updateMember']);
+        Route::get('/joined-circles', [CircleController::class, 'joinedCircles']);
 
         Route::get('/circles/{circleId}/category-tree', [CircleCategoryUsageController::class, 'circleCategoryTree']);
         Route::get('/members/{memberId}/selected-categories', [CircleCategoryUsageController::class, 'memberSelectedCategories']);
