@@ -156,6 +156,34 @@ class CircleJoiningRequestsStatusTest extends TestCase
             ->assertJsonPath('data.can_pay', true);
     }
 
+    public function test_ded_approved_request_returns_approved_for_cd_and_id_approvals(): void
+    {
+        $user = $this->createUser();
+        $circle = $this->createCircle();
+        $dedUser = $this->createUser('ded@example.com');
+        $request = $this->createJoinRequest($user, $circle, CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE);
+        $request->update([
+            'ded_approval_status' => 'approved',
+            'ded_approved_by' => $dedUser->id,
+            'ded_approved_at' => now(),
+            'cd_approved_at' => null,
+            'cd_approved_by' => null,
+            'id_approved_at' => null,
+            'id_approved_by' => null,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson("/api/v1/circle-join-requests/{$request->id}/status");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.status', CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE)
+            ->assertJsonPath('data.cd_approval.status', 'approved')
+            ->assertJsonPath('data.cd_approval.approved_by.id', $dedUser->id)
+            ->assertJsonPath('data.id_approval.status', 'approved')
+            ->assertJsonPath('data.id_approval.approved_by.id', $dedUser->id);
+    }
+
     public function test_rejected_by_cd_response(): void
     {
         $user = $this->createUser();
@@ -491,6 +519,7 @@ class CircleJoiningRequestsStatusTest extends TestCase
             $table->timestamp('id_rejected_at')->nullable();
             $table->text('id_rejection_reason')->nullable();
             $table->string('ded_approval_status')->nullable();
+            $table->uuid('ded_approved_by')->nullable();
             $table->timestamp('ded_approved_at')->nullable();
             $table->timestamp('fee_paid_at')->nullable();
             $table->timestamp('fee_marked_at')->nullable();

@@ -17,13 +17,16 @@
     $navItems = $isIndustryDirector
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-            ['icon' => 'bi-diagram-3', 'label' => 'Circle', 'route' => 'admin.circles.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
         ]
         : (($isCircleScoped || $isDed)
             ? [
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
+                ...($isDed ? [
+                    ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
+                    ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.ded.dashboard.industries']
+                ] : []),
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
                 ...(! $isDed && ! $isCircleCommittee ? [
@@ -40,7 +43,7 @@
             ]
             : [
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-                ['icon' => 'bi-person-lines-fill', 'label' => 'Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
+                ['icon' => 'bi-person-lines-fill', 'label' => 'Unity Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
                 ['icon' => 'bi-person-badge', 'label' => 'Leadership', 'route' => 'admin.execution.leadership'],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
                 ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
@@ -78,14 +81,14 @@
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
-    $referralReportItem = (! $isCircleCommittee && ! $isIndustryDirector && ($isSuper || $isCircleScoped || $isDed))
+    $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
     $activityExpanded = $activityActive;
 
-    $postsMenu = ($isGlobalAdmin || $isIndustryDirector) ? [
+    $postsMenu = ($isGlobalAdmin) ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
-        ...($isIndustryDirector ? [] : [['label' => 'Post Reports', 'route' => 'admin.post-reports.index']]),
+        ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
     ] : [];
     $postsActive = request()->routeIs('admin.posts.*') || request()->routeIs('admin.post-reports.*');
 
@@ -118,6 +121,13 @@
         $pendingRequestsMenu = array_values(array_filter(
             $pendingRequestsMenu,
             fn ($item) => ! in_array(($item['label'] ?? null), ['Circle Joining Requests', 'Certifications'], true)
+        ));
+    }
+
+    if ($isDed) {
+        $pendingRequestsMenu = array_values(array_filter(
+            $pendingRequestsMenu,
+            fn ($item) => ! in_array(($item['label'] ?? null), ['Account Deletion Requests', 'Account Deletion Emails'], true)
         ));
     }
 
@@ -180,7 +190,6 @@
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
     $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*') || request()->routeIs('admin.event-scan-credentials.*');
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
-    $eventsManagementMenu = $isIndustryDirector ? [] : $eventsManagementMenu;
     
     $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
     $brandPartnersMenu = [
@@ -192,6 +201,25 @@
         ['label' => 'Settings', 'route' => 'admin.brand-partners.settings'],
     ];
     $hasBrandPartnersRole = $adminUser?->roles?->pluck('key')->intersect(['global_admin', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false;
+
+    $dedLeadershipMenu = [
+        ['label' => 'Industry Directors', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'industry_director']],
+        ['label' => 'Circle Founders', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'founder']],
+        ['label' => 'Circle Directors', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'director']],
+        ['label' => 'Chairs', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'chair']],
+        ['label' => 'Vice Chairs', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'vice_chair']],
+        ['label' => 'Secretaries', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'secretary']],
+        ['label' => 'Members', 'route' => 'admin.ded.dashboard.leadership', 'params' => ['role' => 'member']],
+    ];
+    $dedLeadershipActive = request()->routeIs('admin.ded.dashboard.leadership');
+
+    $dedAnalyticsMenu = [
+        ['label' => 'Active Members', 'route' => 'admin.ded.dashboard.health.active-members'],
+        ['label' => 'Leadership Spots', 'route' => 'admin.ded.dashboard.health.leadership-spots'],
+        ['label' => 'Membership Conversion', 'route' => 'admin.ded.dashboard.health.membership-conversion'],
+        ['label' => 'Referral Activity', 'route' => 'admin.ded.dashboard.health.referral-activity'],
+    ];
+    $dedAnalyticsActive = request()->routeIs('admin.ded.dashboard.health.*');
 @endphp
 
 <aside class="admin-sidebar d-flex flex-column">
@@ -284,6 +312,45 @@
                 </div>
             </li>
 
+            @if ($isDed)
+                <li class="nav-item menu-parent {{ $dedLeadershipActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $dedLeadershipActive ? 'active' : '' }}" href="#dedLeadershipSubmenu" role="button" aria-expanded="{{ $dedLeadershipActive ? 'true' : 'false' }}" aria-controls="dedLeadershipSubmenu">
+                        <span><i class="bi bi-person-badge me-2"></i>Leadership</span>
+                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    </a>
+                    <div class="collapse {{ $dedLeadershipActive ? 'show' : '' }}" id="dedLeadershipSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            @foreach ($dedLeadershipMenu as $item)
+                                <li class="nav-item">
+                                    <a class="nav-link {{ (request()->routeIs($item['route']) && request()->route('role') === $item['params']['role']) ? 'active' : '' }}" href="{{ route($item['route'], $item['params']) }}">
+                                        {{ $item['label'] }}
+                                    </a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="nav-item menu-parent {{ $dedAnalyticsActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $dedAnalyticsActive ? 'active' : '' }}" href="#dedAnalyticsSubmenu" role="button" aria-expanded="{{ $dedAnalyticsActive ? 'true' : 'false' }}" aria-controls="dedAnalyticsSubmenu">
+                        <span><i class="bi bi-graph-up-arrow me-2"></i>Analytics</span>
+                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    </a>
+                    <div class="collapse {{ $dedAnalyticsActive ? 'show' : '' }}" id="dedAnalyticsSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            @foreach ($dedAnalyticsMenu as $item)
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                        {{ $item['label'] }}
+                                    </a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </li>
+            @endif
+
+
             @foreach ($bottomNavItems as $item)
                 <li class="nav-item">
                     <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
@@ -292,7 +359,7 @@
                 </li>
             @endforeach
 
-            @if ($isGlobalAdmin)
+            @if ($isGlobalAdmin || $isIndustryDirector)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
@@ -453,6 +520,8 @@
                 'campaignsSubmenu',
                 'brandPartnersSubmenu',
                 'eventsManagementSubmenu',
+                'dedLeadershipSubmenu',
+                'dedAnalyticsSubmenu',
             ];
 
             // Collect all existing submenus

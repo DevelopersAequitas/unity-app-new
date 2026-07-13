@@ -57,7 +57,7 @@
     <div class="col-6 col-sm-4 col-lg-2">
         <a href="{{ route('admin.contacts.index') }}" class="quick-action-btn w-100">
             <i class="bi bi-person-lines-fill" style="color: var(--stat-purple);"></i>
-            <span>Contacts</span>
+            <span>Unity Contacts</span>
         </a>
     </div>
 </div>
@@ -66,7 +66,7 @@
 <div class="row g-3 mb-4">
     {{-- Total Peers --}}
     <div class="col-12 col-sm-6 col-xl-3 fade-in-up fade-in-up-delay-1">
-        <div class="card hover-elevate p-3 h-100">
+        <a href="{{ route('admin.users.index') }}" class="card hover-elevate p-3 h-100 text-decoration-none text-reset">
             <div class="d-flex align-items-start justify-content-between mb-3">
                 <div>
                     <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">Total Peers</span>
@@ -87,12 +87,12 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     {{-- Active Circles --}}
     <div class="col-12 col-sm-6 col-xl-3 fade-in-up fade-in-up-delay-2">
-        <div class="card hover-elevate p-3 h-100">
+        <a href="{{ route('admin.circles.index') }}" class="card hover-elevate p-3 h-100 text-decoration-none text-reset">
             <div class="d-flex align-items-start justify-content-between mb-3">
                 <div>
                     <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">Active Circles</span>
@@ -113,12 +113,12 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     {{-- Pending Approvals --}}
     <div class="col-12 col-sm-6 col-xl-3 fade-in-up fade-in-up-delay-3">
-        <div class="card hover-elevate p-3 h-100">
+        <a href="{{ route('admin.circles.index', ['status' => 'pending']) }}" class="card hover-elevate p-3 h-100 text-decoration-none text-reset">
             <div class="d-flex align-items-start justify-content-between mb-3">
                 <div>
                     <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">Awaiting Review</span>
@@ -139,12 +139,12 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     {{-- New Signups --}}
     <div class="col-12 col-sm-6 col-xl-3 fade-in-up fade-in-up-delay-4">
-        <div class="card hover-elevate p-3 h-100">
+        <a href="{{ route('admin.users.index', ['joined_filter' => 'custom', 'joined_from' => now()->toDateString(), 'joined_to' => now()->toDateString()]) }}" class="card hover-elevate p-3 h-100 text-decoration-none text-reset">
             <div class="d-flex align-items-start justify-content-between mb-3">
                 <div>
                     <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">New Signups</span>
@@ -165,7 +165,7 @@
                     </span>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 </div>
 
@@ -243,17 +243,24 @@
                                     <div class="text-muted" style="font-size: 0.75rem;">{{ $peer->city ?? '—' }}</div>
                                 </td>
                                 <td>
-                                    @php
-                                        $circleName = $peer->circleMembers->first()?->circle?->name ?? null;
-                                    @endphp
-                                    @if($circleName)
-                                        <span class="badge rounded-pill bg-light text-primary border px-2 py-1" style="font-size: 0.7rem; font-weight: 550;">
-                                            {{ $circleName }}
-                                        </span>
-                                    @else
-                                        <span class="text-muted">—</span>
-                                    @endif
-                                </td>
+                                     @php
+                                         $peerCircles = $peer->circleMembers
+                                             ->map(fn($cm) => $cm->circle)
+                                             ->filter()
+                                             ->unique('id');
+                                     @endphp
+                                     @if($peerCircles->isNotEmpty())
+                                         <div class="d-flex flex-column gap-1 align-items-start">
+                                             @foreach($peerCircles as $circle)
+                                                 <span class="badge rounded-pill bg-light text-primary border px-2 py-1" style="font-size: 0.7rem; font-weight: 550; white-space: nowrap;">
+                                                     {{ $circle->name }}
+                                                 </span>
+                                             @endforeach
+                                         </div>
+                                     @else
+                                         <span class="text-muted">—</span>
+                                     @endif
+                                 </td>
                                 <td class="text-muted small">
                                     @php
                                         $joinDate = $peer->membership_approved_at

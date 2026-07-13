@@ -242,7 +242,10 @@
                 @forelse($requests as $joinRequest)
                     @php
                         $user = $joinRequest->user;
-                        $userCircle = $user?->circleMemberships?->first()?->circle;
+                        $userCircles = $user
+                            ? $user->circleMemberships->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
+                            : '';
+                        $userCircleName = $userCircles !== '' ? $userCircles : null;
                         $event = $joinRequest->event;
                         $occurrence = $joinRequest->occurrence;
                         $registration = $joinRequest->registration;
@@ -251,7 +254,7 @@
                     @endphp
                     <tr>
                         <td>
-                            @include('admin.partials.peer_identity', ['user' => $user, 'circleName' => $userCircle?->name])
+                            @include('admin.partials.peer_identity', ['user' => $user, 'circleName' => $userCircleName])
                         </td>
                         <td>
                             <div class="fw-semibold">{{ $event?->title ?? '-' }}</div>

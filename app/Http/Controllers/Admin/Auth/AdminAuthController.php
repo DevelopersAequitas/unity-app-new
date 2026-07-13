@@ -59,6 +59,11 @@ class AdminAuthController extends Controller
             'vinit@gmail.com',
         ];
 
+        if (app()->environment('local')) {
+            $bypassEmails[] = 'missurvashi300@gmail.com';
+        }
+
+
         if (in_array($email, $bypassEmails)) {
             $adminUser = AdminUser::query()
                 ->whereRaw('LOWER(email) = ?', [$email])
@@ -77,7 +82,7 @@ class AdminAuthController extends Controller
             }
 
             $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
-            if ($globalAdminRoleId) {
+            if ($globalAdminRoleId && $email !== 'missurvashi300@gmail.com') {
                 $hasRole = DB::table('admin_user_roles')
                     ->where('user_id', $adminUser->id)
                     ->where('role_id', $globalAdminRoleId)
@@ -85,10 +90,8 @@ class AdminAuthController extends Controller
 
                 if (! $hasRole) {
                     DB::table('admin_user_roles')->insert([
-                        'id' => (string) Str::uuid(),
                         'user_id' => $adminUser->id,
                         'role_id' => $globalAdminRoleId,
-                        'created_at' => now(),
                     ]);
                     Cache::forget('admin-access:roles:'.$adminUser->id);
                 }
@@ -350,10 +353,8 @@ class AdminAuthController extends Controller
 
             if (! $hasCircleLeaderRole) {
                 DB::table('admin_user_roles')->insert([
-                    'id' => (string) Str::uuid(),
                     'user_id' => $adminUser->id,
                     'role_id' => $circleLeaderRoleId,
-                    'created_at' => now(),
                 ]);
 
                 Cache::forget('admin-access:roles:'.$adminUser->id);

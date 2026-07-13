@@ -117,7 +117,10 @@
                         $user = $claim->user;
                         $company = $user->company_name ?? $user->company ?? $user->business_name ?? 'No Company';
                         $city = $user->city ?? 'No City';
-                        $circleName = optional($user?->circleMembers?->first()?->circle)->name ?? 'No Circle';
+                        $userCircles = $user
+                            ? $user->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
+                            : '';
+                        $circleName = $userCircles !== '' ? $userCircles : 'No Circle';
                         $keyFieldsRows = CoinClaimKeyFieldsFormatter::formatForAdminList(data_get($claim->payload, 'fields', data_get($claim->payload, 'key_fields')));
                     @endphp
                     <tr>

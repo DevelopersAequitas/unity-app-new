@@ -226,6 +226,7 @@ class CircleJoinRequestController extends BaseApiController
                 'idApprovedBy',
                 'cdRejectedBy',
                 'idRejectedBy',
+                'dedApprovedBy',
                 'circleCategory',
             ])
             ->where('id', $id)
@@ -245,9 +246,15 @@ class CircleJoinRequestController extends BaseApiController
         $categoryId = $record->level1_category_id ?? ($record->circleCategory?->id ? (int) $record->circleCategory->id : null);
         $categoryName = $record->circleCategory?->name ?? 'N/A';
 
+        $isPassed = in_array((string) $record->status, [
+            CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
+            CircleJoinRequest::STATUS_PAID,
+            CircleJoinRequest::STATUS_CIRCLE_MEMBER,
+        ], true) || (string) ($record->ded_approval_status ?? '') === 'approved';
+
         // CD Approval
         $cdStatus = 'pending';
-        if ($record->cd_approved_at !== null) {
+        if ($record->cd_approved_at !== null || $isPassed) {
             $cdStatus = 'approved';
         } elseif ($record->cd_rejected_at !== null) {
             $cdStatus = 'rejected';
@@ -259,11 +266,16 @@ class CircleJoinRequestController extends BaseApiController
                 'id' => (string) $record->cdApprovedBy->id,
                 'name' => (string) ($record->cdApprovedBy->display_name ?: trim(($record->cdApprovedBy->first_name ?? '').' '.($record->cdApprovedBy->last_name ?? '')) ?: 'Admin'),
             ];
+        } elseif ($isPassed && $record->dedApprovedBy) {
+            $cdApprovedBy = [
+                'id' => (string) $record->dedApprovedBy->id,
+                'name' => (string) ($record->dedApprovedBy->display_name ?: trim(($record->dedApprovedBy->first_name ?? '').' '.($record->dedApprovedBy->last_name ?? '')) ?: 'DED'),
+            ];
         }
 
         // ID Approval
         $idStatus = 'pending';
-        if ($record->id_approved_at !== null) {
+        if ($record->id_approved_at !== null || $isPassed) {
             $idStatus = 'approved';
         } elseif ($record->id_rejected_at !== null) {
             $idStatus = 'rejected';
@@ -274,6 +286,11 @@ class CircleJoinRequestController extends BaseApiController
             $idApprovedBy = [
                 'id' => (string) $record->idApprovedBy->id,
                 'name' => (string) ($record->idApprovedBy->display_name ?: trim(($record->idApprovedBy->first_name ?? '').' '.($record->idApprovedBy->last_name ?? '')) ?: 'Admin'),
+            ];
+        } elseif ($isPassed && $record->dedApprovedBy) {
+            $idApprovedBy = [
+                'id' => (string) $record->dedApprovedBy->id,
+                'name' => (string) ($record->dedApprovedBy->display_name ?: trim(($record->dedApprovedBy->first_name ?? '').' '.($record->dedApprovedBy->last_name ?? '')) ?: 'DED'),
             ];
         }
 
@@ -325,12 +342,12 @@ class CircleJoinRequestController extends BaseApiController
             'status_label' => $this->statusLabel($record->status),
             'cd_approval' => [
                 'status' => $cdStatus,
-                'approved_at' => $record->cd_approved_at ? $record->cd_approved_at->toIso8601String() : null,
+                'approved_at' => ($record->cd_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null)) ? ($record->cd_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null))->toIso8601String() : null,
                 'approved_by' => $cdApprovedBy,
             ],
             'id_approval' => [
                 'status' => $idStatus,
-                'approved_at' => $record->id_approved_at ? $record->id_approved_at->toIso8601String() : null,
+                'approved_at' => ($record->id_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null)) ? ($record->id_approved_at ?: ($isPassed ? ($record->ded_approved_at ?: $record->updated_at) : null))->toIso8601String() : null,
                 'approved_by' => $idApprovedBy,
             ],
             'rejection' => [

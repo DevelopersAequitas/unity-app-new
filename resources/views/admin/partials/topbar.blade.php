@@ -3,9 +3,15 @@
     $isSuper = \App\Support\AdminAccess::isSuper($admin);
     $isCircleScoped = \App\Support\AdminAccess::isCircleScoped($admin);
     $isDed = \App\Support\AdminAccess::isDed($admin);
-    $roleBadge = $isSuper
+    $roleKeys = \App\Support\AdminAccess::adminRoleKeys($admin);
+    $isIndustryDirector = in_array('industry_director', $roleKeys);
+    $isGlobalAdmin = in_array('global_admin', $roleKeys);
+
+    $roleBadge = $isGlobalAdmin
         ? 'Global Admin'
-        : ($isDed ? 'DED' : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin'));
+        : ($isIndustryDirector
+            ? 'IDE'
+            : ($isDed ? 'DED' : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin')));
 
     $hour = (int) now()->format('H');
     $greeting = $hour < 12 ? 'Good Morning' : ($hour < 17 ? 'Good Afternoon' : 'Good Evening');

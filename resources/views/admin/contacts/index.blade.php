@@ -1,6 +1,6 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Contacts')
+@section('title', 'Unity Contacts')
 
 @section('content')
 @if(session('success'))
@@ -9,7 +9,7 @@
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
     <div>
-        <h1 class="h4 mb-1">Contacts</h1>
+        <h1 class="h4 mb-1">Unity Contacts</h1>
         <p class="text-muted mb-0">Manage imported and submitted contact details.</p>
     </div>
 </div>

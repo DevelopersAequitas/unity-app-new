@@ -268,6 +268,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/referrals/validate/{code}', [ReferralController::class, 'validateCode']);
 
     Route::get('/business-categories/main', [BusinessCategoryController::class, 'main']);
+    Route::get('/business-categories/{id}', [BusinessCategoryController::class, 'show']);
     Route::get('/business-categories/{parent_id}/children', [BusinessCategoryController::class, 'children']);
 
     Route::get('/industries/tree', [IndustryController::class, 'tree']);
