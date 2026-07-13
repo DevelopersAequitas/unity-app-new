@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\P2PMeetingRequestResource;
 use App\Mail\P2PMeetingWorkflowMail;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\P2PMeetingRequest;
 use App\Models\P2PMeetingRescheduleRequest;
 use App\Models\User;
@@ -332,7 +333,7 @@ class P2PMeetingRequestController extends BaseApiController
 
     private function createMeetingNotification(User $toUser, string $type, P2PMeetingRequest $meetingRequest, User $fromUser, ?P2PMeetingRescheduleRequest $rescheduleRequest = null): void
     {
-        Notification::create([
+        $notification = Notification::create([
             'user_id' => $toUser->id,
             'type' => $type,
             'payload' => [
@@ -350,6 +351,52 @@ class P2PMeetingRequestController extends BaseApiController
             'created_at' => now(),
             'read_at' => null,
         ]);
+
+        try {
+            $fromName = trim((string) ($fromUser->display_name ?? $fromUser->name ?? 'A member'));
+            $titleMap = [
+                'p2p_meeting_request' => 'New P2P Meeting Request',
+                'p2p_meeting_accepted' => 'P2P Meeting Request Accepted',
+                'p2p_meeting_rejected' => 'P2P Meeting Request Rejected',
+                'p2p_meeting_cancelled' => 'P2P Meeting Cancelled',
+            ];
+            $title = $titleMap[$type] ?? 'P2P Meeting Update';
+
+            $bodyMap = [
+                'p2p_meeting_request' => $fromName.' sent you a P2P meeting request.',
+                'p2p_meeting_accepted' => $fromName.' accepted your P2P meeting request.',
+                'p2p_meeting_rejected' => $fromName.' rejected your P2P meeting request.',
+                'p2p_meeting_cancelled' => $fromName.' cancelled the P2P meeting.',
+            ];
+            $body = $bodyMap[$type] ?? 'You have a new P2P meeting update.';
+
+            AppNotification::create([
+                'user_id' => $toUser->id,
+                'type' => $type,
+                'category' => 'p2p_meeting',
+                'title' => $title,
+                'body' => $body,
+                'message' => $body,
+                'channel' => 'push',
+                'priority' => 'medium',
+                'reference_type' => P2PMeetingRequest::class,
+                'reference_id' => (string) $meetingRequest->id,
+                'screen' => 'p2p_meetings',
+                'data' => [
+                    'notification_id' => (string) $notification->id,
+                    'meeting_request_id' => (string) $meetingRequest->id,
+                    'reschedule_request_id' => $rescheduleRequest ? (string) $rescheduleRequest->id : null,
+                    'type' => $type,
+                ],
+                'status' => 'pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to create AppNotification in P2PMeetingRequestController', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function dispatchPushNotification(

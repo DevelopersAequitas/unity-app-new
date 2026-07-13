@@ -66,7 +66,7 @@ class StorySubmissionApiController extends BaseApiController
                 }
             }
 
-            $fullName = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+            $fullName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
             $email = $user->email ?? '';
             $phone = $user->phone ?? '—';
             $businessName = $user->company_name ?? '—';
@@ -224,9 +224,9 @@ class StorySubmissionApiController extends BaseApiController
             'story' => $item->story ?? $item->company_introduction,
             'short_description' => $item->short_description,
             'cover_image' => $item->cover_image,
-            'cover_image_url' => $item->cover_image ? url('/api/v1/files/' . $item->cover_image) : null,
+            'cover_image_url' => $item->cover_image ? url('/api/v1/files/'.$item->cover_image) : null,
             'attachments' => $item->attachments ?: [],
-            'attachment_urls' => collect($item->attachments ?: [])->map(fn ($id) => url('/api/v1/files/' . $id))->all(),
+            'attachment_urls' => collect($item->attachments ?: [])->map(fn ($id) => url('/api/v1/files/'.$id))->all(),
             'status' => $item->status,
             'notes' => $item->notes,
             'rejected_reason' => $item->rejected_reason,

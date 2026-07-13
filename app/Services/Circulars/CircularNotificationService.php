@@ -5,6 +5,7 @@ namespace App\Services\Circulars;
 use App\Jobs\SendPushNotificationJob;
 use App\Models\Circular;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -40,6 +41,34 @@ class CircularNotificationService
                     'created_at' => now(),
                     'read_at' => null,
                 ]);
+
+                try {
+                    AppNotification::create([
+                        'user_id' => $user->id,
+                        'type' => 'circular',
+                        'category' => 'circular',
+                        'title' => (string) $circular->title,
+                        'body' => (string) ($circular->summary ?? 'New circular available'),
+                        'message' => (string) ($circular->summary ?? 'New circular available'),
+                        'channel' => 'push',
+                        'priority' => 'medium',
+                        'reference_type' => Circular::class,
+                        'reference_id' => (string) $circular->id,
+                        'screen' => 'circulars',
+                        'data' => [
+                            'notification_id' => (string) $notification->id,
+                            'circular_id' => (string) $circular->id,
+                            'type' => 'circular',
+                        ],
+                        'status' => 'pending',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::error('Failed to create AppNotification in CircularNotificationService', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
 
                 SendPushNotificationJob::dispatch(
                     $user,

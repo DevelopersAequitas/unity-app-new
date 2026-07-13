@@ -63,7 +63,6 @@ class AdminAuthController extends Controller
             $bypassEmails[] = 'missurvashi300@gmail.com';
         }
 
-
         if (in_array($email, $bypassEmails)) {
             $adminUser = AdminUser::query()
                 ->whereRaw('LOWER(email) = ?', [$email])

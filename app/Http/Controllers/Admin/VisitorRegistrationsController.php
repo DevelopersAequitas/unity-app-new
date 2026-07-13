@@ -379,7 +379,7 @@ class VisitorRegistrationsController extends Controller
                     $memberName = $member ? trim(($member->first_name ?? '').' '.($member->last_name ?? '')) : '—';
                     $memberCompany = $member ? ($member->company_name ?? $member->company ?? '—') : '—';
                     $memberCircles = $member
-                        ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
+                        ? $member->circleMembers->map(fn ($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
                         : '';
                     $memberCircle = $memberCircles !== '' ? $memberCircles : '—';
 
@@ -457,7 +457,7 @@ class VisitorRegistrationsController extends Controller
             $memberName = $member ? trim(($member->first_name ?? '').' '.($member->last_name ?? '')) : '—';
             $memberCompany = $member ? ($member->company_name ?? $member->company ?? '—') : '—';
             $memberCircles = $member
-                ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
+                ? $member->circleMembers->map(fn ($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
                 : '';
             $memberCircle = $memberCircles !== '' ? $memberCircles : '—';
 

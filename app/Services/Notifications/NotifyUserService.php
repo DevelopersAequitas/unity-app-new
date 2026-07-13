@@ -4,6 +4,7 @@ namespace App\Services\Notifications;
 
 use App\Jobs\SendPushNotificationJob;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -59,6 +60,36 @@ class NotifyUserService
             'created_at' => now(),
             'read_at' => null,
         ]);
+
+        try {
+            AppNotification::create([
+                'user_id' => $to->id,
+                'type' => 'activity_update',
+                'category' => $type,
+                'title' => $title,
+                'body' => $body,
+                'message' => $body,
+                'channel' => 'push',
+                'priority' => 'high',
+                'reference_type' => $notifiable ? get_class($notifiable) : null,
+                'reference_id' => $notifiable ? (string) $notifiable->getKey() : null,
+                'screen' => $type,
+                'data' => array_merge($data, [
+                    'notification_id' => (string) $notification->id,
+                    'from_user_id' => (string) $from->id,
+                    'to_user_id' => (string) $to->id,
+                    'notifiable_type' => $notifiable ? get_class($notifiable) : null,
+                    'notifiable_id' => $notifiable ? (string) $notifiable->getKey() : null,
+                ]),
+                'status' => 'pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (Throwable $e) {
+            Log::error('Failed to create AppNotification in NotifyUserService', [
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         try {
             SendPushNotificationJob::dispatch(

@@ -10,6 +10,7 @@ use App\Models\CircleJoinRequest;
 use App\Models\CircleSubscription;
 use App\Models\EmailLog;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use App\Support\Zoho\ZohoBillingService;
@@ -100,7 +101,7 @@ class CircleJoinRequestNotificationService
         }
 
         try {
-            Notification::query()->create([
+            $notification = Notification::query()->create([
                 'user_id' => $user->id,
                 'type' => 'activity_update',
                 'payload' => [
@@ -117,6 +118,34 @@ class CircleJoinRequestNotificationService
                 'created_at' => now(),
                 'read_at' => null,
             ]);
+
+            try {
+                AppNotification::create([
+                    'user_id' => $user->id,
+                    'type' => 'activity_update',
+                    'category' => $eventType,
+                    'title' => $title,
+                    'body' => $body,
+                    'message' => $body,
+                    'channel' => 'push',
+                    'priority' => 'medium',
+                    'reference_type' => CircleJoinRequest::class,
+                    'reference_id' => (string) $request->id,
+                    'screen' => 'circle_join_requests',
+                    'data' => array_merge($payloadData, [
+                        'notification_id' => (string) $notification->id,
+                        'from_user_id' => (string) $actor->id,
+                        'to_user_id' => (string) $user->id,
+                    ]),
+                    'status' => 'pending',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Failed to create AppNotification in CircleJoinRequestNotificationService', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             SendPushNotificationJob::dispatch($user, $title, $body, [
                 'type' => 'circle_join_request',
