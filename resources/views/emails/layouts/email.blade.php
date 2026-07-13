@@ -25,7 +25,7 @@
                     <!-- Purple Branded Header -->
                     <tr>
                         <td align="center" style="background-color:#240e5c; padding:24px; border-collapse:collapse; text-align:center;">
-                            <img src="https://unity.peersglobal.com/wp-content/uploads/2025/08/peersglobal_white-removebg-preview.png" alt="Peers Global Unity" width="135" style="border:0; outline:none; text-decoration:none; vertical-align:middle; display:inline-block;" />
+                            <img src="https://peersunity.com/images/peersglobal-logo.png" alt="Peers Global Unity" width="135" style="border:0; outline:none; text-decoration:none; vertical-align:middle; display:inline-block;" />
                         </td>
                     </tr>
                     <!-- Dark Content Body -->

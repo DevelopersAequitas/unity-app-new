@@ -35,7 +35,7 @@ class MembershipApprovedMail extends Mailable
             }
         }
 
-        return 'https://unity.peersglobal.com/wp-content/uploads/2025/08/peersglobal_white-removebg-preview.png';
+        return 'https://peersunity.com/images/peersglobal-logo.png';
     }
 
     public function build()
