@@ -98,6 +98,11 @@
                     <i class="bi bi-circle me-1"></i>4. Circles & Admin
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3 fw-semibold" id="stories-tab" data-bs-toggle="pill" data-bs-target="#stories-section" type="button" role="tab" aria-controls="stories-section" aria-selected="false">
+                    <i class="bi bi-journal-text me-1"></i>5. Story Submissions ({{ $storySubmissionsCount }})
+                </button>
+            </li>
         </ul>
 
         <form id="userEditForm" action="{{ route('admin.users.update', $user->id) }}" method="POST" class="p-4" novalidate>
@@ -927,6 +932,61 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Tab 5: Story Submissions -->
+                <div class="tab-pane fade" id="stories-section" role="tabpanel" aria-labelledby="stories-tab">
+                    <h5 class="form-section-title"><i class="bi bi-journal-text text-primary me-2"></i>Story Submissions</h5>
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <span class="badge bg-light text-dark border">Total Submissions: {{ $storySubmissionsCount }}</span>
+                    </div>
+
+                    <div class="table-responsive border rounded mb-4">
+                        <table class="table table-premium mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Status</th>
+                                    <th>Submission Date</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($storySubmissions as $story)
+                                    <tr>
+                                        <td><strong>{{ $story->title ?: $story->business_name }}</strong></td>
+                                        <td>
+                                            @php
+                                                $statusBadge = match (strtolower(trim($story->status))) {
+                                                    'approved' => 'bg-success-subtle text-success border border-success-subtle',
+                                                    'rejected' => 'bg-danger-subtle text-danger border border-danger-subtle',
+                                                    'pending', 'new', 'in_review' => 'bg-warning-subtle text-warning border border-warning-subtle',
+                                                    default => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
+                                                };
+                                            @endphp
+                                            <span class="badge {{ $statusBadge }}">{{ ucfirst($story->status) }}</span>
+                                        </td>
+                                        <td>{{ $story->submitted_at ? $story->submitted_at->format('d M Y, h:i A') : $story->created_at->format('d M Y, h:i A') }}</td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewStory{{ $story->id }}">
+                                                View Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted py-4">No story submissions found.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" onclick="switchTab('circles-tab')">
+                            <i class="bi bi-arrow-left me-1"></i> Back
+                        </button>
+                    </div>
+                </div>
             </div>
         </form>
     </div>
@@ -942,6 +1002,95 @@
         @csrf
         @method('DELETE')
     </form>
+@endforeach
+
+@foreach ($storySubmissions as $story)
+    @php
+        $statusBadge = match (strtolower(trim($story->status))) {
+            'approved' => 'bg-success-subtle text-success border border-success-subtle',
+            'rejected' => 'bg-danger-subtle text-danger border border-danger-subtle',
+            'pending', 'new', 'in_review' => 'bg-warning-subtle text-warning border border-warning-subtle',
+            default => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
+        };
+    @endphp
+    <div class="modal fade" id="viewStory{{ $story->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content text-start">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-dark"><i class="bi bi-journal-text text-primary me-2"></i>Story Submission Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-start">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6 text-start">
+                            <label class="small text-muted d-block fw-semibold">Title</label>
+                            <div class="text-dark fs-5 fw-bold">{{ $story->title ?: $story->business_name }}</div>
+                        </div>
+                        <div class="col-md-6 text-start">
+                            <label class="small text-muted d-block fw-semibold">Status</label>
+                            <span class="badge {{ $statusBadge }}">{{ ucfirst($story->status) }}</span>
+                        </div>
+                        <div class="col-md-6 text-start">
+                            <label class="small text-muted d-block fw-semibold">Submission Date</label>
+                            <div class="text-dark">{{ $story->submitted_at ? $story->submitted_at->format('d M Y, h:i A') : $story->created_at->format('d M Y, h:i A') }}</div>
+                        </div>
+                        @if($story->status === 'approved' && $story->approved_at)
+                            <div class="col-md-6 text-start">
+                                <label class="small text-muted d-block fw-semibold">Approved At</label>
+                                <div class="text-dark">{{ \Carbon\Carbon::parse($story->approved_at)->format('d M Y, h:i A') }}</div>
+                            </div>
+                        @endif
+                    </div>
+
+                    @if($story->short_description)
+                        <div class="mb-4 text-start">
+                            <label class="small text-muted d-block fw-semibold mb-1">Short Description</label>
+                            <div class="border rounded p-3 bg-light text-dark">{{ $story->short_description }}</div>
+                        </div>
+                    @endif
+
+                    <div class="mb-4 text-start">
+                        <label class="small text-muted d-block fw-semibold mb-1">Story Content</label>
+                        <div class="border rounded p-3 bg-light text-dark" style="white-space: pre-wrap;">{{ $story->story ?: $story->company_introduction }}</div>
+                    </div>
+
+                    @if($story->cover_image)
+                        <div class="mb-4 text-start text-center">
+                            <label class="small text-muted d-block fw-semibold mb-1 text-start">Cover Image</label>
+                            <div class="mt-2 text-center bg-light p-2 border rounded">
+                                <img src="{{ url('/api/v1/files/' . $story->cover_image) }}" class="img-fluid rounded shadow-sm" style="max-height: 300px; object-fit: contain;" alt="Cover image">
+                            </div>
+                        </div>
+                    @endif
+
+                    @if($story->attachments && count($story->attachments) > 0)
+                        <div class="mb-4 text-start">
+                            <label class="small text-muted d-block fw-semibold mb-1">Attachments</label>
+                            <div class="list-group list-group-flush border rounded mt-2">
+                                @foreach($story->attachments as $attachmentId)
+                                    <a href="{{ url('/api/v1/files/' . $attachmentId) }}" target="_blank" class="list-group-item list-group-item-action d-flex align-items-center py-2 text-dark">
+                                        <i class="bi bi-file-earmark-check text-primary me-2"></i>
+                                        <span class="small text-truncate">File ID: {{ $attachmentId }}</span>
+                                        <i class="bi bi-box-arrow-up-right ms-auto small text-muted"></i>
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if($story->rejected_reason)
+                        <div class="mb-4 text-start">
+                            <label class="small text-muted d-block fw-semibold mb-1">Rejection Reason</label>
+                            <div class="border rounded p-3 bg-danger-subtle text-danger border-danger-subtle">{{ $story->rejected_reason }}</div>
+                        </div>
+                    @endif
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endforeach
 @endsection
 

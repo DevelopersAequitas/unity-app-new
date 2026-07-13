@@ -411,6 +411,16 @@ class UsersController extends Controller
 
         $hasCoinsRemarkColumn = Schema::hasColumn('users', 'coins_remark');
 
+        $storySubmissions = collect();
+        $storySubmissionsCount = 0;
+        if (Schema::hasTable('sme_business_story_submissions')) {
+            $storySubmissions = \App\Models\SmeBusinessStorySubmission::query()
+                ->where('user_id', $userId)
+                ->orderByDesc('created_at')
+                ->get();
+            $storySubmissionsCount = $storySubmissions->count();
+        }
+
         return [
             'user' => $user,
             'cities' => $cities,
@@ -444,6 +454,8 @@ class UsersController extends Controller
             'membershipPlanOptions' => $this->membershipPlanOptions($user->zoho_plan_code),
             'circleCategoryOptionsByCircle' => $circleCategoryOptionsByCircle,
             'hasCoinsRemarkColumn' => $hasCoinsRemarkColumn,
+            'storySubmissions' => $storySubmissions,
+            'storySubmissionsCount' => $storySubmissionsCount,
         ];
     }
 

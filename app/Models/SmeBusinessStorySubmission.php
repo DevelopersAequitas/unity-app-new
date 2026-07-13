@@ -24,5 +24,36 @@ class SmeBusinessStorySubmission extends Model
         'co_founders_and_partners_details',
         'status',
         'notes',
+        'user_id',
+        'title',
+        'story',
+        'short_description',
+        'cover_image',
+        'attachments',
+        'submitted_at',
+        'approved_by',
+        'approved_at',
+        'rejected_reason',
     ];
+
+    protected $casts = [
+        'attachments' => 'array',
+        'submitted_at' => 'datetime',
+        'approved_at' => 'datetime',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function coverImageFile()
+    {
+        return $this->belongsTo(FileModel::class, 'cover_image');
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(AdminUser::class, 'approved_by');
+    }
 }

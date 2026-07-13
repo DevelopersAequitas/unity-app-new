@@ -345,6 +345,11 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
+        // Story Submissions API
+        Route::post('/story/submit', [\App\Http\Controllers\Api\V1\StorySubmissionApiController::class, 'submit']);
+        Route::get('/story/my-submissions', [\App\Http\Controllers\Api\V1\StorySubmissionApiController::class, 'mySubmissions']);
+        Route::get('/story/{id}', [\App\Http\Controllers\Api\V1\StorySubmissionApiController::class, 'show'])->whereUuid('id');
+
         Route::get('network/mutual-connections/{user_uuid}', [MutualConnectionController::class, 'index'])
             ->whereUuid('user_uuid');
 
