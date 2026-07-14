@@ -96,6 +96,7 @@ use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\IntroVideoController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
@@ -377,6 +378,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
+        Route::get('/intro-videos', [IntroVideoController::class, 'index']);
 
         Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
         Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
