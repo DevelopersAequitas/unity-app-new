@@ -964,7 +964,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/billing/checkout', [BillingCheckoutController::class, 'checkout']);
         Route::get('/billing/checkout/{hostedpage_id}', [BillingCheckoutController::class, 'status']);
         Route::get('/billing/hostedpages/{hostedpageId}/sync', [BillingCheckoutController::class, 'syncHostedPage']);
-        Route::get('/billing/subscriptions', [UserSubscriptionController::class, 'index']);
+        Route::get('/billing/subscriptions-history', [UserSubscriptionController::class, 'index']);
         Route::get('/billing/invoices', [InvoiceController::class, 'index']);
         Route::get('/billing/invoices/{invoiceId}', [InvoiceController::class, 'show']);
         Route::get('/billing/invoices/{invoiceId}/pdf', [InvoiceController::class, 'pdf']);
