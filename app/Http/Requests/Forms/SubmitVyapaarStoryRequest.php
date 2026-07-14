@@ -39,11 +39,11 @@ class SubmitVyapaarStoryRequest extends FormRequest
         return [
             // Screen 1: Basic Information
             'full_name' => ['required', 'string', 'max:255'],
-            'designation' => ['required', 'string', 'max:255'],
-            'company_name' => ['required', 'string', 'max:255'],
+            'designation' => ['nullable', 'string', 'max:255'],
+            'company_name' => ['nullable', 'string', 'max:255'],
             'website' => ['nullable', 'url', 'max:255'],
-            'profile_photo' => ['required', 'file', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
-            'company_logo' => ['required', 'file', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'profile_photo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'company_logo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
 
             // Screen 2: Your Story
             'entrepreneurial_journey' => ['required', 'string'],

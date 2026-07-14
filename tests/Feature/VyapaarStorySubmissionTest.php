@@ -137,10 +137,6 @@ class VyapaarStorySubmissionTest extends TestCase
         $response->assertStatus(422);
         $response->assertJsonValidationErrors([
             'full_name',
-            'designation',
-            'company_name',
-            'profile_photo',
-            'company_logo',
             'entrepreneurial_journey',
             'business_description',
             'biggest_challenge',
@@ -248,5 +244,56 @@ class VyapaarStorySubmissionTest extends TestCase
         $this->assertEquals('Pending', $submission->status);
         $this->assertNotNull($submission->profile_photo);
         $this->assertNotNull($submission->company_logo);
+    }
+
+    public function test_successful_story_submission_omitting_optional_fields(): void
+    {
+        Storage::fake('public');
+        config([
+            'filesystems.default' => 'public',
+            'media.processing.mode' => 'sync',
+            'media.keep_original' => true,
+        ]);
+
+        $user = User::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john@example.com',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $payload = [
+            'full_name' => 'John Doe',
+            'entrepreneurial_journey' => 'Started in a garage...',
+            'business_description' => 'We build widgets.',
+            'biggest_challenge' => 'Scaling widget production.',
+            'biggest_achievement' => 'First million widgets sold.',
+            'business_impact' => 'Creating local jobs.',
+            'future_goals' => 'Go global next year.',
+            'advice_for_entrepreneurs' => 'Never give up.',
+            'consent' => true,
+        ];
+
+        $response = $this->postJson('/api/v1/story-submission', $payload);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('success', true);
+
+        $data = $response->json('data');
+        $this->assertArrayHasKey('id', $data);
+
+        $submission = SmeBusinessStorySubmission::findOrFail($data['id']);
+        $this->assertEquals($user->id, $submission->user_id);
+        $this->assertEquals('John Doe', $submission->full_name);
+        $this->assertNull($submission->designation);
+        $this->assertNull($submission->company_name);
+        $this->assertNull($submission->profile_photo);
+        $this->assertNull($submission->company_logo);
+        $this->assertEquals('Started in a garage...', $submission->entrepreneurial_journey);
+        $this->assertEquals('We build widgets.', $submission->business_description);
+        $this->assertTrue($submission->consent);
+        $this->assertEquals('Pending', $submission->status);
     }
 }
