@@ -8,11 +8,22 @@
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
     $isIndustryDirector = $adminUser?->roles?->pluck('key')->contains('industry_director') ?? false;
 
+    if (request()->is('admin/industry-director*')) {
+        $isGlobalAdmin = false;
+        $isSuper = false;
+        $isDed = false;
+        $isCircleScoped = false;
+        $isCircleCommittee = false;
+        $isIndustryDirector = true;
+    }
+
+
     $dashboardItem = $isIndustryDirector
         ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.industry-director.dashboard']
         : (($isCircleScoped || $isDed)
             ? ($isDed ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.ded.dashboard'] : ['icon' => 'bi-speedometer2', 'label' => 'Circle Dashboard', 'route' => 'admin.circle-member.dashboard'])
             : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard']);
+
 
     $navItems = $isIndustryDirector
         ? [

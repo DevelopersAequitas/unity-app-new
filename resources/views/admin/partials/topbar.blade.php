@@ -7,11 +7,14 @@
     $isIndustryDirector = in_array('industry_director', $roleKeys);
     $isGlobalAdmin = in_array('global_admin', $roleKeys);
 
-    $roleBadge = $isGlobalAdmin
-        ? 'Global Admin'
-        : ($isIndustryDirector
-            ? 'IDE'
-            : ($isDed ? 'DED' : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin')));
+    $roleBadge = request()->is('admin/industry-director*')
+        ? 'ID'
+        : ($isGlobalAdmin
+            ? 'Global Admin'
+            : ($isIndustryDirector
+                ? 'IDE'
+                : ($isDed ? 'DED' : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin'))));
+
 
     $hour = (int) now()->format('H');
     $greeting = $hour < 12 ? 'Good Morning' : ($hour < 17 ? 'Good Afternoon' : 'Good Evening');
