@@ -37,16 +37,25 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
 
         $campaign = $delivery->campaign;
 
+        // Idempotency check & Resumable setup:
+        // Do not skip the entire run based on batch_id alone (a filled batch_id doesn't mean all jobs succeeded).
+        // Instead, retrieve all existing log records to track recipient-level progress.
+        $existingLogs = CampaignLog::where('delivery_id', $this->deliveryId)
+            ->select('id', 'user_id', 'sent_at')
+            ->get()
+            ->keyBy('user_id');
+
         Log::info('ProcessCampaignDeliveryJob started', [
             'delivery_id' => $this->deliveryId,
             'campaign_id' => $campaign->id,
             'campaign_title' => $campaign->title,
+            'existing_logs_count' => $existingLogs->count(),
         ]);
 
         // Set status to processing
         $delivery->update([
             'status' => 'processing',
-            'started_at' => now(),
+            'started_at' => $delivery->started_at ?: now(),
         ]);
 
         try {
@@ -78,11 +87,26 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
             $deliveryId = $this->deliveryId;
 
             // Retrieve user IDs and emails in chunks
-            $query->chunk(250, function ($users) use ($deliveryId, &$jobs) {
+            $query->chunk(250, function ($users) use ($deliveryId, $existingLogs, &$jobs) {
                 $logsData = [];
                 $now = now();
 
                 foreach ($users as $user) {
+                    $existingLog = $existingLogs->get($user->id);
+
+                    if ($existingLog) {
+                        // If the recipient was already fully processed, skip completely to prevent duplicates
+                        if (filled($existingLog->sent_at)) {
+                            continue;
+                        }
+
+                        // If log exists but sent_at is NULL, the run was interrupted.
+                        // Reuse the existing log ID and queue the recipient job.
+                        $jobs[] = new SendCampaignRecipientJob($deliveryId, $existingLog->id, $user->id);
+                        continue;
+                    }
+
+                    // For new recipients, create a brand-new log record and queue the job
                     $logId = (string) Str::uuid();
                     $logsData[] = [
                         'id' => $logId,
@@ -97,15 +121,35 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
                         'updated_at' => $now,
                     ];
 
-                    // Instantiate job
                     $jobs[] = new SendCampaignRecipientJob($deliveryId, $logId, $user->id);
                 }
 
-                // Bulk insert logs to avoid query overhead
-                CampaignLog::insert($logsData);
+                // Bulk insert only the new recipient logs to avoid duplicate key violations
+                if (! empty($logsData)) {
+                    CampaignLog::insert($logsData);
+                }
             });
 
-            // 3. Dispatch Jobs Batch
+            // 3. Dispatch Jobs Batch if there are any remaining recipients to process
+            if (empty($jobs)) {
+                Log::info('ProcessCampaignDeliveryJob completed: All recipients already processed', [
+                    'delivery_id' => $deliveryId,
+                ]);
+
+                $status = 'sent';
+                if ($delivery->total_failed > 0) {
+                    $status = ($delivery->total_failed >= $delivery->total_recipients) ? 'failed' : 'partially_sent';
+                }
+                $delivery->update([
+                    'status' => $status,
+                    'completed_at' => now(),
+                ]);
+
+                $this->syncCampaignStatus($campaign);
+
+                return;
+            }
+
             $batchName = 'Campaign Send: '.$campaign->title.' (Run: '.$delivery->scheduled_at->format('Y-m-d H:i').')';
 
             $queueName = env('CAMPAIGN_QUEUE_NAME', 'default');
@@ -113,7 +157,7 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
             Log::info('Dispatching SendCampaignRecipientJob batch', [
                 'delivery_id' => $deliveryId,
                 'campaign_id' => $campaign->id,
-                'recipient_count' => $recipientCount,
+                'remaining_recipient_count' => count($jobs),
                 'batch_name' => $batchName,
                 'queue' => $queueName,
             ]);
