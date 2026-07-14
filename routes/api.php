@@ -349,6 +349,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         // Story Submissions API
         Route::post('/story/submit', [StorySubmissionApiController::class, 'submit']);
+        Route::post('/story-submission', [StorySubmissionApiController::class, 'submitVyapaarStory']);
         Route::get('/story/my-submissions', [StorySubmissionApiController::class, 'mySubmissions']);
         Route::get('/story/{id}', [StorySubmissionApiController::class, 'show'])->whereUuid('id');
 

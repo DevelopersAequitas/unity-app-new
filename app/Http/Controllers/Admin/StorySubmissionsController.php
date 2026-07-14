@@ -35,7 +35,7 @@ class StorySubmissionsController extends Controller
         $query = SmeBusinessStorySubmission::query()->with('user');
 
         if (! empty($filters['status']) && $filters['status'] !== 'all') {
-            $query->where('status', $filters['status']);
+            $query->whereRaw('LOWER(status) = ?', [strtolower($filters['status'])]);
         }
 
         if (! empty($filters['search'])) {

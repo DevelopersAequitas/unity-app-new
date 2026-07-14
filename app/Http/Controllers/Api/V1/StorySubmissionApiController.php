@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Forms\SubmitStoryRequest;
+use App\Http\Requests\Forms\SubmitVyapaarStoryRequest;
 use App\Mail\StorySubmittedMail;
 use App\Models\Role;
 use App\Models\SmeBusinessStorySubmission;
@@ -246,5 +247,88 @@ class StorySubmissionApiController extends BaseApiController
             'per_page' => $items->perPage(),
             'total' => $items->total(),
         ];
+    }
+
+    public function submitVyapaarStory(SubmitVyapaarStoryRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return $this->error('Unauthenticated.', 401);
+        }
+
+        Log::info('Vyapaar Jagat story submission started', [
+            'user_id' => $user->id,
+            'company_name' => $request->input('company_name'),
+        ]);
+
+        try {
+            // Process profile photo
+            $profilePhotoUuid = null;
+            if ($request->hasFile('profile_photo')) {
+                $fileModel = $this->fileUploadService->store($request->file('profile_photo'), $user);
+                $profilePhotoUuid = $fileModel->id;
+            }
+
+            // Process company logo
+            $companyLogoUuid = null;
+            if ($request->hasFile('company_logo')) {
+                $fileModel = $this->fileUploadService->store($request->file('company_logo'), $user);
+                $companyLogoUuid = $fileModel->id;
+            }
+
+            $email = $user->email ?? '';
+            $phone = $user->phone ?? '—';
+
+            // Map and Save to SmeBusinessStorySubmission
+            $submission = SmeBusinessStorySubmission::create([
+                'user_id' => $user->id,
+                'full_name' => $request->input('full_name'),
+                'designation' => $request->input('designation'),
+                'company_name' => $request->input('company_name'),
+                'website' => $request->input('website'),
+                'profile_photo' => $profilePhotoUuid,
+                'company_logo' => $companyLogoUuid,
+                'entrepreneurial_journey' => $request->input('entrepreneurial_journey'),
+                'business_description' => $request->input('business_description'),
+                'biggest_challenge' => $request->input('biggest_challenge'),
+                'biggest_achievement' => $request->input('biggest_achievement'),
+                'business_impact' => $request->input('business_impact'),
+                'future_goals' => $request->input('future_goals'),
+                'advice_for_entrepreneurs' => $request->input('advice_for_entrepreneurs'),
+                'linkedin_url' => $request->input('linkedin_url'),
+                'facebook_url' => $request->input('facebook_url'),
+                'instagram_url' => $request->input('instagram_url'),
+                'twitter_url' => $request->input('twitter_url'),
+                'consent' => true,
+                'status' => 'Pending',
+                'submitted_at' => now(),
+
+                // Backward-compatible fields
+                'email' => $email,
+                'contact_number' => $phone,
+                'business_name' => $request->input('company_name'),
+                'company_introduction' => $request->input('entrepreneurial_journey'),
+                'title' => $request->input('company_name'),
+                'story' => $request->input('entrepreneurial_journey'),
+                'short_description' => $request->input('business_description'),
+                'cover_image' => $profilePhotoUuid,
+            ]);
+
+            // Notify global admins
+            $this->notifyAdmins($submission, $user);
+
+            return $this->success([
+                'id' => (string) $submission->id,
+                'status' => $submission->status,
+            ], 'Your story has been submitted successfully. Our editorial team will review it before publishing.');
+        } catch (\Throwable $exception) {
+            Log::error('Vyapaar Jagat story submission failed', [
+                'user_id' => $user->id,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+
+            return $this->error($exception->getMessage(), 500);
+        }
     }
 }
