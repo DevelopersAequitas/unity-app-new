@@ -115,7 +115,7 @@
                 </tr>
                 <tr class="bg-light align-middle">
                     <th style="padding-left: 20px !important;">
-                        <select name="circle_name" class="form-select form-select-sm" style="min-width: 150px;">
+                        <select name="circle_name" class="form-select form-select-sm js-no-select2" style="min-width: 150px;">
                             <option value="">All Circles</option>
                             @foreach ($circleNames as $circleName)
                                 <option value="{{ $circleName }}" @selected($filters['circle_name'] === $circleName)>{{ $circleName }}</option>
@@ -126,7 +126,7 @@
                         <input type="text" name="founder" class="form-control form-control-sm" value="{{ $filters['founder'] }}" placeholder="Founder" style="min-width: 130px;">
                     </th>
                     <th>
-                        <select name="city_id" class="form-select form-select-sm" style="min-width: 120px;">
+                        <select name="city_id" class="form-select form-select-sm js-no-select2" style="min-width: 120px;">
                             <option value="any" @selected(($filters['city_id'] ?? 'any') === 'any')>All Cities</option>
                             @foreach ($cities as $c)
                                 <option value="{{ $c->id }}" @selected(($filters['city_id'] ?? '') === (string) $c->id)>{{ $c->name }}</option>
@@ -134,7 +134,7 @@
                         </select>
                     </th>
                     <th>
-                        <select name="type" class="form-select form-select-sm" style="min-width: 110px;">
+                        <select name="type" class="form-select form-select-sm js-no-select2" style="min-width: 110px;">
                             <option value="">All Types</option>
                             @foreach ($typeOptions as $type)
                                 <option value="{{ $type }}" @selected($filters['type'] === $type)>{{ \Illuminate\Support\Str::headline($type) }}</option>
@@ -145,7 +145,7 @@
                         <input type="text" name="peers" class="form-control form-control-sm" value="{{ $filters['peers'] }}" placeholder="Peers" style="min-width: 90px;">
                     </th>
                     <th>
-                        <select id="circleRankFilter" name="rank" class="form-select form-select-sm js-searchable-select" style="min-width: 120px;">
+                        <select id="circleRankFilter" name="rank" class="form-select form-select-sm js-no-select2" style="min-width: 120px;">
                             <option value="">All Ranks</option>
                             @foreach ($rankOptions as $rank)
                                 <option value="{{ $rank }}" @selected(($filters['rank'] ?? '') === $rank)>{{ $rank }}</option>
@@ -153,7 +153,7 @@
                         </select>
                     </th>
                     <th>
-                        <select name="status" class="form-select form-select-sm" style="min-width: 110px;">
+                        <select name="status" class="form-select form-select-sm js-no-select2" style="min-width: 110px;">
                             <option value="">All Status</option>
                             @foreach ($statusOptions as $status)
                                 <option value="{{ $status }}" @selected($filters['status'] === $status)>{{ \Illuminate\Support\Str::headline($status) }}</option>

@@ -1101,5 +1101,13 @@ class DedCommandCenterTest extends TestCase
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
+
+        Schema::create('tbl_permission_cache', function (Blueprint $table): void {
+            $table->uuid('user_id')->primary();
+            $table->text('circle_ids')->nullable();
+            $table->timestamp('computed_at')->nullable();
+            $table->string('version')->nullable();
+            $table->timestamps();
+        });
     }
 }
