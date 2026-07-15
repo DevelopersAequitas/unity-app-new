@@ -8,6 +8,7 @@ use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\Industry;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class ScopeCascadeResolver
@@ -49,16 +50,16 @@ class ScopeCascadeResolver
     public static function invalidateCache(string $adminUserId): void
     {
         DB::table('tbl_permission_cache')->where('user_id', $adminUserId)->delete();
-        \Illuminate\Support\Facades\Cache::forget('admin-access:circles:'.$adminUserId);
-        \Illuminate\Support\Facades\Cache::forget('admin-access:allowed-users:'.$adminUserId);
-        \Illuminate\Support\Facades\Cache::forget('admin-access:roles:'.$adminUserId);
-        \Illuminate\Support\Facades\Cache::forget('admin-access:user:'.$adminUserId);
+        Cache::forget('admin-access:circles:'.$adminUserId);
+        Cache::forget('admin-access:allowed-users:'.$adminUserId);
+        Cache::forget('admin-access:roles:'.$adminUserId);
+        Cache::forget('admin-access:user:'.$adminUserId);
     }
 
     public static function invalidateAllCaches(): void
     {
         DB::table('tbl_permission_cache')->truncate();
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
     }
 
     private static function computeDataWindow(AdminUser $admin): array

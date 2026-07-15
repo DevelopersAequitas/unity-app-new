@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Feature;
 
 use App\Models\CircleCategoryLevel4;
@@ -56,6 +58,7 @@ class LimitedUserApiTest extends TestCase
             'life_impacted_count' => 42,
             'status' => 'active',
             'business_category_id' => $category->id,
+            'designation' => 'Developer',
         ]);
 
         // 2. Create inactive user
@@ -78,12 +81,15 @@ class LimitedUserApiTest extends TestCase
                 '*' => [
                     'id',
                     'name',
-                    'profile_photo_image',
+                    'first_name',
+                    'last_name',
                     'city',
-                    'business_name',
+                    'business',
                     'total_life_impact',
-                    'company_name',
+                    'profile_photo_image',
+                    'designation',
                     'level4_category',
+                    'is_bookmark',
                 ],
             ],
         ]);
@@ -95,10 +101,17 @@ class LimitedUserApiTest extends TestCase
         $this->assertSame($activeUser->id, $data[0]['id']);
         $this->assertSame('John Doe', $data[0]['name']);
         $this->assertSame('New York', $data[0]['city']);
-        $this->assertSame('Acme Corp', $data[0]['business_name']);
-        $this->assertSame('Acme Corp', $data[0]['company_name']);
+        $this->assertSame('Acme Corp', $data[0]['business']);
         $this->assertSame(42, $data[0]['total_life_impact']);
+        $this->assertSame('Developer', $data[0]['designation']);
         $this->assertSame('Software Engineering', $data[0]['level4_category']);
+        $this->assertFalse($data[0]['is_bookmark']);
+
+        // Verify that other sensitive/large fields are NOT present in the limited response
+        $this->assertArrayNotHasKey('email', $data[0]);
+        $this->assertArrayNotHasKey('phone', $data[0]);
+        $this->assertArrayNotHasKey('coins_balance', $data[0]);
+        $this->assertArrayNotHasKey('industry_tags', $data[0]);
     }
 
     public function test_limited_users_endpoint_returns_paginated_members(): void
@@ -124,7 +137,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertSame(21, $response->json('meta.total'));
     }
 
-    public function test_members_endpoint_returns_all_members_without_pagination(): void
+    public function test_members_endpoint_returns_all_members_without_pagination_with_all_fields(): void
     {
         $activeUser = User::factory()->create([
             'status' => 'active',
@@ -141,5 +154,66 @@ class LimitedUserApiTest extends TestCase
         $response->assertOk();
         $this->assertCount(21, $response->json('data'));
         $response->assertJsonMissing(['meta', 'links']);
+
+        // Verify that full data (like email and is_bookmark) is present in the response
+        $data = $response->json('data');
+        $this->assertArrayHasKey('email', $data[0]);
+        $this->assertArrayHasKey('is_bookmark', $data[0]);
+    }
+
+    public function test_user_can_bookmark_and_unbookmark_members(): void
+    {
+        $user = User::factory()->create(['status' => 'active']);
+        $memberToBookmark = User::factory()->create(['status' => 'active']);
+
+        Sanctum::actingAs($user);
+
+        // Bookmark the member
+        $response = $this->postJson("/api/v1/members/{$memberToBookmark->id}/bookmark");
+        $response->assertOk();
+        $response->assertJson([
+            'success' => true,
+            'message' => 'Member bookmarked successfully.',
+        ]);
+
+        // Verify in DB that it is bookmarked
+        $user->refresh();
+        $this->assertContains($memberToBookmark->id, $user->bookmarks);
+
+        // Check limited users API displays it as bookmarked
+        $response = $this->getJson('/api/v1/members/limited');
+        $response->assertOk();
+        $data = $response->json('data');
+        $targetUser = collect($data)->firstWhere('id', $memberToBookmark->id);
+        $this->assertNotNull($targetUser);
+        $this->assertTrue($targetUser['is_bookmark']);
+
+        // Check regular members API displays it as bookmarked
+        $response = $this->getJson('/api/v1/members');
+        $response->assertOk();
+        $data = $response->json('data');
+        $targetUser = collect($data)->firstWhere('id', $memberToBookmark->id);
+        $this->assertNotNull($targetUser);
+        $this->assertTrue($targetUser['is_bookmark']);
+
+        // Unbookmark the member
+        $response = $this->deleteJson("/api/v1/members/{$memberToBookmark->id}/bookmark");
+        $response->assertOk();
+        $response->assertJson([
+            'success' => true,
+            'message' => 'Member unbookmarked successfully.',
+        ]);
+
+        // Verify in DB that it is unbookmarked
+        $user->refresh();
+        $this->assertNotContains($memberToBookmark->id, $user->bookmarks ?? []);
+
+        // Check limited users API displays it as not bookmarked
+        $response = $this->getJson('/api/v1/members/limited');
+        $response->assertOk();
+        $data = $response->json('data');
+        $targetUser = collect($data)->firstWhere('id', $memberToBookmark->id);
+        $this->assertNotNull($targetUser);
+        $this->assertFalse($targetUser['is_bookmark']);
     }
 }

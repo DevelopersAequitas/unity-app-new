@@ -89,7 +89,6 @@ class IntroVideoController extends Controller
         ]);
     }
 
-
     /**
      * Format the response with the user's intro video details.
      */
@@ -105,11 +104,11 @@ class IntroVideoController extends Controller
             'display_name' => $user->display_name,
             'email' => $user->email,
             'profile_photo_url' => $profilePhotoId
-                ? url('/api/v1/files/' . $profilePhotoId)
+                ? url('/api/v1/files/'.$profilePhotoId)
                 : null,
             'intro_video_id' => $introVideoId,
             'intro_video_url' => $introVideoId
-                ? url('/api/v1/files/' . $introVideoId)
+                ? url('/api/v1/files/'.$introVideoId)
                 : null,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,

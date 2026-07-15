@@ -103,6 +103,7 @@ class ProcessCampaignDeliveryJob implements ShouldQueue
                         // If log exists but sent_at is NULL, the run was interrupted.
                         // Reuse the existing log ID and queue the recipient job.
                         $jobs[] = new SendCampaignRecipientJob($deliveryId, $existingLog->id, $user->id);
+
                         continue;
                     }
 

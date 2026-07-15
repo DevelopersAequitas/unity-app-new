@@ -9,6 +9,7 @@ use App\Services\Api\Ded\DashboardAggregationService;
 use App\Services\Api\Ded\DistrictAnalyticsService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +18,7 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index(): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+    public function index(): View|RedirectResponse
     {
         $admin = Auth::guard('admin')->user();
 

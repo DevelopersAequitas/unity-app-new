@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -28,17 +30,17 @@ class Role extends Model
         'is_assignable',
     ];
 
-    public function parents(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    public function parents(): BelongsToMany
     {
         return $this->belongsToMany(Role::class, 'role_hierarchies', 'child_role_id', 'parent_role_id');
     }
 
-    public function children(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    public function children(): BelongsToMany
     {
         return $this->belongsToMany(Role::class, 'role_hierarchies', 'parent_role_id', 'child_role_id');
     }
 
-    public function allDescendants(): \Illuminate\Support\Collection
+    public function allDescendants(): Collection
     {
         $descendants = collect();
         $queue = [$this];
@@ -63,7 +65,7 @@ class Role extends Model
         return $this->allDescendants()->pluck('id')->all();
     }
 
-    public function allAncestors(): \Illuminate\Support\Collection
+    public function allAncestors(): Collection
     {
         $ancestors = collect();
         $queue = [$this];
