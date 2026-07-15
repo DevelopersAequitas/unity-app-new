@@ -636,6 +636,8 @@ class RoleHierarchyController extends Controller
                 ]);
             }
 
+            $roleKey = str_replace(' ', '_', strtolower($role->key));
+
             $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
             $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
             $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
