@@ -735,7 +735,7 @@ function openDeleteModal(id, name) {
 function onAssignRoleChange() {
     const roleSelect = document.getElementById('assign_role_id');
     const selectedOption = roleSelect.options[roleSelect.selectedIndex];
-    const key = selectedOption ? (selectedOption.getAttribute('data-key') || '').toLowerCase().replace(/\s+/g, '_') : '';
+    const key = selectedOption ? (selectedOption.getAttribute('data-key') || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim() : '';
 
     const container = document.getElementById('scope_container');
     const districtSel = document.getElementById('district_selector');
@@ -758,15 +758,22 @@ function onAssignRoleChange() {
     document.getElementById('assign_industry_id').required = false;
     document.getElementById('assign_circle_id').required = false;
 
-    if (key === 'ded') {
+    const isDed = key === 'ded' || key.includes('ded') || key.includes('district');
+    const isId = key === 'id' || key === 'ied' || key.includes('industry');
+    const isCircle = ['cd', 'cf', 'chair', 'vice chair', 'secretary', 'circle leader'].includes(key) || 
+                     key.includes('circle') || 
+                     key.includes('chair') || 
+                     key.includes('secretary');
+
+    if (isDed) {
         container.style.display = 'block';
         districtSel.style.display = 'block';
         document.getElementById('assign_district_id').required = true;
-    } else if (key === 'id' || key === 'ied' || key === 'industry_director') {
+    } else if (isId) {
         container.style.display = 'block';
         industrySel.style.display = 'block';
         document.getElementById('assign_industry_id').required = true;
-    } else if (['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'].includes(key)) {
+    } else if (isCircle) {
         container.style.display = 'block';
         circleSel.style.display = 'block';
         document.getElementById('assign_circle_id').required = true;
@@ -972,7 +979,15 @@ function setupModalScopeSelect() {
     scopeSelect.innerHTML = '';
     scopeSelect.required = false;
 
-    if (activeRoleKey === 'ded') {
+    const normalizedKey = (activeRoleKey || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim();
+    const isDed = normalizedKey === 'ded' || normalizedKey.includes('ded') || normalizedKey.includes('district');
+    const isId = normalizedKey === 'id' || normalizedKey === 'ied' || normalizedKey.includes('industry');
+    const isCircle = ['cd', 'cf', 'chair', 'vice chair', 'secretary', 'circle leader'].includes(normalizedKey) || 
+                     normalizedKey.includes('circle') || 
+                     normalizedKey.includes('chair') || 
+                     normalizedKey.includes('secretary');
+
+    if (isDed) {
         scopeContainer.style.display = 'block';
         scopeLabel.textContent = 'Select District';
         scopeSelect.required = true;
@@ -984,7 +999,7 @@ function setupModalScopeSelect() {
             opt.textContent = d.name;
             scopeSelect.appendChild(opt);
         });
-    } else if (activeRoleKey === 'id' || activeRoleKey === 'ied' || activeRoleKey === 'industry_director') {
+    } else if (isId) {
         scopeContainer.style.display = 'block';
         scopeLabel.textContent = 'Select Industry';
         scopeSelect.required = true;
@@ -996,7 +1011,7 @@ function setupModalScopeSelect() {
             opt.textContent = i.name;
             scopeSelect.appendChild(opt);
         });
-    } else if (['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'].includes(activeRoleKey)) {
+    } else if (isCircle) {
         scopeContainer.style.display = 'block';
         scopeLabel.textContent = 'Select Circle';
         scopeSelect.required = true;

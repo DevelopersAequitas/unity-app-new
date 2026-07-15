@@ -24,9 +24,13 @@ class EnsureIndustryDirector
             ->map(fn ($k) => str_replace(' ', '_', strtolower((string) $k)))
             ->all();
 
-        $hasIndustryDirectorRole = in_array('industry_director', $normalizedRoles, true)
-            || in_array('id', $normalizedRoles, true)
-            || in_array('ied', $normalizedRoles, true);
+        $hasIndustryDirectorRole = false;
+        foreach ($normalizedRoles as $k) {
+            if ($k === 'id' || $k === 'ied' || str_contains($k, 'industry')) {
+                $hasIndustryDirectorRole = true;
+                break;
+            }
+        }
 
         $hasActiveAssignment = IndustryDirectorAssignment::query()
             ->where('admin_user_id', $admin->id)

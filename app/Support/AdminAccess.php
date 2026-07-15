@@ -127,7 +127,13 @@ class AdminAccess
             return str_replace(' ', '_', strtolower((string) $k));
         }, self::adminRoleKeys($admin));
 
-        return in_array('ded', $roleKeys, true);
+        foreach ($roleKeys as $k) {
+            if ($k === 'ded' || str_contains($k, 'ded') || str_contains($k, 'district')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function assignedDedStateId(?AdminUser $admin): ?string
@@ -219,7 +225,20 @@ class AdminAccess
         $roleKeys = array_map(function ($k) {
             return str_replace(' ', '_', strtolower((string) $k));
         }, self::adminRoleKeys($admin));
-        $hasCircleRoleKey = (bool) array_intersect(self::CIRCLE_SCOPED_KEYS, $roleKeys);
+
+        $hasCircleRoleKey = false;
+        foreach ($roleKeys as $k) {
+            if (in_array($k, self::CIRCLE_SCOPED_KEYS, true) ||
+                str_contains($k, 'circle') ||
+                str_contains($k, 'leader') ||
+                str_contains($k, 'founder') ||
+                str_contains($k, 'chair') ||
+                str_contains($k, 'secretary')
+            ) {
+                $hasCircleRoleKey = true;
+                break;
+            }
+        }
 
         if ($hasCircleRoleKey) {
             return true;
@@ -253,9 +272,13 @@ class AdminAccess
             return str_replace(' ', '_', strtolower((string) $k));
         }, self::adminRoleKeys($admin));
 
-        return in_array('id', $roleKeys, true)
-            || in_array('ied', $roleKeys, true)
-            || in_array('industry_director', $roleKeys, true);
+        foreach ($roleKeys as $k) {
+            if ($k === 'id' || $k === 'ied' || $k === 'industry_director' || str_contains($k, 'industry')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function allowedCircleIds(?AdminUser $admin): array

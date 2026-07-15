@@ -77,16 +77,29 @@ class ScopeCascadeResolver
         $circles = collect();
 
         // 1. DED scope rollup
-        if (in_array('ded', $roleKeys, true)) {
+        $isDed = false;
+        foreach ($roleKeys as $k) {
+            if ($k === 'ded' || str_contains($k, 'ded') || str_contains($k, 'district')) {
+                $isDed = true;
+                break;
+            }
+        }
+
+        if ($isDed) {
             $dedCircleIds = AdminCircleScope::getDedCircleIds($admin);
             $circles = $circles->merge($dedCircleIds);
         }
 
         // 2. ID / IED scope rollup
-        $isId = in_array('industry_director', $roleKeys, true) || in_array('id', $roleKeys, true);
-        $isIed = in_array('ied', $roleKeys, true) || in_array('industry_executive_director', $roleKeys, true);
+        $isIdOrIed = false;
+        foreach ($roleKeys as $k) {
+            if ($k === 'id' || $k === 'ied' || str_contains($k, 'industry')) {
+                $isIdOrIed = true;
+                break;
+            }
+        }
 
-        if ($isId || $isIed) {
+        if ($isIdOrIed) {
             $industryAssignments = DB::table('industry_director_assignments')
                 ->where('admin_user_id', $admin->id)
                 ->where('is_active', true)

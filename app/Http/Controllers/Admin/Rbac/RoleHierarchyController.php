@@ -405,7 +405,16 @@ class RoleHierarchyController extends Controller
             ->map(function ($assign) use ($roleKey) {
                 $scopeName = 'Global';
 
-                if ($roleKey === 'ded') {
+                $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
+                $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
+                $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
+                    str_contains($roleKey, 'circle') ||
+                    str_contains($roleKey, 'leader') ||
+                    str_contains($roleKey, 'founder') ||
+                    str_contains($roleKey, 'chair') ||
+                    str_contains($roleKey, 'secretary');
+
+                if ($isDed) {
                     $scopes = DB::table('admin_ded_districts')
                         ->where('admin_user_id', $assign->user_id)
                         ->pluck('district_name')
@@ -415,7 +424,7 @@ class RoleHierarchyController extends Controller
                     if (! empty($scopes)) {
                         $scopeName = 'Districts: '.implode(', ', $scopes);
                     }
-                } elseif ($roleKey === 'id' || $roleKey === 'ied' || $roleKey === 'industry_director') {
+                } elseif ($isId) {
                     $scopes = DB::table('industry_director_assignments')
                         ->where('admin_user_id', $assign->user_id)
                         ->where('is_active', true)
@@ -426,37 +435,34 @@ class RoleHierarchyController extends Controller
                     if (! empty($scopes)) {
                         $scopeName = 'Industries: '.implode(', ', $scopes);
                     }
-                } elseif (in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true)) {
+                } elseif ($isCircle) {
                     $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($assign->email)])->first();
                     if ($appUser) {
-                        $circleColumnMap = [
-                            'cd' => 'circle_director_user_id',
-                            'circle_leader' => 'circle_director_user_id',
-                            'cf' => 'circle_founder_user_id',
-                            'chair' => 'chair_user_id',
-                            'vice_chair' => 'vice_chair_user_id',
-                            'secretary' => 'secretary_user_id',
-                        ];
+                        $colName = 'circle_director_user_id';
+                        $dbRole = 'director';
 
-                        $colName = $circleColumnMap[$roleKey] ?? null;
-                        if ($colName) {
-                            $scopes = DB::table('circles')
-                                ->where($colName, $appUser->id)
-                                ->pluck('name')
-                                ->filter()
-                                ->unique()
-                                ->all();
-                        } else {
-                            $dbRoleMap = [
-                                'cd' => 'director',
-                                'cf' => 'founder',
-                                'chair' => 'chair',
-                                'vice_chair' => 'vice_chair',
-                                'secretary' => 'secretary',
-                                'circle_leader' => 'director',
-                            ];
-                            $dbRole = $dbRoleMap[$roleKey] ?? $roleKey;
+                        if (str_contains($roleKey, 'founder') || str_contains($roleKey, 'cf')) {
+                            $colName = 'circle_founder_user_id';
+                            $dbRole = 'founder';
+                        } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
+                            $colName = 'vice_chair_user_id';
+                            $dbRole = 'vice_chair';
+                        } elseif (str_contains($roleKey, 'chair')) {
+                            $colName = 'chair_user_id';
+                            $dbRole = 'chair';
+                        } elseif (str_contains($roleKey, 'secretary')) {
+                            $colName = 'secretary_user_id';
+                            $dbRole = 'secretary';
+                        }
 
+                        $scopes = DB::table('circles')
+                            ->where($colName, $appUser->id)
+                            ->pluck('name')
+                            ->filter()
+                            ->unique()
+                            ->all();
+
+                        if (empty($scopes)) {
                             $scopes = DB::table('circles')
                                 ->join('circle_members', 'circles.id', '=', 'circle_members.circle_id')
                                 ->where('circle_members.user_id', $appUser->id)
@@ -538,39 +544,45 @@ class RoleHierarchyController extends Controller
                 ->where('role_id', $role->id)
                 ->delete();
 
-            if ($roleKey === 'ded') {
+            $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
+            $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
+            $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
+                str_contains($roleKey, 'circle') ||
+                str_contains($roleKey, 'leader') ||
+                str_contains($roleKey, 'founder') ||
+                str_contains($roleKey, 'chair') ||
+                str_contains($roleKey, 'secretary');
+
+            if ($isDed) {
                 DB::table('admin_ded_districts')->where('admin_user_id', $userId)->delete();
-            } elseif ($roleKey === 'id' || $roleKey === 'ied' || $roleKey === 'industry_director') {
+            } elseif ($isId) {
                 DB::table('industry_director_assignments')->where('admin_user_id', $userId)->delete();
-            } elseif (in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true)) {
+            } elseif ($isCircle) {
                 $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
                 if ($appUser) {
-                    $circleColumnMap = [
-                        'cd' => 'circle_director_user_id',
-                        'circle_leader' => 'circle_director_user_id',
-                        'cf' => 'circle_founder_user_id',
-                        'chair' => 'chair_user_id',
-                        'vice_chair' => 'vice_chair_user_id',
-                        'secretary' => 'secretary_user_id',
-                    ];
+                    $colName = 'circle_director_user_id';
+                    $dbRole = 'director';
 
-                    $colName = $circleColumnMap[$roleKey] ?? null;
+                    if (str_contains($roleKey, 'founder') || str_contains($roleKey, 'cf')) {
+                        $colName = 'circle_founder_user_id';
+                        $dbRole = 'founder';
+                    } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
+                        $colName = 'vice_chair_user_id';
+                        $dbRole = 'vice_chair';
+                    } elseif (str_contains($roleKey, 'chair')) {
+                        $colName = 'chair_user_id';
+                        $dbRole = 'chair';
+                    } elseif (str_contains($roleKey, 'secretary')) {
+                        $colName = 'secretary_user_id';
+                        $dbRole = 'secretary';
+                    }
+
                     if ($colName) {
                         DB::table('circles')->where($colName, $appUser->id)->update([
                             $colName => null,
                             'updated_at' => now(),
                         ]);
                     }
-
-                    $dbRoleMap = [
-                        'cd' => 'director',
-                        'cf' => 'founder',
-                        'chair' => 'chair',
-                        'vice_chair' => 'vice_chair',
-                        'secretary' => 'secretary',
-                        'circle_leader' => 'director',
-                    ];
-                    $dbRole = $dbRoleMap[$roleKey] ?? $roleKey;
 
                     DB::table('circle_members')
                         ->where('user_id', $appUser->id)
@@ -624,9 +636,16 @@ class RoleHierarchyController extends Controller
                 ]);
             }
 
-            $roleKey = str_replace(' ', '_', strtolower($role->key));
+            $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
+            $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');
+            $isCircle = in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true) ||
+                str_contains($roleKey, 'circle') ||
+                str_contains($roleKey, 'leader') ||
+                str_contains($roleKey, 'founder') ||
+                str_contains($roleKey, 'chair') ||
+                str_contains($roleKey, 'secretary');
 
-            if ($roleKey === 'ded') {
+            if ($isDed) {
                 if ($scopeId) {
                     $district = DB::table('districts')->where('id', $scopeId)->first();
                     $state = $district ? DB::table('states')->where('id', $district->state_id)->first() : null;
@@ -645,7 +664,7 @@ class RoleHierarchyController extends Controller
                         'updated_at' => now(),
                     ]);
                 }
-            } elseif ($roleKey === 'id' || $roleKey === 'ied' || $roleKey === 'industry_director') {
+            } elseif ($isId) {
                 if ($scopeId) {
                     $industry = DB::table('industries')->where('id', $scopeId)->first();
 
@@ -665,7 +684,7 @@ class RoleHierarchyController extends Controller
                         'updated_at' => now(),
                     ]);
                 }
-            } elseif (in_array($roleKey, ['cd', 'cf', 'chair', 'vice_chair', 'secretary', 'circle_leader'], true)) {
+            } elseif ($isCircle) {
                 if ($scopeId) {
                     $circle = DB::table('circles')->where('id', $scopeId)->first();
                     $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
@@ -692,16 +711,23 @@ class RoleHierarchyController extends Controller
                     }
 
                     if ($appUser) {
-                        $circleColumnMap = [
-                            'cd' => 'circle_director_user_id',
-                            'circle_leader' => 'circle_director_user_id',
-                            'cf' => 'circle_founder_user_id',
-                            'chair' => 'chair_user_id',
-                            'vice_chair' => 'vice_chair_user_id',
-                            'secretary' => 'secretary_user_id',
-                        ];
+                        $colName = 'circle_director_user_id';
+                        $dbRole = 'director';
 
-                        $colName = $circleColumnMap[$roleKey] ?? null;
+                        if (str_contains($roleKey, 'founder') || str_contains($roleKey, 'cf')) {
+                            $colName = 'circle_founder_user_id';
+                            $dbRole = 'founder';
+                        } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
+                            $colName = 'vice_chair_user_id';
+                            $dbRole = 'vice_chair';
+                        } elseif (str_contains($roleKey, 'chair')) {
+                            $colName = 'chair_user_id';
+                            $dbRole = 'chair';
+                        } elseif (str_contains($roleKey, 'secretary')) {
+                            $colName = 'secretary_user_id';
+                            $dbRole = 'secretary';
+                        }
+
                         if ($colName) {
                             DB::table('circles')->where('id', $scopeId)->update([
                                 $colName => $appUser->id,
@@ -713,16 +739,6 @@ class RoleHierarchyController extends Controller
                             ->where('circle_id', $scopeId)
                             ->where('user_id', $appUser->id)
                             ->first();
-
-                        $dbRoleMap = [
-                            'cd' => 'director',
-                            'cf' => 'founder',
-                            'chair' => 'chair',
-                            'vice_chair' => 'vice_chair',
-                            'secretary' => 'secretary',
-                            'circle_leader' => 'director',
-                        ];
-                        $dbRole = $dbRoleMap[$roleKey] ?? $roleKey;
 
                         if ($existingMember) {
                             DB::table('circle_members')
