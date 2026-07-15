@@ -12,7 +12,7 @@
         : ($isGlobalAdmin
             ? 'Global Admin'
             : ($isIndustryDirector
-                ? 'IDE'
+                ? 'ID'
                 : ($isDed ? 'DED' : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin'))));
 
 
