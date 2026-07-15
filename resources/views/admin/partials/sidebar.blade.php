@@ -513,6 +513,11 @@
                         <i class="bi bi-images me-2"></i>Anniversary Creative
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}">
+                        <i class="bi bi-play-btn me-2"></i>Tutorials
+                    </a>
+                </li>
             @endif
 
 
