@@ -62,6 +62,7 @@ use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\InvoiceController;
+use App\Http\Controllers\Api\V1\Billing\UserSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\ZohoBillingWebhookController;
 use App\Http\Controllers\Api\V1\BrandPartnerApiController;
 use App\Http\Controllers\Api\V1\BusinessCategoryController;
@@ -95,6 +96,7 @@ use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\IntroVideoController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
@@ -116,6 +118,7 @@ use App\Http\Controllers\Api\V1\RequirementController as V1RequirementController
 use App\Http\Controllers\Api\V1\RequirementInterestController;
 use App\Http\Controllers\Api\V1\ScanAppAuthController;
 use App\Http\Controllers\Api\V1\ScanAppEventController;
+use App\Http\Controllers\Api\V1\StorySubmissionApiController;
 use App\Http\Controllers\Api\V1\SupportTicketController;
 use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
@@ -346,9 +349,10 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         // Story Submissions API
-        Route::post('/story/submit', [\App\Http\Controllers\Api\V1\StorySubmissionApiController::class, 'submit']);
-        Route::get('/story/my-submissions', [\App\Http\Controllers\Api\V1\StorySubmissionApiController::class, 'mySubmissions']);
-        Route::get('/story/{id}', [\App\Http\Controllers\Api\V1\StorySubmissionApiController::class, 'show'])->whereUuid('id');
+        Route::post('/story/submit', [StorySubmissionApiController::class, 'submit']);
+        Route::post('/story-submission', [StorySubmissionApiController::class, 'submitVyapaarStory']);
+        Route::get('/story/my-submissions', [StorySubmissionApiController::class, 'mySubmissions']);
+        Route::get('/story/{id}', [StorySubmissionApiController::class, 'show'])->whereUuid('id');
 
         Route::get('network/mutual-connections/{user_uuid}', [MutualConnectionController::class, 'index'])
             ->whereUuid('user_uuid');
@@ -375,6 +379,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
+        Route::get('/intro-videos', [IntroVideoController::class, 'index']);
 
         Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
         Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
@@ -962,6 +967,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/billing/checkout', [BillingCheckoutController::class, 'checkout']);
         Route::get('/billing/checkout/{hostedpage_id}', [BillingCheckoutController::class, 'status']);
         Route::get('/billing/hostedpages/{hostedpageId}/sync', [BillingCheckoutController::class, 'syncHostedPage']);
+        Route::get('/billing/subscriptions-history', [UserSubscriptionController::class, 'index']);
         Route::get('/billing/invoices', [InvoiceController::class, 'index']);
         Route::get('/billing/invoices/{invoiceId}', [InvoiceController::class, 'show']);
         Route::get('/billing/invoices/{invoiceId}/pdf', [InvoiceController::class, 'pdf']);

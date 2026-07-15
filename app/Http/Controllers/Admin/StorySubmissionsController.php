@@ -10,11 +10,9 @@ use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Notifications\NotifyUserService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StorySubmissionsController extends Controller
@@ -37,17 +35,17 @@ class StorySubmissionsController extends Controller
         $query = SmeBusinessStorySubmission::query()->with('user');
 
         if (! empty($filters['status']) && $filters['status'] !== 'all') {
-            $query->where('status', $filters['status']);
+            $query->whereRaw('LOWER(status) = ?', [strtolower($filters['status'])]);
         }
 
         if (! empty($filters['search'])) {
             $search = trim((string) $filters['search']);
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'ILIKE', "%{$search}%")
-                  ->orWhere('story', 'ILIKE', "%{$search}%")
-                  ->orWhere('full_name', 'ILIKE', "%{$search}%")
-                  ->orWhere('email', 'ILIKE', "%{$search}%")
-                  ->orWhere('business_name', 'ILIKE', "%{$search}%");
+                    ->orWhere('story', 'ILIKE', "%{$search}%")
+                    ->orWhere('full_name', 'ILIKE', "%{$search}%")
+                    ->orWhere('email', 'ILIKE', "%{$search}%")
+                    ->orWhere('business_name', 'ILIKE', "%{$search}%");
             });
         }
 
@@ -215,7 +213,7 @@ class StorySubmissionsController extends Controller
     {
         $headers = [
             'Content-type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename=story_submissions_' . date('Ymd_His') . '.csv',
+            'Content-Disposition' => 'attachment; filename=story_submissions_'.date('Ymd_His').'.csv',
             'Pragma' => 'no-cache',
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
             'Expires' => '0',

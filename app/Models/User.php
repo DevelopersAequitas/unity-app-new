@@ -511,13 +511,13 @@ class User extends Authenticatable
     public function adminCircleLabel(): string
     {
         if ($this->relationLoaded('circleMembers')) {
-            $names = $this->circleMembers->map(fn($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
+            $names = $this->circleMembers->map(fn ($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
 
             return $names->isNotEmpty() ? $names->implode(', ') : 'No Circle';
         }
 
         if ($this->relationLoaded('circles')) {
-            $names = $this->circles->map(fn($c) => trim((string) $c->name))->filter()->unique();
+            $names = $this->circles->map(fn ($c) => trim((string) $c->name))->filter()->unique();
 
             return $names->isNotEmpty() ? $names->implode(', ') : 'No Circle';
         }
@@ -530,7 +530,7 @@ class User extends Authenticatable
                 ->orderByDesc('joined_at')
                 ->get();
 
-            $names = $members->map(fn($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
+            $names = $members->map(fn ($cm) => trim((string) optional($cm->circle)->name))->filter()->unique();
 
             return $names->isNotEmpty() ? $names->implode(', ') : 'No Circle';
         } catch (Throwable $e) {

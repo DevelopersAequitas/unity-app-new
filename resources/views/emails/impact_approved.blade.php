@@ -6,7 +6,7 @@
                 <tbody>
                 <tr>
                     <td style="padding: 14px 14px; background-color: #240e5c; text-align: center;">
-                        <img style="vertical-align: middle;" src="https://unity.peersglobal.com/wp-content/uploads/2025/08/peersglobal_white-removebg-preview.png" alt="Peers Global" width="135" />
+                        <img style="vertical-align: middle;" src="https://peersunity.com/images/peersglobal-logo.png" alt="Peers Global" width="135" />
                     </td>
                 </tr>
                 <tr>

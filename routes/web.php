@@ -56,6 +56,7 @@ use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
 use App\Http\Controllers\Admin\ReferralReportController;
+use App\Http\Controllers\Admin\StorySubmissionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
@@ -173,9 +174,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users/{user}/trigger-membership-notification', [UsersController::class, 'triggerMembershipNotification'])->name('users.trigger-membership-notification');
 
         // Story Submissions Admin
-        Route::get('/stories', [\App\Http\Controllers\Admin\StorySubmissionsController::class, 'index'])->name('stories.index');
-        Route::post('/stories/{id}/approve', [\App\Http\Controllers\Admin\StorySubmissionsController::class, 'approve'])->name('stories.approve')->whereUuid('id');
-        Route::post('/stories/{id}/reject', [\App\Http\Controllers\Admin\StorySubmissionsController::class, 'reject'])->name('stories.reject')->whereUuid('id');
+        Route::get('/stories', [StorySubmissionsController::class, 'index'])->name('stories.index');
+        Route::post('/stories/{id}/approve', [StorySubmissionsController::class, 'approve'])->name('stories.approve')->whereUuid('id');
+        Route::post('/stories/{id}/reject', [StorySubmissionsController::class, 'reject'])->name('stories.reject')->whereUuid('id');
 
         Route::get('/activities', [ActivitiesController::class, 'index'])->name('activities.index');
         Route::post('/activities/export', [ActivitiesController::class, 'export'])->name('activities.export');

@@ -16,6 +16,7 @@ use App\Models\IndustryDirectorAssignment;
 use App\Models\JoinedCircleCategory;
 use App\Models\Notifications\AppNotification;
 use App\Models\Role;
+use App\Models\SmeBusinessStorySubmission;
 use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Admin\DedLocationService;
@@ -317,7 +318,7 @@ class UsersController extends Controller
                 ['id' => 'd17b210c-2370-4f0d-be43-1434c215bdfd', 'name' => 'Technology & Digital'],
                 ['id' => 'f94245b5-3f18-4ad8-b87d-ebab677c76de', 'name' => 'Women & Social Enterprises'],
             ];
-            $industries = collect($defaultIndustries)->map(fn($item) => (object)$item);
+            $industries = collect($defaultIndustries)->map(fn ($item) => (object) $item);
         }
         $adminUserForRoles = $this->findAdminUserForPeer($user);
         $assignedAdminRoles = $adminUserForRoles
@@ -414,7 +415,7 @@ class UsersController extends Controller
         $storySubmissions = collect();
         $storySubmissionsCount = 0;
         if (Schema::hasTable('sme_business_story_submissions')) {
-            $storySubmissions = \App\Models\SmeBusinessStorySubmission::query()
+            $storySubmissions = SmeBusinessStorySubmission::query()
                 ->where('user_id', $userId)
                 ->orderByDesc('created_at')
                 ->get();
@@ -1075,7 +1076,7 @@ class UsersController extends Controller
             return redirect()
                 ->route('admin.users.edit', $user->id)
                 ->withInput()
-                ->withErrors(['roles' => 'Unable to update user roles: ' . $exception->getMessage()]);
+                ->withErrors(['roles' => 'Unable to update user roles: '.$exception->getMessage()]);
         }
 
         $updatedUser = $user->fresh();

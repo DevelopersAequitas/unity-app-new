@@ -344,19 +344,19 @@
                             <label class="form-label fw-semibold">Repeat</label>
                             <select class="form-select js-no-searchable-select" name="recurrence_type" id="recurrenceType">
                                 <option value="none" @selected(old('recurrence_type', $event->recurrence_type ?? 'none') === 'none')>One-time Event</option>
-                                <option value="daily" disabled>Daily</option>
+                                <option value="daily" @selected(old('recurrence_type', $event->recurrence_type ?? 'none') === 'daily')>Daily</option>
                                 <option value="weekly" @selected(old('recurrence_type', $event->recurrence_type ?? 'none') === 'weekly')>Weekly</option>
                                 <option value="monthly" @selected(old('recurrence_type', $event->recurrence_type ?? 'none') === 'monthly')>Monthly</option>
                             </select>
                         </div>
-                        <div class="col-md-4 recurrence-common">
+                        <div class="col-md-4 recurrence-common d-none">
                             <label class="form-label fw-semibold">Repeat every</label>
                             <div class="input-group">
                                 <input class="form-control" type="number" min="1" name="recurrence_interval" id="recurrenceInterval" value="{{ old('recurrence_interval', $event->recurrence_interval ?? 1) }}">
                                 <span class="input-group-text" id="intervalUnit">week(s)</span>
                             </div>
                         </div>
-                        <div class="col-md-4 recurrence-common">
+                        <div class="col-md-4 recurrence-common d-none">
                             <label class="form-label fw-semibold">Repeat Until</label>
                             <input class="form-control" type="date" name="recurrence_ends_at" id="recurrenceEndsAt" value="{{ old('recurrence_ends_at', optional($event->recurrence_ends_at ?? null)->format('Y-m-d')) }}">
                         </div>
