@@ -93,6 +93,12 @@
 
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
 
+    if ($isDed) {
+        $activityMenu = array_values(array_filter($activityMenu, function ($item) {
+            return !in_array($item['label'], ['Registered Visitor', 'Recommended Peers', 'Collaborations'], true);
+        }));
+    }
+
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
     $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
@@ -507,6 +513,11 @@
                         <i class="bi bi-images me-2"></i>Anniversary Creative
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}">
+                        <i class="bi bi-play-btn me-2"></i>Tutorials
+                    </a>
+                </li>
             @endif
 
 
@@ -530,23 +541,7 @@
             </li>
             @endif
 
-            @if ($isDed && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
-                <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
-                        <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
-                        <i class="bi bi-chevron-right menu-arrow"></i>
-                    </a>
-                    <div class="collapse {{ $eventsManagementActive ? 'show' : '' }}" id="eventsManagementSubmenu">
-                        <ul class="nav flex-column ms-3">
-                            @foreach ($eventsManagementMenu as $eventItem)
-                                <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </li>
-            @endif
+
         </ul>
     </nav>
 

@@ -2150,14 +2150,14 @@ class UsersController extends Controller
             ? $now->copy()->month($fyStartMonth)->startOfMonth()->startOfDay()
             : $now->copy()->subYear()->month($fyStartMonth)->startOfMonth()->startOfDay();
         $currentFyEnd = $currentFyStart->copy()->addYear()->subDay()->endOfDay();
-        $prevFyStart  = $currentFyStart->copy()->subYear();
-        $prevFyEnd    = $currentFyStart->copy()->subDay()->endOfDay();
+        $prevFyStart = $currentFyStart->copy()->subYear();
+        $prevFyEnd = $currentFyStart->copy()->subDay()->endOfDay();
 
         // Current quarter boundaries (calendar quarter)
         $currentQtrStart = $now->copy()->firstOfQuarter()->startOfDay();
-        $currentQtrEnd   = $now->copy()->lastOfQuarter()->endOfDay();
+        $currentQtrEnd = $now->copy()->lastOfQuarter()->endOfDay();
         // Previous quarter
-        $prevQtrEnd   = $currentQtrStart->copy()->subDay()->endOfDay();
+        $prevQtrEnd = $currentQtrStart->copy()->subDay()->endOfDay();
         $prevQtrStart = $prevQtrEnd->copy()->firstOfQuarter()->startOfDay();
 
         $allowedJoinedFilters = [

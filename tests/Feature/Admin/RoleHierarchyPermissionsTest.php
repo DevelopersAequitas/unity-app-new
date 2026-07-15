@@ -6,6 +6,7 @@ namespace Tests\Feature\Admin;
 
 use App\Models\AdminUser;
 use App\Models\Role;
+use App\Support\AdminAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -96,12 +97,12 @@ class RoleHierarchyPermissionsTest extends TestCase
         $this->assertEquals($allowedSections, $decoded);
 
         // Assert isSectionAllowed helpers return correct values
-        $this->assertTrue(\App\Support\AdminAccess::isSectionAllowed($peer, 'Dashboard'));
-        $this->assertTrue(\App\Support\AdminAccess::isSectionAllowed($peer, 'Peers'));
-        $this->assertFalse(\App\Support\AdminAccess::isSectionAllowed($peer, 'Circles')); // Not allowed
+        $this->assertTrue(AdminAccess::isSectionAllowed($peer, 'Dashboard'));
+        $this->assertTrue(AdminAccess::isSectionAllowed($peer, 'Peers'));
+        $this->assertFalse(AdminAccess::isSectionAllowed($peer, 'Circles')); // Not allowed
 
         // Assert isEditAllowed returns false for read-only user
-        $this->assertFalse(\App\Support\AdminAccess::isEditAllowed($peer));
+        $this->assertFalse(AdminAccess::isEditAllowed($peer));
     }
 
     public function test_view_only_user_cannot_perform_mutations(): void

@@ -60,6 +60,7 @@ use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
+use App\Http\Controllers\Admin\TutorialController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
@@ -126,6 +127,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             return redirect()->route('admin.dashboard');
         })->name('home');
+
+        // Tutorials routes
+        Route::get('/tutorials', [TutorialController::class, 'index'])->name('tutorials.index');
+        Route::post('/tutorials', [TutorialController::class, 'store'])->name('tutorials.store');
+        Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id')->name('tutorials.destroy');
+
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
         Route::get('/birthday-creative', [BirthdayCreativeController::class, 'index'])->name('birthday-creative.index');
         Route::post('/birthday-creative', [BirthdayCreativeController::class, 'update'])->name('birthday-creative.update');

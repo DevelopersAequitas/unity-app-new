@@ -1317,7 +1317,7 @@ function removePeerAssignment(userId, userName) {
     fetch(`/admin/rbac/roles/${currentOpenRoleId}/assignments/${userId}`, {
         method: 'DELETE',
         headers: {
-            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
             'X-Requested-With': 'XMLHttpRequest'
         }
     })

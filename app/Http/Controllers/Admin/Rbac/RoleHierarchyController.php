@@ -841,7 +841,7 @@ class RoleHierarchyController extends Controller
     private function checkEditPermission(): void
     {
         $admin = auth('admin')->user();
-        if ($admin && ! \App\Support\AdminAccess::isEditAllowed($admin)) {
+        if ($admin && ! AdminAccess::isEditAllowed($admin)) {
             abort(403, 'You do not have edit permissions.');
         }
     }
