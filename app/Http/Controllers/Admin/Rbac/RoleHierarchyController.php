@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\RoleHierarchy;
 use App\Services\Admin\AdminAuditService;
+use App\Support\AdminAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -836,7 +837,7 @@ class RoleHierarchyController extends Controller
     private function checkEditPermission(): void
     {
         $admin = auth('admin')->user();
-        if ($admin && ! \App\Support\AdminAccess::isEditAllowed($admin)) {
+        if ($admin && ! AdminAccess::isEditAllowed($admin)) {
             abort(403, 'You do not have edit permissions.');
         }
     }
