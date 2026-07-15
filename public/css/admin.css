@@ -2320,3 +2320,169 @@ body {
 .admin-select-container .select2-selection__clear:hover {
     color: var(--danger) !important;
 }
+
+/* ============================================================
+   ADMIN DATE-PERIOD FILTER DROPDOWN
+   Custom non-select dropdown used for fiscal/calendar period
+   filtering (e.g. This Quarter, Last 12 Months, etc.)
+   ============================================================ */
+
+.admin-date-period-wrap {
+    position: relative;
+    width: 100%;
+}
+
+/* Trigger button — matches admin-filter-dropdown-container style */
+.admin-date-period-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    background-color: #ffffff;
+    border: 1px solid #6366f1;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: var(--text-primary, #1e293b);
+    cursor: pointer;
+    gap: 8px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.admin-date-period-trigger:hover,
+.admin-date-period-trigger:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    outline: none;
+}
+
+.admin-date-period-dropdown.is-open .admin-date-period-trigger {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.admin-date-period-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.admin-date-period-arrow {
+    flex-shrink: 0;
+    color: #6366f1;
+    font-size: 0.75rem;
+    line-height: 1;
+    transition: transform 0.18s ease;
+    display: flex;
+    align-items: center;
+}
+
+.admin-date-period-dropdown.is-open .admin-date-period-arrow {
+    transform: rotate(180deg);
+}
+
+/* Dropdown menu */
+.admin-date-period-dropdown {
+    position: relative;
+    width: 100%;
+}
+
+.admin-date-period-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% - 1px);
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-top-color: #6366f1;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+    max-height: 280px;
+    overflow-y: auto;
+    /* Scrollbar styling */
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.admin-date-period-menu::-webkit-scrollbar {
+    width: 4px;
+}
+
+.admin-date-period-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.admin-date-period-menu::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.admin-date-period-dropdown.is-open .admin-date-period-menu {
+    display: block;
+}
+
+/* Individual options */
+.admin-date-period-option {
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    color: var(--text-secondary, #475569);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    outline: none;
+    user-select: none;
+    margin-bottom: 2px;
+}
+
+.admin-date-period-option:last-child {
+    margin-bottom: 0;
+}
+
+/* Hover state */
+.admin-date-period-option:hover,
+.admin-date-period-option:focus {
+    background-color: rgba(99, 102, 241, 0.08);
+    color: #6366f1;
+}
+
+/* Selected state — blue highlight, white text */
+.admin-date-period-option.is-selected {
+    background-color: #6366f1;
+    color: #ffffff;
+    font-weight: 500;
+}
+
+/* Selected + hover — slightly darker */
+.admin-date-period-option.is-selected:hover,
+.admin-date-period-option.is-selected:focus {
+    background-color: #4f46e5;
+    color: #ffffff;
+}
+
+/* Responsive: full width on mobile */
+@media (max-width: 575.98px) {
+    .admin-date-period-trigger {
+        height: 36px;
+        font-size: 0.8125rem;
+    }
+
+    .admin-date-period-option {
+        padding: 7px 10px;
+        font-size: 0.8125rem;
+    }
+}

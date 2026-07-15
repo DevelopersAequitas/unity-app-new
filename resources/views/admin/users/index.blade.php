@@ -110,26 +110,12 @@
                 <input id="endDateFilter" type="date" name="end_date" class="form-control form-control-sm" value="{{ $filters['end_date'] ?? '' }}">
             </div>
             <div class="col-12 col-md-6 col-xl-3">
-                <label class="form-label small text-muted" for="joinedFilter">Date Filter</label>
-                <select name="joined_filter" id="joinedFilter" class="form-select form-select-sm admin-filter-dropdown">
-                    <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
-                    <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
-                    <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
-                    <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
-                    <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
-                </select>
-            </div>
-            <div id="joinedCustomRange" @class(['col-12 col-md-6 col-xl-3', 'd-none' => ($filters['joined_filter'] ?? 'all') !== 'custom'])>
-                <div class="row g-2">
-                    <div class="col-6">
-                        <label for="joinedFrom" class="form-label small text-muted">Joined From</label>
-                        <input id="joinedFrom" type="date" name="joined_from" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}" @disabled(($filters['joined_filter'] ?? 'all') !== 'custom')>
-                    </div>
-                    <div class="col-6">
-                        <label for="joinedTo" class="form-label small text-muted">Joined To</label>
-                        <input id="joinedTo" type="date" name="joined_to" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}" @disabled(($filters['joined_filter'] ?? 'all') !== 'custom')>
-                    </div>
-                </div>
+                @include('admin.partials.date-period-filter', [
+                    'filterName'    => 'joined_filter',
+                    'selectedValue' => $filters['joined_filter'] ?? '',
+                    'labelText'     => 'Date Filter',
+                    'inputId'       => 'joinedFilter',
+                ])
             </div>
             <div class="col-12 col-md-6 col-xl-2 d-flex gap-2">
                 <button type="submit" class="btn btn-sm btn-primary flex-fill">Apply</button>
@@ -143,9 +129,7 @@
         <input type="hidden" name="membership_status" value="{{ $filters['membership_status'] ?? '' }}">
         <input type="hidden" name="circle_id" value="{{ $filters['circle_id'] ?? 'all' }}">
 
-        <input type="hidden" name="joined_filter" value="{{ $filters['joined_filter'] ?? 'all' }}">
-        <input type="hidden" name="joined_from" value="{{ $filters['joined_from'] ?? '' }}">
-        <input type="hidden" name="joined_to" value="{{ $filters['joined_to'] ?? '' }}">
+        <input type="hidden" name="joined_filter" value="{{ $filters['joined_filter'] ?? '' }}">
         <input type="hidden" name="approve_filter" value="{{ $filters['approve_filter'] ?? 'all' }}">
         <input type="hidden" name="start_date" value="{{ $filters['start_date'] ?? '' }}">
         <input type="hidden" name="end_date" value="{{ $filters['end_date'] ?? '' }}">
@@ -724,8 +708,7 @@
         const filterForm = document.getElementById('usersFiltersForm');
         const exportBtn = document.getElementById('exportCsvBtn');
         const exportForm = document.getElementById('exportCsvForm');
-        const joinedFilter = document.getElementById('joinedFilter');
-        const joinedCustomRange = document.getElementById('joinedCustomRange');
+        const joinedFilter = document.getElementById('joinedFilter_hidden');
         const resetFiltersBtn = document.getElementById('resetFiltersBtn');
         const approveSelectedPeersBtn = document.getElementById('openApproveMembershipModal');
         const bulkApproveDatesForm = document.getElementById('bulkApproveMembershipDatesForm');
@@ -889,17 +872,7 @@
             submitFilters(filterForm);
         });
 
-        const toggleJoinedDateRange = () => {
-            if (!joinedCustomRange || !joinedFilter) return;
-            const isCustom = joinedFilter.value === 'custom';
-            joinedCustomRange.classList.toggle('d-none', !isCustom);
-            joinedCustomRange.querySelectorAll('input').forEach((input) => {
-                input.disabled = !isCustom;
-            });
-        };
 
-        joinedFilter?.addEventListener('change', toggleJoinedDateRange);
-        toggleJoinedDateRange();
 
         exportBtn?.addEventListener('click', () => {
             if (!exportForm) return;

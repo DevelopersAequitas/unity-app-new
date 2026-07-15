@@ -1982,9 +1982,7 @@ class UsersController extends Controller
         }
         $membership = $request->input('membership_status');
         $phone = null;
-        $joinedFilter = (string) $request->input('joined_filter', 'all');
-        $joinedFrom = (string) $request->input('joined_from', '');
-        $joinedTo = (string) $request->input('joined_to', '');
+        $joinedFilter = (string) $request->input('joined_filter', '');
         $approveFilter = (string) $request->input('approve_filter', 'all');
         $startDate = (string) $request->input('start_date', '');
         $endDate = (string) $request->input('end_date', '');
@@ -2145,43 +2143,82 @@ class UsersController extends Controller
 
         $joinedDateExpression = 'COALESCE(membership_starts_at, created_at)';
         $now = now();
-        switch ($joinedFilter) {
-            case 'last_month':
-                $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
-                    $now->copy()->subDays(30)->startOfDay(),
-                    $now->copy()->endOfDay(),
-                ]);
-                break;
-            case 'last_week':
-                $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
-                    $now->copy()->subDays(7)->startOfDay(),
-                    $now->copy()->endOfDay(),
-                ]);
-                break;
-            case 'yesterday':
-                $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
-                    $now->copy()->subDay()->startOfDay(),
-                    $now->copy()->subDay()->endOfDay(),
-                ]);
-                break;
-            case 'custom':
-                $fromDate = $this->parseJoinedFilterDate($joinedFrom);
-                $toDate = $this->parseJoinedFilterDate($joinedTo);
 
-                if ($fromDate instanceof Carbon && $toDate instanceof Carbon) {
+        // Fiscal year start: April 1 (Indian FY). FY 2025 = Apr 2024 – Mar 2025.
+        $fyStartMonth = 4; // April
+        $currentFyStart = $now->month >= $fyStartMonth
+            ? $now->copy()->month($fyStartMonth)->startOfMonth()->startOfDay()
+            : $now->copy()->subYear()->month($fyStartMonth)->startOfMonth()->startOfDay();
+        $currentFyEnd = $currentFyStart->copy()->addYear()->subDay()->endOfDay();
+        $prevFyStart  = $currentFyStart->copy()->subYear();
+        $prevFyEnd    = $currentFyStart->copy()->subDay()->endOfDay();
+
+        // Current quarter boundaries (calendar quarter)
+        $currentQtrStart = $now->copy()->firstOfQuarter()->startOfDay();
+        $currentQtrEnd   = $now->copy()->lastOfQuarter()->endOfDay();
+        // Previous quarter
+        $prevQtrEnd   = $currentQtrStart->copy()->subDay()->endOfDay();
+        $prevQtrStart = $prevQtrEnd->copy()->firstOfQuarter()->startOfDay();
+
+        $allowedJoinedFilters = [
+            'this_fiscal_year', 'this_quarter', 'this_month',
+            'prev_fiscal_year', 'prev_quarter', 'prev_month',
+            'last_6_months', 'last_12_months',
+        ];
+
+        if (in_array($joinedFilter, $allowedJoinedFilters, true)) {
+            switch ($joinedFilter) {
+                case 'this_fiscal_year':
                     $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
-                        $fromDate->startOfDay(),
-                        $toDate->endOfDay(),
+                        $currentFyStart,
+                        $currentFyEnd,
                     ]);
-                } elseif ($fromDate instanceof Carbon) {
-                    $query->whereRaw("{$joinedDateExpression} >= ?", [$fromDate->startOfDay()]);
-                } elseif ($toDate instanceof Carbon) {
-                    $query->whereRaw("{$joinedDateExpression} <= ?", [$toDate->endOfDay()]);
-                }
-                break;
-            default:
-                $joinedFilter = 'all';
-                break;
+                    break;
+                case 'this_quarter':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $currentQtrStart,
+                        $currentQtrEnd,
+                    ]);
+                    break;
+                case 'this_month':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $now->copy()->startOfMonth()->startOfDay(),
+                        $now->copy()->endOfMonth()->endOfDay(),
+                    ]);
+                    break;
+                case 'prev_fiscal_year':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $prevFyStart,
+                        $prevFyEnd,
+                    ]);
+                    break;
+                case 'prev_quarter':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $prevQtrStart,
+                        $prevQtrEnd,
+                    ]);
+                    break;
+                case 'prev_month':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $now->copy()->subMonthNoOverflow()->startOfMonth()->startOfDay(),
+                        $now->copy()->subMonthNoOverflow()->endOfMonth()->endOfDay(),
+                    ]);
+                    break;
+                case 'last_6_months':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $now->copy()->subMonths(6)->startOfDay(),
+                        $now->copy()->endOfDay(),
+                    ]);
+                    break;
+                case 'last_12_months':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $now->copy()->subMonths(12)->startOfDay(),
+                        $now->copy()->endOfDay(),
+                    ]);
+                    break;
+            }
+        } else {
+            $joinedFilter = '';
         }
 
         $sortable = ['display_name', 'coins_balance', 'last_login_at', 'created_at'];
@@ -2201,9 +2238,7 @@ class UsersController extends Controller
             || filled($phone)
             || ($circleId !== '' && $circleId !== 'all')
             || ($membership && $membership !== 'all')
-            || $joinedFilter !== 'all'
-            || filled($joinedFrom)
-            || filled($joinedTo)
+            || $joinedFilter !== ''
             || $approveFilter !== 'all'
         ) {
             Log::info('admin.users.index.filters_applied', [
@@ -2212,8 +2247,6 @@ class UsersController extends Controller
                 'circle_id' => $circleId,
                 'membership_status' => $membership,
                 'joined_filter' => $joinedFilter,
-                'joined_from' => $joinedFrom,
-                'joined_to' => $joinedTo,
                 'approve_filter' => $approveFilter,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
@@ -2227,8 +2260,6 @@ class UsersController extends Controller
             'membership_status' => $membership,
             'phone' => $phone,
             'joined_filter' => $joinedFilter,
-            'joined_from' => $joinedFrom,
-            'joined_to' => $joinedTo,
             'approve_filter' => $approveFilter,
             'start_date' => $startDate,
             'end_date' => $endDate,
