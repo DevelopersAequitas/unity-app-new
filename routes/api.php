@@ -412,6 +412,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/members/{id}/connections', [MemberController::class, 'sendConnectionRequest']);
         Route::post('/members/{id}/connections/accept', [MemberController::class, 'acceptConnection']);
         Route::delete('/members/{id}/connections', [MemberController::class, 'deleteConnection']);
+
+        Route::post('/members/{id}/bookmark', [MemberController::class, 'bookmark'])->whereUuid('id');
+        Route::delete('/members/{id}/bookmark', [MemberController::class, 'unbookmark'])->whereUuid('id');
         Route::get('/connections', [MyConnectionsController::class, 'index']);
         Route::get('/connections/sent', [MyConnectionsController::class, 'sent']);
         Route::delete('/connections/sent/{addresseeId}', [MyConnectionsController::class, 'cancelSent']);

@@ -64,10 +64,25 @@
     <div class="dashboard-header p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <div class="badge bg-white text-primary mb-2 fw-semibold px-3 py-1.5 rounded-pill">Circle Dashboard</div>
-            <h2 class="mb-1 fw-bold text-white">Welcome back, {{ $data['user']?->display_name ?? (auth('admin')->user()->name ?? 'Guest') }}</h2>
+            <h2 class="mb-1 fw-bold text-white">Welcome back, {{ $roleLabel }}</h2>
             <p class="mb-0 text-white-50">Here is a scoped overview of your circles, peers, and pending approvals.</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            @if (count($allowedCircleIds ?? []) > 1)
+                @php
+                    $joinedCircles = \App\Models\Circle::whereIn('id', $allowedCircleIds)->orderBy('name')->get();
+                @endphp
+                <div class="d-flex align-items-center gap-2">
+                    <label for="circle-switch-select" class="text-white small fw-bold text-nowrap">Selected Circle:</label>
+                    <select id="circle-switch-select" class="form-select form-select-sm bg-white text-primary border-0 rounded-3 fw-bold px-3 py-1.5" style="width: auto; min-width: 200px;" onchange="window.location.href = '?circle_id=' + this.value">
+                        @foreach ($joinedCircles as $jc)
+                            <option value="{{ $jc->id }}" @selected((string) $selectedCircleId === (string) $jc->id)>
+                                {{ $jc->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             <a href="{{ route('admin.activities.index') }}" class="btn btn-light text-primary fw-semibold px-4 py-2 rounded-3">
                 <i class="bi bi-activity me-2"></i>View Activities
             </a>

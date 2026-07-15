@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    public $withinTransaction = false;
+
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table): void {
@@ -49,15 +51,18 @@ return new class extends Migration
 
     private function ensureOnlyUnityPeerEnumValue(): void
     {
-        DB::statement(<<<'SQL'
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement(<<<'SQL'
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'membership_status_enum') THEN
         ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'only_unity_peer';
+        ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'circle_peer';
+        ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'multi_circle_peer';
     END IF;
 END $$;
 SQL);
-
+        }
     }
 
     private function normalizeMembershipValue(string $membershipColumn, string $legacyValue, string $normalizedValue): void

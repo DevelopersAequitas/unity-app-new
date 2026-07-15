@@ -283,8 +283,11 @@ class IndustryDirectorScopeService
         }
 
         $adminUser->loadMissing('roles:id,key');
+        $keys = $adminUser->roles->pluck('key')->map(function ($k) {
+            return str_replace(' ', '_', strtolower((string) $k));
+        })->all();
 
-        return $adminUser->roles->pluck('key')->contains('industry_director')
+        return (bool) array_intersect(['id', 'ied', 'industry_director'], $keys)
             && $this->assignedIndustryIdForAdmin($adminUser->id) !== null;
     }
 

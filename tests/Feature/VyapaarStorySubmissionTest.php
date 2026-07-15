@@ -11,6 +11,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -124,7 +125,7 @@ class VyapaarStorySubmissionTest extends TestCase
     public function test_validation_fails_for_missing_required_fields(): void
     {
         $user = User::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'John',
             'last_name' => 'Doe',
             'email' => 'john@example.com',
@@ -151,7 +152,7 @@ class VyapaarStorySubmissionTest extends TestCase
     public function test_validation_fails_for_consent_false(): void
     {
         $user = User::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'John',
             'last_name' => 'Doe',
             'email' => 'john@example.com',
@@ -180,7 +181,7 @@ class VyapaarStorySubmissionTest extends TestCase
         ]);
 
         $user = User::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'John',
             'last_name' => 'Doe',
             'email' => 'john@example.com',
@@ -256,7 +257,7 @@ class VyapaarStorySubmissionTest extends TestCase
         ]);
 
         $user = User::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'first_name' => 'John',
             'last_name' => 'Doe',
             'email' => 'john@example.com',

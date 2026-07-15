@@ -122,26 +122,16 @@
     $notificationCount = $topNotifications->count();
     $joinedCircles = collect();
     $requiresCircleDropdown = false;
-    $selectedCircleId = null;
+    $selectedCircleId = session('activeScopeId', 'All');
 
-    if ($admin && $isCircleScoped) {
-        $appUser = \App\Support\AdminAccess::resolveAppUser($admin);
-        if ($appUser) {
-            $joinedCircles = \App\Models\CircleMember::query()
-                ->where('user_id', $appUser->id)
-                ->where('status', 'approved')
-                ->whereNull('deleted_at')
-                ->with('circle')
+    if ($admin && ! $isSuper) {
+        $allowedCircleIds = \App\Support\AdminAccess::allowedCircleIds($admin);
+        if (count($allowedCircleIds) > 1) {
+            $requiresCircleDropdown = true;
+            $joinedCircles = \App\Models\Circle::whereIn('id', $allowedCircleIds)
+                ->orderBy('name')
                 ->get();
-
-            if ($joinedCircles->count() > 1) {
-                $requiresCircleDropdown = true;
-            }
         }
-    }
-
-    if ($joinedCircles->isNotEmpty()) {
-        $selectedCircleId = request()->query('circle_id') ?: $joinedCircles->first()->circle_id;
     }
 @endphp
 <header class="admin-topbar d-flex align-items-center justify-content-between px-4 py-2">
@@ -172,19 +162,49 @@
         {{-- Right Actions --}}
         <div class="d-none d-md-flex align-items-center gap-2">
             {{-- Quick Actions --}}
-            @if ($requiresCircleDropdown && request()->routeIs('admin.circle-member.dashboard'))
-                <form method="GET" action="{{ route('admin.circle-member.dashboard') }}" class="d-flex align-items-center gap-2 me-2">
-                    <label for="topbar_circle_id" class="text-muted fw-semibold mb-0 text-nowrap fs-7">Circle:</label>
-                    <select name="circle_id" id="topbar_circle_id" class="form-select form-select-sm rounded-3 py-1.5 px-3 border shadow-sm" style="min-width: 180px; max-width: 250px; background-color: #f8f9fa;" onchange="this.form.submit()">
-                        @foreach ($joinedCircles as $cm)
-                            @if ($cm->circle)
-                                <option value="{{ $cm->circle_id }}" @selected($cm->circle_id === $selectedCircleId)>
-                                    {{ $cm->circle->name }}
-                                </option>
-                            @endif
+            @if ($requiresCircleDropdown)
+                <div class="d-flex align-items-center gap-2 me-2">
+                    <label for="topbar_circle_id" class="text-muted fw-semibold mb-0 text-nowrap fs-7">Circle Context:</label>
+                    <select id="topbar_circle_id" class="form-select form-select-sm rounded-3 py-1.5 px-3 border shadow-sm" style="min-width: 180px; max-width: 250px; background-color: #f8f9fa;">
+                        <option value="All" @selected($selectedCircleId === 'All')>All My Circles</option>
+                        @foreach ($joinedCircles as $c)
+                            <option value="{{ $c->id }}" @selected($c->id === $selectedCircleId)>
+                                {{ $c->name }}
+                            </option>
                         @endforeach
                     </select>
-                </form>
+                </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const selectEl = document.getElementById('topbar_circle_id');
+                        if (selectEl) {
+                            selectEl.addEventListener('change', function () {
+                                const val = selectEl.value;
+                                fetch("{{ route('admin.switch-context') }}", {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                                        'X-Requested-With': 'XMLHttpRequest'
+                                    },
+                                    body: JSON.stringify({ circle_id: val })
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.success) {
+                                        window.location.reload();
+                                    } else {
+                                        alert(data.message || 'Failed to switch circle context.');
+                                    }
+                                })
+                                .catch(err => {
+                                    console.error(err);
+                                    alert('An unexpected error occurred.');
+                                });
+                            });
+                        }
+                    });
+                </script>
             @endif
             <div class="dropdown">
                 <button class="btn btn-light dropdown-toggle d-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" style="font-size: 0.82rem; padding: 7px 14px;">

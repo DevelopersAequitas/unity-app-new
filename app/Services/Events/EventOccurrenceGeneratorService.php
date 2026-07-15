@@ -91,11 +91,11 @@ class EventOccurrenceGeneratorService
         $interval = max(1, (int) ($event->recurrence_interval ?: 1));
 
         return match ($type) {
-            'daily'  => $this->daily($start, $until, $interval),
+            'daily' => $this->daily($start, $until, $interval),
             'weekly' => $this->weekly($start, $until, $interval, $event->recurrence_day_of_week),
             'monthly' => $this->monthly($start, $until, $interval, $event->recurrence_day_of_month, $event->recurrence_week_of_month, $event->recurrence_day_of_week),
             'yearly' => $this->yearly($start, $until, $interval, $event->recurrence_month, $event->recurrence_day_of_month, $event->recurrence_week_of_month, $event->recurrence_day_of_week),
-            default  => [$start],
+            default => [$start],
         };
     }
 

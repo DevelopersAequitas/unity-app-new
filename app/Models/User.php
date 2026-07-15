@@ -174,6 +174,7 @@ class User extends Authenticatable
         'anniversary_date',
         'android_fcm_token',
         'ios_fcm_token',
+        'bookmarks',
     ];
 
     protected $hidden = [
@@ -227,6 +228,7 @@ class User extends Authenticatable
         'sustainability_areas' => 'array',
         'greenpreneur_goals' => 'array',
         'contacts_allowed' => 'boolean',
+        'bookmarks' => 'array',
     ];
 
     public function getAuthPassword()
