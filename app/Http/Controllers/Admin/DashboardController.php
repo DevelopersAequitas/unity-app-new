@@ -17,8 +17,24 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
     {
+        $admin = Auth::guard('admin')->user();
+
+        if ($admin) {
+            if (AdminAccess::isIndustryScoped($admin)) {
+                return redirect()->route('admin.industry-director.dashboard');
+            }
+
+            if (AdminAccess::isDed($admin)) {
+                return redirect()->route('admin.ded.dashboard');
+            }
+
+            if (AdminAccess::isCircleScoped($admin)) {
+                return redirect()->route('admin.circle-member.dashboard');
+            }
+        }
+
         $today = now()->toDateString();
 
         // ── Users stats: single aggregated query instead of 3 separate round-trips ──

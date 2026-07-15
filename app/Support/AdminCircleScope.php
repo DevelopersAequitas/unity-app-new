@@ -26,7 +26,19 @@ class AdminCircleScope
 
     public static function resolveCircleId(?AdminUser $admin): ?string
     {
-        if (! $admin || ! AdminAccess::isCircleScoped($admin)) {
+        if (! $admin) {
+            return null;
+        }
+
+        $activeScopeId = session('activeScopeId');
+        if ($activeScopeId && $activeScopeId !== 'All') {
+            $allowed = AdminAccess::allowedCircleIds($admin);
+            if (in_array($activeScopeId, $allowed, true)) {
+                return $activeScopeId;
+            }
+        }
+
+        if (! AdminAccess::isCircleScoped($admin)) {
             return null;
         }
 
@@ -58,6 +70,26 @@ class AdminCircleScope
         return $query->value('circle_members.circle_id');
     }
 
+    public static function getSessionCircleIds(?AdminUser $admin): array
+    {
+        if (! $admin) {
+            return [];
+        }
+
+        $allCircles = AdminAccess::allowedCircleIds($admin);
+        $activeScopeId = session('activeScopeId');
+
+        if ($activeScopeId && $activeScopeId !== 'All') {
+            if (in_array($activeScopeId, $allCircles, true)) {
+                return [$activeScopeId];
+            }
+
+            return [];
+        }
+
+        return $allCircles;
+    }
+
     public static function circleUserIdsSubquery(string $circleId): Builder
     {
         return self::circleUserIdsSubqueryForCircleIds([$circleId]);
@@ -74,7 +106,16 @@ class AdminCircleScope
 
     public static function applyToActivityQuery($query, ?AdminUser $admin, string $primaryColumn, ?string $peerColumn): void
     {
-        if (AdminAccess::isDed($admin)) {
+        if (! $admin) {
+            return;
+        }
+
+        if (AdminAccess::isSuper($admin)) {
+            return;
+        }
+
+        $activeScopeId = session('activeScopeId');
+        if (AdminAccess::isDed($admin) && (! $activeScopeId || $activeScopeId === 'All')) {
             $query->where(function ($districtQuery) use ($admin, $primaryColumn, $peerColumn) {
                 self::applyDedDistrictScope($districtQuery, $admin, $primaryColumn);
 
@@ -88,13 +129,9 @@ class AdminCircleScope
             return;
         }
 
-        if (! AdminAccess::isCircleScoped($admin)) {
-            return;
-        }
+        $allowedCircleIds = self::getSessionCircleIds($admin);
 
-        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
-
-        if ($allowedCircleIds === []) {
+        if (empty($allowedCircleIds)) {
             $query->whereRaw('1=0');
 
             return;
@@ -111,19 +148,24 @@ class AdminCircleScope
 
     public static function applyToUsersQuery($query, ?AdminUser $admin): void
     {
-        if (AdminAccess::isDed($admin)) {
+        if (! $admin) {
+            return;
+        }
+
+        if (AdminAccess::isSuper($admin)) {
+            return;
+        }
+
+        $activeScopeId = session('activeScopeId');
+        if (AdminAccess::isDed($admin) && (! $activeScopeId || $activeScopeId === 'All')) {
             self::applyDedDistrictScope($query, $admin);
 
             return;
         }
 
-        if (! AdminAccess::isCircleScoped($admin)) {
-            return;
-        }
+        $allowedCircleIds = self::getSessionCircleIds($admin);
 
-        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
-
-        if ($allowedCircleIds === []) {
+        if (empty($allowedCircleIds)) {
             $query->whereRaw('1=0');
 
             return;
@@ -559,11 +601,15 @@ class AdminCircleScope
 
     public static function applyToCirclesQuery($query, ?AdminUser $admin, string $circleAlias = 'circles'): void
     {
-        if (! AdminAccess::isDed($admin)) {
+        if (! $admin) {
             return;
         }
 
-        $allowedCircleIds = self::getDedCircleIds($admin);
+        if (AdminAccess::isSuper($admin)) {
+            return;
+        }
+
+        $allowedCircleIds = self::getSessionCircleIds($admin);
 
         if (empty($allowedCircleIds)) {
             $query->whereRaw('1=0');
@@ -574,31 +620,20 @@ class AdminCircleScope
 
     public static function applyToEventsQuery($query, ?AdminUser $admin, string $eventTable = 'events'): void
     {
-        if (! Schema::hasColumn($eventTable, 'circle_id') || ! Schema::hasTable('circles')) {
-            if (AdminAccess::isDed($admin) || AdminAccess::isCircleScoped($admin)) {
-                $query->whereRaw('1=0');
-            }
-
+        if (! $admin || ! Schema::hasColumn($eventTable, 'circle_id') || ! Schema::hasTable('circles')) {
             return;
         }
 
-        if (AdminAccess::isDed($admin)) {
-            $query->whereExists(function ($subQuery) use ($eventTable, $admin) {
-                $subQuery->selectRaw(1)
-                    ->from('circles as ded_scope_circles')
-                    ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id");
-
-                self::applyToCirclesQuery($subQuery, $admin, 'ded_scope_circles');
-            });
-
+        if (AdminAccess::isSuper($admin)) {
             return;
         }
 
-        if (AdminAccess::isCircleScoped($admin)) {
-            $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
-            $allowedCircleIds === []
-                ? $query->whereRaw('1=0')
-                : $query->whereIn("{$eventTable}.circle_id", $allowedCircleIds);
+        $allowedCircleIds = self::getSessionCircleIds($admin);
+
+        if (empty($allowedCircleIds)) {
+            $query->whereRaw('1=0');
+        } else {
+            $query->whereIn("{$eventTable}.circle_id", $allowedCircleIds);
         }
     }
 

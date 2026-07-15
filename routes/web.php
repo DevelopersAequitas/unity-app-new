@@ -90,13 +90,30 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/login/verify', [AdminAuthController::class, 'verifyOtp'])->name('login.verify');
 
     Route::middleware(['admin.auth', 'admin.role', 'admin.circle'])->group(function () {
+        // RBAC Hierarchy & Profile management
+        Route::get('/rbac/hierarchy', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'index'])->name('rbac.hierarchy');
+        Route::get('/rbac/hierarchy/map', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'fullMap'])->name('rbac.hierarchy.fullmap');
+        Route::post('/rbac/roles', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'storeRole'])->name('rbac.roles.store');
+        Route::post('/rbac/roles/update-parent', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'updateParent'])->name('rbac.roles.update-parent');
+        Route::post('/rbac/roles/clone', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'cloneProfile'])->name('rbac.roles.clone');
+        Route::put('/rbac/roles/{id}', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'updateRole'])->name('rbac.roles.update')->whereUuid('id');
+        Route::delete('/rbac/roles/{id}', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'deleteRole'])->name('rbac.roles.delete')->whereUuid('id');
+        Route::post('/rbac/roles/assign', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'assignRole'])->name('rbac.roles.assign');
+        Route::get('/rbac/roles/{id}/assignments', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'getAssignments'])->name('rbac.roles.assignments')->whereUuid('id');
+        Route::post('/rbac/roles/{id}/assignments', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'assignPeer'])->name('rbac.roles.assign-peer')->whereUuid('id');
+        Route::delete('/rbac/roles/{id}/assignments/{userId}', [\App\Http\Controllers\Admin\Rbac\RoleHierarchyController::class, 'removeAssignment'])->name('rbac.roles.remove-assignment')->whereUuid('id')->whereUuid('userId');
+        Route::post('/switch-context', [\App\Http\Controllers\Admin\ContextSwitcherController::class, 'switchContext'])->name('switch-context');
+
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
         Route::get('/', function () {
             $admin = auth('admin')->user();
-            $isIndustryDirector = $admin?->roles()->where('key', 'industry_director')->exists() ?? false;
 
-            if ($isIndustryDirector) {
+            if (AdminAccess::isIndustryScoped($admin)) {
                 return redirect()->route('admin.industry-director.dashboard');
+            }
+
+            if (AdminAccess::isDed($admin)) {
+                return redirect()->route('admin.ded.dashboard');
             }
 
             if (AdminAccess::isCircleScoped($admin)) {

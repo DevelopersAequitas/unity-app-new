@@ -285,9 +285,7 @@ class AdminAuthController extends Controller
             return false;
         }
 
-        $adminUser->loadMissing('roles:id,key');
-
-        if (! $adminUser->roles->pluck('key')->contains('industry_director')) {
+        if (! AdminAccess::isIndustryScoped($adminUser)) {
             return false;
         }
 

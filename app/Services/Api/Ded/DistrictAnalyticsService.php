@@ -702,12 +702,12 @@ class DistrictAnalyticsService
         $current30d = (int) DB::table('life_impact_histories')
             ->whereIn('user_id', $userIds)
             ->where('created_at', '>=', now()->subDays(30))
-            ->sum('impact_value');
+            ->sum(DB::raw("CAST(COALESCE(impact_value, '0') AS INTEGER)"));
 
         $previous30d = (int) DB::table('life_impact_histories')
             ->whereIn('user_id', $userIds)
             ->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)])
-            ->sum('impact_value');
+            ->sum(DB::raw("CAST(COALESCE(impact_value, '0') AS INTEGER)"));
 
         return $this->formatAbsoluteTrend($current30d, $previous30d);
     }

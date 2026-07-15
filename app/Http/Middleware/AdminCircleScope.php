@@ -27,6 +27,27 @@ class AdminCircleScope
             return $next($request);
         }
 
+        if (AdminAccess::isIndustryScoped($admin)) {
+            $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
+            $request->attributes->set('allowed_circle_ids', $allowedCircleIds);
+            $request->attributes->set('is_circle_scoped', true);
+            $request->attributes->set('is_ded_scoped', false);
+
+            $routeName = $request->route()?->getName() ?? '';
+            $allowedPrefixes = ['admin.industry-director.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.events.', 'admin.event-joining-requests.', 'admin.life-impact.', 'admin.circles.', 'admin.industries.'];
+            $allowedRoutes = ['admin.logout', 'admin.files.upload', 'admin.impacts.pending', 'admin.impacts.show', 'admin.impacts.approve', 'admin.impacts.reject', 'admin.impacts.export.csv'];
+
+            if (in_array($routeName, ['admin.dashboard', 'admin.home'], true)) {
+                return redirect()->route('admin.industry-director.dashboard');
+            }
+
+            if ($routeName !== '' && ! in_array($routeName, $allowedRoutes, true) && ! Str::startsWith($routeName, $allowedPrefixes)) {
+                abort(403);
+            }
+
+            return $next($request);
+        }
+
         if (AdminAccess::isDed($admin)) {
             $districtId = AdminAccess::assignedDedDistrictId($admin);
             $request->attributes->set('allowed_circle_ids', []);

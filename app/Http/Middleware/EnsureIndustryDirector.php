@@ -19,9 +19,14 @@ class EnsureIndustryDirector
         }
 
         $admin->loadMissing('roles:id,key');
-        $hasIndustryDirectorRole = $admin->roles
+        $normalizedRoles = $admin->roles
             ->pluck('key')
-            ->contains('industry_director');
+            ->map(fn ($k) => str_replace(' ', '_', strtolower((string) $k)))
+            ->all();
+
+        $hasIndustryDirectorRole = in_array('industry_director', $normalizedRoles, true)
+            || in_array('id', $normalizedRoles, true)
+            || in_array('ied', $normalizedRoles, true);
 
         $hasActiveAssignment = IndustryDirectorAssignment::query()
             ->where('admin_user_id', $admin->id)

@@ -39,6 +39,7 @@
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                     ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
+                    ['icon' => 'bi-diagram-3', 'label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy', 'active_routes' => ['admin.rbac.*']],
                 ] : []),
             ]
             : [
@@ -62,6 +63,7 @@
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                     ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
+                    ['icon' => 'bi-diagram-3', 'label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy', 'active_routes' => ['admin.rbac.*']],
                 ] : []),
             ]);
 
