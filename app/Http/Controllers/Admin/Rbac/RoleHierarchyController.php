@@ -89,6 +89,8 @@ class RoleHierarchyController extends Controller
 
     public function storeRole(Request $request): RedirectResponse
     {
+        $this->checkEditPermission();
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'key' => ['required', 'string', 'max:255', 'unique:roles,key'],
@@ -145,6 +147,8 @@ class RoleHierarchyController extends Controller
 
     public function updateParent(Request $request): JsonResponse
     {
+        $this->checkEditPermission();
+
         $validated = $request->validate([
             'role_id' => ['required', 'uuid', 'exists:roles,id'],
             'parent_role_ids' => ['nullable', 'array'],
@@ -204,6 +208,8 @@ class RoleHierarchyController extends Controller
 
     public function cloneProfile(Request $request): RedirectResponse
     {
+        $this->checkEditPermission();
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'clone_from' => ['required', 'uuid', 'exists:roles,id'],
@@ -282,6 +288,8 @@ class RoleHierarchyController extends Controller
 
     public function updateRole(Request $request, string $id): RedirectResponse
     {
+        $this->checkEditPermission();
+
         $role = Role::findOrFail($id);
 
         $validated = $request->validate([
@@ -348,6 +356,8 @@ class RoleHierarchyController extends Controller
 
     public function deleteRole(Request $request, string $id): RedirectResponse
     {
+        $this->checkEditPermission();
+
         $role = Role::findOrFail($id);
 
         DB::transaction(function () use ($role, $request) {
@@ -380,10 +390,15 @@ class RoleHierarchyController extends Controller
 
     public function assignRole(Request $request): RedirectResponse
     {
+        $this->checkEditPermission();
+
         $validated = $request->validate([
             'admin_user_id' => ['required', 'uuid', 'exists:admin_users,id'],
             'role_id' => ['required', 'uuid', 'exists:roles,id'],
             'scope_id' => ['nullable', 'string'],
+            'allowed_sections' => ['nullable', 'array'],
+            'allowed_sections.*' => ['string'],
+            'permission_type' => ['nullable', 'string', 'in:edit,view'],
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
@@ -400,9 +415,17 @@ class RoleHierarchyController extends Controller
         $assignments = DB::table('admin_user_roles')
             ->where('role_id', $role->id)
             ->join('admin_users', 'admin_user_roles.user_id', '=', 'admin_users.id')
-            ->select('admin_user_roles.id as assignment_id', 'admin_users.id as user_id', 'admin_users.name', 'admin_users.email')
+            ->select(
+                'admin_user_roles.id as assignment_id',
+                'admin_users.id as user_id',
+                'admin_users.name',
+                'admin_users.email',
+                'admin_user_roles.allowed_sections',
+                'admin_user_roles.permission_type'
+            )
             ->get()
             ->map(function ($assign) use ($roleKey) {
+                $scopeId = null;
                 $scopeName = 'Global';
 
                 $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
@@ -415,25 +438,21 @@ class RoleHierarchyController extends Controller
                     str_contains($roleKey, 'secretary');
 
                 if ($isDed) {
-                    $scopes = DB::table('admin_ded_districts')
+                    $scope = DB::table('admin_ded_districts')
                         ->where('admin_user_id', $assign->user_id)
-                        ->pluck('district_name')
-                        ->filter()
-                        ->unique()
-                        ->all();
-                    if (! empty($scopes)) {
-                        $scopeName = 'Districts: '.implode(', ', $scopes);
+                        ->first();
+                    if ($scope) {
+                        $scopeId = $scope->district_id;
+                        $scopeName = 'District: '.$scope->district_name;
                     }
                 } elseif ($isId) {
-                    $scopes = DB::table('industry_director_assignments')
+                    $scope = DB::table('industry_director_assignments')
                         ->where('admin_user_id', $assign->user_id)
                         ->where('is_active', true)
-                        ->pluck('industry_name')
-                        ->filter()
-                        ->unique()
-                        ->all();
-                    if (! empty($scopes)) {
-                        $scopeName = 'Industries: '.implode(', ', $scopes);
+                        ->first();
+                    if ($scope) {
+                        $scopeId = $scope->industry_id;
+                        $scopeName = 'Industry: '.$scope->industry_name;
                     }
                 } elseif ($isCircle) {
                     $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($assign->email)])->first();
@@ -455,27 +474,23 @@ class RoleHierarchyController extends Controller
                             $dbRole = 'secretary';
                         }
 
-                        $scopes = DB::table('circles')
+                        $circle = DB::table('circles')
                             ->where($colName, $appUser->id)
-                            ->pluck('name')
-                            ->filter()
-                            ->unique()
-                            ->all();
+                            ->first();
 
-                        if (empty($scopes)) {
-                            $scopes = DB::table('circles')
+                        if (! $circle) {
+                            $circle = DB::table('circles')
                                 ->join('circle_members', 'circles.id', '=', 'circle_members.circle_id')
                                 ->where('circle_members.user_id', $appUser->id)
                                 ->where('circle_members.role', $dbRole)
                                 ->whereNull('circle_members.deleted_at')
-                                ->pluck('circles.name')
-                                ->filter()
-                                ->unique()
-                                ->all();
+                                ->select('circles.*')
+                                ->first();
                         }
 
-                        if (! empty($scopes)) {
-                            $scopeName = 'Circles: '.implode(', ', $scopes);
+                        if ($circle) {
+                            $scopeId = $circle->id;
+                            $scopeName = 'Circle: '.$circle->name;
                         }
                     }
                 }
@@ -484,7 +499,10 @@ class RoleHierarchyController extends Controller
                     'user_id' => $assign->user_id,
                     'name' => $assign->name,
                     'email' => $assign->email,
+                    'scope_id' => $scopeId,
                     'scope_name' => $scopeName,
+                    'allowed_sections' => json_decode((string) $assign->allowed_sections, true) ?: [],
+                    'permission_type' => $assign->permission_type ?: 'edit',
                 ];
             });
 
@@ -510,11 +528,16 @@ class RoleHierarchyController extends Controller
 
     public function assignPeer(Request $request, string $id): JsonResponse
     {
+        $this->checkEditPermission();
+
         $role = Role::findOrFail($id);
 
         $validated = $request->validate([
             'admin_user_id' => ['required', 'uuid', 'exists:admin_users,id'],
             'scope_id' => ['nullable', 'string'],
+            'allowed_sections' => ['nullable', 'array'],
+            'allowed_sections.*' => ['string'],
+            'permission_type' => ['nullable', 'string', 'in:edit,view'],
         ]);
 
         $this->performAssignment($validated['admin_user_id'], $role, $validated['scope_id'] ?? null, $request);
@@ -527,6 +550,8 @@ class RoleHierarchyController extends Controller
 
     public function removeAssignment(Request $request, string $id, string $userId): JsonResponse
     {
+        $this->checkEditPermission();
+
         $role = Role::findOrFail($id);
         $roleKey = strtolower($role->key);
         $adminUser = DB::table('admin_users')->where('id', $userId)->first();
@@ -626,14 +651,27 @@ class RoleHierarchyController extends Controller
                 ->where('role_id', $role->id)
                 ->first();
 
+            $allowedSections = $request->has('allowed_sections') ? json_encode($request->input('allowed_sections') ?? []) : null;
+            $permissionType = $request->input('permission_type', 'edit');
+
             if (! $existingUserRole) {
                 DB::table('admin_user_roles')->insert([
                     'id' => (string) Str::uuid(),
                     'user_id' => $adminUserId,
                     'role_id' => $role->id,
+                    'allowed_sections' => $allowedSections,
+                    'permission_type' => $permissionType,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
+            } else {
+                DB::table('admin_user_roles')
+                    ->where('id', $existingUserRole->id)
+                    ->update([
+                        'allowed_sections' => $allowedSections,
+                        'permission_type' => $permissionType,
+                        'updated_at' => now(),
+                    ]);
             }
 
             $roleKey = str_replace(' ', '_', strtolower($role->key));
@@ -672,7 +710,6 @@ class RoleHierarchyController extends Controller
 
                     DB::table('industry_director_assignments')
                         ->where('admin_user_id', $adminUserId)
-                        ->where('industry_id', $scopeId)
                         ->delete();
 
                     DB::table('industry_director_assignments')->insert([
@@ -731,11 +768,21 @@ class RoleHierarchyController extends Controller
                         }
 
                         if ($colName) {
+                            DB::table('circles')->where($colName, $appUser->id)->update([
+                                $colName => null,
+                                'updated_at' => now(),
+                            ]);
+
                             DB::table('circles')->where('id', $scopeId)->update([
                                 $colName => $appUser->id,
                                 'updated_at' => now(),
                             ]);
                         }
+
+                        DB::table('circle_members')
+                            ->where('user_id', $appUser->id)
+                            ->where('role', $dbRole)
+                            ->delete();
 
                         $existingMember = DB::table('circle_members')
                             ->where('circle_id', $scopeId)
@@ -784,5 +831,13 @@ class RoleHierarchyController extends Controller
                 );
             }
         });
+    }
+
+    private function checkEditPermission(): void
+    {
+        $admin = auth('admin')->user();
+        if ($admin && ! \App\Support\AdminAccess::isEditAllowed($admin)) {
+            abort(403, 'You do not have edit permissions.');
+        }
     }
 }

@@ -427,6 +427,49 @@
                             </div>
                         </div>
 
+                        <!-- Dynamic Permissions & Sidebar Sections Checklist -->
+                        <div class="mb-3" id="permissions_container" style="display: none;">
+                            <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
+                                <label for="assign_permission_type" class="form-label fw-bold fs-7 mb-2 d-block">Permission Level</label>
+                                <select id="assign_permission_type" name="permission_type" class="form-select rounded-3 mb-3">
+                                    <option value="edit">Edit (Full Access)</option>
+                                    <option value="view">Only View (Read-only)</option>
+                                </select>
+
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label fw-bold fs-7 mb-0">Dashboard Sections</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="assign_select_all_sections" checked>
+                                        <label class="form-check-label fs-8 fw-semibold" for="assign_select_all_sections">Select All</label>
+                                    </div>
+                                </div>
+
+                                <div class="border rounded-3 p-2 bg-white" style="max-height: 200px; overflow-y: auto;">
+                                    @php
+                                        $sections = [
+                                            'Dashboard', 'Activities', 'Referral Report', 'Posts & Timeline', 
+                                            'Pending Requests', 'Support Tickets', 'Events Management', 
+                                            'Brand Partners', 'Peers', 'Unity Contacts', 'Leadership', 
+                                            'Industries', 'Circles', 'Circulars', 'Coins', 'Life Impact', 'Leads'
+                                        ];
+                                    @endphp
+                                    <div class="row g-1">
+                                        @foreach($sections as $sec)
+                                            <div class="col-12">
+                                                <div class="form-check py-1">
+                                                    <input class="form-check-input section-checkbox" type="checkbox" name="allowed_sections[]" value="{{ $sec }}" id="sec_{{ Str::slug($sec, '_') }}" checked>
+                                                    <label class="form-check-label fs-8 text-dark" for="sec_{{ Str::slug($sec, '_') }}">
+                                                        {{ $sec }}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                                <small class="text-muted fs-8 mt-1 d-block">Uncheck sections to hide them from their sidebar.</small>
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn btn-success w-100 rounded-3 py-2 mt-2">
                             <i class="bi bi-person-check me-1"></i> Assign Role & Scope
                         </button>
@@ -778,6 +821,13 @@ function onAssignRoleChange() {
         circleSel.style.display = 'block';
         document.getElementById('assign_circle_id').required = true;
     }
+
+    const permissionsContainer = document.getElementById('permissions_container');
+    if (roleSelect && roleSelect.value) {
+        permissionsContainer.style.display = 'block';
+    } else {
+        permissionsContainer.style.display = 'none';
+    }
 }
 
 // Auto-select scope rules as user types key in Create / Edit role modals
@@ -833,7 +883,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     <!-- Right: Quick Assign form -->
                     <div class="col-md-5">
-                        <h6 class="fw-bold mb-3">Quick Assign Peer</h6>
+                        <h6 class="fw-bold mb-3" id="quickAssignFormTitle">Quick Assign Peer</h6>
                         <form id="quickAssignForm">
                             @csrf
                             <input type="hidden" id="quick_assign_role_id" name="role_id">
@@ -852,9 +902,48 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-success btn-sm w-100 rounded-3 py-2 mt-2">
-                                <i class="bi bi-person-plus-fill me-1"></i> Assign Peer
-                            </button>
+                            <!-- Dynamic Permissions & Sidebar Sections Checklist -->
+                            <div class="mb-3" id="quick_permissions_container" style="display:none;">
+                                <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
+                                    <label for="quick_permission_type" class="form-label fw-bold fs-8 mb-2 d-block">Permission Level</label>
+                                    <select id="quick_permission_type" name="permission_type" class="form-select rounded-3 select-sm mb-3">
+                                        <option value="edit">Edit (Full Access)</option>
+                                        <option value="view">Only View (Read-only)</option>
+                                    </select>
+
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label fw-bold fs-8 mb-0">Dashboard Sections</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="quick_select_all_sections" checked>
+                                            <label class="form-check-label fs-9 fw-semibold" for="quick_select_all_sections">Select All</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="border rounded-3 p-2 bg-white" style="max-height: 150px; overflow-y: auto;">
+                                        <div class="row g-1">
+                                            @foreach($sections as $sec)
+                                                <div class="col-12">
+                                                    <div class="form-check py-1">
+                                                        <input class="form-check-input quick-section-checkbox" type="checkbox" name="allowed_sections[]" value="{{ $sec }}" id="quick_sec_{{ Str::slug($sec, '_') }}" checked>
+                                                        <label class="form-check-label fs-9 text-dark" for="quick_sec_{{ Str::slug($sec, '_') }}">
+                                                            {{ $sec }}
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="quickAssignButtons" class="mt-2">
+                                <button type="submit" id="quickAssignSubmitBtn" class="btn btn-success btn-sm w-100 rounded-3 py-2">
+                                    <i id="quickAssignSubmitIcon" class="bi bi-person-plus-fill me-1"></i> <span id="quickAssignSubmitText">Assign Peer</span>
+                                </button>
+                                <button type="button" id="quickAssignCancelBtn" class="btn btn-outline-secondary btn-sm w-100 rounded-3 py-2 mt-2" style="display: none;" onclick="cancelEditAssignment()">
+                                    Cancel Edit
+                                </button>
+                            </div>
                         </form>
                         <div id="quickAssignMessage" class="mt-3 text-center fs-8 text-muted" style="display:none;"></div>
                     </div>
@@ -893,6 +982,26 @@ document.addEventListener('DOMContentLoaded', function() {
             width: '100%'
         });
     }
+
+    // Select All logic for assignRoleForm
+    const selectAllCheckbox = document.getElementById('assign_select_all_sections');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            document.querySelectorAll('.section-checkbox').forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+            });
+        });
+    }
+
+    // Select All logic for quickAssignForm
+    const quickSelectAllCheckbox = document.getElementById('quick_select_all_sections');
+    if (quickSelectAllCheckbox) {
+        quickSelectAllCheckbox.addEventListener('change', function() {
+            document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
+                cb.checked = quickSelectAllCheckbox.checked;
+            });
+        });
+    }
 });
 
 function openAssignmentsModal(roleId, roleName, roleKey, scopeRule) {
@@ -904,10 +1013,118 @@ function openAssignmentsModal(roleId, roleName, roleKey, scopeRule) {
     document.getElementById('roleAssignmentsModalSubtext').textContent = 'Key: ' + roleKey + ' • Rule: ' + scopeRule;
     document.getElementById('quick_assign_role_id').value = roleId;
 
+    // Reset quick permissions fields
+    const quickPermissionsContainer = document.getElementById('quick_permissions_container');
+    if (quickPermissionsContainer) {
+        quickPermissionsContainer.style.display = 'block';
+    }
+    
+    cancelEditAssignment();
+
     fetchAssignments();
 
     const modal = new bootstrap.Modal(document.getElementById('roleAssignmentsModal'));
     modal.show();
+}
+
+function startEditAssignment(userId, userName, scopeId, permissionType, allowedSections) {
+    const peerSelect = document.getElementById('quick_assign_user');
+    
+    // Check if option exists in select, if not append it
+    let opt = peerSelect.querySelector(`option[value="${userId}"]`);
+    if (!opt) {
+        opt = document.createElement('option');
+        opt.value = userId;
+        opt.textContent = userName;
+        peerSelect.appendChild(opt);
+    }
+    
+    if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+        $(peerSelect).val(userId).trigger('change');
+    } else {
+        peerSelect.value = userId;
+    }
+    peerSelect.disabled = true;
+
+    document.getElementById('quickAssignFormTitle').textContent = 'Edit Assigned Peer';
+    document.getElementById('quickAssignCancelBtn').style.display = 'block';
+    document.getElementById('quickAssignSubmitText').textContent = 'Update Assignment';
+    document.getElementById('quickAssignSubmitIcon').className = 'bi bi-pencil-square me-1';
+
+    if (scopeId) {
+        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            $('#quick_scope_id').val(scopeId).trigger('change');
+        } else {
+            document.getElementById('quick_scope_id').value = scopeId;
+        }
+    } else {
+        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            $('#quick_scope_id').val('').trigger('change');
+        } else {
+            document.getElementById('quick_scope_id').value = '';
+        }
+    }
+
+    const permTypeSelect = document.getElementById('quick_permission_type');
+    if (permTypeSelect) {
+        permTypeSelect.value = permissionType;
+    }
+
+    document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+
+    if (Array.isArray(allowedSections)) {
+        allowedSections.forEach(sec => {
+            const cb = document.querySelector(`.quick-section-checkbox[value="${sec}"]`);
+            if (cb) {
+                cb.checked = true;
+            }
+        });
+    }
+
+    const totalCbs = document.querySelectorAll('.quick-section-checkbox').length;
+    const checkedCbs = document.querySelectorAll('.quick-section-checkbox:checked').length;
+    const selectAllCb = document.getElementById('quick_select_all_sections');
+    if (selectAllCb) {
+        selectAllCb.checked = (totalCbs === checkedCbs && totalCbs > 0);
+    }
+}
+
+function cancelEditAssignment() {
+    const peerSelect = document.getElementById('quick_assign_user');
+    peerSelect.disabled = false;
+    
+    if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+        $(peerSelect).val('').trigger('change');
+    } else {
+        peerSelect.value = '';
+    }
+
+    document.getElementById('quickAssignFormTitle').textContent = 'Quick Assign Peer';
+    document.getElementById('quickAssignCancelBtn').style.display = 'none';
+    document.getElementById('quickAssignSubmitText').textContent = 'Assign Peer';
+    document.getElementById('quickAssignSubmitIcon').className = 'bi bi-person-plus-fill me-1';
+
+    if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+        $('#quick_scope_id').val('').trigger('change');
+    } else {
+        document.getElementById('quick_scope_id').value = '';
+    }
+
+    const permTypeSelect = document.getElementById('quick_permission_type');
+    if (permTypeSelect) {
+        permTypeSelect.value = 'edit';
+    }
+
+    document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
+        cb.checked = true;
+    });
+
+    const selectAllCb = document.getElementById('quick_select_all_sections');
+    if (selectAllCb) {
+        selectAllCb.checked = true;
+    }
 }
 
 function fetchAssignments() {
@@ -929,16 +1146,27 @@ function fetchAssignments() {
                 } else {
                     let html = '<div class="list-group list-group-flush border rounded-3">';
                     data.assignments.forEach(assign => {
+                        const sectionsJson = JSON.stringify(assign.allowed_sections).replace(/"/g, '&quot;');
+                        const safeName = assign.name.replace(/'/g, "\\'");
                         html += `
-                            <div class="list-group-item d-flex justify-content-between align-items-center py-3">
+                            <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 peer-assignment-card" 
+                                 style="cursor: pointer;"
+                                 data-user-id="${assign.user_id}"
+                                 data-name="${safeName}"
+                                 data-scope-id="${assign.scope_id || ''}"
+                                 data-permission-type="${assign.permission_type}"
+                                 data-allowed-sections="${sectionsJson}">
                                 <div class="flex-grow-1 pe-3" style="min-width: 0;">
-                                    <div class="fw-bold fs-7 text-truncate">${assign.name}</div>
+                                    <div class="fw-bold fs-7 text-truncate text-primary">${assign.name}</div>
                                     <div class="text-muted small text-truncate">${assign.email}</div>
-                                    <div class="badge bg-light text-secondary border mt-1 fs-9 text-wrap text-start d-inline-block" style="max-width: 100%;">${assign.scope_name}</div>
+                                    <div class="d-flex flex-wrap gap-1 mt-1">
+                                        <span class="badge bg-light text-secondary border fs-9 text-wrap text-start">${assign.scope_name}</span>
+                                        <span class="badge bg-light text-info border fs-9">${assign.permission_type === 'view' ? 'Only View' : 'Edit Access'}</span>
+                                    </div>
                                 </div>
                                 <div class="flex-shrink-0">
                                     <button type="button" class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1 rounded-3 px-2 py-1" 
-                                        title="Revoke Role" onclick="removePeerAssignment('${assign.user_id}', '${assign.name}')">
+                                        title="Revoke Role" onclick="event.stopPropagation(); removePeerAssignment('${assign.user_id}', '${safeName}')">
                                         <i class="bi bi-trash3-fill fs-8"></i>
                                         <span class="fs-8 fw-semibold">Remove</span>
                                     </button>
@@ -948,6 +1176,19 @@ function fetchAssignments() {
                     });
                     html += '</div>';
                     listContainer.innerHTML = html;
+                    
+                    // Bind click event to peer cards
+                    $(listContainer).off('click', '.peer-assignment-card').on('click', '.peer-assignment-card', function(e) {
+                        if ($(e.target).closest('.btn-outline-danger').length) {
+                            return;
+                        }
+                        const userId = $(this).attr('data-user-id');
+                        const name = $(this).attr('data-name');
+                        const scopeId = $(this).attr('data-scope-id');
+                        const permissionType = $(this).attr('data-permission-type');
+                        const allowedSections = JSON.parse($(this).attr('data-allowed-sections') || '[]');
+                        startEditAssignment(userId, name, scopeId, permissionType, allowedSections);
+                    });
                 }
 
                 if (data.available_peers.length === 0) {
@@ -1035,9 +1276,16 @@ document.getElementById('quickAssignForm').addEventListener('submit', function(e
     const msg = document.getElementById('quickAssignMessage');
     msg.style.display = 'block';
     msg.className = 'mt-3 text-center fs-8 text-muted';
-    msg.textContent = 'Assigning...';
+    const isEditMode = (document.getElementById('quickAssignSubmitText').textContent === 'Update Assignment');
+    msg.textContent = isEditMode ? 'Updating...' : 'Assigning...';
 
     const formData = new FormData(this);
+    if (!formData.has('admin_user_id')) {
+        const peerSelect = document.getElementById('quick_assign_user');
+        if (peerSelect) {
+            formData.append('admin_user_id', peerSelect.value);
+        }
+    }
 
     fetch(`/admin/rbac/roles/${currentOpenRoleId}/assignments`, {
         method: 'POST',
@@ -1048,9 +1296,10 @@ document.getElementById('quickAssignForm').addEventListener('submit', function(e
     .then(data => {
         if (data.success) {
             msg.className = 'mt-3 text-center fs-8 text-success';
-            msg.textContent = 'Assigned successfully!';
+            msg.textContent = isEditMode ? 'Assignment updated successfully!' : 'Assigned successfully!';
             setTimeout(() => {
                 msg.style.display = 'none';
+                cancelEditAssignment();
                 fetchAssignments();
             }, 1000);
         } else {
@@ -1075,6 +1324,7 @@ function removePeerAssignment(userId, userName) {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
+            cancelEditAssignment();
             fetchAssignments();
         } else {
             alert(data.message || 'Failed to remove assignment.');
