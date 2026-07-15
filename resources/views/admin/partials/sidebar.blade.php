@@ -235,6 +235,39 @@
         ['label' => 'Referral Activity', 'route' => 'admin.ded.dashboard.health.referral-activity'],
     ];
     $dedAnalyticsActive = request()->routeIs('admin.ded.dashboard.health.*');
+
+    // Filter allowed sidebar sections
+    if ($dashboardItem && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dashboard')) {
+        $dashboardItem = null;
+    }
+    if ($activityMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities')) {
+        $activityMenu = [];
+    }
+    if ($referralReportItem && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Referral Report')) {
+        $referralReportItem = null;
+    }
+    if ($postsMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline')) {
+        $postsMenu = [];
+    }
+    if ($leadsMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads')) {
+        $leadsMenu = [];
+    }
+
+    $navItems = array_values(array_filter($navItems, function ($item) use ($adminUser) {
+        $label = $item['label'] ?? null;
+        if ($label && !\App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+            return false;
+        }
+        return true;
+    }));
+
+    $bottomNavItems = array_values(array_filter($bottomNavItems, function ($item) use ($adminUser) {
+        $label = $item['label'] ?? null;
+        if ($label && !\App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+            return false;
+        }
+        return true;
+    }));
 @endphp
 
 <aside class="admin-sidebar d-flex flex-column">
@@ -309,6 +342,7 @@
                 </li>
             @endif
 
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Pending Requests'))
             <li class="nav-item menu-parent {{ $pendingRequestsActive ? 'open' : '' }}">
                 <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" href="#pendingRequestsSubmenu" role="button" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
                     <span><i class="bi bi-hourglass-split me-2"></i>Pending Requests</span>
@@ -326,8 +360,10 @@
                     </ul>
                 </div>
             </li>
+            @endif
 
             @if ($isDed)
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leadership'))
                 <li class="nav-item menu-parent {{ $dedLeadershipActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $dedLeadershipActive ? 'active' : '' }}" href="#dedLeadershipSubmenu" role="button" aria-expanded="{{ $dedLeadershipActive ? 'true' : 'false' }}" aria-controls="dedLeadershipSubmenu">
                         <span><i class="bi bi-person-badge me-2"></i>Leadership</span>
@@ -345,6 +381,7 @@
                         </ul>
                     </div>
                 </li>
+                @endif
 
                 <li class="nav-item menu-parent {{ $dedAnalyticsActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $dedAnalyticsActive ? 'active' : '' }}" href="#dedAnalyticsSubmenu" role="button" aria-expanded="{{ $dedAnalyticsActive ? 'true' : 'false' }}" aria-controls="dedAnalyticsSubmenu">
@@ -374,7 +411,7 @@
                 </li>
             @endforeach
 
-            @if ($isGlobalAdmin || $isIndustryDirector)
+            @if (($isGlobalAdmin || $isIndustryDirector) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
@@ -392,7 +429,7 @@
                 </li>
             @endif
 
-            @if ($hasBrandPartnersRole)
+            @if ($hasBrandPartnersRole && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
                 <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
                         <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
@@ -473,7 +510,7 @@
             @endif
 
 
-            @if (! $isDed && ! $isCircleCommittee && $leadsMenu !== [])
+            @if (! $isDed && ! $isCircleCommittee && $leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
                 <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
                     <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
@@ -491,10 +528,9 @@
                     </ul>
                 </div>
             </li>
-
             @endif
 
-            @if ($isDed)
+            @if ($isDed && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>

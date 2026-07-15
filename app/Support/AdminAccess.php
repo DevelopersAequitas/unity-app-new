@@ -409,4 +409,62 @@ class AdminAccess
 
         return in_array('global_admin', self::adminRoleKeys($admin), true);
     }
+
+    public static function isSectionAllowed(?AdminUser $admin, string $sectionLabel): bool
+    {
+        if (! $admin) {
+            return false;
+        }
+
+        if (self::isSuper($admin)) {
+            return true;
+        }
+
+        $assignments = DB::table('admin_user_roles')
+            ->where('user_id', $admin->id)
+            ->get();
+
+        if ($assignments->isEmpty()) {
+            return true;
+        }
+
+        $hasAnyRestrictions = false;
+        $allowed = [];
+
+        foreach ($assignments as $assign) {
+            if (! empty($assign->allowed_sections)) {
+                $hasAnyRestrictions = true;
+                $sections = json_decode((string) $assign->allowed_sections, true) ?: [];
+                $allowed = array_merge($allowed, $sections);
+            }
+        }
+
+        if (! $hasAnyRestrictions) {
+            return true;
+        }
+
+        return in_array($sectionLabel, $allowed, true);
+    }
+
+    public static function isEditAllowed(?AdminUser $admin): bool
+    {
+        if (! $admin) {
+            return false;
+        }
+
+        if (self::isSuper($admin)) {
+            return true;
+        }
+
+        $assignments = DB::table('admin_user_roles')
+            ->where('user_id', $admin->id)
+            ->pluck('permission_type')
+            ->all();
+
+        if (empty($assignments)) {
+            return true;
+        }
+
+        return in_array('edit', $assignments, true);
+    }
 }
