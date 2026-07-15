@@ -9,10 +9,14 @@ use App\Models\Role;
 use App\Models\RoleHierarchy;
 use App\Services\Admin\AdminAuditService;
 use App\Support\AdminAccess;
+use App\Support\ScopeCascadeResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -840,5 +844,102 @@ class RoleHierarchyController extends Controller
         if ($admin && ! AdminAccess::isEditAllowed($admin)) {
             abort(403, 'You do not have edit permissions.');
         }
+    }
+
+    public function removeCurrentRole(Request $request): RedirectResponse
+    {
+        $admin = Auth::guard('admin')->user();
+        if (!$admin) {
+            abort(401);
+        }
+
+        $roleKeys = AdminAccess::adminRoleKeys($admin);
+
+        // If the user already only has the 'user' role, reject the request
+        if (collect($roleKeys)->reject('user')->isEmpty()) {
+            return redirect()->back()->withErrors(['message' => 'You already have the default User role.']);
+        }
+
+        // Get or create the 'user' role
+        $userRole = Role::where('key', 'user')->first();
+        if (!$userRole) {
+            $userRoleId = (string) Str::uuid();
+            DB::table('roles')->insert([
+                'id' => $userRoleId,
+                'key' => 'user',
+                'name' => 'User',
+                'description' => 'Default User Role',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $userRole = Role::find($userRoleId);
+        }
+
+        // Get all role keys for audit logging
+        $oldRoles = DB::table('roles')
+            ->join('admin_user_roles', 'admin_user_roles.role_id', '=', 'roles.id')
+            ->where('admin_user_roles.user_id', $admin->id)
+            ->pluck('roles.key')
+            ->toArray();
+
+        DB::transaction(function () use ($admin, $userRole, $oldRoles, $request) {
+            // Delete existing role assignments
+            DB::table('admin_user_roles')
+                ->where('user_id', $admin->id)
+                ->delete();
+
+            // Insert new default 'user' role assignment
+            $insertData = [
+                'user_id' => $admin->id,
+                'role_id' => $userRole->id,
+            ];
+            if (DB::connection()->getDriverName() === 'pgsql') {
+                $insertData['id'] = (string) Str::uuid();
+                $insertData['created_at'] = now();
+            }
+            DB::table('admin_user_roles')->insert($insertData);
+
+            // Deactivate industry director assignments
+            if (Schema::hasTable('industry_director_assignments')) {
+                DB::table('industry_director_assignments')
+                    ->where('admin_user_id', $admin->id)
+                    ->update([
+                        'is_active' => false,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            // Delete DED district scope rollups
+            if (Schema::hasTable('admin_ded_districts')) {
+                DB::table('admin_ded_districts')
+                    ->where('admin_user_id', $admin->id)
+                    ->delete();
+            }
+
+            // Log action in audit log
+            $this->audit->log(
+                $admin,
+                'admin.profile.remove_current_role',
+                'admin_user_roles',
+                $admin->id,
+                ['roles' => $oldRoles],
+                ['roles' => ['user']],
+                $request
+            );
+        });
+
+        // Invalidate permissions and role caches
+        ScopeCascadeResolver::invalidateCache($admin->id);
+        Cache::forget('admin-access:ded-location:'.$admin->id);
+        Cache::forget('admin-access:primary-role:'.$admin->id);
+        Cache::forget('admin-access:primary-role-label:'.$admin->id);
+
+        // Sign out the user and invalidate the admin session
+        Auth::guard('admin')->logout();
+        $request->session()->invalidate();
+        $request->session()->forget(['admin_user_id', 'admin_login_email']);
+        $request->session()->regenerateToken();
+
+        return redirect()->route('admin.login')->with('status', 'Your role has been removed successfully. Your account has been changed to the default User role.');
     }
 }

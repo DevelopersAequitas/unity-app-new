@@ -49,7 +49,9 @@ class ScopeCascadeResolver
 
     public static function invalidateCache(string $adminUserId): void
     {
-        DB::table('tbl_permission_cache')->where('user_id', $adminUserId)->delete();
+        if (\Illuminate\Support\Facades\Schema::hasTable('tbl_permission_cache')) {
+            DB::table('tbl_permission_cache')->where('user_id', $adminUserId)->delete();
+        }
         Cache::forget('admin-access:circles:'.$adminUserId);
         Cache::forget('admin-access:allowed-users:'.$adminUserId);
         Cache::forget('admin-access:roles:'.$adminUserId);

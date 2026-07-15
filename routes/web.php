@@ -107,6 +107,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/rbac/roles/{id}/assignments', [RoleHierarchyController::class, 'assignPeer'])->name('rbac.roles.assign-peer')->whereUuid('id');
         Route::delete('/rbac/roles/{id}/assignments/{userId}', [RoleHierarchyController::class, 'removeAssignment'])->name('rbac.roles.remove-assignment')->whereUuid('id')->whereUuid('userId');
         Route::post('/switch-context', [ContextSwitcherController::class, 'switchContext'])->name('switch-context');
+        Route::post('/profile/remove-current-role', [RoleHierarchyController::class, 'removeCurrentRole'])->name('profile.remove-current-role');
 
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
         Route::get('/', function () {

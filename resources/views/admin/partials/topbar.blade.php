@@ -297,6 +297,18 @@
                         </div>
                     </li>
                     <li><hr class="dropdown-divider my-1"></li>
+                    @php
+                        $roleKeys = \App\Support\AdminAccess::adminRoleKeys($admin);
+                        $canRemoveRole = collect($roleKeys)->reject('user')->isNotEmpty();
+                    @endphp
+                    @if ($canRemoveRole)
+                        <li>
+                            <button class="dropdown-item d-flex align-items-center gap-2 text-warning" type="button" data-bs-toggle="modal" data-bs-target="#confirmRemoveRoleModal">
+                                <i class="bi bi-shield-minus"></i> Remove Current Role
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider my-1"></li>
+                    @endif
                     <li>
                         <form method="POST" action="{{ route('admin.logout') }}">
                             @csrf
@@ -310,3 +322,44 @@
         </div>
     </div>
 </header>
+
+<!-- Remove Current Role Confirmation Modal -->
+<div class="modal fade" id="confirmRemoveRoleModal" tabindex="-1" aria-labelledby="confirmRemoveRoleModalLabel" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 450px;">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px;">
+            <div class="modal-header border-bottom-0 pt-4 px-4 pb-2">
+                <h5 class="modal-title d-flex align-items-center gap-2 text-warning fw-semibold" id="confirmRemoveRoleModalLabel" style="font-size: 1.1rem;">
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i> Confirm Role Removal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-2">
+                <p class="text-secondary mb-0" style="font-size: 0.9rem; line-height: 1.5;">
+                    Are you sure you want to remove your current role? Your account will be changed to the default User role.
+                </p>
+            </div>
+            <div class="modal-footer border-top-0 pb-4 px-4 pt-3 gap-2">
+                <button type="button" class="btn btn-light px-4 py-2 text-secondary fw-semibold" data-bs-dismiss="modal" style="border-radius: 8px; font-size: 0.85rem;">Cancel</button>
+                <form id="removeRoleForm" method="POST" action="{{ route('admin.profile.remove-current-role') }}" class="m-0">
+                    @csrf
+                    <button type="submit" id="confirmRemoveRoleSubmitBtn" class="btn btn-warning px-4 py-2 text-dark fw-semibold" style="border-radius: 8px; font-size: 0.85rem;">
+                        Confirm & Remove
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('removeRoleForm');
+        const submitBtn = document.getElementById('confirmRemoveRoleSubmitBtn');
+        if (form && submitBtn) {
+            form.addEventListener('submit', function () {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Removing...';
+            });
+        }
+    });
+</script>
