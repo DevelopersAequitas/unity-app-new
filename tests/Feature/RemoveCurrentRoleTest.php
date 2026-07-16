@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\AdminUser;
 use App\Models\AdminAuditLog;
+use App\Models\AdminUser;
 use App\Models\Role;
 use App\Models\User;
-use App\Support\AdminAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;

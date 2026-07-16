@@ -386,6 +386,7 @@ class ZohoBillingService
                 'phone' => $phone,
                 'mobile' => $phone,
                 'is_primary_contact' => true,
+                'enable_portal' => true,
             ]],
             'billing_address' => [
                 'city' => $city,
@@ -1144,6 +1145,7 @@ class ZohoBillingService
             'phone' => $phone,
             'mobile' => $phone,
             'is_primary_contact' => true,
+            'enable_portal' => true,
         ];
     }
 
