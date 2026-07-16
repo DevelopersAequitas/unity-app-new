@@ -53,6 +53,7 @@ class SmeBusinessStorySubmission extends Model
         'consent',
         'admin_remark',
         'reviewed_at',
+        'story_link',
     ];
 
     protected $casts = [

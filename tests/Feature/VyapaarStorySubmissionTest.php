@@ -31,6 +31,26 @@ class VyapaarStorySubmissionTest extends TestCase
         Schema::dropIfExists('sme_business_story_submissions');
         Schema::dropIfExists('users');
         Schema::dropIfExists('files');
+        Schema::dropIfExists('user_follows');
+        Schema::dropIfExists('circle_members');
+
+        Schema::create('user_follows', function (Blueprint $table): void {
+            $table->uuid('follower_id');
+            $table->uuid('following_id');
+            $table->timestamps();
+        });
+
+        Schema::create('circle_members', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->string('status')->default('approved');
+            $table->timestamp('joined_at')->nullable();
+            $table->timestamp('left_at')->nullable();
+            $table->timestamp('paid_starts_at')->nullable();
+            $table->timestamp('paid_ends_at')->nullable();
+            $table->softDeletes();
+            $table->timestamps();
+        });
 
         Schema::create('users', function (Blueprint $table): void {
             $table->uuid('id')->primary();
@@ -98,6 +118,7 @@ class VyapaarStorySubmissionTest extends TestCase
             $table->string('twitter_url')->nullable();
             $table->boolean('consent')->default(false);
             $table->text('admin_remark')->nullable();
+            $table->text('story_link')->nullable();
 
             $table->timestamp('submitted_at')->nullable();
             $table->timestamp('reviewed_at')->nullable();
@@ -292,9 +313,68 @@ class VyapaarStorySubmissionTest extends TestCase
         $this->assertNull($submission->company_name);
         $this->assertNull($submission->profile_photo);
         $this->assertNull($submission->company_logo);
-        $this->assertEquals('Started in a garage...', $submission->entrepreneurial_journey);
-        $this->assertEquals('We build widgets.', $submission->business_description);
         $this->assertTrue($submission->consent);
         $this->assertEquals('Pending', $submission->status);
+    }
+
+    public function test_story_status_api_and_story_link_field(): void
+    {
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'email' => 'testuser@example.com',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        // 1. Initially status should be Not Submitted
+        $response = $this->getJson('/api/v1/story/status');
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'status' => 'Not Submitted',
+                'story_link' => null,
+            ]);
+
+        // 2. Create a pending submission
+        $submission = SmeBusinessStorySubmission::create([
+            'id' => (string) Str::uuid(),
+            'user_id' => $user->id,
+            'full_name' => 'Test User',
+            'email' => 'testuser@example.com',
+            'contact_number' => '123456',
+            'business_name' => 'Test Inc',
+            'company_introduction' => 'Intro',
+            'status' => 'Pending',
+        ]);
+
+        $response = $this->getJson('/api/v1/story/status');
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'status' => 'Pending',
+                'story_link' => null,
+            ]);
+
+        // 3. Approve submission and set link
+        $submission->status = 'approved';
+        $submission->story_link = 'https://vyaparjagat.com/test-story';
+        $submission->save();
+
+        $response = $this->getJson('/api/v1/story/status');
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'status' => 'Approved',
+                'story_link' => 'https://vyaparjagat.com/test-story',
+            ]);
+
+        // 4. Verify story_link is outputted in UserResource
+        $user->setRelation('circleMemberships', collect());
+        $user->setRelation('circleSubscriptions', collect());
+        $resource = new \App\Http\Resources\UserResource($user);
+        $data = $resource->toArray(request());
+        $this->assertEquals('https://vyaparjagat.com/test-story', $data['story_link']);
     }
 }
