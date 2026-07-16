@@ -849,7 +849,7 @@ class RoleHierarchyController extends Controller
     public function removeCurrentRole(Request $request): RedirectResponse
     {
         $admin = Auth::guard('admin')->user();
-        if (!$admin) {
+        if (! $admin) {
             abort(401);
         }
 
@@ -862,7 +862,7 @@ class RoleHierarchyController extends Controller
 
         // Get or create the 'user' role
         $userRole = Role::where('key', 'user')->first();
-        if (!$userRole) {
+        if (! $userRole) {
             $userRoleId = (string) Str::uuid();
             DB::table('roles')->insert([
                 'id' => $userRoleId,
