@@ -57,6 +57,7 @@ class AdminAuthController extends Controller
             'mohit@gmail.com',
             'rahul@gmail.com',
             'vinit@gmail.com',
+            'harshchauhanwork26@gmail.com',
         ];
 
         if (app()->environment('local')) {

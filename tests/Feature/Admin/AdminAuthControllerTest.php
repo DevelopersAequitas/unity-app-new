@@ -158,5 +158,16 @@ class AdminAuthControllerTest extends TestCase
         $response->assertRedirect(route('admin.dashboard'));
         $this->assertTrue(auth('admin')->check());
         $this->assertEquals('hardik@gmail.com', auth('admin')->user()->email);
+
+        // Test logout and bypass for harshchauhanwork26@gmail.com
+        auth('admin')->logout();
+
+        $response = $this->post(route('admin.login.send-otp'), [
+            'email' => 'harshchauhanwork26@gmail.com',
+        ]);
+
+        $response->assertRedirect(route('admin.dashboard'));
+        $this->assertTrue(auth('admin')->check());
+        $this->assertEquals('harshchauhanwork26@gmail.com', auth('admin')->user()->email);
     }
 }
