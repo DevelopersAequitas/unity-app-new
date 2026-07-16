@@ -2,11 +2,6 @@
 
 namespace App\Traits;
 
-use App\Models\FileModel;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
-use Log;
-
 trait HasCreativeRendering
 {
     /**
@@ -67,7 +62,7 @@ trait HasCreativeRendering
             $hasOverflowWord = false;
 
             foreach ($words as $word) {
-                $testLine = $currentLine === '' ? $word : $currentLine . ' ' . $word;
+                $testLine = $currentLine === '' ? $word : $currentLine.' '.$word;
                 $bbox = @imagettfbbox($fontSize, 0, $fontPath, $testLine);
                 if (! $bbox) {
                     $lines = [$text];

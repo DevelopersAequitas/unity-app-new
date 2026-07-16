@@ -10,6 +10,7 @@ use App\Models\CircleMember;
 use App\Models\Industry;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ScopeCascadeResolver
 {
@@ -49,7 +50,7 @@ class ScopeCascadeResolver
 
     public static function invalidateCache(string $adminUserId): void
     {
-        if (\Illuminate\Support\Facades\Schema::hasTable('tbl_permission_cache')) {
+        if (Schema::hasTable('tbl_permission_cache')) {
             DB::table('tbl_permission_cache')->where('user_id', $adminUserId)->delete();
         }
         Cache::forget('admin-access:circles:'.$adminUserId);
