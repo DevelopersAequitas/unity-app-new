@@ -65,6 +65,7 @@ use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
+use App\Http\Controllers\ShareController;
 use App\Support\AdminAccess;
 use Illuminate\Support\Facades\Route;
 
@@ -75,6 +76,8 @@ Route::get('/', function () {
 Route::get('/congratulations', function () {
     return view('congratulations');
 });
+
+Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
@@ -266,6 +269,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/anniversary-creatives', [AnniversaryTemplateController::class, 'store'])->name('anniversary-creatives.store');
         Route::post('/anniversary-creatives/{template}/toggle', [AnniversaryTemplateController::class, 'toggleActive'])->name('anniversary-creatives.toggle');
         Route::delete('/anniversary-creatives/{template}', [AnniversaryTemplateController::class, 'destroy'])->name('anniversary-creatives.destroy');
+        Route::get('/anniversary-creatives/preview/{userId}', [AnniversaryTemplateController::class, 'preview'])->name('anniversary-creatives.preview');
         Route::get('/circulars/create', [CircularController::class, 'create'])->name('circulars.create');
         Route::post('/circulars', [CircularController::class, 'store'])->name('circulars.store');
         Route::get('/circulars/{circular}', [CircularController::class, 'show'])->name('circulars.show');
