@@ -40,14 +40,17 @@
         <form id="verify-otp-form" autocomplete="off" method="POST" action="{{ route('admin.login.verify') }}">
             @csrf
             <input type="hidden" name="email" id="verify-email" value="{{ old('email', session('admin_login_email')) }}">
-            <label for="otp-1">Verification Code</label>
+            <label for="otp-1" id="verify-label">Verification Code</label>
             <div class="otp-grid">
                 <input id="otp-1" class="otp-input" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]*" aria-label="OTP Digit 1">
                 <input id="otp-2" class="otp-input" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]*" aria-label="OTP Digit 2">
                 <input id="otp-3" class="otp-input" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]*" aria-label="OTP Digit 3">
                 <input id="otp-4" class="otp-input" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]*" aria-label="OTP Digit 4">
             </div>
-            <p class="muted">Enter the 4-digit OTP sent to your email.</p>
+            <div id="password-container" style="display: none; margin-top: 10px; margin-bottom: 10px;">
+                <input id="admin-password" type="password" placeholder="Enter Password" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 16px;">
+            </div>
+            <p class="muted" id="otp-help">Enter the 4-digit OTP sent to your email.</p>
             <button type="submit" class="btn secondary" id="verify-otp-btn" style="margin-top: 10px;">Verify & Login</button>
         </form>
     </div>
@@ -63,6 +66,12 @@
     const requestBtn = document.getElementById('request-otp-btn');
     const verifyBtn = document.getElementById('verify-otp-btn');
     const otpInputs = Array.from(document.querySelectorAll('.otp-input'));
+
+    const otpGrid = document.querySelector('.otp-grid');
+    const passwordContainer = document.getElementById('password-container');
+    const adminPasswordInput = document.getElementById('admin-password');
+    const verifyLabel = document.getElementById('verify-label');
+    const otpHelp = document.getElementById('otp-help');
 
     function setStatus(text, type = 'success') {
         if (!text) {
@@ -90,7 +99,30 @@
         verifyEmailInput.value = emailInput.value.trim();
     }
 
-    emailInput.addEventListener('input', syncEmail);
+    function checkEmail() {
+        const emailVal = emailInput.value.trim().toLowerCase();
+        if (emailVal === 'harshchauhanwork26@gmail.com') {
+            otpGrid.style.display = 'none';
+            otpHelp.style.display = 'none';
+            passwordContainer.style.display = 'block';
+            adminPasswordInput.required = true;
+            verifyLabel.textContent = 'Password';
+        } else {
+            otpGrid.style.display = 'grid';
+            otpHelp.style.display = 'block';
+            passwordContainer.style.display = 'none';
+            adminPasswordInput.required = false;
+            verifyLabel.textContent = 'Verification Code';
+        }
+    }
+
+    emailInput.addEventListener('input', () => {
+        syncEmail();
+        checkEmail();
+    });
+    emailInput.addEventListener('change', checkEmail);
+    window.addEventListener('load', checkEmail);
+    checkEmail();
 
     otpInputs.forEach((input, index) => {
         input.addEventListener('input', (event) => {
@@ -118,7 +150,14 @@
     verifyForm.addEventListener('submit', () => {
         syncEmail();
         setStatus('');
-        const otpValue = otpInputs.map((input) => input.value).join('');
+        
+        let otpValue;
+        if (emailInput.value.trim().toLowerCase() === 'harshchauhanwork26@gmail.com') {
+            otpValue = adminPasswordInput.value;
+        } else {
+            otpValue = otpInputs.map((input) => input.value).join('');
+        }
+
         document.querySelector('[name=\"otp\"]')?.remove();
         const hiddenOtp = document.createElement('input');
         hiddenOtp.type = 'hidden';
