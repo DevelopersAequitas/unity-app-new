@@ -62,17 +62,17 @@ class AnniversaryImageGenerator
             // Compute coordinates and sizes based on template type
             if ($isCustomTemplate) {
                 // behavior aligned to Anniversary Template measurements:
-                // circle center is at Y = 515 (ratio 0.3815), radius = 161
+                // circle center is at Y = 515, radius = 195 (Avatar size 390)
                 $centerX = (int) ($width / 2);
                 $centerY = (int) ($height * 0.3815); // Center Y: 515
-                $avatarSize = (int) ($width * 0.298); // Circle size: 322
-                $nameStartY = (int) ($height * 0.5244); // Start Y: 708
-                $nameFontSize = 36; // Prominent user name
-                $companyFontSize = 20; // Readable company name
-                $clearCirclePadding = 8;
+                $avatarSize = 390; // Circle size: 390 (matches Birthday)
+                $nameStartY = 745; // Starts 50px below the bottom of circle
+                $nameFontSize = 42; // Reduced to 42px — SemiBold at 42pt = elegant & balanced
+                $companyFontSize = 32; // Matches Birthday
+                $clearCirclePadding = 12;
 
                 $nameColor = imagecolorallocate($canvas, 255, 255, 255); // White
-                $companyColor = imagecolorallocate($canvas, 193, 154, 88); // Gold (#c19a58)
+                $companyColor = imagecolorallocate($canvas, 193, 154, 88); // Gold (#C19A58)
             } else {
                 // Static Anniversary layout parameters (original parameters)
                 $centerX = config('anniversary.photo.center_x', 540);
@@ -90,13 +90,23 @@ class AnniversaryImageGenerator
             $white = imagecolorallocate($canvas, 255, 255, 255);
 
             // Wiping out profile photo circular region to ensure no background placeholder shows behind
-            imagefilledellipse($canvas, $centerX, $centerY, $avatarSize + $clearCirclePadding, $avatarSize + $clearCirclePadding, $white);
+            // Clear only the inner area of the avatar (diameter = avatarSize - 4) so we don't leak white background under the gold ring
+            if ($isCustomTemplate) {
+                imagefilledellipse($canvas, $centerX, $centerY, $avatarSize - 4, $avatarSize - 4, $white);
+            } else {
+                imagefilledellipse($canvas, $centerX, $centerY, $avatarSize + $clearCirclePadding, $avatarSize + $clearCirclePadding, $white);
+            }
 
             // Draw profile photo or initials
             $this->drawAvatarOrInitial($canvas, $user, $centerX, $centerY, $avatarSize, $isCustomTemplate);
 
+            // Draw premium gold ring and glow frame
+            if ($isCustomTemplate) {
+                $this->drawPremiumGoldFrame($canvas, $centerX, $centerY, $avatarSize, $white, '#C19A58');
+            }
+
             // Draw user name and business details
-            $this->drawTextAndDetails($canvas, $user, $centerX, $nameStartY, $nameColor, $companyColor, $isCustomTemplate);
+            $this->drawTextAndDetails($canvas, $user, $centerX, $nameStartY, $nameFontSize ?? 44, $companyFontSize ?? 26, $nameColor, $companyColor, $isCustomTemplate);
 
             // Save high-quality WebP & Register via FileUploadService
             $filename = 'anniversary_'.Str::uuid().'.webp';
@@ -139,7 +149,7 @@ class AnniversaryImageGenerator
     }
 
     /**
-     * Draw Avatar or Name Initial.
+     * Draw Avatar or Initial.
      */
     private function drawAvatarOrInitial($canvas, User $user, int $centerX, int $centerY, int $avatarSize, bool $isCustomTemplate): void
     {
@@ -218,13 +228,13 @@ class AnniversaryImageGenerator
             $transparent = imagecolorallocatealpha($avatarImg, 0, 0, 0, 127);
             imagefill($avatarImg, 0, 0, $transparent);
 
-            // Fill with deep blue or gold based on custom template
+            // Fill with gold based on custom template
             $avatarBgColor = $isCustomTemplate ? imagecolorallocate($avatarImg, 193, 154, 88) : imagecolorallocate($avatarImg, 22, 63, 115);
             $avatarRadius = $avatarSize / 2;
             imagefilledellipse($avatarImg, (int) $avatarRadius, (int) $avatarRadius, $avatarSize, $avatarSize, $avatarBgColor);
 
             // Draw initial letter
-            $fontPath = $this->getFontPath(true);
+            $fontPath = $this->getFontPath('bold');
             $whiteColor = imagecolorallocate($avatarImg, 255, 255, 255);
             $fontSizeInit = (int) ($avatarSize * 0.42);
             if (file_exists($fontPath)) {
@@ -246,51 +256,72 @@ class AnniversaryImageGenerator
     /**
      * Draw user name and business details.
      */
-    private function drawTextAndDetails($canvas, User $user, int $centerX, int $nameStartY, $nameColor, $companyColor, bool $isCustomTemplate): void
+    private function drawTextAndDetails($canvas, User $user, int $centerX, int $nameStartY, int $nameFontSize, int $companyFontSize, $nameColor, $companyColor, bool $isCustomTemplate): void
     {
-        $fontPathBold = $this->getFontPath(true);
-        $fontPathRegular = $this->getFontPath(false);
+        // Name uses SemiBold (600 weight) — lighter, more premium than ExtraBold/Bold
+        $fontPathName    = $this->getFontPath('semibold');
+        $fontPathSemiBold = $this->getFontPath('semibold');
 
-        // 1. User Name (Upper Case)
         $displayName = strtoupper($user->display_name ?: ($user->first_name.' '.$user->last_name));
 
         if ($isCustomTemplate) {
-            // Custom Template Typography (matches Birthday exactly)
-            $nextY = $this->drawWrappedCenteredText(
-                $canvas,
-                $displayName,
-                36, // Name font size
-                $centerX,
-                $nameStartY,
-                $nameColor,
-                $fontPathBold,
-                900 // max width
-            );
-
+            // Apply vertical height safety loop to prevent overlapping with greeting message at Y = 870
+            $maxAllowedY = 870;
+            $nameSpacing = 18;
+            $companySpacing = 18;
             $companyName = $user->company_name ?: ($user->designation ?: 'Global Peer');
-            $this->drawWrappedCenteredText(
-                $canvas,
-                $companyName,
-                20, // Company font size
-                $centerX,
-                $nextY + 14, // dynamic vertical spacing
-                $companyColor,
-                $fontPathRegular,
-                950 // max width
-            );
+
+            do {
+                // Use 820px max-width so long names always have comfortable side margins
+                $nameLines = $this->wrapTextToLines($displayName, $nameFontSize, $fontPathName, 820);
+                $nameHeight = 0;
+                foreach ($nameLines as $line) {
+                    $bbox = @imagettfbbox($nameFontSize, 0, $fontPathName, $line);
+                    if ($bbox) {
+                        $nameHeight += (int)(abs($bbox[5] - $bbox[1]) * 1.35);
+                    }
+                }
+
+                $companyLines = $this->wrapTextToLines($companyName, $companyFontSize, $fontPathSemiBold, 950);
+                $companyHeight = 0;
+                foreach ($companyLines as $line) {
+                    $bbox = @imagettfbbox($companyFontSize, 0, $fontPathSemiBold, $line);
+                    if ($bbox) {
+                        $companyHeight += (int)(abs($bbox[5] - $bbox[1]) * 1.35);
+                    }
+                }
+
+                $totalHeight = $nameHeight + $nameSpacing + $companySpacing + $companyHeight;
+                $availableHeight = $maxAllowedY - $nameStartY;
+
+                if ($totalHeight > $availableHeight && $nameFontSize > 34) {
+                    $nameFontSize -= 2;
+                    $companyFontSize = max(22, $nameFontSize - 24);
+                } else {
+                    break;
+                }
+            } while (true);
+
+            // Draw final optimized layouts
+            $nextY = $this->drawPreWrappedCenteredText($canvas, $nameLines, $nameFontSize, $centerX, $nameStartY, $nameColor, $fontPathName);
+            
+            // Draw separator line
+            $separatorY = $nextY + $nameSpacing;
+            $this->drawGoldSeparator($canvas, $centerX, $separatorY, $companyColor);
+
+            // Draw company name
+            $this->drawPreWrappedCenteredText($canvas, $companyLines, $companyFontSize, $centerX, $separatorY + $companySpacing, $companyColor, $fontPathSemiBold);
         } else {
             // Static Template Typography (original behavior)
-            $fontSize = config('anniversary.name.font_size', 44);
-            $nameMaxWidth = config('anniversary.name.max_width', 900);
             $nextY = $this->drawWrappedCenteredText(
                 $canvas,
                 $displayName,
-                $fontSize,
+                $nameFontSize,
                 $centerX,
                 $nameStartY,
                 $nameColor,
-                $fontPathBold,
-                $nameMaxWidth
+                $this->getFontPath('bold'),
+                900
             );
 
             // Business Name / Industry Line
@@ -308,19 +339,18 @@ class AnniversaryImageGenerator
             }
 
             $businessMaxWidth = config('anniversary.business.max_width', 950);
-            $fontSizeBus = config('anniversary.business.font_size', 26);
-            $businessY = config('anniversary.business.y', 910);
+            $fontSizeBus = $companyFontSize;
 
-            if (file_exists($fontPathRegular)) {
+            if (file_exists($this->getFontPath('regular'))) {
                 // Calculate starting X to center the combined two-colored text line
                 do {
-                    $bboxSpace = imagettfbbox($fontSizeBus, 0, $fontPathRegular, ' ');
+                    $bboxSpace = imagettfbbox($fontSizeBus, 0, $this->getFontPath('regular'), ' ');
                     $spaceWidth = abs($bboxSpace[4] - $bboxSpace[0]);
 
-                    $bbox1 = imagettfbbox($fontSizeBus, 0, $fontPathRegular, $part1);
+                    $bbox1 = imagettfbbox($fontSizeBus, 0, $this->getFontPath('regular'), $part1);
                     $w1 = abs($bbox1[4] - $bbox1[0]);
 
-                    $bbox2 = imagettfbbox($fontSizeBus, 0, $fontPathRegular, $part2);
+                    $bbox2 = imagettfbbox($fontSizeBus, 0, $this->getFontPath('regular'), $part2);
                     $w2 = abs($bbox2[4] - $bbox2[0]);
 
                     $totalW = $w1 + $spaceWidth + $w2;
@@ -333,15 +363,17 @@ class AnniversaryImageGenerator
 
                 $width = imagesx($canvas);
                 $startX = ($width - $totalW) / 2;
+                $businessY = config('anniversary.business.y', 910);
 
-                imagettftext($canvas, $fontSizeBus, 0, (int) $startX, (int) $businessY, $nameColor, $fontPathRegular, $part1);
-                imagettftext($canvas, $fontSizeBus, 0, (int) ($startX + $w1 + $spaceWidth), (int) $businessY, $companyColor, $fontPathRegular, $part2);
+                imagettftext($canvas, $fontSizeBus, 0, (int) $startX, (int) $businessY, $nameColor, $this->getFontPath('regular'), $part1);
+                imagettftext($canvas, $fontSizeBus, 0, (int) ($startX + $w1 + $spaceWidth), (int) $businessY, $companyColor, $this->getFontPath('regular'), $part2);
             } else {
                 $combined = $part1.' '.$part2;
                 $charWidth = imagefontwidth(4);
                 $textWidth = strlen($combined) * $charWidth;
                 $width = imagesx($canvas);
                 $startX = ($width - $textWidth) / 2;
+                $businessY = config('anniversary.business.y', 910);
                 imagestring($canvas, 4, (int) $startX, (int) ($businessY - 15), $combined, $nameColor);
             }
         }

@@ -99,13 +99,12 @@ class BirthdayCreativeImageService
                 // Configured for 1080x1350 premium portrait template
                 $centerX = (int) ($width / 2);
                 $centerY = (int) ($height * 0.4126); // Center Y: 557
-                $avatarSize = (int) ($width * 0.298); // Circle diameter: 322
-                $nameStartY = (int) ($height * 0.5555); // Adjusted to Y: 750 for slightly better vertical spacing
-                $nameFontSize = 32;
-                $companyFontSize = 18;
+                $avatarSize = 390; // Subtle increase (8-10% of 360)
+                $nameStartY = 765; // Spacing maintained exactly
+                $nameFontSize = 42; // Reduced to 42px — SemiBold at 42pt = elegant & balanced
+                $companyFontSize = 32;
                 $nameColor = imagecolorallocate($canvas, 255, 255, 255); // White
-                $companyColor = imagecolorallocate($canvas, 193, 154, 88); // Gold (#c19a58)
-                $clearCirclePadding = 8;
+                $companyColor = imagecolorallocate($canvas, 193, 154, 88); // Gold (#C19A58)
             } else {
                 // Configured for 1024x1024 fallback square template
                 $centerX = (int) ($width / 2);
@@ -116,19 +115,28 @@ class BirthdayCreativeImageService
                 $companyFontSize = 22;
                 $nameColor = imagecolorallocate($canvas, 0, 35, 140); // Deep Blue (#00238C)
                 $companyColor = imagecolorallocate($canvas, 168, 29, 52); // Red/Purple (#A81D34)
-                $clearCirclePadding = 10;
             }
 
             $white = imagecolorallocate($canvas, 255, 255, 255);
 
             // Wiping out profile photo circular region to ensure no background placeholder shows behind
-            imagefilledellipse($canvas, $centerX, $centerY, $avatarSize + $clearCirclePadding, $avatarSize + $clearCirclePadding, $white);
+            // Clear only the inner area of the avatar (diameter = avatarSize - 4) so we don't leak white background under the gold ring
+            if ($isCustomTemplate) {
+                imagefilledellipse($canvas, $centerX, $centerY, $avatarSize - 4, $avatarSize - 4, $white);
+            } else {
+                imagefilledellipse($canvas, $centerX, $centerY, $avatarSize + 10, $avatarSize + 10, $white);
+            }
 
             // Draw profile photo or initials
             $this->drawAvatarOrInitial($canvas, $user, $centerX, $centerY, $avatarSize, $isCustomTemplate);
 
+            // Draw premium gold ring and glow frame
+            if ($isCustomTemplate) {
+                $this->drawPremiumGoldFrame($canvas, $centerX, $centerY, $avatarSize, $white, '#C19A58');
+            }
+
             // Add dynamic user name and company name
-            $this->drawTextAndDetails($canvas, $user, $centerX, $nameStartY, $nameFontSize, $companyFontSize, $nameColor, $companyColor);
+            $this->drawTextAndDetails($canvas, $user, $centerX, $nameStartY, $nameFontSize, $companyFontSize, $nameColor, $companyColor, $isCustomTemplate);
 
             // Save image to storage
             $diskName = 'public';
@@ -292,13 +300,13 @@ class BirthdayCreativeImageService
             $transparent = imagecolorallocatealpha($avatarImg, 0, 0, 0, 127);
             imagefill($avatarImg, 0, 0, $transparent);
 
-            // Fill the avatar circle with deep blue or gold based on custom template
+            // Fill the avatar circle with gold based on custom template
             $avatarBgColor = $isCustomTemplate ? imagecolorallocate($avatarImg, 193, 154, 88) : imagecolorallocate($avatarImg, 0, 35, 140);
             $avatarRadius = $avatarSize / 2;
             imagefilledellipse($avatarImg, (int) $avatarRadius, (int) $avatarRadius, $avatarSize, $avatarSize, $avatarBgColor);
 
             // Draw initial letter
-            $fontPath = $this->getFontPath(true);
+            $fontPath = $this->getFontPath('bold');
             $whiteColor = imagecolorallocate($avatarImg, 255, 255, 255);
             $fontSizeInit = (int) ($avatarSize * 0.42);
             if (file_exists($fontPath)) {
@@ -320,35 +328,84 @@ class BirthdayCreativeImageService
     /**
      * Draw dynamic user name and company name.
      */
-    private function drawTextAndDetails($canvas, User $user, int $centerX, int $nameStartY, int $nameFontSize, int $companyFontSize, $nameColor, $companyColor): void
+    private function drawTextAndDetails($canvas, User $user, int $centerX, int $nameStartY, int $nameFontSize, int $companyFontSize, $nameColor, $companyColor, bool $isCustomTemplate): void
     {
-        $fontPathBold = $this->getFontPath(true);
-        $fontPathRegular = $this->getFontPath(false);
+        // Name uses SemiBold (600 weight) — lighter, more premium than ExtraBold/Bold
+        $fontPathName    = $this->getFontPath('semibold');
+        $fontPathSemiBold = $this->getFontPath('semibold');
 
-        // 1. User Name (Upper Case)
         $displayName = strtoupper($user->display_name ?: ($user->first_name.' '.$user->last_name));
-        $nextY = $this->drawWrappedCenteredText(
-            $canvas,
-            $displayName,
-            $nameFontSize,
-            $centerX,
-            $nameStartY,
-            $nameColor,
-            $fontPathBold,
-            900 // max width
-        );
-
-        // 2. Company Name / Role (slightly increased line spacing spacer to 14px)
         $companyName = $user->company_name ?: ($user->designation ?: 'Global Peer');
-        $this->drawWrappedCenteredText(
-            $canvas,
-            $companyName,
-            $companyFontSize,
-            $centerX,
-            $nextY + 14,
-            $companyColor,
-            $fontPathRegular,
-            950 // max width
-        );
+
+        if ($isCustomTemplate) {
+            // Apply vertical height safety loop to prevent overlapping with greeting message at Y = 870
+            $maxAllowedY = 870;
+            $nameSpacing = 18;
+            $companySpacing = 18;
+
+            do {
+                // Use 820px max-width so long names always have comfortable side margins
+                $nameLines = $this->wrapTextToLines($displayName, $nameFontSize, $fontPathName, 820);
+                $nameHeight = 0;
+                foreach ($nameLines as $line) {
+                    $bbox = @imagettfbbox($nameFontSize, 0, $fontPathName, $line);
+                    if ($bbox) {
+                        $nameHeight += (int)(abs($bbox[5] - $bbox[1]) * 1.35);
+                    }
+                }
+
+                $companyLines = $this->wrapTextToLines($companyName, $companyFontSize, $fontPathSemiBold, 950);
+                $companyHeight = 0;
+                foreach ($companyLines as $line) {
+                    $bbox = @imagettfbbox($companyFontSize, 0, $fontPathSemiBold, $line);
+                    if ($bbox) {
+                        $companyHeight += (int)(abs($bbox[5] - $bbox[1]) * 1.35);
+                    }
+                }
+
+                $totalHeight = $nameHeight + $nameSpacing + $companySpacing + $companyHeight;
+                $availableHeight = $maxAllowedY - $nameStartY;
+
+                if ($totalHeight > $availableHeight && $nameFontSize > 34) {
+                    $nameFontSize -= 2;
+                    $companyFontSize = max(22, $nameFontSize - 24);
+                } else {
+                    break;
+                }
+            } while (true);
+
+            // Draw final optimized layouts
+            $nextY = $this->drawPreWrappedCenteredText($canvas, $nameLines, $nameFontSize, $centerX, $nameStartY, $nameColor, $fontPathName);
+            
+            // Draw separator line
+            $separatorY = $nextY + $nameSpacing;
+            $this->drawGoldSeparator($canvas, $centerX, $separatorY, $companyColor);
+
+            // Draw company name
+            $this->drawPreWrappedCenteredText($canvas, $companyLines, $companyFontSize, $centerX, $separatorY + $companySpacing, $companyColor, $fontPathSemiBold);
+        } else {
+            // Original logic for static fallback template
+            $nextY = $this->drawWrappedCenteredText(
+                $canvas,
+                $displayName,
+                $nameFontSize,
+                $centerX,
+                $nameStartY,
+                $nameColor,
+                $this->getFontPath('bold'),
+                900
+            );
+
+            $this->drawWrappedCenteredText(
+                $canvas,
+                $companyName,
+                $companyFontSize,
+                $centerX,
+                $nextY + 14,
+                $companyColor,
+                $this->getFontPath('regular'),
+                950
+            );
+        }
     }
 }
