@@ -266,6 +266,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/anniversary-creatives', [AnniversaryTemplateController::class, 'store'])->name('anniversary-creatives.store');
         Route::post('/anniversary-creatives/{template}/toggle', [AnniversaryTemplateController::class, 'toggleActive'])->name('anniversary-creatives.toggle');
         Route::delete('/anniversary-creatives/{template}', [AnniversaryTemplateController::class, 'destroy'])->name('anniversary-creatives.destroy');
+        Route::get('/anniversary-creatives/preview/{userId}', [AnniversaryTemplateController::class, 'preview'])->name('anniversary-creatives.preview');
         Route::get('/circulars/create', [CircularController::class, 'create'])->name('circulars.create');
         Route::post('/circulars', [CircularController::class, 'store'])->name('circulars.store');
         Route::get('/circulars/{circular}', [CircularController::class, 'show'])->name('circulars.show');
