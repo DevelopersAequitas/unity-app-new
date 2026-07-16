@@ -6,10 +6,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AnniversaryTemplate;
+use App\Models\User;
+use App\Services\Creative\AnniversaryImageGenerator;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class AnniversaryTemplateController extends Controller
@@ -22,8 +25,27 @@ class AnniversaryTemplateController extends Controller
             ->latest('created_at')
             ->get();
 
+        // Fetch users celebrating wedding anniversary today (for display panel)
+        $today = now(config('app.timezone', 'UTC'));
+        $anniversaryUsers = User::query()
+            ->where('status', 'active')
+            ->whereNotNull('anniversary_date')
+            ->whereMonth('anniversary_date', $today->month)
+            ->whereDay('anniversary_date', $today->day)
+            ->get();
+
+        // Users for dynamic preview dropdown (exclude system account)
+        $previewUsers = User::query()
+            ->whereNull('deleted_at')
+            ->where('email', '!=', 'info@peersglobal.com')
+            ->orderBy('first_name')
+            ->take(50)
+            ->get();
+
         return view('admin.anniversary-creatives.index', [
             'templates' => $templates,
+            'anniversaryUsers' => $anniversaryUsers,
+            'previewUsers' => $previewUsers,
         ]);
     }
 
@@ -93,6 +115,44 @@ class AnniversaryTemplateController extends Controller
         return redirect()
             ->route('admin.anniversary-creatives.index')
             ->with('success', 'Anniversary template deleted successfully.');
+    }
+
+    /**
+     * Generate dynamic live preview.
+     */
+    public function preview(string $userId)
+    {
+        try {
+            $user = User::findOrFail($userId);
+            $activeTemplate = AnniversaryTemplate::where('is_active', true)->first();
+
+            $imageGenerator = app(AnniversaryImageGenerator::class);
+            $fileModel = $imageGenerator->generate($user, $activeTemplate);
+
+            $disk = 'public';
+            if (! $fileModel->s3_key || ! Storage::disk($disk)->exists($fileModel->s3_key)) {
+                abort(404, 'Generated creative image not found in storage.');
+            }
+
+            $path = Storage::disk($disk)->path($fileModel->s3_key);
+
+            if (! file_exists($path)) {
+                abort(404, 'Generated creative image file not found on disk.');
+            }
+
+            $response = response()->file($path, [
+                'Content-Type' => 'image/webp',
+                'Cache-Control' => 'no-cache, must-revalidate',
+            ])->deleteFileAfterSend(true);
+
+            // Clean up the database record only
+            $fileModel->delete();
+
+            return $response;
+        } catch (\Throwable $e) {
+            Log::error('Failed to generate preview for anniversary creative: '.$e->getMessage());
+            abort(500, 'Error generating preview: '.$e->getMessage());
+        }
     }
 
     private function authorizeGlobalAdmin(Request $request): void
