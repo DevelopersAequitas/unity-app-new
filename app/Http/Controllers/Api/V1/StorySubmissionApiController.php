@@ -278,10 +278,11 @@ class StorySubmissionApiController extends BaseApiController
 
             $email = $user->email ?? '';
             $phone = $user->phone ?? '—';
+            $userId = $request->input('user_id') ?: ($user ? $user->id : null);
 
             // Map and Save to SmeBusinessStorySubmission
             $submission = SmeBusinessStorySubmission::create([
-                'user_id' => $user->id,
+                'user_id' => $userId,
                 'full_name' => $request->input('full_name'),
                 'designation' => $request->input('designation'),
                 'company_name' => $request->input('company_name'),
@@ -330,5 +331,32 @@ class StorySubmissionApiController extends BaseApiController
 
             return $this->error($exception->getMessage(), 500);
         }
+    }
+
+    public function status(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return $this->error('Unauthenticated.', 401);
+        }
+
+        $latestSubmission = SmeBusinessStorySubmission::query()
+            ->where('user_id', $user->id)
+            ->latest('created_at')
+            ->first();
+
+        if (! $latestSubmission) {
+            return response()->json([
+                'success' => true,
+                'status' => 'Not Submitted',
+                'story_link' => null,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'status' => ucfirst(strtolower($latestSubmission->status)),
+            'story_link' => strtolower($latestSubmission->status) === 'approved' ? $latestSubmission->story_link : null,
+        ]);
     }
 }

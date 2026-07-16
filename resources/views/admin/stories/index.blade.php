@@ -463,8 +463,14 @@
                     </div>
                     <div class="modal-body text-start">
                         <p class="text-dark">Approve the story submission "{{ $item->title ?: ($item->business_name ? 'Story of ' . $item->business_name : '—') }}" for <strong>{{ $item->user ? $item->user->display_name : $item->full_name }}</strong>?</p>
-                        <label class="form-label text-muted small fw-semibold">Admin Note (optional)</label>
-                        <textarea name="admin_note" class="form-control text-dark" rows="3" placeholder="Approval message or notes...">{{ old('admin_note') }}</textarea>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-semibold">Admin Note (optional)</label>
+                            <textarea name="admin_note" class="form-control text-dark" rows="3" placeholder="Approval message or notes...">{{ old('admin_note') }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-semibold">Story Link (required)</label>
+                            <input type="url" name="story_link" class="form-control text-dark" required placeholder="https://vyaparjagat.com/..." value="{{ old('story_link', $item->story_link) }}">
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>

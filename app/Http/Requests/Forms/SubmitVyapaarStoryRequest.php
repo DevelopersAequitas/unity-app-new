@@ -38,6 +38,7 @@ class SubmitVyapaarStoryRequest extends FormRequest
     {
         return [
             // Screen 1: Basic Information
+            'user_id' => ['nullable', 'string', 'uuid'],
             'full_name' => ['required', 'string', 'max:255'],
             'designation' => ['nullable', 'string', 'max:255'],
             'company_name' => ['nullable', 'string', 'max:255'],

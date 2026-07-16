@@ -10,7 +10,6 @@ use App\Models\FileModel;
 use App\Models\User;
 use App\Services\Media\FileUploadService;
 use App\Traits\HasCreativeRendering;
-use Exception;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -141,7 +140,7 @@ class AnniversaryImageGenerator
 
             return $fileModel;
         } catch (\Throwable $e) {
-            Log::error("Failed to generate anniversary creative: ".$e->getMessage(), [
+            Log::error('Failed to generate anniversary creative: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
             throw $e;
