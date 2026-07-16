@@ -71,12 +71,13 @@ class BillingCheckoutController extends Controller
         } catch (Throwable $throwable) {
             Log::error('Zoho checkout creation failed', [
                 'user_id' => $user->id,
-                'message' => 'Failed to generate checkout URL.',
+                'message' => $throwable->getMessage(),
+                'trace' => $throwable->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to generate checkout URL.',
+                'message' => 'Failed to generate checkout URL: '.$throwable->getMessage(),
                 'data' => [],
             ], 500);
         }
