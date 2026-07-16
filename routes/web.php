@@ -65,6 +65,7 @@ use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
+use App\Http\Controllers\ShareController;
 use App\Support\AdminAccess;
 use Illuminate\Support\Facades\Route;
 
@@ -75,6 +76,8 @@ Route::get('/', function () {
 Route::get('/congratulations', function () {
     return view('congratulations');
 });
+
+Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
