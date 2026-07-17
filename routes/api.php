@@ -133,6 +133,7 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use App\Jobs\SendPushNotificationJob;
 use App\Models\User;
+use App\Services\Notifications\FcmService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -1141,6 +1142,36 @@ Route::get('/debug-logs', function () {
             'success' => true,
             'total_lines' => $totalLines,
             'recent_lines' => array_reverse($lines),
+        ]);
+    } catch (Throwable $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ]);
+    }
+});
+
+Route::get('/send-test-push', function (Request $request) {
+    try {
+        $email = $request->get('email', 'chirag@gmail.com');
+        $title = $request->get('title', 'Dev Server Test');
+        $body = $request->get('body', 'FCM notifications are fully working! 🚀');
+
+        $user = User::where('email', $email)->first();
+        if (! $user) {
+            return response()->json(['success' => false, 'error' => "User {$email} not found"]);
+        }
+
+        $fcmService = app(FcmService::class);
+        $result = $fcmService->sendToUser($user, $title, $body, [
+            'type' => 'test',
+            'notification_type' => 'test',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'user' => $user->only(['id', 'email']),
+            'fcm_result' => $result,
         ]);
     } catch (Throwable $e) {
         return response()->json([
