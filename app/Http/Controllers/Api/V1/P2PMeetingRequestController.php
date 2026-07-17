@@ -335,7 +335,7 @@ class P2PMeetingRequestController extends BaseApiController
     {
         $notification = Notification::create([
             'user_id' => $toUser->id,
-            'type' => $type,
+            'type' => 'activity_update',
             'payload' => [
                 'notification_type' => $type,
                 'meeting_request_id' => (string) $meetingRequest->id,

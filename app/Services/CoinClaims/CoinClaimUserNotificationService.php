@@ -66,7 +66,7 @@ class CoinClaimUserNotificationService
         try {
             $notification = Notification::create([
                 'user_id' => $claim->user_id,
-                'type' => $type,
+                'type' => 'activity_update',
                 'payload' => $payload,
                 'is_read' => false,
                 'created_at' => now(),
