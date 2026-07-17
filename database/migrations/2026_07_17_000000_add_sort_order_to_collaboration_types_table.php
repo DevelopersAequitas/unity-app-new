@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -12,7 +12,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (Schema::hasTable('collaboration_types') && !Schema::hasColumn('collaboration_types', 'sort_order')) {
+        if (Schema::hasTable('collaboration_types') && ! Schema::hasColumn('collaboration_types', 'sort_order')) {
             Schema::table('collaboration_types', function (Blueprint $table) {
                 $table->integer('sort_order')->default(0);
             });

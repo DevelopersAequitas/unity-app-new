@@ -60,20 +60,20 @@ trait HasCreativeRendering
      */
     protected function wrapTextToLines(string $text, int $fontSize, string $fontPath, int $maxWidth): array
     {
-        $lines           = [];
-        $currentLine     = '';
-        $words           = explode(' ', $text);
+        $lines = [];
+        $currentLine = '';
+        $words = explode(' ', $text);
         $hasOverflowWord = false;
 
         do {
-            $lines           = [];
-            $currentLine     = '';
-            $words           = explode(' ', $text);
+            $lines = [];
+            $currentLine = '';
+            $words = explode(' ', $text);
             $hasOverflowWord = false;
 
             foreach ($words as $word) {
-                $testLine = $currentLine === '' ? $word : $currentLine . ' ' . $word;
-                $bbox     = @imagettfbbox($fontSize, 0, $fontPath, $testLine);
+                $testLine = $currentLine === '' ? $word : $currentLine.' '.$word;
+                $bbox = @imagettfbbox($fontSize, 0, $fontPath, $testLine);
                 if (! $bbox) {
                     $lines = [$text];
                     break;
@@ -85,7 +85,7 @@ trait HasCreativeRendering
                         $hasOverflowWord = true;
                         break;
                     } else {
-                        $lines[]     = $currentLine;
+                        $lines[] = $currentLine;
                         $currentLine = $word;
                     }
                 } else {
@@ -111,7 +111,7 @@ trait HasCreativeRendering
     protected function drawPreWrappedCenteredText($canvas, array $lines, int $fontSize, int $centerX, int $startY, $color, string $fontPath, float $lineHeightMultiplier = 1.35): int
     {
         $currentY = $startY;
-        $isBold   = str_contains(basename($fontPath), 'Bold') || str_contains(basename($fontPath), 'SemiBold');
+        $isBold = str_contains(basename($fontPath), 'Bold') || str_contains(basename($fontPath), 'SemiBold');
 
         foreach ($lines as $line) {
             $bbox = @imagettfbbox($fontSize, 0, $fontPath, $line);
@@ -125,8 +125,8 @@ trait HasCreativeRendering
                 if ($isBold) {
                     imagettftext($canvas, $fontSize, 0, (int) $x - 1, (int) $y, $color, $fontPath, $line);
                     imagettftext($canvas, $fontSize, 0, (int) $x + 1, (int) $y, $color, $fontPath, $line);
-                    imagettftext($canvas, $fontSize, 0, (int) $x,     (int) $y - 1, $color, $fontPath, $line);
-                    imagettftext($canvas, $fontSize, 0, (int) $x,     (int) $y + 1, $color, $fontPath, $line);
+                    imagettftext($canvas, $fontSize, 0, (int) $x, (int) $y - 1, $color, $fontPath, $line);
+                    imagettftext($canvas, $fontSize, 0, (int) $x, (int) $y + 1, $color, $fontPath, $line);
                 }
                 imagettftext($canvas, $fontSize, 0, (int) $x, (int) $y, $color, $fontPath, $line);
 
@@ -145,9 +145,10 @@ trait HasCreativeRendering
      */
     protected function drawWrappedCenteredText($canvas, string $text, int $startFontSize, int $centerX, int $startY, $color, string $fontPath, int $maxWidth, float $lineHeightMultiplier = 1.35): int
     {
-        $style            = str_contains(basename($fontPath), 'Bold') ? 'bold' : 'regular';
+        $style = str_contains(basename($fontPath), 'Bold') ? 'bold' : 'regular';
         $fontPathResolved = $this->getFontPath($style);
-        $lines            = $this->wrapTextToLines($text, $startFontSize, $fontPathResolved, $maxWidth);
+        $lines = $this->wrapTextToLines($text, $startFontSize, $fontPathResolved, $maxWidth);
+
         return $this->drawPreWrappedCenteredText($canvas, $lines, $startFontSize, $centerX, $startY, $color, $fontPathResolved, $lineHeightMultiplier);
     }
 
@@ -158,16 +159,16 @@ trait HasCreativeRendering
     {
         $bbox = imagettfbbox($size, 0, $fontFile, $text);
         if ($bbox) {
-            $textWidth  = abs($bbox[4] - $bbox[0]);
+            $textWidth = abs($bbox[4] - $bbox[0]);
             $textHeight = abs($bbox[5] - $bbox[1]);
-            $x          = $centerX - ($textWidth / 2);
-            $y          = $centerY + ($textHeight / 2) - $bbox[1];
+            $x = $centerX - ($textWidth / 2);
+            $y = $centerY + ($textHeight / 2) - $bbox[1];
 
             imagettftext($image, $size, 0, (int) $x - 1, (int) $y, $color, $fontFile, $text);
             imagettftext($image, $size, 0, (int) $x + 1, (int) $y, $color, $fontFile, $text);
-            imagettftext($image, $size, 0, (int) $x,     (int) $y - 1, $color, $fontFile, $text);
-            imagettftext($image, $size, 0, (int) $x,     (int) $y + 1, $color, $fontFile, $text);
-            imagettftext($image, $size, 0, (int) $x,     (int) $y,     $color, $fontFile, $text);
+            imagettftext($image, $size, 0, (int) $x, (int) $y - 1, $color, $fontFile, $text);
+            imagettftext($image, $size, 0, (int) $x, (int) $y + 1, $color, $fontFile, $text);
+            imagettftext($image, $size, 0, (int) $x, (int) $y, $color, $fontFile, $text);
         } else {
             imagestring($image, 5, (int) ($centerX - 10), (int) ($centerY - 10), $text, $color);
         }
@@ -194,7 +195,7 @@ trait HasCreativeRendering
         // Horizontal rules extending outward
         imagesetthickness($canvas, 2);
         imageline($canvas, $centerX - 120, $y, $centerX - 24, $y, $color);
-        imageline($canvas, $centerX +  24, $y, $centerX + 120, $y, $color);
+        imageline($canvas, $centerX + 24, $y, $centerX + 120, $y, $color);
         imagesetthickness($canvas, 1);
     }
 
@@ -203,12 +204,12 @@ trait HasCreativeRendering
      */
     protected function drawPremiumGoldFrame($canvas, int $centerX, int $centerY, int $avatarSize, $whiteColor, string $goldColorHex): void
     {
-        $goldRgb   = $this->hexToRgb($goldColorHex);
+        $goldRgb = $this->hexToRgb($goldColorHex);
         $goldColor = imagecolorallocate($canvas, $goldRgb['r'], $goldRgb['g'], $goldRgb['b']);
 
         // Outer glow — concentric semi-transparent gold rings
         for ($offset = 10; $offset <= 18; $offset += 2) {
-            $alpha     = min(127, max(0, (int) (127 * (0.85 + ($offset - 10) * 0.02))));
+            $alpha = min(127, max(0, (int) (127 * (0.85 + ($offset - 10) * 0.02))));
             $glowColor = imagecolorallocatealpha($canvas, $goldRgb['r'], $goldRgb['g'], $goldRgb['b'], $alpha);
             imagesetthickness($canvas, 2);
             imageellipse($canvas, $centerX, $centerY, $avatarSize + $offset, $avatarSize + $offset, $glowColor);
@@ -233,9 +234,9 @@ trait HasCreativeRendering
         $hex = ltrim($hex, '#');
         if (strlen($hex) === 3) {
             [$r, $g, $b] = [
-                hexdec($hex[0] . $hex[0]),
-                hexdec($hex[1] . $hex[1]),
-                hexdec($hex[2] . $hex[2]),
+                hexdec($hex[0].$hex[0]),
+                hexdec($hex[1].$hex[1]),
+                hexdec($hex[2].$hex[2]),
             ];
         } else {
             $r = hexdec(substr($hex, 0, 2));
@@ -254,12 +255,12 @@ trait HasCreativeRendering
     {
         $filename = match ($style) {
             'extrabold' => 'Montserrat-ExtraBold.ttf',
-            'semibold'  => 'Montserrat-SemiBold.ttf',
-            'bold'      => 'Montserrat-Bold.ttf',
-            default     => 'Montserrat-Regular.ttf',
+            'semibold' => 'Montserrat-SemiBold.ttf',
+            'bold' => 'Montserrat-Bold.ttf',
+            default => 'Montserrat-Regular.ttf',
         };
 
-        $fontPath = public_path('fonts/' . $filename);
+        $fontPath = public_path('fonts/'.$filename);
         if (! file_exists($fontPath)) {
             $fontPath = base_path('vendor/endroid/qr-code/assets/open_sans.ttf');
         }

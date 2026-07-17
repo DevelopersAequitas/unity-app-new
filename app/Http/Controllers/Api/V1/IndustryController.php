@@ -22,6 +22,7 @@ class IndustryController extends Controller
                     if ($hasSortOrder) {
                         $q->orderBy('sort_order');
                     }
+
                     return $q->orderBy('name');
                 },
             ]);

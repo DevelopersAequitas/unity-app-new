@@ -117,7 +117,7 @@ class StorySubmissionsController extends Controller
                     'story_approved',
                     [
                         'title' => 'Story Submission Approved',
-                        'body' => "Your story has been published in vyaparjagat. Link: " . $data['story_link'],
+                        'body' => 'Your story has been published in vyaparjagat. Link: '.$data['story_link'],
                         'story_submission_id' => (string) $story->id,
                     ],
                     $story

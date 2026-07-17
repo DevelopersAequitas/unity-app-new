@@ -258,7 +258,7 @@ class AnniversaryImageGenerator
     private function drawTextAndDetails($canvas, User $user, int $centerX, int $nameStartY, int $nameFontSize, int $companyFontSize, $nameColor, $companyColor, bool $isCustomTemplate): void
     {
         // Name uses SemiBold (600 weight) — lighter, more premium than ExtraBold/Bold
-        $fontPathName    = $this->getFontPath('semibold');
+        $fontPathName = $this->getFontPath('semibold');
         $fontPathSemiBold = $this->getFontPath('semibold');
 
         $displayName = strtoupper($user->display_name ?: ($user->first_name.' '.$user->last_name));
@@ -277,7 +277,7 @@ class AnniversaryImageGenerator
                 foreach ($nameLines as $line) {
                     $bbox = @imagettfbbox($nameFontSize, 0, $fontPathName, $line);
                     if ($bbox) {
-                        $nameHeight += (int)(abs($bbox[5] - $bbox[1]) * 1.35);
+                        $nameHeight += (int) (abs($bbox[5] - $bbox[1]) * 1.35);
                     }
                 }
 
@@ -286,7 +286,7 @@ class AnniversaryImageGenerator
                 foreach ($companyLines as $line) {
                     $bbox = @imagettfbbox($companyFontSize, 0, $fontPathSemiBold, $line);
                     if ($bbox) {
-                        $companyHeight += (int)(abs($bbox[5] - $bbox[1]) * 1.35);
+                        $companyHeight += (int) (abs($bbox[5] - $bbox[1]) * 1.35);
                     }
                 }
 
@@ -303,7 +303,7 @@ class AnniversaryImageGenerator
 
             // Draw final optimized layouts
             $nextY = $this->drawPreWrappedCenteredText($canvas, $nameLines, $nameFontSize, $centerX, $nameStartY, $nameColor, $fontPathName);
-            
+
             // Draw separator line
             $separatorY = $nextY + $nameSpacing;
             $this->drawGoldSeparator($canvas, $centerX, $separatorY, $companyColor);
