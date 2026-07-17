@@ -11,11 +11,13 @@ class CollaborationTypeController extends Controller
 {
     public function index(): JsonResponse
     {
-        $types = CollaborationType::query()
-            ->active()
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
+        $query = CollaborationType::query()->active();
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('collaboration_types', 'sort_order')) {
+            $query->orderBy('sort_order');
+        }
+
+        $types = $query->orderBy('name')->get();
 
         return response()->json([
             'status' => true,

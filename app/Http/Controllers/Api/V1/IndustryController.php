@@ -11,18 +11,26 @@ class IndustryController extends Controller
 {
     public function tree(): JsonResponse
     {
-        $industries = Industry::query()
+        $hasSortOrder = \Illuminate\Support\Facades\Schema::hasColumn('industries', 'sort_order');
+
+        $query = Industry::query()
             ->active()
             ->whereNull('parent_id')
             ->with([
-                'children' => fn ($query) => $query
-                    ->active()
-                    ->orderBy('sort_order')
-                    ->orderBy('name'),
-            ])
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
+                'children' => function ($query) use ($hasSortOrder) {
+                    $q = $query->active();
+                    if ($hasSortOrder) {
+                        $q->orderBy('sort_order');
+                    }
+                    return $q->orderBy('name');
+                },
+            ]);
+
+        if ($hasSortOrder) {
+            $query->orderBy('sort_order');
+        }
+
+        $industries = $query->orderBy('name')->get();
 
         return response()->json([
             'status' => true,
