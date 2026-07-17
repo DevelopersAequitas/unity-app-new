@@ -55,6 +55,7 @@ class CircleMemberDashboardController extends Controller
             'requiresSelection' => $requiresSelection,
             'selectedCircleId' => $circleId,
             'isCircleSelected' => $isCircleSelected || ! $requiresSelection,
+            'allowedCircleIds' => $allowedCircleIds,
         ]);
     }
 }

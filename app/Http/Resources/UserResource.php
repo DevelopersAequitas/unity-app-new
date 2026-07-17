@@ -35,6 +35,12 @@ class UserResource extends JsonResource
         $resolvedCircleInfo = $resolvedCircle['circle'] ?? null;
 
         $resolvedCity = null;
+        $authUser = auth('sanctum')->user();
+        $isBookmark = false;
+        if ($authUser) {
+            $bookmarks = $authUser->bookmarks ?? [];
+            $isBookmark = in_array((string) $this->id, $bookmarks, true);
+        }
         if ($this->relationLoaded('city') && $this->city) {
             $resolvedCity = $this->city;
         } elseif (filled($this->getAttribute('city'))) {
@@ -122,8 +128,8 @@ class UserResource extends JsonResource
             'connection_count' => $this->resolveConnectionCount(),
             'followers_count' => (int) ($this->followers_count ?? 0),
             'following_count' => (int) ($this->following_count ?? 0),
-            'posts' => (int) ($this->posts_count ?? $this->posts()->count()),
-            'posts_count' => (int) ($this->posts_count ?? $this->posts()->count()),
+            'posts' => Schema::hasTable('posts') ? (int) ($this->posts_count ?? $this->posts()->count()) : 0,
+            'posts_count' => Schema::hasTable('posts') ? (int) ($this->posts_count ?? $this->posts()->count()) : 0,
             'coins_balance' => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'business_type' => $this->business_type,
@@ -162,6 +168,10 @@ class UserResource extends JsonResource
             'sustainability_areas' => $this->sustainability_areas ?? [],
             'greenpreneur_goals' => $this->greenpreneur_goals ?? [],
             'community_directory_listing' => $this->community_directory_listing,
+            'is_bookmark' => $isBookmark,
+            'story_link' => \App\Models\SmeBusinessStorySubmission::where('user_id', $this->id)
+                ->whereRaw('LOWER(status) = ?', ['approved'])
+                ->value('story_link'),
             'profile_match' => $this->when(
                 $request->attributes->get('profile_match_enabled', false),
                 fn () => $this->resolveProfileMatch($request)
@@ -262,6 +272,10 @@ class UserResource extends JsonResource
 
     private function resolveCircleMemberships(): array
     {
+        if (! Schema::hasTable('circle_members') || ! Schema::hasTable('circle_subscriptions')) {
+            return [];
+        }
+
         $joinedStatus = (string) config('circle.member_joined_status', 'approved');
         $memberships = $this->resource->relationLoaded('circleMemberships')
             ? $this->resource->circleMemberships
@@ -375,6 +389,10 @@ class UserResource extends JsonResource
 
     private function resolvePrimaryCircleContext(): array
     {
+        if (! Schema::hasTable('circle_members') || ! Schema::hasTable('circle_subscriptions')) {
+            return [];
+        }
+
         $joinedStatus = (string) config('circle.member_joined_status', 'approved');
         $membership = $this->resource->circleMemberships()
             ->where('status', $joinedStatus)

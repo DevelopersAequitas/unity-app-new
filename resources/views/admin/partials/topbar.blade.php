@@ -12,7 +12,7 @@
         : ($isGlobalAdmin
             ? 'Global Admin'
             : ($isIndustryDirector
-                ? 'IDE'
+                ? 'ID'
                 : ($isDed ? 'DED' : ($isCircleScoped ? \App\Support\AdminAccess::primaryCircleRoleLabel($admin) : 'Admin'))));
 
 
@@ -122,26 +122,16 @@
     $notificationCount = $topNotifications->count();
     $joinedCircles = collect();
     $requiresCircleDropdown = false;
-    $selectedCircleId = null;
+    $selectedCircleId = session('activeScopeId', 'All');
 
-    if ($admin && $isCircleScoped) {
-        $appUser = \App\Support\AdminAccess::resolveAppUser($admin);
-        if ($appUser) {
-            $joinedCircles = \App\Models\CircleMember::query()
-                ->where('user_id', $appUser->id)
-                ->where('status', 'approved')
-                ->whereNull('deleted_at')
-                ->with('circle')
+    if ($admin && ! $isSuper) {
+        $allowedCircleIds = \App\Support\AdminAccess::allowedCircleIds($admin);
+        if (count($allowedCircleIds) > 1) {
+            $requiresCircleDropdown = true;
+            $joinedCircles = \App\Models\Circle::whereIn('id', $allowedCircleIds)
+                ->orderBy('name')
                 ->get();
-
-            if ($joinedCircles->count() > 1) {
-                $requiresCircleDropdown = true;
-            }
         }
-    }
-
-    if ($joinedCircles->isNotEmpty()) {
-        $selectedCircleId = request()->query('circle_id') ?: $joinedCircles->first()->circle_id;
     }
 @endphp
 <header class="admin-topbar d-flex align-items-center justify-content-between px-4 py-2">
@@ -172,19 +162,49 @@
         {{-- Right Actions --}}
         <div class="d-none d-md-flex align-items-center gap-2">
             {{-- Quick Actions --}}
-            @if ($requiresCircleDropdown && request()->routeIs('admin.circle-member.dashboard'))
-                <form method="GET" action="{{ route('admin.circle-member.dashboard') }}" class="d-flex align-items-center gap-2 me-2">
-                    <label for="topbar_circle_id" class="text-muted fw-semibold mb-0 text-nowrap fs-7">Circle:</label>
-                    <select name="circle_id" id="topbar_circle_id" class="form-select form-select-sm rounded-3 py-1.5 px-3 border shadow-sm" style="min-width: 180px; max-width: 250px; background-color: #f8f9fa;" onchange="this.form.submit()">
-                        @foreach ($joinedCircles as $cm)
-                            @if ($cm->circle)
-                                <option value="{{ $cm->circle_id }}" @selected($cm->circle_id === $selectedCircleId)>
-                                    {{ $cm->circle->name }}
-                                </option>
-                            @endif
+            @if ($requiresCircleDropdown)
+                <div class="d-flex align-items-center gap-2 me-2">
+                    <label for="topbar_circle_id" class="text-muted fw-semibold mb-0 text-nowrap fs-7">Circle Context:</label>
+                    <select id="topbar_circle_id" class="form-select form-select-sm rounded-3 py-1.5 px-3 border shadow-sm" style="min-width: 180px; max-width: 250px; background-color: #f8f9fa;">
+                        <option value="All" @selected($selectedCircleId === 'All')>All My Circles</option>
+                        @foreach ($joinedCircles as $c)
+                            <option value="{{ $c->id }}" @selected($c->id === $selectedCircleId)>
+                                {{ $c->name }}
+                            </option>
                         @endforeach
                     </select>
-                </form>
+                </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const selectEl = document.getElementById('topbar_circle_id');
+                        if (selectEl) {
+                            selectEl.addEventListener('change', function () {
+                                const val = selectEl.value;
+                                fetch("{{ route('admin.switch-context') }}", {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                                        'X-Requested-With': 'XMLHttpRequest'
+                                    },
+                                    body: JSON.stringify({ circle_id: val })
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.success) {
+                                        window.location.reload();
+                                    } else {
+                                        alert(data.message || 'Failed to switch circle context.');
+                                    }
+                                })
+                                .catch(err => {
+                                    console.error(err);
+                                    alert('An unexpected error occurred.');
+                                });
+                            });
+                        }
+                    });
+                </script>
             @endif
             <div class="dropdown">
                 <button class="btn btn-light dropdown-toggle d-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" style="font-size: 0.82rem; padding: 7px 14px;">
@@ -277,6 +297,18 @@
                         </div>
                     </li>
                     <li><hr class="dropdown-divider my-1"></li>
+                    @php
+                        $roleKeys = \App\Support\AdminAccess::adminRoleKeys($admin);
+                        $canRemoveRole = collect($roleKeys)->reject('user')->isNotEmpty();
+                    @endphp
+                    @if ($canRemoveRole)
+                        <li>
+                            <button class="dropdown-item d-flex align-items-center gap-2 text-warning" type="button" data-bs-toggle="modal" data-bs-target="#confirmRemoveRoleModal">
+                                <i class="bi bi-shield-minus"></i> Remove Current Role
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider my-1"></li>
+                    @endif
                     <li>
                         <form method="POST" action="{{ route('admin.logout') }}">
                             @csrf
@@ -290,3 +322,44 @@
         </div>
     </div>
 </header>
+
+<!-- Remove Current Role Confirmation Modal -->
+<div class="modal fade" id="confirmRemoveRoleModal" tabindex="-1" aria-labelledby="confirmRemoveRoleModalLabel" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 450px;">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px;">
+            <div class="modal-header border-bottom-0 pt-4 px-4 pb-2">
+                <h5 class="modal-title d-flex align-items-center gap-2 text-warning fw-semibold" id="confirmRemoveRoleModalLabel" style="font-size: 1.1rem;">
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i> Confirm Role Removal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-2">
+                <p class="text-secondary mb-0" style="font-size: 0.9rem; line-height: 1.5;">
+                    Are you sure you want to remove your current role? Your account will be changed to the default User role.
+                </p>
+            </div>
+            <div class="modal-footer border-top-0 pb-4 px-4 pt-3 gap-2">
+                <button type="button" class="btn btn-light px-4 py-2 text-secondary fw-semibold" data-bs-dismiss="modal" style="border-radius: 8px; font-size: 0.85rem;">Cancel</button>
+                <form id="removeRoleForm" method="POST" action="{{ route('admin.profile.remove-current-role') }}" class="m-0">
+                    @csrf
+                    <button type="submit" id="confirmRemoveRoleSubmitBtn" class="btn btn-warning px-4 py-2 text-dark fw-semibold" style="border-radius: 8px; font-size: 0.85rem;">
+                        Confirm & Remove
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('removeRoleForm');
+        const submitBtn = document.getElementById('confirmRemoveRoleSubmitBtn');
+        if (form && submitBtn) {
+            form.addEventListener('submit', function () {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Removing...';
+            });
+        }
+    });
+</script>

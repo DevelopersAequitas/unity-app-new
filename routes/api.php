@@ -96,6 +96,7 @@ use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\IntroVideoController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
@@ -121,6 +122,7 @@ use App\Http\Controllers\Api\V1\StorySubmissionApiController;
 use App\Http\Controllers\Api\V1\SupportTicketController;
 use App\Http\Controllers\Api\V1\TestimonialController as V1TestimonialController;
 use App\Http\Controllers\Api\V1\TimelineRequirementController;
+use App\Http\Controllers\Api\V1\TutorialController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
@@ -146,6 +148,8 @@ Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDelet
 
 Route::prefix('v1')->group(function () {
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
+    Route::get('/tutorials', [TutorialController::class, 'index']);
+    Route::post('/tutorials', [TutorialController::class, 'store']);
     Route::prefix('scan-app')->group(function () {
         Route::post('/login', [ScanAppAuthController::class, 'login']);
 
@@ -348,7 +352,9 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         // Story Submissions API
+        Route::get('/story/status', [StorySubmissionApiController::class, 'status']);
         Route::post('/story/submit', [StorySubmissionApiController::class, 'submit']);
+        Route::post('/story-submission', [StorySubmissionApiController::class, 'submitVyapaarStory']);
         Route::get('/story/my-submissions', [StorySubmissionApiController::class, 'mySubmissions']);
         Route::get('/story/{id}', [StorySubmissionApiController::class, 'show'])->whereUuid('id');
 
@@ -377,6 +383,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
+        Route::get('/intro-videos', [IntroVideoController::class, 'index']);
 
         Route::post('/geo/update-location', [GeoLocationController::class, 'updateLocation']);
         Route::patch('/geo/visibility', [GeoLocationController::class, 'updateVisibility']);
@@ -409,6 +416,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/members/{id}/connections', [MemberController::class, 'sendConnectionRequest']);
         Route::post('/members/{id}/connections/accept', [MemberController::class, 'acceptConnection']);
         Route::delete('/members/{id}/connections', [MemberController::class, 'deleteConnection']);
+
+        Route::post('/members/{id}/bookmark', [MemberController::class, 'bookmark'])->whereUuid('id');
+        Route::delete('/members/{id}/bookmark', [MemberController::class, 'unbookmark'])->whereUuid('id');
         Route::get('/connections', [MyConnectionsController::class, 'index']);
         Route::get('/connections/sent', [MyConnectionsController::class, 'sent']);
         Route::delete('/connections/sent/{addresseeId}', [MyConnectionsController::class, 'cancelSent']);
@@ -964,7 +974,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/billing/checkout', [BillingCheckoutController::class, 'checkout']);
         Route::get('/billing/checkout/{hostedpage_id}', [BillingCheckoutController::class, 'status']);
         Route::get('/billing/hostedpages/{hostedpageId}/sync', [BillingCheckoutController::class, 'syncHostedPage']);
-        Route::get('/billing/subscriptions', [UserSubscriptionController::class, 'index']);
+        Route::get('/billing/subscriptions-history', [UserSubscriptionController::class, 'index']);
         Route::get('/billing/invoices', [InvoiceController::class, 'index']);
         Route::get('/billing/invoices/{invoiceId}', [InvoiceController::class, 'show']);
         Route::get('/billing/invoices/{invoiceId}/pdf', [InvoiceController::class, 'pdf']);

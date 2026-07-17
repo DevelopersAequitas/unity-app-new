@@ -63,7 +63,7 @@ class UpsertAdminEventRequest extends FormRequest
             'net_pnl' => ['nullable', 'numeric'],
             'qr_checkin_enabled' => ['sometimes', 'boolean'],
             'is_public' => ['sometimes', 'boolean'],
-            'recurrence_type' => ['sometimes', 'string', 'in:none,weekly,monthly,yearly'],
+            'recurrence_type' => ['sometimes', 'string', 'in:none,daily,weekly,monthly,yearly'],
             'recurrence_interval' => ['nullable', 'integer', 'min:1', 'max:24'],
             'recurrence_day_of_week' => ['nullable', 'integer', 'min:1', 'max:7'],
             'recurrence_week_of_month' => ['nullable', 'integer', 'min:1', 'max:5'],

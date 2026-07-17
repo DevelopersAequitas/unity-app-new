@@ -38,6 +38,7 @@ use App\Http\Controllers\Admin\CoinClaimsController;
 use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
 use App\Http\Controllers\Admin\ContactController;
+use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailLogController;
@@ -55,13 +56,16 @@ use App\Http\Controllers\Admin\NotificationAdminController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
+use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
+use App\Http\Controllers\Admin\TutorialController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
+use App\Http\Controllers\ShareController;
 use App\Support\AdminAccess;
 use Illuminate\Support\Facades\Route;
 
@@ -72,6 +76,8 @@ Route::get('/', function () {
 Route::get('/congratulations', function () {
     return view('congratulations');
 });
+
+Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
@@ -91,13 +97,31 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/login/verify', [AdminAuthController::class, 'verifyOtp'])->name('login.verify');
 
     Route::middleware(['admin.auth', 'admin.role', 'admin.circle'])->group(function () {
+        // RBAC Hierarchy & Profile management
+        Route::get('/rbac/hierarchy', [RoleHierarchyController::class, 'index'])->name('rbac.hierarchy');
+        Route::get('/rbac/hierarchy/map', [RoleHierarchyController::class, 'fullMap'])->name('rbac.hierarchy.fullmap');
+        Route::post('/rbac/roles', [RoleHierarchyController::class, 'storeRole'])->name('rbac.roles.store');
+        Route::post('/rbac/roles/update-parent', [RoleHierarchyController::class, 'updateParent'])->name('rbac.roles.update-parent');
+        Route::post('/rbac/roles/clone', [RoleHierarchyController::class, 'cloneProfile'])->name('rbac.roles.clone');
+        Route::put('/rbac/roles/{id}', [RoleHierarchyController::class, 'updateRole'])->name('rbac.roles.update')->whereUuid('id');
+        Route::delete('/rbac/roles/{id}', [RoleHierarchyController::class, 'deleteRole'])->name('rbac.roles.delete')->whereUuid('id');
+        Route::post('/rbac/roles/assign', [RoleHierarchyController::class, 'assignRole'])->name('rbac.roles.assign');
+        Route::get('/rbac/roles/{id}/assignments', [RoleHierarchyController::class, 'getAssignments'])->name('rbac.roles.assignments')->whereUuid('id');
+        Route::post('/rbac/roles/{id}/assignments', [RoleHierarchyController::class, 'assignPeer'])->name('rbac.roles.assign-peer')->whereUuid('id');
+        Route::delete('/rbac/roles/{id}/assignments/{userId}', [RoleHierarchyController::class, 'removeAssignment'])->name('rbac.roles.remove-assignment')->whereUuid('id')->whereUuid('userId');
+        Route::post('/switch-context', [ContextSwitcherController::class, 'switchContext'])->name('switch-context');
+        Route::post('/profile/remove-current-role', [RoleHierarchyController::class, 'removeCurrentRole'])->name('profile.remove-current-role');
+
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
         Route::get('/', function () {
             $admin = auth('admin')->user();
-            $isIndustryDirector = $admin?->roles()->where('key', 'industry_director')->exists() ?? false;
 
-            if ($isIndustryDirector) {
+            if (AdminAccess::isIndustryScoped($admin)) {
                 return redirect()->route('admin.industry-director.dashboard');
+            }
+
+            if (AdminAccess::isDed($admin)) {
+                return redirect()->route('admin.ded.dashboard');
             }
 
             if (AdminAccess::isCircleScoped($admin)) {
@@ -106,6 +130,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             return redirect()->route('admin.dashboard');
         })->name('home');
+
+        // Tutorials routes
+        Route::get('/tutorials', [TutorialController::class, 'index'])->name('tutorials.index');
+        Route::post('/tutorials', [TutorialController::class, 'store'])->name('tutorials.store');
+        Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id')->name('tutorials.destroy');
+
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
         Route::get('/birthday-creative', [BirthdayCreativeController::class, 'index'])->name('birthday-creative.index');
         Route::post('/birthday-creative', [BirthdayCreativeController::class, 'update'])->name('birthday-creative.update');
@@ -239,6 +269,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/anniversary-creatives', [AnniversaryTemplateController::class, 'store'])->name('anniversary-creatives.store');
         Route::post('/anniversary-creatives/{template}/toggle', [AnniversaryTemplateController::class, 'toggleActive'])->name('anniversary-creatives.toggle');
         Route::delete('/anniversary-creatives/{template}', [AnniversaryTemplateController::class, 'destroy'])->name('anniversary-creatives.destroy');
+        Route::get('/anniversary-creatives/preview/{userId}', [AnniversaryTemplateController::class, 'preview'])->name('anniversary-creatives.preview');
         Route::get('/circulars/create', [CircularController::class, 'create'])->name('circulars.create');
         Route::post('/circulars', [CircularController::class, 'store'])->name('circulars.store');
         Route::get('/circulars/{circular}', [CircularController::class, 'show'])->name('circulars.show');

@@ -35,7 +35,7 @@ class StorySubmissionsController extends Controller
         $query = SmeBusinessStorySubmission::query()->with('user');
 
         if (! empty($filters['status']) && $filters['status'] !== 'all') {
-            $query->where('status', $filters['status']);
+            $query->whereRaw('LOWER(status) = ?', [strtolower($filters['status'])]);
         }
 
         if (! empty($filters['search'])) {
@@ -84,6 +84,7 @@ class StorySubmissionsController extends Controller
     {
         $data = $request->validate([
             'admin_note' => ['nullable', 'string'],
+            'story_link' => ['required', 'url', 'max:1000'],
         ]);
 
         $story = SmeBusinessStorySubmission::findOrFail($id);
@@ -100,6 +101,7 @@ class StorySubmissionsController extends Controller
             'approved_at' => now(),
             'notes' => $data['admin_note'] ?? $story->notes,
             'rejected_reason' => null,
+            'story_link' => $data['story_link'],
         ])->save();
 
         // Notify user if linked
@@ -115,7 +117,7 @@ class StorySubmissionsController extends Controller
                     'story_approved',
                     [
                         'title' => 'Story Submission Approved',
-                        'body' => "Your story '{$story->title}' has been approved.",
+                        'body' => "Your story has been published in vyaparjagat. Link: " . $data['story_link'],
                         'story_submission_id' => (string) $story->id,
                     ],
                     $story

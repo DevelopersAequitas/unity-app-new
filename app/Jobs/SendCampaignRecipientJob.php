@@ -56,6 +56,18 @@ class SendCampaignRecipientJob implements ShouldQueue
 
         $campaign = $delivery->campaign;
 
+        // Idempotency check: If this log record has already been marked as sent/processed, skip execution.
+        if (filled($log->sent_at)) {
+            Log::info('SendCampaignRecipientJob skipped: Recipient already processed', [
+                'delivery_id' => $this->deliveryId,
+                'log_id' => $this->logId,
+                'user_id' => $this->userId,
+                'sent_at' => $log->sent_at,
+            ]);
+
+            return;
+        }
+
         Log::info('SendCampaignRecipientJob handle started', [
             'delivery_id' => $this->deliveryId,
             'log_id' => $this->logId,

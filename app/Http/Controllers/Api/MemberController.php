@@ -299,6 +299,7 @@ class MemberController extends BaseApiController
             'status',
             'deleted_at',
             'business_category_id',
+            'designation',
             'public_profile_slug',
             'email',
             'phone',
@@ -360,9 +361,9 @@ class MemberController extends BaseApiController
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
         $users = $query->orderByDesc('created_at')->get();
 
-        return LimitedUserResource::collection($users)->additional([
+        return UserResource::collection($users)->additional([
             'success' => true,
-            'message' => 'Limited user data fetched successfully.',
+            'message' => 'Members fetched successfully.',
         ]);
     }
 
@@ -721,5 +722,43 @@ class MemberController extends BaseApiController
             ->values();
 
         return $this->success(ConnectionResource::collection($connections));
+    }
+
+    public function bookmark(Request $request, string $id): JsonResponse
+    {
+        $target = User::find($id);
+        if (! $target) {
+            return $this->error('Member not found', 404);
+        }
+
+        $authUser = $request->user();
+        $bookmarks = $authUser->bookmarks ?? [];
+
+        if (! in_array($id, $bookmarks, true)) {
+            $bookmarks[] = $id;
+            $authUser->bookmarks = $bookmarks;
+            $authUser->save();
+        }
+
+        return $this->success(null, 'Member bookmarked successfully.');
+    }
+
+    public function unbookmark(Request $request, string $id): JsonResponse
+    {
+        $target = User::find($id);
+        if (! $target) {
+            return $this->error('Member not found', 404);
+        }
+
+        $authUser = $request->user();
+        $bookmarks = $authUser->bookmarks ?? [];
+
+        if (in_array($id, $bookmarks, true)) {
+            $bookmarks = array_values(array_diff($bookmarks, [$id]));
+            $authUser->bookmarks = $bookmarks;
+            $authUser->save();
+        }
+
+        return $this->success(null, 'Member unbookmarked successfully.');
     }
 }

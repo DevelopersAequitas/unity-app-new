@@ -25,9 +25,13 @@
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
-            <p class="text-muted mb-1">Industry Director Portal</p>
+            <div class="mb-2">
+                <span class="badge px-3 py-2 rounded-pill fw-bold" style="background: rgba(13, 110, 253, 0.08); color: #0d6efd; border: 1px solid rgba(13, 110, 253, 0.15); font-size: 0.85rem; letter-spacing: 0.3px;">
+                    Welcome, {{ auth('admin')->user()?->name }} 👋
+                </span>
+            </div>
             <h3 class="mb-0 fw-bold text-primary-gradient">{{ $industry?->name ?? 'Assigned Industry' }} Dashboard</h3>
-            <div class="text-muted small mt-1">
+            <div class="text-muted small mt-2">
                 Includes selected industry{{ $industryCount > 1 ? ' and '.($industryCount - 1).' child industries/categories' : '' }}.
             </div>
         </div>

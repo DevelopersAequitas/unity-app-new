@@ -38,6 +38,8 @@ return new class extends Migration
             $table->text('company_introduction');
             $table->text('co_founders_and_partners_details')->nullable();
             $table->string('status', 30)->default('new');
+            $table->uuid('user_id')->nullable();
+            $table->text('story_link')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
 
