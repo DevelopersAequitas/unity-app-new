@@ -8,14 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('password_reset_tokens')) {
-            Schema::create('password_reset_tokens', function (Blueprint $table) {
-                // Laravel default structure
-                $table->string('email')->primary();      // indexed by email
-                $table->string('token');                 // hashed token
-                $table->timestamp('created_at')->nullable();
-            });
-        }
+        Schema::create('password_reset_tokens', function (Blueprint $table) {
+            // Laravel default structure
+            $table->string('email')->primary();      // indexed by email
+            $table->string('token');                 // hashed token
+            $table->timestamp('created_at')->nullable();
+        });
     }
 
     public function down(): void
