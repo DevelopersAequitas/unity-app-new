@@ -11,21 +11,23 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('personal_access_tokens', function (Blueprint $table) {
-            // Keep Sanctum's default auto-increment integer primary key
-            $table->id();
+        if (! Schema::hasTable('personal_access_tokens')) {
+            Schema::create('personal_access_tokens', function (Blueprint $table) {
+                // Keep Sanctum's default auto-increment integer primary key
+                $table->id();
 
-            // Use UUID for tokenable_id so it matches users.id (UUID)
-            $table->uuidMorphs('tokenable');
-            // This creates: tokenable_id (uuid) + tokenable_type (string) + index
+                // Use UUID for tokenable_id so it matches users.id (UUID)
+                $table->uuidMorphs('tokenable');
+                // This creates: tokenable_id (uuid) + tokenable_type (string) + index
 
-            $table->string('name');
-            $table->string('token', 64)->unique();
-            $table->text('abilities')->nullable();
-            $table->timestamp('last_used_at')->nullable();
-            $table->timestamp('expires_at')->nullable()->index();
-            $table->timestamps();
-        });
+                $table->string('name');
+                $table->string('token', 64)->unique();
+                $table->text('abilities')->nullable();
+                $table->timestamp('last_used_at')->nullable();
+                $table->timestamp('expires_at')->nullable()->index();
+                $table->timestamps();
+            });
+        }
     }
 
     /**
