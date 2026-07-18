@@ -12,57 +12,90 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS unaccent;
 
-CREATE TYPE membership_status_enum AS ENUM ('visitor','premium','charter','suspended');
-CREATE TYPE circle_status_enum AS ENUM ('pending','active','archived');
-CREATE TYPE circle_member_role_enum AS ENUM (
-    'member',
-    'founder',
-    'director',
-    'chair',
-    'vice_chair',
-    'secretary',
-    'committee_leader'
-);
-CREATE TYPE circle_member_status_enum AS ENUM ('pending','approved','rejected');
-CREATE TYPE post_moderation_status_enum AS ENUM ('pending','approved','hidden');
-CREATE TYPE post_visibility_enum AS ENUM ('public','circle','connections');
-CREATE TYPE event_rsvp_status_enum AS ENUM ('none','going','interested','not_going','waitlisted');
-CREATE TYPE activity_type_enum AS ENUM (
-    'publish_story_vj',
-    'visit_member_spotlight',
-    'bring_speaker',
-    'join_circle',
-    'install_app',
-    'renew_membership',
-    'post_ask',
-    'update_timeline',
-    'invite_visitor',
-    'new_member_addition',
-    'peer_meeting',
-    'pass_referral',
-    'attend_circle_meeting',
-    'close_business_deal',
-    'testimonial',
-    'need_help_growing',
-    'requirement_posted'
-);
-CREATE TYPE activity_status_enum AS ENUM ('pending','approved','rejected');
-CREATE TYPE wallet_tx_type_enum AS ENUM ('topup','deduction','refund');
-CREATE TYPE wallet_tx_status_enum AS ENUM ('initiated','success','failed');
-CREATE TYPE notification_type_enum AS ENUM (
-    'system',
-    'new_message',
-    'new_follower',
-    'event_reminder',
-    'coin_earned',
-    'activity_update',
-    'meetup_recommendation',
-    'circle_update',
-    'requirement_match'
-);
-CREATE TYPE referral_status_enum AS ENUM ('active','expired','revoked');
-CREATE TYPE visitor_status_enum AS ENUM ('visited','signed_up','upgraded','joined_circle');
-CREATE TYPE admin_role_key_enum AS ENUM ('global_admin','industry_director','ded','circle_leader');
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'membership_status_enum') THEN
+        CREATE TYPE membership_status_enum AS ENUM ('visitor','premium','charter','suspended');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'circle_status_enum') THEN
+        CREATE TYPE circle_status_enum AS ENUM ('pending','active','archived');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'circle_member_role_enum') THEN
+        CREATE TYPE circle_member_role_enum AS ENUM (
+            'member',
+            'founder',
+            'director',
+            'chair',
+            'vice_chair',
+            'secretary',
+            'committee_leader'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'circle_member_status_enum') THEN
+        CREATE TYPE circle_member_status_enum AS ENUM ('pending','approved','rejected');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'post_moderation_status_enum') THEN
+        CREATE TYPE post_moderation_status_enum AS ENUM ('pending','approved','hidden');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'post_visibility_enum') THEN
+        CREATE TYPE post_visibility_enum AS ENUM ('public','circle','connections');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'event_rsvp_status_enum') THEN
+        CREATE TYPE event_rsvp_status_enum AS ENUM ('none','going','interested','not_going','waitlisted');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'activity_type_enum') THEN
+        CREATE TYPE activity_type_enum AS ENUM (
+            'publish_story_vj',
+            'visit_member_spotlight',
+            'bring_speaker',
+            'join_circle',
+            'install_app',
+            'renew_membership',
+            'post_ask',
+            'update_timeline',
+            'invite_visitor',
+            'new_member_addition',
+            'peer_meeting',
+            'pass_referral',
+            'attend_circle_meeting',
+            'close_business_deal',
+            'testimonial',
+            'need_help_growing',
+            'requirement_posted'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'activity_status_enum') THEN
+        CREATE TYPE activity_status_enum AS ENUM ('pending','approved','rejected');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'wallet_tx_type_enum') THEN
+        CREATE TYPE wallet_tx_type_enum AS ENUM ('topup','deduction','refund');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'wallet_tx_status_enum') THEN
+        CREATE TYPE wallet_tx_status_enum AS ENUM ('initiated','success','failed');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notification_type_enum') THEN
+        CREATE TYPE notification_type_enum AS ENUM (
+            'system',
+            'new_message',
+            'new_follower',
+            'event_reminder',
+            'coin_earned',
+            'activity_update',
+            'meetup_recommendation',
+            'circle_update',
+            'requirement_match'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'referral_status_enum') THEN
+        CREATE TYPE referral_status_enum AS ENUM ('active','expired','revoked');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'visitor_status_enum') THEN
+        CREATE TYPE visitor_status_enum AS ENUM ('visited','signed_up','upgraded','joined_circle');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'admin_role_key_enum') THEN
+        CREATE TYPE admin_role_key_enum AS ENUM ('global_admin','industry_director','ded','circle_leader');
+    END IF;
+END $$;
 
 CREATE TABLE roles (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
