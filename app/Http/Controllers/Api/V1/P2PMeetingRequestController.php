@@ -167,8 +167,8 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Only requester can cancel this meeting request.', 403);
         }
 
-        if ($meetingRequest->status !== 'pending') {
-            return $this->error('Only pending requests can be cancelled.', 422);
+        if (! in_array($meetingRequest->status, ['pending', 'reschedule_requested'], true)) {
+            return $this->error('Only pending or reschedule requested meetings can be cancelled.', 422);
         }
 
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $meetingRequest->invitee_id)) {
@@ -212,8 +212,8 @@ class P2PMeetingRequestController extends BaseApiController
             return $this->error('Only invitee can perform this action.', 403);
         }
 
-        if ($meetingRequest->status !== 'pending') {
-            return $this->error('Only pending requests can be updated.', 422);
+        if (! in_array($meetingRequest->status, ['pending', 'reschedule_requested'], true)) {
+            return $this->error('Only pending or reschedule requested meetings can be updated.', 422);
         }
 
         if ($peerBlockService->isBlockedEitherWay((string) $request->user()->id, (string) $meetingRequest->requester_id)) {

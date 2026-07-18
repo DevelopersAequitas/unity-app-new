@@ -147,7 +147,8 @@ class P2PMeetingRescheduleController extends BaseApiController
             ]);
 
             if (! in_array((string) $meetingRequest->status, ['completed', 'cancelled', 'rejected'], true)) {
-                $meetingRequest->update(['status' => 'scheduled']);
+                $statusToRestore = $meetingRequest->responded_at !== null ? 'scheduled' : 'pending';
+                $meetingRequest->update(['status' => $statusToRestore]);
             }
 
             $meetingRequest->refresh()->load(['requester', 'invitee']);
