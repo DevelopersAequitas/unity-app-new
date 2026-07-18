@@ -82,7 +82,7 @@ class P2PMeetingRequestController extends BaseApiController
     public function inbox(Request $request)
     {
         $validated = $request->validate([
-            'status' => ['nullable', Rule::in(['pending', 'accepted', 'scheduled', 'reschedule_requested', 'rejected', 'cancelled'])],
+            'status' => ['nullable', 'string'],
         ]);
 
         $query = P2PMeetingRequest::query()
@@ -91,7 +91,17 @@ class P2PMeetingRequestController extends BaseApiController
             ->orderByDesc('created_at');
 
         if (! empty($validated['status'])) {
-            $query->where('status', $validated['status']);
+            $statuses = explode(',', $validated['status']);
+            $allowedStatuses = ['pending', 'accepted', 'scheduled', 'reschedule_requested', 'rejected', 'cancelled'];
+            $statuses = array_intersect($statuses, $allowedStatuses);
+
+            if (in_array('pending', $statuses, true) && ! in_array('reschedule_requested', $statuses, true)) {
+                $statuses[] = 'reschedule_requested';
+            }
+
+            if (! empty($statuses)) {
+                $query->whereIn('status', $statuses);
+            }
         }
 
         $items = $query->get();
