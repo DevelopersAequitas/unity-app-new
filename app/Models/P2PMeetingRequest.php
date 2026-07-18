@@ -44,4 +44,9 @@ class P2PMeetingRequest extends Model
     {
         return $this->belongsTo(User::class, 'invitee_id');
     }
+
+    public function rescheduleRequests(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(P2PMeetingRescheduleRequest::class, 'p2p_meeting_request_id');
+    }
 }
