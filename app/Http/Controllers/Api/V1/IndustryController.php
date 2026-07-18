@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\IndustryTreeResource;
 use App\Models\Industry;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Schema;
 
 class IndustryController extends Controller
 {
     public function tree(): JsonResponse
     {
-        $hasSortOrder = \Illuminate\Support\Facades\Schema::hasColumn('industries', 'sort_order');
+        $hasSortOrder = Schema::hasColumn('industries', 'sort_order');
 
         $query = Industry::query()
             ->active()

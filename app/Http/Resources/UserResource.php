@@ -8,6 +8,7 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\Connection;
+use App\Models\SmeBusinessStorySubmission;
 use App\Models\User;
 use App\Services\ProfileMatchService;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -169,7 +170,7 @@ class UserResource extends JsonResource
             'greenpreneur_goals' => $this->greenpreneur_goals ?? [],
             'community_directory_listing' => $this->community_directory_listing,
             'is_bookmark' => $isBookmark,
-            'story_link' => \App\Models\SmeBusinessStorySubmission::where('user_id', $this->id)
+            'story_link' => SmeBusinessStorySubmission::where('user_id', $this->id)
                 ->whereRaw('LOWER(status) = ?', ['approved'])
                 ->value('story_link'),
             'profile_match' => $this->when(

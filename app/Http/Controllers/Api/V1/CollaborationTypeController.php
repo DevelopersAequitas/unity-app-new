@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CollaborationTypeResource;
 use App\Models\CollaborationType;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Schema;
 
 class CollaborationTypeController extends Controller
 {
@@ -13,7 +14,7 @@ class CollaborationTypeController extends Controller
     {
         $query = CollaborationType::query()->active();
 
-        if (\Illuminate\Support\Facades\Schema::hasColumn('collaboration_types', 'sort_order')) {
+        if (Schema::hasColumn('collaboration_types', 'sort_order')) {
             $query->orderBy('sort_order');
         }
 
