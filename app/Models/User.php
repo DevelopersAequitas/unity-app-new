@@ -256,6 +256,11 @@ class User extends Authenticatable
         return $this->hasMany(Connection::class, 'addressee_id')->where('is_approved', true);
     }
 
+    public function introducedMembers(): HasMany
+    {
+        return $this->hasMany(User::class, 'introduced_by');
+    }
+
     protected static function booted(): void
     {
         static::saving(function (self $user): void {

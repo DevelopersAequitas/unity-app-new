@@ -47,6 +47,7 @@ use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
+use App\Http\Controllers\Admin\IntroductionRequestsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\LifeImpactController;
 use App\Http\Controllers\Admin\LocationController;
@@ -63,6 +64,7 @@ use App\Http\Controllers\Admin\SupportTicketController;
 use App\Http\Controllers\Admin\TutorialController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
+use App\Http\Controllers\Admin\MemberIntroducersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\ShareController;
@@ -172,6 +174,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/industry-director/switch-industry', [IndustryDirectorDashboardController::class, 'switchIndustry'])
             ->middleware('admin.industry-director')
             ->name('industry-director.switch-industry');
+        Route::get('/member-introducers', [MemberIntroducersController::class, 'index'])->name('member-introducers.index');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
@@ -185,6 +188,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users/{user}/roles/remove', [UsersController::class, 'removeRole'])->name('users.roles.remove');
         Route::post('/users/{user}/membership-welcome-email/send', [UsersController::class, 'sendWelcomeMembershipEmail'])->name('users.membership-welcome-email.send');
         Route::post('/users/{user}/trigger-membership-notification', [UsersController::class, 'triggerMembershipNotification'])->name('users.trigger-membership-notification');
+        Route::post('/users/{user}/introduced-members', [UsersController::class, 'addIntroducedMember'])
+            ->whereUuid('user')
+            ->name('users.introduced-members.store');
+        Route::delete('/users/{user}/introduced-members/{introducedMember}', [UsersController::class, 'removeIntroducedMember'])
+            ->whereUuid('user')
+            ->whereUuid('introducedMember')
+            ->name('users.introduced-members.destroy');
 
         // Story Submissions Admin
         Route::get('/stories', [StorySubmissionsController::class, 'index'])->name('stories.index');
@@ -344,6 +354,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/pending-requests/pending-registrations', [PendingRegistrationsController::class, 'index'])->name('pending-registrations.index');
         Route::post('/pending-requests/pending-registrations/{user}/approve', [PendingRegistrationsController::class, 'approve'])->name('pending-registrations.approve');
         Route::post('/pending-requests/pending-registrations/{user}/reject', [PendingRegistrationsController::class, 'reject'])->name('pending-registrations.reject');
+
+        Route::get('/pending-requests/introduction-requests', [IntroductionRequestsController::class, 'index'])->name('introduction-requests.index');
+        Route::post('/pending-requests/introduction-requests/{id}/approve', [IntroductionRequestsController::class, 'approve'])->whereUuid('id')->name('introduction-requests.approve');
+        Route::post('/pending-requests/introduction-requests/{id}/reject', [IntroductionRequestsController::class, 'reject'])->whereUuid('id')->name('introduction-requests.reject');
 
         Route::get('/visitor-registrations', [VisitorRegistrationsController::class, 'index'])->name('visitor-registrations.index');
         Route::post('/visitor-registrations', [VisitorRegistrationsController::class, 'store'])->name('visitor-registrations.store');

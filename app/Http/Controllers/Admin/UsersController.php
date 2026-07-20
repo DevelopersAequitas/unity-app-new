@@ -13,6 +13,7 @@ use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\Industry;
 use App\Models\IndustryDirectorAssignment;
+use App\Models\IntroductionRequest;
 use App\Models\JoinedCircleCategory;
 use App\Models\Notifications\AppNotification;
 use App\Models\Role;
@@ -25,6 +26,7 @@ use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\Membership\MembershipNotificationService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Users\PublicProfileSlugService;
+use App\Services\Users\UserMilestoneSyncService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
@@ -281,7 +283,7 @@ class UsersController extends Controller
             ->with(['mainBusinessCategory:id,name', 'businessCategory:id,name'])
             ->findOrFail($userId);
         $this->expireTrialUserForAdminPanel($user);
-        $user->refresh()->load(['city', 'roles', 'mainBusinessCategory:id,name', 'businessCategory:id,name']);
+        $user->refresh()->load(['city', 'roles', 'mainBusinessCategory:id,name', 'businessCategory:id,name', 'introducedBy.city']);
         $cities = City::query()->orderBy('name')->get();
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $roles = Role::query()
@@ -422,6 +424,13 @@ class UsersController extends Controller
             $storySubmissionsCount = $storySubmissions->count();
         }
 
+        $introducedPeers = $user->introducedPeers()->with(['profilePhotoFile', 'city'])->withCount(['introducedMembers'])->get();
+        $introducedPeersCount = User::where('introduced_by', $user->id)->count();
+        $pendingIntroRequestsCount = IntroductionRequest::query()
+            ->where('requester_id', $user->id)
+            ->where('status', 'pending')
+            ->count();
+
         return [
             'user' => $user,
             'cities' => $cities,
@@ -457,6 +466,9 @@ class UsersController extends Controller
             'hasCoinsRemarkColumn' => $hasCoinsRemarkColumn,
             'storySubmissions' => $storySubmissions,
             'storySubmissionsCount' => $storySubmissionsCount,
+            'introducedPeers' => $introducedPeers,
+            'introducedPeersCount' => $introducedPeersCount,
+            'pendingIntroRequestsCount' => $pendingIntroRequestsCount,
         ];
     }
 
@@ -1923,8 +1935,10 @@ class UsersController extends Controller
 
         $query = User::query()
             ->select($userSelectColumns)
+            ->withCount(['introducedMembers'])
             ->with([
                 'city',
+                'introducedBy',
                 'mainBusinessCategory:id,name',
                 'businessCategory:id,name',
                 'circleMembers' => function ($circleMembersQuery) use ($joinedStatus) {
@@ -2990,6 +3004,102 @@ class UsersController extends Controller
             'disabled' => ['warning', 'Membership welcome email is currently disabled.'],
             default => ['error', 'Welcome email failed to send.'],
         };
+    }
+
+    public function addIntroducedMember(Request $request, string $userId): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $user = User::findOrFail($userId);
+
+        $request->validate([
+            'introduced_member_id' => ['required', 'uuid', 'exists:users,id'],
+        ]);
+
+        $introducedMemberId = $request->input('introduced_member_id');
+        $introducedMember = User::findOrFail($introducedMemberId);
+
+        // Reject inactive or deleted users
+        if ($introducedMember->status !== 'active' || $introducedMember->deleted_at !== null) {
+            return back()->with('error', 'Only active, non-deleted users can be introduced.');
+        }
+
+        // Admin cannot add the same user as their own introduced member (self check)
+        if ($user->id === $introducedMember->id) {
+            return back()->with('error', 'A user cannot introduce themselves.');
+        }
+
+        // Admin cannot add a member who is already introduced by the same user
+        if ($introducedMember->introduced_by === $user->id) {
+            return back()->with('error', 'This member has already been introduced by this user.');
+        }
+
+        // Prevent circular introduction relationships
+        if ($this->isCircularIntroduction($user->id, $introducedMember->id)) {
+            return back()->with('error', 'Circular introduction relationship is not allowed.');
+        }
+
+        // Update: selectedUser.introduced_by = currentProfileUser.id
+        $introducedMember->introduced_by = $user->id;
+        $introducedMember->save();
+
+        // Recalculate introducer's total introduced members count
+        $this->recalculateIntroducedCount($user);
+
+        return back()->with('success', 'Introduced member added successfully.');
+    }
+
+    public function removeIntroducedMember(Request $request, string $userId, string $introducedMemberId): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $user = User::findOrFail($userId);
+        $introducedMember = User::where('introduced_by', $user->id)->findOrFail($introducedMemberId);
+
+        // Set that member's introduced_by to null
+        $introducedMember->introduced_by = null;
+        $introducedMember->save();
+
+        // Recalculate introducer's total introduced members count
+        $this->recalculateIntroducedCount($user);
+
+        return back()->with('success', 'Introduced member removed successfully.');
+    }
+
+    private function recalculateIntroducedCount(User $user): void
+    {
+        $count = User::where('introduced_by', $user->id)->count();
+        $user->members_introduced_count = $count;
+        $user->save();
+
+        app(UserMilestoneSyncService::class)->sync($user);
+    }
+
+    private function isCircularIntroduction(string $currentProfileUserId, string $selectedUserId): bool
+    {
+        if ($currentProfileUserId === $selectedUserId) {
+            return true;
+        }
+
+        $nextIntroducerId = User::where('id', $currentProfileUserId)->value('introduced_by');
+        $visited = [$currentProfileUserId];
+
+        while ($nextIntroducerId !== null) {
+            if ($nextIntroducerId === $selectedUserId) {
+                return true;
+            }
+            if (in_array($nextIntroducerId, $visited, true)) {
+                break;
+            }
+            $visited[] = $nextIntroducerId;
+            $nextIntroducerId = User::where('id', $nextIntroducerId)->value('introduced_by');
+        }
+
+        return false;
     }
 }
 // Cleaned up syntax

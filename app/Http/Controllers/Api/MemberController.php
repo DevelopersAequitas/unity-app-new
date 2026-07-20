@@ -6,6 +6,7 @@ use App\Http\Resources\ConnectionResource;
 use App\Http\Resources\MemberDetailResource;
 use App\Http\Resources\UserResource;
 use App\Http\Resources\V1\LimitedUserResource;
+use App\Http\Resources\V1\TopIntroducerResource;
 use App\Models\Connection;
 use App\Models\User;
 use App\Models\UserFollow;
@@ -760,5 +761,28 @@ class MemberController extends BaseApiController
         }
 
         return $this->success(null, 'Member unbookmarked successfully.');
+    }
+
+    public function topIntroducers(Request $request): JsonResponse
+    {
+        $topIntroducers = User::query()
+            ->withCount(['introducedMembers'])
+            ->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')->orWhere('status', 'active');
+            })
+            ->has('introducedMembers')
+            ->orderByDesc('introduced_members_count')
+            ->orderBy('display_name', 'asc')
+            ->limit(5)
+            ->get();
+
+        $topIntroducers->each(function (User $user, int $index) {
+            $user->rank = $index + 1;
+        });
+
+        return $this->success(
+            TopIntroducerResource::collection($topIntroducers),
+            'Top introduced members fetched successfully'
+        );
     }
 }

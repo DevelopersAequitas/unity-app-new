@@ -5,13 +5,76 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class IntroducedPeersApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Schema::create('users', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('public_profile_slug')->nullable();
+            $table->string('first_name')->nullable();
+            $table->string('last_name')->nullable();
+            $table->string('display_name')->nullable();
+            $table->string('company_name')->nullable();
+            $table->string('email')->nullable();
+            $table->string('phone')->nullable();
+            $table->string('password_hash')->nullable();
+            $table->string('membership_status')->nullable();
+            $table->integer('coins_balance')->nullable();
+            $table->integer('life_impacted_count')->nullable();
+            $table->uuid('profile_photo_file_id')->nullable();
+            $table->uuid('cover_photo_file_id')->nullable();
+            $table->uuid('city_id')->nullable();
+            $table->string('city')->nullable();
+            $table->string('business_type')->nullable();
+            $table->string('status')->nullable();
+            $table->string('designation')->nullable();
+            $table->unsignedBigInteger('business_category_id')->nullable();
+            $table->uuid('introduced_by')->nullable();
+            $table->integer('members_introduced_count')->default(0);
+            $table->string('coin_medal_rank')->nullable();
+            $table->string('coin_milestone_title')->nullable();
+            $table->text('coin_milestone_meaning')->nullable();
+            $table->string('contribution_award_name')->nullable();
+            $table->text('contribution_award_recognition')->nullable();
+            $table->json('bookmarks')->nullable();
+            $table->timestamp('membership_ends_at')->nullable();
+            $table->string('zoho_plan_code')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
+        Schema::create('cities', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->timestamps();
+        });
+
+        Schema::create('files', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('uploader_user_id')->nullable();
+            $table->string('s3_key')->nullable();
+            $table->string('mime_type')->nullable();
+            $table->bigInteger('size_bytes')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('circle_category_level4', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->timestamps();
+        });
+    }
 
     public function test_requires_authentication(): void
     {
@@ -115,5 +178,78 @@ class IntroducedPeersApiTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonPath('success', false)
             ->assertJsonPath('message', 'This peer has already been introduced by another member.');
+    }
+
+    public function test_top_5_introducers_api_unauthorized_without_valid_bearer_token(): void
+    {
+        $response = $this->getJson('/api/v1/members/top-introducers');
+        $response->assertUnauthorized();
+    }
+
+    public function test_top_5_introducers_api_empty_returns_data_as_empty_array(): void
+    {
+        $user = User::factory()->create(['status' => 'active']);
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/v1/members/top-introducers');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data', []);
+    }
+
+    public function test_top_5_introducers_api_ranking_sorting_limit(): void
+    {
+        $user = User::factory()->create(['status' => 'active']);
+        Sanctum::actingAs($user);
+
+        $introducers = [];
+        for ($i = 1; $i <= 7; $i++) {
+            $introducers[$i] = User::factory()->create([
+                'first_name' => 'Member',
+                'last_name' => str_pad((string) $i, 2, '0', STR_PAD_LEFT),
+                'display_name' => 'Member '.str_pad((string) $i, 2, '0', STR_PAD_LEFT),
+                'status' => 'active',
+            ]);
+        }
+
+        for ($k = 0; $k < 5; $k++) {
+            User::factory()->create(['introduced_by' => $introducers[1]->id, 'status' => 'active']);
+        }
+        for ($k = 0; $k < 4; $k++) {
+            User::factory()->create(['introduced_by' => $introducers[2]->id, 'status' => 'active']);
+        }
+        for ($k = 0; $k < 4; $k++) {
+            User::factory()->create(['introduced_by' => $introducers[3]->id, 'status' => 'active']);
+        }
+        for ($i = 4; $i <= 7; $i++) {
+            User::factory()->create(['introduced_by' => $introducers[$i]->id, 'status' => 'active']);
+        }
+
+        $response = $this->getJson('/api/v1/members/top-introducers');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonCount(5, 'data');
+
+        $response->assertJsonPath('data.0.rank', 1)
+            ->assertJsonPath('data.0.id', $introducers[1]->id)
+            ->assertJsonPath('data.0.introduced_members_count', 5);
+
+        $response->assertJsonPath('data.1.rank', 2)
+            ->assertJsonPath('data.1.id', $introducers[2]->id)
+            ->assertJsonPath('data.1.introduced_members_count', 4);
+
+        $response->assertJsonPath('data.2.rank', 3)
+            ->assertJsonPath('data.2.id', $introducers[3]->id)
+            ->assertJsonPath('data.2.introduced_members_count', 4);
+
+        $zeroIntroducer = User::factory()->create([
+            'display_name' => 'Zero Introducer Again',
+            'status' => 'active',
+        ]);
+        $response = $this->getJson('/api/v1/members/top-introducers');
+        $ids = collect($response->json('data'))->pluck('id')->all();
+        $this->assertNotContains($zeroIntroducer->id, $ids);
     }
 }

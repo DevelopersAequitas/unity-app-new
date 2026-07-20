@@ -96,6 +96,7 @@ use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
 use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\IndustryController;
+use App\Http\Controllers\Api\V1\IntroductionRequestsApiController;
 use App\Http\Controllers\Api\V1\IntroVideoController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
@@ -383,6 +384,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/profile/introducer', [ProfileController::class, 'introducer']);
         Route::get('/profile/introduced-peers', [ProfileController::class, 'introducedPeers']);
         Route::post('/profile/introduced-peers', [ProfileController::class, 'addIntroducedPeer']);
+        Route::post('/introduction-requests', [IntroductionRequestsApiController::class, 'store']);
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
@@ -399,6 +401,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/peers/{user}/block-status', [PeerBlockController::class, 'status'])->whereUuid('user');
 
         // Members & connections
+        Route::get('/members/top-introducers', [MemberController::class, 'topIntroducers']);
         Route::get('members/names', [MemberController::class, 'names']);
         Route::get('members/limited', [MemberController::class, 'limitedPaginated']);
 

@@ -136,6 +136,8 @@
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
+
+
     <div class="table-responsive premium-table-card">
         <table class="table premium-table align-middle">
             <thead>
@@ -174,6 +176,8 @@
                         </a>
                     </th>
                     <th>Status</th>
+                    <th>Introduced By</th>
+                    <th>Members Introduced</th>
                     <th class="text-end" style="padding-right: 20px !important;">Actions</th>
                 </tr>
             </thead>
@@ -333,6 +337,56 @@
                                 <span class="badge-status-inactive">
                                     <span class="status-pulse-dot"></span>Inactive
                                 </span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($user->introducedBy)
+                                @php
+                                    $introducer = $user->introducedBy;
+                                    $introducerName = $introducer->name ?? trim((($introducer->first_name ?? '') . ' ' . ($introducer->last_name ?? '')));
+                                    $introducerAvatar = $introducer->profile_photo_url ?? ($introducer->profile_photo_file_id ? url('/api/v1/files/' . $introducer->profile_photo_file_id) : null);
+                                    $introducerGradientIndex = abs(crc32((string) $introducer->id)) % 5;
+                                @endphp
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="peer-avatar-wrapper" style="width: 28px; height: 28px; min-width: 28px;">
+                                        @if ($introducerAvatar)
+                                            <img src="{{ $introducerAvatar }}" alt="{{ $introducerName }}" class="peer-avatar-image" style="width: 28px; height: 28px;">
+                                        @else
+                                            <div class="peer-avatar-placeholder bg-gradient-peer-{{ $introducerGradientIndex }}" style="width: 28px; height: 28px; font-size: 0.75rem; line-height: 28px;">
+                                                {{ strtoupper(substr($introducerName !== '' ? $introducerName : 'U', 0, 1)) }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                    @if ($canEditUsers)
+                                        <a href="{{ route('admin.users.edit', $introducer->id) }}#introduced-tab" class="text-primary fw-semibold text-decoration-none text-nowrap" style="font-size: 0.88rem;">
+                                            {{ $introducerName }}
+                                        </a>
+                                    @else
+                                        <a href="{{ route('admin.users.show', $introducer->id) }}#introduced-tab" class="text-primary fw-semibold text-decoration-none text-nowrap" style="font-size: 0.88rem;">
+                                            {{ $introducerName }}
+                                        </a>
+                                    @endif
+                                </div>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            @php
+                                $introducedCount = (int) $user->introduced_members_count;
+                            @endphp
+                            @if ($introducedCount > 0)
+                                @if ($canEditUsers)
+                                    <a href="{{ route('admin.users.edit', $user->id) }}#introduced-tab" class="text-primary fw-semibold text-decoration-none">
+                                        {{ $introducedCount }}
+                                    </a>
+                                @else
+                                    <a href="{{ route('admin.users.show', $user->id) }}#introduced-tab" class="text-primary fw-semibold text-decoration-none">
+                                        {{ $introducedCount }}
+                                    </a>
+                                @endif
+                            @else
+                                <span class="text-muted">0</span>
                             @endif
                         </td>
                         <td class="text-end" style="padding-right: 20px !important;">

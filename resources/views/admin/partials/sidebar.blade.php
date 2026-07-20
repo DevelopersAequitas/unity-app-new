@@ -55,6 +55,7 @@
             ]
             : [
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
+                ['icon' => 'bi-people', 'label' => 'Member Introducers', 'route' => 'admin.member-introducers.index'],
                 ['icon' => 'bi-person-lines-fill', 'label' => 'Unity Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
                 ['icon' => 'bi-person-badge', 'label' => 'Leadership', 'route' => 'admin.execution.leadership'],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
@@ -135,6 +136,7 @@
             ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
             ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
+            ['label' => 'Introduction Requests', 'route' => 'admin.introduction-requests.index'],
         ];
 
     if ($isCircleCommittee) {
@@ -160,7 +162,8 @@
         request()->routeIs('admin.certifications.*') ||
         request()->routeIs('admin.stories.*') ||
         request()->routeIs('admin.impacts.pending') ||
-        request()->routeIs('admin.account-deletion.*');
+        request()->routeIs('admin.account-deletion.*') ||
+        request()->routeIs('admin.introduction-requests.*');
 
     $leadsMenu = ($isIndustryDirector || $isCircleCommittee) ? [] : $leadsMenu;
 
