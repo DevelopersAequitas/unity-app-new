@@ -45,6 +45,12 @@ class SendMembershipExpiryRemindersTest extends TestCase
             $table->text('body_html')->nullable();
             $table->text('payload')->nullable();
             $table->text('error_message')->nullable();
+            $table->string('triggered_by')->nullable();
+            $table->uuid('triggered_user_id')->nullable();
+            $table->string('mail_provider')->nullable();
+            $table->string('queue_id')->nullable();
+            $table->string('message_id')->nullable();
+            $table->text('body_text')->nullable();
             $table->timestamp('sent_at')->nullable();
             $table->timestamp('created_at')->nullable();
         });
