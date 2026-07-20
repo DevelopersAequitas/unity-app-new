@@ -552,6 +552,7 @@ class UsersController extends Controller
             'membership_expiry' => ['nullable', 'date'],
             'membership_starts_at' => ['nullable', 'date'],
             'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at'],
+            'membership_expiry_date_remark' => ['nullable', 'string', 'max:1000'],
             'zoho_plan_code' => ['nullable', 'string', 'max:100', Rule::in($this->membershipPlanCodes($user->zoho_plan_code))],
             'active_circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
             'additional_circle_id' => [
@@ -750,6 +751,7 @@ class UsersController extends Controller
         }
 
         $previousMembershipStatus = (string) ($user->membership_status ?? '');
+        $previousMembershipEndsAt = $user->membership_ends_at ? $user->membership_ends_at->copy() : null;
         $updatable = Arr::except($validated, $updatableExclusions);
         if ($user->membership_status !== $validated['membership_status'] && blank($validated['membership_ends_at'] ?? null)) {
             $updatable['membership_ends_at'] = null;
@@ -1080,9 +1082,25 @@ class UsersController extends Controller
         }
 
         $updatedUser = $user->fresh();
-        if ($updatedUser && $previousMembershipStatus !== (string) ($updatedUser->membership_status ?? '')) {
-            $adminName = Auth::guard('admin')->user()?->name ?? Auth::guard('admin')->user()?->email ?? 'Admin';
-            $this->membershipNotificationService->sendStatusChanged($updatedUser, $previousMembershipStatus, (string) $updatedUser->membership_status, $adminName);
+        if ($updatedUser) {
+            $statusChanged = $previousMembershipStatus !== (string) ($updatedUser->membership_status ?? '');
+            
+            $prevExpiryStr = $previousMembershipEndsAt ? $previousMembershipEndsAt->format('Y-m-d') : null;
+            $newExpiryStr = $updatedUser->membership_ends_at ? $updatedUser->membership_ends_at->format('Y-m-d') : null;
+            $expiryChanged = $prevExpiryStr !== $newExpiryStr;
+
+            if ($statusChanged || $expiryChanged) {
+                $adminName = Auth::guard('admin')->user()?->name ?? Auth::guard('admin')->user()?->email ?? 'Admin';
+                $this->membershipNotificationService->sendMembershipUpgraded(
+                    $updatedUser,
+                    $previousMembershipStatus,
+                    (string) $updatedUser->membership_status,
+                    $previousMembershipEndsAt,
+                    $updatedUser->membership_ends_at,
+                    $request->input('membership_expiry_date_remark'),
+                    $adminName
+                );
+            }
         }
 
         $statusMessage = $request->filled('additional_circle_id')

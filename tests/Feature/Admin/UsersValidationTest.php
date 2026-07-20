@@ -153,6 +153,7 @@ class UsersValidationTest extends TestCase
             $table->uuid('active_circle_id')->nullable();
             $table->string('active_circle_addon_code')->nullable();
             $table->string('active_circle_addon_name')->nullable();
+            $table->text('membership_expiry_date_remark')->nullable();
             $table->rememberToken();
             $table->timestamps();
             $table->softDeletes();
@@ -336,5 +337,70 @@ class UsersValidationTest extends TestCase
         $response2->assertOk();
         $response2->assertSee('Free User');
         $response2->assertDontSee('Unity User');
+    }
+
+    public function test_admin_can_update_membership_details_with_remark_which_sends_upgraded_notifications(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        // 1. Create a user
+        $user = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Upgradee',
+            'last_name' => 'Peer',
+            'email' => 'upgradee@example.com',
+            'password_hash' => 'dummy_hash',
+            'company_name' => 'Upgrade Corp',
+            'designation' => 'Director',
+            'city' => 'Ahmedabad',
+            'membership_status' => 'free_peer',
+            'membership_starts_at' => now()->subMonth(),
+            'membership_ends_at' => now()->addDays(5),
+            'status' => 'active',
+            'coins_balance' => 100,
+            'life_impacted_count' => 10,
+        ]);
+
+        $payload = [
+            'first_name' => 'Upgradee',
+            'last_name' => 'Peer',
+            'email' => 'upgradee@example.com',
+            'designation' => 'Director',
+            'company_name' => 'Upgrade Corp',
+            'city' => 'Ahmedabad',
+            'membership_status' => 'Only Unity Peer', // Changed status
+            'status' => 'active',
+            'membership_starts_at' => now()->subMonth()->format('Y-m-d'),
+            'membership_ends_at' => now()->addDays(20)->format('Y-m-d'), // Extended expiry date
+            'membership_expiry_date_remark' => 'Extended for contribution',
+            'coins_balance' => 100,
+            'life_impacted_count' => 10,
+        ];
+
+        // 2. Perform PUT request to update
+        $response = $this->put(route('admin.users.update', $user->id), $payload);
+
+        // 3. Assert redirects to show page
+        $response->assertRedirect(route('admin.users.show', $user->id));
+
+        // 4. Assert DB update
+        $user->refresh();
+        $this->assertSame('Only Unity Peer', $user->membership_status);
+        $this->assertSame('Extended for contribution', $user->membership_expiry_date_remark);
+
+        // 5. Assert Mail was queued/sent
+        \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\MembershipUpgradedMail::class, function ($mail) use ($user) {
+            return $mail->hasTo($user->email) &&
+                   $mail->remark === 'Extended for contribution' &&
+                   $mail->changeType === 'increased';
+        });
+
+        // 6. Assert AppNotification was created (if table exists)
+        if (\Illuminate\Support\Facades\Schema::hasTable('app_notifications')) {
+            $this->assertDatabaseHas('app_notifications', [
+                'user_id' => $user->id,
+                'type' => 'membership_upgraded',
+            ]);
+        }
     }
 }
