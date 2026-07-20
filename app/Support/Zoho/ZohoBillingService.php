@@ -781,6 +781,23 @@ class ZohoBillingService
         }
 
         if (! $user) {
+            $email = $this->firstWebhookValue($payload, [
+                'customer.email',
+                'customer_email',
+                'email',
+                'subscription.customer.email',
+                'data.subscription.customer.email',
+                'invoice.customer.email',
+                'data.invoice.customer.email',
+                'data.email',
+            ]);
+
+            if ($email) {
+                $user = User::query()->where('email', $email)->first();
+            }
+        }
+
+        if (! $user) {
             Log::warning('Zoho webhook user not found', [
                 'customer_id' => $identifiers['customer_id'],
                 'subscription_id' => $identifiers['subscription_id'],
