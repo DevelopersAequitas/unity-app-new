@@ -83,6 +83,14 @@ class CoinMilestoneResolver
     ];
 
     /**
+     * @return array<int, array{threshold:int, medal_rank:string, title:string, meaning:string}>
+     */
+    public static function getMilestones(): array
+    {
+        return self::MILESTONES;
+    }
+
+    /**
      * @return array{medal_rank:?string,title:?string,meaning:?string}
      */
     public static function resolve(int|float|null $coinsBalance): array
