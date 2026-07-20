@@ -147,7 +147,7 @@ class MembershipNotificationService
         }
 
         $title = 'Membership Updated';
-        
+
         // Build descriptive notification message
         $parts = [];
         $statusLabels = [
@@ -169,7 +169,7 @@ class MembershipNotificationService
         }
 
         if (empty($parts)) {
-            $parts[] = "Your membership details have been updated by Peers Global Unity.";
+            $parts[] = 'Your membership details have been updated by Peers Global Unity.';
         }
 
         $message = implode(' ', $parts);
