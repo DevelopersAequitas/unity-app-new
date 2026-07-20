@@ -36,7 +36,7 @@ class CheckCoinMilestones extends Command
 
         User::select('id', 'coins_balance')->chunkById(200, function ($users) use ($milestones, &$processedCount, &$insertedCount) {
             $userIds = $users->pluck('id')->toArray();
-            
+
             // Get all existing milestones for these users to prevent duplicates
             $existing = AwardCoinsHistory::whereIn('user_id', $userIds)
                 ->get()
@@ -55,7 +55,7 @@ class CheckCoinMilestones extends Command
                         // Check if they already have this milestone registered
                         $hasMilestone = $userExisting->contains('coins_earned', $threshold);
 
-                        if (!$hasMilestone) {
+                        if (! $hasMilestone) {
                             AwardCoinsHistory::create([
                                 'user_id' => $user->id,
                                 'coins_earned' => $threshold,

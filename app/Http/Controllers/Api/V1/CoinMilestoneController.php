@@ -7,7 +7,6 @@ use App\Models\AwardCoinsHistory;
 use App\Models\User;
 use App\Support\CoinMilestoneResolver;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class CoinMilestoneController extends Controller
 {
@@ -18,7 +17,7 @@ class CoinMilestoneController extends Controller
     {
         $user = User::find($userId);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'User not found',
@@ -32,7 +31,7 @@ class CoinMilestoneController extends Controller
 
         $currentCoins = (int) ($user->coins_balance ?? 0);
         $milestones = CoinMilestoneResolver::getMilestones();
-        
+
         $currentMilestoneData = null;
         $nextMilestoneData = null;
 
@@ -54,7 +53,7 @@ class CoinMilestoneController extends Controller
             }
         } else {
             // No milestone achieved yet. Next is the first milestone.
-            if (!empty($milestones)) {
+            if (! empty($milestones)) {
                 $nextMilestoneData = $milestones[0];
             }
         }
@@ -63,12 +62,12 @@ class CoinMilestoneController extends Controller
         if ($nextMilestoneData) {
             $threshold = (int) $nextMilestoneData['threshold'];
             $coinsNeeded = max(0, $threshold - $currentCoins);
-            
+
             // Calculate progress percentage since last milestone (or from 0 if no milestone achieved yet)
             $prevThreshold = $latestRecord ? (int) $latestRecord->coins_earned : 0;
             $range = $threshold - $prevThreshold;
             $progressInRange = max(0, $currentCoins - $prevThreshold);
-            
+
             $progressPercentage = $range > 0 ? round(($progressInRange / $range) * 100, 2) : 0;
             $progressPercentage = min(100.0, $progressPercentage);
 
@@ -99,7 +98,7 @@ class CoinMilestoneController extends Controller
     {
         $user = User::find($userId);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'User not found',

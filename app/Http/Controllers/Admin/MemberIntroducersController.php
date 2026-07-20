@@ -6,12 +6,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
-use App\Services\IndustryDirector\IndustryScopeService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -25,7 +24,7 @@ class MemberIntroducersController extends Controller
     public function index(Request $request): View
     {
         $adminUser = Auth::guard('admin')->user();
-        if (!$adminUser) {
+        if (! $adminUser) {
             abort(401);
         }
 
@@ -107,12 +106,13 @@ class MemberIntroducersController extends Controller
 
                             $hasSearchColumn = false;
                             foreach ($searchableColumns as $column) {
-                                if (!Schema::hasColumn('users', $column)) {
+                                if (! Schema::hasColumn('users', $column)) {
                                     continue;
                                 }
-                                if (!$hasSearchColumn) {
+                                if (! $hasSearchColumn) {
                                     $sub->where($column, 'ILIKE', $like);
                                     $hasSearchColumn = true;
+
                                     continue;
                                 }
                                 $sub->orWhere($column, 'ILIKE', $like);

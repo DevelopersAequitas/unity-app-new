@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\AwardCoinsHistory;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Schema;
@@ -76,7 +76,7 @@ class CoinMilestoneTest extends TestCase
             ->get();
 
         $this->assertCount(2, $history);
-        
+
         $this->assertEquals(100000, $history[0]->coins_earned);
         $this->assertEquals('Bronze', $history[0]->medal_rank);
         $this->assertEquals('Unity Builder', $history[0]->title);
@@ -143,8 +143,8 @@ class CoinMilestoneTest extends TestCase
                         'threshold' => 300000,
                         'coins_needed' => 50000,
                         'progress_percentage' => 50.0,
-                    ]
-                ]
+                    ],
+                ],
             ]);
     }
 
@@ -193,8 +193,8 @@ class CoinMilestoneTest extends TestCase
                     [
                         'medal_rank' => 'Silver',
                         'title' => 'Network Builder',
-                    ]
-                ]
+                    ],
+                ],
             ]);
     }
 }
