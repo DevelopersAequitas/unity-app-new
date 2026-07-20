@@ -72,6 +72,7 @@ use App\Http\Controllers\Api\V1\Circles\CircleMemberController as V1CircleMember
 use App\Http\Controllers\Api\V1\CityController;
 use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
+use App\Http\Controllers\Api\V1\CoinMilestoneController;
 use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
@@ -777,6 +778,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/coins', [CoinsController::class, 'balance']);
         Route::get('/me/coins/ledger', [CoinsController::class, 'ledger']);
         Route::get('/coins/history', [CoinHistoryController::class, 'index']);
+        Route::get('/users/{userId}/milestone/latest', [CoinMilestoneController::class, 'latest']);
+        Route::get('/users/{userId}/milestone/history', [CoinMilestoneController::class, 'history']);
 
         // Impact system
         Route::get('/impacts/actions', [ImpactController::class, 'actions']);

@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Console\Commands\CheckCoinMilestones;
 use App\Console\Commands\GenerateBirthdayCreatives;
 use App\Console\Commands\GenerateMissingCertificationCertificates;
 use App\Console\Commands\LifeImpactBackfillCommand;
@@ -50,6 +51,7 @@ class Kernel extends ConsoleKernel
         RunNotificationCampaignsCommand::class,
         GenerateBirthdayCreatives::class,
         SendAnniversaryNotifications::class,
+        CheckCoinMilestones::class,
     ];
 
     protected function schedule(Schedule $schedule): void
@@ -69,5 +71,6 @@ class Kernel extends ConsoleKernel
         $schedule->command('notifications:campaigns daily')->dailyAt('09:15');
         $schedule->command('notifications:campaigns weekly')->sundays()->at('18:00');
         $schedule->command('app:send-anniversary-notifications')->everyMinute();
+        $schedule->command('coins:check-milestones')->hourly();
     }
 }

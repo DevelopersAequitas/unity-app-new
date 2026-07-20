@@ -463,6 +463,13 @@
                                 <input type="text" class="form-control bg-light" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}" readonly>
                             </div>
                         @endif
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">Membership Expiry Date Remark</label>
+                            <input type="text" name="membership_expiry_date_remark" class="form-control @error('membership_expiry_date_remark') is-invalid @enderror" placeholder="Write remark explaining why membership status or expiry date was updated" value="{{ old('membership_expiry_date_remark', $user->membership_expiry_date_remark) }}">
+                            @error('membership_expiry_date_remark')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                         <div class="col-md-4 d-flex align-items-center">
                             <div class="form-check mt-3">
                                 <input class="form-check-input" type="checkbox" value="1" id="isSponsoredMember" name="is_sponsored_member" @checked(old('is_sponsored_member', $user->is_sponsored_member))>
