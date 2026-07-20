@@ -45,8 +45,8 @@
             <table class="table table-premium mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>Requester</th>
-                        <th>Requested Introducer</th>
+                        <th>Member</th>
+                        <th>Introducer</th>
                         <th>Requested At</th>
                         <th class="text-end">Actions</th>
                     </tr>
