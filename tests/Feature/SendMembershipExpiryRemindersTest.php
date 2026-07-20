@@ -66,6 +66,33 @@ class SendMembershipExpiryRemindersTest extends TestCase
             $table->timestamp('read_at')->nullable();
         });
 
+        Schema::dropIfExists('app_notifications');
+        Schema::create('app_notifications', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('campaign_id')->nullable();
+            $table->string('type');
+            $table->string('category')->nullable();
+            $table->string('title');
+            $table->text('body');
+            $table->text('message')->nullable();
+            $table->string('channel')->default('push');
+            $table->string('priority')->default('medium');
+            $table->string('reference_type')->nullable();
+            $table->string('reference_id')->nullable();
+            $table->string('screen')->nullable();
+            $table->text('data')->nullable();
+            $table->string('dedupe_key')->nullable();
+            $table->string('status')->default('pending');
+            $table->timestamp('sent_at')->nullable();
+            $table->timestamp('read_at')->nullable();
+            $table->timestamp('clicked_at')->nullable();
+            $table->timestamp('failed_at')->nullable();
+            $table->text('failure_reason')->nullable();
+            $table->text('payload')->nullable();
+            $table->timestamps();
+        });
+
         Schema::dropIfExists('users');
         Schema::create('users', function (Blueprint $table) {
             $table->uuid('id')->primary();
