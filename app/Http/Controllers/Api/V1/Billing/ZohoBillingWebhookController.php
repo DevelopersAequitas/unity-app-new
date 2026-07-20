@@ -62,16 +62,32 @@ class ZohoBillingWebhookController extends Controller
 
         $subscriptionId = data_get($payload, 'subscription.subscription_id')
             ?? data_get($payload, 'data.subscription.subscription_id')
-            ?? data_get($payload, 'subscription_id');
+            ?? data_get($payload, 'invoice.subscription_id')
+            ?? data_get($payload, 'data.invoice.subscription_id')
+            ?? data_get($payload, 'subscription_id')
+            ?? data_get($payload, 'data.subscription_id');
         $invoiceId = data_get($payload, 'invoice.invoice_id')
             ?? data_get($payload, 'data.invoice.invoice_id')
-            ?? data_get($payload, 'invoice_id');
+            ?? data_get($payload, 'subscription.invoice_id')
+            ?? data_get($payload, 'data.subscription.invoice_id')
+            ?? data_get($payload, 'invoice_id')
+            ?? data_get($payload, 'data.invoice_id');
         $customerId = data_get($payload, 'customer.customer_id')
             ?? data_get($payload, 'data.customer.customer_id')
-            ?? data_get($payload, 'customer_id');
+            ?? data_get($payload, 'subscription.customer_id')
+            ?? data_get($payload, 'data.subscription.customer_id')
+            ?? data_get($payload, 'invoice.customer_id')
+            ?? data_get($payload, 'data.invoice.customer_id')
+            ?? data_get($payload, 'customer_id')
+            ?? data_get($payload, 'data.customer_id');
         $email = data_get($payload, 'customer.email')
             ?? data_get($payload, 'data.customer.email')
-            ?? data_get($payload, 'email');
+            ?? data_get($payload, 'subscription.customer.email')
+            ?? data_get($payload, 'data.subscription.customer.email')
+            ?? data_get($payload, 'invoice.customer.email')
+            ?? data_get($payload, 'data.invoice.customer.email')
+            ?? data_get($payload, 'email')
+            ?? data_get($payload, 'data.email');
 
         $user = User::query()
             ->when($subscriptionId, fn ($q) => $q->orWhere('zoho_subscription_id', $subscriptionId))

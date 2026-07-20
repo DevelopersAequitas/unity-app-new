@@ -237,7 +237,16 @@ class ZohoPaymentWebhookService
             'online_transaction_id' => $payment['online_transaction_id'] ?? data_get($payload, 'online_transaction_id') ?? data_get($payload, 'data.online_transaction_id') ?? ($dataPayment['online_transaction_id'] ?? null),
             'description' => $description,
             'customer_id' => $payment['customer_id'] ?? data_get($payload, 'customer_id') ?? data_get($payload, 'data.customer_id') ?? ($dataPayment['customer_id'] ?? null),
-            'customer_email' => $payment['email'] ?? data_get($payload, 'email') ?? data_get($payload, 'data.email') ?? ($dataPayment['email'] ?? null),
+            'customer_email' => $payment['email']
+                ?? data_get($payload, 'customer.email')
+                ?? data_get($payload, 'data.customer.email')
+                ?? data_get($payload, 'subscription.customer.email')
+                ?? data_get($payload, 'data.subscription.customer.email')
+                ?? data_get($payload, 'invoice.customer.email')
+                ?? data_get($payload, 'data.invoice.customer.email')
+                ?? data_get($payload, 'email')
+                ?? data_get($payload, 'data.email')
+                ?? ($dataPayment['email'] ?? null),
             'customer_name' => $payment['customer_name'] ?? data_get($payload, 'customer_name') ?? data_get($payload, 'data.customer_name') ?? ($dataPayment['customer_name'] ?? null),
             'amount' => $payment['amount'] ?? data_get($payload, 'amount') ?? data_get($payload, 'data.amount') ?? ($dataPayment['amount'] ?? null),
             'payment_date' => $payment['date'] ?? $payment['payment_date'] ?? data_get($payload, 'payment_date') ?? data_get($payload, 'date') ?? data_get($payload, 'data.date') ?? ($dataPayment['date'] ?? null),

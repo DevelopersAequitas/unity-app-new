@@ -1084,7 +1084,7 @@ class UsersController extends Controller
         $updatedUser = $user->fresh();
         if ($updatedUser) {
             $statusChanged = $previousMembershipStatus !== (string) ($updatedUser->membership_status ?? '');
-            
+
             $prevExpiryStr = $previousMembershipEndsAt ? $previousMembershipEndsAt->format('Y-m-d') : null;
             $newExpiryStr = $updatedUser->membership_ends_at ? $updatedUser->membership_ends_at->format('Y-m-d') : null;
             $expiryChanged = $prevExpiryStr !== $newExpiryStr;
