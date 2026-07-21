@@ -83,7 +83,7 @@ class EventRegistrationQrService
 
         $registration = $registration->fresh() ?? $registration;
 
-        if ($wasQrMissing && $this->hasUsableQr($registration)) {
+        if ($this->hasUsableQr($registration)) {
             $this->sendVisitorQrEmailSafely($registration);
         }
 
