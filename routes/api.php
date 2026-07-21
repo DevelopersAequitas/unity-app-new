@@ -296,7 +296,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/members-with-circles', [MemberWithCircleController::class, 'index'])->middleware('fixed.members.token');
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 
-    Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->whereUuid('eventId')->where('filename', '[^/]+\.(png|svg)');
+    Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
     Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
     Route::get('/events/all', [EventApiController::class, 'allEvents']);
     Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register', [EventController::class, 'visitorRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');

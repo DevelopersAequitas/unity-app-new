@@ -82,6 +82,9 @@ Route::get('/congratulations', function () {
 
 Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
+Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [\App\Http\Controllers\Api\V1\EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+Route::get('/event-qrcodes/{eventId}/{filename}', [\App\Http\Controllers\Api\V1\EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
     ->whereUuid('occurrence')
