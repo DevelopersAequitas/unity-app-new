@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\Events;
 
 use App\Exceptions\QrGenerationException;
@@ -10,6 +12,7 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\RoundBlockSizeMode;
 use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\Writer\SvgWriter;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -30,19 +33,17 @@ class EventQrService
 
     public function generateAndStore(EventRegistration $registration): array
     {
-        if (! extension_loaded('gd')) {
-            Log::error('event_qr_generation_gd_missing', [
-                'event_registration_id' => (string) $registration->id,
-                'event_id' => (string) $registration->event_id,
-            ]);
-
-            throw QrGenerationException::gdMissing();
-        }
-
+        $hasGd = extension_loaded('gd');
         $payload = $this->payload($registration->qr_token);
 
         try {
-            $png = $this->makePng($payload);
+            if ($hasGd) {
+                $imageContent = $this->makePng($payload);
+                $ext = 'png';
+            } else {
+                $imageContent = $this->makeSvg($payload);
+                $ext = 'svg';
+            }
         } catch (Throwable $exception) {
             Log::error('event_qr_generation_failed', [
                 'event_registration_id' => (string) $registration->id,
@@ -54,9 +55,9 @@ class EventQrService
             throw QrGenerationException::gdMissing();
         }
 
-        $relativePath = 'event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.png';
+        $relativePath = 'event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.'.$ext;
 
-        Storage::disk('public')->put($relativePath, $png);
+        Storage::disk('public')->put($relativePath, $imageContent);
 
         $url = $this->url($relativePath);
         $qrData = ['path' => $relativePath, 'url' => $url];
@@ -67,7 +68,7 @@ class EventQrService
         ];
 
         if (Schema::hasColumn('event_registrations', 'qr_code_svg')) {
-            $updates['qr_code_svg'] = null;
+            $updates['qr_code_svg'] = $ext === 'svg' ? $imageContent : null;
         }
 
         if (Schema::hasColumn('event_registrations', 'qr_generated_at')) {
@@ -104,6 +105,23 @@ class EventQrService
             errorCorrectionLevel: ErrorCorrectionLevel::High,
             size: 1024,
             margin: 40,
+            roundBlockSizeMode: RoundBlockSizeMode::Margin,
+            foregroundColor: new Color(0, 0, 0),
+            backgroundColor: new Color(255, 255, 255),
+        );
+
+        return $writer->write($qrCode)->getString();
+    }
+
+    private function makeSvg(string $payload): string
+    {
+        $writer = new SvgWriter;
+        $qrCode = new QrCode(
+            data: $payload,
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::High,
+            size: 500,
+            margin: 20,
             roundBlockSizeMode: RoundBlockSizeMode::Margin,
             foregroundColor: new Color(0, 0, 0),
             backgroundColor: new Color(255, 255, 255),
