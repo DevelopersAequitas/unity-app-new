@@ -90,18 +90,33 @@
                     @if($registration->zoho_invoice_sync_error)<small class="text-danger d-block">Sync failed</small>@endif
                 </td>
                 @php
+                    $inlineSvg = $qrAvailable ? ($registration->qr_code_svg ?: (function() use ($registration) {
+                        try {
+                            $token = $registration->qr_token ?: app(\App\Services\Events\EventQrService::class)->generateToken();
+                            $payload = app(\App\Services\Events\EventQrService::class)->payload($token);
+                            $reflection = new \ReflectionClass(app(\App\Services\Events\EventQrService::class));
+                            $method = $reflection->getMethod('makeSvg');
+                            $method->setAccessible(true);
+                            return $method->invoke(app(\App\Services\Events\EventQrService::class), $payload);
+                        } catch (\Throwable $e) {
+                            return null;
+                        }
+                    })()) : null;
                     $qrUrl = $qrAvailable ? app(\App\Services\Events\EventRegistrationQrService::class)->qrCodeUrl($registration) : null;
                 @endphp
                 <td>
-                    <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }}">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
-                    @if($qrUrl)
-                        <div class="mt-1">
-                            <a href="{{ $qrUrl }}" target="_blank" rel="noopener" title="View / Open QR Code">
-                                <img src="{{ $qrUrl }}" alt="QR Code" style="width: 48px; height: 48px; object-fit: contain; border: 1px solid #dee2e6; border-radius: 4px; padding: 2px; background: #fff;" />
-                            </a>
-                            <div>
-                                <a href="{{ $qrUrl }}" target="_blank" rel="noopener" style="font-size: 11px;">View QR</a>
+                    <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }} mb-1 d-block" style="width: fit-content;">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
+                    @if($inlineSvg)
+                        <div style="background: #ffffff; padding: 6px; border-radius: 6px; border: 1px solid #cbd5e1; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                            <div style="width: 90px; height: 90px; display: flex; align-items: center; justify-content: center;">
+                                {!! $inlineSvg !!}
                             </div>
+                        </div>
+                    @elseif($qrUrl)
+                        <div class="mt-1">
+                            <a href="{{ $qrUrl }}" target="_blank" rel="noopener">
+                                <img src="{{ $qrUrl }}" alt="QR Code" style="width: 70px; height: 70px; object-fit: contain; border: 1px solid #dee2e6; border-radius: 4px; padding: 2px; background: #fff;" />
+                            </a>
                         </div>
                     @endif
                 </td>
