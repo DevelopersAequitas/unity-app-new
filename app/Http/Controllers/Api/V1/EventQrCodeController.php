@@ -50,9 +50,22 @@ class EventQrCodeController extends Controller
                         ]);
                     }
 
-                    // Fallback to inline DB SVG string if file not created on disk
-                    if (! is_file($path) && ! empty($registration->qr_code_svg)) {
-                        return response($registration->qr_code_svg, 200, [
+                    // On-demand SVG output fallback if file on disk is unavailable
+                    $svgContent = $registration->qr_code_svg;
+                    if (empty($svgContent) && ! empty($registration->qr_token)) {
+                        try {
+                            $payload = app(EventQrService::class)->payload($registration->qr_token);
+                            $reflection = new \ReflectionClass(app(EventQrService::class));
+                            $method = $reflection->getMethod('makeSvg');
+                            $method->setAccessible(true);
+                            $svgContent = $method->invoke(app(EventQrService::class), $payload);
+                        } catch (Throwable $t) {
+                            Log::error('on_demand_svg_fallback_failed', ['error' => $t->getMessage()]);
+                        }
+                    }
+
+                    if (! is_file($path) && ! empty($svgContent)) {
+                        return response($svgContent, 200, [
                             'Content-Type' => 'image/svg+xml',
                         ]);
                     }

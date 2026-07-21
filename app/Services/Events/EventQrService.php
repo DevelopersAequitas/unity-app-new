@@ -68,7 +68,7 @@ class EventQrService
         ];
 
         if (Schema::hasColumn('event_registrations', 'qr_code_svg')) {
-            $updates['qr_code_svg'] = $ext === 'svg' ? $imageContent : null;
+            $updates['qr_code_svg'] = $this->makeSvg($payload);
         }
 
         if (Schema::hasColumn('event_registrations', 'qr_generated_at')) {
