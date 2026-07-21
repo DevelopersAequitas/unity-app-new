@@ -54,7 +54,7 @@
 
     <div class="card mt-3">
         <div class="card-header">Registrations</div>
-        <div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>Attendee</th><th>Type</th><th>Gateway</th><th>Payment</th><th>Payment ref</th><th>Amount</th><th>Invoice</th><th>QR</th><th>Check-in</th></tr></thead><tbody>
+        <div class="table-responsive"><table class="table table-striped align-middle mb-0"><thead><tr><th>Attendee</th><th>Type</th><th>Gateway</th><th>Payment</th><th>Payment ref</th><th>Amount</th><th>Invoice</th><th class="text-center">QR</th><th>Check-in</th></tr></thead><tbody>
         @forelse($event->registrations as $registration)
             @php
                 $attendeeName = $registration->user ? ($registration->user->display_name ?? trim(($registration->user->first_name ?? '').' '.($registration->user->last_name ?? ''))) : $registration->visitor_name;
@@ -104,18 +104,22 @@
                     })()) : null;
                     $qrUrl = $qrAvailable ? app(\App\Services\Events\EventRegistrationQrService::class)->qrCodeUrl($registration) : null;
                 @endphp
-                <td>
-                    <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }} mb-1 d-block" style="width: fit-content;">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
+                <td class="text-center">
+                    <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }} mb-1 d-inline-block">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
                     @if($inlineSvg)
-                        <div style="background: #ffffff; padding: 6px; border-radius: 6px; border: 1px solid #cbd5e1; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                            <div style="width: 90px; height: 90px; display: flex; align-items: center; justify-content: center;">
-                                {!! $inlineSvg !!}
-                            </div>
+                        <div class="d-block mt-1">
+                            <a href="{{ $qrUrl ?: 'javascript:void(0)' }}" target="{{ $qrUrl ? '_blank' : '_self' }}" rel="noopener" title="Click to open QR Code image" style="text-decoration: none; cursor: pointer; display: inline-block;">
+                                <div style="background: #ffffff; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.15s ease;">
+                                    <div style="width: 54px; height: 54px; display: flex; align-items: center; justify-content: center;">
+                                        {!! $inlineSvg !!}
+                                    </div>
+                                </div>
+                            </a>
                         </div>
                     @elseif($qrUrl)
                         <div class="mt-1">
-                            <a href="{{ $qrUrl }}" target="_blank" rel="noopener">
-                                <img src="{{ $qrUrl }}" alt="QR Code" style="width: 70px; height: 70px; object-fit: contain; border: 1px solid #dee2e6; border-radius: 4px; padding: 2px; background: #fff;" />
+                            <a href="{{ $qrUrl }}" target="_blank" rel="noopener" title="Click to open QR Code image">
+                                <img src="{{ $qrUrl }}" alt="QR Code" style="width: 54px; height: 54px; object-fit: contain; border: 1px solid #dee2e6; border-radius: 4px; padding: 2px; background: #fff;" />
                             </a>
                         </div>
                     @endif
