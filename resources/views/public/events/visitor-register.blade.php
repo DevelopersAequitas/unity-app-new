@@ -99,22 +99,14 @@
             @else
                 <div class="alert alert-success">
                     <strong>{{ $isPaidStatus ? 'Payment completed successfully. Your registration is confirmed!' : 'Visitor registered successfully!' }}</strong>
-                    <div>Your registration ID is {{ $registration->id }}.</div>
-                </div>
-                @if($qr)
-                    <div class="qr">
-                        <h2>Registration / QR details</h2>
-                        @if(!empty($qr['qr_code_url']))
-                            <img src="{{ $qr['qr_code_url'] }}" alt="Registration QR code">
-                            <p><a href="{{ $qr['qr_code_url'] }}" target="_blank" rel="noopener">Open QR code</a></p>
-                        @endif
-                        @if(!empty($qr['qr_token']))
-                            <p><strong>QR token:</strong> {{ $qr['qr_token'] }}</p>
-                        @endif
-                        <p><strong>Status:</strong> {{ $qr['status'] ?? $registration->status }}</p>
-                        <p><strong>Check-in status:</strong> {{ $qr['checkin_status'] ?? $registration->checkin_status }}</p>
+                    <div>Your registration ID is <strong>{{ $registration->id }}</strong>.</div>
+                    <div style="margin-top: 10px; font-weight: 600; color: #067647;">
+                        ✉️ Your official Event Entry Pass with QR Code has been sent to your email address ({{ $registration->visitor_email ?: $registration->user?->email }}).
                     </div>
-                @endif
+                    <div class="muted" style="margin-top: 6px; font-size: 13px;">
+                        Please check your inbox or spam folder and present the email QR pass at the check-in counter for instant entry.
+                    </div>
+                </div>
             @endif
         </section>
     @endif
