@@ -296,7 +296,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/members-with-circles', [MemberWithCircleController::class, 'index'])->middleware('fixed.members.token');
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 
-    Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->whereUuid('eventId')->where('filename', '[^/]+\.png');
+    Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->whereUuid('eventId')->where('filename', '[^/]+\.(png|svg)');
+    Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
     Route::get('/events/all', [EventApiController::class, 'allEvents']);
     Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register', [EventController::class, 'visitorRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
@@ -758,7 +759,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/events/all-with-live-status', [EventController::class, 'allWithLiveStatus']);
         Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
         Route::get('/my/event-registrations', [EventController::class, 'myEventRegistrations']);
-        Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
         Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
         Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
         Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
