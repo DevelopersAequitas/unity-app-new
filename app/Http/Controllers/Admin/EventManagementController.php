@@ -377,6 +377,7 @@ class EventManagementController extends Controller
             'email' => $data['organizer_email'] ?? null,
             'website' => $data['organizer_website'] ?? null,
         ];
+
         $data['metadata'] = $metadata;
 
         unset($data['banner'], $data['what_youll_gain'], $data['organizer_name'], $data['organizer_phone'], $data['organizer_email'], $data['organizer_website']);

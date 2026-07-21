@@ -56,6 +56,7 @@
             : [
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
                 ['icon' => 'bi-person-check', 'label' => 'Member Introducers', 'route' => 'admin.member-introducers.index'],
+                ['icon' => 'bi-trophy', 'label' => 'Sponsored Member Milestone Awards', 'route' => 'admin.sponsored-milestones.index', 'active_routes' => ['admin.sponsored-milestones.*']],
                 ['icon' => 'bi-person-lines-fill', 'label' => 'Unity Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
                 ['icon' => 'bi-person-badge', 'label' => 'Leadership', 'route' => 'admin.execution.leadership'],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],

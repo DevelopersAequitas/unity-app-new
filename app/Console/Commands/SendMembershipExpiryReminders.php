@@ -14,6 +14,7 @@ use App\Services\Membership\MembershipNotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -88,7 +89,7 @@ class SendMembershipExpiryReminders extends Command
                 $appNotificationData = null;
                 $appNotificationCreatedAt = null;
 
-                if (\Illuminate\Support\Facades\Schema::hasTable('app_notifications')) {
+                if (Schema::hasTable('app_notifications')) {
                     // Create in-app AppNotification for the new system
                     $appNotification = AppNotification::create([
                         'user_id' => $user->id,

@@ -10,8 +10,12 @@ use App\Http\Requests\Profile\UpdateUserLinkRequest;
 use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserProfileResource;
 use App\Http\Resources\V1\LimitedUserResource;
+use App\Services\Blocks\PeerBlockService;
+use App\Services\ProfileVisibilityService;
 use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\PublicProfileSlugService;
+use App\Models\User;
+use Illuminate\Support\Str;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -365,5 +369,100 @@ class ProfileController extends BaseApiController
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), 422);
         }
+    }
+
+    public function memberIntroducedPeers(
+        Request $request,
+        string $memberId,
+        PeerBlockService $peerBlockService,
+        ProfileVisibilityService $profileVisibilityService
+    ): JsonResponse {
+        if (! Str::isUuid($memberId)) {
+            return $this->error('Member not found', 404);
+        }
+
+        $member = User::query()
+            ->with(['city', 'profilePhotoFile'])
+            ->whereNull('deleted_at')
+            ->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')->orWhere('status', 'active');
+            })
+            ->find($memberId);
+
+        if (! $member) {
+            return $this->error('Member not found', 404);
+        }
+
+        $authUser = $request->user();
+        if ($peerBlockService->isBlockedEitherWay((string) $authUser->id, (string) $member->id)) {
+            return $this->error('Peer not found.', 404);
+        }
+
+        if (! $profileVisibilityService->canView($authUser, $member)) {
+            return $this->error('Profile is restricted.', 403);
+        }
+
+        // Real count from the database: COUNT users WHERE introduced_by = selected member ID
+        $introducedPeersCount = User::query()
+            ->where('introduced_by', $member->id)
+            ->whereNull('deleted_at')
+            ->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')->orWhere('status', 'active');
+            })
+            ->count();
+
+        // Get list of introduced peers, excluding blocked ones and applying visibility rules
+        $excludedUserIds = array_values(array_unique(array_filter(array_merge(
+            $peerBlockService->blockedUserIdsFor((string) $authUser->id),
+            $peerBlockService->usersWhoBlockedMeIdsFor((string) $authUser->id)
+        ))));
+
+        $peersQuery = User::query()
+            ->where('introduced_by', $member->id)
+            ->whereNull('deleted_at')
+            ->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')->orWhere('status', 'active');
+            });
+
+        if ($authUser) {
+            $profileVisibilityService->applyVisibleTo($peersQuery, $authUser);
+        }
+
+        if (! empty($excludedUserIds)) {
+            $peersQuery->whereNotIn('id', $excludedUserIds);
+        }
+
+        // Avoid N+1 queries by eager loading necessary relations
+        $introducedPeers = $peersQuery
+            ->with(['city', 'profilePhotoFile', 'coverPhotoFile', 'introducedBy', 'level4Category'])
+            ->get();
+
+        // Build member object response
+        $cityName = null;
+        $cityRelation = $member->relationLoaded('city') ? $member->getRelation('city') : null;
+        if ($cityRelation) {
+            $cityName = $cityRelation->name;
+        } else {
+            $cityName = is_string($member->city) ? $member->city : ($member->city_of_residence ?? null);
+        }
+
+        $memberName = $member->display_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? ''));
+
+        $memberData = [
+            'id' => $member->id,
+            'name' => $memberName !== '' ? trim((string) $memberName) : null,
+            'first_name' => $member->first_name,
+            'last_name' => $member->last_name,
+            'city' => $cityName,
+            'business' => $member->company_name,
+            'designation' => $member->designation,
+            'profile_photo_image' => $member->profile_photo_url,
+        ];
+
+        return $this->success([
+            'member' => $memberData,
+            'introduced_peers_count' => (int) $introducedPeersCount,
+            'introduced_peers' => LimitedUserResource::collection($introducedPeers),
+        ], 'Member introduced peers fetched successfully.');
     }
 }

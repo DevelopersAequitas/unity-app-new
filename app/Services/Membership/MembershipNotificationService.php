@@ -155,7 +155,7 @@ class MembershipNotificationService
             'free_peer' => 'Free Peer',
             'only_unity_peer' => 'Global Peer',
         ];
-        $newStatusLabel = $statusLabels[$newStatus] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', (string) ($newStatus ?: '')));
+        $newStatusLabel = $statusLabels[$newStatus] ?? Str::headline(str_replace('_', ' ', (string) ($newStatus ?: '')));
 
         if ((string) $previousStatus !== (string) $newStatus) {
             $parts[] = "Your membership status has been updated to {$newStatusLabel}.";

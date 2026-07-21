@@ -60,6 +60,7 @@ use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
 use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
 use App\Http\Controllers\Admin\ReferralReportController;
+use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
 use App\Http\Controllers\Admin\TutorialController;
@@ -175,6 +176,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->middleware('admin.industry-director')
             ->name('industry-director.switch-industry');
         Route::get('/member-introducers', [MemberIntroducersController::class, 'index'])->name('member-introducers.index');
+        Route::get('/sponsored-milestones', [SponsoredMembersMilestonesWebController::class, 'index'])->name('sponsored-milestones.index');
+        Route::get('/sponsored-milestones/{user}', [SponsoredMembersMilestonesWebController::class, 'show'])
+            ->whereUuid('user')
+            ->name('sponsored-milestones.show');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');

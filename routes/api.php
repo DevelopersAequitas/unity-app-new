@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
 use App\Http\Controllers\Api\V1\Admin\NotificationCampaignController;
+use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
@@ -113,6 +114,7 @@ use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
+use App\Http\Controllers\Api\V1\Profile\LastMonthActivityController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\RazorpayWebhookController;
@@ -328,6 +330,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/user/contacts/permission', [UserContactsController::class, 'permission']);
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::post('/events/{event}/occurrences/{occurrence}/register', [EventController::class, 'register'])
+            ->middleware('unity.user')
             ->whereUuid('event')
             ->whereUuid('occurrence');
 
@@ -403,6 +406,8 @@ Route::prefix('v1')->group(function () {
 
         // Members & connections
         Route::get('/members/top-introducers', [MemberController::class, 'topIntroducers']);
+        Route::get('/members/{member_id}/introduced-peers', [ProfileController::class, 'memberIntroducedPeers'])
+            ->whereUuid('member_id');
         Route::get('members/names', [MemberController::class, 'names']);
         Route::get('members/limited', [MemberController::class, 'limitedPaginated']);
 
@@ -480,6 +485,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('/circle-join-requests/{id}', [CircleJoinRequestController::class, 'cancel'])->whereUuid('id');
 
         Route::prefix('admin')->group(function () {
+            Route::get('/sponsored-members/milestones', [SponsoredMembersMilestonesController::class, 'index']);
+            Route::get('/sponsored-members/milestones/{id}', [SponsoredMembersMilestonesController::class, 'show'])->whereUuid('id');
+
             Route::get('/campaigns', [AdminCampaignController::class, 'index']);
             Route::post('/campaigns', [AdminCampaignController::class, 'store']);
             Route::post('/campaigns/preview-recipients', [AdminCampaignController::class, 'previewRecipients']);
@@ -742,6 +750,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/posts/{id}/comments', [PostController::class, 'storeComment']);
         Route::get('/posts/{id}/comments', [PostController::class, 'listComments']);
         Route::get('/profile/posts', [MyPostsController::class, 'index']);
+        Route::get('/profile/last-month-activity', [LastMonthActivityController::class, 'index']);
         Route::get('/posts/{post}/likes', [MyPostsController::class, 'likes']);
 
         // Events

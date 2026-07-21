@@ -253,6 +253,10 @@
                                 <div class="multi-select-menu d-none" id="circleMultiSelectMenu">
                                     <input type="text" class="form-control mb-2 circle-search" id="circleSearchInput" placeholder="Search circles...">
                                     <div class="circle-options" id="circleOptionsList">
+                                        <label class="multi-select-option border-bottom pb-2 mb-2 select-all-option">
+                                            <input type="checkbox" id="selectAllCircles">
+                                            <span class="fw-semibold">Select All</span>
+                                        </label>
                                         @foreach($circles as $circle)
                                             @php($circleState = $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? '')
                                             <label class="multi-select-option" data-state="{{ $circleState }}" data-label="{{ \Illuminate\Support\Str::lower($circle->name.' '.$circleState) }}">
@@ -700,6 +704,19 @@
             return checkbox.closest('.multi-select-option')?.querySelector('span')?.textContent?.trim() || '';
         }
 
+        const selectAllCircles = document.getElementById('selectAllCircles');
+
+        function syncSelectAllState() {
+            if (!selectAllCircles) return;
+            const enabledCheckboxes = circleCheckboxes.filter(cb => !cb.disabled);
+            if (enabledCheckboxes.length === 0) {
+                selectAllCircles.checked = false;
+                return;
+            }
+            const allChecked = enabledCheckboxes.every(cb => cb.checked);
+            selectAllCircles.checked = allChecked;
+        }
+
         function updateSelectedCircleText() {
             const selected = selectedCircleCheckboxes();
             const placeholder = circleMultiSelectToggle.querySelector('.multi-select-placeholder');
@@ -708,6 +725,7 @@
             if (selected.length === 0) {
                 placeholder.textContent = 'Select circles';
                 singleCircleSelect.disabled = eventType.value === 'global_event' || eventType.value === 'state_event';
+                syncSelectAllState();
                 return;
             }
 
@@ -736,6 +754,8 @@
                 singleCircleSelect.value = selected[0].value;
                 singleCircleSelect.disabled = true;
             }
+
+            syncSelectAllState();
         }
 
         function filterCircleOptions() {
@@ -807,9 +827,19 @@
             }
         }
 
-        document.querySelectorAll('input,select').forEach(el => el.addEventListener('change', () => { syncDateTimes(); updateEventType(); updateMode(); updateRecurrence(); }));
+        document.querySelectorAll('input:not(#selectAllCircles):not(.circle-search):not([name="circle_ids[]"]), select').forEach(el => el.addEventListener('change', () => { syncDateTimes(); updateEventType(); updateMode(); updateRecurrence(); }));
         circleMultiSelectToggle.addEventListener('click', () => { if (!multiCircleField.classList.contains('d-none')) circleMultiSelectMenu.classList.toggle('d-none'); });
         circleCheckboxes.forEach(checkbox => checkbox.addEventListener('change', updateSelectedCircleText));
+        if (selectAllCircles) {
+            selectAllCircles.addEventListener('change', () => {
+                const isChecked = selectAllCircles.checked;
+                const enabledCheckboxes = circleCheckboxes.filter(cb => !cb.disabled);
+                enabledCheckboxes.forEach(cb => {
+                    cb.checked = isChecked;
+                });
+                updateSelectedCircleText();
+            });
+        }
         circleSearchInput.addEventListener('input', filterCircleOptions);
         stateNameSelect.addEventListener('change', () => { circleCheckboxes.forEach(checkbox => { checkbox.checked = false; }); circleSearchInput.value = ''; filterCircleOptions(); });
         eventType.addEventListener('change', () => { circleSearchInput.value = ''; filterCircleOptions(); });

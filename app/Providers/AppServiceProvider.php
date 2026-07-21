@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\AdminCampaign;
 use App\Models\EmailLog;
 use App\Policies\AdminCampaignPolicy;
+use App\Policies\SponsorshipMilestonePolicy;
 use App\Support\SqliteMigrator;
 use Illuminate\Database\Connection;
 use Illuminate\Database\SQLiteConnection;
@@ -96,6 +97,8 @@ class AppServiceProvider extends ServiceProvider
 
         Paginator::useBootstrapFive();
         Gate::policy(AdminCampaign::class, AdminCampaignPolicy::class);
+        Gate::define('view-sponsored-milestones', [SponsorshipMilestonePolicy::class, 'viewAny']);
+        Gate::define('view-member-sponsored-milestones', [SponsorshipMilestonePolicy::class, 'view']);
 
         $fromAddress = (string) config('mail.from.address');
         $fromName = (string) config('mail.from.name', 'Peers Global Unity');
