@@ -49,6 +49,14 @@ class EventPaymentSyncService
 
         if (in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)) {
             $registration = $this->registrationQr->ensureQrGenerated($registration);
+
+            if ($registration->user && in_array((string) $registration->user->membership_status, ['visitor', ''], true)) {
+                $registration->user->forceFill(['membership_status' => 'free_trial_peer'])->save();
+                Log::info('visitor_promoted_to_free_trial_peer_on_payment_sync', [
+                    'user_id' => (string) $registration->user->id,
+                    'event_registration_id' => (string) $registration->id,
+                ]);
+            }
         }
 
         return [

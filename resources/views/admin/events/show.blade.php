@@ -26,11 +26,28 @@
     </div></div>
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center"><span>Occurrences</span><a class="btn btn-sm btn-success" href="{{ route('admin.events.attendance', $event->id) }}">Attendance</a></div>
-        <div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>Date</th><th>Start</th><th>End</th><th>Registered</th><th>Checked-in</th><th>Status</th></tr></thead><tbody>
+        <div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>Date</th><th>Start</th><th>End</th><th>Registered</th><th>Checked-in</th><th>Public Visitor Form Link</th><th>Status</th></tr></thead><tbody>
         @forelse($event->occurrences as $occurrence)
-            <tr><td>{{ optional($occurrence->occurrence_date)->format('d M Y') }}</td><td>{{ optional($occurrence->start_at)->format('d M Y h:i A') }}</td><td>{{ optional($occurrence->end_at)->format('d M Y h:i A') }}</td><td>{{ $occurrence->registered_count ?? 0 }}</td><td>{{ $occurrence->checked_in_count ?? 0 }}</td><td>{{ $occurrence->status }}</td></tr>
+            @php
+                $visitorFormUrl = url('/events/'.$event->id.'/occurrences/'.$occurrence->id.'/visitor-register');
+            @endphp
+            <tr>
+                <td>{{ optional($occurrence->occurrence_date)->format('d M Y') }}</td>
+                <td>{{ optional($occurrence->start_at)->format('d M Y h:i A') }}</td>
+                <td>{{ optional($occurrence->end_at)->format('d M Y h:i A') }}</td>
+                <td>{{ $occurrence->registered_count ?? 0 }}</td>
+                <td>{{ $occurrence->checked_in_count ?? 0 }}</td>
+                <td>
+                    <div class="input-group input-group-sm" style="max-width: 320px;">
+                        <input type="text" class="form-control" value="{{ $visitorFormUrl }}" readonly id="formUrl_{{ $occurrence->id }}">
+                        <button class="btn btn-outline-primary" type="button" onclick="navigator.clipboard.writeText('{{ $visitorFormUrl }}'); alert('Visitor Registration Form Link copied to clipboard!');">Copy</button>
+                        <a href="{{ $visitorFormUrl }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Open</a>
+                    </div>
+                </td>
+                <td>{{ $occurrence->status }}</td>
+            </tr>
         @empty
-            <tr><td colspan="6" class="text-center text-muted py-4">No occurrences generated.</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-4">No occurrences generated.</td></tr>
         @endforelse
         </tbody></table></div>
     </div>

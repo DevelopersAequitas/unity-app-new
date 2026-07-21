@@ -818,17 +818,33 @@
 
         form.addEventListener('submit', (e) => {
             syncDateTimes();
-            const start = document.getElementById('startAtHidden').value ? new Date(document.getElementById('startAtHidden').value) : null;
-            const end = document.getElementById('endAtHidden').value ? new Date(document.getElementById('endAtHidden').value) : null;
+            const startVal = document.getElementById('startAtHidden').value;
+            const endVal = document.getElementById('endAtHidden').value;
+
+            if (!startVal) {
+                switchTab('schedule-tab');
+                document.getElementById('startDate').reportValidity();
+                e.preventDefault();
+                return;
+            }
+
+            const start = new Date(startVal);
+            const end = endVal ? new Date(endVal) : null;
+
             if ((eventType.value === 'global_event' || eventType.value === 'state_event') && selectedCircleCheckboxes().length === 0) {
+                switchTab('basic-tab');
                 document.getElementById('multiCircleError').classList.remove('d-none');
                 e.preventDefault();
                 return;
             }
             document.getElementById('multiCircleError').classList.add('d-none');
+
             const invalid = start && end && end <= start;
             document.getElementById('dateTimeError').classList.toggle('d-none', !invalid);
-            if (invalid) e.preventDefault();
+            if (invalid) {
+                switchTab('schedule-tab');
+                e.preventDefault();
+            }
         });
 
         initDateTimeFields();

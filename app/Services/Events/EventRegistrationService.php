@@ -529,6 +529,15 @@ class EventRegistrationService
 
             if (! $paymentRequired) {
                 $registration = $this->registrationQr->ensureQrGenerated($registration);
+
+                if ($registration->user && in_array((string) $registration->user->membership_status, ['visitor', ''], true)) {
+                    $registration->user->forceFill(['membership_status' => 'free_trial_peer'])->save();
+                    Log::info('visitor_promoted_to_free_trial_peer_on_free_registration', [
+                        'user_id' => (string) $registration->user->id,
+                        'event_registration_id' => (string) $registration->id,
+                    ]);
+                }
+
                 $registration = $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
                 $this->notifySafely($registration);
             }
