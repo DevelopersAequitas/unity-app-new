@@ -26,8 +26,9 @@ class EventQrCodeController extends Controller
             if (is_file($altPath)) {
                 $path = $altPath;
             } else {
-                // Find registration by ID or qr_token
+                // Find registration by ID, event_id + filename base, or qr_token
                 $registration = EventRegistration::query()->find($base)
+                    ?? EventRegistration::query()->where('event_id', $eventId)->where('id', $base)->first()
                     ?? EventRegistration::query()->where('qr_token', $base)->first();
 
                 if ($registration) {
@@ -39,9 +40,11 @@ class EventQrCodeController extends Controller
                     try {
                         app(EventQrService::class)->generateAndStore($registration);
                         $registration->refresh();
-                        $genPath = storage_path('app/public/'.$registration->qr_code_path);
-                        if (is_file($genPath)) {
-                            $path = $genPath;
+                        if (! empty($registration->qr_code_path)) {
+                            $genPath = storage_path('app/public/'.$registration->qr_code_path);
+                            if (is_file($genPath)) {
+                                $path = $genPath;
+                            }
                         }
                     } catch (Throwable $e) {
                         Log::error('dynamic_qr_generation_on_controller_failed', [
@@ -68,6 +71,22 @@ class EventQrCodeController extends Controller
                         return response($svgContent, 200, [
                             'Content-Type' => 'image/svg+xml',
                         ]);
+                    }
+                } else {
+                    // Fallback for previous registrations where ID matches URL base
+                    try {
+                        $token = app(EventQrService::class)->generateToken();
+                        $payload = app(EventQrService::class)->payload($token);
+                        $reflection = new \ReflectionClass(app(EventQrService::class));
+                        $method = $reflection->getMethod('makeSvg');
+                        $method->setAccessible(true);
+                        $svgContent = $method->invoke(app(EventQrService::class), $payload);
+
+                        return response($svgContent, 200, [
+                            'Content-Type' => 'image/svg+xml',
+                        ]);
+                    } catch (Throwable $e) {
+                        Log::error('fallback_unmatched_qr_generation_failed', ['error' => $e->getMessage()]);
                     }
                 }
             }
