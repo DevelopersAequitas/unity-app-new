@@ -46,7 +46,9 @@
         ?? null;
     $paymentStatus = strtolower((string) ($payment['payment_status'] ?? $registration?->payment_status ?? ''));
     $isPaidStatus = in_array($paymentStatus, ['paid', 'success', 'completed'], true);
-    $paymentRequired = (bool) ($payment['requires_payment'] ?? $registration?->payment_required ?? $event->is_paid ?? ((float)($event->ticket_price ?? 0) > 0));
+    $paymentRequired = isset($payment['requires_payment']) 
+        ? (bool) $payment['requires_payment'] 
+        : ((bool) ($registration?->payment_required ?? false) || (bool) ($event->is_paid ?? false) || (float) ($event->ticket_price ?? 0) > 0);
     $isPendingPayment = $paymentRequired && ! $isPaidStatus;
 @endphp
 <div class="page">
