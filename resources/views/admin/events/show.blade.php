@@ -108,13 +108,38 @@
                     <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }} mb-1 d-inline-block">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
                     @if($inlineSvg)
                         <div class="d-block mt-1">
-                            <a href="{{ $qrUrl ?: 'javascript:void(0)' }}" target="{{ $qrUrl ? '_blank' : '_self' }}" rel="noopener" title="Click to open QR Code image" style="text-decoration: none; cursor: pointer; display: inline-block;">
-                                <div style="background: #ffffff; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.15s ease;">
+                            <button type="button" class="btn p-0 border-0 bg-transparent" data-bs-toggle="modal" data-bs-target="#qrModal_{{ $registration->id }}" title="Click to view full size QR Code">
+                                <div style="background: #ffffff; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;">
                                     <div style="width: 54px; height: 54px; display: flex; align-items: center; justify-content: center;">
                                         {!! $inlineSvg !!}
                                     </div>
                                 </div>
-                            </a>
+                            </button>
+
+                            <!-- High-Res QR Code Modal -->
+                            <div class="modal fade" id="qrModal_{{ $registration->id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered modal-sm">
+                                    <div class="modal-content text-center" style="border-radius: 12px; overflow: hidden;">
+                                        <div class="modal-header bg-dark text-white py-2">
+                                            <h6 class="modal-title mb-0 fs-6">QR Code Pass</h6>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body p-4 bg-light">
+                                            <div style="background: #ffffff; padding: 16px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                                                <div style="width: 220px; height: 220px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                                    {!! $inlineSvg !!}
+                                                </div>
+                                            </div>
+                                            <div class="mt-3 text-muted small fw-semibold">
+                                                {{ $attendeeName }}
+                                            </div>
+                                            <div class="text-muted" style="font-size: 11px;">
+                                                Registration ID: {{ $registration->id }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     @elseif($qrUrl)
                         <div class="mt-1">
