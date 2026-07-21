@@ -89,7 +89,22 @@
                     @endif
                     @if($registration->zoho_invoice_sync_error)<small class="text-danger d-block">Sync failed</small>@endif
                 </td>
-                <td><span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }}">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span></td>
+                @php
+                    $qrUrl = $qrAvailable ? app(\App\Services\Events\EventRegistrationQrService::class)->qrCodeUrl($registration) : null;
+                @endphp
+                <td>
+                    <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }}">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
+                    @if($qrUrl)
+                        <div class="mt-1">
+                            <a href="{{ $qrUrl }}" target="_blank" rel="noopener" title="View / Open QR Code">
+                                <img src="{{ $qrUrl }}" alt="QR Code" style="width: 48px; height: 48px; object-fit: contain; border: 1px solid #dee2e6; border-radius: 4px; padding: 2px; background: #fff;" />
+                            </a>
+                            <div>
+                                <a href="{{ $qrUrl }}" target="_blank" rel="noopener" style="font-size: 11px;">View QR</a>
+                            </div>
+                        </div>
+                    @endif
+                </td>
                 <td>{{ $registration->checkin_status }}</td>
             </tr>
         @empty

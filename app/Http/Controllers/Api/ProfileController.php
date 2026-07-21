@@ -10,17 +10,17 @@ use App\Http\Requests\Profile\UpdateUserLinkRequest;
 use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserProfileResource;
 use App\Http\Resources\V1\LimitedUserResource;
+use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\ProfileVisibilityService;
 use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\PublicProfileSlugService;
-use App\Models\User;
-use Illuminate\Support\Str;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class ProfileController extends BaseApiController
 {
@@ -446,7 +446,7 @@ class ProfileController extends BaseApiController
             $cityName = is_string($member->city) ? $member->city : ($member->city_of_residence ?? null);
         }
 
-        $memberName = $member->display_name ?? trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? ''));
+        $memberName = $member->display_name ?? trim(($member->first_name ?? '').' '.($member->last_name ?? ''));
 
         $memberData = [
             'id' => $member->id,
