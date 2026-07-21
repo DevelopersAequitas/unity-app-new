@@ -49,6 +49,8 @@ class EventVisitorQrMail extends \Illuminate\Mail\Mailable
         $this->qrCodeUrl = app(EventRegistrationQrService::class)->qrCodeUrl($registration);
     }
 
+    public ?string $qrCid = null;
+
     public function build(): self
     {
         $mail = $this->subject('Your Event QR Code Entry Pass - '.$this->eventTitle)
@@ -56,9 +58,14 @@ class EventVisitorQrMail extends \Illuminate\Mail\Mailable
 
         if (! empty($this->registration->qr_code_path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->registration->qr_code_path)) {
             $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($this->registration->qr_code_path);
+            $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+            $mime = $ext === 'svg' ? 'image/svg+xml' : 'image/png';
+
+            $this->qrCid = $this->embed($fullPath);
+
             $mail->attach($fullPath, [
-                'as' => 'Event-QR-Code.png',
-                'mime' => 'image/png',
+                'as' => 'Event-QR-Code.'.$ext,
+                'mime' => $mime,
             ]);
         }
 

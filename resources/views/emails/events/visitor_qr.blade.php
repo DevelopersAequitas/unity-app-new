@@ -28,18 +28,20 @@
             </p>
         @endif
 
-        @if($qrCodeUrl)
+        @if(!empty($qrCid) || !empty($qrCodeUrl))
             <div style="margin-top: 20px; margin-bottom: 16px; background: #ffffff; display: inline-block; padding: 16px; border-radius: 12px;">
-                <img src="{{ $qrCodeUrl }}" alt="Event QR Code Pass" width="200" height="200" style="display: block; width: 200px; height: 200px; border: 0;" />
+                <img src="{{ !empty($qrCid) ? $qrCid : $qrCodeUrl }}" alt="Event QR Code Pass" width="200" height="200" style="display: block; width: 200px; height: 200px; border: 0;" />
             </div>
             <p style="margin: 0; font-size: 13px; color: #94a3b8;">
                 Present this QR code at the check-in counter for instant entry.
             </p>
-            <div style="margin-top: 16px;">
-                <a href="{{ $qrCodeUrl }}" download="Event-QR-Code.png" target="_blank" style="background-color: #6366f1; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">
-                    Download QR Code Pass
-                </a>
-            </div>
+            @if(!empty($qrCodeUrl))
+                <div style="margin-top: 16px;">
+                    <a href="{{ $qrCodeUrl }}" target="_blank" style="background-color: #6366f1; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">
+                        Download QR Code Pass
+                    </a>
+                </div>
+            @endif
         @else
             <p style="margin-top: 16px; font-size: 13px; color: #f87171;">
                 Your entry pass attachment is also attached to this email.
