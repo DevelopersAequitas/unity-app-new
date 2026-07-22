@@ -31,6 +31,7 @@ class EventRegistrationQrService
         }
 
         $wasQrMissing = ! $this->hasUsableQr($registration);
+        $mailShouldBeSent = $wasQrMissing;
 
         if (! $wasQrMissing) {
             $updates = [];
@@ -45,11 +46,22 @@ class EventRegistrationQrService
                 $registration->refresh();
             }
 
+            // If the user's registration is confirmed/paid but they haven't been sent a QR email yet, send it
+            $hasEmailed = \App\Models\EmailLog::query()
+                ->where('related_type', EventRegistration::class)
+                ->where('related_id', $registration->id)
+                ->where('template_key', 'event_visitor_qr')
+                ->exists();
+            if (! $hasEmailed) {
+                $mailShouldBeSent = true;
+            }
+
             Log::info('event_registration_qr_already_exists', [
                 'registration_id' => (string) $registration->id,
                 'qr_code_path' => $registration->qr_code_path,
                 'has_qr_code_url' => ! empty($registration->qr_code_url),
                 'has_qr_code_svg' => ! empty($registration->qr_code_svg),
+                'send_missing_email' => $mailShouldBeSent,
             ]);
         } else {
             Log::info('event_registration_qr_generation_start', [
@@ -65,6 +77,7 @@ class EventRegistrationQrService
 
                 $this->qr->generateAndStore($registration);
                 $registration = $registration->fresh() ?? $registration;
+                $mailShouldBeSent = true;
 
                 Log::info('event_registration_qr_generated_successfully', [
                     'registration_id' => (string) $registration->id,
@@ -83,7 +96,7 @@ class EventRegistrationQrService
 
         $registration = $registration->fresh() ?? $registration;
 
-        if ($this->hasUsableQr($registration)) {
+        if ($mailShouldBeSent && $this->hasUsableQr($registration)) {
             $this->sendVisitorQrEmailSafely($registration);
         }
 
