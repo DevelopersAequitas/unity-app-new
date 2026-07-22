@@ -59,6 +59,7 @@ class GlobalPeerCertificateController extends Controller
                 'file_id' => $fileId,
                 'peer_name' => $this->displayName($user),
                 'membership_status' => $user->membership_status,
+                'is_downloadable' => $this->isDownloadable($user),
                 'generated_at' => $user->global_peer_certificate_sent_at,
             ]);
         }
@@ -83,6 +84,7 @@ class GlobalPeerCertificateController extends Controller
                 'file_id' => $fileModel->id,
                 'peer_name' => $this->displayName($user),
                 'membership_status' => $user->membership_status,
+                'is_downloadable' => $this->isDownloadable($user),
                 'generated_at' => now(),
             ]);
         } catch (\Throwable $e) {
@@ -128,6 +130,7 @@ class GlobalPeerCertificateController extends Controller
                 'file_id' => $fileModel->id,
                 'peer_name' => $this->displayName($user),
                 'membership_status' => $user->membership_status,
+                'is_downloadable' => $this->isDownloadable($user),
                 'generated_at' => now(),
             ]);
         } catch (\Throwable $e) {
@@ -142,6 +145,13 @@ class GlobalPeerCertificateController extends Controller
     private function isPaidPeer(User $user): bool
     {
         return in_array($user->membership_status, GlobalPeerCertificateImageGenerator::PAID_STATUSES, true);
+    }
+
+    private function isDownloadable(User $user): bool
+    {
+        return \App\Models\CircleMember::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->exists();
     }
 
     private function displayName(User $user): string
