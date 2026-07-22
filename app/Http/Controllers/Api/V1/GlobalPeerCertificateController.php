@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\CircleMember;
 use App\Models\User;
 use App\Services\Creative\GlobalPeerCertificateImageGenerator;
 use App\Services\Creative\GlobalPeerCertificateImageGenerator as CertGenerator;
@@ -59,6 +60,7 @@ class GlobalPeerCertificateController extends Controller
                 'file_id' => $fileId,
                 'peer_name' => $this->displayName($user),
                 'membership_status' => $user->membership_status,
+                'is_downloadable' => $this->isDownloadable($user),
                 'generated_at' => $user->global_peer_certificate_sent_at,
             ]);
         }
@@ -83,6 +85,7 @@ class GlobalPeerCertificateController extends Controller
                 'file_id' => $fileModel->id,
                 'peer_name' => $this->displayName($user),
                 'membership_status' => $user->membership_status,
+                'is_downloadable' => $this->isDownloadable($user),
                 'generated_at' => now(),
             ]);
         } catch (\Throwable $e) {
@@ -128,6 +131,7 @@ class GlobalPeerCertificateController extends Controller
                 'file_id' => $fileModel->id,
                 'peer_name' => $this->displayName($user),
                 'membership_status' => $user->membership_status,
+                'is_downloadable' => $this->isDownloadable($user),
                 'generated_at' => now(),
             ]);
         } catch (\Throwable $e) {
@@ -142,6 +146,13 @@ class GlobalPeerCertificateController extends Controller
     private function isPaidPeer(User $user): bool
     {
         return in_array($user->membership_status, GlobalPeerCertificateImageGenerator::PAID_STATUSES, true);
+    }
+
+    private function isDownloadable(User $user): bool
+    {
+        return CircleMember::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->exists();
     }
 
     private function displayName(User $user): string

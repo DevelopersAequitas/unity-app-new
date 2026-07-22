@@ -178,7 +178,7 @@ Route::prefix('v1')->group(function () {
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
-        Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
+        Route::middleware(['auth:sanctum', 'ensure.single.session', 'unity.user'])->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
@@ -328,7 +328,7 @@ Route::prefix('v1')->group(function () {
     Route::patch('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
     Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'ensure.single.session'])->group(function () {
         Route::get('/user/contacts/permission', [UserContactsController::class, 'permission']);
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::post('/events/{event}/occurrences/{occurrence}/register', [EventController::class, 'register'])
@@ -360,7 +360,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/certifications/{id}/reject', [CertificationSubmissionController::class, 'reject'])->whereUuid('id');
     });
 
-    Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
+    Route::middleware(['auth:sanctum', 'ensure.single.session', 'unity.user'])->group(function () {
         // Story Submissions API
         Route::get('/story/status', [StorySubmissionApiController::class, 'status']);
         Route::post('/story/submit', [StorySubmissionApiController::class, 'submit']);

@@ -171,9 +171,13 @@ class UserResource extends JsonResource
             'greenpreneur_goals' => $this->greenpreneur_goals ?? [],
             'community_directory_listing' => $this->community_directory_listing,
             'is_bookmark' => $isBookmark,
-            'story_link' => SmeBusinessStorySubmission::where('user_id', $this->id)
-                ->whereRaw('LOWER(status) = ?', ['approved'])
-                ->value('story_link'),
+            'story_link' => rescue(
+                fn () => SmeBusinessStorySubmission::where('user_id', $this->id)
+                    ->whereRaw('LOWER(status) = ?', ['approved'])
+                    ->value('story_link'),
+                null,
+                false
+            ),
             'profile_match' => $this->when(
                 $request->attributes->get('profile_match_enabled', false),
                 fn () => $this->resolveProfileMatch($request)
