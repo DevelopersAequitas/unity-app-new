@@ -744,6 +744,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/posts/feed', [PostController::class, 'feed']);
         Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
         Route::get('/ads/timeline', [AdController::class, 'timeline']);
+        Route::post('/ads/{id}/view', [AdController::class, 'view'])->whereUuid('id');
+        Route::post('/ads/{id}/click', [AdController::class, 'click'])->whereUuid('id');
         Route::get('/ads/{id}', [AdController::class, 'show']);
         Route::get('/posts/saved', [PostSaveController::class, 'index']);
         Route::post('/posts', [PostController::class, 'store']);

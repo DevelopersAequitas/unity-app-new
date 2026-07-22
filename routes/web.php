@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\AdminCampaignController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\AdminFileUploadController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
+use App\Http\Controllers\Admin\AdAnalyticsController;
 use App\Http\Controllers\Admin\AppConfigPageController;
 use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\BirthdayCreativeController;
@@ -345,6 +346,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/categories/level3/{level3}', [CategoryController::class, 'destroyLevel3'])->name('categories.level3.destroy');
         Route::delete('/categories/level4/{level4}', [CategoryController::class, 'destroyLevel4'])->name('categories.level4.destroy');
         Route::resource('categories', CategoryController::class)->except(['show']);
+        Route::get('/ads/dashboard', [AdAnalyticsController::class, 'index'])->name('ads.dashboard');
+        Route::get('/ads/analytics', [AdAnalyticsController::class, 'detailedReport'])->name('ads.analytics');
         Route::get('/ads', [AdController::class, 'index'])->name('ads.index');
         Route::get('/ads/create', [AdController::class, 'create'])->name('ads.create');
         Route::post('/ads', [AdController::class, 'store'])->name('ads.store');
@@ -352,6 +355,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/ads/{ad}', [AdController::class, 'update'])->name('ads.update');
         Route::patch('/ads/{ad}/toggle-status', [AdController::class, 'toggleStatus'])->name('ads.toggle-status');
         Route::delete('/ads/{ad}', [AdController::class, 'destroy'])->name('ads.destroy');
+        Route::get('/ads/{ad}', [AdController::class, 'show'])->name('ads.show');
         Route::get('/posts', [PostModerationController::class, 'index'])->name('posts.index');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
         Route::post('/posts/impacts/{impact}/deactivate', [PostModerationController::class, 'deactivateImpact'])->whereUuid('impact')->name('posts.impacts.deactivate');
