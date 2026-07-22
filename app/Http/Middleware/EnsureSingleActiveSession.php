@@ -24,8 +24,11 @@ class EnsureSingleActiveSession
 
         if (! $user) {
             return response()->json([
+                'success' => false,
+                'status' => false,
                 'code' => 'UNAUTHENTICATED',
                 'message' => 'Unauthenticated access.',
+                'data' => null,
             ], 401);
         }
 
@@ -33,8 +36,11 @@ class EnsureSingleActiveSession
 
         if (! $sessionId) {
             return response()->json([
+                'success' => false,
+                'status' => false,
                 'code' => 'SESSION_MISSING',
                 'message' => 'No active session identifier found in token.',
+                'data' => null,
             ], 401);
         }
 
@@ -43,8 +49,11 @@ class EnsureSingleActiveSession
 
         if (! $isValid) {
             return response()->json([
+                'success' => false,
+                'status' => false,
                 'code' => 'SESSION_SUPERSEDED',
                 'message' => 'You have been logged out because your account was accessed on another device.',
+                'data' => null,
             ], 401);
         }
 

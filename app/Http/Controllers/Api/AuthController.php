@@ -974,7 +974,13 @@ class AuthController extends BaseApiController
             newDeviceId: $request->input('device_id')
         ));
 
-        $sessionService->setActiveSession((string) $user->id, $sessionId);
+        $sessionService->setActiveSession(
+            userId: (string) $user->id,
+            sessionId: $sessionId,
+            deviceId: $request->input('device_id'),
+            ipAddress: $request->ip(),
+            userAgent: $request->userAgent()
+        );
 
         // Create Sanctum token with session_id embedded in token name
         $token = $user->createToken('session:'.$sessionId)->plainTextToken;
@@ -1173,7 +1179,13 @@ class AuthController extends BaseApiController
             newDeviceId: $request->input('device_id')
         ));
 
-        $sessionService->setActiveSession((string) $user->id, $sessionId);
+        $sessionService->setActiveSession(
+            userId: (string) $user->id,
+            sessionId: $sessionId,
+            deviceId: $request->input('device_id'),
+            ipAddress: $request->ip(),
+            userAgent: $request->userAgent()
+        );
 
         // Create Sanctum token with session_id embedded in token name
         $token = $user->createToken('session:'.$sessionId)->plainTextToken;
