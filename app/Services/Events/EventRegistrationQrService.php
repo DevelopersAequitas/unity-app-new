@@ -117,6 +117,21 @@ class EventRegistrationQrService
         }
 
         $recipientName = trim((string) ($registration->visitor_name ?: $registration->user?->display_name ?: 'Valued Visitor'));
+
+        // Prevent duplicate mail deliveries (check logs before sending)
+        $hasEmailed = \App\Models\EmailLog::query()
+            ->where('related_type', EventRegistration::class)
+            ->where('related_id', $registration->id)
+            ->where('template_key', 'event_visitor_qr')
+            ->exists();
+        if ($hasEmailed) {
+            Log::info('event_visitor_qr_email_skipped_already_sent', [
+                'registration_id' => (string) $registration->id,
+            ]);
+
+            return;
+        }
+
         $mailable = new EventVisitorQrMail($registration);
 
         try {
