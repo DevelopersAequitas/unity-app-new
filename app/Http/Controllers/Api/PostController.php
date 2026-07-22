@@ -8,6 +8,7 @@ use App\Http\Resources\PostCommentResource;
 use App\Http\Resources\PostResource;
 use App\Models\ActivityCreative;
 use App\Models\Circle;
+use App\Models\CircleMember;
 use App\Models\File;
 use App\Models\FileModel;
 use App\Models\P2pMeeting;
@@ -222,7 +223,7 @@ class PostController extends BaseApiController
             }
         }
 
-        $isDownloadable = \App\Models\CircleMember::where('user_id', $user->id)
+        $isDownloadable = CircleMember::where('user_id', $user->id)
             ->where('status', 'approved')
             ->exists();
 

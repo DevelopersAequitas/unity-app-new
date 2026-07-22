@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\CircleMember;
 use App\Models\User;
 use App\Services\Creative\GlobalPeerCertificateImageGenerator;
 use App\Services\Creative\GlobalPeerCertificateImageGenerator as CertGenerator;
@@ -149,7 +150,7 @@ class GlobalPeerCertificateController extends Controller
 
     private function isDownloadable(User $user): bool
     {
-        return \App\Models\CircleMember::where('user_id', $user->id)
+        return CircleMember::where('user_id', $user->id)
             ->where('status', 'approved')
             ->exists();
     }
