@@ -150,6 +150,13 @@
         .event-request-decision-modal .event-request-decision-footer .btn {
             width: 100%;
         }
+        .hover-shadow {
+            transition: all 0.2s ease-in-out;
+        }
+        .hover-shadow:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
     }
 </style>
 @endpush
@@ -180,10 +187,38 @@
     @endif
 
     <div class="row g-3 mb-3">
-        <div class="col-md-3"><div class="card border-warning"><div class="card-body"><div class="text-muted small">Pending Requests</div><div class="h3 mb-0">{{ $summary['pending'] ?? 0 }}</div></div></div></div>
-        <div class="col-md-3"><div class="card border-success"><div class="card-body"><div class="text-muted small">Approved Requests</div><div class="h3 mb-0">{{ $summary['approved'] ?? 0 }}</div></div></div></div>
-        <div class="col-md-3"><div class="card border-danger"><div class="card-body"><div class="text-muted small">Rejected Requests</div><div class="h3 mb-0">{{ $summary['rejected'] ?? 0 }}</div></div></div></div>
-        <div class="col-md-3"><div class="card border-primary"><div class="card-body"><div class="text-muted small">Total Requests</div><div class="h3 mb-0">{{ $summary['total'] ?? 0 }}</div></div></div></div>
+        <div class="col-md-3">
+            <a href="{{ request()->fullUrlWithQuery(['status' => 'pending']) }}" class="card border-warning text-decoration-none text-dark hover-shadow transition-all">
+                <div class="card-body">
+                    <div class="text-muted small">Pending Requests</div>
+                    <div class="h3 mb-0 text-warning">{{ $summary['pending'] ?? 0 }}</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{{ request()->fullUrlWithQuery(['status' => 'approved']) }}" class="card border-success text-decoration-none text-dark hover-shadow transition-all">
+                <div class="card-body">
+                    <div class="text-muted small">Approved Requests</div>
+                    <div class="h3 mb-0 text-success">{{ $summary['approved'] ?? 0 }}</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{{ request()->fullUrlWithQuery(['status' => 'rejected']) }}" class="card border-danger text-decoration-none text-dark hover-shadow transition-all">
+                <div class="card-body">
+                    <div class="text-muted small">Rejected Requests</div>
+                    <div class="h3 mb-0 text-danger">{{ $summary['rejected'] ?? 0 }}</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="{{ request()->fullUrlWithQuery(['status' => 'all']) }}" class="card border-primary text-decoration-none text-dark hover-shadow transition-all">
+                <div class="card-body">
+                    <div class="text-muted small">Total Requests</div>
+                    <div class="h3 mb-0 text-primary">{{ $summary['total'] ?? 0 }}</div>
+                </div>
+            </a>
+        </div>
     </div>
 
     <form class="card card-body mb-3" method="GET">
