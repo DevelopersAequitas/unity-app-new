@@ -38,10 +38,69 @@
                 <td>{{ $occurrence->registered_count ?? 0 }}</td>
                 <td>{{ $occurrence->checked_in_count ?? 0 }}</td>
                 <td>
-                    <div class="input-group input-group-sm" style="max-width: 320px;">
-                        <input type="text" class="form-control" value="{{ $visitorFormUrl }}" readonly id="formUrl_{{ $occurrence->id }}">
-                        <button class="btn btn-outline-primary" type="button" onclick="navigator.clipboard.writeText('{{ $visitorFormUrl }}'); alert('Visitor Registration Form Link copied to clipboard!');">Copy</button>
-                        <a href="{{ $visitorFormUrl }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Open</a>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="input-group input-group-sm" style="max-width: 320px;">
+                            <input type="text" class="form-control" value="{{ $visitorFormUrl }}" readonly id="formUrl_{{ $occurrence->id }}">
+                            <button class="btn btn-outline-primary" type="button" onclick="navigator.clipboard.writeText('{{ $visitorFormUrl }}'); alert('Visitor Registration Form Link copied to clipboard!');">Copy</button>
+                            <a href="{{ $visitorFormUrl }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Open</a>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#addDirectVisitorModal_{{ $occurrence->id }}">
+                            <i class="bi bi-person-plus-fill"></i> Add Visitor
+                        </button>
+                    </div>
+
+                    <!-- Direct Add Visitor Modal -->
+                    <div class="modal fade" id="addDirectVisitorModal_{{ $occurrence->id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content shadow text-start" style="border-radius: 12px; overflow: hidden;">
+                                <form method="POST" action="{{ route('admin.events.occurrences.add-visitor', [$event->id, $occurrence->id]) }}">
+                                    @csrf
+                                    <div class="modal-header bg-dark text-white py-3">
+                                        <h5 class="modal-title fs-6 mb-0">Register Visitor Directly</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body p-4 bg-light">
+                                        <div class="mb-3 text-muted small fw-semibold">
+                                            This will instantly generate a free Event Pass QR Code and register the attendee as a free_trial_peer.
+                                        </div>
+                                        <div class="row g-3">
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold text-muted mb-1">Visitor Name *</label>
+                                                <input type="text" name="visitor_name" class="form-control form-control-sm" required placeholder="Visitor Full Name">
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold text-muted mb-1">Visitor Email *</label>
+                                                <input type="email" name="visitor_email" class="form-control form-control-sm" required placeholder="Visitor Email Address">
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold text-muted mb-1">Visitor Phone *</label>
+                                                <input type="text" name="visitor_phone" class="form-control form-control-sm" required placeholder="Visitor Mobile Number">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold text-muted mb-1">Company</label>
+                                                <input type="text" name="visitor_company" class="form-control form-control-sm" placeholder="Company Name">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold text-muted mb-1">City</label>
+                                                <input type="text" name="visitor_city" class="form-control form-control-sm" placeholder="City">
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold text-muted mb-1">Designation</label>
+                                                <input type="text" name="visitor_designation" class="form-control form-control-sm" placeholder="Designation">
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold text-muted mb-1">Business Brief</label>
+                                                <textarea name="visitor_business_brief" class="form-control form-control-sm" rows="2" placeholder="Brief details about visitor business..."></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer border-0 bg-light pt-0">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-sm btn-primary">Add Visitor & Send Mail</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                     </div>
                 </td>
                 <td>{{ $occurrence->status }}</td>

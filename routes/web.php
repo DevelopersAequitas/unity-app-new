@@ -323,6 +323,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->name('events.edit');
         Route::put('/events/{id}', [EventManagementController::class, 'update'])->name('events.update');
         Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
+        Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->name('events.occurrences.add-visitor');
         Route::get('/events/{id}/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
 

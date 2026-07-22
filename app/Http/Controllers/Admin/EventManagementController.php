@@ -21,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -251,6 +252,65 @@ class EventManagementController extends Controller
         $this->zohoInvoiceSync->sync($registration);
 
         return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
+    }
+
+    public function addVisitorDirectly(Request $request, string $id, string $occurrenceId, \App\Services\Events\EventRegistrationService $registrationService): RedirectResponse
+    {
+        $event = Event::query()->findOrFail($id);
+        $occurrence = \App\Models\EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
+
+        $validated = $request->validate([
+            'visitor_name' => ['required', 'string', 'max:255'],
+            'visitor_email' => ['required', 'email', 'max:255'],
+            'visitor_phone' => ['required', 'string', 'max:50'],
+            'visitor_company' => ['nullable', 'string', 'max:255'],
+            'visitor_city' => ['nullable', 'string', 'max:255'],
+            'visitor_designation' => ['nullable', 'string', 'max:255'],
+            'visitor_business_brief' => ['nullable', 'string'],
+        ]);
+
+        try {
+            DB::transaction(function () use ($event, $occurrence, $validated, $registrationService) {
+                // Register visitor using registerVisitor helper, which maps inputs correctly.
+                $registration = $registrationService->registerVisitor($event, $occurrence, [
+                    'visitor_name' => $validated['visitor_name'],
+                    'visitor_email' => $validated['visitor_email'],
+                    'visitor_phone' => $validated['visitor_phone'],
+                    'visitor_company' => $validated['visitor_company'] ?? null,
+                    'visitor_city' => $validated['visitor_city'] ?? null,
+                    'visitor_designation' => $validated['visitor_designation'] ?? null,
+                    'visitor_business_brief' => $validated['visitor_business_brief'] ?? null,
+                    'source' => 'admin_panel',
+                ]);
+
+                // Directly approve registration payment status so QR code is generated instantly
+                $registration->forceFill([
+                    'payment_status' => 'paid',
+                    'payment_required' => false,
+                    'status' => 'registered',
+                ])->save();
+
+                // Upgrade membership of visitor user to free_trial_peer and active status
+                if ($registration->user) {
+                    $registration->user->forceFill([
+                        'membership_status' => 'free_trial_peer',
+                        'status' => 'active',
+                    ])->save();
+                }
+
+                // Fire mail delivery with QR Code attached
+                $registrationQr = app(\App\Services\Events\EventRegistrationQrService::class);
+                $registrationQr->ensureQrGenerated($registration);
+                $registrationQr->sendVisitorQrEmailSafely($registration);
+            });
+
+            return back()->with('success', 'Visitor registered successfully. QR Code pass generated and email notification sent!');
+        } catch (\Throwable $e) {
+            Log::error('admin_add_visitor_directly_failed', ['error' => $e->getMessage()]);
+
+            return back()->withInput()->with('error', 'Failed to register visitor: '.$e->getMessage());
+        }
     }
 
     private function applyJoiningRequestScope($query, $admin): void
