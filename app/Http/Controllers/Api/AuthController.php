@@ -914,8 +914,12 @@ class AuthController extends BaseApiController
             'timezone' => ['nullable', 'string', 'max:100'],
         ]);
 
-        // Find user by email
-        $user = User::where('email', $credentials['email'])->first();
+        $email = strtolower(trim($credentials['email']));
+
+        // Find user by email (case-insensitive and trimmed)
+        $user = User::where('email', $email)
+            ->orWhereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->first();
 
         if (! $user) {
             return response()->json([
