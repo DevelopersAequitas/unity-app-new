@@ -11,6 +11,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -28,7 +30,7 @@ class AdController extends Controller
         $placement = trim((string) $request->query('placement', ''));
         $status = trim((string) $request->query('status', ''));
 
-        $isPgSql = \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'pgsql';
+        $isPgSql = DB::connection()->getDriverName() === 'pgsql';
         $likeOp = $isPgSql ? 'ILIKE' : 'LIKE';
 
         $ads = Ad::query()
@@ -40,10 +42,10 @@ class AdController extends Controller
                         ->orWhere('description', $likeOp, '%'.$search.'%');
                 });
             })
-            ->when($placement !== '' && \Illuminate\Support\Facades\Schema::hasColumn('ads', 'placement'), function ($query) use ($placement) {
+            ->when($placement !== '' && Schema::hasColumn('ads', 'placement'), function ($query) use ($placement) {
                 $query->where('placement', $placement);
             })
-            ->when($status !== '' && \Illuminate\Support\Facades\Schema::hasColumn('ads', 'is_active'), function ($query) use ($status) {
+            ->when($status !== '' && Schema::hasColumn('ads', 'is_active'), function ($query) use ($status) {
                 if ($status === 'active') {
                     $query->where('is_active', true);
                 } elseif ($status === 'inactive') {
