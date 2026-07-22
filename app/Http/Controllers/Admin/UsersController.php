@@ -1124,6 +1124,23 @@ class UsersController extends Controller
             ->with('success', $statusMessage);
     }
 
+    /**
+     * Remove the specified user (soft-delete).
+     */
+    public function destroy(string $userId): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $user = User::query()->findOrFail($userId);
+        $user->delete();
+
+        return redirect()
+            ->route('admin.users.index')
+            ->with('status', 'Peer deleted successfully.');
+    }
+
     private function findAdminUserForPeer(User $user): ?AdminUser
     {
         $email = $this->normalizedAdminEmail($user);

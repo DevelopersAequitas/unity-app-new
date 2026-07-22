@@ -67,6 +67,7 @@ use App\Http\Controllers\Admin\TutorialController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\ShareController;
 use App\Support\AdminAccess;
@@ -82,8 +83,8 @@ Route::get('/congratulations', function () {
 
 Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
-Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [\App\Http\Controllers\Api\V1\EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
-Route::get('/event-qrcodes/{eventId}/{filename}', [\App\Http\Controllers\Api\V1\EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
@@ -192,6 +193,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->name('users.approve-membership');
         Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [UsersController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [UsersController::class, 'destroy'])
+            ->whereUuid('user')
+            ->name('users.destroy');
         Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->name('users.circle-members.destroy');
         Route::post('/users/{user}/roles/remove', [UsersController::class, 'removeRole'])->name('users.roles.remove');
         Route::post('/users/{user}/membership-welcome-email/send', [UsersController::class, 'sendWelcomeMembershipEmail'])->name('users.membership-welcome-email.send');

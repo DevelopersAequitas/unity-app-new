@@ -6,12 +6,16 @@ namespace App\Mail\Events;
 
 use App\Models\EventRegistration;
 use App\Services\Events\EventRegistrationQrService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Mail\Mailable;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Storage;
 
 #[\AllowDynamicProperties]
-class EventVisitorQrMail extends \Illuminate\Mail\Mailable
+class EventVisitorQrMail extends Mailable
 {
-    use \Illuminate\Bus\Queueable;
-    use \Illuminate\Queue\SerializesModels;
+    use Queueable;
+    use SerializesModels;
 
     public string $visitorName;
 
@@ -54,8 +58,8 @@ class EventVisitorQrMail extends \Illuminate\Mail\Mailable
         $mail = $this->subject('Your Event QR Code Entry Pass - '.$this->eventTitle)
             ->view('emails.events.visitor_qr');
 
-        if (! empty($this->registration->qr_code_path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->registration->qr_code_path)) {
-            $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($this->registration->qr_code_path);
+        if (! empty($this->registration->qr_code_path) && Storage::disk('public')->exists($this->registration->qr_code_path)) {
+            $fullPath = Storage::disk('public')->path($this->registration->qr_code_path);
             $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
             $mime = $ext === 'svg' ? 'image/svg+xml' : 'image/png';
 

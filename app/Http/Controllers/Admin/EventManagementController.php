@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\Circle;
 use App\Models\Event;
+use App\Models\EventOccurrence;
 use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
 use App\Models\FileModel;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventRegistrationQrService;
+use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
 use App\Support\AdminAccess;
@@ -265,10 +267,10 @@ class EventManagementController extends Controller
         return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
     }
 
-    public function addVisitorDirectly(Request $request, string $id, string $occurrenceId, \App\Services\Events\EventRegistrationService $registrationService): RedirectResponse
+    public function addVisitorDirectly(Request $request, string $id, string $occurrenceId, EventRegistrationService $registrationService): RedirectResponse
     {
         $event = Event::query()->findOrFail($id);
-        $occurrence = \App\Models\EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
+        $occurrence = EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
 
         $validated = $request->validate([
@@ -311,7 +313,7 @@ class EventManagementController extends Controller
                 }
 
                 // Fire mail delivery with QR Code attached (ensureQrGenerated automatically dispatches email inside)
-                $registrationQr = app(\App\Services\Events\EventRegistrationQrService::class);
+                $registrationQr = app(EventRegistrationQrService::class);
                 $registrationQr->ensureQrGenerated($registration);
             });
 

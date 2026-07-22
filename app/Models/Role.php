@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class Role extends Model
@@ -134,6 +135,37 @@ class Role extends Model
         $roleId = static::idByKey($key);
 
         if (! $roleId) {
+            // Check if it's a known/standard role and create it dynamically
+            $standardRoles = [
+                'global_admin' => 'Global Admin',
+                'global_founder' => 'Global Founder',
+                'industry_director' => 'Industry Director',
+                'ded' => 'DED',
+                'circle_leader' => 'Circle Leader',
+                'chair' => 'Chair',
+                'vice_chair' => 'Vice Chair',
+                'secretary' => 'Secretary',
+                'founder' => 'Founder',
+                'director' => 'Director',
+                'committee_leader' => 'Committee Leader',
+                'member' => 'Member',
+                'marketing_team' => 'Marketing Team',
+                'analytics_team' => 'Analytics Team',
+                'content_team' => 'Content Team',
+                'read_only' => 'Read Only Staff',
+            ];
+
+            if (array_key_exists($key, $standardRoles)) {
+                $role = static::query()->create([
+                    'id' => (string) Str::uuid(),
+                    'key' => $key,
+                    'name' => $standardRoles[$key],
+                    'description' => $standardRoles[$key].' Role',
+                ]);
+
+                return $role->id;
+            }
+
             Log::error('Role key missing in roles table.', [
                 'role_key' => $key,
             ]);
