@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Ads\StoreAdRequest;
 use App\Http\Requests\Admin\Ads\UpdateAdRequest;
 use App\Models\Ad;
+use App\Services\Ads\AdAnalyticsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -17,19 +18,50 @@ class AdController extends Controller
 {
     private const PLACEMENTS = ['timeline', 'dashboard', 'home', 'banner', 'popup', 'sidebar'];
 
+    public function __construct(
+        private readonly AdAnalyticsService $analyticsService
+    ) {}
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('q', ''));
+        $placement = trim((string) $request->query('placement', ''));
+        $status = trim((string) $request->query('status', ''));
+
+        $isPgSql = \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'pgsql';
+        $likeOp = $isPgSql ? 'ILIKE' : 'LIKE';
 
         $ads = Ad::query()
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where('title', 'ILIKE', '%'.$search.'%');
+            ->withCount(['views', 'clicks'])
+            ->when($search !== '', function ($query) use ($search, $likeOp) {
+                $query->where(function ($sub) use ($search, $likeOp) {
+                    $sub->where('title', $likeOp, '%'.$search.'%')
+                        ->orWhere('subtitle', $likeOp, '%'.$search.'%')
+                        ->orWhere('description', $likeOp, '%'.$search.'%');
+                });
+            })
+            ->when($placement !== '' && \Illuminate\Support\Facades\Schema::hasColumn('ads', 'placement'), function ($query) use ($placement) {
+                $query->where('placement', $placement);
+            })
+            ->when($status !== '' && \Illuminate\Support\Facades\Schema::hasColumn('ads', 'is_active'), function ($query) use ($status) {
+                if ($status === 'active') {
+                    $query->where('is_active', true);
+                } elseif ($status === 'inactive') {
+                    $query->where('is_active', false);
+                }
             })
             ->orderByDesc('created_at')
             ->paginate(20)
             ->appends($request->query());
 
-        return view('admin.ads.index', compact('ads', 'search'));
+        return view('admin.ads.index', compact('ads', 'search', 'placement', 'status'));
+    }
+
+    public function show(Ad $ad): View
+    {
+        $analytics = $this->analyticsService->getAdAnalytics($ad->id);
+
+        return view('admin.ads.show', compact('ad', 'analytics'));
     }
 
     public function create(): View
