@@ -216,7 +216,14 @@ class EventManagementController extends Controller
 
     public function show(string $id): View
     {
-        $event = Event::query()->with(['circle', 'circles', 'occurrences' => fn ($q) => $q->orderBy('start_at'), 'registrations.user', 'registrations.occurrence'])->findOrFail($id);
+        $event = Event::query()->with([
+            'circle',
+            'circles',
+            'occurrences' => fn ($q) => $q->orderBy('start_at'),
+            'registrations' => fn ($q) => $q->orderByDesc('created_at'),
+            'registrations.user',
+            'registrations.occurrence',
+        ])->findOrFail($id);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
 
         $event->registrations->each(function (EventRegistration $registration): void {
@@ -225,7 +232,11 @@ class EventManagementController extends Controller
                 $this->registrationQr->ensureQrGenerated($registration);
             }
         });
-        $event->load(['registrations.user', 'registrations.occurrence']);
+        $event->load([
+            'registrations' => fn ($q) => $q->orderByDesc('created_at'),
+            'registrations.user',
+            'registrations.occurrence',
+        ]);
 
         return view('admin.events.show', compact('event'));
     }
