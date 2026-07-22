@@ -299,10 +299,9 @@ class EventManagementController extends Controller
                     ])->save();
                 }
 
-                // Fire mail delivery with QR Code attached
+                // Fire mail delivery with QR Code attached (ensureQrGenerated automatically dispatches email inside)
                 $registrationQr = app(\App\Services\Events\EventRegistrationQrService::class);
                 $registrationQr->ensureQrGenerated($registration);
-                $registrationQr->sendVisitorQrEmailSafely($registration);
             });
 
             return back()->with('success', 'Visitor registered successfully. QR Code pass generated and email notification sent!');
