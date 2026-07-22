@@ -16,6 +16,7 @@ use App\Console\Commands\SendAnniversaryNotifications;
 use App\Console\Commands\SendAppUpdateReminderNotifications;
 use App\Console\Commands\SendBrandPartnerOfferExpiryNotifications;
 use App\Console\Commands\SendCircleMembershipExpiryReminders;
+use App\Console\Commands\SendGlobalPeerCertificates;
 use App\Console\Commands\SendMembershipExpiryReminders;
 use App\Console\Commands\SendUpcomingMembershipExpiryReminders;
 use App\Console\Commands\SyncPaidEventInvoices;
@@ -52,6 +53,7 @@ class Kernel extends ConsoleKernel
         GenerateBirthdayCreatives::class,
         SendAnniversaryNotifications::class,
         CheckCoinMilestones::class,
+        SendGlobalPeerCertificates::class,
     ];
 
     protected function schedule(Schedule $schedule): void
@@ -72,5 +74,6 @@ class Kernel extends ConsoleKernel
         $schedule->command('notifications:campaigns weekly')->sundays()->at('18:00');
         $schedule->command('app:send-anniversary-notifications')->everyMinute();
         $schedule->command('coins:check-milestones')->hourly();
+        $schedule->command('certificates:send-global-peer')->hourly();
     }
 }

@@ -96,6 +96,7 @@ use App\Http\Controllers\Api\V1\Forms\LeaderInterestController;
 use App\Http\Controllers\Api\V1\Forms\PeerRecommendationController;
 use App\Http\Controllers\Api\V1\Forms\VisitorRegistrationController;
 use App\Http\Controllers\Api\V1\Forms\WebsiteFormsController;
+use App\Http\Controllers\Api\V1\GlobalPeerCertificateController;
 use App\Http\Controllers\Api\V1\ImpactController;
 use App\Http\Controllers\Api\V1\IndustryController;
 use App\Http\Controllers\Api\V1\IntroductionRequestsApiController;
@@ -372,6 +373,11 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
+
+        // Global Peer Certificate API
+        Route::get('/my/global-peer-certificate', [GlobalPeerCertificateController::class, 'show']);
+        Route::post('/my/global-peer-certificate/regenerate', [GlobalPeerCertificateController::class, 'regenerate']);
+
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
         Route::get('/users/{user_id}/business-deals/stats', [BusinessDealController::class, 'userBusinessDealsStats'])->whereUuid('user_id');
         Route::get('/users/{user_id}/business-deals', [BusinessDealController::class, 'userBusinessDealsList'])->whereUuid('user_id');

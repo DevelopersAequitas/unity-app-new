@@ -176,6 +176,8 @@ class User extends Authenticatable
         'android_fcm_token',
         'ios_fcm_token',
         'bookmarks',
+        'global_peer_certificate_sent_at',
+        'global_peer_certificate_file_id',
     ];
 
     protected $hidden = [
@@ -205,6 +207,7 @@ class User extends Authenticatable
         'circle_joined_at' => 'datetime',
         'circle_expires_at' => 'datetime',
         'welcome_membership_email_sent_at' => 'datetime',
+        'global_peer_certificate_sent_at' => 'datetime',
         'dob' => 'date',
         'anniversary_date' => 'date',
         'skills' => 'array',
