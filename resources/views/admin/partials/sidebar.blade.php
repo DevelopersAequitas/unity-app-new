@@ -127,7 +127,6 @@
         ]
         : [
             ['label' => 'Visitor Registrations', 'route' => 'admin.visitor-registrations.index'],
-            ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
             ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
             ['label' => 'Certifications', 'route' => 'admin.certifications.index'],
@@ -191,6 +190,7 @@
     $notificationsActive = request()->routeIs('admin.notifications.*') || request()->is('admin/notifications*');
     $eventsManagementMenu = [
         ['label' => 'Events', 'route' => 'admin.events.index'],
+        ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
         ['label' => 'Event Scan Credentials', 'route' => 'admin.event-scan-credentials.index'],
         ['label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
     ];
