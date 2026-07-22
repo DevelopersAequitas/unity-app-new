@@ -929,9 +929,10 @@ class AuthController extends BaseApiController
             ], 401);
         }
 
-        // IMPORTANT: use password_hash column
+        // IMPORTANT: check password_hash column first, fallback to password column
+        $hashToTest = ! empty($user->password_hash) ? $user->password_hash : ($user->password ?? '');
         try {
-            $passwordCheck = Hash::check($credentials['password'], $user->password_hash);
+            $passwordCheck = Hash::check($credentials['password'], $hashToTest);
         } catch (\Throwable $exception) {
             Log::warning("Password check exception for user {$user->email}: ".$exception->getMessage());
             $passwordCheck = false;
