@@ -153,6 +153,21 @@ Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
 Route::middleware('auth:sanctum')->get('/account-deletion-status', [AccountDeletionController::class, 'status']);
 
+// Backward-compatible auth endpoints for clients calling /api/auth/* without /v1 prefix.
+Route::prefix('auth')->group(function () {
+    Route::post('register', [AuthController::class, 'register']);
+    Route::post('login', [AuthController::class, 'login']);
+    Route::post('request-otp', [AuthController::class, 'requestOtp']);
+    Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('reset-password', [AuthController::class, 'resetPassword']);
+
+    Route::middleware(['auth:sanctum', 'ensure.single.session', 'unity.user'])->group(function () {
+        Route::post('logout', [AuthController::class, 'logout']);
+        Route::get('me', [AuthController::class, 'me']);
+    });
+});
+
 Route::prefix('v1')->group(function () {
     Route::get('/app/config', [AppConfigController::class, 'publicConfig']);
     Route::get('/tutorials', [TutorialController::class, 'index']);
