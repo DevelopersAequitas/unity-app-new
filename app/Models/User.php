@@ -289,7 +289,7 @@ class User extends Authenticatable
                     if ($seqResult && ! empty($seqResult->peer_id)) {
                         $user->peer_id = (string) $seqResult->peer_id;
                     }
-                } catch (\Throwable) {
+                } catch (Throwable) {
                     // Fallback for testing environments (e.g. SQLite) where PostgreSQL sequences do not exist
                     $maxNum = 0;
                     try {
@@ -303,7 +303,7 @@ class User extends Authenticatable
                         if ($maxUser && ! empty($maxUser->peer_id)) {
                             $maxNum = (int) substr((string) $maxUser->peer_id, 9);
                         }
-                    } catch (\Throwable) {
+                    } catch (Throwable) {
                         $maxNum = 0;
                     }
                     $user->peer_id = 'PG3182736'.($maxNum + 1);
