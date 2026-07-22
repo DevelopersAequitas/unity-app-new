@@ -25,7 +25,6 @@ use App\Models\UserPushToken;
 use App\Services\EmailLogs\EmailLogService;
 use App\Services\Media\FileUploadService;
 use App\Services\OnlineStatusService;
-use App\Services\PushNotificationService;
 use App\Services\Referrals\ReferralService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Services\UserSessionService;
@@ -975,21 +974,6 @@ class AuthController extends BaseApiController
             newDeviceId: $request->input('device_id')
         ));
 
-        try {
-            app(PushNotificationService::class)->send(
-                $user,
-                'Session Expired',
-                'You have been logged out because your account was accessed on another device.',
-                [
-                    'type' => 'FORCE_LOGOUT',
-                    'code' => 'SESSION_SUPERSEDED',
-                    'new_device_id' => $request->input('device_id'),
-                ]
-            );
-        } catch (\Throwable $e) {
-            Log::warning('FCM Force Logout push notification error: '.$e->getMessage());
-        }
-
         $sessionService->setActiveSession(
             userId: (string) $user->id,
             sessionId: $sessionId,
@@ -1194,21 +1178,6 @@ class AuthController extends BaseApiController
             message: 'You have been logged out because your account was accessed on another device.',
             newDeviceId: $request->input('device_id')
         ));
-
-        try {
-            app(PushNotificationService::class)->send(
-                $user,
-                'Session Expired',
-                'You have been logged out because your account was accessed on another device.',
-                [
-                    'type' => 'FORCE_LOGOUT',
-                    'code' => 'SESSION_SUPERSEDED',
-                    'new_device_id' => $request->input('device_id'),
-                ]
-            );
-        } catch (\Throwable $e) {
-            Log::warning('FCM Force Logout push notification error: '.$e->getMessage());
-        }
 
         $sessionService->setActiveSession(
             userId: (string) $user->id,

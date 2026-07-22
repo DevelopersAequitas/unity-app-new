@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use App\Services\UserSessionService;
 use Closure;
 use Illuminate\Http\Request;
@@ -30,6 +31,10 @@ class EnsureSingleActiveSession
                 'message' => 'Unauthenticated access.',
                 'data' => null,
             ], 401);
+        }
+
+        if (! $user instanceof User) {
+            return $next($request);
         }
 
         $sessionId = $this->extractSessionIdFromRequest($request);
