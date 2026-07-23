@@ -93,7 +93,12 @@ class EventManagementController extends Controller
                 'approvedBy',
                 'rejectedBy',
             ])
-            ->when($status !== 'all' && $status !== '', fn ($q) => $q->where('status', $status))
+            ->when($status === 'checked_in', function ($q): void {
+                $q->whereHas('registration', function ($regQuery): void {
+                    $regQuery->whereNotNull('checked_in_at');
+                });
+            })
+            ->when($status !== 'all' && $status !== '' && $status !== 'checked_in', fn ($q) => $q->where('status', $status))
             ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
             ->when($request->date_from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
@@ -122,6 +127,9 @@ class EventManagementController extends Controller
             'pending' => (clone $summaryBase)->where('status', 'pending')->count(),
             'approved' => (clone $summaryBase)->where('status', 'approved')->count(),
             'rejected' => (clone $summaryBase)->where('status', 'rejected')->count(),
+            'checked_in' => (clone $summaryBase)->whereHas('registration', function ($regQuery): void {
+                $regQuery->whereNotNull('checked_in_at');
+            })->count(),
             'total' => (clone $summaryBase)->count(),
         ];
 
