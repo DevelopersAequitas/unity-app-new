@@ -227,7 +227,14 @@ class PostController extends BaseApiController
             ->where('status', 'approved')
             ->exists();
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable) {
+        $verifiedAuthorIds = CircleMember::whereIn('user_id', $authorIds)
+            ->where('status', 'approved')
+            ->pluck('user_id')
+            ->unique()
+            ->map(fn ($id) => (string) $id)
+            ->toArray();
+
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -268,6 +275,7 @@ class PostController extends BaseApiController
 
             if (isset($row->post_type) && (string) $row->post_type === 'global_peer_certificate') {
                 $item['is_downloadable'] = $isDownloadable;
+                $item['is_verified_peer'] = in_array((string) $row->author_id, $verifiedAuthorIds, true);
             }
 
             if (

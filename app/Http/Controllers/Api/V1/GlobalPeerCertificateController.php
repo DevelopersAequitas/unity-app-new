@@ -61,6 +61,7 @@ class GlobalPeerCertificateController extends Controller
                 'peer_name' => $this->displayName($user),
                 'membership_status' => $user->membership_status,
                 'is_downloadable' => $this->isDownloadable($user),
+                'is_verified_peer' => $this->isVerifiedPeer($user),
                 'generated_at' => $user->global_peer_certificate_sent_at,
             ]);
         }
@@ -86,6 +87,7 @@ class GlobalPeerCertificateController extends Controller
                 'peer_name' => $this->displayName($user),
                 'membership_status' => $user->membership_status,
                 'is_downloadable' => $this->isDownloadable($user),
+                'is_verified_peer' => $this->isVerifiedPeer($user),
                 'generated_at' => now(),
             ]);
         } catch (\Throwable $e) {
@@ -132,6 +134,7 @@ class GlobalPeerCertificateController extends Controller
                 'peer_name' => $this->displayName($user),
                 'membership_status' => $user->membership_status,
                 'is_downloadable' => $this->isDownloadable($user),
+                'is_verified_peer' => $this->isVerifiedPeer($user),
                 'generated_at' => now(),
             ]);
         } catch (\Throwable $e) {
@@ -153,6 +156,11 @@ class GlobalPeerCertificateController extends Controller
         return CircleMember::where('user_id', $user->id)
             ->where('status', 'approved')
             ->exists();
+    }
+
+    private function isVerifiedPeer(User $user): bool
+    {
+        return $this->isDownloadable($user);
     }
 
     private function displayName(User $user): string
