@@ -185,7 +185,7 @@ class GlobalPeerCertificateImageGenerator
         $blue = \imagecolorallocate($canvas, 31, 88, 163); // Matching theme blue
 
         // 1. Cover the pg2025xxxx placeholder
-        \imagefilledrectangle($canvas, 500, 60, 625, 82, $white);
+        \imagefilledrectangle($canvas, 510, 60, 650, 80, $white);
 
         // 2. Load Montserrat-Regular font
         $fontPath = $this->getFontPath('regular');
@@ -194,15 +194,15 @@ class GlobalPeerCertificateImageGenerator
         $bbox = @\imagettfbbox($fontSize, 0, $fontPath, $memberId);
         if (! $bbox) {
             // Fallback to standard GD text if font is not found
-            \imagestring($canvas, 2, 530, 68, $memberId, $blue);
+            \imagestring($canvas, 2, 550, 68, $memberId, $blue);
 
             return;
         }
 
         $textWidth = abs($bbox[2] - $bbox[0]);
-        // Center the text inside the 125px wide box (from X=500 to X=625)
-        $x = (int) (562.5 - ($textWidth / 2));
-        $y = 75;
+        // Center the text precisely around X = 580
+        $x = (int) (580 - ($textWidth / 2));
+        $y = 77;
 
         \imagettftext($canvas, $fontSize, 0, $x, $y, $blue, $fontPath, $memberId);
     }
