@@ -489,7 +489,7 @@ class UsersController extends Controller
 
         $storySubmissions = collect();
         $storySubmissionsCount = 0;
-        if (Schema::hasTable('sme_business_story_submissions')) {
+        if (Schema::hasTable('sme_business_story_submissions') && Schema::hasColumn('sme_business_story_submissions', 'user_id')) {
             $storySubmissions = SmeBusinessStorySubmission::query()
                 ->where('user_id', $userId)
                 ->orderByDesc('created_at')
@@ -497,12 +497,20 @@ class UsersController extends Controller
             $storySubmissionsCount = $storySubmissions->count();
         }
 
-        $introducedPeers = $user->introducedPeers()->with(['profilePhotoFile', 'city'])->withCount(['introducedMembers'])->get();
-        $introducedPeersCount = User::where('introduced_by', $user->id)->count();
-        $pendingIntroRequestsCount = IntroductionRequest::query()
-            ->where('requester_id', $user->id)
-            ->where('status', 'pending')
-            ->count();
+        $introducedPeers = collect();
+        $introducedPeersCount = 0;
+        if (Schema::hasColumn('users', 'introduced_by')) {
+            $introducedPeers = $user->introducedPeers()->with(['profilePhotoFile', 'city'])->withCount(['introducedMembers'])->get();
+            $introducedPeersCount = User::where('introduced_by', $user->id)->count();
+        }
+
+        $pendingIntroRequestsCount = 0;
+        if (Schema::hasTable('introduction_requests')) {
+            $pendingIntroRequestsCount = IntroductionRequest::query()
+                ->where('requester_id', $user->id)
+                ->where('status', 'pending')
+                ->count();
+        }
 
         return [
             'user' => $user,
@@ -2042,7 +2050,7 @@ class UsersController extends Controller
             $userSelectColumns[] = 'approval_status';
         }
 
-        $query = User::query()
+        $query = User::withTrashed()
             ->select($userSelectColumns)
             ->withCount(['introducedMembers'])
             ->with([

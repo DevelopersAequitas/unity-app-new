@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\VisitorRegistration;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LastMonthActivityService
 {
@@ -203,12 +204,15 @@ class LastMonthActivityService
         })->values()->all();
 
         // 8. Success Story
-        $story = SmeBusinessStorySubmission::query()
-            ->where('user_id', $user->id)
-            ->whereRaw('LOWER(status) = ?', ['approved'])
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->latest('created_at')
-            ->first();
+        $story = null;
+        if (Schema::hasTable('sme_business_story_submissions') && Schema::hasColumn('sme_business_story_submissions', 'user_id')) {
+            $story = SmeBusinessStorySubmission::query()
+                ->where('user_id', $user->id)
+                ->whereRaw('LOWER(status) = ?', ['approved'])
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->latest('created_at')
+                ->first();
+        }
 
         $successStoryItem = $story ? [
             'story_id' => $story->id,
