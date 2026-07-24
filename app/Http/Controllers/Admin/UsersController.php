@@ -66,15 +66,15 @@ class UsersController extends Controller
         $allUsersQuery = clone $query;
         $users = $query->paginate($perPage)->appends($request->except('approval_status'));
         $canEditUsers = AdminAccess::canEditUsers(Auth::guard('admin')->user());
-        
+
         $allUsers = $allUsersQuery->get();
-        
+
         $membershipStatusLabels = $this->membershipFilterOptions();
-        
+
         $allUsersJson = $allUsers->map(function (User $u) use ($membershipStatusLabels) {
-            $name = $u->name ?? trim((($u->first_name ?? '') . ' ' . ($u->last_name ?? '')));
-            $avatar = $u->profile_photo_url ?? ($u->profile_photo_file_id ? url('/api/v1/files/' . $u->profile_photo_file_id) : null);
-            
+            $name = $u->name ?? trim((($u->first_name ?? '').' '.($u->last_name ?? '')));
+            $avatar = $u->profile_photo_url ?? ($u->profile_photo_file_id ? url('/api/v1/files/'.$u->profile_photo_file_id) : null);
+
             $cityName = $u->city->name ?? $u->city ?? '';
             if (is_string($cityName)) {
                 $cityName = trim($cityName);
@@ -84,28 +84,28 @@ class UsersController extends Controller
                 }
             }
             $companyName = $u->company_name ?? $u->company ?? $u->business_name ?? '';
-            
-            $userCircles = $u->circleMembers->map(fn($cm) => $cm->circle)->filter()->unique('id');
+
+            $userCircles = $u->circleMembers->map(fn ($cm) => $cm->circle)->filter()->unique('id');
             $circleName = $userCircles->first()?->name ?? '';
 
             $statusValue = $u->status ?? 'active';
             $statusObj = [
                 'n' => $statusValue === 'active' ? 'Active' : 'Inactive',
-                'c' => $statusValue === 'active' ? 'success' : 'text-3'
+                'c' => $statusValue === 'active' ? 'success' : 'text-3',
             ];
 
             $membershipStatus = (string) ($u->membership_status ?? 'free_peer');
-            $membershipLabel = $membershipStatusLabels[$membershipStatus] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $membershipStatus));
+            $membershipLabel = $membershipStatusLabels[$membershipStatus] ?? Str::headline(str_replace('_', ' ', $membershipStatus));
 
             $paymentStatus = [
                 'n' => $u->last_payment_at ? 'Paid' : 'Due',
-                'c' => $u->last_payment_at ? 'success' : 'warning'
+                'c' => $u->last_payment_at ? 'success' : 'warning',
             ];
 
             return [
                 'id' => $u->id,
                 'name' => $name,
-                'mid' => $u->peer_id ?? ('PGU-' . substr($u->id, 0, 5)),
+                'mid' => $u->peer_id ?? ('PGU-'.substr($u->id, 0, 5)),
                 'email' => $u->email ?? '',
                 'mobile' => $u->phone ?? '',
                 'company' => $companyName,
@@ -352,7 +352,7 @@ class UsersController extends Controller
 
     private function getEditViewData(Request $request, string $userId): array
     {
-        $user = User::query()
+        $user = User::withTrashed()
             ->with(['mainBusinessCategory:id,name', 'businessCategory:id,name'])
             ->findOrFail($userId);
         $this->expireTrialUserForAdminPanel($user);
@@ -592,7 +592,7 @@ class UsersController extends Controller
             abort(403);
         }
 
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
         $originalCoinsBalance = (int) ($user->coins_balance ?? 0);
         $submittedCoinsBalance = (int) $request->input('coins_balance', $originalCoinsBalance);
         $coinsBalanceChanged = $submittedCoinsBalance !== $originalCoinsBalance;
@@ -1296,7 +1296,7 @@ class UsersController extends Controller
             abort(403);
         }
 
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
 
         $member = CircleMember::query()
             ->where('id', $circleMemberId)
@@ -1322,7 +1322,7 @@ class UsersController extends Controller
 
     public function removeRole(Request $request, string $userId): RedirectResponse
     {
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
         $adminUser = $this->findAdminUserForPeer($user);
 
         if (! $adminUser) {
@@ -1366,7 +1366,7 @@ class UsersController extends Controller
         if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
             abort(403);
         }
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
         $adminName = Auth::guard('admin')->user()?->name ?? Auth::guard('admin')->user()?->email ?? 'Admin';
         $this->membershipNotificationService->sendManual($user, $adminName);
 
@@ -1379,7 +1379,7 @@ class UsersController extends Controller
             abort(403);
         }
 
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
 
         try {
             $result = $this->membershipWelcomeEmailService->sendIfEligible($user);

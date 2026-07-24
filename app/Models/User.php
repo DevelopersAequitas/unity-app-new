@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
@@ -286,7 +287,7 @@ class User extends Authenticatable
             if (empty($user->peer_id)) {
                 $hasPeerIdColumn = true;
                 try {
-                    $hasPeerIdColumn = \Illuminate\Support\Facades\Schema::hasColumn('users', 'peer_id');
+                    $hasPeerIdColumn = Schema::hasColumn('users', 'peer_id');
                 } catch (Throwable) {
                     $hasPeerIdColumn = false;
                 }
@@ -309,7 +310,7 @@ class User extends Authenticatable
                                 ->first();
 
                             if ($maxUser && ! empty($maxUser->peer_id)) {
-                                    $maxNum = (int) substr((string) $maxUser->peer_id, 9);
+                                $maxNum = (int) substr((string) $maxUser->peer_id, 9);
                             }
                         } catch (Throwable) {
                             $maxNum = 0;
