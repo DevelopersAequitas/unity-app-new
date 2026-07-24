@@ -126,7 +126,11 @@ class UsersController extends Controller
                 'docs' => 0,
                 'color' => '#6366F1',
                 'joined' => $u->created_at ? $u->created_at->format('d M Y') : '—',
-                'expiryDays' => $u->membership_ends_at ? now()->diffInDays($u->membership_ends_at, false) : 0,
+                'membership_starts_at' => $u->membership_starts_at ? $u->membership_starts_at->format('Y-m-d') : '',
+                'membership_ends_at' => $u->membership_ends_at ? $u->membership_ends_at->format('Y-m-d') : '',
+                'membership_expiry_date_remark' => $u->membership_expiry_date_remark ?? '',
+                'is_sponsored_member' => (bool) $u->is_sponsored_member,
+                'expiryDays' => $u->membership_ends_at ? (int) max(0, ceil(now()->diffInDays($u->membership_ends_at, false))) : 0,
                 'lastPaymentDate' => $u->last_payment_at ? $u->last_payment_at->format('d M Y') : '—',
                 'lastPaymentAmt' => 0,
                 'renewalCount' => 0,
@@ -848,8 +852,12 @@ class UsersController extends Controller
         $previousMembershipEndsAt = $user->membership_ends_at ? $user->membership_ends_at->copy() : null;
         $updatable = Arr::except($validated, $updatableExclusions);
         if ($user->membership_status !== $validated['membership_status'] && blank($validated['membership_ends_at'] ?? null)) {
-            $updatable['membership_ends_at'] = null;
-            $updatable['membership_expiry'] = null;
+            if ($request->has('membership_ends_at')) {
+                $updatable['membership_ends_at'] = null;
+                $updatable['membership_expiry'] = null;
+            } else {
+                unset($updatable['membership_ends_at'], $updatable['membership_expiry']);
+            }
         }
         $updatable = Arr::only($updatable, Schema::getColumnListing('users'));
         $activeCircleMemberStatus = $this->activeCircleMemberStatus();
@@ -2041,9 +2049,11 @@ class UsersController extends Controller
             'welcome_membership_email_status',
             'welcome_membership_email_error',
             'welcome_membership_email_plan_code',
-            'peer_id',
         ];
 
+        if (Schema::hasColumn('users', 'peer_id')) {
+            $userSelectColumns[] = 'peer_id';
+        }
         if (Schema::hasColumn('users', 'main_business_category_id')) {
             $userSelectColumns[] = 'main_business_category_id';
         }

@@ -947,6 +947,28 @@
               </select>
             </div>
             <div>
+              <label class="block text-xs t3 mb-1.5 font-medium">Membership Start Date</label>
+              <input type="date" id="edit-membership-starts-at" class="w-full px-3 py-2 rounded-lg border bs surface-2 t1 focus-ring outline-none text-xs"/>
+            </div>
+            <div>
+              <label class="block text-xs t3 mb-1.5 font-medium">Membership Expiry Date</label>
+              <input type="date" id="edit-membership-ends-at" class="w-full px-3 py-2 rounded-lg border bs surface-2 t1 focus-ring outline-none text-xs"/>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="md:col-span-2">
+              <label class="block text-xs t3 mb-1.5 font-medium">Membership Expiry Remark</label>
+              <input type="text" id="edit-membership-remark" placeholder="Write remark explaining why membership status or expiry date was updated" class="w-full px-3 py-2 rounded-lg border bs surface-2 t1 placeholder:t3 focus-ring outline-none text-xs"/>
+            </div>
+            <div class="flex items-center pt-4">
+              <label class="flex items-center gap-2 cursor-pointer select-none text-xs t1">
+                <input type="checkbox" id="edit-is-sponsored" class="accent-indigo-500 w-4 h-4 rounded"/>
+                <span class="font-medium">Is Sponsored Member</span>
+              </label>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
               <label class="block text-xs t3 mb-1.5 font-medium">Coins Balance</label>
               <input type="text" id="edit-coins" class="w-full px-3 py-2 rounded-lg border bs surface-2 t1 placeholder:t3 focus-ring outline-none text-xs"/>
             </div>
@@ -1864,6 +1886,10 @@
       const membershipKey = membershipLabelToKey[m.membership] || 'free_peer';
       document.getElementById('edit-membership').value = membershipKey;
       document.getElementById('edit-status').value = m.status.n.toLowerCase();
+      document.getElementById('edit-membership-starts-at').value = m.membership_starts_at || '';
+      document.getElementById('edit-membership-ends-at').value = m.membership_ends_at || '';
+      document.getElementById('edit-membership-remark').value = m.membership_expiry_date_remark || '';
+      document.getElementById('edit-is-sponsored').checked = !!m.is_sponsored_member;
       document.getElementById('edit-coins').value = m.coins;
       document.getElementById('edit-activity').value = m.activity;
       
@@ -1915,6 +1941,10 @@
       
       formData.append('membership_status', document.getElementById('edit-membership').value);
       formData.append('status', document.getElementById('edit-status').value);
+      formData.append('membership_starts_at', document.getElementById('edit-membership-starts-at').value);
+      formData.append('membership_ends_at', document.getElementById('edit-membership-ends-at').value);
+      formData.append('membership_expiry_date_remark', document.getElementById('edit-membership-remark').value);
+      formData.append('is_sponsored_member', document.getElementById('edit-is-sponsored').checked ? '1' : '0');
       formData.append('coins_balance', document.getElementById('edit-coins').value);
       formData.append('activity_score', document.getElementById('edit-activity').value);
       formData.append('life_impacted_count', m.lifeImpacted || 0);
@@ -1933,8 +1963,22 @@
           m.mobile = document.getElementById('edit-phone').value;
           m.company = document.getElementById('edit-company').value;
           m.city = document.getElementById('edit-city').value;
+          m.membership_starts_at = document.getElementById('edit-membership-starts-at').value;
+          m.membership_ends_at = document.getElementById('edit-membership-ends-at').value;
+          m.membership_expiry_date_remark = document.getElementById('edit-membership-remark').value;
+          m.is_sponsored_member = document.getElementById('edit-is-sponsored').checked;
           m.coins = parseInt(document.getElementById('edit-coins').value) || 0;
           m.activity = parseInt(document.getElementById('edit-activity').value) || 0;
+          
+          if (m.membership_ends_at) {
+            const expDate = new Date(m.membership_ends_at + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const diffMs = expDate - today;
+            m.expiryDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+          } else {
+            m.expiryDays = 0;
+          }
           
           m.status.n = document.getElementById('edit-status').value === 'active' ? 'Active' : 'Inactive';
           m.status.c = document.getElementById('edit-status').value === 'active' ? 'success' : 'text-3';
