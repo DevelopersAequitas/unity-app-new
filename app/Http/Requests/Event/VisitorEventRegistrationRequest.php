@@ -15,8 +15,16 @@ class VisitorEventRegistrationRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $firstName = $this->input('visitor_first_name', $this->input('first_name'));
+        $lastName = $this->input('visitor_last_name', $this->input('last_name'));
+        $dynamicFullName = null;
+
+        if ($firstName !== null || $lastName !== null) {
+            $dynamicFullName = trim(($firstName ?? '').' '.($lastName ?? ''));
+        }
+
         $this->merge(array_filter([
-            'visitor_name' => $this->input('visitor_name', $this->input('full_name')),
+            'visitor_name' => $this->input('visitor_name', $this->input('full_name', $dynamicFullName)),
             'visitor_email' => $this->input('visitor_email', $this->input('email')),
             'visitor_phone' => $this->input('visitor_phone', $this->input('phone')),
             'visitor_company' => $this->input('visitor_company', $this->input('company_name')),
@@ -27,6 +35,8 @@ class VisitorEventRegistrationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'visitor_first_name' => ['sometimes', 'string', 'max:100'],
+            'visitor_last_name' => ['sometimes', 'string', 'max:100'],
             'visitor_name' => ['required', 'string', 'max:150'],
             'visitor_email' => ['required', 'email', 'max:150'],
             'visitor_phone' => ['required', 'string', 'max:20'],

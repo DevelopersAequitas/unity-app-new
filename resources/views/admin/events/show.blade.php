@@ -74,12 +74,16 @@
                                     </div>
                                     <div class="modal-body p-4 bg-light">
                                         <div class="mb-3 text-muted small fw-semibold">
-                                            This will instantly generate a free Event Pass QR Code and register the attendee as a free_trial_peer.
+                                            This will instantly generate a free Event Pass QR Code and register them in our database as a peer.
                                         </div>
                                         <div class="row g-3">
-                                            <div class="col-12">
-                                                <label class="form-label small fw-semibold text-muted mb-1">Visitor Name *</label>
-                                                <input type="text" name="visitor_name" class="form-control form-control-sm" required placeholder="Visitor Full Name">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold text-muted mb-1">Visitor First Name *</label>
+                                                <input type="text" name="visitor_first_name" class="form-control form-control-sm" required placeholder="First Name">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold text-muted mb-1">Visitor Last Name *</label>
+                                                <input type="text" name="visitor_last_name" class="form-control form-control-sm" required placeholder="Last Name">
                                             </div>
                                             <div class="col-12">
                                                 <label class="form-label small fw-semibold text-muted mb-1">Visitor Email *</label>

@@ -366,7 +366,7 @@ class EventRegistrationService
             'city_of_residence' => $data['visitor_city'] ?? ($data['city'] ?? null),
             'business_category_id' => $data['business_category_id'] ?? null,
             'business_sub_category' => $data['business_sub_category'] ?? null,
-            'membership_status' => 'visitor',
+            'membership_status' => 'free_trial_peer',
             'status' => 'active',
             'password_hash' => Hash::make(Str::random(32)),
             'password' => Hash::make(Str::random(32)),
