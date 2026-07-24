@@ -928,14 +928,22 @@
           <div class="border-b bs pb-2.5">
             <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">💳 Membership Status & Wallet</h3>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label class="block text-xs t3 mb-1.5 font-medium">Membership Tier</label>
               <select id="edit-membership" class="w-full px-3 py-2 rounded-lg border bs surface-2 t1 focus-ring outline-none text-xs">
-                <option value="Standard">Standard</option>
-                <option value="Gold">Gold</option>
-                <option value="Platinum">Platinum</option>
-                <option value="Silver">Silver</option>
+                <option value="free_peer">Free Peer</option>
+                <option value="free_trial_peer">Free Trial Peer</option>
+                <option value="Only Unity Peer">Global Peer</option>
+                <option value="Circle Peer">Circle Peer</option>
+                <option value="Multi Circle Peer">Multi Circle Peer</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs t3 mb-1.5 font-medium">Status</label>
+              <select id="edit-status" class="w-full px-3 py-2 rounded-lg border bs surface-2 t1 focus-ring outline-none text-xs">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
               </select>
             </div>
             <div>
@@ -1440,7 +1448,7 @@
         <td class="border-b bs px-3 py-2.5 align-top">
           <div class="flex items-center gap-2.5">
             <div class="avatar w-8 h-8 rounded-full text-[11px] font-bold flex items-center justify-center text-white" style="background:${m.color}">${initials(m.name)}</div>
-            <div class="font-display font-medium t1 text-[13px] hover:text-indigo-400 transition">${m.name}</div>
+            <div class="font-display font-medium text-indigo-500 hover:text-indigo-700 hover:underline transition">${m.name}</div>
           </div>
         </td>
         <td class="border-b bs px-3 py-2.5 align-top font-mono text-[12.5px] t2">${m.mobile || '—'}</td>
@@ -1845,7 +1853,17 @@
       document.getElementById('edit-city').value = m.city;
       document.getElementById('edit-country').value = m.country;
       
-      document.getElementById('edit-membership').value = m.membership;
+      const membershipLabelToKey = {
+        'Free Peer': 'free_peer',
+        'Free Trial Peer': 'free_trial_peer',
+        'Global Peer': 'Only Unity Peer',
+        'Only Unity Peer': 'Only Unity Peer',
+        'Circle Peer': 'Circle Peer',
+        'Multi Circle Peer': 'Multi Circle Peer'
+      };
+      const membershipKey = membershipLabelToKey[m.membership] || 'free_peer';
+      document.getElementById('edit-membership').value = membershipKey;
+      document.getElementById('edit-status').value = m.status.n.toLowerCase();
       document.getElementById('edit-coins').value = m.coins;
       document.getElementById('edit-activity').value = m.activity;
       
@@ -1895,16 +1913,11 @@
       formData.append('company_name', document.getElementById('edit-company').value || 'Aequitas Infotech');
       formData.append('city', document.getElementById('edit-city').value);
       
-      const membershipMap = {
-        'Platinum': 'platinum_peer',
-        'Gold': 'gold_peer',
-        'Silver': 'silver_peer',
-        'Standard': 'free_peer'
-      };
-      const membershipVal = membershipMap[document.getElementById('edit-membership').value] || 'free_peer';
-      formData.append('membership_status', membershipVal);
+      formData.append('membership_status', document.getElementById('edit-membership').value);
+      formData.append('status', document.getElementById('edit-status').value);
       formData.append('coins_balance', document.getElementById('edit-coins').value);
       formData.append('activity_score', document.getElementById('edit-activity').value);
+      formData.append('life_impacted_count', m.lifeImpacted || 0);
       
       fetch(`/admin/users/${currentEditPeerId}`, {
         method: 'POST',
@@ -1922,6 +1935,21 @@
           m.city = document.getElementById('edit-city').value;
           m.coins = parseInt(document.getElementById('edit-coins').value) || 0;
           m.activity = parseInt(document.getElementById('edit-activity').value) || 0;
+          
+          m.status.n = document.getElementById('edit-status').value === 'active' ? 'Active' : 'Inactive';
+          m.status.c = document.getElementById('edit-status').value === 'active' ? 'success' : 'text-3';
+          
+          const membershipKeyToLabel = {
+            'free_peer': 'Free Peer',
+            'free_trial_peer': 'Free Trial Peer',
+            'Only Unity Peer': 'Global Peer',
+            'Circle Peer': 'Circle Peer',
+            'Multi Circle Peer': 'Multi Circle Peer'
+          };
+          m.membership = membershipKeyToLabel[document.getElementById('edit-membership').value] || 'Free Peer';
+          
+          const membershipVal = document.getElementById('edit-membership').value;
+          m.memberType = membershipVal.toLowerCase().includes('unity') ? 'unity' : (membershipVal.toLowerCase().includes('circle') ? 'circle_peer' : 'free');
           
           applyFilters();
           closeEditModal();

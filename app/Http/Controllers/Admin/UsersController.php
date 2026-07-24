@@ -134,6 +134,7 @@ class UsersController extends Controller
                 'lastEvent' => '—',
                 'memberType' => str_contains(strtolower($membershipStatus), 'unity') ? 'unity' : (str_contains(strtolower($membershipStatus), 'circle') ? 'circle_peer' : 'free'),
                 'isMultipleCircle' => $userCircles->count() > 1,
+                'lifeImpacted' => $u->life_impacted_count ?? 0,
             ];
         });
 
@@ -629,8 +630,8 @@ class UsersController extends Controller
             'display_name' => ['nullable', 'string', 'max:150'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'phone' => ['nullable', 'string', 'max:30'],
-            'designation' => ['required', 'string', 'max:255'],
-            'company_name' => ['required', 'string', 'max:255'],
+            'designation' => ['nullable', 'string', 'max:255'],
+            'company_name' => ['nullable', 'string', 'max:255'],
             'business_type' => ['nullable', 'string', 'max:100'],
             'turnover_range' => ['nullable', 'string', 'max:100'],
             'gender' => ['nullable', 'string', 'max:20'],
@@ -667,7 +668,7 @@ class UsersController extends Controller
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
             'city_id' => ['nullable', 'exists:cities,id'],
-            'city' => ['required', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:255'],
             'introduced_by' => ['nullable', 'exists:users,id'],
             'members_introduced_count' => ['nullable', 'integer', 'min:0'],
             'profile_photo_file_id' => ['nullable', 'uuid'],
