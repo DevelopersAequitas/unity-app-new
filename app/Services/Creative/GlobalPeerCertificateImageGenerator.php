@@ -130,8 +130,8 @@ class GlobalPeerCertificateImageGenerator
         // Deep Gold (#C5860A) matching the certificate's decorative accents
         $nameColor = \imagecolorallocate($canvas, 197, 134, 10);
 
-        // Maximum allowable width for name text (82% of total template width)
-        $maxWidth = (int) ($width * 0.82);
+        // Maximum allowable width for name text
+        $maxWidth = 500;
         $fontSize = 40; // Balanced font size
         $minFontSize = 20;
 
