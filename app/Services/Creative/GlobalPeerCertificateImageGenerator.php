@@ -67,9 +67,9 @@ class GlobalPeerCertificateImageGenerator
         \imagedestroy($baseImg);
 
         // ── 3. Draw peer's name on the blank space ─────────────────────────
-        $displayName = trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')));
+        $displayName = mb_strtoupper(trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
         if ($displayName === '') {
-            $displayName = 'Global Peer';
+            $displayName = 'GLOBAL PEER';
         }
 
         $this->drawCertificateName($canvas, $displayName, $width, $height);
