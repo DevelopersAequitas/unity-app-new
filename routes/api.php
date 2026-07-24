@@ -1158,9 +1158,8 @@ Route::get('/debug-notifications', function () {
 Route::get('/debug-logs', function () {
     try {
         $logPath = storage_path('logs/laravel.log');
-        $columns = \Illuminate\Support\Facades\Schema::getColumnListing('users');
         if (! file_exists($logPath)) {
-            return response()->json(['success' => false, 'message' => 'Log file does not exist', 'columns' => $columns]);
+            return response()->json(['success' => false, 'message' => 'Log file does not exist']);
         }
 
         $lines = [];
@@ -1183,7 +1182,6 @@ Route::get('/debug-logs', function () {
             'success' => true,
             'total_lines' => $totalLines,
             'recent_lines' => array_reverse($lines),
-            'users_table_columns' => $columns,
         ]);
     } catch (Throwable $e) {
         return response()->json([

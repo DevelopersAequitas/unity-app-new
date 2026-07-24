@@ -74,6 +74,9 @@ class GlobalPeerCertificateImageGenerator
 
         $this->drawCertificateName($canvas, $displayName, $width, $height);
 
+        // ── 3b. Draw peer's Member ID on the top-right ──────────────────────
+        $this->drawMemberId($canvas, $user, $width, $height);
+
         // ── 4. Save to public disk ───────────────────────────────────────────
         $diskName = 'public';
         $folder = 'uploads/certificates/'.now()->format('Y/m/d');
@@ -166,5 +169,41 @@ class GlobalPeerCertificateImageGenerator
         \imagettftext($canvas, $fontSize, 0, $x, $y - 1, $nameColor, $fontPath, $displayName);
         \imagettftext($canvas, $fontSize, 0, $x, $y + 1, $nameColor, $fontPath, $displayName);
         \imagettftext($canvas, $fontSize, 0, $x, $y, $nameColor, $fontPath, $displayName);
+    }
+
+    /**
+     * Draw the user's member ID on the top-right corner, covering the placeholder pg2025xxxx.
+     */
+    private function drawMemberId($canvas, User $user, int $width, int $height): void
+    {
+        $memberId = trim((string) ($user->peer_id ?? ''));
+        if ($memberId === '') {
+            return;
+        }
+
+        $white = \imagecolorallocate($canvas, 255, 255, 255);
+        $blue = \imagecolorallocate($canvas, 31, 88, 163); // Matching theme blue
+
+        // 1. Cover the pg2025xxxx placeholder
+        \imagefilledrectangle($canvas, 500, 60, 625, 82, $white);
+
+        // 2. Load Montserrat-Regular font
+        $fontPath = $this->getFontPath('regular');
+
+        $fontSize = 11;
+        $bbox = @\imagettfbbox($fontSize, 0, $fontPath, $memberId);
+        if (! $bbox) {
+            // Fallback to standard GD text if font is not found
+            \imagestring($canvas, 2, 530, 68, $memberId, $blue);
+
+            return;
+        }
+
+        $textWidth = abs($bbox[2] - $bbox[0]);
+        // Center the text inside the 125px wide box (from X=500 to X=625)
+        $x = (int) (562.5 - ($textWidth / 2));
+        $y = 75;
+
+        \imagettftext($canvas, $fontSize, 0, $x, $y, $blue, $fontPath, $memberId);
     }
 }
