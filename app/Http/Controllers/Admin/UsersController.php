@@ -63,8 +63,80 @@ class UsersController extends Controller
 
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
+        $allUsersQuery = clone $query;
         $users = $query->paginate($perPage)->appends($request->except('approval_status'));
         $canEditUsers = AdminAccess::canEditUsers(Auth::guard('admin')->user());
+        
+        $allUsers = $allUsersQuery->get();
+        
+        $membershipStatusLabels = $this->membershipFilterOptions();
+        
+        $allUsersJson = $allUsers->map(function (User $u) use ($membershipStatusLabels) {
+            $name = $u->name ?? trim((($u->first_name ?? '') . ' ' . ($u->last_name ?? '')));
+            $avatar = $u->profile_photo_url ?? ($u->profile_photo_file_id ? url('/api/v1/files/' . $u->profile_photo_file_id) : null);
+            
+            $cityName = $u->city->name ?? $u->city ?? '';
+            if (is_string($cityName)) {
+                $cityName = trim($cityName);
+                if (str_starts_with($cityName, '{')) {
+                    $decodedCity = json_decode($cityName, true);
+                    $cityName = $decodedCity['name'] ?? $decodedCity['label'] ?? $cityName;
+                }
+            }
+            $companyName = $u->company_name ?? $u->company ?? $u->business_name ?? '';
+            
+            $userCircles = $u->circleMembers->map(fn($cm) => $cm->circle)->filter()->unique('id');
+            $circleName = $userCircles->first()?->name ?? '';
+
+            $statusValue = $u->status ?? 'active';
+            $statusObj = [
+                'n' => $statusValue === 'active' ? 'Active' : 'Inactive',
+                'c' => $statusValue === 'active' ? 'success' : 'text-3'
+            ];
+
+            $membershipStatus = (string) ($u->membership_status ?? 'free_peer');
+            $membershipLabel = $membershipStatusLabels[$membershipStatus] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $membershipStatus));
+
+            $paymentStatus = [
+                'n' => $u->last_payment_at ? 'Paid' : 'Due',
+                'c' => $u->last_payment_at ? 'success' : 'warning'
+            ];
+
+            return [
+                'id' => $u->id,
+                'name' => $name,
+                'mid' => $u->peer_id ?? ('PGU-' . substr($u->id, 0, 5)),
+                'email' => $u->email ?? '',
+                'mobile' => $u->phone ?? '',
+                'company' => $companyName,
+                'industry' => $u->industry_tags ? (is_array($u->industry_tags) ? implode(', ', $u->industry_tags) : $u->industry_tags) : '',
+                'circle' => $circleName,
+                'city' => $cityName,
+                'country' => $u->country ?? $u->business_country ?? 'India',
+                'role' => $u->designation ?? 'Member',
+                'membership' => $membershipLabel,
+                'status' => $statusObj,
+                'payment' => $paymentStatus,
+                'activity' => $u->activity_score ?? 80,
+                'coins' => $u->coins_balance ?? 0,
+                'lastLogin' => $u->last_login_at ? $u->last_login_at->diffForHumans() : '—',
+                'referrals' => $u->members_introduced_count ?? 0,
+                'events' => 0,
+                'tickets' => 0,
+                'docs' => 0,
+                'color' => '#6366F1',
+                'joined' => $u->created_at ? $u->created_at->format('d M Y') : '—',
+                'expiryDays' => $u->membership_ends_at ? now()->diffInDays($u->membership_ends_at, false) : 0,
+                'lastPaymentDate' => $u->last_payment_at ? $u->last_payment_at->format('d M Y') : '—',
+                'lastPaymentAmt' => 0,
+                'renewalCount' => 0,
+                'pendingAmount' => 0,
+                'lastEvent' => '—',
+                'memberType' => str_contains(strtolower($membershipStatus), 'unity') ? 'unity' : (str_contains(strtolower($membershipStatus), 'circle') ? 'circle_peer' : 'free'),
+                'isMultipleCircle' => $userCircles->count() > 1,
+            ];
+        });
+
         $joinedCircleCategoryTreesByUserId = $users->getCollection()
             ->mapWithKeys(function (User $user) {
                 $memberships = $user->relationLoaded('circleMembers')
@@ -111,8 +183,9 @@ class UsersController extends Controller
 
         return view('admin.users.index', [
             'users' => $users,
+            'allUsersJson' => $allUsersJson,
             'membershipStatuses' => $membershipStatuses,
-            'membershipStatusLabels' => $this->membershipFilterOptions(),
+            'membershipStatusLabels' => $membershipStatusLabels,
             'circles' => $circles,
             'q' => $q,
             'selectedUser' => $selectedUser,
@@ -1959,6 +2032,7 @@ class UsersController extends Controller
             'welcome_membership_email_status',
             'welcome_membership_email_error',
             'welcome_membership_email_plan_code',
+            'peer_id',
         ];
 
         if (Schema::hasColumn('users', 'main_business_category_id')) {

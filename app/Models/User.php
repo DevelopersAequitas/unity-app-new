@@ -284,29 +284,38 @@ class User extends Authenticatable
             }
 
             if (empty($user->peer_id)) {
+                $hasPeerIdColumn = true;
                 try {
-                    $seqResult = DB::selectOne("SELECT 'PG3182736' || nextval('peer_id_seq') AS peer_id");
-                    if ($seqResult && ! empty($seqResult->peer_id)) {
-                        $user->peer_id = (string) $seqResult->peer_id;
-                    }
+                    $hasPeerIdColumn = \Illuminate\Support\Facades\Schema::hasColumn('users', 'peer_id');
                 } catch (Throwable) {
-                    // Fallback for testing environments (e.g. SQLite) where PostgreSQL sequences do not exist
-                    $maxNum = 0;
-                    try {
-                        $maxUser = static::query()
-                            ->where('peer_id', 'LIKE', 'PG3182736%')
-                            ->get()
-                            ->filter(fn ($u): bool => ! empty($u->peer_id) && preg_match('/^PG3182736([0-9]+)$/', (string) $u->peer_id))
-                            ->sortByDesc(fn ($u): int => (int) substr((string) $u->peer_id, 9))
-                            ->first();
+                    $hasPeerIdColumn = false;
+                }
 
-                        if ($maxUser && ! empty($maxUser->peer_id)) {
-                            $maxNum = (int) substr((string) $maxUser->peer_id, 9);
+                if ($hasPeerIdColumn) {
+                    try {
+                        $seqResult = DB::selectOne("SELECT 'PG3182736' || nextval('peer_id_seq') AS peer_id");
+                        if ($seqResult && ! empty($seqResult->peer_id)) {
+                            $user->peer_id = (string) $seqResult->peer_id;
                         }
                     } catch (Throwable) {
+                        // Fallback for testing environments (e.g. SQLite) where PostgreSQL sequences do not exist
                         $maxNum = 0;
+                        try {
+                            $maxUser = static::query()
+                                ->where('peer_id', 'LIKE', 'PG3182736%')
+                                ->get()
+                                ->filter(fn ($u): bool => ! empty($u->peer_id) && preg_match('/^PG3182736([0-9]+)$/', (string) $u->peer_id))
+                                ->sortByDesc(fn ($u): int => (int) substr((string) $u->peer_id, 9))
+                                ->first();
+
+                            if ($maxUser && ! empty($maxUser->peer_id)) {
+                                    $maxNum = (int) substr((string) $maxUser->peer_id, 9);
+                            }
+                        } catch (Throwable) {
+                            $maxNum = 0;
+                        }
+                        $user->peer_id = 'PG3182736'.($maxNum + 1);
                     }
-                    $user->peer_id = 'PG3182736'.($maxNum + 1);
                 }
             }
         });
