@@ -849,7 +849,17 @@
                             </div>
                             <div class="vr-detail-content">
                                 <div class="vr-detail-lbl">Location</div>
-                                <div class="vr-detail-val">{{ $event->location_text ?: ($eventMode === 'online' ? 'Online Event' : 'To be announced') }}</div>
+                                <div class="vr-detail-val">
+                                    @if($eventMode === 'online')
+                                        @if($event->online_meeting_url)
+                                            <a href="{{ $event->online_meeting_url }}" target="_blank" rel="noopener" class="text-primary text-decoration-none fw-semibold">Join Online Meeting ↗</a>
+                                        @else
+                                            Online Link to be shared
+                                        @endif
+                                    @else
+                                        {{ $event->location_text ?: 'To be announced' }}
+                                    @endif
+                                </div>
                             </div>
                         </div>
 
@@ -864,14 +874,30 @@
                             </div>
                         </div>
 
-                        {{-- 4. Circle --}}
+                        {{-- 4. Scope / Circle / Location Scope --}}
+                        @php
+                            $scopeLabel = 'Circle';
+                            $scopeValue = $circleName ?? 'Peers Global Unity';
+                            
+                            $eventTypeLower = strtolower((string) ($event->event_type ?? ''));
+                            if (str_contains($eventTypeLower, 'global') || $event->visibility === 'global') {
+                                $scopeLabel = 'Scope';
+                                $scopeValue = 'Global Event';
+                            } elseif (str_contains($eventTypeLower, 'state')) {
+                                $scopeLabel = 'State';
+                                $scopeValue = $event->state_name ?: 'State Wide';
+                            } elseif (str_contains($eventTypeLower, 'city') || $event->city_name || data_get($event->metadata, 'city')) {
+                                $scopeLabel = 'City';
+                                $scopeValue = $event->city_name ?: data_get($event->metadata, 'city') ?: 'City Wide';
+                            }
+                        @endphp
                         <div class="vr-detail-item">
                             <div class="vr-detail-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                             </div>
                             <div class="vr-detail-content">
-                                <div class="vr-detail-lbl">Circle</div>
-                                <div class="vr-detail-val">{{ $circleName ?? 'Peers Global Unity' }}</div>
+                                <div class="vr-detail-lbl">{{ $scopeLabel }}</div>
+                                <div class="vr-detail-val">{{ $scopeValue }}</div>
                             </div>
                         </div>
 
@@ -883,16 +909,12 @@
                             <div class="vr-detail-content">
                                 <div class="vr-detail-lbl">Occurrence</div>
                                 <div class="vr-detail-val">
-                                    @if($occDate)
-                                        {{ $occDate->format('d M Y') }}
-                                    @else
-                                        Session #{{ $occurrence->sequence ?? 1 }}
-                                    @endif
+                                    {{ ucfirst(trim((string) ($event->recurrence_type ?: 'Single Session'))) }}
                                 </div>
                             </div>
                         </div>
 
-                        {{-- 6. Fee (or Meeting Link) --}}
+                        {{-- 6. Fee --}}
                         @if($hasFee)
                         <div class="vr-detail-item">
                             <div class="vr-detail-icon gold">
@@ -901,18 +923,6 @@
                             <div class="vr-detail-content">
                                 <div class="vr-detail-lbl">Registration Fee</div>
                                 <div class="vr-detail-val gold">{{ $feeCurrency }} {{ number_format($feeAmount, 0) }}</div>
-                            </div>
-                        </div>
-                        @elseif($event->online_meeting_url)
-                        <div class="vr-detail-item">
-                            <div class="vr-detail-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                            </div>
-                            <div class="vr-detail-content">
-                                <div class="vr-detail-lbl">Meeting Link</div>
-                                <div class="vr-detail-val">
-                                    <a href="{{ $event->online_meeting_url }}" target="_blank" rel="noopener" class="ep-link">Join Meeting ↗</a>
-                                </div>
                             </div>
                         </div>
                         @else
@@ -1039,22 +1049,42 @@
                             @csrf
                             <div class="vr-grid">
 
-                                {{-- Name --}}
+                                {{-- First Name --}}
                                 <div class="vr-field">
-                                    <label class="vr-label" for="visitor_name">Full Name <span class="req">*</span></label>
+                                    <label class="vr-label" for="visitor_first_name">First Name <span class="req">*</span></label>
                                     <div class="vr-input-wrap">
                                         <span class="vr-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
                                         <input
-                                            id="visitor_name"
-                                            name="visitor_name"
-                                            class="vr-input @error('visitor_name') is-err @enderror"
-                                            value="{{ old('visitor_name') }}"
-                                            placeholder="Enter your full name"
+                                            id="visitor_first_name"
+                                            name="visitor_first_name"
+                                            class="vr-input @error('visitor_first_name') is-err @enderror"
+                                            value="{{ old('visitor_first_name') }}"
+                                            placeholder="Enter your first name"
                                             required
-                                            autocomplete="name"
+                                            autocomplete="given-name"
                                         >
                                     </div>
-                                    @error('visitor_name')
+                                    @error('visitor_first_name')
+                                        <div class="vr-field-err"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{{ $message }}</div>
+                                    @enderror
+                                </div>
+
+                                {{-- Last Name --}}
+                                <div class="vr-field">
+                                    <label class="vr-label" for="visitor_last_name">Last Name <span class="req">*</span></label>
+                                    <div class="vr-input-wrap">
+                                        <span class="vr-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                                        <input
+                                            id="visitor_last_name"
+                                            name="visitor_last_name"
+                                            class="vr-input @error('visitor_last_name') is-err @enderror"
+                                            value="{{ old('visitor_last_name') }}"
+                                            placeholder="Enter your last name"
+                                            required
+                                            autocomplete="family-name"
+                                        >
+                                    </div>
+                                    @error('visitor_last_name')
                                         <div class="vr-field-err"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{{ $message }}</div>
                                     @enderror
                                 </div>

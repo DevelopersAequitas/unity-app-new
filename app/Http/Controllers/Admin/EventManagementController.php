@@ -282,7 +282,8 @@ class EventManagementController extends Controller
         abort_unless($this->canAccessEvent((string) $event->id), 403);
 
         $validated = $request->validate([
-            'visitor_name' => ['required', 'string', 'max:255'],
+            'visitor_first_name' => ['required', 'string', 'max:120'],
+            'visitor_last_name' => ['required', 'string', 'max:120'],
             'visitor_email' => ['required', 'email', 'max:255'],
             'visitor_phone' => ['required', 'string', 'max:50'],
             'visitor_company' => ['nullable', 'string', 'max:255'],
@@ -291,11 +292,13 @@ class EventManagementController extends Controller
             'visitor_business_brief' => ['nullable', 'string'],
         ]);
 
+        $visitorFullName = trim($validated['visitor_first_name'].' '.$validated['visitor_last_name']);
+
         try {
-            DB::transaction(function () use ($event, $occurrence, $validated, $registrationService) {
+            DB::transaction(function () use ($event, $occurrence, $validated, $visitorFullName, $registrationService) {
                 // Register visitor using registerVisitor helper, which maps inputs correctly.
                 $registration = $registrationService->registerVisitor($event, $occurrence, [
-                    'visitor_name' => $validated['visitor_name'],
+                    'visitor_name' => $visitorFullName,
                     'visitor_email' => $validated['visitor_email'],
                     'visitor_phone' => $validated['visitor_phone'],
                     'visitor_company' => $validated['visitor_company'] ?? null,
