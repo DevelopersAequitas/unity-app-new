@@ -189,22 +189,25 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
         Route::get('/users/search', UserSearchController::class)->name('users.search');
-        Route::get('/users/{user}', [UsersController::class, 'show'])->name('users.show');
+        Route::get('/users/{user}', [UsersController::class, 'show'])->withTrashed()->name('users.show');
         Route::post('/users/bulk-approve-membership', [UsersController::class, 'bulkApproveMembership'])->name('users.bulk-approve-membership');
-        Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->name('users.approve-membership');
-        Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->name('users.edit');
-        Route::put('/users/{user}', [UsersController::class, 'update'])->name('users.update');
+        Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->withTrashed()->name('users.approve-membership');
+        Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->withTrashed()->name('users.edit');
+        Route::put('/users/{user}', [UsersController::class, 'update'])->withTrashed()->name('users.update');
         Route::delete('/users/{user}', [UsersController::class, 'destroy'])
+            ->withTrashed()
             ->whereUuid('user')
             ->name('users.destroy');
-        Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->name('users.circle-members.destroy');
-        Route::post('/users/{user}/roles/remove', [UsersController::class, 'removeRole'])->name('users.roles.remove');
-        Route::post('/users/{user}/membership-welcome-email/send', [UsersController::class, 'sendWelcomeMembershipEmail'])->name('users.membership-welcome-email.send');
-        Route::post('/users/{user}/trigger-membership-notification', [UsersController::class, 'triggerMembershipNotification'])->name('users.trigger-membership-notification');
+        Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->withTrashed()->name('users.circle-members.destroy');
+        Route::post('/users/{user}/roles/remove', [UsersController::class, 'removeRole'])->withTrashed()->name('users.roles.remove');
+        Route::post('/users/{user}/membership-welcome-email/send', [UsersController::class, 'sendWelcomeMembershipEmail'])->withTrashed()->name('users.membership-welcome-email.send');
+        Route::post('/users/{user}/trigger-membership-notification', [UsersController::class, 'triggerMembershipNotification'])->withTrashed()->name('users.trigger-membership-notification');
         Route::post('/users/{user}/introduced-members', [UsersController::class, 'addIntroducedMember'])
+            ->withTrashed()
             ->whereUuid('user')
             ->name('users.introduced-members.store');
         Route::delete('/users/{user}/introduced-members/{introducedMember}', [UsersController::class, 'removeIntroducedMember'])
+            ->withTrashed()
             ->whereUuid('user')
             ->whereUuid('introducedMember')
             ->name('users.introduced-members.destroy');
