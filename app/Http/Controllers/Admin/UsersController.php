@@ -1976,7 +1976,7 @@ class UsersController extends Controller
             $userSelectColumns[] = 'approval_status';
         }
 
-        $query = User::query()
+        $query = User::withTrashed()
             ->select($userSelectColumns)
             ->withCount(['introducedMembers'])
             ->with([
