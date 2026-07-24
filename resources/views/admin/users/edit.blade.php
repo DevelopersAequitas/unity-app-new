@@ -103,6 +103,11 @@
                     <i class="bi bi-journal-text me-1"></i>5. Story Submissions ({{ $storySubmissionsCount }})
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3 fw-semibold" id="introduced-tab" data-bs-toggle="pill" data-bs-target="#introduced-section" type="button" role="tab" aria-controls="introduced-section" aria-selected="false">
+                    <i class="bi bi-people me-1"></i>6. Introduced Members ({{ $introducedPeersCount }})
+                </button>
+            </li>
         </ul>
 
         <form id="userEditForm" action="{{ route('admin.users.update', $user->id) }}" method="POST" class="p-4" novalidate>
@@ -458,6 +463,13 @@
                                 <input type="text" class="form-control bg-light" value="{{ old('membership_ends_at', optional($user->membership_ends_at)->format('Y-m-d')) }}" readonly>
                             </div>
                         @endif
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">Membership Expiry Date Remark</label>
+                            <input type="text" name="membership_expiry_date_remark" class="form-control @error('membership_expiry_date_remark') is-invalid @enderror" placeholder="Write remark explaining why membership status or expiry date was updated" value="{{ old('membership_expiry_date_remark', $user->membership_expiry_date_remark) }}">
+                            @error('membership_expiry_date_remark')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                         <div class="col-md-4 d-flex align-items-center">
                             <div class="form-check mt-3">
                                 <input class="form-check-input" type="checkbox" value="1" id="isSponsoredMember" name="is_sponsored_member" @checked(old('is_sponsored_member', $user->is_sponsored_member))>
@@ -987,6 +999,243 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Tab 6: Introduced Members -->
+                <div class="tab-pane fade" id="introduced-section" role="tabpanel" aria-labelledby="introduced-tab">
+                    <h5 class="form-section-title"><i class="bi bi-people-fill text-primary me-2"></i>Introduced Members</h5>
+
+                    <!-- Introducer Details -->
+                    <div class="card mb-4 bg-light border-0 shadow-none">
+                        <div class="card-body p-4">
+                            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-person-check text-primary me-2"></i>Introducer Details</h6>
+                            @if ($user->introducedBy)
+                                @php
+                                    $introducer = $user->introducedBy;
+                                    $introducerName = $introducer->name ?? trim((($introducer->first_name ?? '') . ' ' . ($introducer->last_name ?? '')));
+                                    
+                                    // Parse city
+                                    $introducerCityModel = $introducer->getRelation('city') ?? $introducer->cityRelation ?? null;
+                                    $introducerRawCity = $introducerCityModel->name ?? $introducer->city ?? '';
+                                    if (is_string($introducerRawCity)) {
+                                        $introducerRawCity = trim($introducerRawCity);
+                                        if (str_starts_with($introducerRawCity, '{')) {
+                                            $decodedCity = json_decode($introducerRawCity, true);
+                                            if (is_array($decodedCity)) {
+                                                $introducerCityName = $decodedCity['name'] ?? $decodedCity['label'] ?? $introducerRawCity;
+                                            } elseif (preg_match('/name:\s*([^,}]+)/', $introducerRawCity, $matches)) {
+                                                $introducerCityName = trim($matches[1], " \t\n\r\0\x0B\"'");
+                                            } else {
+                                                $introducerCityName = $introducerRawCity;
+                                            }
+                                        } else {
+                                            $introducerCityName = $introducerRawCity;
+                                        }
+                                    } elseif (is_array($introducerRawCity)) {
+                                        $introducerCityName = $introducerRawCity['name'] ?? $introducerRawCity['label'] ?? '';
+                                    } elseif (is_object($introducerRawCity)) {
+                                        $introducerCityName = $introducerRawCity->name ?? $introducerRawCity->label ?? '';
+                                    } else {
+                                        $introducerCityName = $introducerRawCity;
+                                    }
+                                    
+                                    if (in_array(strtolower(trim((string)$introducerCityName)), ['', 'no city', 'none', 'null', 'no_city'], true)) {
+                                        $introducerCityName = null;
+                                    }
+                                    
+                                    // Parse company
+                                    $introducerCompany = $introducer->company_name ?? $introducer->company ?? $introducer->business_name ?? '';
+                                    if (in_array(strtolower(trim((string)$introducerCompany)), ['', 'no company', 'none', 'null', 'no_company', 'peers global'], true)) {
+                                        $introducerCompany = null;
+                                    }
+                                @endphp
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <span class="small text-muted d-block fw-semibold">Name</span>
+                                        <span class="text-dark fw-bold">{{ $introducerName ?: '—' }}</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="small text-muted d-block fw-semibold">Company Name</span>
+                                        @if ($introducerCompany)
+                                            <span class="text-dark d-inline-flex align-items-center gap-1 text-nowrap">
+                                                <i class="bi bi-building text-muted small"></i>{{ $introducerCompany }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted">—</span>
+                                        @endif
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="small text-muted d-block fw-semibold">City</span>
+                                        @if ($introducerCityName)
+                                            <span class="text-dark d-inline-flex align-items-center gap-1 text-nowrap">
+                                                <i class="bi bi-geo-alt text-muted small"></i>{{ $introducerCityName }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted">—</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            @else
+                                <div class="text-muted"><i class="bi bi-info-circle me-1"></i>No introducer set for this peer.</div>
+                            @endif
+                        </div>
+                    </div>
+
+                    <!-- Pending Introduction Requests alert -->
+                    @if (!empty($pendingIntroRequestsCount) && $pendingIntroRequestsCount > 0)
+                        <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3">
+                            <i class="bi bi-clock-history"></i>
+                            <span>
+                                This member has
+                                <strong>{{ $pendingIntroRequestsCount }}</strong>
+                                pending introduction
+                                {{ Str::plural('request', $pendingIntroRequestsCount) }}.
+                                <a href="{{ route('admin.introduction-requests.index') }}" class="alert-link ms-1">Review requests</a>
+                            </span>
+                        </div>
+                    @endif
+
+                    <!-- Introduced Peers List -->
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <span class="badge bg-light text-dark border">Total Introduced: {{ $introducedPeersCount }}</span>
+                        @if (!($isReadOnly ?? false))
+                            <button type="button" class="btn btn-primary btn-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#addIntroducedMemberModal">
+                                <i class="bi bi-plus-lg"></i> Add Introduced Member
+                            </button>
+                        @endif
+                    </div>
+
+
+                    <div class="table-responsive border rounded mb-4">
+                        <table class="table table-premium mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Peer Name</th>
+                                    <th>Company Name</th>
+                                    <th>City</th>
+                                    <th>Designation</th>
+                                    <th>Introduced Members</th>
+                                    @if (!($isReadOnly ?? false))
+                                        <th class="text-end">Action</th>
+                                    @endif
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($introducedPeers as $peer)
+                                    @php
+                                        $peerName = $peer->name ?? trim((($peer->first_name ?? '') . ' ' . ($peer->last_name ?? '')));
+                                        $peerAvatar = $peer->profile_photo_url ?? ($peer->profile_photo_file_id ? url('/api/v1/files/' . $peer->profile_photo_file_id) : null);
+                                        $peerGradientIndex = abs(crc32((string) $peer->id)) % 5;
+
+                                        // Parse city
+                                        $peerCityModel = $peer->getRelation('city') ?? $peer->cityRelation ?? null;
+                                        $peerRawCity = $peerCityModel->name ?? $peer->city ?? '';
+                                        if (is_string($peerRawCity)) {
+                                            $peerRawCity = trim($peerRawCity);
+                                            if (str_starts_with($peerRawCity, '{')) {
+                                                $decodedCity = json_decode($peerRawCity, true);
+                                                if (is_array($decodedCity)) {
+                                                    $peerCityName = $decodedCity['name'] ?? $decodedCity['label'] ?? $peerRawCity;
+                                                } elseif (preg_match('/name:\s*([^,}]+)/', $peerRawCity, $matches)) {
+                                                    $peerCityName = trim($matches[1], " \t\n\r\0\x0B\"'");
+                                                } else {
+                                                    $peerCityName = $peerRawCity;
+                                                }
+                                            } else {
+                                                $peerCityName = $peerRawCity;
+                                            }
+                                        } elseif (is_array($peerRawCity)) {
+                                            $peerCityName = $peerRawCity['name'] ?? $peerRawCity['label'] ?? '';
+                                        } elseif (is_object($peerRawCity)) {
+                                            $peerCityName = $peerRawCity->name ?? $peerRawCity->label ?? '';
+                                        } else {
+                                            $peerCityName = $peerRawCity;
+                                        }
+                                        
+                                        if (in_array(strtolower(trim((string)$peerCityName)), ['', 'no city', 'none', 'null', 'no_city'], true)) {
+                                            $peerCityName = null;
+                                        }
+                                        
+                                        // Parse company
+                                        $peerCompany = $peer->company_name ?? $peer->company ?? $peer->business_name ?? '';
+                                        if (in_array(strtolower(trim((string)$peerCompany)), ['', 'no company', 'none', 'null', 'no_company', 'peers global'], true)) {
+                                            $peerCompany = null;
+                                        }
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-3">
+                                                <div class="peer-avatar-wrapper" style="width: 32px; height: 32px;">
+                                                    @if ($peerAvatar)
+                                                        <img src="{{ $peerAvatar }}" alt="{{ $peerName }}" class="peer-avatar-image" style="width: 32px; height: 32px;">
+                                                    @else
+                                                        <div class="peer-avatar-placeholder bg-gradient-peer-{{ $peerGradientIndex }}" style="width: 32px; height: 32px; font-size: 0.8rem; line-height: 32px;">
+                                                            {{ strtoupper(substr($peerName !== '' ? $peerName : 'U', 0, 1)) }}
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                                <div class="d-flex flex-column">
+                                                    <div class="fw-semibold text-dark text-nowrap" style="font-size: 0.92rem;">{{ $peerName !== '' ? $peerName : '—' }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if ($peerCompany)
+                                                <span class="text-dark d-inline-flex align-items-center gap-1 text-nowrap" style="font-size: 0.85rem;">
+                                                    <i class="bi bi-building text-muted small"></i>{{ $peerCompany }}
+                                                </span>
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if ($peerCityName)
+                                                <span class="text-dark d-inline-flex align-items-center gap-1 text-nowrap" style="font-size: 0.85rem;">
+                                                    <i class="bi bi-geo-alt text-muted small"></i>{{ $peerCityName }}
+                                                </span>
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ $peer->designation ?? '—' }}</td>
+                                        <td>
+                                            @php
+                                                $peerIntroducedCount = (int) ($peer->introduced_members_count ?? 0);
+                                            @endphp
+                                            @if ($peerIntroducedCount > 0)
+                                                <a href="{{ route('admin.users.edit', $peer->id) }}#introduced-tab" class="text-primary fw-semibold text-decoration-none">
+                                                    {{ $peerIntroducedCount }}
+                                                </a>
+                                            @else
+                                                <span class="text-muted">0</span>
+                                            @endif
+                                        </td>
+                                        @if (!($isReadOnly ?? false))
+                                            <td class="text-end">
+                                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="event.preventDefault(); if(confirm('Are you sure you want to remove this introduced member?')) { document.getElementById('remove-introduced-peer-{{ $peer->id }}').submit(); }">
+                                                    <i class="bi bi-trash"></i> Remove
+                                                </button>
+                                                <form id="remove-introduced-peer-{{ $peer->id }}" action="{{ route('admin.users.introduced-members.destroy', [$user->id, $peer->id]) }}" method="POST" class="d-none">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                </form>
+                                            </td>
+                                        @endif
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="{{ !($isReadOnly ?? false) ? 6 : 5 }}" class="text-center text-muted py-4">No introduced members found.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" onclick="switchTab('stories-tab')">
+                            <i class="bi bi-arrow-left me-1"></i> Back
+                        </button>
+                    </div>
+                </div>
             </div>
         </form>
     </div>
@@ -1092,6 +1341,36 @@
         </div>
     </div>
 @endforeach
+
+@if (!($isReadOnly ?? false))
+    <!-- Add Introduced Member Modal -->
+    <div class="modal fade" id="addIntroducedMemberModal" tabindex="-1" aria-labelledby="addIntroducedMemberModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="{{ route('admin.users.introduced-members.store', $user->id) }}" method="POST">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold" id="addIntroducedMemberModalLabel">
+                            <i class="bi bi-person-plus text-primary me-2"></i>Add Introduced Member
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-start">
+                        <div class="mb-3">
+                            <label for="introduced_member_select" class="form-label fw-semibold">Select Active User</label>
+                            <select id="introduced_member_select" name="introduced_member_id" class="form-select" style="width: 100%;" required></select>
+                            <div class="form-text">Search by name, email, company, or phone. Only active, non-deleted users can be selected.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Member</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+@endif
 @endsection
 
 @push('scripts')
@@ -1106,6 +1385,42 @@ function switchTab(tabId) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+    if (window.location.hash) {
+        const hash = window.location.hash.substring(1);
+        if (hash === 'introduced-section' || hash === 'introduced-tab') {
+            switchTab('introduced-tab');
+        }
+    }
+    if (window.jQuery && window.jQuery.fn.select2 && jQuery('#introduced_member_select').length) {
+        jQuery('#introduced_member_select').select2({
+            dropdownParent: jQuery('#addIntroducedMemberModal'),
+            placeholder: 'Search and select user...',
+            allowClear: true,
+            width: '100%',
+            ajax: {
+                url: "{{ route('admin.users.search') }}",
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term || ''
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.map(function (item) {
+                            return {
+                                id: item.id,
+                                text: item.label_inline || item.label || item.name
+                            };
+                        })
+                    };
+                },
+                cache: true
+            },
+            minimumInputLength: 1
+        });
+    }
     const roleCheckboxes = Array.from(document.querySelectorAll('input[name="role_ids[]"]'));
     const dedDistrictField = document.getElementById('dedDistrictField');
     const dedStateSelect = document.getElementById('dedStateId');

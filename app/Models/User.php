@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
@@ -111,6 +113,7 @@ class User extends Authenticatable
         'membership_expiry',
         'coins_balance',
         'coins_remark',
+        'membership_expiry_date_remark',
         'coin_medal_rank',
         'coin_milestone_title',
         'coin_milestone_meaning',
@@ -174,6 +177,9 @@ class User extends Authenticatable
         'anniversary_date',
         'android_fcm_token',
         'ios_fcm_token',
+        'bookmarks',
+        'global_peer_certificate_sent_at',
+        'global_peer_certificate_file_id',
     ];
 
     protected $hidden = [
@@ -203,6 +209,7 @@ class User extends Authenticatable
         'circle_joined_at' => 'datetime',
         'circle_expires_at' => 'datetime',
         'welcome_membership_email_sent_at' => 'datetime',
+        'global_peer_certificate_sent_at' => 'datetime',
         'dob' => 'date',
         'anniversary_date' => 'date',
         'skills' => 'array',
@@ -227,6 +234,7 @@ class User extends Authenticatable
         'sustainability_areas' => 'array',
         'greenpreneur_goals' => 'array',
         'contacts_allowed' => 'boolean',
+        'bookmarks' => 'array',
     ];
 
     public function getAuthPassword()
@@ -254,6 +262,11 @@ class User extends Authenticatable
         return $this->hasMany(Connection::class, 'addressee_id')->where('is_approved', true);
     }
 
+    public function introducedMembers(): HasMany
+    {
+        return $this->hasMany(User::class, 'introduced_by');
+    }
+
     protected static function booted(): void
     {
         static::saving(function (self $user): void {
@@ -269,6 +282,42 @@ class User extends Authenticatable
 
             if (empty($user->display_name)) {
                 $user->display_name = trim($user->first_name.' '.($user->last_name ?? ''));
+            }
+
+            if (empty($user->peer_id)) {
+                $hasPeerIdColumn = true;
+                try {
+                    $hasPeerIdColumn = Schema::hasColumn('users', 'peer_id');
+                } catch (Throwable) {
+                    $hasPeerIdColumn = false;
+                }
+
+                if ($hasPeerIdColumn) {
+                    try {
+                        $seqResult = DB::selectOne("SELECT 'PG3182736' || nextval('peer_id_seq') AS peer_id");
+                        if ($seqResult && ! empty($seqResult->peer_id)) {
+                            $user->peer_id = (string) $seqResult->peer_id;
+                        }
+                    } catch (Throwable) {
+                        // Fallback for testing environments (e.g. SQLite) where PostgreSQL sequences do not exist
+                        $maxNum = 0;
+                        try {
+                            $maxUser = static::query()
+                                ->where('peer_id', 'LIKE', 'PG3182736%')
+                                ->get()
+                                ->filter(fn ($u): bool => ! empty($u->peer_id) && preg_match('/^PG3182736([0-9]+)$/', (string) $u->peer_id))
+                                ->sortByDesc(fn ($u): int => (int) substr((string) $u->peer_id, 9))
+                                ->first();
+
+                            if ($maxUser && ! empty($maxUser->peer_id)) {
+                                $maxNum = (int) substr((string) $maxUser->peer_id, 9);
+                            }
+                        } catch (Throwable) {
+                            $maxNum = 0;
+                        }
+                        $user->peer_id = 'PG3182736'.($maxNum + 1);
+                    }
+                }
             }
         });
 

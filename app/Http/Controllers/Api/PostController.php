@@ -8,6 +8,7 @@ use App\Http\Resources\PostCommentResource;
 use App\Http\Resources\PostResource;
 use App\Models\ActivityCreative;
 use App\Models\Circle;
+use App\Models\CircleMember;
 use App\Models\File;
 use App\Models\FileModel;
 use App\Models\P2pMeeting;
@@ -109,7 +110,7 @@ class PostController extends BaseApiController
             ->selectRaw('impacts.impacted_peer_id as impacted_peer_id')
             ->selectRaw('impacts.impact_date as impact_date')
             ->selectRaw('impacts.action as impact_action')
-            ->selectRaw('COALESCE(impacts.life_impacted, 1) as life_impacted')
+            ->selectRaw('COALESCE(impacts.life_impacted::integer, 1) as life_impacted')
             ->selectRaw('NULL::text as post_type')
             ->where('impacts.status', 'approved')
             ->whereNotNull('impacts.timeline_posted_at');
@@ -222,7 +223,18 @@ class PostController extends BaseApiController
             }
         }
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId) {
+        $isDownloadable = CircleMember::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->exists();
+
+        $verifiedAuthorIds = CircleMember::whereIn('user_id', $authorIds)
+            ->where('status', 'approved')
+            ->pluck('user_id')
+            ->unique()
+            ->map(fn ($id) => (string) $id)
+            ->toArray();
+
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId, $activityCreativesByPostId, $isDownloadable, $verifiedAuthorIds) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
             $activityCreative = (string) ($row->source_type ?? '') === 'post'
@@ -260,6 +272,11 @@ class PostController extends BaseApiController
                 'created_at' => $this->formatToDefaultDateTime($row->created_at),
                 'updated_at' => $this->formatToDefaultDateTime($row->updated_at),
             ];
+
+            if (isset($row->post_type) && (string) $row->post_type === 'global_peer_certificate') {
+                $item['is_downloadable'] = $isDownloadable;
+                $item['is_verified_peer'] = in_array((string) $row->author_id, $verifiedAuthorIds, true);
+            }
 
             if (
                 (string) $row->source_type === 'post'

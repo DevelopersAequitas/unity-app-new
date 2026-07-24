@@ -298,6 +298,8 @@ class FcmService
     {
         $candidates = [];
 
+        $candidates[] = $path;
+
         if (str_starts_with($path, '/') || (strlen($path) > 2 && ctype_alpha($path[0]) && $path[1] === ':' && in_array($path[2], ['/', '\\'], true))) {
             $candidates[] = $path;
         }
@@ -305,6 +307,7 @@ class FcmService
         $candidates[] = base_path($path);
         $candidates[] = storage_path($path);
         $candidates[] = storage_path('app/'.ltrim($path, '/\\'));
+        $candidates[] = storage_path('app/firebase/'.ltrim($path, '/\\'));
 
         return array_values(array_unique($candidates));
     }

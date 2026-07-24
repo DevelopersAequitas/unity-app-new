@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\ActivitiesRequirementsController;
 use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
+use App\Http\Controllers\Admin\AdAnalyticsController;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\AdminCampaignController;
 use App\Http\Controllers\Admin\AdminExecutionController;
@@ -38,6 +39,7 @@ use App\Http\Controllers\Admin\CoinClaimsController;
 use App\Http\Controllers\Admin\CoinsController;
 use App\Http\Controllers\Admin\CollaborationPostController;
 use App\Http\Controllers\Admin\ContactController;
+use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailLogController;
@@ -46,22 +48,29 @@ use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
+use App\Http\Controllers\Admin\IntroductionRequestsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\LifeImpactController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\LoginHistoryController;
+use App\Http\Controllers\Admin\MemberIntroducersController;
 use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\NotificationAdminController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
+use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
 use App\Http\Controllers\Admin\ReferralReportController;
+use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
 use App\Http\Controllers\Admin\SupportTicketController;
+use App\Http\Controllers\Admin\TutorialController;
 use App\Http\Controllers\Admin\Users\UserSearchController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
+use App\Http\Controllers\ShareController;
 use App\Support\AdminAccess;
 use Illuminate\Support\Facades\Route;
 
@@ -72,6 +81,11 @@ Route::get('/', function () {
 Route::get('/congratulations', function () {
     return view('congratulations');
 });
+
+Route::get('/share', [ShareController::class, 'handle'])->name('share');
+
+Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
@@ -91,13 +105,31 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/login/verify', [AdminAuthController::class, 'verifyOtp'])->name('login.verify');
 
     Route::middleware(['admin.auth', 'admin.role', 'admin.circle'])->group(function () {
+        // RBAC Hierarchy & Profile management
+        Route::get('/rbac/hierarchy', [RoleHierarchyController::class, 'index'])->name('rbac.hierarchy');
+        Route::get('/rbac/hierarchy/map', [RoleHierarchyController::class, 'fullMap'])->name('rbac.hierarchy.fullmap');
+        Route::post('/rbac/roles', [RoleHierarchyController::class, 'storeRole'])->name('rbac.roles.store');
+        Route::post('/rbac/roles/update-parent', [RoleHierarchyController::class, 'updateParent'])->name('rbac.roles.update-parent');
+        Route::post('/rbac/roles/clone', [RoleHierarchyController::class, 'cloneProfile'])->name('rbac.roles.clone');
+        Route::put('/rbac/roles/{id}', [RoleHierarchyController::class, 'updateRole'])->name('rbac.roles.update')->whereUuid('id');
+        Route::delete('/rbac/roles/{id}', [RoleHierarchyController::class, 'deleteRole'])->name('rbac.roles.delete')->whereUuid('id');
+        Route::post('/rbac/roles/assign', [RoleHierarchyController::class, 'assignRole'])->name('rbac.roles.assign');
+        Route::get('/rbac/roles/{id}/assignments', [RoleHierarchyController::class, 'getAssignments'])->name('rbac.roles.assignments')->whereUuid('id');
+        Route::post('/rbac/roles/{id}/assignments', [RoleHierarchyController::class, 'assignPeer'])->name('rbac.roles.assign-peer')->whereUuid('id');
+        Route::delete('/rbac/roles/{id}/assignments/{userId}', [RoleHierarchyController::class, 'removeAssignment'])->name('rbac.roles.remove-assignment')->whereUuid('id')->whereUuid('userId');
+        Route::post('/switch-context', [ContextSwitcherController::class, 'switchContext'])->name('switch-context');
+        Route::post('/profile/remove-current-role', [RoleHierarchyController::class, 'removeCurrentRole'])->name('profile.remove-current-role');
+
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
         Route::get('/', function () {
             $admin = auth('admin')->user();
-            $isIndustryDirector = $admin?->roles()->where('key', 'industry_director')->exists() ?? false;
 
-            if ($isIndustryDirector) {
+            if (AdminAccess::isIndustryScoped($admin)) {
                 return redirect()->route('admin.industry-director.dashboard');
+            }
+
+            if (AdminAccess::isDed($admin)) {
+                return redirect()->route('admin.ded.dashboard');
             }
 
             if (AdminAccess::isCircleScoped($admin)) {
@@ -106,6 +138,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
             return redirect()->route('admin.dashboard');
         })->name('home');
+
+        // Tutorials routes
+        Route::get('/tutorials', [TutorialController::class, 'index'])->name('tutorials.index');
+        Route::post('/tutorials', [TutorialController::class, 'store'])->name('tutorials.store');
+        Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id')->name('tutorials.destroy');
+
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
         Route::get('/birthday-creative', [BirthdayCreativeController::class, 'index'])->name('birthday-creative.index');
         Route::post('/birthday-creative', [BirthdayCreativeController::class, 'update'])->name('birthday-creative.update');
@@ -142,19 +180,40 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/industry-director/switch-industry', [IndustryDirectorDashboardController::class, 'switchIndustry'])
             ->middleware('admin.industry-director')
             ->name('industry-director.switch-industry');
+        Route::get('/member-introducers', [MemberIntroducersController::class, 'index'])->name('member-introducers.index');
+        Route::get('/sponsored-milestones', [SponsoredMembersMilestonesWebController::class, 'index'])->name('sponsored-milestones.index');
+        Route::get('/sponsored-milestones/{user}', [SponsoredMembersMilestonesWebController::class, 'show'])
+            ->whereUuid('user')
+            ->name('sponsored-milestones.show');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');
         Route::post('/users', [UsersController::class, 'store'])->name('users.store');
         Route::get('/users/search', UserSearchController::class)->name('users.search');
-        Route::get('/users/{user}', [UsersController::class, 'show'])->name('users.show');
+        Route::get('/users/import', [UsersController::class, 'importForm'])->name('users.import');
+        Route::post('/users/import', [UsersController::class, 'import'])->name('users.import.submit');
+        Route::post('/users/export/csv', [UsersController::class, 'exportCsv'])->name('users.export.csv');
+        Route::get('/users/{user}', [UsersController::class, 'show'])->withTrashed()->name('users.show');
         Route::post('/users/bulk-approve-membership', [UsersController::class, 'bulkApproveMembership'])->name('users.bulk-approve-membership');
-        Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->name('users.approve-membership');
-        Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->name('users.edit');
-        Route::put('/users/{user}', [UsersController::class, 'update'])->name('users.update');
-        Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->name('users.circle-members.destroy');
-        Route::post('/users/{user}/roles/remove', [UsersController::class, 'removeRole'])->name('users.roles.remove');
-        Route::post('/users/{user}/membership-welcome-email/send', [UsersController::class, 'sendWelcomeMembershipEmail'])->name('users.membership-welcome-email.send');
-        Route::post('/users/{user}/trigger-membership-notification', [UsersController::class, 'triggerMembershipNotification'])->name('users.trigger-membership-notification');
+        Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->withTrashed()->name('users.approve-membership');
+        Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->withTrashed()->name('users.edit');
+        Route::put('/users/{user}', [UsersController::class, 'update'])->withTrashed()->name('users.update');
+        Route::delete('/users/{user}', [UsersController::class, 'destroy'])
+            ->withTrashed()
+            ->whereUuid('user')
+            ->name('users.destroy');
+        Route::delete('/users/{user}/circle-members/{circleMember}', [UsersController::class, 'removeCircleMembership'])->withTrashed()->name('users.circle-members.destroy');
+        Route::post('/users/{user}/roles/remove', [UsersController::class, 'removeRole'])->withTrashed()->name('users.roles.remove');
+        Route::post('/users/{user}/membership-welcome-email/send', [UsersController::class, 'sendWelcomeMembershipEmail'])->withTrashed()->name('users.membership-welcome-email.send');
+        Route::post('/users/{user}/trigger-membership-notification', [UsersController::class, 'triggerMembershipNotification'])->withTrashed()->name('users.trigger-membership-notification');
+        Route::post('/users/{user}/introduced-members', [UsersController::class, 'addIntroducedMember'])
+            ->withTrashed()
+            ->whereUuid('user')
+            ->name('users.introduced-members.store');
+        Route::delete('/users/{user}/introduced-members/{introducedMember}', [UsersController::class, 'removeIntroducedMember'])
+            ->withTrashed()
+            ->whereUuid('user')
+            ->whereUuid('introducedMember')
+            ->name('users.introduced-members.destroy');
 
         // Story Submissions Admin
         Route::get('/stories', [StorySubmissionsController::class, 'index'])->name('stories.index');
@@ -229,9 +288,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/login-history', [LoginHistoryController::class, 'index'])->name('login-history.index');
         Route::put('/unity-peers-plans/{plan}', [MembershipPlanController::class, 'update'])->name('unity-peers-plans.update');
         Route::post('/files/upload', [AdminFileUploadController::class, 'upload'])->name('files.upload');
-        Route::get('/users/import', [UsersController::class, 'importForm'])->name('users.import');
-        Route::post('/users/import', [UsersController::class, 'import'])->name('users.import.submit');
-        Route::post('/users/export/csv', [UsersController::class, 'exportCsv'])->name('users.export.csv');
 
         Route::get('/circulars', [CircularController::class, 'index'])->name('circulars.index');
 
@@ -239,6 +295,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/anniversary-creatives', [AnniversaryTemplateController::class, 'store'])->name('anniversary-creatives.store');
         Route::post('/anniversary-creatives/{template}/toggle', [AnniversaryTemplateController::class, 'toggleActive'])->name('anniversary-creatives.toggle');
         Route::delete('/anniversary-creatives/{template}', [AnniversaryTemplateController::class, 'destroy'])->name('anniversary-creatives.destroy');
+        Route::get('/anniversary-creatives/preview/{userId}', [AnniversaryTemplateController::class, 'preview'])->name('anniversary-creatives.preview');
         Route::get('/circulars/create', [CircularController::class, 'create'])->name('circulars.create');
         Route::post('/circulars', [CircularController::class, 'store'])->name('circulars.store');
         Route::get('/circulars/{circular}', [CircularController::class, 'show'])->name('circulars.show');
@@ -274,6 +331,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->name('events.edit');
         Route::put('/events/{id}', [EventManagementController::class, 'update'])->name('events.update');
         Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
+        Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->name('events.occurrences.add-visitor');
         Route::get('/events/{id}/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
 
@@ -291,6 +349,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/categories/level3/{level3}', [CategoryController::class, 'destroyLevel3'])->name('categories.level3.destroy');
         Route::delete('/categories/level4/{level4}', [CategoryController::class, 'destroyLevel4'])->name('categories.level4.destroy');
         Route::resource('categories', CategoryController::class)->except(['show']);
+        Route::get('/ads/dashboard', [AdAnalyticsController::class, 'index'])->name('ads.dashboard');
+        Route::get('/ads/analytics', [AdAnalyticsController::class, 'detailedReport'])->name('ads.analytics');
         Route::get('/ads', [AdController::class, 'index'])->name('ads.index');
         Route::get('/ads/create', [AdController::class, 'create'])->name('ads.create');
         Route::post('/ads', [AdController::class, 'store'])->name('ads.store');
@@ -298,6 +358,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/ads/{ad}', [AdController::class, 'update'])->name('ads.update');
         Route::patch('/ads/{ad}/toggle-status', [AdController::class, 'toggleStatus'])->name('ads.toggle-status');
         Route::delete('/ads/{ad}', [AdController::class, 'destroy'])->name('ads.destroy');
+        Route::get('/ads/{ad}', [AdController::class, 'show'])->name('ads.show');
         Route::get('/posts', [PostModerationController::class, 'index'])->name('posts.index');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
         Route::post('/posts/impacts/{impact}/deactivate', [PostModerationController::class, 'deactivateImpact'])->whereUuid('impact')->name('posts.impacts.deactivate');
@@ -313,6 +374,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/pending-requests/pending-registrations', [PendingRegistrationsController::class, 'index'])->name('pending-registrations.index');
         Route::post('/pending-requests/pending-registrations/{user}/approve', [PendingRegistrationsController::class, 'approve'])->name('pending-registrations.approve');
         Route::post('/pending-requests/pending-registrations/{user}/reject', [PendingRegistrationsController::class, 'reject'])->name('pending-registrations.reject');
+
+        Route::get('/pending-requests/introduction-requests', [IntroductionRequestsController::class, 'index'])->name('introduction-requests.index');
+        Route::post('/pending-requests/introduction-requests/{id}/approve', [IntroductionRequestsController::class, 'approve'])->whereUuid('id')->name('introduction-requests.approve');
+        Route::post('/pending-requests/introduction-requests/{id}/reject', [IntroductionRequestsController::class, 'reject'])->whereUuid('id')->name('introduction-requests.reject');
 
         Route::get('/visitor-registrations', [VisitorRegistrationsController::class, 'index'])->name('visitor-registrations.index');
         Route::post('/visitor-registrations', [VisitorRegistrationsController::class, 'store'])->name('visitor-registrations.store');

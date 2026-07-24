@@ -23,13 +23,13 @@ class UpdateCollaborationPostRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'collaboration_type' => ['sometimes', 'required', Rule::in(StoreCollaborationPostRequest::COLLABORATION_TYPES)],
+            'collaboration_type' => ['sometimes', 'required', 'string'],
             'title' => ['sometimes', 'required', 'string', 'max:80'],
             'description' => ['sometimes', 'required', 'string', 'min:500'],
             'scope' => ['sometimes', 'required', Rule::in(StoreCollaborationPostRequest::SCOPES)],
             'countries_of_interest' => ['nullable', 'array', 'required_if:scope,international', 'min:1'],
             'countries_of_interest.*' => ['string', 'max:100'],
-            'preferred_model' => ['nullable', Rule::in(StoreCollaborationPostRequest::MODELS)],
+            'preferred_model' => ['nullable', Rule::in(StoreCollaborationPostRequest::PREFERRED_MODELS)],
             'industry_id' => [
                 'sometimes',
                 'required',
@@ -43,8 +43,8 @@ class UpdateCollaborationPostRequest extends FormRequest
                 },
             ],
             'business_stage' => ['sometimes', 'required', Rule::in(StoreCollaborationPostRequest::BUSINESS_STAGES)],
-            'years_in_operation' => ['sometimes', 'required', Rule::in(StoreCollaborationPostRequest::YEARS)],
-            'urgency' => ['sometimes', 'required', Rule::in(StoreCollaborationPostRequest::URGENCIES)],
+            'years_in_operation' => ['sometimes', 'required', Rule::in(StoreCollaborationPostRequest::YEARS_IN_OPERATION)],
+            'urgency' => ['sometimes', 'required', Rule::in(StoreCollaborationPostRequest::URGENCY_LEVELS)],
         ];
     }
 }

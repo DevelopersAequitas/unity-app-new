@@ -84,13 +84,13 @@ class IndustryDirectorDashboardController extends Controller
                 ->count(),
             'pending_requests_count' => $this->pendingRequestsCount($memberIds, $circleIds),
             'total_circles' => count($circleIds),
-            'total_coins_earned' => CoinLedger::query()
+            'total_coins_earned' => (int) CoinLedger::query()
                 ->when($memberIds !== [], fn (Builder $query) => $query->whereIn('user_id', $memberIds), fn (Builder $query) => $query->whereRaw('1 = 0'))
                 ->where('amount', '>', 0)
-                ->sum('amount'),
-            'life_impact' => LifeImpactHistory::query()
+                ->sum(DB::raw("CAST(COALESCE(amount::text, '0') AS INTEGER)")),
+            'life_impact' => (int) LifeImpactHistory::query()
                 ->when($memberIds !== [], fn (Builder $query) => $query->whereIn('user_id', $memberIds), fn (Builder $query) => $query->whereRaw('1 = 0'))
-                ->sum('life_impacted'),
+                ->sum(DB::raw("CAST(COALESCE(life_impacted::text, '0') AS INTEGER)")),
         ];
 
         return view('admin.industry-director.dashboard', [

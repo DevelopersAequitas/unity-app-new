@@ -386,6 +386,7 @@ class ZohoBillingService
                 'phone' => $phone,
                 'mobile' => $phone,
                 'is_primary_contact' => true,
+                'enable_portal' => true,
             ]],
             'billing_address' => [
                 'city' => $city,
@@ -723,7 +724,7 @@ class ZohoBillingService
 
         $applied = $this->membershipUpdater->applyPaidMembership($user, [
             'zoho_subscription_id' => $subscription['subscription_id'] ?? null,
-            'zoho_plan_code' => $subscription['plan']['plan_code'] ?? null,
+            'zoho_plan_code' => $subscription['plan']['plan_code'] ?? $subscription['plan_code'] ?? data_get($subscription, 'plan_code') ?? data_get($hostedPage, 'plan.plan_code') ?? null,
             'zoho_last_invoice_id' => $hostedPage['invoice']['invoice_id'] ?? ($subscription['invoice_id'] ?? null),
             'membership_starts_at' => $subscription['start_date'] ?? $subscription['created_time'] ?? null,
             'membership_ends_at' => $subscription['next_billing_at'] ?? $subscription['expires_at'] ?? null,
@@ -777,6 +778,23 @@ class ZohoBillingService
 
         if (! $user) {
             $user = $this->resolveUserFromPendingZohoPayment($identifiers);
+        }
+
+        if (! $user) {
+            $email = $this->firstWebhookValue($payload, [
+                'customer.email',
+                'customer_email',
+                'email',
+                'subscription.customer.email',
+                'data.subscription.customer.email',
+                'invoice.customer.email',
+                'data.invoice.customer.email',
+                'data.email',
+            ]);
+
+            if ($email) {
+                $user = User::query()->where('email', $email)->first();
+            }
         }
 
         if (! $user) {
@@ -1144,6 +1162,7 @@ class ZohoBillingService
             'phone' => $phone,
             'mobile' => $phone,
             'is_primary_contact' => true,
+            'enable_portal' => true,
         ];
     }
 

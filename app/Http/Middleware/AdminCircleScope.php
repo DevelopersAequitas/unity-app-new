@@ -27,6 +27,27 @@ class AdminCircleScope
             return $next($request);
         }
 
+        if (AdminAccess::isIndustryScoped($admin)) {
+            $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
+            $request->attributes->set('allowed_circle_ids', $allowedCircleIds);
+            $request->attributes->set('is_circle_scoped', true);
+            $request->attributes->set('is_ded_scoped', false);
+
+            $routeName = $request->route()?->getName() ?? '';
+            $allowedPrefixes = ['admin.industry-director.', 'admin.member-introducers.', 'admin.introduction-requests.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.events.', 'admin.event-joining-requests.', 'admin.event-scan-credentials.', 'admin.event-gallery.', 'admin.account-deletion.', 'admin.life-impact.', 'admin.circles.', 'admin.industries.'];
+            $allowedRoutes = ['admin.logout', 'admin.files.upload', 'admin.impacts.pending', 'admin.impacts.show', 'admin.impacts.approve', 'admin.impacts.reject', 'admin.impacts.export.csv'];
+
+            if (in_array($routeName, ['admin.dashboard', 'admin.home'], true)) {
+                return redirect()->route('admin.industry-director.dashboard');
+            }
+
+            if ($routeName !== '' && ! in_array($routeName, $allowedRoutes, true) && ! Str::startsWith($routeName, $allowedPrefixes)) {
+                abort(403);
+            }
+
+            return $next($request);
+        }
+
         if (AdminAccess::isDed($admin)) {
             $districtId = AdminAccess::assignedDedDistrictId($admin);
             $request->attributes->set('allowed_circle_ids', []);
@@ -38,7 +59,7 @@ class AdminCircleScope
             $request->attributes->set('ded_district_name', AdminAccess::assignedDedDistrictName($admin));
 
             $routeName = $request->route()?->getName() ?? '';
-            $allowedPrefixes = ['admin.ded.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.circles.', 'admin.events.', 'admin.event-joining-requests.', 'admin.event-scan-credentials.', 'admin.event-gallery.'];
+            $allowedPrefixes = ['admin.ded.', 'admin.member-introducers.', 'admin.introduction-requests.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.life-impact.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.circles.', 'admin.events.', 'admin.event-joining-requests.', 'admin.event-scan-credentials.', 'admin.event-gallery.', 'admin.account-deletion.'];
             $allowedRoutes = ['admin.logout', 'admin.files.upload', 'admin.impacts.pending', 'admin.impacts.show', 'admin.impacts.approve', 'admin.impacts.reject', 'admin.impacts.export.csv'];
 
             if (in_array($routeName, ['admin.dashboard', 'admin.home'], true)) {
@@ -60,7 +81,7 @@ class AdminCircleScope
             $request->attributes->set('primary_circle_role_label', AdminAccess::primaryCircleRoleLabel($admin));
 
             $routeName = $request->route()?->getName() ?? '';
-            $allowedPrefixes = ['admin.users.', 'admin.activities.', 'admin.coins.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.events.', 'admin.event-joining-requests.', 'admin.life-impact.'];
+            $allowedPrefixes = ['admin.member-introducers.', 'admin.introduction-requests.', 'admin.users.', 'admin.activities.', 'admin.coins.', 'admin.visitor-registrations.', 'admin.circle-joining-requests.', 'admin.certifications.', 'admin.coin-claims.', 'admin.referral-report.', 'admin.collaborations.', 'admin.events.', 'admin.event-joining-requests.', 'admin.event-scan-credentials.', 'admin.event-gallery.', 'admin.account-deletion.', 'admin.life-impact.'];
             $allowedRoutes = ['admin.logout', 'admin.files.upload', 'admin.pending-registrations.index', 'admin.pending-registrations.approve', 'admin.pending-registrations.reject', 'admin.impacts.pending', 'admin.impacts.show', 'admin.impacts.approve', 'admin.impacts.reject', 'admin.impacts.export.csv', 'admin.circle-member.dashboard'];
 
             if (in_array($routeName, ['admin.dashboard', 'admin.home'], true)) {

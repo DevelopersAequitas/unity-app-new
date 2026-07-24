@@ -45,14 +45,49 @@
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <p class="text-muted mb-1">Ecosystem Leadership Portal</p>
-        <h3 class="mb-0 fw-bold text-primary-gradient">DED Command Center</h3>
+<div class="card border-0 mb-4 shadow-sm position-relative overflow-hidden" style="background: linear-gradient(135deg, #F5FFFD 0%, #F7FFF9 50%, #F4FFFF 100%); border-radius: 16px; min-height: 160px; display: flex; align-items: center; border: 1px solid rgba(16, 185, 129, 0.08) !important;">
+    <div class="card-body p-4 w-100 position-relative" style="z-index: 1;">
+        <div class="d-flex align-items-center" style="gap: 32px;">
+            <!-- Left Circular Icon -->
+            <div class="d-none d-sm-flex align-items-center justify-content-center shadow-sm" style="width: 70px; height: 70px; min-width: 70px; min-height: 70px; background-color: #E6F8F5; border-radius: 50%; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.08) !important; font-size: 2.2rem;">
+                👋
+            </div>
+            <!-- Text Content -->
+            <div class="flex-grow-1">
+                <span class="text-secondary small fw-medium d-block mb-1" style="font-size: 0.9rem; color: #475569 !important;">Welcome back,</span>
+                <h2 class="fw-bold mb-1" style="font-size: 32px; color: #0f172a; line-height: 1.15; font-family: 'Plus Jakarta Sans', sans-serif;">
+                    {{ Auth::guard('admin')->user()?->name ?? 'District Executive Director' }}
+                </h2>
+                <div class="fw-semibold mb-1" style="font-size: 0.95rem; color: #10b981 !important;">
+                    District Executive Director Dashboard @if($districtName) &bull; {{ $districtName }} District @endif
+                </div>
+                <p class="mb-0 text-muted" style="font-size: 0.85rem; color: #64748b !important;">
+                    Manage your district activities, members, referrals and leadership from one place.
+                </p>
+            </div>
+        </div>
     </div>
-    @if ($districtName)
-        <span class="fs-6 py-2 px-3 badge bg-primary text-white border border-primary-subtle">District: {{ $districtName }}</span>
-    @endif
+    <!-- Right side decorative pattern -->
+    <div class="position-absolute d-none d-md-block" style="right: 32px; top: 50%; transform: translateY(-50%); pointer-events: none;">
+        <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity: 0.12;">
+            <circle cx="6" cy="6" r="2.5" fill="#10b981"/>
+            <circle cx="22" cy="6" r="2.5" fill="#10b981"/>
+            <circle cx="38" cy="6" r="2.5" fill="#10b981"/>
+            <circle cx="54" cy="6" r="2.5" fill="#10b981"/>
+            <circle cx="6" cy="22" r="2.5" fill="#10b981"/>
+            <circle cx="22" cy="22" r="2.5" fill="#10b981"/>
+            <circle cx="38" cy="22" r="2.5" fill="#10b981"/>
+            <circle cx="54" cy="22" r="2.5" fill="#10b981"/>
+            <circle cx="6" cy="38" r="2.5" fill="#10b981"/>
+            <circle cx="22" cy="38" r="2.5" fill="#10b981"/>
+            <circle cx="38" cy="38" r="2.5" fill="#10b981"/>
+            <circle cx="54" cy="38" r="2.5" fill="#10b981"/>
+            <circle cx="6" cy="54" r="2.5" fill="#10b981"/>
+            <circle cx="22" cy="54" r="2.5" fill="#10b981"/>
+            <circle cx="38" cy="54" r="2.5" fill="#10b981"/>
+            <circle cx="54" cy="54" r="2.5" fill="#10b981"/>
+        </svg>
+    </div>
 </div>
 
 @if (! $districtName)

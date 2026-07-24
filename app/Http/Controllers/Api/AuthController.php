@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\ForceLogoutEvent;
 use App\Exceptions\MediaProcessingException;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
@@ -26,6 +27,7 @@ use App\Services\Media\FileUploadService;
 use App\Services\OnlineStatusService;
 use App\Services\Referrals\ReferralService;
 use App\Services\Users\PublicProfileSlugService;
+use App\Services\UserSessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -912,8 +914,12 @@ class AuthController extends BaseApiController
             'timezone' => ['nullable', 'string', 'max:100'],
         ]);
 
-        // Find user by email
-        $user = User::where('email', $credentials['email'])->first();
+        $email = strtolower(trim($credentials['email']));
+
+        // Find user by email (case-insensitive and trimmed)
+        $user = User::where('email', $email)
+            ->orWhereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->first();
 
         if (! $user) {
             return response()->json([
@@ -923,9 +929,10 @@ class AuthController extends BaseApiController
             ], 401);
         }
 
-        // IMPORTANT: use password_hash column
+        // IMPORTANT: check password_hash column first, fallback to password column
+        $hashToTest = ! empty($user->password_hash) ? $user->password_hash : ($user->password ?? '');
         try {
-            $passwordCheck = Hash::check($credentials['password'], $user->password_hash);
+            $passwordCheck = Hash::check($credentials['password'], $hashToTest);
         } catch (\Throwable $exception) {
             Log::warning("Password check exception for user {$user->email}: ".$exception->getMessage());
             $passwordCheck = false;
@@ -962,8 +969,26 @@ class AuthController extends BaseApiController
             ], 403);
         }
 
-        // Create Sanctum token
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // Enforce strict One Active Device per Account
+        $sessionService = app(UserSessionService::class);
+        $sessionId = $sessionService->generateSessionId();
+
+        event(new ForceLogoutEvent(
+            userId: (string) $user->id,
+            message: 'You have been logged out because your account was accessed on another device.',
+            newDeviceId: $request->input('device_id')
+        ));
+
+        $sessionService->setActiveSession(
+            userId: (string) $user->id,
+            sessionId: $sessionId,
+            deviceId: $request->input('device_id'),
+            ipAddress: $request->ip(),
+            userAgent: $request->userAgent()
+        );
+
+        // Create Sanctum token with session_id embedded in token name
+        $token = $user->createToken('session:'.$sessionId)->plainTextToken;
 
         $pushToken = $request->input('token')
             ?? $request->input('device_token')
@@ -1149,7 +1174,26 @@ class AuthController extends BaseApiController
         $user->save();
         $user->refresh();
 
-        $token = $user->createToken('api')->plainTextToken;
+        // Enforce strict One Active Device per Account
+        $sessionService = app(UserSessionService::class);
+        $sessionId = $sessionService->generateSessionId();
+
+        event(new ForceLogoutEvent(
+            userId: (string) $user->id,
+            message: 'You have been logged out because your account was accessed on another device.',
+            newDeviceId: $request->input('device_id')
+        ));
+
+        $sessionService->setActiveSession(
+            userId: (string) $user->id,
+            sessionId: $sessionId,
+            deviceId: $request->input('device_id'),
+            ipAddress: $request->ip(),
+            userAgent: $request->userAgent()
+        );
+
+        // Create Sanctum token with session_id embedded in token name
+        $token = $user->createToken('session:'.$sessionId)->plainTextToken;
 
         $pushToken = $request->input('token')
             ?? $request->input('device_token')

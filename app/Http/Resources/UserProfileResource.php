@@ -10,6 +10,7 @@ class UserProfileResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'peer_id' => $this->peer_id,
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
             'display_name' => $this->display_name,
@@ -42,6 +43,8 @@ class UserProfileResource extends JsonResource
             'experience_years' => $this->experience_years,
             'experience_summary' => $this->experience_summary,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
+            'posts' => (int) ($this->posts_count ?? $this->posts()->count()),
+            'posts_count' => (int) ($this->posts_count ?? $this->posts()->count()),
 
             'city' => $this->city,
             'city_of_residence' => $this->city_of_residence ?? $this->city,

@@ -457,6 +457,7 @@ class ScanAppEventScanFlowTest extends TestCase
             $table->string('email', 255)->unique();
             $table->string('phone', 20)->nullable()->unique();
             $table->string('password_hash');
+            $table->string('peer_id', 50)->nullable()->unique();
             $table->timestamps();
             $table->softDeletes();
         });

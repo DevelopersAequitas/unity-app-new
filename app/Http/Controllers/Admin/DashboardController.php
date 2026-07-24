@@ -9,6 +9,7 @@ use App\Services\Api\Ded\DashboardAggregationService;
 use App\Services\Api\Ded\DistrictAnalyticsService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,8 +18,24 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(): View|RedirectResponse
     {
+        $admin = Auth::guard('admin')->user();
+
+        if ($admin) {
+            if (AdminAccess::isIndustryScoped($admin)) {
+                return redirect()->route('admin.industry-director.dashboard');
+            }
+
+            if (AdminAccess::isDed($admin)) {
+                return redirect()->route('admin.ded.dashboard');
+            }
+
+            if (AdminAccess::isCircleScoped($admin)) {
+                return redirect()->route('admin.circle-member.dashboard');
+            }
+        }
+
         $today = now()->toDateString();
 
         // ── Users stats: single aggregated query instead of 3 separate round-trips ──

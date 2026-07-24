@@ -13,6 +13,7 @@ use App\Models\CircleMember;
 use App\Models\City;
 use App\Models\Industry;
 use App\Models\IndustryDirectorAssignment;
+use App\Models\IntroductionRequest;
 use App\Models\JoinedCircleCategory;
 use App\Models\Notifications\AppNotification;
 use App\Models\Role;
@@ -25,6 +26,7 @@ use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\Membership\MembershipNotificationService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Users\PublicProfileSlugService;
+use App\Services\Users\UserMilestoneSyncService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
@@ -61,8 +63,85 @@ class UsersController extends Controller
 
         [$query, $filters, $perPage] = $this->buildUserQuery($request);
 
+        $allUsersQuery = clone $query;
         $users = $query->paginate($perPage)->appends($request->except('approval_status'));
         $canEditUsers = AdminAccess::canEditUsers(Auth::guard('admin')->user());
+
+        $allUsers = $allUsersQuery->get();
+
+        $membershipStatusLabels = $this->membershipFilterOptions();
+
+        $allUsersJson = $allUsers->map(function (User $u) use ($membershipStatusLabels) {
+            $name = $u->name ?? trim((($u->first_name ?? '').' '.($u->last_name ?? '')));
+            $avatar = $u->profile_photo_url ?? ($u->profile_photo_file_id ? url('/api/v1/files/'.$u->profile_photo_file_id) : null);
+
+            $cityName = $u->city->name ?? $u->city ?? '';
+            if (is_string($cityName)) {
+                $cityName = trim($cityName);
+                if (str_starts_with($cityName, '{')) {
+                    $decodedCity = json_decode($cityName, true);
+                    $cityName = $decodedCity['name'] ?? $decodedCity['label'] ?? $cityName;
+                }
+            }
+            $companyName = $u->company_name ?? $u->company ?? $u->business_name ?? '';
+
+            $userCircles = $u->circleMembers->map(fn ($cm) => $cm->circle)->filter()->unique('id');
+            $circleName = $userCircles->first()?->name ?? '';
+
+            $statusValue = $u->status ?? 'active';
+            $statusObj = [
+                'n' => $statusValue === 'active' ? 'Active' : 'Inactive',
+                'c' => $statusValue === 'active' ? 'success' : 'text-3',
+            ];
+
+            $membershipStatus = (string) ($u->membership_status ?? 'free_peer');
+            $membershipLabel = $membershipStatusLabels[$membershipStatus] ?? Str::headline(str_replace('_', ' ', $membershipStatus));
+
+            $paymentStatus = [
+                'n' => $u->last_payment_at ? 'Paid' : 'Due',
+                'c' => $u->last_payment_at ? 'success' : 'warning',
+            ];
+
+            return [
+                'id' => $u->id,
+                'name' => $name,
+                'mid' => $u->peer_id ?? ('PGU-'.substr($u->id, 0, 5)),
+                'email' => $u->email ?? '',
+                'mobile' => $u->phone ?? '',
+                'company' => $companyName,
+                'industry' => $u->industry_tags ? (is_array($u->industry_tags) ? implode(', ', $u->industry_tags) : $u->industry_tags) : '',
+                'circle' => $circleName,
+                'city' => $cityName,
+                'country' => $u->country ?? $u->business_country ?? 'India',
+                'role' => $u->designation ?? 'Member',
+                'membership' => $membershipLabel,
+                'status' => $statusObj,
+                'payment' => $paymentStatus,
+                'activity' => $u->activity_score ?? 80,
+                'coins' => $u->coins_balance ?? 0,
+                'lastLogin' => $u->last_login_at ? $u->last_login_at->diffForHumans() : '—',
+                'referrals' => $u->members_introduced_count ?? 0,
+                'events' => 0,
+                'tickets' => 0,
+                'docs' => 0,
+                'color' => '#6366F1',
+                'joined' => $u->created_at ? $u->created_at->format('d M Y') : '—',
+                'membership_starts_at' => $u->membership_starts_at ? $u->membership_starts_at->format('Y-m-d') : '',
+                'membership_ends_at' => $u->membership_ends_at ? $u->membership_ends_at->format('Y-m-d') : '',
+                'membership_expiry_date_remark' => $u->membership_expiry_date_remark ?? '',
+                'is_sponsored_member' => (bool) $u->is_sponsored_member,
+                'expiryDays' => $u->membership_ends_at ? (int) max(0, ceil(now()->diffInDays($u->membership_ends_at, false))) : 0,
+                'lastPaymentDate' => $u->last_payment_at ? $u->last_payment_at->format('d M Y') : '—',
+                'lastPaymentAmt' => 0,
+                'renewalCount' => 0,
+                'pendingAmount' => 0,
+                'lastEvent' => '—',
+                'memberType' => str_contains(strtolower($membershipStatus), 'unity') ? 'unity' : (str_contains(strtolower($membershipStatus), 'circle') ? 'circle_peer' : 'free'),
+                'isMultipleCircle' => $userCircles->count() > 1,
+                'lifeImpacted' => $u->life_impacted_count ?? 0,
+            ];
+        });
+
         $joinedCircleCategoryTreesByUserId = $users->getCollection()
             ->mapWithKeys(function (User $user) {
                 $memberships = $user->relationLoaded('circleMembers')
@@ -109,8 +188,9 @@ class UsersController extends Controller
 
         return view('admin.users.index', [
             'users' => $users,
+            'allUsersJson' => $allUsersJson,
             'membershipStatuses' => $membershipStatuses,
-            'membershipStatusLabels' => $this->membershipFilterOptions(),
+            'membershipStatusLabels' => $membershipStatusLabels,
             'circles' => $circles,
             'q' => $q,
             'selectedUser' => $selectedUser,
@@ -277,11 +357,11 @@ class UsersController extends Controller
 
     private function getEditViewData(Request $request, string $userId): array
     {
-        $user = User::query()
+        $user = User::withTrashed()
             ->with(['mainBusinessCategory:id,name', 'businessCategory:id,name'])
             ->findOrFail($userId);
         $this->expireTrialUserForAdminPanel($user);
-        $user->refresh()->load(['city', 'roles', 'mainBusinessCategory:id,name', 'businessCategory:id,name']);
+        $user->refresh()->load(['city', 'roles', 'mainBusinessCategory:id,name', 'businessCategory:id,name', 'introducedBy.city']);
         $cities = City::query()->orderBy('name')->get();
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $roles = Role::query()
@@ -414,12 +494,27 @@ class UsersController extends Controller
 
         $storySubmissions = collect();
         $storySubmissionsCount = 0;
-        if (Schema::hasTable('sme_business_story_submissions')) {
+        if (Schema::hasTable('sme_business_story_submissions') && Schema::hasColumn('sme_business_story_submissions', 'user_id')) {
             $storySubmissions = SmeBusinessStorySubmission::query()
                 ->where('user_id', $userId)
                 ->orderByDesc('created_at')
                 ->get();
             $storySubmissionsCount = $storySubmissions->count();
+        }
+
+        $introducedPeers = collect();
+        $introducedPeersCount = 0;
+        if (Schema::hasColumn('users', 'introduced_by')) {
+            $introducedPeers = $user->introducedPeers()->with(['profilePhotoFile', 'city'])->withCount(['introducedMembers'])->get();
+            $introducedPeersCount = User::where('introduced_by', $user->id)->count();
+        }
+
+        $pendingIntroRequestsCount = 0;
+        if (Schema::hasTable('introduction_requests')) {
+            $pendingIntroRequestsCount = IntroductionRequest::query()
+                ->where('requester_id', $user->id)
+                ->where('status', 'pending')
+                ->count();
         }
 
         return [
@@ -457,6 +552,9 @@ class UsersController extends Controller
             'hasCoinsRemarkColumn' => $hasCoinsRemarkColumn,
             'storySubmissions' => $storySubmissions,
             'storySubmissionsCount' => $storySubmissionsCount,
+            'introducedPeers' => $introducedPeers,
+            'introducedPeersCount' => $introducedPeersCount,
+            'pendingIntroRequestsCount' => $pendingIntroRequestsCount,
         ];
     }
 
@@ -499,7 +597,7 @@ class UsersController extends Controller
             abort(403);
         }
 
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
         $originalCoinsBalance = (int) ($user->coins_balance ?? 0);
         $submittedCoinsBalance = (int) $request->input('coins_balance', $originalCoinsBalance);
         $coinsBalanceChanged = $submittedCoinsBalance !== $originalCoinsBalance;
@@ -536,8 +634,8 @@ class UsersController extends Controller
             'display_name' => ['nullable', 'string', 'max:150'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'phone' => ['nullable', 'string', 'max:30'],
-            'designation' => ['required', 'string', 'max:255'],
-            'company_name' => ['required', 'string', 'max:255'],
+            'designation' => ['nullable', 'string', 'max:255'],
+            'company_name' => ['nullable', 'string', 'max:255'],
             'business_type' => ['nullable', 'string', 'max:100'],
             'turnover_range' => ['nullable', 'string', 'max:100'],
             'gender' => ['nullable', 'string', 'max:20'],
@@ -552,6 +650,7 @@ class UsersController extends Controller
             'membership_expiry' => ['nullable', 'date'],
             'membership_starts_at' => ['nullable', 'date'],
             'membership_ends_at' => ['nullable', 'date', 'after_or_equal:membership_starts_at'],
+            'membership_expiry_date_remark' => ['nullable', 'string', 'max:1000'],
             'zoho_plan_code' => ['nullable', 'string', 'max:100', Rule::in($this->membershipPlanCodes($user->zoho_plan_code))],
             'active_circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
             'additional_circle_id' => [
@@ -573,7 +672,7 @@ class UsersController extends Controller
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
             'city_id' => ['nullable', 'exists:cities,id'],
-            'city' => ['required', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:255'],
             'introduced_by' => ['nullable', 'exists:users,id'],
             'members_introduced_count' => ['nullable', 'integer', 'min:0'],
             'profile_photo_file_id' => ['nullable', 'uuid'],
@@ -750,10 +849,15 @@ class UsersController extends Controller
         }
 
         $previousMembershipStatus = (string) ($user->membership_status ?? '');
+        $previousMembershipEndsAt = $user->membership_ends_at ? $user->membership_ends_at->copy() : null;
         $updatable = Arr::except($validated, $updatableExclusions);
         if ($user->membership_status !== $validated['membership_status'] && blank($validated['membership_ends_at'] ?? null)) {
-            $updatable['membership_ends_at'] = null;
-            $updatable['membership_expiry'] = null;
+            if ($request->has('membership_ends_at')) {
+                $updatable['membership_ends_at'] = null;
+                $updatable['membership_expiry'] = null;
+            } else {
+                unset($updatable['membership_ends_at'], $updatable['membership_expiry']);
+            }
         }
         $updatable = Arr::only($updatable, Schema::getColumnListing('users'));
         $activeCircleMemberStatus = $this->activeCircleMemberStatus();
@@ -1080,9 +1184,25 @@ class UsersController extends Controller
         }
 
         $updatedUser = $user->fresh();
-        if ($updatedUser && $previousMembershipStatus !== (string) ($updatedUser->membership_status ?? '')) {
-            $adminName = Auth::guard('admin')->user()?->name ?? Auth::guard('admin')->user()?->email ?? 'Admin';
-            $this->membershipNotificationService->sendStatusChanged($updatedUser, $previousMembershipStatus, (string) $updatedUser->membership_status, $adminName);
+        if ($updatedUser) {
+            $statusChanged = $previousMembershipStatus !== (string) ($updatedUser->membership_status ?? '');
+
+            $prevExpiryStr = $previousMembershipEndsAt ? $previousMembershipEndsAt->format('Y-m-d') : null;
+            $newExpiryStr = $updatedUser->membership_ends_at ? $updatedUser->membership_ends_at->format('Y-m-d') : null;
+            $expiryChanged = $prevExpiryStr !== $newExpiryStr;
+
+            if ($statusChanged || $expiryChanged) {
+                $adminName = Auth::guard('admin')->user()?->name ?? Auth::guard('admin')->user()?->email ?? 'Admin';
+                $this->membershipNotificationService->sendMembershipUpgraded(
+                    $updatedUser,
+                    $previousMembershipStatus,
+                    (string) $updatedUser->membership_status,
+                    $previousMembershipEndsAt,
+                    $updatedUser->membership_ends_at,
+                    $request->input('membership_expiry_date_remark'),
+                    $adminName
+                );
+            }
         }
 
         $statusMessage = $request->filled('additional_circle_id')
@@ -1092,6 +1212,23 @@ class UsersController extends Controller
         return redirect()
             ->route('admin.users.show', $user->id)
             ->with('success', $statusMessage);
+    }
+
+    /**
+     * Remove the specified user (soft-delete).
+     */
+    public function destroy(string $userId): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $user = User::query()->findOrFail($userId);
+        $user->delete();
+
+        return redirect()
+            ->route('admin.users.index')
+            ->with('status', 'Peer deleted successfully.');
     }
 
     private function findAdminUserForPeer(User $user): ?AdminUser
@@ -1168,7 +1305,7 @@ class UsersController extends Controller
             abort(403);
         }
 
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
 
         $member = CircleMember::query()
             ->where('id', $circleMemberId)
@@ -1194,7 +1331,7 @@ class UsersController extends Controller
 
     public function removeRole(Request $request, string $userId): RedirectResponse
     {
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
         $adminUser = $this->findAdminUserForPeer($user);
 
         if (! $adminUser) {
@@ -1238,7 +1375,7 @@ class UsersController extends Controller
         if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
             abort(403);
         }
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
         $adminName = Auth::guard('admin')->user()?->name ?? Auth::guard('admin')->user()?->email ?? 'Admin';
         $this->membershipNotificationService->sendManual($user, $adminName);
 
@@ -1251,7 +1388,7 @@ class UsersController extends Controller
             abort(403);
         }
 
-        $user = User::query()->findOrFail($userId);
+        $user = User::withTrashed()->findOrFail($userId);
 
         try {
             $result = $this->membershipWelcomeEmailService->sendIfEligible($user);
@@ -1914,6 +2051,9 @@ class UsersController extends Controller
             'welcome_membership_email_plan_code',
         ];
 
+        if (Schema::hasColumn('users', 'peer_id')) {
+            $userSelectColumns[] = 'peer_id';
+        }
         if (Schema::hasColumn('users', 'main_business_category_id')) {
             $userSelectColumns[] = 'main_business_category_id';
         }
@@ -1921,10 +2061,12 @@ class UsersController extends Controller
             $userSelectColumns[] = 'approval_status';
         }
 
-        $query = User::query()
+        $query = User::withTrashed()
             ->select($userSelectColumns)
+            ->withCount(['introducedMembers'])
             ->with([
                 'city',
+                'introducedBy',
                 'mainBusinessCategory:id,name',
                 'businessCategory:id,name',
                 'circleMembers' => function ($circleMembersQuery) use ($joinedStatus) {
@@ -1982,9 +2124,7 @@ class UsersController extends Controller
         }
         $membership = $request->input('membership_status');
         $phone = null;
-        $joinedFilter = (string) $request->input('joined_filter', 'all');
-        $joinedFrom = (string) $request->input('joined_from', '');
-        $joinedTo = (string) $request->input('joined_to', '');
+        $joinedFilter = (string) $request->input('joined_filter', '');
         $approveFilter = (string) $request->input('approve_filter', 'all');
         $startDate = (string) $request->input('start_date', '');
         $endDate = (string) $request->input('end_date', '');
@@ -2145,43 +2285,82 @@ class UsersController extends Controller
 
         $joinedDateExpression = 'COALESCE(membership_starts_at, created_at)';
         $now = now();
-        switch ($joinedFilter) {
-            case 'last_month':
-                $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
-                    $now->copy()->subDays(30)->startOfDay(),
-                    $now->copy()->endOfDay(),
-                ]);
-                break;
-            case 'last_week':
-                $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
-                    $now->copy()->subDays(7)->startOfDay(),
-                    $now->copy()->endOfDay(),
-                ]);
-                break;
-            case 'yesterday':
-                $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
-                    $now->copy()->subDay()->startOfDay(),
-                    $now->copy()->subDay()->endOfDay(),
-                ]);
-                break;
-            case 'custom':
-                $fromDate = $this->parseJoinedFilterDate($joinedFrom);
-                $toDate = $this->parseJoinedFilterDate($joinedTo);
 
-                if ($fromDate instanceof Carbon && $toDate instanceof Carbon) {
+        // Fiscal year start: April 1 (Indian FY). FY 2025 = Apr 2024 – Mar 2025.
+        $fyStartMonth = 4; // April
+        $currentFyStart = $now->month >= $fyStartMonth
+            ? $now->copy()->month($fyStartMonth)->startOfMonth()->startOfDay()
+            : $now->copy()->subYear()->month($fyStartMonth)->startOfMonth()->startOfDay();
+        $currentFyEnd = $currentFyStart->copy()->addYear()->subDay()->endOfDay();
+        $prevFyStart = $currentFyStart->copy()->subYear();
+        $prevFyEnd = $currentFyStart->copy()->subDay()->endOfDay();
+
+        // Current quarter boundaries (calendar quarter)
+        $currentQtrStart = $now->copy()->firstOfQuarter()->startOfDay();
+        $currentQtrEnd = $now->copy()->lastOfQuarter()->endOfDay();
+        // Previous quarter
+        $prevQtrEnd = $currentQtrStart->copy()->subDay()->endOfDay();
+        $prevQtrStart = $prevQtrEnd->copy()->firstOfQuarter()->startOfDay();
+
+        $allowedJoinedFilters = [
+            'this_fiscal_year', 'this_quarter', 'this_month',
+            'prev_fiscal_year', 'prev_quarter', 'prev_month',
+            'last_6_months', 'last_12_months',
+        ];
+
+        if (in_array($joinedFilter, $allowedJoinedFilters, true)) {
+            switch ($joinedFilter) {
+                case 'this_fiscal_year':
                     $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
-                        $fromDate->startOfDay(),
-                        $toDate->endOfDay(),
+                        $currentFyStart,
+                        $currentFyEnd,
                     ]);
-                } elseif ($fromDate instanceof Carbon) {
-                    $query->whereRaw("{$joinedDateExpression} >= ?", [$fromDate->startOfDay()]);
-                } elseif ($toDate instanceof Carbon) {
-                    $query->whereRaw("{$joinedDateExpression} <= ?", [$toDate->endOfDay()]);
-                }
-                break;
-            default:
-                $joinedFilter = 'all';
-                break;
+                    break;
+                case 'this_quarter':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $currentQtrStart,
+                        $currentQtrEnd,
+                    ]);
+                    break;
+                case 'this_month':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $now->copy()->startOfMonth()->startOfDay(),
+                        $now->copy()->endOfMonth()->endOfDay(),
+                    ]);
+                    break;
+                case 'prev_fiscal_year':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $prevFyStart,
+                        $prevFyEnd,
+                    ]);
+                    break;
+                case 'prev_quarter':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $prevQtrStart,
+                        $prevQtrEnd,
+                    ]);
+                    break;
+                case 'prev_month':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $now->copy()->subMonthNoOverflow()->startOfMonth()->startOfDay(),
+                        $now->copy()->subMonthNoOverflow()->endOfMonth()->endOfDay(),
+                    ]);
+                    break;
+                case 'last_6_months':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $now->copy()->subMonths(6)->startOfDay(),
+                        $now->copy()->endOfDay(),
+                    ]);
+                    break;
+                case 'last_12_months':
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $now->copy()->subMonths(12)->startOfDay(),
+                        $now->copy()->endOfDay(),
+                    ]);
+                    break;
+            }
+        } else {
+            $joinedFilter = '';
         }
 
         $sortable = ['display_name', 'coins_balance', 'last_login_at', 'created_at'];
@@ -2201,9 +2380,7 @@ class UsersController extends Controller
             || filled($phone)
             || ($circleId !== '' && $circleId !== 'all')
             || ($membership && $membership !== 'all')
-            || $joinedFilter !== 'all'
-            || filled($joinedFrom)
-            || filled($joinedTo)
+            || $joinedFilter !== ''
             || $approveFilter !== 'all'
         ) {
             Log::info('admin.users.index.filters_applied', [
@@ -2212,8 +2389,6 @@ class UsersController extends Controller
                 'circle_id' => $circleId,
                 'membership_status' => $membership,
                 'joined_filter' => $joinedFilter,
-                'joined_from' => $joinedFrom,
-                'joined_to' => $joinedTo,
                 'approve_filter' => $approveFilter,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
@@ -2227,8 +2402,6 @@ class UsersController extends Controller
             'membership_status' => $membership,
             'phone' => $phone,
             'joined_filter' => $joinedFilter,
-            'joined_from' => $joinedFrom,
-            'joined_to' => $joinedTo,
             'approve_filter' => $approveFilter,
             'start_date' => $startDate,
             'end_date' => $endDate,
@@ -2959,6 +3132,102 @@ class UsersController extends Controller
             'disabled' => ['warning', 'Membership welcome email is currently disabled.'],
             default => ['error', 'Welcome email failed to send.'],
         };
+    }
+
+    public function addIntroducedMember(Request $request, string $userId): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $user = User::findOrFail($userId);
+
+        $request->validate([
+            'introduced_member_id' => ['required', 'uuid', 'exists:users,id'],
+        ]);
+
+        $introducedMemberId = $request->input('introduced_member_id');
+        $introducedMember = User::findOrFail($introducedMemberId);
+
+        // Reject inactive or deleted users
+        if ($introducedMember->status !== 'active' || $introducedMember->deleted_at !== null) {
+            return back()->with('error', 'Only active, non-deleted users can be introduced.');
+        }
+
+        // Admin cannot add the same user as their own introduced member (self check)
+        if ($user->id === $introducedMember->id) {
+            return back()->with('error', 'A user cannot introduce themselves.');
+        }
+
+        // Admin cannot add a member who is already introduced by the same user
+        if ($introducedMember->introduced_by === $user->id) {
+            return back()->with('error', 'This member has already been introduced by this user.');
+        }
+
+        // Prevent circular introduction relationships
+        if ($this->isCircularIntroduction($user->id, $introducedMember->id)) {
+            return back()->with('error', 'Circular introduction relationship is not allowed.');
+        }
+
+        // Update: selectedUser.introduced_by = currentProfileUser.id
+        $introducedMember->introduced_by = $user->id;
+        $introducedMember->save();
+
+        // Recalculate introducer's total introduced members count
+        $this->recalculateIntroducedCount($user);
+
+        return back()->with('success', 'Introduced member added successfully.');
+    }
+
+    public function removeIntroducedMember(Request $request, string $userId, string $introducedMemberId): RedirectResponse
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $user = User::findOrFail($userId);
+        $introducedMember = User::where('introduced_by', $user->id)->findOrFail($introducedMemberId);
+
+        // Set that member's introduced_by to null
+        $introducedMember->introduced_by = null;
+        $introducedMember->save();
+
+        // Recalculate introducer's total introduced members count
+        $this->recalculateIntroducedCount($user);
+
+        return back()->with('success', 'Introduced member removed successfully.');
+    }
+
+    private function recalculateIntroducedCount(User $user): void
+    {
+        $count = User::where('introduced_by', $user->id)->count();
+        $user->members_introduced_count = $count;
+        $user->save();
+
+        app(UserMilestoneSyncService::class)->sync($user);
+    }
+
+    private function isCircularIntroduction(string $currentProfileUserId, string $selectedUserId): bool
+    {
+        if ($currentProfileUserId === $selectedUserId) {
+            return true;
+        }
+
+        $nextIntroducerId = User::where('id', $currentProfileUserId)->value('introduced_by');
+        $visited = [$currentProfileUserId];
+
+        while ($nextIntroducerId !== null) {
+            if ($nextIntroducerId === $selectedUserId) {
+                return true;
+            }
+            if (in_array($nextIntroducerId, $visited, true)) {
+                break;
+            }
+            $visited[] = $nextIntroducerId;
+            $nextIntroducerId = User::where('id', $nextIntroducerId)->value('introduced_by');
+        }
+
+        return false;
     }
 }
 // Cleaned up syntax

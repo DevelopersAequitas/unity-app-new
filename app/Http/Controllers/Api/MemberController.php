@@ -6,6 +6,7 @@ use App\Http\Resources\ConnectionResource;
 use App\Http\Resources\MemberDetailResource;
 use App\Http\Resources\UserResource;
 use App\Http\Resources\V1\LimitedUserResource;
+use App\Http\Resources\V1\TopIntroducerResource;
 use App\Models\Connection;
 use App\Models\User;
 use App\Models\UserFollow;
@@ -24,6 +25,7 @@ class MemberController extends BaseApiController
     {
         $selectColumns = [
             'id',
+            'peer_id',
             'public_profile_slug',
             'first_name',
             'last_name',
@@ -286,6 +288,7 @@ class MemberController extends BaseApiController
     {
         $selectColumns = [
             'id',
+            'peer_id',
             'first_name',
             'last_name',
             'display_name',
@@ -299,6 +302,7 @@ class MemberController extends BaseApiController
             'status',
             'deleted_at',
             'business_category_id',
+            'designation',
             'public_profile_slug',
             'email',
             'phone',
@@ -360,9 +364,9 @@ class MemberController extends BaseApiController
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
         $users = $query->orderByDesc('created_at')->get();
 
-        return LimitedUserResource::collection($users)->additional([
+        return UserResource::collection($users)->additional([
             'success' => true,
-            'message' => 'Limited user data fetched successfully.',
+            'message' => 'Members fetched successfully.',
         ]);
     }
 
@@ -721,5 +725,66 @@ class MemberController extends BaseApiController
             ->values();
 
         return $this->success(ConnectionResource::collection($connections));
+    }
+
+    public function bookmark(Request $request, string $id): JsonResponse
+    {
+        $target = User::find($id);
+        if (! $target) {
+            return $this->error('Member not found', 404);
+        }
+
+        $authUser = $request->user();
+        $bookmarks = $authUser->bookmarks ?? [];
+
+        if (! in_array($id, $bookmarks, true)) {
+            $bookmarks[] = $id;
+            $authUser->bookmarks = $bookmarks;
+            $authUser->save();
+        }
+
+        return $this->success(null, 'Member bookmarked successfully.');
+    }
+
+    public function unbookmark(Request $request, string $id): JsonResponse
+    {
+        $target = User::find($id);
+        if (! $target) {
+            return $this->error('Member not found', 404);
+        }
+
+        $authUser = $request->user();
+        $bookmarks = $authUser->bookmarks ?? [];
+
+        if (in_array($id, $bookmarks, true)) {
+            $bookmarks = array_values(array_diff($bookmarks, [$id]));
+            $authUser->bookmarks = $bookmarks;
+            $authUser->save();
+        }
+
+        return $this->success(null, 'Member unbookmarked successfully.');
+    }
+
+    public function topIntroducers(Request $request): JsonResponse
+    {
+        $topIntroducers = User::query()
+            ->withCount(['introducedMembers'])
+            ->where(function ($statusQuery) {
+                $statusQuery->whereNull('status')->orWhere('status', 'active');
+            })
+            ->has('introducedMembers')
+            ->orderByDesc('introduced_members_count')
+            ->orderBy('display_name', 'asc')
+            ->limit(5)
+            ->get();
+
+        $topIntroducers->each(function (User $user, int $index) {
+            $user->rank = $index + 1;
+        });
+
+        return $this->success(
+            TopIntroducerResource::collection($topIntroducers),
+            'Top introduced members fetched successfully'
+        );
     }
 }

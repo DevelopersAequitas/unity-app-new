@@ -113,28 +113,37 @@ class NotificationEngineController extends BaseApiController
             $unreadQuery->whereNull('deleted_at');
         }
 
-        return $this->success([
-            'notifications' => collect($paginator->items())->map(fn (AppNotification $notification): array => [
-                'id' => (string) $notification->id,
-                'type' => $notification->type,
-                'category' => $notification->category,
+        $mappedNotifications = collect($paginator->items())->map(fn (AppNotification $notification): array => [
+            'id' => (string) $notification->id,
+            'type' => $notification->type,
+            'category' => $notification->category,
+            'title' => $notification->title,
+            'body' => $notification->body,
+            'message' => $notification->body,
+            'channel' => $notification->channel,
+            'priority' => $notification->priority,
+            'screen' => $notification->screen,
+            'tap_destination' => $notification->data['tap_destination'] ?? $notification->screen,
+            'reference_type' => $notification->reference_type,
+            'reference_id' => $notification->reference_id,
+            'data' => $notification->data ?? [],
+            'payload' => array_merge($notification->data ?? [], [
                 'title' => $notification->title,
                 'body' => $notification->body,
-                'message' => $notification->body,
-                'channel' => $notification->channel,
-                'priority' => $notification->priority,
-                'screen' => $notification->screen,
-                'tap_destination' => $notification->data['tap_destination'] ?? $notification->screen,
-                'reference_type' => $notification->reference_type,
-                'reference_id' => $notification->reference_id,
-                'data' => $notification->data ?? [],
-                'status' => $notification->status,
-                'is_read' => $notification->read_at !== null,
-                'sent_at' => $notification->sent_at,
-                'read_at' => $notification->read_at,
-                'clicked_at' => $notification->clicked_at,
-                'created_at' => $notification->created_at,
-            ])->values(),
+                'notification_type' => $notification->type,
+            ]),
+            'status' => $notification->status,
+            'is_read' => $notification->read_at !== null,
+            'sent_at' => $notification->sent_at,
+            'read_at' => $notification->read_at,
+            'clicked_at' => $notification->clicked_at,
+            'created_at' => $notification->created_at,
+        ])->values();
+
+        return $this->success([
+            'notifications' => $mappedNotifications,
+            'items' => $mappedNotifications,
+            'data' => $mappedNotifications,
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),

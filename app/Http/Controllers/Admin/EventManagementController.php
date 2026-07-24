@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SendEventCreatedNotificationJob;
 use App\Models\Circle;
 use App\Models\Event;
+use App\Models\EventOccurrence;
 use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
 use App\Models\FileModel;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventRegistrationQrService;
+use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
 use App\Support\AdminAccess;
@@ -21,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -90,7 +93,12 @@ class EventManagementController extends Controller
                 'approvedBy',
                 'rejectedBy',
             ])
-            ->when($status !== 'all' && $status !== '', fn ($q) => $q->where('status', $status))
+            ->when($status === 'checked_in', function ($q): void {
+                $q->whereHas('registration', function ($regQuery): void {
+                    $regQuery->whereNotNull('checked_in_at');
+                });
+            })
+            ->when($status !== 'all' && $status !== '' && $status !== 'checked_in', fn ($q) => $q->where('status', $status))
             ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
             ->when($request->user_id, fn ($q, $v) => $q->where('user_id', $v))
             ->when($request->date_from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
@@ -119,6 +127,9 @@ class EventManagementController extends Controller
             'pending' => (clone $summaryBase)->where('status', 'pending')->count(),
             'approved' => (clone $summaryBase)->where('status', 'approved')->count(),
             'rejected' => (clone $summaryBase)->where('status', 'rejected')->count(),
+            'checked_in' => (clone $summaryBase)->whereHas('registration', function ($regQuery): void {
+                $regQuery->whereNotNull('checked_in_at');
+            })->count(),
             'total' => (clone $summaryBase)->count(),
         ];
 
@@ -215,7 +226,14 @@ class EventManagementController extends Controller
 
     public function show(string $id): View
     {
-        $event = Event::query()->with(['circle', 'circles', 'occurrences' => fn ($q) => $q->orderBy('start_at'), 'registrations.user', 'registrations.occurrence'])->findOrFail($id);
+        $event = Event::query()->with([
+            'circle',
+            'circles',
+            'occurrences' => fn ($q) => $q->orderBy('start_at'),
+            'registrations' => fn ($q) => $q->orderByDesc('created_at'),
+            'registrations.user',
+            'registrations.occurrence',
+        ])->findOrFail($id);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
 
         $event->registrations->each(function (EventRegistration $registration): void {
@@ -224,7 +242,11 @@ class EventManagementController extends Controller
                 $this->registrationQr->ensureQrGenerated($registration);
             }
         });
-        $event->load(['registrations.user', 'registrations.occurrence']);
+        $event->load([
+            'registrations' => fn ($q) => $q->orderByDesc('created_at'),
+            'registrations.user',
+            'registrations.occurrence',
+        ]);
 
         return view('admin.events.show', compact('event'));
     }
@@ -251,6 +273,67 @@ class EventManagementController extends Controller
         $this->zohoInvoiceSync->sync($registration);
 
         return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
+    }
+
+    public function addVisitorDirectly(Request $request, string $id, string $occurrenceId, EventRegistrationService $registrationService): RedirectResponse
+    {
+        $event = Event::query()->findOrFail($id);
+        $occurrence = EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
+
+        $validated = $request->validate([
+            'visitor_first_name' => ['required', 'string', 'max:120'],
+            'visitor_last_name' => ['required', 'string', 'max:120'],
+            'visitor_email' => ['required', 'email', 'max:255'],
+            'visitor_phone' => ['required', 'string', 'max:50'],
+            'visitor_company' => ['nullable', 'string', 'max:255'],
+            'visitor_city' => ['nullable', 'string', 'max:255'],
+            'visitor_designation' => ['nullable', 'string', 'max:255'],
+            'visitor_business_brief' => ['nullable', 'string'],
+        ]);
+
+        $visitorFullName = trim($validated['visitor_first_name'].' '.$validated['visitor_last_name']);
+
+        try {
+            DB::transaction(function () use ($event, $occurrence, $validated, $visitorFullName, $registrationService) {
+                // Register visitor using registerVisitor helper, which maps inputs correctly.
+                $registration = $registrationService->registerVisitor($event, $occurrence, [
+                    'visitor_name' => $visitorFullName,
+                    'visitor_email' => $validated['visitor_email'],
+                    'visitor_phone' => $validated['visitor_phone'],
+                    'visitor_company' => $validated['visitor_company'] ?? null,
+                    'visitor_city' => $validated['visitor_city'] ?? null,
+                    'visitor_designation' => $validated['visitor_designation'] ?? null,
+                    'visitor_business_brief' => $validated['visitor_business_brief'] ?? null,
+                    'source' => 'admin_panel',
+                ]);
+
+                // Directly approve registration payment status so QR code is generated instantly
+                $registration->forceFill([
+                    'payment_status' => 'paid',
+                    'payment_required' => false,
+                    'status' => 'registered',
+                ])->save();
+
+                // Upgrade membership of visitor user to free_trial_peer and active status
+                if ($registration->user) {
+                    $registration->user->forceFill([
+                        'membership_status' => 'free_trial_peer',
+                        'status' => 'active',
+                    ])->save();
+                }
+
+                // Fire mail delivery with QR Code attached (ensureQrGenerated automatically dispatches email inside)
+                $registrationQr = app(EventRegistrationQrService::class);
+                $registrationQr->ensureQrGenerated($registration);
+            });
+
+            return back()->with('success', 'Visitor registered successfully. QR Code pass generated and email notification sent!');
+        } catch (\Throwable $e) {
+            Log::error('admin_add_visitor_directly_failed', ['error' => $e->getMessage()]);
+
+            return back()->withInput()->with('error', 'Failed to register visitor: '.$e->getMessage());
+        }
     }
 
     private function applyJoiningRequestScope($query, $admin): void
@@ -377,6 +460,7 @@ class EventManagementController extends Controller
             'email' => $data['organizer_email'] ?? null,
             'website' => $data['organizer_website'] ?? null,
         ];
+
         $data['metadata'] = $metadata;
 
         unset($data['banner'], $data['what_youll_gain'], $data['organizer_name'], $data['organizer_phone'], $data['organizer_email'], $data['organizer_website']);

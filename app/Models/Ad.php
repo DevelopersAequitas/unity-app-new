@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -115,5 +116,15 @@ class Ad extends Model
         }
 
         return $path;
+    }
+
+    public function views(): HasMany
+    {
+        return $this->hasMany(AdView::class, 'ad_id');
+    }
+
+    public function clicks(): HasMany
+    {
+        return $this->hasMany(AdClick::class, 'ad_id');
     }
 }

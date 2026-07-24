@@ -276,8 +276,8 @@ class ImpactService
     {
         Notification::create([
             'user_id' => $userId,
-            'type' => $type,
-            'payload' => $payload,
+            'type' => 'activity_update',
+            'payload' => array_merge($payload, ['notification_type' => $type]),
             'is_read' => false,
             'created_at' => now(),
             'read_at' => null,

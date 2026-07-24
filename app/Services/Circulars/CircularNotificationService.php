@@ -31,8 +31,9 @@ class CircularNotificationService
             try {
                 $notification = Notification::create([
                     'user_id' => $user->id,
-                    'type' => 'circular',
+                    'type' => 'activity_update',
                     'payload' => [
+                        'notification_type' => 'circular',
                         'title' => $circular->title,
                         'body' => $circular->summary ?? 'New circular available',
                         'circular_id' => (string) $circular->id,

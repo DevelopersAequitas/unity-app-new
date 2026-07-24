@@ -32,10 +32,10 @@ class StoreReferralRequest extends FormRequest
             'referral_date' => ['required', 'date_format:Y-m-d'],
             'referral_of' => ['required', 'string'],
             'phone' => ['required', 'string', 'max:30'],
-            'email' => ['required', 'email'],
-            'address' => ['required', 'string'],
+            'email' => ['nullable', 'email'],
+            'address' => ['nullable', 'string'],
             'hot_value' => ['required', 'integer', 'min:1', 'max:5'],
-            'remarks' => ['required', 'string'],
+            'remarks' => ['nullable', 'string'],
         ];
     }
 }

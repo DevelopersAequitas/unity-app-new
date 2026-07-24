@@ -4,10 +4,12 @@ namespace App\Services\Membership;
 
 use App\Jobs\Notifications\SendNotificationChannelJob;
 use App\Mail\MembershipStatusChangedMail;
+use App\Mail\MembershipUpgradedMail;
 use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -117,6 +119,128 @@ class MembershipNotificationService
         }
 
         return $this->store($user, 'membership_status_changed', $title, $message, $data, false);
+    }
+
+    public function sendMembershipUpgraded(
+        User $user,
+        ?string $previousStatus,
+        ?string $newStatus,
+        ?Carbon $previousExpiry,
+        ?Carbon $newExpiry,
+        ?string $remark = null,
+        ?string $updatedBy = null,
+        bool $email = true,
+        string $source = 'admin_membership_upgrade'
+    ): ?AppNotification {
+        $changeType = 'no_change';
+        $previousExpiryStr = $previousExpiry ? $previousExpiry->format('Y-m-d') : null;
+        $newExpiryStr = $newExpiry ? $newExpiry->format('Y-m-d') : null;
+
+        if ($previousExpiryStr !== $newExpiryStr) {
+            if ($previousExpiry && $newExpiry) {
+                $changeType = $newExpiry->greaterThan($previousExpiry) ? 'increased' : 'decreased';
+            } elseif ($newExpiry) {
+                $changeType = 'increased';
+            } else {
+                $changeType = 'decreased';
+            }
+        }
+
+        $title = 'Membership Updated';
+
+        // Build descriptive notification message
+        $parts = [];
+        $statusLabels = [
+            'free_trial_peer' => 'Free Trial Peer',
+            'free_peer' => 'Free Peer',
+            'only_unity_peer' => 'Global Peer',
+        ];
+        $newStatusLabel = $statusLabels[$newStatus] ?? Str::headline(str_replace('_', ' ', (string) ($newStatus ?: '')));
+
+        if ((string) $previousStatus !== (string) $newStatus) {
+            $parts[] = "Your membership status has been updated to {$newStatusLabel}.";
+        }
+        if ($changeType === 'increased') {
+            $formattedDate = $newExpiry ? $newExpiry->format('d-m-Y') : '—';
+            $parts[] = "Your membership expiry date has been extended to {$formattedDate}.";
+        } elseif ($changeType === 'decreased') {
+            $formattedDate = $newExpiry ? $newExpiry->format('d-m-Y') : '—';
+            $parts[] = "Your membership expiry date has been updated to {$formattedDate}.";
+        }
+
+        if (empty($parts)) {
+            $parts[] = 'Your membership details have been updated by Peers Global Unity.';
+        }
+
+        $message = implode(' ', $parts);
+        if (filled($remark)) {
+            $message .= " Reason: {$remark}";
+        }
+
+        $data = [
+            'previous_status' => $previousStatus,
+            'new_status' => $newStatus,
+            'previous_expiry' => $previousExpiryStr,
+            'new_expiry' => $newExpiryStr,
+            'change_type' => $changeType,
+            'remark' => $remark,
+            'updated_by_admin' => $updatedBy,
+            'source' => $source,
+            'updated_at' => now()->toIso8601String(),
+            'screen' => 'membership',
+            'tap_destination' => 'membership',
+        ];
+
+        if ($email && filled($user->email)) {
+            try {
+                $mailable = new MembershipUpgradedMail(
+                    $user,
+                    $previousStatus,
+                    $newStatus,
+                    $previousExpiryStr,
+                    $newExpiryStr,
+                    $changeType,
+                    $remark,
+                    $updatedBy
+                );
+                Mail::to($user->email)->send($mailable);
+
+                app(EmailLogService::class)->logMailableSent($mailable, [
+                    'user_id' => (string) $user->id,
+                    'to_email' => (string) $user->email,
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
+                    'template_key' => 'membership_upgraded',
+                    'source_module' => 'Membership',
+                    'related_type' => User::class,
+                    'related_id' => (string) $user->id,
+                    'triggered_by' => $updatedBy,
+                    'payload' => $data,
+                ]);
+
+                $this->recordEmailSent($user, 'membership_status_email_sent', (string) $user->email, $source);
+            } catch (Throwable $e) {
+                if (isset($mailable)) {
+                    app(EmailLogService::class)->logMailableFailed($mailable, [
+                        'user_id' => (string) $user->id,
+                        'to_email' => (string) $user->email,
+                        'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
+                        'template_key' => 'membership_upgraded',
+                        'source_module' => 'Membership',
+                        'related_type' => User::class,
+                        'related_id' => (string) $user->id,
+                        'triggered_by' => $updatedBy,
+                    ], $e);
+                }
+
+                Log::warning('membership.upgrade_email_failed', [
+                    'user_id' => $user->id,
+                    'to_email' => $user->email,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $this->store($user, 'membership_upgraded', $title, $message, $data, false);
     }
 
     public function sendManual(User $user, ?string $triggeredBy = null): ?AppNotification

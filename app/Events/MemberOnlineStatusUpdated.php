@@ -18,7 +18,7 @@ class MemberOnlineStatusUpdated implements ShouldBroadcast
     {
         return [
             new PresenceChannel('presence-member-status'),
-            new PresenceChannel('presence-online-members'),
+            new PresenceChannel('online-members'),
         ];
     }
 

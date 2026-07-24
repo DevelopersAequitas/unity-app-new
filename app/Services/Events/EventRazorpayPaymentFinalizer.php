@@ -34,6 +34,24 @@ class EventRazorpayPaymentFinalizer
 
             $locked = $this->registrationQr->ensureQrGenerated($locked);
 
+            if ($locked->user) {
+                $userUpdates = [];
+                if (in_array((string) $locked->user->membership_status, ['visitor', 'free_peer', ''], true)) {
+                    $userUpdates['membership_status'] = 'free_trial_peer';
+                }
+                if (($locked->user->status ?? 'active') !== 'active') {
+                    $userUpdates['status'] = 'active';
+                }
+                if (! empty($userUpdates)) {
+                    $locked->user->forceFill($userUpdates)->save();
+                    Log::info('visitor_promoted_to_free_trial_peer_on_event_payment', [
+                        'user_id' => (string) $locked->user->id,
+                        'event_registration_id' => (string) $locked->id,
+                        'updates' => $userUpdates,
+                    ]);
+                }
+            }
+
             return $locked->fresh(['event.circle', 'occurrence', 'user']);
         });
 

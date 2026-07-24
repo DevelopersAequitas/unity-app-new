@@ -30,7 +30,7 @@
                     <tr>
                         <td>{{ $event->title }}</td><td>{{ $event->event_type }}</td><td>{{ $event->circle?->name ?? '-' }}</td><td>{{ $event->mode }}</td>
                         <td>{{ optional($event->start_at)->format('d M Y h:i A') }}</td><td>{{ $event->recurrence_type ?? 'none' }}</td>
-                        <td>{{ $event->registered_count ?? 0 }}</td><td>{{ $event->checked_in_count ?? 0 }}</td><td>{{ $event->status ?? 'scheduled' }}</td>
+                        <td><a href="{{ route('admin.events.show', $event->id) }}" target="_blank" class="fw-bold text-decoration-none">{{ $event->registered_count ?? 0 }}</a></td><td>{{ $event->checked_in_count ?? 0 }}</td><td>{{ $event->status ?? 'scheduled' }}</td>
                         <td><a class="btn btn-sm btn-outline-primary" href="{{ route('admin.events.show', $event->id) }}">View</a> <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.events.edit', $event->id) }}">Edit</a> <a class="btn btn-sm btn-outline-success" href="{{ route('admin.events.attendance', $event->id) }}">Attendance</a></td>
                     </tr>
                 @empty

@@ -1,9 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\Events;
 
+use App\Mail\Events\EventVisitorQrMail;
+use App\Models\EmailLog;
 use App\Models\EventRegistration;
+use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
@@ -25,7 +31,10 @@ class EventRegistrationQrService
             return $registration;
         }
 
-        if ($this->hasUsableQr($registration)) {
+        $wasQrMissing = ! $this->hasUsableQr($registration);
+        $mailShouldBeSent = $wasQrMissing;
+
+        if (! $wasQrMissing) {
             $updates = [];
             if (! empty($registration->qr_code_path) && empty($registration->qr_code_url)) {
                 $updates['qr_code_url'] = $this->qr->url($registration->qr_code_path);
@@ -38,45 +47,138 @@ class EventRegistrationQrService
                 $registration->refresh();
             }
 
+            // If the user's registration is confirmed/paid but they haven't been sent a QR email yet, send it
+            $hasEmailed = EmailLog::query()
+                ->where('related_type', EventRegistration::class)
+                ->where('related_id', $registration->id)
+                ->where('template_key', 'event_visitor_qr')
+                ->exists();
+            if (! $hasEmailed) {
+                $mailShouldBeSent = true;
+            }
+
             Log::info('event_registration_qr_already_exists', [
                 'registration_id' => (string) $registration->id,
                 'qr_code_path' => $registration->qr_code_path,
                 'has_qr_code_url' => ! empty($registration->qr_code_url),
                 'has_qr_code_svg' => ! empty($registration->qr_code_svg),
+                'send_missing_email' => $mailShouldBeSent,
             ]);
-
-            return $registration;
-        }
-
-        Log::info('event_registration_qr_generation_start', [
-            'registration_id' => (string) $registration->id,
-            'event_id' => (string) $registration->event_id,
-        ]);
-
-        try {
-            if (empty($registration->qr_token)) {
-                $registration->forceFill($this->filter(['qr_token' => $this->uniqueToken()]))->save();
-                $registration->refresh();
-            }
-
-            $this->qr->generateAndStore($registration);
-            $registration = $registration->fresh() ?? $registration;
-
-            Log::info('event_registration_qr_generated_successfully', [
-                'registration_id' => (string) $registration->id,
-                'qr_code_path' => $registration->qr_code_path,
-                'qr_code_url' => $registration->qr_code_url,
-            ]);
-        } catch (Throwable $exception) {
-            Log::error('event_registration_qr_generation_failed', [
+        } else {
+            Log::info('event_registration_qr_generation_start', [
                 'registration_id' => (string) $registration->id,
                 'event_id' => (string) $registration->event_id,
-                'exception' => $exception::class,
-                'message' => $exception->getMessage(),
             ]);
+
+            try {
+                if (empty($registration->qr_token)) {
+                    $registration->forceFill($this->filter(['qr_token' => $this->uniqueToken()]))->save();
+                    $registration->refresh();
+                }
+
+                $this->qr->generateAndStore($registration);
+                $registration = $registration->fresh() ?? $registration;
+                $mailShouldBeSent = true;
+
+                Log::info('event_registration_qr_generated_successfully', [
+                    'registration_id' => (string) $registration->id,
+                    'qr_code_path' => $registration->qr_code_path,
+                    'qr_code_url' => $registration->qr_code_url,
+                ]);
+            } catch (Throwable $exception) {
+                Log::error('event_registration_qr_generation_failed', [
+                    'registration_id' => (string) $registration->id,
+                    'event_id' => (string) $registration->event_id,
+                    'exception' => $exception::class,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
         }
 
-        return $registration->fresh() ?? $registration;
+        $registration = $registration->fresh() ?? $registration;
+
+        if ($mailShouldBeSent && $this->hasUsableQr($registration)) {
+            $this->sendVisitorQrEmailSafely($registration);
+        }
+
+        return $registration;
+    }
+
+    public function sendVisitorQrEmailSafely(EventRegistration $registration): void
+    {
+        $registration = $registration->fresh(['event', 'occurrence', 'user']) ?? $registration;
+        $recipientEmail = (string) ($registration->visitor_email ?: $registration->user?->email);
+
+        if (blank($recipientEmail)) {
+            Log::info('event_visitor_qr_email_skipped_no_recipient', [
+                'registration_id' => (string) $registration->id,
+            ]);
+
+            return;
+        }
+
+        $recipientName = trim((string) ($registration->visitor_name ?: $registration->user?->display_name ?: 'Valued Visitor'));
+
+        // Prevent duplicate mail deliveries (check logs before sending)
+        $hasEmailed = EmailLog::query()
+            ->where('related_type', EventRegistration::class)
+            ->where('related_id', $registration->id)
+            ->where('template_key', 'event_visitor_qr')
+            ->exists();
+        if ($hasEmailed) {
+            Log::info('event_visitor_qr_email_skipped_already_sent', [
+                'registration_id' => (string) $registration->id,
+            ]);
+
+            return;
+        }
+
+        $mailable = new EventVisitorQrMail($registration);
+
+        try {
+            Mail::to($recipientEmail)->send($mailable);
+
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'user_id' => (string) ($registration->user_id ?: ''),
+                'to_email' => $recipientEmail,
+                'to_name' => $recipientName,
+                'template_key' => 'event_visitor_qr',
+                'source_module' => 'Events',
+                'related_type' => EventRegistration::class,
+                'related_id' => (string) $registration->id,
+                'payload' => [
+                    'registration_id' => (string) $registration->id,
+                    'event_id' => (string) $registration->event_id,
+                    'occurrence_id' => (string) $registration->occurrence_id,
+                    'qr_code_url' => $this->qrCodeUrl($registration),
+                ],
+            ]);
+
+            Log::info('event_visitor_qr_email_sent_successfully', [
+                'registration_id' => (string) $registration->id,
+                'recipient_email' => $recipientEmail,
+            ]);
+        } catch (Throwable $exception) {
+            app(EmailLogService::class)->logMailableFailed($mailable, [
+                'user_id' => (string) ($registration->user_id ?: ''),
+                'to_email' => $recipientEmail,
+                'to_name' => $recipientName,
+                'template_key' => 'event_visitor_qr',
+                'source_module' => 'Events',
+                'related_type' => EventRegistration::class,
+                'related_id' => (string) $registration->id,
+                'payload' => [
+                    'registration_id' => (string) $registration->id,
+                    'event_id' => (string) $registration->event_id,
+                ],
+            ], $exception);
+
+            Log::error('event_visitor_qr_email_send_failed', [
+                'registration_id' => (string) $registration->id,
+                'recipient_email' => $recipientEmail,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     public function qrCodeUrl(EventRegistration $registration): ?string

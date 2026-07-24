@@ -7,12 +7,14 @@ use App\Jobs\SendFcmNotificationJob;
 use App\Mail\CircleMembershipExpiryReminderMail;
 use App\Models\CircleMember;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Notifications\CircleMembershipExpiryNotification;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -93,6 +95,39 @@ class SendCircleMembershipExpiryReminders extends Command
                 $notificationObj = new CircleMembershipExpiryNotification($circleMember);
                 $notifPayload = $notificationObj->toArray($user);
 
+                $appNotificationId = null;
+                $appNotificationType = null;
+                $appNotificationData = null;
+                $appNotificationCreatedAt = null;
+
+                if (Schema::hasTable('app_notifications')) {
+                    // Create in-app AppNotification for the new system
+                    $appNotification = AppNotification::create([
+                        'user_id' => $user->id,
+                        'type' => 'circle_membership_expiry_reminder',
+                        'category' => 'circle',
+                        'title' => (string) $notifPayload['title'],
+                        'body' => (string) $notifPayload['body'],
+                        'message' => (string) $notifPayload['body'],
+                        'channel' => 'push',
+                        'priority' => 'high',
+                        'screen' => 'circle_detail',
+                        'data' => array_merge($notifPayload, [
+                            'circle_id' => (string) $circleMember->circle_id,
+                            'circle_member_id' => (string) $circleMember->id,
+                            'screen' => 'circle_detail',
+                            'tap_destination' => 'circle_detail',
+                        ]),
+                        'status' => 'sent',
+                        'sent_at' => now(),
+                    ]);
+
+                    $appNotificationId = $appNotification->id;
+                    $appNotificationType = $appNotification->type;
+                    $appNotificationData = $appNotification->data;
+                    $appNotificationCreatedAt = optional($appNotification->created_at)->toISOString();
+                }
+
                 $dbNotification = Notification::forceCreate([
                     'id' => (string) Str::uuid(),
                     'user_id' => $user->id,
@@ -104,10 +139,10 @@ class SendCircleMembershipExpiryReminders extends Command
                 ]);
 
                 event(new UserNotificationCreated((string) $user->id, [
-                    'id' => (string) $dbNotification->id,
-                    'type' => (string) $dbNotification->type,
-                    'payload' => $dbNotification->payload,
-                    'created_at' => optional($dbNotification->created_at)->toISOString(),
+                    'id' => (string) ($appNotificationId ?: $dbNotification->id),
+                    'type' => (string) ($appNotificationType ?: $dbNotification->type),
+                    'payload' => $appNotificationData ?: $dbNotification->payload,
+                    'created_at' => $appNotificationCreatedAt ?: optional($dbNotification->created_at)->toISOString(),
                 ]));
 
                 SendFcmNotificationJob::dispatch(
@@ -116,7 +151,7 @@ class SendCircleMembershipExpiryReminders extends Command
                     (string) $notifPayload['body'],
                     [
                         'notification_type' => 'circle_membership_expiry_reminder',
-                        'notification_id' => (string) $dbNotification->id,
+                        'notification_id' => (string) ($appNotificationId ?: $dbNotification->id),
                     ]
                 );
 

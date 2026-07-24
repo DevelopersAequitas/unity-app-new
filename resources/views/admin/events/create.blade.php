@@ -253,6 +253,10 @@
                                 <div class="multi-select-menu d-none" id="circleMultiSelectMenu">
                                     <input type="text" class="form-control mb-2 circle-search" id="circleSearchInput" placeholder="Search circles...">
                                     <div class="circle-options" id="circleOptionsList">
+                                        <label class="multi-select-option border-bottom pb-2 mb-2 select-all-option">
+                                            <input type="checkbox" id="selectAllCircles">
+                                            <span class="fw-semibold">Select All</span>
+                                        </label>
                                         @foreach($circles as $circle)
                                             @php($circleState = $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? '')
                                             <label class="multi-select-option" data-state="{{ $circleState }}" data-label="{{ \Illuminate\Support\Str::lower($circle->name.' '.$circleState) }}">
@@ -344,19 +348,19 @@
                             <label class="form-label fw-semibold">Repeat</label>
                             <select class="form-select js-no-searchable-select" name="recurrence_type" id="recurrenceType">
                                 <option value="none" @selected(old('recurrence_type', $event->recurrence_type ?? 'none') === 'none')>One-time Event</option>
-                                <option value="daily" disabled>Daily</option>
+                                <option value="daily" @selected(old('recurrence_type', $event->recurrence_type ?? 'none') === 'daily')>Daily</option>
                                 <option value="weekly" @selected(old('recurrence_type', $event->recurrence_type ?? 'none') === 'weekly')>Weekly</option>
                                 <option value="monthly" @selected(old('recurrence_type', $event->recurrence_type ?? 'none') === 'monthly')>Monthly</option>
                             </select>
                         </div>
-                        <div class="col-md-4 recurrence-common">
+                        <div class="col-md-4 recurrence-common d-none">
                             <label class="form-label fw-semibold">Repeat every</label>
                             <div class="input-group">
                                 <input class="form-control" type="number" min="1" name="recurrence_interval" id="recurrenceInterval" value="{{ old('recurrence_interval', $event->recurrence_interval ?? 1) }}">
                                 <span class="input-group-text" id="intervalUnit">week(s)</span>
                             </div>
                         </div>
-                        <div class="col-md-4 recurrence-common">
+                        <div class="col-md-4 recurrence-common d-none">
                             <label class="form-label fw-semibold">Repeat Until</label>
                             <input class="form-control" type="date" name="recurrence_ends_at" id="recurrenceEndsAt" value="{{ old('recurrence_ends_at', optional($event->recurrence_ends_at ?? null)->format('Y-m-d')) }}">
                         </div>
@@ -700,6 +704,19 @@
             return checkbox.closest('.multi-select-option')?.querySelector('span')?.textContent?.trim() || '';
         }
 
+        const selectAllCircles = document.getElementById('selectAllCircles');
+
+        function syncSelectAllState() {
+            if (!selectAllCircles) return;
+            const enabledCheckboxes = circleCheckboxes.filter(cb => !cb.disabled);
+            if (enabledCheckboxes.length === 0) {
+                selectAllCircles.checked = false;
+                return;
+            }
+            const allChecked = enabledCheckboxes.every(cb => cb.checked);
+            selectAllCircles.checked = allChecked;
+        }
+
         function updateSelectedCircleText() {
             const selected = selectedCircleCheckboxes();
             const placeholder = circleMultiSelectToggle.querySelector('.multi-select-placeholder');
@@ -708,6 +725,7 @@
             if (selected.length === 0) {
                 placeholder.textContent = 'Select circles';
                 singleCircleSelect.disabled = eventType.value === 'global_event' || eventType.value === 'state_event';
+                syncSelectAllState();
                 return;
             }
 
@@ -736,6 +754,8 @@
                 singleCircleSelect.value = selected[0].value;
                 singleCircleSelect.disabled = true;
             }
+
+            syncSelectAllState();
         }
 
         function filterCircleOptions() {
@@ -807,9 +827,19 @@
             }
         }
 
-        document.querySelectorAll('input,select').forEach(el => el.addEventListener('change', () => { syncDateTimes(); updateEventType(); updateMode(); updateRecurrence(); }));
+        document.querySelectorAll('input:not(#selectAllCircles):not(.circle-search):not([name="circle_ids[]"]), select').forEach(el => el.addEventListener('change', () => { syncDateTimes(); updateEventType(); updateMode(); updateRecurrence(); }));
         circleMultiSelectToggle.addEventListener('click', () => { if (!multiCircleField.classList.contains('d-none')) circleMultiSelectMenu.classList.toggle('d-none'); });
         circleCheckboxes.forEach(checkbox => checkbox.addEventListener('change', updateSelectedCircleText));
+        if (selectAllCircles) {
+            selectAllCircles.addEventListener('change', () => {
+                const isChecked = selectAllCircles.checked;
+                const enabledCheckboxes = circleCheckboxes.filter(cb => !cb.disabled);
+                enabledCheckboxes.forEach(cb => {
+                    cb.checked = isChecked;
+                });
+                updateSelectedCircleText();
+            });
+        }
         circleSearchInput.addEventListener('input', filterCircleOptions);
         stateNameSelect.addEventListener('change', () => { circleCheckboxes.forEach(checkbox => { checkbox.checked = false; }); circleSearchInput.value = ''; filterCircleOptions(); });
         eventType.addEventListener('change', () => { circleSearchInput.value = ''; filterCircleOptions(); });
@@ -818,17 +848,33 @@
 
         form.addEventListener('submit', (e) => {
             syncDateTimes();
-            const start = document.getElementById('startAtHidden').value ? new Date(document.getElementById('startAtHidden').value) : null;
-            const end = document.getElementById('endAtHidden').value ? new Date(document.getElementById('endAtHidden').value) : null;
+            const startVal = document.getElementById('startAtHidden').value;
+            const endVal = document.getElementById('endAtHidden').value;
+
+            if (!startVal) {
+                switchTab('schedule-tab');
+                document.getElementById('startDate').reportValidity();
+                e.preventDefault();
+                return;
+            }
+
+            const start = new Date(startVal);
+            const end = endVal ? new Date(endVal) : null;
+
             if ((eventType.value === 'global_event' || eventType.value === 'state_event') && selectedCircleCheckboxes().length === 0) {
+                switchTab('basic-tab');
                 document.getElementById('multiCircleError').classList.remove('d-none');
                 e.preventDefault();
                 return;
             }
             document.getElementById('multiCircleError').classList.add('d-none');
+
             const invalid = start && end && end <= start;
             document.getElementById('dateTimeError').classList.toggle('d-none', !invalid);
-            if (invalid) e.preventDefault();
+            if (invalid) {
+                switchTab('schedule-tab');
+                e.preventDefault();
+            }
         });
 
         initDateTimeFields();

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class P2PMeetingRequest extends Model
 {
@@ -43,5 +44,10 @@ class P2PMeetingRequest extends Model
     public function invitee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'invitee_id');
+    }
+
+    public function rescheduleRequests(): HasMany
+    {
+        return $this->hasMany(P2PMeetingRescheduleRequest::class, 'p2p_meeting_request_id');
     }
 }
