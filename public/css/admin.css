@@ -299,6 +299,10 @@ body {
 }
 
 /* Submenu Styles */
+.admin-sidebar .collapse.show {
+    visibility: visible !important;
+}
+
 .admin-sidebar .notifications-submenu,
 .admin-sidebar .nav .collapse > .nav {
     margin-left: 16px;

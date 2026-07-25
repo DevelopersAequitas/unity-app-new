@@ -223,7 +223,7 @@
         ['label' => 'Analytics', 'route' => 'admin.brand-partners.analytics'],
         ['label' => 'Settings', 'route' => 'admin.brand-partners.settings'],
     ];
-    $hasBrandPartnersRole = $adminUser?->roles?->pluck('key')->intersect(['global_admin', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false;
+    $hasBrandPartnersRole = $isGlobalAdmin || ($adminUser?->roles?->pluck('key')->intersect(['global_admin', 'global_founder', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false);
 
     $adsActive = request()->routeIs('admin.ads.*');
     $adsMenu = [
@@ -445,7 +445,7 @@
                 </li>
             @endif
 
-            @if ($hasBrandPartnersRole && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
+            @if (($isGlobalAdmin || $hasBrandPartnersRole) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
                 <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
                         <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
@@ -674,4 +674,12 @@
             });
         });
     </script>
+@endpush
+
+@push('styles')
+    <style>
+        .admin-sidebar .collapse.show {
+            visibility: visible !important;
+        }
+    </style>
 @endpush
