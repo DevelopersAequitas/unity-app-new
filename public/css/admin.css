@@ -299,8 +299,13 @@ body {
 }
 
 /* Submenu Styles */
-.admin-sidebar .collapse.show {
+.admin-sidebar .collapse.show,
+.admin-sidebar .brand-partners-submenu.show {
+    display: block !important;
     visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    overflow: visible !important;
 }
 
 .admin-sidebar .notifications-submenu,

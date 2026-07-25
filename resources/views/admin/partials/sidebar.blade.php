@@ -451,7 +451,7 @@
                         <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
-                    <div class="collapse {{ $brandPartnersActive ? 'show' : '' }}" id="brandPartnersSubmenu">
+                    <div class="collapse brand-partners-submenu {{ $brandPartnersActive ? 'show' : '' }}" id="brandPartnersSubmenu">
                         <ul class="nav flex-column ms-3">
                             @foreach ($brandPartnersMenu as $item)
                                 @if (Route::has($item['route']))
