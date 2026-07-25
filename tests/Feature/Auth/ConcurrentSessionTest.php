@@ -65,4 +65,21 @@ class ConcurrentSessionTest extends TestCase
         $this->assertEquals('SESSION_SUPERSEDED', $content['code']);
         $this->assertStringContainsString('accessed on another device', $content['message']);
     }
+
+    public function test_middleware_allows_bypassed_user_email_session(): void
+    {
+        $user = new User;
+        $user->id = 'user-bypassed-uuid';
+        $user->email = 'harshchauhan29626@gmail.com';
+
+        $request = Request::create('/api/v1/members/123', 'GET');
+        $request->setUserResolver(fn () => $user);
+
+        $middleware = new EnsureSingleActiveSession($this->sessionService);
+        $response = $middleware->handle($request, function () {
+            return response()->json(['success' => true]);
+        });
+
+        $this->assertEquals(200, $response->getStatusCode());
+    }
 }

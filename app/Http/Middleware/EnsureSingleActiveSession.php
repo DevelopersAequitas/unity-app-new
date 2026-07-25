@@ -37,6 +37,12 @@ class EnsureSingleActiveSession
             return $next($request);
         }
 
+        // Bypass single-session enforcement for exempted developer/test accounts
+        $bypassEmails = array_filter(array_map('trim', explode(',', (string) env('SINGLE_SESSION_BYPASS_EMAILS', 'harshchauhan29626@gmail.com'))));
+        if ($user->email && in_array(strtolower((string) $user->email), array_map('strtolower', $bypassEmails), true)) {
+            return $next($request);
+        }
+
         $sessionId = $this->extractSessionIdFromRequest($request);
 
         if (! $sessionId) {
