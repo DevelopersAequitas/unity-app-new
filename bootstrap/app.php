@@ -8,7 +8,6 @@ use App\Http\Middleware\EnsureAdminAuthenticated;
 use App\Http\Middleware\EnsureDedApiAccess;
 use App\Http\Middleware\EnsureIndustryDirector;
 use App\Http\Middleware\EnsureScanAppUser;
-use App\Http\Middleware\EnsureSingleActiveSession;
 use App\Http\Middleware\EnsureUnityUser;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -38,7 +37,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'ensure.ded.api' => EnsureDedApiAccess::class,
             'scan.app.user' => EnsureScanAppUser::class,
             'unity.user' => EnsureUnityUser::class,
-            'ensure.single.session' => EnsureSingleActiveSession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

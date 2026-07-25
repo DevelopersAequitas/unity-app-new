@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Events\ForceLogoutEvent;
 use App\Exceptions\MediaProcessingException;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
@@ -27,7 +26,6 @@ use App\Services\Media\FileUploadService;
 use App\Services\OnlineStatusService;
 use App\Services\Referrals\ReferralService;
 use App\Services\Users\PublicProfileSlugService;
-use App\Services\UserSessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -969,26 +967,8 @@ class AuthController extends BaseApiController
             ], 403);
         }
 
-        // Enforce strict One Active Device per Account
-        $sessionService = app(UserSessionService::class);
-        $sessionId = $sessionService->generateSessionId();
-
-        event(new ForceLogoutEvent(
-            userId: (string) $user->id,
-            message: 'You have been logged out because your account was accessed on another device.',
-            newDeviceId: $request->input('device_id')
-        ));
-
-        $sessionService->setActiveSession(
-            userId: (string) $user->id,
-            sessionId: $sessionId,
-            deviceId: $request->input('device_id'),
-            ipAddress: $request->ip(),
-            userAgent: $request->userAgent()
-        );
-
-        // Create Sanctum token with session_id embedded in token name
-        $token = $user->createToken('session:'.$sessionId)->plainTextToken;
+        // Create Sanctum token
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         $pushToken = $request->input('token')
             ?? $request->input('device_token')
@@ -1174,26 +1154,7 @@ class AuthController extends BaseApiController
         $user->save();
         $user->refresh();
 
-        // Enforce strict One Active Device per Account
-        $sessionService = app(UserSessionService::class);
-        $sessionId = $sessionService->generateSessionId();
-
-        event(new ForceLogoutEvent(
-            userId: (string) $user->id,
-            message: 'You have been logged out because your account was accessed on another device.',
-            newDeviceId: $request->input('device_id')
-        ));
-
-        $sessionService->setActiveSession(
-            userId: (string) $user->id,
-            sessionId: $sessionId,
-            deviceId: $request->input('device_id'),
-            ipAddress: $request->ip(),
-            userAgent: $request->userAgent()
-        );
-
-        // Create Sanctum token with session_id embedded in token name
-        $token = $user->createToken('session:'.$sessionId)->plainTextToken;
+        $token = $user->createToken('api')->plainTextToken;
 
         $pushToken = $request->input('token')
             ?? $request->input('device_token')
