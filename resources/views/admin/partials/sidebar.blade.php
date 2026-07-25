@@ -312,7 +312,7 @@
 
             @if ($activityMenu)
                 <li class="nav-item menu-parent {{ $activityExpanded ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $activityExpanded ? 'active' : '' }}" href="#activitiesSubmenu" role="button" aria-expanded="{{ $activityExpanded ? 'true' : 'false' }}" aria-controls="activitiesSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $activityExpanded ? 'active' : '' }}" href="#activitiesSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#activitiesSubmenu" aria-expanded="{{ $activityExpanded ? 'true' : 'false' }}" aria-controls="activitiesSubmenu">
                         <span><i class="bi bi-activity me-2"></i>Activities</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -340,7 +340,7 @@
 
             @if ($postsMenu)
                 <li class="nav-item menu-parent {{ $postsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $postsActive ? 'active' : '' }}" href="#postsSubmenu" role="button" aria-expanded="{{ $postsActive ? 'true' : 'false' }}" aria-controls="postsSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $postsActive ? 'active' : '' }}" href="#postsSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#postsSubmenu" aria-expanded="{{ $postsActive ? 'true' : 'false' }}" aria-controls="postsSubmenu">
                         <span><i class="bi bi-chat-dots me-2"></i>Posts &amp; Timeline</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -360,7 +360,7 @@
 
             @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Pending Requests'))
             <li class="nav-item menu-parent {{ $pendingRequestsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" href="#pendingRequestsSubmenu" role="button" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
+                <a class="nav-link d-flex justify-content-between align-items-center {{ $pendingRequestsActive ? 'active' : '' }}" href="#pendingRequestsSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#pendingRequestsSubmenu" aria-expanded="{{ $pendingRequestsActive ? 'true' : 'false' }}" aria-controls="pendingRequestsSubmenu">
                     <span><i class="bi bi-hourglass-split me-2"></i>Pending Requests</span>
                     <i class="bi bi-chevron-right menu-arrow"></i>
                 </a>
@@ -381,7 +381,7 @@
             @if ($isDed)
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leadership'))
                 <li class="nav-item menu-parent {{ $dedLeadershipActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $dedLeadershipActive ? 'active' : '' }}" href="#dedLeadershipSubmenu" role="button" aria-expanded="{{ $dedLeadershipActive ? 'true' : 'false' }}" aria-controls="dedLeadershipSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $dedLeadershipActive ? 'active' : '' }}" href="#dedLeadershipSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#dedLeadershipSubmenu" aria-expanded="{{ $dedLeadershipActive ? 'true' : 'false' }}" aria-controls="dedLeadershipSubmenu">
                         <span><i class="bi bi-person-badge me-2"></i>Leadership</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -400,7 +400,7 @@
                 @endif
 
                 <li class="nav-item menu-parent {{ $dedAnalyticsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $dedAnalyticsActive ? 'active' : '' }}" href="#dedAnalyticsSubmenu" role="button" aria-expanded="{{ $dedAnalyticsActive ? 'true' : 'false' }}" aria-controls="dedAnalyticsSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $dedAnalyticsActive ? 'active' : '' }}" href="#dedAnalyticsSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#dedAnalyticsSubmenu" aria-expanded="{{ $dedAnalyticsActive ? 'true' : 'false' }}" aria-controls="dedAnalyticsSubmenu">
                         <span><i class="bi bi-graph-up-arrow me-2"></i>Analytics</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -429,7 +429,7 @@
 
             @if (($isGlobalAdmin || $isIndustryDirector) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#eventsManagementSubmenu" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -447,7 +447,7 @@
 
             @if ($hasBrandPartnersRole && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
                 <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" href="#brandPartnersSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#brandPartnersSubmenu" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
                         <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -469,7 +469,7 @@
 
             @if (($isGlobalAdmin || $hasAdsRole) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
                 <li class="nav-item menu-parent {{ $adsActive ? 'open' : '' }}">
-                    <a class="nav-link d-flex justify-content-between align-items-center {{ $adsActive ? 'active' : '' }}" href="#adsSubmenu" role="button" aria-expanded="{{ $adsActive ? 'true' : 'false' }}" aria-controls="adsSubmenu">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $adsActive ? 'active' : '' }}" href="#adsSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#adsSubmenu" aria-expanded="{{ $adsActive ? 'true' : 'false' }}" aria-controls="adsSubmenu">
                         <span><i class="bi bi-megaphone me-2"></i>Ads</span>
                         <i class="bi bi-chevron-right menu-arrow"></i>
                     </a>
@@ -493,7 +493,7 @@
                 @if ($item['label'] === 'Notifications & Email')
                     @if (Route::has($item['route']))
                         <li class="nav-item menu-parent {{ $campaignsActive ? 'open' : '' }}">
-                            <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" href="#campaignsSubmenu" role="button" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
+                            <a class="nav-link d-flex justify-content-between align-items-center {{ $campaignsActive ? 'active' : '' }}" href="#campaignsSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#campaignsSubmenu" aria-expanded="{{ $campaignsActive ? 'true' : 'false' }}" aria-controls="campaignsSubmenu">
                                 <span><i class="bi {{ $item['icon'] }} me-2"></i>{{ $item['label'] }}</span>
                                 <i class="bi bi-chevron-right menu-arrow"></i>
                             </a>
@@ -555,7 +555,7 @@
 
             @if (! $isDed && ! $isCircleCommittee && $leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
-                <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
+                <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" href="#leadsSubmenu" role="button" data-bs-toggle="collapse" data-bs-target="#leadsSubmenu" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
                     <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
                     <i class="bi bi-chevron-right menu-arrow"></i>
                 </a>
@@ -590,73 +590,84 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const submenuIds = [
-                'activitiesSubmenu',
-                'postsSubmenu',
-                'pendingRequestsSubmenu',
-                'leadsSubmenu',
-                'campaignsSubmenu',
-                'brandPartnersSubmenu',
-                'adsSubmenu',
-                'eventsManagementSubmenu',
-                'dedLeadershipSubmenu',
-                'dedAnalyticsSubmenu',
-            ];
+            const menuParents = document.querySelectorAll('.admin-sidebar .menu-parent');
 
-            // Collect all existing submenus
-            const submenus = submenuIds
-                .map(id => document.getElementById(id))
-                .filter(Boolean);
+            menuParents.forEach((parentItem) => {
+                const submenu = parentItem.querySelector('.collapse');
+                if (!submenu) return;
 
-            submenus.forEach((submenu) => {
-                const parentItem = submenu.closest('.menu-parent');
-                if (!parentItem) return;
+                const toggle = parentItem.querySelector('a[role="button"]') || parentItem.querySelector(`a[href="#${submenu.id}"]`);
+                if (!toggle) return;
 
-                // Sync the .open class on page load
+                // Sync initial state on load
                 if (submenu.classList.contains('show')) {
                     parentItem.classList.add('open');
+                    toggle.setAttribute('aria-expanded', 'true');
+                } else {
+                    parentItem.classList.remove('open');
+                    toggle.setAttribute('aria-expanded', 'false');
                 }
-
-                // Find the toggle anchor for this submenu (matches href="#submenuId")
-                const toggle = parentItem.querySelector(`a[href="#${submenu.id}"]`);
-                if (!toggle) return;
 
                 toggle.addEventListener('click', (e) => {
                     e.preventDefault();
 
                     const isCurrentlyOpen = submenu.classList.contains('show');
 
-                    // Close ALL open submenus first
-                    submenus.forEach((otherSubmenu) => {
-                        if (otherSubmenu !== submenu && otherSubmenu.classList.contains('show')) {
-                            const bsCollapse = bootstrap.Collapse.getInstance(otherSubmenu);
-                            if (bsCollapse) {
-                                bsCollapse.hide();
-                            } else {
-                                new bootstrap.Collapse(otherSubmenu, { toggle: false }).hide();
+                    // Close all other open submenus first (accordion behavior)
+                    menuParents.forEach((otherParent) => {
+                        const otherSubmenu = otherParent.querySelector('.collapse');
+                        if (otherSubmenu && otherSubmenu !== submenu && otherSubmenu.classList.contains('show')) {
+                            otherSubmenu.classList.remove('show');
+                            otherParent.classList.remove('open');
+                            const otherToggle = otherParent.querySelector('a[role="button"]') || otherParent.querySelector(`a[href="#${otherSubmenu.id}"]`);
+                            if (otherToggle) otherToggle.setAttribute('aria-expanded', 'false');
+
+                            if (typeof bootstrap !== 'undefined' && bootstrap && bootstrap.Collapse) {
+                                try {
+                                    const bsCollapse = bootstrap.Collapse.getInstance(otherSubmenu);
+                                    if (bsCollapse) {
+                                        bsCollapse.hide();
+                                    }
+                                } catch (err) {
+                                    // ignore fallback
+                                }
                             }
-                            const otherParent = otherSubmenu.closest('.menu-parent');
-                            if (otherParent) otherParent.classList.remove('open');
                         }
                     });
 
-                    // Toggle the clicked submenu
+                    // Toggle current submenu
                     if (isCurrentlyOpen) {
-                        const bsCollapse = bootstrap.Collapse.getInstance(submenu);
-                        if (bsCollapse) {
-                            bsCollapse.hide();
-                        } else {
-                            new bootstrap.Collapse(submenu, { toggle: false }).hide();
-                        }
+                        submenu.classList.remove('show');
                         parentItem.classList.remove('open');
-                    } else {
-                        const bsCollapse = bootstrap.Collapse.getInstance(submenu);
-                        if (bsCollapse) {
-                            bsCollapse.show();
-                        } else {
-                            new bootstrap.Collapse(submenu, { toggle: false }).show();
+                        toggle.setAttribute('aria-expanded', 'false');
+
+                        if (typeof bootstrap !== 'undefined' && bootstrap && bootstrap.Collapse) {
+                            try {
+                                const bsCollapse = bootstrap.Collapse.getInstance(submenu);
+                                if (bsCollapse) {
+                                    bsCollapse.hide();
+                                }
+                            } catch (err) {
+                                // ignore fallback
+                            }
                         }
+                    } else {
+                        submenu.classList.add('show');
                         parentItem.classList.add('open');
+                        toggle.setAttribute('aria-expanded', 'true');
+
+                        if (typeof bootstrap !== 'undefined' && bootstrap && bootstrap.Collapse) {
+                            try {
+                                let bsCollapse = bootstrap.Collapse.getInstance(submenu);
+                                if (bsCollapse) {
+                                    bsCollapse.show();
+                                } else {
+                                    new bootstrap.Collapse(submenu, { toggle: false }).show();
+                                }
+                            } catch (err) {
+                                // ignore fallback
+                            }
+                        }
                     }
                 });
             });
