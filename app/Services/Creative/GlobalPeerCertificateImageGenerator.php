@@ -67,12 +67,15 @@ class GlobalPeerCertificateImageGenerator
         \imagedestroy($baseImg);
 
         // ── 3. Draw peer's name on the blank space ─────────────────────────
-        $displayName = trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')));
+        $displayName = mb_strtoupper(trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
         if ($displayName === '') {
-            $displayName = 'Global Peer';
+            $displayName = 'GLOBAL PEER';
         }
 
         $this->drawCertificateName($canvas, $displayName, $width, $height);
+
+        // ── 3b. Draw peer's Member ID on the top-right ──────────────────────
+        $this->drawMemberId($canvas, $user, $width, $height);
 
         // ── 4. Save to public disk ───────────────────────────────────────────
         $diskName = 'public';
@@ -130,8 +133,8 @@ class GlobalPeerCertificateImageGenerator
         // Deep Gold (#C5860A) matching the certificate's decorative accents
         $nameColor = \imagecolorallocate($canvas, 197, 134, 10);
 
-        // Maximum allowable width for name text (82% of total template width)
-        $maxWidth = (int) ($width * 0.82);
+        // Maximum allowable width for name text
+        $maxWidth = 500;
         $fontSize = 40; // Balanced font size
         $minFontSize = 20;
 
@@ -166,5 +169,41 @@ class GlobalPeerCertificateImageGenerator
         \imagettftext($canvas, $fontSize, 0, $x, $y - 1, $nameColor, $fontPath, $displayName);
         \imagettftext($canvas, $fontSize, 0, $x, $y + 1, $nameColor, $fontPath, $displayName);
         \imagettftext($canvas, $fontSize, 0, $x, $y, $nameColor, $fontPath, $displayName);
+    }
+
+    /**
+     * Draw the user's member ID on the top-right corner, covering the placeholder pg2025xxxx.
+     */
+    private function drawMemberId($canvas, User $user, int $width, int $height): void
+    {
+        $memberId = trim((string) ($user->peer_id ?? ''));
+        if ($memberId === '') {
+            return;
+        }
+
+        $white = \imagecolorallocate($canvas, 255, 255, 255);
+        $blue = \imagecolorallocate($canvas, 31, 88, 163); // Matching theme blue
+
+        // 1. Cover the pg2025xxxx placeholder
+        \imagefilledrectangle($canvas, 510, 60, 650, 80, $white);
+
+        // 2. Load Montserrat-Regular font
+        $fontPath = $this->getFontPath('regular');
+
+        $fontSize = 11;
+        $bbox = @\imagettfbbox($fontSize, 0, $fontPath, $memberId);
+        if (! $bbox) {
+            // Fallback to standard GD text if font is not found
+            \imagestring($canvas, 2, 550, 68, $memberId, $blue);
+
+            return;
+        }
+
+        $textWidth = abs($bbox[2] - $bbox[0]);
+        // Center the text precisely around X = 580
+        $x = (int) (580 - ($textWidth / 2));
+        $y = 77;
+
+        \imagettftext($canvas, $fontSize, 0, $x, $y, $blue, $fontPath, $memberId);
     }
 }
