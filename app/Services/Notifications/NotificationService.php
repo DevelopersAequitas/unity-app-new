@@ -265,11 +265,102 @@ class NotificationService
 
     public function renderTemplate(string $template, array $placeholders): string
     {
-        foreach ($placeholders as $k => $v) {
-            $template = str_replace(['{{'.$k.'}}', '{'.$k.'}'], (string) $v, $template);
+        if (trim($template) === '') {
+            return $template;
         }
 
-        return $template;
+        $map = [];
+
+        foreach ($placeholders as $key => $val) {
+            if ($val === null) {
+                continue;
+            }
+            $strVal = (string) $val;
+            $rawKey = (string) $key;
+            $map[$rawKey] = $strVal;
+
+            $cleanKey = trim($rawKey, '<>{}[ ]');
+            if ($cleanKey === '') {
+                continue;
+            }
+
+            $map['{{'.$cleanKey.'}}'] = $strVal;
+            $map['{'.$cleanKey.'}'] = $strVal;
+            $map['<'.$cleanKey.'>'] = $strVal;
+            $map['['.$cleanKey.']'] = $strVal;
+
+            $titleKey = Str::of($cleanKey)->replace('_', ' ')->title()->toString();
+            $map['['.$titleKey.']'] = $strVal;
+
+            $upperKey = Str::of($cleanKey)->upper()->toString();
+            $map['['.$upperKey.']'] = $strVal;
+        }
+
+        $personVal = $placeholders['person'] ?? $placeholders['name'] ?? $placeholders['user_name'] ?? $placeholders['from_user_name'] ?? $placeholders['creator_name'] ?? null;
+        if ($personVal !== null) {
+            $pStr = (string) $personVal;
+            $map['<person>'] = $pStr;
+            $map['{person}'] = $pStr;
+            $map['{{person}}'] = $pStr;
+            $map['[Person]'] = $pStr;
+            $map['<name>'] = $pStr;
+            $map['{name}'] = $pStr;
+            $map['{{name}}'] = $pStr;
+            $map['[Name]'] = $pStr;
+        }
+
+        $reqVal = $placeholders['requirement_title'] ?? $placeholders['requirement_subject'] ?? $placeholders['subject'] ?? $placeholders['requirement'] ?? null;
+        if ($reqVal !== null) {
+            $rStr = (string) $reqVal;
+            $map['[Requirement Title]'] = $rStr;
+            $map['"[Requirement Title]"'] = '"'.$rStr.'"';
+            $map['[Requirement Subject]'] = $rStr;
+            $map['<requirement_title>'] = $rStr;
+            $map['{requirement_title}'] = $rStr;
+            $map['{{requirement_title}}'] = $rStr;
+        }
+
+        $eventVal = $placeholders['event_title'] ?? $placeholders['event_name'] ?? $placeholders['title'] ?? null;
+        if ($eventVal !== null) {
+            $eStr = (string) $eventVal;
+            $map['[Event Title]'] = $eStr;
+            $map['<event_title>'] = $eStr;
+        }
+
+        $circleVal = $placeholders['circle_name'] ?? $placeholders['circle'] ?? null;
+        if ($circleVal !== null) {
+            $cStr = (string) $circleVal;
+            $map['[Circle Name]'] = $cStr;
+        }
+
+        $amountVal = $placeholders['amount'] ?? null;
+        if ($amountVal !== null) {
+            $map['[Amount]'] = (string) $amountVal;
+        }
+
+        $dateVal = $placeholders['date'] ?? null;
+        if ($dateVal !== null) {
+            $dStr = (string) $dateVal;
+            $map['<date>'] = $dStr;
+            $map['[Date]'] = $dStr;
+        }
+
+        $xVal = $placeholders['x'] ?? $placeholders['count'] ?? null;
+        if ($xVal !== null) {
+            $map['[X]'] = (string) $xVal;
+        }
+
+        $statusVal = $placeholders['status'] ?? null;
+        if ($statusVal !== null) {
+            $map['[Status]'] = (string) $statusVal;
+        }
+
+        $badgeVal = $placeholders['badge_name'] ?? $placeholders['badge'] ?? null;
+        if ($badgeVal !== null) {
+            $map['[Badge Name]'] = (string) $badgeVal;
+        }
+
+        return strtr($template, $map);
     }
 
     public function shouldSendToUser(User $user, string $type, ?string $dedupeKey, ?NotificationCampaign $campaign): bool

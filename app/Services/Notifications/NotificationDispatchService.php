@@ -7,7 +7,6 @@ use App\Models\Notifications\NotificationCampaign;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 class NotificationDispatchService
 {
@@ -78,17 +77,7 @@ class NotificationDispatchService
 
     private function renderTemplate(string $template, array $placeholders): string
     {
-        foreach ($placeholders as $key => $value) {
-            $value = (string) $value;
-            $template = str_replace([
-                '{{'.$key.'}}',
-                '{'.$key.'}',
-                '<'.$key.'>',
-                '['.Str::of($key)->replace('_', ' ')->title().']',
-            ], $value, $template);
-        }
-
-        return $template;
+        return $this->notifications->renderTemplate($template, $placeholders);
     }
 
     private function defaultPlaceholders(?User $actor): array

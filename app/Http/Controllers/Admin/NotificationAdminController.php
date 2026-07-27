@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\UserPushToken;
 use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\Notifications\CampaignService;
+use App\Services\Notifications\NotificationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -928,23 +929,25 @@ class NotificationAdminController extends Controller
 
     private function renderPreview(NotificationCampaign $campaign, array $placeholders): array
     {
-        $map = [
-            '<person>' => $placeholders['person'] ?? 'Rajesh Kumar',
-            '<date>' => $placeholders['date'] ?? now()->format('d M Y'),
-            '[Requirement Title]' => $placeholders['requirement_title'] ?? 'Website Development',
-            '[Event Title]' => $placeholders['event_title'] ?? 'Unity Networking Meet',
-            '[Circle Name]' => $placeholders['circle_name'] ?? 'Greenpreneur Circle',
-            '[Status]' => $placeholders['status'] ?? 'Approved',
-            '[Amount]' => $placeholders['amount'] ?? '₹10,000',
-            '[X]' => $placeholders['x'] ?? '3',
-            '[Badge Name]' => $placeholders['badge_name'] ?? 'Connector',
+        $notificationService = app(NotificationService::class);
+        $defaults = [
+            'person' => $placeholders['person'] ?? 'Rajesh Kumar',
+            'name' => $placeholders['person'] ?? 'Rajesh Kumar',
+            'date' => $placeholders['date'] ?? now()->format('d M Y'),
+            'requirement_title' => $placeholders['requirement_title'] ?? 'Website Development',
+            'event_title' => $placeholders['event_title'] ?? 'Unity Networking Meet',
+            'circle_name' => $placeholders['circle_name'] ?? 'Greenpreneur Circle',
+            'status' => $placeholders['status'] ?? 'Approved',
+            'amount' => $placeholders['amount'] ?? '₹10,000',
+            'x' => $placeholders['x'] ?? '3',
+            'badge_name' => $placeholders['badge_name'] ?? 'Connector',
         ];
 
         return [
-            'push_title' => strtr($campaign->title_template, $map),
-            'push_body' => strtr($campaign->body_template, $map),
-            'email_subject' => strtr((string) $campaign->email_subject_template, $map),
-            'email_body' => strtr((string) $campaign->email_body_template, $map),
+            'push_title' => $notificationService->renderTemplate((string) $campaign->title_template, $defaults),
+            'push_body' => $notificationService->renderTemplate((string) $campaign->body_template, $defaults),
+            'email_subject' => $notificationService->renderTemplate((string) $campaign->email_subject_template, $defaults),
+            'email_body' => $notificationService->renderTemplate((string) $campaign->email_body_template, $defaults),
             'tap_screen' => $campaign->tap_screen,
         ];
     }
