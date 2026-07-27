@@ -189,6 +189,8 @@
     $notificationsActive = request()->routeIs('admin.notifications.*') || request()->is('admin/notifications*');
     $eventsManagementMenu = [
         ['label' => 'Events', 'route' => 'admin.events.index'],
+        ['label' => 'Total Attendance', 'route' => 'admin.events.total-attendance'],
+        ['label' => 'Total Registered', 'route' => 'admin.events.total-registered'],
         ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
         ['label' => 'Event Scan Credentials', 'route' => 'admin.event-scan-credentials.index'],
         ['label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],

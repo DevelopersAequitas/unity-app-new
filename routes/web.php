@@ -323,6 +323,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/event-scan-credentials/{eventScanCredential}/toggle', [EventScanCredentialController::class, 'toggle'])->name('event-scan-credentials.toggle');
         Route::post('/event-scan-credentials/{eventScanCredential}/reset-password', [EventScanCredentialController::class, 'resetPassword'])->name('event-scan-credentials.reset-password');
         Route::get('/events', [EventManagementController::class, 'index'])->name('events.index');
+        Route::get('/events/total-attendance', [EventManagementController::class, 'totalAttendance'])->name('events.total-attendance');
+        Route::get('/events/total-registered', [EventManagementController::class, 'totalRegistered'])->name('events.total-registered');
         Route::get('/event-joining-requests', [EventManagementController::class, 'joiningRequests'])->name('event-joining-requests.index');
         Route::post('/event-joining-requests/{id}/approve', [EventManagementController::class, 'approveJoiningRequest'])->whereUuid('id')->name('event-joining-requests.approve');
         Route::post('/event-joining-requests/{id}/reject', [EventManagementController::class, 'rejectJoiningRequest'])->whereUuid('id')->name('event-joining-requests.reject');

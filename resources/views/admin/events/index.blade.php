@@ -34,24 +34,16 @@
           <div class="kpi-title">Offline Events</div>
           <div class="kpi-icon bg-emerald-50 text-emerald-600"><i class="bi bi-geo-alt"></i></div>
         </div>
-        <div class="kpi-num">{{ $events->getCollection()->where('mode', 'offline')->count() }}</div>
+        <div class="kpi-num">{{ $events->getCollection()->filter(fn ($e) => strtolower((string) $e->mode) === 'offline')->count() }}</div>
       </a>
-      @php
-        $firstEventWithAtt = $events->firstWhere('checked_in_count', '>', 0) ?? $events->first();
-        $totalAttendanceUrl = $firstEventWithAtt ? route('admin.events.attendance', $firstEventWithAtt->id) : route('admin.events.index');
-      @endphp
-      <a href="{{ $totalAttendanceUrl }}" class="kpi-card no-underline">
+      <a href="{{ route('admin.events.total-attendance') }}" class="kpi-card no-underline">
         <div class="kpi-top">
           <div class="kpi-title">Total Attendance</div>
           <div class="kpi-icon bg-emerald-50 text-emerald-600"><i class="bi bi-person-check"></i></div>
         </div>
         <div class="kpi-num">{{ $events->getCollection()->sum('checked_in_count') }}</div>
       </a>
-      @php
-        $firstEventWithReg = $events->firstWhere('registered_count', '>', 0) ?? $events->first();
-        $totalRegisteredUrl = $firstEventWithReg ? route('admin.events.show', $firstEventWithReg->id).'#registrations-section' : route('admin.event-joining-requests.index');
-      @endphp
-      <a href="{{ $totalRegisteredUrl }}" class="kpi-card no-underline">
+      <a href="{{ route('admin.events.total-registered') }}" class="kpi-card no-underline">
         <div class="kpi-top">
           <div class="kpi-title">Total Registered</div>
           <div class="kpi-icon bg-purple-50 text-purple-600"><i class="bi bi-people"></i></div>
@@ -142,17 +134,22 @@
                   {{ $event->circle?->name ?? '-' }}
                 </td>
                 <td class="px-3 py-2.5 text-xs">
-                  @if($event->mode === 'offline')
+                  @php $modeVal = strtolower((string) ($event->mode ?? 'offline')); @endphp
+                  @if($modeVal === 'offline')
                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
                       Offline
                     </span>
-                  @elseif($event->mode === 'online')
+                  @elseif($modeVal === 'online')
                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
                       Online
                     </span>
-                  @else
+                  @elseif($modeVal === 'hybrid')
                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border-purple-200">
                       Hybrid
+                    </span>
+                  @else
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-50 text-gray-700 border-gray-200">
+                      {{ ucfirst($modeVal) }}
                     </span>
                   @endif
                 </td>
