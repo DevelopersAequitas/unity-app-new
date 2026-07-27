@@ -38,8 +38,7 @@
                 <input id="activityFilterTo" type="date" name="to" value="{{ $to }}" class="form-control" placeholder="dd-mm-yyyy" @if($formId) form="{{ $formId }}" @endif>
             </div>
             <div class="col-md-4 d-flex gap-2 justify-content-end">
-                <button type="submit" class="btn btn-primary" @if($formId) form="{{ $formId }}" @endif>Apply</button>
-                <a href="{{ $resetUrl }}" class="btn btn-outline-secondary">Reset</a>
+                <a href="{{ $resetUrl }}" class="btn btn-outline-secondary">Clear</a>
                 @if (!empty($showExport) && !empty($exportUrl))
                     <a href="{{ $exportUrl }}" class="btn btn-outline-primary">Export</a>
                 @endif

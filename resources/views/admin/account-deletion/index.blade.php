@@ -2,49 +2,38 @@
 
 @section('title', 'Account Deletion Requests')
 
+@include('admin.partials.grid-head')
+
 @section('content')
-<div class="container-fluid">
-
-    {{-- ── Page Header ───────────────────────────────────────────── --}}
-    <div class="d-flex justify-content-between align-items-start mb-4">
-        <div>
-            <h4 class="mb-1 fw-bold">
-                <i class="bi bi-person-dash-fill text-danger me-2"></i>Account Deletion Requests
-            </h4>
-            <p class="text-muted small mb-0">Review and manage user requests to delete or deactivate their accounts.</p>
-        </div>
-        <div class="text-end">
-            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 fs-6">
-                <i class="bi bi-shield-exclamation me-1"></i>
-                {{ $requests->total() }} Request{{ $requests->total() !== 1 ? 's' : '' }}
-            </span>
-        </div>
-    </div>
-
-    {{-- ── Flash Messages ─────────────────────────────────────────── --}}
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm" role="alert">
-            <i class="bi bi-check-circle-fill fs-5 flex-shrink-0"></i>
-            <div>{{ session('success') }}</div>
-            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+            {{ session('success') }}
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm" role="alert">
-            <i class="bi bi-exclamation-circle-fill fs-5 flex-shrink-0"></i>
-            <div>{{ session('error') }}</div>
-            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            {{ session('error') }}
         </div>
     @endif
 
-    {{-- ── Filter Bar ──────────────────────────────────────────────── --}}
-    <div class="card shadow-sm mb-4">
-        <div class="card-body py-3">
-            <form method="GET" action="{{ route('admin.account-deletion.index') }}" class="row g-2 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label text-muted small fw-semibold mb-1">Filter by Status</label>
-                    <select name="status" id="status" class="form-select form-select-sm" onchange="this.form.submit()">
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <div>
+                <h2 class="font-display font-semibold text-xs text-rose-500 uppercase tracking-wider m-0">Account Deletion Requests</h2>
+                <p class="text-xs t3 m-0 mt-0.5">Review and manage user requests to delete or deactivate their accounts.</p>
+            </div>
+            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">
+                Total: {{ number_format($requests->total()) }}
+            </span>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="p-3 rounded-lg border bs surface-2">
+            <form method="GET" action="{{ route('admin.account-deletion.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Filter by Status</label>
+                    <select name="status" id="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                         <option value="all"     {{ $status === 'all'     ? 'selected' : '' }}>All Requests</option>
                         <option value="pending" {{ $status === 'pending' ? 'selected' : '' }}>Pending</option>
                         <option value="ongoing" {{ $status === 'ongoing' ? 'selected' : '' }}>Ongoing</option>
@@ -52,39 +41,34 @@
                         <option value="rejected"{{ $status === 'rejected'? 'selected' : '' }}>Rejected</option>
                     </select>
                 </div>
-                <div class="col-auto">
-                    <a href="{{ route('admin.account-deletion.index') }}" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+                <div class="flex gap-2">
+                    <a href="{{ route('admin.account-deletion.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline">
+                        Clear
                     </a>
                 </div>
             </form>
         </div>
-    </div>
 
-    {{-- ── Requests Table ───────────────────────────────────────────── --}}
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" style="min-width: 900px;">
-                    <thead style="background: #f8f9fa; border-bottom: 2px solid #e9ecef;">
-                        <tr>
-                            <th class="ps-4 py-3 text-muted small fw-semibold text-uppercase" style="letter-spacing:.05em;">User</th>
-                            <th class="py-3 text-muted small fw-semibold text-uppercase" style="letter-spacing:.05em;">Email</th>
-                            <th class="py-3 text-muted small fw-semibold text-uppercase" style="letter-spacing:.05em;">Reason</th>
-                            <th class="py-3 text-muted small fw-semibold text-uppercase" style="letter-spacing:.05em;">Request Status</th>
-                            <th class="py-3 text-muted small fw-semibold text-uppercase" style="letter-spacing:.05em;">Submitted</th>
-                            <th class="py-3 pe-4 text-end text-muted small fw-semibold text-uppercase" style="letter-spacing:.05em;">Actions</th>
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">User</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Reason</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Request Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
                         @forelse($requests as $req)
                             @php
-                                // linked_user is resolved by the controller: user_id FK first, then email fallback
                                 $linkedUser        = $req->linked_user ?? null;
                                 $userIsDeactivated = $linkedUser && $linkedUser->trashed();
                                 $userIsActive      = $linkedUser && !$linkedUser->trashed();
 
-                                // Build avatar initials
                                 if ($linkedUser) {
                                     $nameParts = explode(' ', trim($linkedUser->display_name ?? ($linkedUser->first_name . ' ' . $linkedUser->last_name)));
                                     $initials  = strtoupper(substr($nameParts[0] ?? 'U', 0, 1) . substr($nameParts[1] ?? '', 0, 1));
@@ -92,101 +76,73 @@
                                     $initials = '?';
                                 }
 
-                                // Status badge classes
                                 $statusClass = match($req->status) {
-                                    'pending'  => 'bg-warning-subtle text-warning border border-warning-subtle',
-                                    'ongoing'  => 'bg-info-subtle text-info border border-info-subtle',
-                                    'approved' => 'bg-success-subtle text-success border border-success-subtle',
-                                    'rejected' => 'bg-danger-subtle text-danger border border-danger-subtle',
-                                    default    => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
+                                    'pending'  => 'chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200',
+                                    'ongoing'  => 'chip px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200',
+                                    'approved' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200',
+                                    'rejected' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200',
+                                    default    => 'chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200',
                                 };
                             @endphp
-                            <tr style="border-bottom: 1px solid #f1f3f5;">
-                                {{-- User column --}}
-                                <td class="ps-4 py-3">
-                                    <div class="d-flex align-items-center gap-3">
-                                        {{-- Avatar with initials --}}
-                                        <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white flex-shrink-0"
-                                             style="width:40px;height:40px;font-size:.8rem;
-                                                    background:{{ $userIsDeactivated ? '#adb5bd' : ($linkedUser ? '#4361ee' : '#dee2e6') }};">
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-xs">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-full surface-2 text-indigo-600 font-bold flex items-center justify-center border bs text-xs flex-shrink-0">
                                             {{ $initials }}
                                         </div>
                                         <div>
                                             @if($linkedUser)
-                                                <div class="fw-semibold text-dark" style="font-size:.875rem;">
+                                                <div class="font-semibold t1">
                                                     {{ $linkedUser->display_name ?? trim($linkedUser->first_name . ' ' . $linkedUser->last_name) }}
                                                 </div>
-                                                <div class="text-muted" style="font-size:.75rem;">
+                                                <div class="mt-0.5">
                                                     @if($userIsDeactivated)
-                                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size:.65rem;">
-                                                            <i class="bi bi-person-slash me-1"></i>Deactivated
-                                                        </span>
+                                                        <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 border-gray-200">Deactivated</span>
                                                     @else
-                                                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:.65rem;">
-                                                            <i class="bi bi-person-check me-1"></i>Active
-                                                        </span>
+                                                        <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Active</span>
                                                     @endif
                                                 </div>
                                             @else
-                                                <div class="text-muted fw-medium" style="font-size:.875rem;">
+                                                <div class="t2 font-medium">
                                                     {{ $req->email ?? 'Unknown User' }}
                                                 </div>
-                                                <span class="badge bg-light text-secondary border" style="font-size:.65rem;">
-                                                    <i class="bi bi-person-x me-1"></i>No Account
-                                                </span>
+                                                <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 border-gray-200">No Account</span>
                                             @endif
                                         </div>
                                     </div>
                                 </td>
 
-                                {{-- Email column --}}
-                                <td class="py-3" style="font-size:.875rem;">
+                                <td class="px-3 py-2.5 text-xs">
                                     @if($linkedUser)
-                                        <a href="mailto:{{ $linkedUser->email }}" class="text-decoration-none text-primary">
-                                            <i class="bi bi-envelope me-1 opacity-50"></i>{{ $linkedUser->email }}
-                                        </a>
+                                        <a href="mailto:{{ $linkedUser->email }}" class="text-indigo-600 hover:underline no-underline">{{ $linkedUser->email }}</a>
                                     @elseif($req->email)
-                                        <a href="mailto:{{ $req->email }}" class="text-decoration-none text-muted">
-                                            <i class="bi bi-envelope me-1 opacity-50"></i>{{ $req->email }}
-                                        </a>
+                                        <a href="mailto:{{ $req->email }}" class="t2 hover:underline no-underline">{{ $req->email }}</a>
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="t3">—</span>
                                     @endif
                                 </td>
 
-                                {{-- Reason column --}}
-                                <td class="py-3">
-                                    <div class="text-muted text-wrap" style="max-width:280px;font-size:.8rem;line-height:1.5;">
+                                <td class="px-3 py-2.5 text-xs">
+                                    <div class="t2 max-w-[250px] truncate" title="{{ $req->reason }}">
                                         {{ Str::limit($req->reason, 120) }}
                                     </div>
                                 </td>
 
-                                {{-- Request status badge --}}
-                                <td class="py-3">
-                                    <span class="badge {{ $statusClass }} px-2 py-1" style="font-size:.75rem;">
-                                        {{ ucfirst($req->status) }}
-                                    </span>
+                                <td class="px-3 py-2.5 text-xs">
+                                    <span class="{{ $statusClass }}">{{ ucfirst($req->status) }}</span>
                                 </td>
 
-                                {{-- Submitted at --}}
-                                <td class="py-3">
-                                    <div class="text-dark" style="font-size:.8rem;">{{ $req->created_at->format('d M Y') }}</div>
-                                    <div class="text-muted" style="font-size:.72rem;">{{ $req->created_at->format('H:i') }} · {{ $req->created_at->diffForHumans() }}</div>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                    <div class="t1 font-medium">{{ $req->created_at->format('d M Y') }}</div>
+                                    <div class="t3 text-[10px]">{{ $req->created_at->format('H:i') }} · {{ $req->created_at->diffForHumans() }}</div>
                                 </td>
 
-                                {{-- Actions --}}
-                                <td class="py-3 pe-4 text-end">
-                                    <div class="d-flex align-items-center justify-content-end gap-2">
-
-                                        {{-- Request status dropdown --}}
-                                        <form action="{{ route('admin.account-deletion.update-status', $req->id) }}" method="POST">
+                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                    <div class="flex justify-end gap-2 items-center">
+                                        <form action="{{ route('admin.account-deletion.update-status', $req->id) }}" method="POST" class="inline">
                                             @csrf
                                             @method('PATCH')
-                                            <select name="status"
-                                                    class="form-select form-select-sm"
-                                                    style="width:auto;min-width:110px;font-size:.8rem;"
-                                                    onchange="this.form.submit()"
-                                                    title="Change request status">
+                                            <select name="status" class="px-2 py-1 text-xs rounded border bs surface t1 outline-none focus-ring">
                                                 <option value="pending" {{ $req->status === 'pending' ? 'selected' : '' }}>Pending</option>
                                                 <option value="ongoing" {{ $req->status === 'ongoing' ? 'selected' : '' }}>Ongoing</option>
                                                 @if(!in_array($req->status, ['pending', 'ongoing']))
@@ -195,58 +151,26 @@
                                             </select>
                                         </form>
 
-                                        {{-- Account action button: one only, based on real user status --}}
                                         @if($userIsDeactivated)
-                                            <form action="{{ route('admin.account-deletion.activate-account', $req->id) }}"
-                                                  method="POST"
-                                                  onsubmit="return confirm('Activate this user account?\nThey will become visible in all listings again.')">
+                                            <form action="{{ route('admin.account-deletion.activate-account', $req->id) }}" method="POST" class="inline" onsubmit="return confirm('Activate this user account?')">
                                                 @csrf
-                                                <button type="submit"
-                                                        class="btn btn-success btn-sm d-inline-flex align-items-center gap-1"
-                                                        style="white-space:nowrap;font-size:.8rem;"
-                                                        title="Activate Account">
-                                                    <i class="bi bi-person-check-fill"></i> Activate
-                                                </button>
+                                                <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring">Activate</button>
                                             </form>
                                         @elseif($userIsActive)
-                                            <form action="{{ route('admin.account-deletion.deactivate-account', $req->id) }}"
-                                                  method="POST"
-                                                  onsubmit="return confirm('Deactivate this user account?\nThey will be hidden from all listings.\nNo data will be permanently deleted.')">
+                                            <form action="{{ route('admin.account-deletion.deactivate-account', $req->id) }}" method="POST" class="inline" onsubmit="return confirm('Deactivate this user account?')">
                                                 @csrf
-                                                <button type="submit"
-                                                        class="btn btn-warning btn-sm d-inline-flex align-items-center gap-1"
-                                                        style="white-space:nowrap;font-size:.8rem;"
-                                                        title="Deactivate Account">
-                                                    <i class="bi bi-person-dash-fill"></i> Deactivate
-                                                </button>
+                                                <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring">Deactivate</button>
                                             </form>
                                         @else
-                                            <span class="badge bg-light text-secondary border px-2 py-2" style="font-size:.72rem;" title="No user account linked to this request">
-                                                <i class="bi bi-dash-circle me-1"></i>No Account
-                                            </span>
+                                            <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 border-gray-200">No Account</span>
                                         @endif
-
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center py-5">
-                                    <div class="py-4">
-                                        <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center mb-3"
-                                             style="width:64px;height:64px;">
-                                            <i class="bi bi-inbox fs-2 text-secondary"></i>
-                                        </div>
-                                        <h6 class="text-muted fw-semibold">No requests found</h6>
-                                        <p class="text-muted small mb-0">
-                                            @if($status !== 'all')
-                                                No <strong>{{ $status }}</strong> requests at this time.
-                                                <a href="{{ route('admin.account-deletion.index') }}" class="ms-1">View all</a>
-                                            @else
-                                                No account deletion requests have been submitted yet.
-                                            @endif
-                                        </p>
-                                    </div>
+                                <td colspan="6" class="text-center py-8 text-xs t3">
+                                    No account deletion requests found.
                                 </td>
                             </tr>
                         @endforelse
@@ -254,13 +178,10 @@
                 </table>
             </div>
 
-            @if($requests->hasPages())
-                <div class="px-4 py-3 border-top bg-white">
-                    {{ $requests->withQueryString()->links() }}
-                </div>
-            @endif
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $requests->withQueryString()->links() }}
+            </div>
         </div>
     </div>
-
-</div>
 @endsection
+

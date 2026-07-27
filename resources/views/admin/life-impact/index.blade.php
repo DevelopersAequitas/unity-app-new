@@ -2,45 +2,11 @@
 
 @section('title', 'Life Impact')
 
-@push('styles')
-    <style>
-        .life-impact-table-wrapper {
-            width: 100%;
-        }
-
-        .life-impact-table-scroll {
-            width: 100%;
-            overflow-x: auto;
-            overflow-y: visible;
-        }
-
-        .life-impact-table {
-            width: max-content;
-            min-width: 1900px;
-        }
-
-        .life-impact-table thead th {
-            white-space: nowrap;
-            word-break: keep-all;
-        }
-
-        .life-impact-filter-actions {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: nowrap;
-            white-space: nowrap;
-        }
-
-        .life-impact-filter-actions .btn {
-            flex: 0 0 auto;
-        }
-    </style>
-@endpush
+@include('admin.partials.grid-head')
 
 @section('content')
     @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
+        <div class="alert alert-success mb-4">{{ session('success') }}</div>
     @endif
 
     @php
@@ -50,99 +16,99 @@
         ], fn ($value) => filled($value));
         $historyQueryString = $historyDateParams ? '?' . http_build_query($historyDateParams) : '';
         $summaryCards = [
-            ['label' => 'Total Life Impacted', 'value' => $summary['total_life_impacted'] ?? 0, 'class' => 'text-primary'],
-            ['label' => 'Business Deals', 'value' => $summary['business_deals'] ?? 0, 'class' => 'text-success'],
-            ['label' => 'Referrals', 'value' => $summary['referrals'] ?? 0, 'class' => 'text-info'],
-            ['label' => 'Testimonials', 'value' => $summary['testimonials'] ?? 0, 'class' => 'text-warning'],
-            ['label' => 'Other Impact Activities', 'value' => $summary['other_impact_activities'] ?? 0, 'class' => 'text-secondary'],
+            ['label' => 'Total Life Impacted', 'value' => $summary['total_life_impacted'] ?? 0, 'color' => 'indigo'],
+            ['label' => 'Business Deals', 'value' => $summary['business_deals'] ?? 0, 'color' => 'emerald'],
+            ['label' => 'Referrals', 'value' => $summary['referrals'] ?? 0, 'color' => 'blue'],
+            ['label' => 'Testimonials', 'value' => $summary['testimonials'] ?? 0, 'color' => 'amber'],
+            ['label' => 'Other Impact Activities', 'value' => $summary['other_impact_activities'] ?? 0, 'color' => 'purple'],
         ];
     @endphp
 
-    <div class="row g-3 mb-3">
-        @foreach ($summaryCards as $card)
-            <div class="col-12 col-sm-6 col-lg">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body py-3">
-                        <div class="small text-muted">{{ $card['label'] }}</div>
-                        <div class="h4 mb-0 {{ $card['class'] }}">{{ number_format((int) $card['value']) }}</div>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-6">
+        <div>
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Life Impact Overview</h2>
+            <p class="text-xs t3 m-0 mt-0.5">Track peer community contributions, business deals, referrals, and overall life impact metrics.</p>
+        </div>
+
+        {{-- Summary Cards Grid --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            @foreach ($summaryCards as $card)
+                <div class="rounded-xl border bs surface p-3.5 space-y-1">
+                    <div class="text-[11px] t3 uppercase font-semibold tracking-wider">{{ $card['label'] }}</div>
+                    <div class="text-xl font-bold font-display text-{{ $card['color'] }}-600">{{ number_format((int) $card['value']) }}</div>
+                </div>
+            @endforeach
+        </div>
+
+        <div class="border bs rounded-xl p-3.5 surface-2">
+            <div class="flex flex-wrap justify-between items-center gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex items-center gap-1.5">
+                        <label for="perPage" class="text-xs t3 m-0 font-medium">Rows per page:</label>
+                        <select id="perPage" name="per_page" form="lifeImpactFiltersForm" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                            @foreach ([10, 20, 25, 50, 100] as $size)
+                                <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="date" id="lifeImpactFrom" name="from" form="lifeImpactFiltersForm" value="{{ $filters['from'] ?? '' }}" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                        <span class="t3 text-xs">to</span>
+                        <input type="date" id="lifeImpactTo" name="to" form="lifeImpactFiltersForm" value="{{ $filters['to'] ?? '' }}" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                    </div>
+                    <div class="flex flex-wrap gap-1">
+                        @foreach ($quickDateRanges as $key => $range)
+                            <a
+                                href="{{ route('admin.life-impact.index', array_filter(['q' => $filters['q'] ?? '', 'circle_id' => $filters['circle_id'] ?? 'all', 'per_page' => $filters['per_page'] ?? 20, 'quick_date' => $key])) }}"
+                                class="px-2.5 py-1 rounded-lg text-xs font-semibold no-underline transition {{ ($filters['quick_date'] ?? '') === $key ? 'bg-indigo-600 text-white' : 'border bs surface t2 hover:t1' }}"
+                            >{{ $range['label'] }}</a>
+                        @endforeach
+                    </div>
+                    <div class="flex gap-2">
+                        <a href="{{ route('admin.life-impact.index') }}" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
+                        <button type="button" class="px-3 py-1 rounded-md border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition js-life-impact-export">Export</button>
                     </div>
                 </div>
-            </div>
-        @endforeach
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="d-flex flex-wrap justify-content-between align-items-end p-3 gap-3 border-bottom">
-            <div class="d-flex flex-wrap align-items-end gap-2">
-                <div>
-                    <label for="perPage" class="form-label mb-1 small text-muted">Rows per page</label>
-                    <select id="perPage" name="per_page" form="lifeImpactFiltersForm" class="form-select form-select-sm" style="width: 90px;">
-                        @foreach ([10, 20, 25, 50, 100] as $size)
-                            <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
-                        @endforeach
-                    </select>
+                <div class="text-xs t3">
+                    @if($members->total() > 0)
+                        Showing <span class="font-semibold t1">{{ $members->firstItem() }}-{{ $members->lastItem() }}</span> of <span class="font-semibold t1">{{ $members->total() }}</span> records
+                    @else
+                        No records found
+                    @endif
+                    @if($dateFilterActive)
+                        <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border-amber-200 ml-1">Date filtered</span>
+                    @endif
                 </div>
-                <div>
-                    <label class="form-label mb-1 small text-muted">From Date</label>
-                    <input type="date" id="lifeImpactFrom" name="from" form="lifeImpactFiltersForm" value="{{ $filters['from'] ?? '' }}" class="form-control form-control-sm">
-                </div>
-                <div>
-                    <label class="form-label mb-1 small text-muted">To Date</label>
-                    <input type="date" id="lifeImpactTo" name="to" form="lifeImpactFiltersForm" value="{{ $filters['to'] ?? '' }}" class="form-control form-control-sm">
-                </div>
-                <div class="d-flex flex-wrap gap-1">
-                    @foreach ($quickDateRanges as $key => $range)
-                        <a
-                            href="{{ route('admin.life-impact.index', array_filter(['q' => $filters['q'] ?? '', 'circle_id' => $filters['circle_id'] ?? 'all', 'per_page' => $filters['per_page'] ?? 20, 'quick_date' => $key])) }}"
-                            class="btn btn-sm {{ ($filters['quick_date'] ?? '') === $key ? 'btn-primary' : 'btn-outline-primary' }}"
-                        >{{ $range['label'] }}</a>
-                    @endforeach
-                </div>
-                <div class="d-flex gap-2">
-                    <button type="submit" form="lifeImpactFiltersForm" class="btn btn-sm btn-primary">Apply</button>
-                    <a href="{{ route('admin.life-impact.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-                    <button type="button" class="btn btn-sm btn-outline-primary js-life-impact-export">Export</button>
-                </div>
-            </div>
-            <div class="small text-muted">
-                @if($members->total() > 0)
-                    Records {{ $members->firstItem() }} to {{ $members->lastItem() }} of {{ $members->total() }}
-                @else
-                    No records found
-                @endif
-                @if($dateFilterActive)
-                    <span class="badge bg-light text-dark border ms-2">Date filtered</span>
-                @endif
             </div>
         </div>
 
-        <div class="life-impact-table-wrapper">
-            <div class="life-impact-table-scroll">
-                <table class="table mb-0 align-middle table-hover life-impact-table">
-                    <thead class="table-light">
-                        <tr>
-                            <th style="width: 300px; min-width: 300px;">Peer Name</th>
-                            <th class="text-center" style="width: 150px; min-width: 150px;"><span class="d-inline-block">Total Life<br>Impacted</span></th>
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 280px;">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 140px;">Total Life Impacted</th>
                             @foreach ($categories as $category)
-                                <th class="text-center" style="width: 130px; min-width: 130px;">
-                                    <span class="d-inline-block">{!! str_replace(' ', '<br>', e($category['label'])) !!}</span>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 120px;">
+                                    {{ $category['label'] }}
                                 </th>
                             @endforeach
                         </tr>
 
-                        <tr class="align-middle">
-                            <th>
-                                <div class="d-flex flex-column gap-2">
+                        <tr class="surface-2 border-b bs align-middle">
+                            <th class="px-3 py-2">
+                                <div class="flex flex-col gap-1.5">
                                     <input
                                         id="lifeImpactQ"
                                         type="text"
                                         name="q"
                                         form="lifeImpactFiltersForm"
-                                        class="form-control form-control-sm"
-                                        placeholder="Peer/Company/City"
+                                        class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal"
+                                        placeholder="Peer / Company / City"
                                         value="{{ $filters['q'] }}"
                                     >
-                                    <select id="lifeImpactCircle" name="circle_id" form="lifeImpactFiltersForm" class="form-select form-select-sm js-searchable-select" data-placeholder="All Circles">
+                                    <select id="lifeImpactCircle" name="circle_id" form="lifeImpactFiltersForm" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-searchable-select" data-placeholder="All Circles">
                                         <option value="all">All Circles</option>
                                         @foreach ($circles as $circle)
                                             <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
@@ -151,20 +117,19 @@
                                 </div>
                             </th>
                             @foreach (range(1, count($categories)) as $index)
-                                <th class="text-center text-muted small">—</th>
+                                <th class="text-center t3 text-xs">-</th>
                             @endforeach
-                            <th class="text-end">
-                                <form id="lifeImpactFiltersForm" method="GET" class="life-impact-filter-actions justify-content-end">
-                                    <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-                                    <a href="{{ route('admin.life-impact.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-                                    <button type="button" id="lifeImpactExportBtn" class="btn btn-sm btn-outline-primary js-life-impact-export">Export</button>
+                            <th class="px-3 py-2 text-right">
+                                <form id="lifeImpactFiltersForm" method="GET" class="flex items-center justify-end gap-1.5 flex-nowrap">
+                                    <a href="{{ route('admin.life-impact.index') }}" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
+                                    <button type="button" id="lifeImpactExportBtn" class="px-3 py-1 rounded-md border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition js-life-impact-export">Export</button>
                                 </form>
                                 <form id="lifeImpactExportForm" method="GET" action="{{ route('admin.life-impact.export') }}" class="d-none"></form>
                             </th>
                         </tr>
                     </thead>
 
-                    <tbody>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
                         @forelse ($members as $member)
                             @php
                                 $stats = $impactStats[(string) $member->id] ?? [];
@@ -172,31 +137,31 @@
                                     ? (int) ($stats['total_life_impacted'] ?? 0)
                                     : (int) ($member->life_impacted_count ?? 0);
                             @endphp
-                            <tr>
-                                <td>
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5">
                                     @include('admin.shared.peer_card', ['user' => $member])
                                 </td>
-                                <td class="text-center">
-                                    <a href="{{ route('admin.life-impact.history', $member) . $historyQueryString }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">{{ number_format($totalLifeImpacted) }}</a>
+                                <td class="px-3 py-2.5 text-center">
+                                    <a href="{{ route('admin.life-impact.history', $member) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 no-underline" target="_blank" rel="noopener">{{ number_format($totalLifeImpacted) }}</a>
                                 </td>
                                 @foreach (array_keys($categories) as $key)
-                                    <td class="text-center">
-                                        <a href="{{ route('admin.life-impact.history.category', [$member, $key]) . $historyQueryString }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">{{ number_format((int) ($stats[$key] ?? 0)) }}</a>
+                                    <td class="px-3 py-2.5 text-center">
+                                        <a href="{{ route('admin.life-impact.history.category', [$member, $key]) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold t2 hover:t1 no-underline" target="_blank" rel="noopener">{{ number_format((int) ($stats[$key] ?? 0)) }}</a>
                                     </td>
                                 @endforeach
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ count($categories) + 2 }}" class="text-center text-muted py-4">No members found.</td>
+                                <td colspan="{{ count($categories) + 2 }}" class="text-center py-8 text-xs t3">No members found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-        </div>
 
-        <div class="p-3">
-            {{ $members->links() }}
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $members->links() }}
+            </div>
         </div>
     </div>
 
@@ -258,3 +223,4 @@
         </script>
     @endpush
 @endsection
+

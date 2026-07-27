@@ -261,9 +261,8 @@
                 <label class="form-label small text-muted">To</label>
                 <input class="form-control" type="date" name="date_to" value="{{ request('date_to') }}">
             </div>
-            <div class="col-12 d-flex gap-2">
-                <button class="btn btn-outline-primary">Filter</button>
-                <a class="btn btn-link" href="{{ route('admin.event-joining-requests.index') }}">Reset filters</a>
+            <div class="col-12 d-flex justify-content-end">
+                <a class="btn btn-link" href="{{ route('admin.event-joining-requests.index') }}">Clear</a>
             </div>
         </div>
     </form>

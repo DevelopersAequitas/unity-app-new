@@ -2,6 +2,8 @@
 
 @section('title', 'Circle Joining Requests')
 
+@include('admin.partials.grid-head')
+
 @php
     $statusLabels = [
         'pending_cd_approval' => 'Pending for CD Approval',
@@ -18,92 +20,140 @@
 @endphp
 
 @section('content')
-<div class="container-fluid">
-    <div class="card mb-3"><div class="card-body">
-        <form method="GET" class="row g-2">
-            <div class="col-md-2"><input type="text" name="search" class="form-control" placeholder="Search peer/email/phone/company" value="{{ $filters['search'] ?? '' }}"></div>
-            <div class="col-md-2"><select name="circle_id" class="form-select js-no-searchable-select"><option value="">All Circles</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '')===$circle->id)>{{ $circle->name }}</option>@endforeach</select></div>
-            <div class="col-md-2"><select name="circle_category_id" class="form-select js-no-searchable-select"><option value="">All Categories</option>@foreach($categories as $cat)<option value="{{ $cat->id }}" @selected(($filters['circle_category_id'] ?? '')===(string)$cat->id)>{{ $cat->name }}</option>@endforeach</select></div>
-            <div class="col-md-2"><select name="status" class="form-select js-no-searchable-select"><option value="">All Statuses</option>@foreach(array_keys($statusLabels) as $status)<option value="{{ $status }}" @selected(($filters['status'] ?? '')===$status)>{{ $statusLabels[$status] }}</option>@endforeach</select></div>
-            <div class="col-md-1.5" style="width: 12.5%;"><input type="date" name="date_from" class="form-control" value="{{ $filters['date_from'] ?? '' }}"></div>
-            <div class="col-md-1.5" style="width: 12.5%;"><input type="date" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}"></div>
-            <div class="col-md-1"><button class="btn btn-primary w-100">Apply</button></div>
+<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+    <div class="flex flex-wrap justify-between items-center gap-3">
+        <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Circle Joining Requests</h2>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="p-3 rounded-lg border bs surface-2">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2.5 items-end">
+            <div>
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+                <input type="text" name="search" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer/email/phone" value="{{ $filters['search'] ?? '' }}">
+            </div>
+            <div>
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Circle</label>
+                <select name="circle_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring"><option value="">All Circles</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '')===$circle->id)>{{ $circle->name }}</option>@endforeach</select>
+            </div>
+            <div>
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Category</label>
+                <select name="circle_category_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring"><option value="">All Categories</option>@foreach($categories as $cat)<option value="{{ $cat->id }}" @selected(($filters['circle_category_id'] ?? '')===(string)$cat->id)>{{ $cat->name }}</option>@endforeach</select>
+            </div>
+            <div>
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
+                <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring"><option value="">All Statuses</option>@foreach(array_keys($statusLabels) as $status)<option value="{{ $status }}" @selected(($filters['status'] ?? '')===$status)>{{ $statusLabels[$status] }}</option>@endforeach</select>
+            </div>
+            <div>
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">From</label>
+                <input type="date" name="date_from" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['date_from'] ?? '' }}">
+            </div>
+            <div>
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">To</label>
+                <input type="date" name="date_to" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['date_to'] ?? '' }}">
+            </div>
+            <div class="flex justify-end">
+                <a href="{{ route('admin.circle-join-requests.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline">Clear</a>
+            </div>
         </form>
-    </div></div>
-
-    <div class="card-activities-wrapper"><div class="table-responsive">
-        <table class="table table-premium mb-0 align-middle">
-            <thead><tr><th>Submitted At</th><th>Peer</th><th>Category</th><th>Reason for Joining</th><th>Status</th><th>DED Approval</th><th>Payment</th><th class="text-end">Actions</th></tr></thead>
-            <tbody>
-            @forelse($requests as $row)
-                <tr>
-                    <td>{{ optional($row->requested_at)->format('d M Y H:i') }}</td>
-                    <td>
-                        @include('admin.partials.peer_identity', ['user' => $row->user])
-                    </td>
-                    <td>
-                        @if($row->circleCategory)
-                            <div class="fw-semibold text-dark">Category: {{ $row->circleCategory->name }}</div>
-                            <div class="small text-muted mt-1" style="font-size: 0.75rem;">Category ID: {{ $row->circleCategory->id }}</div>
-                        @else
-                            <div class="text-muted">—</div>
-                        @endif
-                    </td>
-                    <td>{{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 50) }}</td>
-                    <td>
-                        <span class="badge text-bg-secondary">{{ $statusLabels[$row->status] ?? $row->status }}</span>
-                        @if($row->status === 'rejected_by_cd' && $row->cd_rejection_reason)
-                            <div class="small text-danger mt-1">Reason: {{ \Illuminate\Support\Str::limit((string) $row->cd_rejection_reason, 60) }}</div>
-                        @elseif($row->status === 'rejected_by_id' && $row->id_rejection_reason)
-                            <div class="small text-danger mt-1">Reason: {{ \Illuminate\Support\Str::limit((string) $row->id_rejection_reason, 60) }}</div>
-                        @elseif($row->status === 'circle_member')
-                            <div class="small text-success mt-1">Payment completed</div>
-                        @endif
-                    </td>
-                    <td>
-                        @php($dedApprovalStatus = $row->effectiveDedApprovalStatus())
-                        @if($dedApprovalStatus === 'approved')
-                            <span class="badge text-bg-success">Approved</span>
-                            <div class="small text-success mt-1">Approved{{ $row->dedApprovedBy ? ' by ' . $row->dedApprovedBy->adminDisplayName() : ' by DED' }}</div>
-                        @elseif($dedApprovalStatus === 'rejected')
-                            <span class="badge text-bg-danger">Rejected</span>
-                        @else
-                            <span class="badge text-bg-warning">Pending</span>
-                        @endif
-                    </td>
-                    <td>
-                        @php($paymentStatus = $row->paymentStatusLabel())
-                        <span class="badge {{ $paymentStatus === 'Paid' ? 'text-bg-success' : ($paymentStatus === 'Unpaid' ? 'text-bg-warning' : 'text-bg-secondary') }}">{{ $paymentStatus }}</span>
-                    </td>
-                    <td class="text-end">
-                        <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="btn btn-sm btn-outline-primary">Review</a>
-
-                        @if($row->can_approve_cd)
-                            <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="d-inline">@csrf<button class="btn btn-sm btn-success">Approve</button></form>
-                            <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="d-inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="btn btn-sm btn-outline-danger">Reject</button></form>
-                        @endif
-
-                        @if($row->can_approve_id)
-                            <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="d-inline">@csrf<button class="btn btn-sm btn-success">Approve</button></form>
-                            <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="d-inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="btn btn-sm btn-outline-danger">Reject</button></form>
-                        @endif
-
-                        @if($row->can_approve_ded)
-                            <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="d-inline">@csrf<button class="btn btn-sm btn-success">Approve</button></form>
-                            <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="d-inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button class="btn btn-sm btn-outline-danger">Reject</button></form>
-                        @endif
-                    </td>
-                </tr>
-            @empty
-                <tr><td colspan="10" class="text-center text-muted">No requests found.</td></tr>
-            @endforelse
-            </tbody>
-        </table>
     </div>
-    <div class="p-3 border-top">
-        {{ $requests->links() }}
-    </div>
+
+    <div class="rounded-xl border bs surface overflow-hidden">
+        <div class="overflow-x-auto relative">
+            <table class="min-w-full border-collapse text-[13px]">
+                <thead>
+                    <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Category</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Reason for Joining</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">DED Approval</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Payment</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                    @forelse($requests as $row)
+                        <tr class="hover:surface-2 transition border-b bs">
+                            <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ optional($row->requested_at)->format('d M Y H:i') }}</td>
+                            <td class="px-3 py-2.5 text-xs">
+                                @include('admin.partials.peer_identity', ['user' => $row->user])
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t2">
+                                @if($row->circleCategory)
+                                    <div class="font-semibold t1 text-[12px]">Category: {{ $row->circleCategory->name }}</div>
+                                    <div class="t3 text-[10px] mt-0.5">ID: {{ $row->circleCategory->id }}</div>
+                                @else
+                                    <div class="t3">—</div>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[200px] truncate" title="{{ $row->reason_for_joining }}">
+                                {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 50) }}
+                            </td>
+                            <td class="px-3 py-2.5 text-xs">
+                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $statusLabels[$row->status] ?? $row->status }}</span>
+                                @if($row->status === 'rejected_by_cd' && $row->cd_rejection_reason)
+                                    <div class="t3 text-[10px] text-rose-600 mt-0.5">Reason: {{ \Illuminate\Support\Str::limit((string) $row->cd_rejection_reason, 60) }}</div>
+                                @elseif($row->status === 'rejected_by_id' && $row->id_rejection_reason)
+                                    <div class="t3 text-[10px] text-rose-600 mt-0.5">Reason: {{ \Illuminate\Support\Str::limit((string) $row->id_rejection_reason, 60) }}</div>
+                                @elseif($row->status === 'circle_member')
+                                    <div class="t3 text-[10px] text-emerald-600 mt-0.5">Payment completed</div>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2.5 text-xs">
+                                @php($dedApprovalStatus = $row->effectiveDedApprovalStatus())
+                                @if($dedApprovalStatus === 'approved')
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Approved</span>
+                                    <div class="t3 text-[10px] text-emerald-600 mt-0.5">Approved{{ $row->dedApprovedBy ? ' by ' . $row->dedApprovedBy->adminDisplayName() : ' by DED' }}</div>
+                                @elseif($dedApprovalStatus === 'rejected')
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">Rejected</span>
+                                @else
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">Pending</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2.5 text-xs">
+                                @php($paymentStatus = $row->paymentStatusLabel())
+                                @if($paymentStatus === 'Paid')
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Paid</span>
+                                @elseif($paymentStatus === 'Unpaid')
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">Unpaid</span>
+                                @else
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $paymentStatus }}</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                <div class="flex justify-end gap-1.5 items-center">
+                                    <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">Review</a>
+
+                                    @if($row->can_approve_cd)
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring">Reject</button></form>
+                                    @endif
+
+                                    @if($row->can_approve_id)
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring">Reject</button></form>
+                                    @endif
+
+                                    @if($row->can_approve_ded)
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring">Reject</button></form>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="8" class="text-center py-8 text-xs t3">No requests found.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+            {{ $requests->links() }}
+        </div>
     </div>
 </div>
 @include('admin.circle_join_requests.partials.ded_approval_modal')
 @endsection
+

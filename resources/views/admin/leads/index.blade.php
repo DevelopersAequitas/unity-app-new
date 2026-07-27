@@ -2,24 +2,7 @@
 
 @section('title', $resource['title'])
 
-@push('styles')
-    <style>
-        .table-responsive-horizontal {
-            width: 100%;
-            overflow-x: auto;
-        }
-
-        .table-responsive-horizontal table {
-            min-width: 1200px;
-        }
-
-        .scroll-cell {
-            max-width: 150px;
-            overflow-x: auto;
-            white-space: nowrap;
-        }
-    </style>
-@endpush
+@include('admin.partials.grid-head')
 
 @section('content')
     @php
@@ -47,11 +30,11 @@
 
         $statusBadgeClass = static function (string $status): string {
             return match (strtolower(trim($status))) {
-                'approved', 'active', 'completed' => 'bg-success-subtle text-success border border-success-subtle',
-                'rejected', 'failed', 'inactive' => 'bg-danger-subtle text-danger border border-danger-subtle',
-                'pending', 'in_review' => 'bg-warning-subtle text-warning border border-warning-subtle',
-                'new' => 'bg-info-subtle text-info border border-info-subtle',
-                default => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
+                'approved', 'active', 'completed' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200',
+                'rejected', 'failed', 'inactive' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200',
+                'pending', 'in_review' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200',
+                'new' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200',
+                default => 'chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200',
             };
         };
 
@@ -98,114 +81,116 @@
 
     <form id="leadFiltersForm" method="GET" action="{{ route($resource['index_route']) }}"></form>
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <h1 class="h4 mb-0">{{ $resource['menu_label'] }}</h1>
-        <span class="badge bg-light text-dark border">Total: {{ number_format($items->total()) }}</span>
-    </div>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">{{ $resource['menu_label'] }}</h2>
+            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total: {{ number_format($items->total()) }}</span>
+        </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search</label>
-                    <input type="text" name="search" form="leadFiltersForm" value="{{ $filters['search'] }}" class="form-control" placeholder="Search by keyword">
+        <!-- Filter Card -->
+        <div class="p-3 rounded-lg border bs surface-2">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+                    <input type="text" name="search" form="leadFiltersForm" value="{{ $filters['search'] }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search by keyword">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">Status</label>
-                    <select name="status" form="leadFiltersForm" class="form-select">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
+                    <select name="status" form="leadFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                         <option value="all" @selected($filters['status'] === 'all')>All</option>
                         @foreach ($statuses as $status)
                             <option value="{{ $status }}" @selected($filters['status'] === $status)>{{ ucfirst((string) $status) }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label small text-muted">From Date</label>
-                    <input type="date" name="from_date" form="leadFiltersForm" value="{{ $filters['from_date'] }}" class="form-control">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">From Date</label>
+                    <input type="date" name="from_date" form="leadFiltersForm" value="{{ $filters['from_date'] }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label small text-muted">To Date</label>
-                    <input type="date" name="to_date" form="leadFiltersForm" value="{{ $filters['to_date'] }}" class="form-control">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">To Date</label>
+                    <input type="date" name="to_date" form="leadFiltersForm" value="{{ $filters['to_date'] }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                 </div>
-                <div class="col-md-1 d-flex flex-column gap-2">
-                    <button type="submit" form="leadFiltersForm" class="btn btn-primary">Apply</button>
-                    <a href="{{ route($resource['index_route']) }}" class="btn btn-outline-secondary">Reset</a>
-                </div>
+            </div>
+            <div class="flex justify-end mt-2.5">
+                <button type="button" onclick="clearAdminFilters(event, 'leadFiltersForm')" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center">Clear</button>
+            </div>
+        </div>
+
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            @foreach ($resource['columns'] as $column)
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" @if (in_array($column, $scrollableColumns, true)) style="min-width:150px;" @endif>{{ str_replace('_', ' ', ucfirst($column)) }}</th>
+                            @endforeach
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Action</th>
+                        </tr>
+                        <tr class="surface-2 border-b bs filter-row">
+                            @foreach ($resource['columns'] as $column)
+                                @php
+                                    $filterKey = $columnFilterMap[$column] ?? null;
+                                    $canRenderFilter = $filterKey && array_key_exists($filterKey, $filters) && ! in_array($filterKey, $renderedFilterKeys, true);
+                                @endphp
+                                <th class="px-2 py-1">
+                                    @if ($canRenderFilter)
+                                        @php $renderedFilterKeys[] = $filterKey; @endphp
+                                        <input
+                                            type="text"
+                                            name="{{ $filterKey }}"
+                                            form="leadFiltersForm"
+                                            class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"
+                                            placeholder="{{ $columnFilterLabels[$filterKey] ?? 'Filter' }}"
+                                            value="{{ $filters[$filterKey] ?? '' }}"
+                                        >
+                                    @else
+                                        <span class="text-center t3 block">—</span>
+                                    @endif
+                                </th>
+                            @endforeach
+                            <th class="px-2 py-1">
+                                <div class="flex justify-end">
+                                    <button type="button" onclick="clearAdminFilters(event, 'leadFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse ($items as $item)
+                            <tr class="hover:surface-2 transition border-b bs">
+                                @foreach ($resource['columns'] as $column)
+                                    @php
+                                        $isLongText = in_array($column, $resource['long_text_columns'], true);
+                                        $value = data_get($item, $column);
+                                    @endphp
+                                    <td class="px-3 py-2.5 text-xs">
+                                        @if ($column === 'status')
+                                            <span class="{{ $statusBadgeClass((string) $value) }}">{{ $formatValue($value, $column) }}</span>
+                                        @elseif ($column === 'id')
+                                            <span class="font-mono text-xs t3">{{ $formatValue($value, $column) }}</span>
+                                        @else
+                                            <span class="t1" @if($isLongText) title="{{ (string) $value }}" @endif>{{ $formatValue($value, $column, $isLongText) }}</span>
+                                        @endif
+                                    </td>
+                                @endforeach
+                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                    <a href="{{ route($resource['show_route'], $item->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">View</a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="{{ count($resource['columns']) + 1 }}" class="text-center py-8 text-xs t3">No records found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $items->links() }}
             </div>
         </div>
     </div>
-
-    <div class="card shadow-sm">
-        <div class="table-responsive-horizontal">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        @foreach ($resource['columns'] as $column)
-                            <th @if (in_array($column, $scrollableColumns, true)) style="min-width:150px;" @endif>{{ str_replace('_', ' ', ucfirst($column)) }}</th>
-                        @endforeach
-                        <th class="text-end">Action</th>
-                    </tr>
-                    <tr>
-                        @foreach ($resource['columns'] as $column)
-                            @php
-                                $filterKey = $columnFilterMap[$column] ?? null;
-                                $canRenderFilter = $filterKey && array_key_exists($filterKey, $filters) && ! in_array($filterKey, $renderedFilterKeys, true);
-                            @endphp
-                            <th>
-                                @if ($canRenderFilter)
-                                    @php $renderedFilterKeys[] = $filterKey; @endphp
-                                    <input
-                                        type="text"
-                                        name="{{ $filterKey }}"
-                                        form="leadFiltersForm"
-                                        class="form-control form-control-sm"
-                                        placeholder="{{ $columnFilterLabels[$filterKey] ?? 'Filter' }}"
-                                        value="{{ $filters[$filterKey] ?? '' }}"
-                                    >
-                                @endif
-                            </th>
-                        @endforeach
-                        <th class="text-end">
-                            <div class="d-inline-flex align-items-center gap-2" style="white-space:nowrap;">
-                                <button type="submit" form="leadFiltersForm" class="btn btn-sm btn-primary">Apply</button>
-                                <a href="{{ route($resource['index_route']) }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($items as $item)
-                        <tr>
-                            @foreach ($resource['columns'] as $column)
-                                @php
-                                    $isLongText = in_array($column, $resource['long_text_columns'], true);
-                                    $value = data_get($item, $column);
-                                @endphp
-                                <td @if (in_array($column, $scrollableColumns, true)) class="scroll-cell" @endif>
-                                    @if ($column === 'status')
-                                        <span class="badge {{ $statusBadgeClass((string) $value) }}">{{ $formatValue($value, $column) }}</span>
-                                    @elseif ($column === 'id')
-                                        <span class="text-monospace small">{{ $formatValue($value, $column) }}</span>
-                                    @else
-                                        <span @if($isLongText) title="{{ (string) $value }}" @endif>{{ $formatValue($value, $column, $isLongText) }}</span>
-                                    @endif
-                                </td>
-                            @endforeach
-                            <td class="text-end">
-                                <a href="{{ route($resource['show_route'], $item->id) }}" class="btn btn-sm btn-outline-primary">View</a>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="{{ count($resource['columns']) + 1 }}" class="text-center text-muted">No records found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="mt-3">
-        {{ $items->links() }}
-    </div>
 @endsection
+

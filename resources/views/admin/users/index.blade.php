@@ -467,9 +467,9 @@
         <span class="kbd absolute right-2.5 top-1/2 -translate-y-1/2">/</span>
       </div>
 
-      <button onclick="clearFilters()" class="chip !text-[12.5px]" title="Reset all filters back to default">
+      <button onclick="clearFilters()" class="chip !text-[12.5px] border border-current" title="Clear all filters">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        Reset Filters
+        Clear
       </button>
 
       <div class="ml-auto flex items-center gap-2">
@@ -739,7 +739,14 @@
                 </div>
                 <div class="col-resize-handle"></div>
               </th>
-              <th class="th-cell surface-2 border-b bs px-3 py-3 text-center" style="min-width:100px;">Actions</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:100px;">
+                <div class="font-semibold uppercase tracking-wider text-[11px] t3 mb-1.5">Actions</div>
+                <div>
+                  <button type="button" onclick="clearFilters()" class="w-full px-2.5 py-1 text-[11px] font-semibold rounded border bs t2 hover:t1 hover:surface-3 transition bg-transparent cursor-pointer">
+                    Clear
+                  </button>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody id="table-body"><!-- rows injected by JS --></tbody>
@@ -1253,6 +1260,21 @@
       applyFilters();
     }
 
+    function formatDateDMY(date) {
+      const day = String(date.getDate()).padStart(2, '0');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[date.getMonth()];
+      const year = date.getFullYear();
+      return `${day} ${month} ${year}`;
+    }
+
+    function formatMonthMY(date) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[date.getMonth()];
+      const year = date.getFullYear();
+      return `${month} ${year}`;
+    }
+
     function updateSummaryMetrics() {
       const totalNum = members.length;
       document.getElementById('kpi-total-num').textContent = totalNum;
@@ -1262,19 +1284,19 @@
       document.getElementById('kpi-active-num').textContent = activeNum;
 
       // New Today / Month
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const thisMonthStr = new Date().toISOString().slice(0, 7);
+      const todayStr = formatDateDMY(new Date());
+      const thisMonthStr = formatMonthMY(new Date());
       
-      const newToday = members.filter(m => m.joined && m.joined.startsWith(todayStr)).length;
-      const newMonth = members.filter(m => m.joined && m.joined.startsWith(thisMonthStr)).length;
+      const newToday = members.filter(m => m.joined && m.joined === todayStr).length;
+      const newMonth = members.filter(m => m.joined && m.joined.endsWith(thisMonthStr)).length;
       
       document.getElementById('kpi-newtoday-num').textContent = newToday;
       document.getElementById('kpi-newtoday-trend').textContent = `+${newToday}`;
       document.getElementById('kpi-newmonth-num').textContent = newMonth;
       
       // Renewals
-      const renewedToday = members.filter(m => m.lastPaymentDate && m.lastPaymentDate.startsWith(todayStr) && m.renewalCount > 0).length;
-      const renewedMonth = members.filter(m => m.lastPaymentDate && m.lastPaymentDate.startsWith(thisMonthStr) && m.renewalCount > 0).length;
+      const renewedToday = members.filter(m => m.lastPaymentDate && m.lastPaymentDate === todayStr && m.renewalCount > 0).length;
+      const renewedMonth = members.filter(m => m.lastPaymentDate && m.lastPaymentDate.endsWith(thisMonthStr) && m.renewalCount > 0).length;
       document.getElementById('kpi-renewtoday-num').textContent = renewedToday;
       document.getElementById('kpi-renewmonth-num').textContent = renewedMonth;
 
@@ -1622,8 +1644,22 @@
         // Joined dates filter inputs
         const joinedStart = document.getElementById('f-joined-start')?.value;
         const joinedEnd = document.getElementById('f-joined-end')?.value;
-        if (joinedStart && m.joined && m.joined < joinedStart) return false;
-        if (joinedEnd && m.joined && m.joined > joinedEnd) return false;
+        if (m.joined && m.joined !== '—') {
+          const joinedDate = new Date(m.joined);
+          joinedDate.setHours(0,0,0,0);
+          if (joinedStart) {
+            const startDate = new Date(joinedStart);
+            startDate.setHours(0,0,0,0);
+            if (joinedDate < startDate) return false;
+          }
+          if (joinedEnd) {
+            const endDate = new Date(joinedEnd);
+            endDate.setHours(0,0,0,0);
+            if (joinedDate > endDate) return false;
+          }
+        } else if (joinedStart || joinedEnd) {
+          return false;
+        }
 
         // Header column filters
         if(currentFilters.industry && !m.industry.toLowerCase().includes(currentFilters.industry.toLowerCase())) return false;
@@ -2077,8 +2113,8 @@
           if (currentFilters.view === 'pending' && !(m.status.n.toLowerCase().includes('pending') || m.status.n.toLowerCase().includes('awaiting'))) return false;
           if (currentFilters.view === 'expiring' && (m.expiryDays < 0 || m.expiryDays > 30)) return false;
           if (currentFilters.view === 'new') {
-            const thisMonth = new Date().toISOString().slice(0, 7);
-            if (!m.joined || !m.joined.startsWith(thisMonth)) return false;
+            const thisMonthStr = formatMonthMY(new Date());
+            if (!m.joined || !m.joined.endsWith(thisMonthStr)) return false;
           }
 
           if (currentFilters.quick === 'expiring' && (m.expiryDays < 0 || m.expiryDays > 30)) return false;
@@ -2093,8 +2129,22 @@
 
           const joinedStart = document.getElementById('f-joined-start')?.value;
           const joinedEnd = document.getElementById('f-joined-end')?.value;
-          if (joinedStart && m.joined && m.joined < joinedStart) return false;
-          if (joinedEnd && m.joined && m.joined > joinedEnd) return false;
+          if (m.joined && m.joined !== '—') {
+            const joinedDate = new Date(m.joined);
+            joinedDate.setHours(0,0,0,0);
+            if (joinedStart) {
+              const startDate = new Date(joinedStart);
+              startDate.setHours(0,0,0,0);
+              if (joinedDate < startDate) return false;
+            }
+            if (joinedEnd) {
+              const endDate = new Date(joinedEnd);
+              endDate.setHours(0,0,0,0);
+              if (joinedDate > endDate) return false;
+            }
+          } else if (joinedStart || joinedEnd) {
+            return false;
+          }
 
           if(currentFilters.industry && !m.industry.toLowerCase().includes(currentFilters.industry.toLowerCase())) return false;
           if(currentFilters.city && !m.city.toLowerCase().includes(currentFilters.city.toLowerCase())) return false;

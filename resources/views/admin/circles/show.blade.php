@@ -463,9 +463,8 @@
                         <th></th>
                         <th></th>
                         <th class="text-end">
-                            <div class="d-inline-flex gap-1 justify-content-end">
-                                <button type="submit" form="peerFilterForm" class="btn btn-sm btn-outline-primary">Filter</button>
-                                <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                            <div class="d-inline-flex justify-content-end">
+                                <a href="{{ route('admin.circles.show', $circle) }}" class="btn btn-sm btn-outline-secondary">Clear</a>
                             </div>
                         </th>
                     </tr>
