@@ -263,7 +263,7 @@
                   {{ $event->checked_in_count ?? 0 }}
                 </td>
                 <td class="py-3 px-3">
-                  @php $status = strtolower($event->status ?? 'scheduled'); @endphp
+                  @php $status = $event->computed_status; @endphp
                   @if($status === 'completed')
                     <span class="badge bg-slate-100 text-slate-600 border border-slate-200">Completed</span>
                   @elseif($status === 'cancelled')
