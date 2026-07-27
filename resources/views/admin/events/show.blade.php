@@ -128,7 +128,7 @@
         </tbody></table></div>
     </div>
 
-    <div class="card mt-3">
+    <div class="card mt-3" id="registrations-section">
         <div class="card-header">Registrations</div>
         <div class="table-responsive"><table class="table table-striped align-middle mb-0"><thead><tr><th>Attendee</th><th>Type</th><th>Gateway</th><th>Payment</th><th>Payment ref</th><th>Amount</th><th>Invoice</th><th class="text-center">QR</th><th>Check-in</th></tr></thead><tbody>
         @forelse($event->registrations as $registration)

@@ -171,7 +171,7 @@
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link py-2 px-3 fw-semibold" id="schedule-tab" data-bs-toggle="pill" data-bs-target="#schedule-section" type="button" role="tab" aria-controls="schedule-section" aria-selected="false">
-                    <i class="bi bi-calendar3 me-1"></i>2. Date, Recurrence & Venue
+                    <i class="bi bi-calendar3 me-1"></i>2. Date & Recurrence
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -284,21 +284,44 @@
                         </div>
                     </div>
 
+                    <h5 class="form-section-title"><i class="bi bi-geo-alt text-primary me-2"></i>Location / Online Details</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4 physical-location-fields">
+                            <label class="form-label fw-semibold">Venue Name</label>
+                            <input class="form-control" name="venue_name" value="{{ old('venue_name', data_get($metadata, 'venue_name')) }}" placeholder="Hotel / Hall / Office">
+                        </div>
+                        <div class="col-md-8 physical-location-fields">
+                            <label class="form-label fw-semibold">Address Line</label>
+                            <input class="form-control" name="address_line" value="{{ old('address_line', data_get($metadata, 'address_line')) }}" placeholder="Street address">
+                        </div>
+                        <div class="col-md-3 physical-location-fields">
+                            <label class="form-label fw-semibold">City</label>
+                            <input class="form-control" name="city" value="{{ old('city', data_get($metadata, 'city')) }}">
+                        </div>
+                        <div class="col-md-3 physical-location-fields">
+                            <label class="form-label fw-semibold">State</label>
+                            <input class="form-control" name="state" value="{{ old('state', data_get($metadata, 'state')) }}">
+                        </div>
+                        <div class="col-md-6 physical-location-fields">
+                            <label class="form-label fw-semibold">Google Map URL</label>
+                            <input class="form-control" name="google_maps_url" value="{{ old('google_maps_url', data_get($metadata, 'google_maps_url')) }}" placeholder="https://maps.google.com/...">
+                        </div>
+                        <div class="col-12 online-fields">
+                            <label class="form-label fw-semibold">Online Meeting URL</label>
+                            <input class="form-control" name="online_meeting_url" value="{{ old('online_meeting_url', $event->online_meeting_url ?? '') }}" placeholder="https://meet.google.com/... or Zoom link">
+                        </div>
+                    </div>
+
                     <h5 class="form-section-title"><i class="bi bi-image text-primary me-2"></i>Event Banner</h5>
                     <div class="row g-3">
                         @if($isEdit && !empty($event->banner_url))
                             <div class="col-12"><img src="{{ $event->banner_url }}" alt="Current event banner" class="img-fluid rounded border mb-2" style="max-height: 140px;"></div>
                         @endif
-                        <div class="col-md-6">
+                        <div class="col-12">
                             <label class="form-label fw-semibold">Upload Banner Image</label>
                             <input class="form-control @error('banner') is-invalid @enderror" type="file" name="banner" accept="image/*">
                             <div class="form-text">Optional. Maximum 5MB.</div>
                             @error('banner')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Banner URL</label>
-                            <input class="form-control @error('banner_url') is-invalid @enderror" name="banner_url" value="{{ old('banner_url', $event->banner_url ?? '') }}" placeholder="https://... or /api/v1/files/...">
-                            @error('banner_url')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                         </div>
                     </div>
 
@@ -309,37 +332,61 @@
                                 <i class="bi bi-check-circle me-1"></i>Save
                             </button>
                             <button type="button" class="btn btn-primary" onclick="switchTab('schedule-tab')">
-                                Next: Date, Recurrence & Location <i class="bi bi-arrow-right ms-1"></i>
+                                Next: Date & Recurrence <i class="bi bi-arrow-right ms-1"></i>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Tab 2: Date, Recurrence & Location -->
+                <!-- Tab 2: Date & Recurrence Settings -->
                 <div class="tab-pane fade" id="schedule-section" role="tabpanel" aria-labelledby="schedule-tab">
                     <h5 class="form-section-title"><i class="bi bi-clock text-primary me-2"></i>Date & Time</h5>
                     <div class="row g-3 mb-4">
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label fw-semibold">Start Date</label>
                             <input class="form-control @error('start_at') is-invalid @enderror" type="date" id="startDate" required placeholder="dd-mm-yyyy">
                             @error('start_at')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label fw-semibold">Start Time</label>
                             <input class="form-control" type="time" id="startTime" required>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-semibold">End Date</label>
-                            <input class="form-control @error('end_at') is-invalid @enderror" type="date" id="endDate" placeholder="dd-mm-yyyy">
-                            @error('end_at')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-semibold">End Time</label>
-                            <input class="form-control" type="time" id="endTime">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Duration</label>
+                            <select class="form-select js-no-searchable-select" id="eventDuration">
+                                <option value="30">30 Minutes</option>
+                                <option value="45">45 Minutes</option>
+                                <option value="60" selected>1 Hour</option>
+                                <option value="90">1 Hour 30 Mins</option>
+                                <option value="120">2 Hours</option>
+                                <option value="150">2 Hours 30 Mins</option>
+                                <option value="180">3 Hours</option>
+                                <option value="240">4 Hours</option>
+                                <option value="300">5 Hours</option>
+                                <option value="480">8 Hours (Full Day)</option>
+                                <option value="1440">24 Hours (1 Day)</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <div id="customDurationWrapper" class="d-none mt-2">
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" min="0" id="customHours" class="form-control" placeholder="0">
+                                            <span class="input-group-text">hrs</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" min="0" max="59" id="customMinutes" class="form-control" placeholder="0">
+                                            <span class="input-group-text">mins</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <input type="hidden" name="start_at" id="startAtHidden" value="{{ old('start_at', optional($event->start_at ?? null)->format('Y-m-d\TH:i')) }}">
                         <input type="hidden" name="end_at" id="endAtHidden" value="{{ old('end_at', optional($event->end_at ?? null)->format('Y-m-d\TH:i')) }}">
-                        <div class="col-12"><div class="text-danger small d-none" id="dateTimeError">End date/time must be after the start date/time.</div></div>
+                        <div class="col-12"><div class="text-danger small d-none" id="dateTimeError">Please select valid start date and start time.</div></div>
                     </div>
 
                     <h5 class="form-section-title"><i class="bi bi-arrow-repeat text-primary me-2"></i>Recurrence Settings</h5>
@@ -413,34 +460,6 @@
                         </div>
 
                         <div class="col-12"><div class="alert alert-info mb-0 small" id="recurrencePreview">This is a one-time event.</div></div>
-                    </div>
-
-                    <h5 class="form-section-title"><i class="bi bi-geo-alt text-primary me-2"></i>Location / Online Details</h5>
-                    <div class="row g-3">
-                        <div class="col-md-4 physical-location-fields">
-                            <label class="form-label fw-semibold">Venue Name</label>
-                            <input class="form-control" name="venue_name" value="{{ old('venue_name', data_get($metadata, 'venue_name')) }}" placeholder="Hotel / Hall / Office">
-                        </div>
-                        <div class="col-md-8 physical-location-fields">
-                            <label class="form-label fw-semibold">Address Line</label>
-                            <input class="form-control" name="address_line" value="{{ old('address_line', data_get($metadata, 'address_line')) }}" placeholder="Street address">
-                        </div>
-                        <div class="col-md-3 physical-location-fields">
-                            <label class="form-label fw-semibold">City</label>
-                            <input class="form-control" name="city" value="{{ old('city', data_get($metadata, 'city')) }}">
-                        </div>
-                        <div class="col-md-3 physical-location-fields">
-                            <label class="form-label fw-semibold">State</label>
-                            <input class="form-control" name="state" value="{{ old('state', data_get($metadata, 'state')) }}">
-                        </div>
-                        <div class="col-md-6 physical-location-fields">
-                            <label class="form-label fw-semibold">Google Map URL</label>
-                            <input class="form-control" name="google_maps_url" value="{{ old('google_maps_url', data_get($metadata, 'google_maps_url')) }}" placeholder="https://maps.google.com/...">
-                        </div>
-                        <div class="col-12 online-fields">
-                            <label class="form-label fw-semibold">Online Meeting URL</label>
-                            <input class="form-control" name="online_meeting_url" value="{{ old('online_meeting_url', $event->online_meeting_url ?? '') }}" placeholder="https://meet.google.com/... or Zoom link">
-                        </div>
                     </div>
 
                     <div class="d-flex justify-content-between mt-4 pt-3 border-top">
@@ -667,11 +686,46 @@
         const days = @json($days);
         const weeks = @json($weeks);
 
+        function toggleCustomDurationVisibility() {
+            const durSelect = document.getElementById('eventDuration');
+            const customWrapper = document.getElementById('customDurationWrapper');
+            if (durSelect && customWrapper) {
+                customWrapper.classList.toggle('d-none', durSelect.value !== 'custom');
+            }
+        }
+
         function initDateTimeFields() {
             const startAt = document.getElementById('startAtHidden').value;
             const endAt = document.getElementById('endAtHidden').value;
-            if (startAt) { const [d, t] = startAt.split('T'); document.getElementById('startDate').value = d || ''; document.getElementById('startTime').value = (t || '').slice(0,5); }
-            if (endAt) { const [d, t] = endAt.split('T'); document.getElementById('endDate').value = d || ''; document.getElementById('endTime').value = (t || '').slice(0,5); }
+            if (startAt) { 
+                const [d, t] = startAt.split('T'); 
+                document.getElementById('startDate').value = d || ''; 
+                document.getElementById('startTime').value = (t || '').slice(0,5); 
+            }
+            if (startAt && endAt) {
+                const sTime = new Date(startAt).getTime();
+                const eTime = new Date(endAt).getTime();
+                if (!isNaN(sTime) && !isNaN(eTime) && eTime > sTime) {
+                    const diffMins = Math.round((eTime - sTime) / 60000);
+                    const durSelect = document.getElementById('eventDuration');
+                    if (durSelect) {
+                        const hasOption = Array.from(durSelect.options).some(opt => opt.value !== 'custom' && parseInt(opt.value, 10) === diffMins);
+                        if (hasOption) {
+                            durSelect.value = diffMins;
+                        } else {
+                            durSelect.value = 'custom';
+                            const hrs = Math.floor(diffMins / 60);
+                            const mins = diffMins % 60;
+                            const hInput = document.getElementById('customHours');
+                            const mInput = document.getElementById('customMinutes');
+                            if (hInput) hInput.value = hrs || '';
+                            if (mInput) mInput.value = mins || '';
+                        }
+                    }
+                }
+            }
+            toggleCustomDurationVisibility();
+            syncDateTimes();
         }
 
         function addRepeatRow(containerId, html) {
@@ -690,10 +744,37 @@
         const untilText = () => document.getElementById('recurrenceEndsAt').value ? ` until ${new Date(document.getElementById('recurrenceEndsAt').value + 'T00:00:00').toLocaleDateString(undefined, {day:'2-digit', month:'short', year:'numeric'})}` : '';
 
         function syncDateTimes() {
-            const sd = document.getElementById('startDate').value, st = document.getElementById('startTime').value;
-            const ed = document.getElementById('endDate').value, et = document.getElementById('endTime').value;
-            document.getElementById('startAtHidden').value = sd && st ? `${sd}T${st}` : '';
-            document.getElementById('endAtHidden').value = ed && et ? `${ed}T${et}` : '';
+            const sd = document.getElementById('startDate').value;
+            const st = document.getElementById('startTime').value;
+            const durationSelect = document.getElementById('eventDuration');
+            let durationMinutes = 60;
+
+            if (durationSelect) {
+                if (durationSelect.value === 'custom') {
+                    const hrs = parseInt(document.getElementById('customHours').value || '0', 10);
+                    const mins = parseInt(document.getElementById('customMinutes').value || '0', 10);
+                    durationMinutes = (hrs * 60) + mins;
+                } else {
+                    durationMinutes = parseInt(durationSelect.value || '60', 10);
+                }
+            }
+
+            if (sd && st) {
+                document.getElementById('startAtHidden').value = `${sd}T${st}`;
+                const startDateObj = new Date(`${sd}T${st}`);
+                if (!isNaN(startDateObj.getTime())) {
+                    const endDateObj = new Date(startDateObj.getTime() + (durationMinutes || 60) * 60 * 1000);
+                    const year = endDateObj.getFullYear();
+                    const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+                    const day = String(endDateObj.getDate()).padStart(2, '0');
+                    const hours = String(endDateObj.getHours()).padStart(2, '0');
+                    const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
+                    document.getElementById('endAtHidden').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+                }
+            } else {
+                document.getElementById('startAtHidden').value = '';
+                document.getElementById('endAtHidden').value = '';
+            }
         }
 
         function selectedCircleCheckboxes() {
@@ -828,6 +909,20 @@
         }
 
         document.querySelectorAll('input:not(#selectAllCircles):not(.circle-search):not([name="circle_ids[]"]), select').forEach(el => el.addEventListener('change', () => { syncDateTimes(); updateEventType(); updateMode(); updateRecurrence(); }));
+        const durSelect = document.getElementById('eventDuration');
+        if (durSelect) {
+            durSelect.addEventListener('change', () => {
+                toggleCustomDurationVisibility();
+                syncDateTimes();
+            });
+        }
+        ['customHours', 'customMinutes'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', syncDateTimes);
+                el.addEventListener('change', syncDateTimes);
+            }
+        });
         circleMultiSelectToggle.addEventListener('click', () => { if (!multiCircleField.classList.contains('d-none')) circleMultiSelectMenu.classList.toggle('d-none'); });
         circleCheckboxes.forEach(checkbox => checkbox.addEventListener('change', updateSelectedCircleText));
         if (selectAllCircles) {

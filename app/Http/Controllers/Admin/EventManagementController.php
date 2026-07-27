@@ -256,12 +256,14 @@ class EventManagementController extends Controller
         $event = Event::query()->findOrFail($id);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
         $report = $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search']));
-        $scanLogs = EventQrScanLog::query()
-            ->with(['user', 'scanner'])
-            ->where('event_id', $event->id)
-            ->latest('scanned_at')
-            ->limit(200)
-            ->get();
+        $scanLogs = Schema::hasTable((new EventQrScanLog)->getTable())
+            ? EventQrScanLog::query()
+                ->with(['user', 'scanner'])
+                ->where('event_id', $event->id)
+                ->latest('scanned_at')
+                ->limit(200)
+                ->get()
+            : collect();
 
         return view('admin.events.attendance', compact('event', 'report', 'scanLogs'));
     }

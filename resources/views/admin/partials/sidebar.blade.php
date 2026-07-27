@@ -155,7 +155,6 @@
     $pendingRequestsActive =
         request()->routeIs('admin.visitor-registrations.*') ||
         request()->routeIs('admin.coin-claims.*') ||
-        request()->routeIs('admin.event-joining-requests.*') ||
         request()->routeIs('admin.circle-joining-requests.*') ||
         request()->routeIs('admin.certifications.*') ||
         request()->routeIs('admin.stories.*') ||
@@ -195,13 +194,10 @@
         ['label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
     ];
 
-    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-scan-credentials.*') || request()->routeIs('admin.event-gallery.*');
+    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-scan-credentials.*') || request()->routeIs('admin.event-gallery.*') || request()->routeIs('admin.event-joining-requests.*');
     $bottomNavItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) === 'Email Logs'));
     $bottomNavItems = (! $isCircleScoped && ! $isDed && ! $isIndustryDirector) ? [] : $bottomNavItems;
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Event Gallery'], true)));
-    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-scan-credentials.*') || request()->routeIs('admin.event-gallery.*') || request()->routeIs('admin.event-joining-requests.*');
-    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Gallery'], true)));
-    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-scan-credentials.*') || request()->routeIs('admin.event-gallery.*') || request()->routeIs('admin.event-joining-requests.*');
     $bottomNavItems = array_map(function ($item) {
         if ($item['label'] === 'Email Logs') {
             $item['active_routes'] = ['admin.email-logs.*'];
@@ -211,7 +207,6 @@
         return $item;
     }, array_values(array_filter($navItems, fn ($item) => in_array(($item['label'] ?? null), ['Email Logs', 'Support Tickets'], true))));
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
-    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-scan-credentials.*') || request()->routeIs('admin.event-gallery.*') || request()->routeIs('admin.event-joining-requests.*');
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     
     $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
