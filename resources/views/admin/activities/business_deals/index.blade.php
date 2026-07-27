@@ -2,6 +2,8 @@
 
 @section('title', 'Business Deals')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @php
         $getInitials = function($name) {
@@ -35,148 +37,143 @@
         };
     @endphp
 
-    <!-- Header Component -->
-    @include('admin.activities.partials.header', ['title' => 'Business Deals'])
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <!-- Header Component -->
+        @include('admin.activities.partials.header', ['title' => 'Business Deals'])
 
-    <!-- Metrics Cards -->
-    <div class="activities-stats-grid">
-        <div class="activity-metric-card">
-            <div class="metric-icon bg-primary-subtle text-primary">
-                <i class="bi bi-briefcase-fill"></i>
+        <!-- Metrics Cards -->
+        <div class="activities-stats-grid">
+            <div class="activity-metric-card">
+                <div class="metric-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-briefcase-fill"></i>
+                </div>
+                <div class="metric-val">{{ number_format($total) }}</div>
+                <div class="metric-label">Total Deals</div>
             </div>
-            <div class="metric-val">{{ number_format($total) }}</div>
-            <div class="metric-label">Total Deals</div>
+
+            <div class="activity-metric-card">
+                <div class="metric-icon bg-success-subtle text-success">
+                    <i class="bi bi-currency-rupee"></i>
+                </div>
+                <div class="metric-val">
+                    ₹{{ number_format($items->sum('deal_amount'), 2) }}
+                </div>
+                <div class="metric-label">Total Deal Value (Page)</div>
+            </div>
+
+            <div class="activity-metric-card">
+                <div class="metric-icon bg-warning-subtle text-warning-emphasis">
+                    <i class="bi bi-star-fill"></i>
+                </div>
+                <div class="metric-val">
+                    @if(($topMembers ?? collect())->isNotEmpty())
+                        {{ $topMembers->first()->total_count ?? 0 }}
+                    @else
+                        0
+                    @endif
+                </div>
+                <div class="metric-label">Most Deals by One Peer</div>
+            </div>
         </div>
 
-        <div class="activity-metric-card">
-            <div class="metric-icon bg-success-subtle text-success">
-                <i class="bi bi-currency-rupee"></i>
-            </div>
-            <div class="metric-val">
-                ₹{{ number_format($items->sum('deal_amount'), 2) }}
-            </div>
-            <div class="metric-label">Total Deal Value (Page)</div>
-        </div>
+        <!-- Filters Section -->
+        <form id="businessDealsFiltersForm" method="GET" action="{{ route('admin.activities.business-deals.index') }}" class="space-y-4">
+            @include('admin.components.activity-filter-bar-v2', [
+                'actionUrl' => route('admin.activities.business-deals.index'),
+                'resetUrl' => route('admin.activities.business-deals.index'),
+                'filters' => $filters,
+                'circles' => $circles ?? collect(),
+                'showExport' => true,
+                'exportUrl' => route('admin.activities.business-deals.export', request()->query()),
+                'renderFormTag' => false,
+                'formId' => 'businessDealsFiltersForm',
+            ])
 
-        <div class="activity-metric-card">
-            <div class="metric-icon bg-warning-subtle text-warning-emphasis">
-                <i class="bi bi-star-fill"></i>
-            </div>
-            <div class="metric-val">
-                @if(($topMembers ?? collect())->isNotEmpty())
-                    {{ $topMembers->first()->total_count ?? 0 }}
-                @else
-                    0
-                @endif
-            </div>
-            <div class="metric-label">Most Deals by One Peer</div>
-        </div>
-    </div>
-
-    <!-- Filters Section -->
-    <form id="businessDealsFiltersForm" method="GET" action="{{ route('admin.activities.business-deals.index') }}">
-        @include('admin.components.activity-filter-bar-v2', [
-            'actionUrl' => route('admin.activities.business-deals.index'),
-            'resetUrl' => route('admin.activities.business-deals.index'),
-            'filters' => $filters,
-            'circles' => $circles ?? collect(),
-            'showExport' => true,
-            'exportUrl' => route('admin.activities.business-deals.export', request()->query()),
-            'renderFormTag' => false,
-            'formId' => 'businessDealsFiltersForm',
-        ])
-
-        <!-- Top 5 & All logs row -->
-        <div class="row g-3 mb-4">
-            <!-- Top 5 Peers -->
-            <div class="col-12">
-                <div class="card-activities-wrapper h-100">
-                    <div class="card-header bg-white">
-                        <span class="fw-bold text-dark"><i class="bi bi-trophy-fill text-warning me-2"></i>Top 5 Peers</span>
+            <!-- Top 5 & All logs row -->
+            <div class="space-y-4">
+                <!-- Top 5 Peers Grid -->
+                <div class="rounded-xl border bs surface overflow-hidden">
+                    <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
+                        <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Top 5 Peers</span>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-premium align-middle mb-0">
+                    <div class="overflow-x-auto relative">
+                        <table class="min-w-full border-collapse text-[13px]">
                             <thead>
-                                <tr>
-                                    <th style="width: 70px;">Rank</th>
-                                    <th>Peer Name</th>
-                                    <th class="text-end">Total</th>
+                                <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left w-16">Rank</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Name</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Total Deals</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody class="divide-y divide-gray-200/50">
                                 @forelse ($topMembers as $index => $member)
-                                    <tr>
-                                        <td>#{{ $index + 1 }}</td>
-                                        <td>
-                                            <div class="peer-badge-wrapper">
-                                                <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($member->peer_name ?? '') }}">
+                                    <tr class="hover:surface-2 transition border-b bs">
+                                        <td class="px-3 py-2.5 text-xs font-semibold t3">#{{ $index + 1 }}</td>
+                                        <td class="px-3 py-2.5">
+                                            <div class="flex items-center gap-2">
+                                                <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($member->peer_name ?? '') }}">
                                                     {{ $getInitials($member->peer_name ?? '') }}
                                                 </div>
-                                                <div class="peer-badge-info">
-                                                    <div class="peer-badge-name">{{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
-                                                    <div class="peer-badge-meta">
-                                                        @if($member->peer_company) <span>{{ $member->peer_company }}</span> @endif
-                                                    </div>
+                                                <div>
+                                                    <div class="font-semibold t1 text-[12.5px]">{{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
+                                                    <div class="t3 text-[10px]">{{ $member->peer_company ?? '' }}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="text-end fw-bold text-primary">{{ $member->total_count ?? 0 }}</td>
+                                        <td class="px-3 py-2.5 text-xs font-bold text-indigo-600 text-right">{{ $member->total_count ?? 0 }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="3" class="text-center text-muted py-4">No data available.</td>
+                                        <td colspan="3" class="text-center py-4 text-xs t3">No data available.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
                         </table>
                     </div>
                 </div>
-            </div>
 
-            <!-- All Logs -->
-            <div class="col-12">
-                <div class="card-activities-wrapper">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <span class="fw-bold text-dark"><i class="bi bi-briefcase text-primary me-2"></i>Business Deals Log</span>
-                        <span class="badge bg-light text-dark border">Page count: {{ number_format(count($items)) }}</span>
+                <!-- All Logs Grid -->
+                <div class="rounded-xl border bs surface overflow-hidden">
+                    <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
+                        <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">Business Deals Log</span>
+                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Page count: {{ number_format(count($items)) }}</span>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-premium align-middle mb-0">
+                    <div class="overflow-x-auto relative">
+                        <table class="min-w-full border-collapse text-[13px]">
                             <thead>
-                                <tr>
-                                    <th>From</th>
-                                    <th>To</th>
-                                    <th>Deal Details</th>
-                                    <th>Amount</th>
-                                    <th>Comment</th>
-                                    <th>Media</th>
-                                    <th>Created At</th>
+                                <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">From</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">To</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Deal Details</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Amount</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Comment</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Media</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
                                 </tr>
-                                <tr class="bg-light filter-row">
-                                    <th><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="form-control form-control-sm"></th>
-                                    <th><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To name" class="form-control form-control-sm"></th>
-                                    <th>
-                                        <input type="date" name="deal_date" value="{{ $filters['deal_date'] ?? '' }}" class="form-control form-control-sm mb-1" placeholder="Date">
-                                        <input type="text" name="business_type" value="{{ $filters['business_type'] ?? '' }}" placeholder="Business type" class="form-control form-control-sm">
+                                <tr class="surface-2 border-b bs filter-row">
+                                    <th class="px-2 py-1"><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1">
+                                        <input type="date" name="deal_date" value="{{ $filters['deal_date'] ?? '' }}" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1" placeholder="Date">
+                                        <input type="text" name="business_type" value="{{ $filters['business_type'] ?? '' }}" placeholder="Business type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     </th>
-                                    <th><input type="number" step="0.01" name="deal_amount" value="{{ $filters['deal_amount'] ?? '' }}" placeholder="Amount" class="form-control form-control-sm"></th>
-                                    <th><input type="text" name="comment" value="{{ $filters['comment'] ?? '' }}" placeholder="Comment" class="form-control form-control-sm"></th>
-                                    <th>
-                                        <select name="has_media" class="form-select form-select-sm js-no-searchable-select">
+                                    <th class="px-2 py-1"><input type="number" step="0.01" name="deal_amount" value="{{ $filters['deal_amount'] ?? '' }}" placeholder="Amount" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" name="comment" value="{{ $filters['comment'] ?? '' }}" placeholder="Comment" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1">
+                                        <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                             <option value="">Any</option>
                                             <option value="yes" @selected(($filters['has_media'] ?? '') === 'yes')>Yes</option>
                                             <option value="no" @selected(($filters['has_media'] ?? '') === 'no')>No</option>
                                         </select>
                                     </th>
-                                    <th class="text-end">
-                                        <div class="d-flex justify-content-end gap-2">
-                                            <button type="submit" class="btn btn-primary btn-sm px-3">Apply</button>
-                                            <a href="{{ route('admin.activities.business-deals.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                                    <th class="px-2 py-1">
+                                        <div class="flex justify-end">
+                                            <button type="button" onclick="clearAdminFilters(event, 'businessDealsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
                                         </div>
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="grid-body" class="divide-y divide-gray-200/50">
                                 @forelse ($items as $deal)
                                     @php
                                         $mediaValue = $deal->media_reference ?? null;
@@ -197,79 +194,77 @@
                                         $fromName = $deal->from_user_name ?? $actorName;
                                         $toName = $deal->to_user_name ?? $peerName;
                                     @endphp
-                                    <tr>
-                                        <td>
-                                            <div class="peer-badge-wrapper">
-                                                <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($fromName) }}">
+                                    <tr class="hover:surface-2 transition border-b bs">
+                                        <td class="px-3 py-2.5">
+                                            <div class="flex items-center gap-2">
+                                                <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($fromName) }}">
                                                     {{ $getInitials($fromName) }}
                                                 </div>
-                                                <div class="peer-badge-info">
-                                                    <div class="peer-badge-name">{{ $fromName }}</div>
-                                                    <div class="peer-badge-meta">
+                                                <div>
+                                                    <div class="font-semibold t1 text-[12.5px]">{{ $fromName }}</div>
+                                                    <div class="t3 text-[10px]">
                                                         @if($deal->from_company) <span>{{ $deal->from_company }}</span> @endif
                                                         @if($deal->from_city) &bull; <span>{{ $deal->from_city }}</span> @endif
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <div class="peer-badge-wrapper">
-                                                <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($toName) }}">
+                                        <td class="px-3 py-2.5">
+                                            <div class="flex items-center gap-2">
+                                                <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($toName) }}">
                                                     {{ $getInitials($toName) }}
                                                 </div>
-                                                <div class="peer-badge-info">
-                                                    <div class="peer-badge-name">{{ $toName }}</div>
-                                                    <div class="peer-badge-meta">
+                                                <div>
+                                                    <div class="font-semibold t1 text-[12.5px]">{{ $toName }}</div>
+                                                    <div class="t3 text-[10px]">
                                                         @if($deal->to_company) <span>{{ $deal->to_company }}</span> @endif
                                                         @if($deal->to_city) &bull; <span>{{ $deal->to_city }}</span> @endif
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
+                                        <td class="px-3 py-2.5 text-xs">
                                             @if($deal->deal_date)
-                                                <div class="fw-semibold text-dark small"><i class="bi bi-calendar-check me-1 text-muted"></i>{{ $formatDate($deal->deal_date) }}</div>
+                                                <div class="font-semibold t1 text-[11px]">{{ $formatDate($deal->deal_date) }}</div>
                                             @endif
-                                            <span class="badge bg-light text-dark border mt-1">{{ $deal->business_type ?? '—' }}</span>
+                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 mt-0.5">{{ $deal->business_type ?? '—' }}</span>
                                         </td>
-                                        <td>
-                                            <span class="fw-bold text-success">₹{{ number_format($deal->deal_amount ?? 0, 2) }}</span>
+                                        <td class="px-3 py-2.5 text-xs font-bold text-emerald-600">
+                                            ₹{{ number_format($deal->deal_amount ?? 0, 2) }}
                                         </td>
-                                        <td>
-                                            <div class="text-truncate-multi text-secondary small" style="max-width: 150px;" title="{{ $deal->comment }}">
-                                                {{ $deal->comment ?? '—' }}
-                                            </div>
+                                        <td class="px-3 py-2.5 text-xs t2 max-w-[150px] truncate" title="{{ $deal->comment }}">
+                                            {{ $deal->comment ?? '—' }}
                                         </td>
-                                        <td>
+                                        <td class="px-3 py-2.5 text-xs">
                                             @if ($hasMedia)
-                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                                    <i class="bi bi-paperclip me-1"></i>Yes
+                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                    Available
                                                 </span>
-                                                <button type="button" class="btn btn-xs btn-outline-primary ms-1" style="font-size: 0.72rem; padding: 2px 6px;" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $deal->id }}">View</button>
+                                                <button type="button" class="text-indigo-600 font-semibold text-xs ms-1 bg-transparent border-0 cursor-pointer p-0" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $deal->id }}">View</button>
                                                 <script type="application/json" id="media-json-{{ $deal->id }}">{{ e(json_encode(is_string($deal->media_reference ?? null) ? json_decode($deal->media_reference ?? '[]', true) : ($deal->media_reference ?? []))) }}</script>
                                             @else
-                                                <span class="text-muted small">No Media</span>
+                                                <span class="t3">No Media</span>
                                             @endif
                                         </td>
-                                        <td>
-                                            <span class="small text-muted">{{ $formatDateTime($deal->created_at ?? null) }}</span>
+                                        <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                            {{ $formatDateTime($deal->created_at ?? null) }}
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="text-center text-muted py-4">No business deals found.</td>
+                                        <td colspan="7" class="text-center py-8 text-xs t3">No business deals found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
                         </table>
                     </div>
+
+                    <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                        {{ $items->links() }}
+                    </div>
                 </div>
             </div>
-        </div>
-    </form>
-
-    <div class="mt-3">
-        {{ $items->links() }}
+        </form>
     </div>
 
     <!-- Media Viewer Modal -->
@@ -277,11 +272,11 @@
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content shadow-lg border-0">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold text-dark" id="mediaViewerModalLabel"><i class="bi bi-images me-2 text-primary"></i>Media Preview</h5>
+                    <h5 class="modal-title font-semibold t1" id="mediaViewerModalLabel">Media Preview</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body bg-light" data-media-container>
-                    <p class="text-muted mb-0">No media available.</p>
+                <div class="modal-body surface-2" data-media-container>
+                    <p class="t3 mb-0">No media available.</p>
                 </div>
             </div>
         </div>
@@ -307,7 +302,7 @@
                 container.innerHTML = '';
 
                 if (!Array.isArray(items) || items.length === 0) {
-                    container.innerHTML = '<p class="text-muted mb-0 py-4 text-center">No media available.</p>';
+                    container.innerHTML = '<p class="t3 mb-0 py-4 text-center">No media available.</p>';
                     return;
                 }
 
@@ -356,3 +351,4 @@
         });
     </script>
 @endsection
+

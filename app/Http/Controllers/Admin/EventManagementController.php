@@ -62,6 +62,120 @@ class EventManagementController extends Controller
         return view('admin.events.index', ['events' => $events, 'circles' => Circle::query()->orderBy('name')->get(['id', 'name'])]);
     }
 
+    public function totalAttendance(Request $request): View
+    {
+        $admin = Auth::guard('admin')->user();
+        $query = EventRegistration::query()
+            ->with(['event.circle', 'occurrence', 'user'])
+            ->where(function ($q): void {
+                $q->where('checkin_status', 'checked_in')
+                    ->orWhereNotNull('checked_in_at');
+            })
+            ->where('status', '!=', 'cancelled')
+            ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
+            ->when($request->circle_id, fn ($q, $v) => $q->whereHas('event', fn ($eq) => $eq->where('circle_id', $v)))
+            ->when($request->date_from, fn ($q, $v) => $q->whereDate('checked_in_at', '>=', $v))
+            ->when($request->date_to, fn ($q, $v) => $q->whereDate('checked_in_at', '<=', $v))
+            ->when($request->type, function ($q, $type): void {
+                if ($type === 'member') {
+                    $q->whereNotNull('user_id');
+                } elseif ($type === 'visitor') {
+                    $q->whereNull('user_id');
+                }
+            })
+            ->when($request->search, function ($q, $term): void {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
+                $q->where(function ($inner) use ($like): void {
+                    $inner->where('visitor_name', 'ilike', $like)
+                        ->orWhere('visitor_email', 'ilike', $like)
+                        ->orWhere('visitor_phone', 'ilike', $like)
+                        ->orWhereHas('user', function ($uq) use ($like): void {
+                            $uq->where('display_name', 'ilike', $like)
+                                ->orWhere('email', 'ilike', $like)
+                                ->orWhere('first_name', 'ilike', $like)
+                                ->orWhere('last_name', 'ilike', $like);
+                        })
+                        ->orWhereHas('event', fn ($eq) => $eq->where('title', 'ilike', $like));
+                });
+            });
+
+        $query->whereHas('event', function ($eq) use ($admin): void {
+            AdminCircleScope::applyToEventsQuery($eq, $admin);
+        });
+
+        $summary = [
+            'total_attendance' => (clone $query)->count(),
+            'checked_in_today' => (clone $query)->whereDate('checked_in_at', now()->toDateString())->count(),
+            'members' => (clone $query)->whereNotNull('user_id')->count(),
+            'visitors' => (clone $query)->whereNull('user_id')->count(),
+        ];
+
+        $attendances = $query->latest('checked_in_at')->paginate((int) $request->input('per_page', 20))->withQueryString();
+
+        $eventsQuery = Event::query()->orderBy('title');
+        AdminCircleScope::applyToEventsQuery($eventsQuery, $admin);
+        $events = $eventsQuery->get(['id', 'title']);
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+
+        return view('admin.events.total-attendance', compact('attendances', 'summary', 'events', 'circles'));
+    }
+
+    public function totalRegistered(Request $request): View
+    {
+        $admin = Auth::guard('admin')->user();
+        $query = EventRegistration::query()
+            ->with(['event.circle', 'occurrence', 'user'])
+            ->where('status', '!=', 'cancelled')
+            ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
+            ->when($request->circle_id, fn ($q, $v) => $q->whereHas('event', fn ($eq) => $eq->where('circle_id', $v)))
+            ->when($request->payment_status, function ($q, $v): void {
+                if ($v === 'paid') {
+                    $q->whereIn('payment_status', ['paid', 'completed', 'success']);
+                } elseif ($v === 'free') {
+                    $q->where(fn ($sub) => $sub->where('payment_required', false)->orWhereNull('payment_status')->orWhere('payment_status', 'free'));
+                } else {
+                    $q->where('payment_status', $v);
+                }
+            })
+            ->when($request->date_from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
+            ->when($request->date_to, fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
+            ->when($request->search, function ($q, $term): void {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
+                $q->where(function ($inner) use ($like): void {
+                    $inner->where('visitor_name', 'ilike', $like)
+                        ->orWhere('visitor_email', 'ilike', $like)
+                        ->orWhere('visitor_phone', 'ilike', $like)
+                        ->orWhereHas('user', function ($uq) use ($like): void {
+                            $uq->where('display_name', 'ilike', $like)
+                                ->orWhere('email', 'ilike', $like)
+                                ->orWhere('first_name', 'ilike', $like)
+                                ->orWhere('last_name', 'ilike', $like);
+                        })
+                        ->orWhereHas('event', fn ($eq) => $eq->where('title', 'ilike', $like));
+                });
+            });
+
+        $query->whereHas('event', function ($eq) use ($admin): void {
+            AdminCircleScope::applyToEventsQuery($eq, $admin);
+        });
+
+        $summary = [
+            'total_registered' => (clone $query)->count(),
+            'paid' => (clone $query)->whereIn('payment_status', ['paid', 'completed', 'success'])->count(),
+            'free' => (clone $query)->where(fn ($q) => $q->where('payment_required', false)->orWhereNull('payment_status')->orWhere('payment_status', 'free'))->count(),
+            'checked_in' => (clone $query)->where('checkin_status', 'checked_in')->count(),
+        ];
+
+        $registrations = $query->latest('created_at')->paginate((int) $request->input('per_page', 20))->withQueryString();
+
+        $eventsQuery = Event::query()->orderBy('title');
+        AdminCircleScope::applyToEventsQuery($eventsQuery, $admin);
+        $events = $eventsQuery->get(['id', 'title']);
+        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+
+        return view('admin.events.total-registered', compact('registrations', 'summary', 'events', 'circles'));
+    }
+
     public function joiningRequests(Request $request): View
     {
         $status = $request->input('status', 'pending');
@@ -256,12 +370,14 @@ class EventManagementController extends Controller
         $event = Event::query()->findOrFail($id);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
         $report = $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search']));
-        $scanLogs = EventQrScanLog::query()
-            ->with(['user', 'scanner'])
-            ->where('event_id', $event->id)
-            ->latest('scanned_at')
-            ->limit(200)
-            ->get();
+        $scanLogs = Schema::hasTable((new EventQrScanLog)->getTable())
+            ? EventQrScanLog::query()
+                ->with(['user', 'scanner'])
+                ->where('event_id', $event->id)
+                ->latest('scanned_at')
+                ->limit(200)
+                ->get()
+            : collect();
 
         return view('admin.events.attendance', compact('event', 'report', 'scanLogs'));
     }

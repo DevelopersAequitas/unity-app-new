@@ -142,4 +142,23 @@ class Event extends Model
     {
         return $this->belongsTo(User::class, 'organizer_user_id');
     }
+
+    public function getComputedStatusAttribute(): string
+    {
+        $rawStatus = strtolower((string) ($this->status ?? 'scheduled'));
+        if ($rawStatus === 'cancelled') {
+            return 'cancelled';
+        }
+
+        if ($rawStatus === 'completed') {
+            return 'completed';
+        }
+
+        $compareDate = $this->end_at ?? $this->start_at;
+        if ($compareDate && $compareDate->isPast()) {
+            return 'completed';
+        }
+
+        return $rawStatus;
+    }
 }

@@ -45,6 +45,6 @@ jobs:
             php artisan view:cache
             php artisan queue:restart
             php artisan reverb:restart
-            if [ -d "../public_html/css" ]; then cp -f public/css/admin.css ../public_html/css/admin.css; fi
-            if [ -d "/var/www/html/css" ]; then cp -f public/css/admin.css /var/www/html/css/admin.css; fi
+            if [ -d "../public_html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css ../public_html/css/; fi
+            if [ -d "/var/www/html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css /var/www/html/css/; fi
 

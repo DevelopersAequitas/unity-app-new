@@ -2,6 +2,8 @@
 
 @section('title', 'Visitor Registrations')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @php
         $displayName = function (?string $display, ?string $first, ?string $last, ?string $name = null): string {
@@ -30,219 +32,224 @@
     </form>
 
     @if ($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <ul class="mb-0">
+        <div class="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            <ul class="mb-0 list-disc list-inside">
                 @foreach ($errors->all() as $error)
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <h1 class="h4 mb-0">Visitor Registrations</h1>
-        <div class="d-flex align-items-center gap-2">
-            <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#importVisitorModal">
-                <i class="bi bi-upload me-1"></i> Import Bulk CSV
-            </button>
-            <a href="{{ route('admin.visitor-registrations.export', request()->query()) }}" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-download me-1"></i> Export Bulk CSV
-            </a>
-            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addVisitorModal">
-                <i class="bi bi-plus-lg me-1"></i> Add Visitor
-            </button>
-            <button type="submit" form="bulkDeleteForm" id="bulkDeleteBtn" class="btn btn-danger btn-sm" disabled
-                onclick="return confirm('Are you sure you want to delete the selected visitor registrations? This cannot be undone.')">
-                <i class="bi bi-trash me-1"></i> Delete Selected
-            </button>
-            <span class="badge bg-light text-dark border ms-1">Total: {{ number_format($registrations->total()) }}</span>
-        </div>
-    </div>
-
     @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
             {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
     @if (session('error'))
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div class="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
             {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search</label>
-                    <input type="text" name="search" form="visitorRegistrationsFiltersForm" value="{{ $filters['search'] }}" class="form-control" placeholder="Search visitor/peer/event">
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Visitor Registrations</h2>
+                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total: {{ number_format($registrations->total()) }}</span>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <button type="button" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer" data-bs-toggle="modal" data-bs-target="#importVisitorModal">
+                    Import Bulk CSV
+                </button>
+                <a href="{{ route('admin.visitor-registrations.export', request()->query()) }}" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition no-underline">
+                    Export Bulk CSV
+                </a>
+                <button type="button" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer" data-bs-toggle="modal" data-bs-target="#addVisitorModal">
+                    Add Visitor
+                </button>
+                <button type="submit" form="bulkDeleteForm" id="bulkDeleteBtn" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition disabled:opacity-50 cursor-pointer" disabled
+                    onclick="return confirm('Are you sure you want to delete the selected visitor registrations? This cannot be undone.')">
+                    Delete Selected
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter Card -->
+        <div class="p-3 rounded-lg border bs surface-2">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+                    <input type="text" name="search" form="visitorRegistrationsFiltersForm" value="{{ $filters['search'] }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Search visitor/peer/event">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">Status</label>
-                    <select name="status" form="visitorRegistrationsFiltersForm" class="form-select">
-                        <option value="all" @selected($filters['status'] === 'all')>All</option>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
+                    <select name="status" form="visitorRegistrationsFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                        <option value="all" @selected($filters['status'] === 'all')>All Statuses</option>
                         <option value="pending" @selected($filters['status'] === 'pending')>Pending</option>
                         <option value="approved" @selected($filters['status'] === 'approved')>Approved</option>
                         <option value="rejected" @selected($filters['status'] === 'rejected')>Rejected</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">Circle</label>
-                    <select name="circle_id" form="visitorRegistrationsFiltersForm" class="form-select">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Circle</label>
+                    <select name="circle_id" form="visitorRegistrationsFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                         <option value="all">All Circles</option>
                         @foreach($circles as $circle)
                             <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2 d-flex flex-column gap-2">
-                    <button type="submit" form="visitorRegistrationsFiltersForm" class="btn btn-primary">Apply</button>
-                    <a href="{{ route('admin.visitor-registrations.index') }}" class="btn btn-outline-secondary">Reset</a>
+                <div class="flex justify-end">
+                    <button type="button" onclick="clearAdminFilters(event, 'visitorRegistrationsFiltersForm')" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center w-full">Clear</button>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="card-activities-wrapper">
-
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-premium mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width:40px">
-                            <input type="checkbox" id="selectAll" class="form-check-input" title="Select All">
-                        </th>
-                        <th>Visitor Name</th>
-                        <th>Phone Number</th>
-                        <th>Business Name</th>
-                        <th>Submitted At</th>
-                        <th>Peer Name</th>
-                        <th>Peer Phone</th>
-                        <th>Event Type</th>
-                        <th>Event Name</th>
-                        <th>Event Date</th>
-                        <th>Visitor City</th>
-                        <th>Status</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                    <tr class="bg-light filter-row">
-                        <th></th>
-                        <th>
-                            <input type="text" name="visitor_name" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Name" value="{{ $filters['visitor_name'] }}">
-                        </th>
-                        <th>
-                            <input type="text" name="visitor_mobile" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Mobile" value="{{ $filters['visitor_mobile'] }}">
-                        </th>
-                        <th>
-                            <input type="text" name="visitor_business" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor Business" value="{{ $filters['visitor_business'] }}">
-                        </th>
-                        <th></th>
-                        <th>
-                            <input type="text" name="peer_q" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Peer/Company/City" value="{{ $filters['peer_q'] }}">
-                        </th>
-                        <th>
-                            <input type="text" name="peer_phone" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Peer Phone" value="{{ $filters['peer_phone'] }}">
-                        </th>
-                        <th>
-                            <input type="text" name="event_type" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Event Type" value="{{ $filters['event_type'] }}">
-                        </th>
-                        <th>
-                            <input type="text" name="event_name" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Event Name" value="{{ $filters['event_name'] }}">
-                        </th>
-                        <th>
-                            <input type="date" name="event_date" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" value="{{ $filters['event_date'] }}">
-                        </th>
-                        <th>
-                            <input type="text" name="visitor_city" form="visitorRegistrationsFiltersForm" class="form-control form-control-sm" placeholder="Visitor City" value="{{ $filters['visitor_city'] }}">
-                        </th>
-                        <th>
-                            <select name="status" form="visitorRegistrationsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
-                                <option value="all" @selected($filters['status'] === 'all')>All</option>
-                                <option value="pending" @selected($filters['status'] === 'pending')>Pending</option>
-                                <option value="approved" @selected($filters['status'] === 'approved')>Approved</option>
-                                <option value="rejected" @selected($filters['status'] === 'rejected')>Rejected</option>
-                            </select>
-                        </th>
-                        <th class="text-end">
-                            <div class="d-inline-flex align-items-center gap-2" style="white-space:nowrap;">
-                                <button type="submit" form="visitorRegistrationsFiltersForm" class="btn btn-sm btn-primary">Apply</button>
-                                <a href="{{ route('admin.visitor-registrations.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($registrations as $registration)
-                        @php
-                            $member = $registration->user;
-                            $memberName = $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null, $member->name ?? null);
-                            $memberCompany = $member->company_name ?? $member->company ?? $member->business_name ?? 'No Company';
-                            $memberCity = $member->city ?? 'No City';
-                            $memberCircles = $member
-                                ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
-                                : '';
-                            $memberCircle = $memberCircles !== '' ? $memberCircles : 'No Circle';
-                        @endphp
-                        <tr>
-                            <td>
-                                <input type="checkbox" name="ids[]" value="{{ $registration->id }}" form="bulkDeleteForm" class="form-check-input row-checkbox">
-                            </td>
-                            <td>{{ $registration->visitor_full_name ?? '—' }}</td>
-                            <td>{{ $registration->visitor_mobile ?? '—' }}</td>
-                            <td>{{ $registration->visitor_business ?? '—' }}</td>
-                            <td>{{ $formatDateTime($registration->created_at ?? null) }}</td>
-                            <td>
-                                @include('admin.partials.peer_identity', ['user' => $member, 'circleName' => $memberCircle])
-                            </td>
-                            <td>{{ $member->phone ?? '—' }}</td>
-                            <td>{{ ucfirst($registration->event_type ?? '—') }}</td>
-                            <td>{{ $registration->event_name ?? '—' }}</td>
-                            <td>{{ $formatDate($registration->event_date ?? null) }}</td>
-                            <td>{{ $registration->visitor_city ?? '—' }}</td>
-                            <td>{{ ucfirst($registration->status ?? '—') }}</td>
-                            <td class="text-end">
-                                <div class="d-inline-flex gap-1 justify-content-end align-items-center">
-                                    <a href="{{ route('admin.visitor-registrations.export-single', $registration->id) }}" class="btn btn-sm btn-outline-primary" title="Export Single CSV">
-                                        <i class="bi bi-download"></i>
-                                    </a>
-                                    @if ($registration->status === 'pending')
-                                        <form method="POST" action="{{ route('admin.visitor-registrations.approve', $registration->id) }}" class="d-inline">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Approve this visitor registration?')">Approve</button>
-                                        </form>
-                                        <form method="POST" action="{{ route('admin.visitor-registrations.reject', $registration->id) }}" class="d-inline">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Reject this visitor registration?')">Reject</button>
-                                        </form>
-                                    @endif
-                                    <form method="POST" action="{{ route('admin.visitor-registrations.destroy', $registration->id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this visitor registration? This cannot be undone.')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-danger" title="Delete">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center w-10">
+                                <input type="checkbox" id="selectAll" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" title="Select All">
+                            </th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Phone Number</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Phone</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Type</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                        </tr>
+                        <tr class="surface-2 border-b bs filter-row">
+                            <th class="px-2 py-1 text-center t3">—</th>
+                            <th class="px-2 py-1">
+                                <input type="text" name="visitor_name" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Visitor Name" value="{{ $filters['visitor_name'] }}">
+                            </th>
+                            <th class="px-2 py-1">
+                                <input type="text" name="visitor_mobile" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Visitor Mobile" value="{{ $filters['visitor_mobile'] }}">
+                            </th>
+                            <th class="px-2 py-1">
+                                <input type="text" name="visitor_business" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Visitor Business" value="{{ $filters['visitor_business'] }}">
+                            </th>
+                            <th class="px-2 py-1 text-center t3">—</th>
+                            <th class="px-2 py-1">
+                                <input type="text" name="peer_q" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer/Company/City" value="{{ $filters['peer_q'] }}">
+                            </th>
+                            <th class="px-2 py-1">
+                                <input type="text" name="peer_phone" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer Phone" value="{{ $filters['peer_phone'] }}">
+                            </th>
+                            <th class="px-2 py-1">
+                                <input type="text" name="event_type" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Event Type" value="{{ $filters['event_type'] }}">
+                            </th>
+                            <th class="px-2 py-1">
+                                <input type="text" name="event_name" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Event Name" value="{{ $filters['event_name'] }}">
+                            </th>
+                            <th class="px-2 py-1">
+                                <input type="date" name="event_date" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['event_date'] }}">
+                            </th>
+                            <th class="px-2 py-1">
+                                <input type="text" name="visitor_city" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Visitor City" value="{{ $filters['visitor_city'] }}">
+                            </th>
+                            <th class="px-2 py-1">
+                                <select name="status" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                    <option value="all" @selected($filters['status'] === 'all')>All</option>
+                                    <option value="pending" @selected($filters['status'] === 'pending')>Pending</option>
+                                    <option value="approved" @selected($filters['status'] === 'approved')>Approved</option>
+                                    <option value="rejected" @selected($filters['status'] === 'rejected')>Rejected</option>
+                                </select>
+                            </th>
+                            <th class="px-2 py-1">
+                                <div class="flex justify-end">
+                                    <button type="button" onclick="clearAdminFilters(event, 'visitorRegistrationsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
                                 </div>
-                            </td>
+                            </th>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="13" class="text-center text-muted">No visitor registrations found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse ($registrations as $registration)
+                            @php
+                                $member = $registration->user;
+                                $memberName = $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null, $member->name ?? null);
+                                $memberCompany = $member->company_name ?? $member->company ?? $member->business_name ?? 'No Company';
+                                $memberCity = $member->city ?? 'No City';
+                                $memberCircles = $member
+                                    ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
+                                    : '';
+                                $memberCircle = $memberCircles !== '' ? $memberCircles : 'No Circle';
+                            @endphp
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-center">
+                                    <input type="checkbox" name="ids[]" value="{{ $registration->id }}" form="bulkDeleteForm" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 row-checkbox">
+                                </td>
+                                <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $registration->visitor_full_name ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_mobile ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_business ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($registration->created_at ?? null) }}</td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @include('admin.partials.peer_identity', ['user' => $member, 'circleName' => $memberCircle])
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $member->phone ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($registration->event_type ?? '—') }}</span>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t1 font-medium">{{ $registration->event_name ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDate($registration->event_date ?? null) }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_city ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if($registration->status === 'approved')
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Approved</span>
+                                    @elseif($registration->status === 'rejected')
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">Rejected</span>
+                                    @else
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">Pending</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                    <div class="flex justify-end gap-1.5 items-center">
+                                        <a href="{{ route('admin.visitor-registrations.export-single', $registration->id) }}" class="p-1 rounded border bs t2 hover:t1 hover:surface-2 transition no-underline" title="Export Single CSV">
+                                            📥
+                                        </a>
+                                        @if ($registration->status === 'pending')
+                                            <form method="POST" action="{{ route('admin.visitor-registrations.approve', $registration->id) }}" class="inline">
+                                                @csrf
+                                                <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" onclick="return confirm('Approve this visitor registration?')">Approve</button>
+                                            </form>
+                                            <form method="POST" action="{{ route('admin.visitor-registrations.reject', $registration->id) }}" class="inline">
+                                                @csrf
+                                                <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Reject this visitor registration?')">Reject</button>
+                                            </form>
+                                        @endif
+                                        <form method="POST" action="{{ route('admin.visitor-registrations.destroy', $registration->id) }}" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete this visitor registration? This cannot be undone.')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-rose-600 hover:bg-rose-500 text-white transition focus-ring" title="Delete">
+                                                Delete
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="13" class="text-center py-8 text-xs t3">No visitor registrations found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $registrations->links() }}
+            </div>
         </div>
-    </div>
-
-
-    <div class="mt-3">
-        {{ $registrations->links() }}
     </div>
 
     <!-- Add Visitor Modal -->

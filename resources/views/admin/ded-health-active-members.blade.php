@@ -104,9 +104,8 @@
             <label for="dateTo" class="form-label small text-muted mb-1 fw-bold">Date To</label>
             <input type="date" id="dateTo" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}">
         </div>
-        <div class="col-12 d-flex justify-content-end gap-2 mt-3">
-            <a href="{{ route('admin.ded.dashboard.health.active-members') }}" class="btn btn-outline-secondary px-4">Reset Filters</a>
-            <button type="submit" class="btn btn-primary px-4">Apply Filters</button>
+        <div class="col-12 d-flex justify-content-end mt-3">
+            <a href="{{ route('admin.ded.dashboard.health.active-members') }}" class="btn btn-outline-secondary px-4">Clear</a>
         </div>
     </form>
 </div>

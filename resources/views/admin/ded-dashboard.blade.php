@@ -123,7 +123,7 @@
             </div>
             @if (($selectedCircleId ?? '') !== '')
                 <div class="col-md-auto">
-                    <a href="{{ route('admin.ded.dashboard') }}" class="btn btn-outline-secondary">Reset</a>
+                    <a href="{{ route('admin.ded.dashboard') }}" class="btn btn-outline-secondary">Clear</a>
                 </div>
                 <div class="col-md-auto text-success small fw-medium">
                     <i class="bi bi-info-circle-fill"></i> Scoped to circle: {{ $selectedCircle?->name ?? 'selected circle' }}.

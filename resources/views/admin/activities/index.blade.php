@@ -2,6 +2,8 @@
 
 @section('title', 'Activities Summary')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @php
         $getInitials = function($name) {
@@ -19,260 +21,245 @@
         };
     @endphp
 
-    @if ($errors->any())
-        <div class="alert alert-danger shadow-sm rounded-3">
-            {{ $errors->first() }}
-        </div>
-    @endif
-
     <!-- Activities Hub Header -->
     @include('admin.activities.partials.header', ['title' => 'Summary'])
 
-    <!-- Top Stats / District Peers Overview -->
-    <div class="row g-3 mb-4">
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-6 mt-4">
         <!-- Top District Peers Card -->
-        <div class="col-12">
-            <div class="card-activities-wrapper">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold text-dark"><i class="bi bi-trophy text-warning me-2"></i>Top 5 District Peers</span>
-                    <span class="badge bg-light text-muted fw-normal border">Ranked by combined performance</span>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-premium align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width: 80px;">Rank</th>
-                                <th>Peer Name</th>
-                                <th>Company</th>
-                                <th>City</th>
-                                <th class="text-end">Performance Score</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse (($topDistrictPeers ?? collect()) as $rank => $peer)
-                                <tr>
-                                    <td>
-                                        <span class="badge {{ $rank == 0 ? 'bg-warning text-dark' : ($rank == 1 ? 'bg-secondary text-white' : ($rank == 2 ? 'bg-dark text-white' : 'bg-light text-muted border')) }} rounded-circle p-2 d-inline-flex align-items-center justify-content-center" style="width: 28px; height: 28px; font-weight: 700;">
-                                            {{ $rank + 1 }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div class="peer-badge-wrapper">
-                                            <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($peer->peer_name) }}">
-                                                {{ $getInitials($peer->peer_name) }}
-                                            </div>
-                                            <div class="peer-badge-info">
-                                                <div class="peer-badge-name">{{ $peer->peer_name }}</div>
-                                            </div>
+        <div class="rounded-xl border bs surface overflow-hidden space-y-3">
+            <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
+                <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">🏆 Top 5 District Peers</span>
+                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Ranked by combined performance</span>
+            </div>
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width: 80px;">Rank</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Performance Score</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200/50">
+                        @forelse (($topDistrictPeers ?? collect()) as $rank => $peer)
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5">
+                                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold {{ $rank == 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' : ($rank == 1 ? 'bg-slate-200 text-slate-800' : ($rank == 2 ? 'bg-amber-900 text-white' : 'bg-gray-100 text-gray-700 border border-gray-200')) }}">
+                                        {{ $rank + 1 }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center" style="background-color: {{ $getAvatarBg($peer->peer_name) }}">
+                                            {{ $getInitials($peer->peer_name) }}
                                         </div>
-                                    </td>
-                                    <td>{{ $peer->company_name ?: '—' }}</td>
-                                    <td>{{ $peer->city_name ?: '—' }}</td>
-                                    <td class="text-end fw-bold text-primary">{{ number_format((int) ($peer->performance_score ?? 0)) }}</td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="5" class="text-center text-muted py-4">No district peer performance found.</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                                        <span class="font-semibold text-xs t1">{{ $peer->peer_name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $peer->company_name ?: '-' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $peer->city_name ?: '-' }}</td>
+                                <td class="px-3 py-2.5 text-right font-bold text-indigo-600 text-xs">{{ number_format((int) ($peer->performance_score ?? 0)) }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="text-center py-8 text-xs t3">No district peer performance found.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </div>
-    </div>
 
-    <!-- Main List Card -->
-    <div class="card-activities-wrapper">
-        <form id="activitiesFiltersForm" method="GET" action="{{ route('admin.activities.index') }}">
-        </form>
+        <!-- Main List Card -->
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <form id="activitiesFiltersForm" method="GET" action="{{ route('admin.activities.index') }}"></form>
 
-        <div class="d-flex flex-wrap justify-content-between align-items-center p-3 gap-2 border-bottom bg-light">
-            <div class="d-flex align-items-center gap-2">
-                <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
-                <select id="perPage" name="per_page" form="activitiesFiltersForm" class="form-select form-select-sm" style="width: 90px;">
-                    @foreach ([10, 20, 25, 50, 100] as $size)
-                        <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
-                    @endforeach
-                </select>
-            </div>
+            <div class="flex flex-wrap justify-between items-center p-3.5 gap-3 border-b bs surface-2">
+                <div class="flex items-center gap-2">
+                    <label for="perPage" class="text-xs t3 font-medium">Rows per page:</label>
+                    <select id="perPage" name="per_page" form="activitiesFiltersForm" class="px-2.5 py-1 rounded-md border bs surface text-xs t1 outline-none focus-ring">
+                        @foreach ([10, 20, 25, 50, 100] as $size)
+                            <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
+                        @endforeach
+                    </select>
+                </div>
 
-            <div class="d-flex gap-2 align-items-center">
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-white text-muted"><i class="bi bi-calendar-event"></i></span>
+                <div class="flex gap-2 items-center flex-wrap">
                     <input
                         type="datetime-local"
                         name="from"
                         form="activitiesFiltersForm"
                         value="{{ $filters['from'] ?? '' }}"
-                        class="form-control"
+                        class="px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring"
                         placeholder="From"
                         title="From"
                     >
-                </div>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-white text-muted"><i class="bi bi-calendar-event"></i></span>
                     <input
                         type="datetime-local"
                         name="to"
                         form="activitiesFiltersForm"
                         value="{{ $filters['to'] ?? '' }}"
-                        class="form-control"
+                        class="px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring"
                         placeholder="To"
                         title="To"
                     >
                 </div>
             </div>
-        </div>
 
-        <div class="table-responsive">
-            <table class="table table-premium align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th style="width: 40px;">
-                            <input type="checkbox" class="form-check-input" id="select-all-members">
-                        </th>
-                        <th>Peer Details</th>
-                        <th>Testimonials</th>
-                        <th>Referrals</th>
-                        <th>Business Deals</th>
-                        <th>P2P Meetings</th>
-                        <th>Requirements</th>
-                        <th>Leadership Requests</th>
-                        <th>Recommended Peers</th>
-                        <th>Registered Visitor</th>
-                    </tr>
-                    <tr class="bg-light align-middle filter-row">
-                        <th></th>
-                        <th>
-                            <div class="d-flex flex-column gap-2 py-1">
-                                <input
-                                    type="text"
-                                    name="q"
-                                    form="activitiesFiltersForm"
-                                    class="form-control form-control-sm"
-                                    placeholder="Name, company, city"
-                                    value="{{ $filters['q'] ?? '' }}"
-                                >
-                                <select name="circle_id" form="activitiesFiltersForm" class="form-select form-select-sm">
-                                    <option value="any">All Circles</option>
-                                    @foreach ($circles as $circle)
-                                        <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '') === $circle->id)>{{ $circle->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </th>
-                        <th><input type="text" class="form-control form-control-sm" disabled placeholder="—"></th>
-                        <th><input type="text" class="form-control form-control-sm" disabled placeholder="—"></th>
-                        <th><input type="text" class="form-control form-control-sm" disabled placeholder="—"></th>
-                        <th><input type="text" class="form-control form-control-sm" disabled placeholder="—"></th>
-                        <th><input type="text" class="form-control form-control-sm" disabled placeholder="—"></th>
-                        <th><input type="text" class="form-control form-control-sm" disabled placeholder="—"></th>
-                        <th><input type="text" class="form-control form-control-sm" disabled placeholder="—"></th>
-                        <th>
-                            <div class="d-flex gap-2 justify-content-end">
-                                <button type="submit" form="activitiesFiltersForm" class="btn btn-sm btn-primary px-3">Apply</button>
-                                <a href="{{ route('admin.activities.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#activitiesExportModal">Export</button>
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($members as $member)
-                        <tr>
-                            <td><input type="checkbox" class="form-check-input member-checkbox" value="{{ $member->id }}"></td>
-                            <td>
-                                <div class="peer-badge-wrapper">
-                                    <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($member->peer_name) }}">
-                                        {{ $getInitials($member->peer_name) }}
-                                    </div>
-                                    <div class="peer-badge-info">
-                                        <div class="peer-badge-name">{{ $member->peer_name }}</div>
-                                        <div class="peer-badge-meta">
-                                            @if($member->company_name) <span class="fw-medium text-dark">{{ $member->company_name }}</span> @endif
-                                            @if($member->city_name) &bull; <span>{{ $member->city_name }}</span> @endif
-                                            @if($member->circle_name) &bull; <span class="text-primary">{{ $member->circle_name }}</span> @endif
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="select-all-members">
+                            </th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Details</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Testimonials</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Referrals</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Business Deals</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">P2P Meetings</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Requirements</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Leadership Requests</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Recommended Peers</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Registered Visitor</th>
+                        </tr>
+                        <tr class="surface-2 border-b bs align-middle">
+                            <th class="px-3 py-2"></th>
+                            <th class="px-3 py-2">
+                                <div class="flex flex-col gap-1.5 py-1">
+                                    <input
+                                        type="text"
+                                        name="q"
+                                        form="activitiesFiltersForm"
+                                        class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal"
+                                        placeholder="Name, company, city"
+                                        value="{{ $filters['q'] ?? '' }}"
+                                    >
+                                    <select name="circle_id" form="activitiesFiltersForm" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal">
+                                        <option value="any">All Circles</option>
+                                        @foreach ($circles as $circle)
+                                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '') === $circle->id)>{{ $circle->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2">
+                                <div class="flex gap-1.5 justify-end items-center">
+                                    <a href="{{ route('admin.activities.index') }}" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
+                                    <button type="button" class="px-3 py-1 rounded-md border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition" data-bs-toggle="modal" data-bs-target="#activitiesExportModal">Export</button>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse ($members as $member)
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-center"><input type="checkbox" class="form-check-input member-checkbox" value="{{ $member->id }}"></td>
+                                <td class="px-3 py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($member->peer_name) }}">
+                                            {{ $getInitials($member->peer_name) }}
+                                        </div>
+                                        <div>
+                                            <div class="font-semibold t1 text-[12.5px]">{{ $member->peer_name }}</div>
+                                            <div class="t3 text-[10px]">
+                                                @if($member->company_name) <span class="font-medium t2">{{ $member->company_name }}</span> @endif
+                                                @if($member->city_name) &bull; <span>{{ $member->city_name }}</span> @endif
+                                                @if($member->circle_name) &bull; <span class="text-indigo-600 font-medium">{{ $member->circle_name }}</span> @endif
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td>
-                                @if ($member->testimonials_count > 0)
-                                    <a href="{{ route('admin.activities.testimonials', $member->id) }}" class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 text-decoration-none" target="_blank">
-                                        <i class="bi bi-chat-quote-fill me-1"></i>{{ $member->testimonials_count }}
-                                    </a>
-                                @else
-                                    <span class="text-muted">0</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($member->referrals_count > 0)
-                                    <a href="{{ route('admin.activities.referrals', $member->id) }}" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 text-decoration-none" target="_blank">
-                                        <i class="bi bi-person-plus-fill me-1"></i>{{ $member->referrals_count }}
-                                    </a>
-                                @else
-                                    <span class="text-muted">0</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($member->business_deals_count > 0)
-                                    <a href="{{ route('admin.activities.business-deals', $member->id) }}" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 text-decoration-none" target="_blank">
-                                        <i class="bi bi-briefcase-fill me-1"></i>{{ $member->business_deals_count }}
-                                    </a>
-                                @else
-                                    <span class="text-muted">0</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($member->p2p_completed_count > 0)
-                                    <a href="{{ route('admin.activities.p2p-meetings', $member->id) }}" class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1 text-decoration-none" target="_blank">
-                                        <i class="bi bi-people-fill me-1"></i>{{ $member->p2p_completed_count }}
-                                    </a>
-                                @else
-                                    <span class="text-muted">0</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($member->requirements_count > 0)
-                                    <a href="{{ route('admin.activities.requirements', $member->id) }}" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 text-decoration-none" target="_blank">
-                                        <i class="bi bi-file-earmark-text-fill me-1"></i>{{ $member->requirements_count }}
-                                    </a>
-                                @else
-                                    <span class="text-muted">0</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($member->become_leader_count > 0)
-                                    <a href="{{ route('admin.activities.become-a-leader.show', $member->id) }}" class="badge bg-dark-subtle text-dark border border-dark-subtle px-2 py-1 text-decoration-none" target="_blank">
-                                        <i class="bi bi-award-fill me-1"></i>{{ $member->become_leader_count }}
-                                    </a>
-                                @else
-                                    <span class="text-muted">0</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($member->recommend_peer_count > 0)
-                                    <a href="{{ route('admin.activities.recommend-peer.show', $member->id) }}" class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2 py-1 text-decoration-none" target="_blank">
-                                        <i class="bi bi-hand-thumbs-up-fill me-1"></i>{{ $member->recommend_peer_count }}
-                                    </a>
-                                @else
-                                    <span class="text-muted">0</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($member->register_visitor_count > 0)
-                                    <a href="{{ route('admin.activities.register-visitor.show', $member->id) }}" class="badge bg-light text-dark border px-2 py-1 text-decoration-none" target="_blank">
-                                        <i class="bi bi-person-vcard-fill me-1"></i>{{ $member->register_visitor_count }}
-                                    </a>
-                                @else
-                                    <span class="text-muted">0</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="10" class="text-center text-muted py-4">No peers found.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
+                                </td>
+                                <td class="px-3 py-2.5 text-center">
+                                    @if ($member->testimonials_count > 0)
+                                        <a href="{{ route('admin.activities.testimonials', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 no-underline" target="_blank">
+                                            💬 {{ $member->testimonials_count }}
+                                        </a>
+                                    @else
+                                        <span class="t3 text-xs">0</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-center">
+                                    @if ($member->referrals_count > 0)
+                                        <a href="{{ route('admin.activities.referrals', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 no-underline" target="_blank">
+                                            👤 {{ $member->referrals_count }}
+                                        </a>
+                                    @else
+                                        <span class="t3 text-xs">0</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-center">
+                                    @if ($member->business_deals_count > 0)
+                                        <a href="{{ route('admin.activities.business-deals', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200 no-underline" target="_blank">
+                                            💼 {{ $member->business_deals_count }}
+                                        </a>
+                                    @else
+                                        <span class="t3 text-xs">0</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-center">
+                                    @if ($member->p2p_completed_count > 0)
+                                        <a href="{{ route('admin.activities.p2p-meetings', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200 no-underline" target="_blank">
+                                            🤝 {{ $member->p2p_completed_count }}
+                                        </a>
+                                    @else
+                                        <span class="t3 text-xs">0</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-center">
+                                    @if ($member->requirements_count > 0)
+                                        <a href="{{ route('admin.activities.requirements', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200 no-underline" target="_blank">
+                                            📄 {{ $member->requirements_count }}
+                                        </a>
+                                    @else
+                                        <span class="t3 text-xs">0</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-center">
+                                    @if ($member->become_leader_count > 0)
+                                        <a href="{{ route('admin.activities.become-a-leader.show', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-800 border-gray-300 no-underline" target="_blank">
+                                            🏅 {{ $member->become_leader_count }}
+                                        </a>
+                                    @else
+                                        <span class="t3 text-xs">0</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-center">
+                                    @if ($member->recommend_peer_count > 0)
+                                        <a href="{{ route('admin.activities.recommend-peer.show', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-violet-50 text-violet-700 border-violet-200 no-underline" target="_blank">
+                                            👍 {{ $member->recommend_peer_count }}
+                                        </a>
+                                    @else
+                                        <span class="t3 text-xs">0</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-center">
+                                    @if ($member->register_visitor_count > 0)
+                                        <a href="{{ route('admin.activities.register-visitor.show', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 no-underline" target="_blank">
+                                            🪪 {{ $member->register_visitor_count }}
+                                        </a>
+                                    @else
+                                        <span class="t3 text-xs">0</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="10" class="text-center py-8 text-xs t3">No peers found.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $members->links() }}
+            </div>
         </div>
     </div>
 

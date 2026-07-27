@@ -17,13 +17,30 @@ class CampaignService
             $run->update(['status' => 'skipped', 'finished_at' => now()]);
 
             return $run;
-        } $users = $this->audienceFor($campaign);
+        }
+        $users = $this->audienceFor($campaign);
         $sent = 0;
         $skipped = 0;
         foreach ($users as $user) {
-            $n = $this->notifications->sendToUser($user, $campaign->code, $this->notifications->renderTemplate($campaign->title_template, ['name' => $user->name ?? 'Peer']), $this->notifications->renderTemplate($campaign->body_template, ['name' => $user->name ?? 'Peer']), ['screen' => $campaign->tap_screen, 'campaign_id' => $campaign->id], ['campaign' => $campaign, 'channel' => $campaign->channel, 'priority' => $campaign->priority, 'screen' => $campaign->tap_screen, 'dedupe_key' => $campaign->code.':'.$user->id.':'.now()->toDateString()]);
+            $displayName = trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? ''))) ?: (string) ($user->name ?? 'Peer');
+            $placeholders = [
+                'name' => $displayName,
+                'person' => $displayName,
+                'requirement_title' => 'a relevant requirement',
+                'event_title' => 'Upcoming Event',
+                'circle_name' => 'your Circle',
+                'date' => now()->format('d M Y'),
+                'x' => '1',
+                'amount' => '₹0',
+                'status' => 'Active',
+                'badge_name' => 'Member',
+            ];
+            $title = $this->notifications->renderTemplate($campaign->title_template, $placeholders);
+            $body = $this->notifications->renderTemplate($campaign->body_template, $placeholders);
+            $n = $this->notifications->sendToUser($user, $campaign->code, $title, $body, ['screen' => $campaign->tap_screen, 'campaign_id' => $campaign->id], ['campaign' => $campaign, 'channel' => $campaign->channel, 'priority' => $campaign->priority, 'screen' => $campaign->tap_screen, 'dedupe_key' => $campaign->code.':'.$user->id.':'.now()->toDateString()]);
             $n ? $sent++ : $skipped++;
-        } $run->update(['status' => 'finished', 'audience_count' => $users->count(), 'sent_count' => $sent, 'skipped_count' => $skipped, 'finished_at' => now()]);
+        }
+        $run->update(['status' => 'finished', 'audience_count' => $users->count(), 'sent_count' => $sent, 'skipped_count' => $skipped, 'finished_at' => now()]);
 
         return $run;
     }

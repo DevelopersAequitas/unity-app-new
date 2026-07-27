@@ -2,6 +2,8 @@
 
 @section('title', 'Become A Leader - Peer Activity')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @php
         $getInitials = function($name) {
@@ -46,89 +48,66 @@
         $peerName = $displayName($peer->display_name ?? null, $peer->first_name ?? null, $peer->last_name ?? null);
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-        <div>
-            <h1 class="h3 mb-1 fw-bold text-dark" style="font-family: 'Outfit', sans-serif;">Become A Leader Entries</h1>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}" class="text-decoration-none text-muted">Admin</a></li>
-                    <li class="breadcrumb-item"><a href="{{ route('admin.activities.become-a-leader.index') }}" class="text-decoration-none text-muted">Become A Leader</a></li>
-                    <li class="breadcrumb-item active text-primary fw-medium" aria-current="page">{{ $peerName }}</li>
-                </ol>
-            </nav>
-        </div>
-        <a href="{{ route('admin.activities.become-a-leader.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
-            <i class="bi bi-arrow-left"></i> Back
-        </a>
-    </div>
-
-    <!-- Peer Profile Summary Card -->
-    <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: var(--radius-md);">
-        <div class="d-flex align-items-center gap-3 flex-wrap">
-            <div class="peer-badge-avatar" style="width: 60px; height: 60px; font-size: 1.3rem; background-color: {{ $getAvatarBg($peerName) }}">
-                {{ $getInitials($peerName) }}
-            </div>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
             <div>
-                <h4 class="fw-bold text-dark mb-1">{{ $peerName }}</h4>
-                <div class="text-muted small">
-                    <span class="me-3"><i class="bi bi-envelope me-1"></i>{{ $peer->email ?? '—' }}</span>
-                    <span><i class="bi bi-telephone me-1"></i>{{ $peer->phone ?? '—' }}</span>
-                </div>
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Become A Leader Submissions</h2>
+                <p class="text-xs t1 font-medium m-0 mt-0.5">{{ $peerName }} • {{ $peer->email ?? '-' }}</p>
+            </div>
+            <a href="{{ route('admin.activities.become-a-leader.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">
+                Back to List
+            </a>
+        </div>
+
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Applying For</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referred Details</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Leadership Roles</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City / Region</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Primary Domain</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Why Interested</th>
+                        </tr>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse ($items as $item)
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($item->created_at ?? null) }}</td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $item->applying_for ?? '—' }}</span>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if($item->referred_name)
+                                        <div class="font-semibold t1">{{ $item->referred_name }}</div>
+                                        <div class="t3 text-[10px]">{{ $item->referred_mobile ?: '—' }}</div>
+                                    @else
+                                        <span class="t3">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $formatRoles($item->leadership_roles ?? null) }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $item->contribute_city ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $item->primary_domain ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[280px] truncate" title="{{ $item->why_interested }}">
+                                    {{ $item->why_interested ?? '—' }}
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center py-8 text-xs t3">No entries found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $items->links() }}
             </div>
         </div>
-    </div>
-
-    <!-- Entries Logs Table -->
-    <div class="card-activities-wrapper">
-        <div class="card-header bg-white">
-            <span class="fw-bold text-dark"><i class="bi bi-award text-primary me-2"></i>Submissions by this Peer</span>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-premium align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Submitted At</th>
-                        <th>Applying For</th>
-                        <th>Referred Details</th>
-                        <th>Leadership Roles</th>
-                        <th>City / Region</th>
-                        <th>Primary Domain</th>
-                        <th>Why Interested</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($items as $item)
-                        <tr>
-                            <td><span class="small text-muted">{{ $formatDateTime($item->created_at ?? null) }}</span></td>
-                            <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">{{ $item->applying_for ?? '—' }}</span></td>
-                            <td>
-                                @if($item->referred_name)
-                                    <div class="small fw-semibold text-dark">{{ $item->referred_name }}</div>
-                                    <div class="small text-muted"><i class="bi bi-telephone me-1"></i>{{ $item->referred_mobile ?: '—' }}</div>
-                                @else
-                                    <span class="text-muted">—</span>
-                                @endif
-                            </td>
-                            <td><span class="small">{{ $formatRoles($item->leadership_roles ?? null) }}</span></td>
-                            <td><span class="small text-secondary">{{ $item->contribute_city ?? '—' }}</span></td>
-                            <td><span class="small">{{ $item->primary_domain ?? '—' }}</span></td>
-                            <td>
-                                <div class="text-truncate-multi text-muted small" style="max-width: 300px;" title="{{ $item->why_interested }}">
-                                    {{ $item->why_interested ?? '—' }}
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-4">No entries found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="mt-3">
-        {{ $items->links() }}
     </div>
 @endsection
+

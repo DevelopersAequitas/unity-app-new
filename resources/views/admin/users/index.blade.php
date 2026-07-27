@@ -130,6 +130,8 @@
   
   .col-sticky { position: sticky; left: 0; z-index: 10; border-right-width: 1px; }
   .col-sticky-head { position: sticky; left: 0; z-index: 20; border-right-width: 1px; }
+  .col-sticky-name { position: sticky; left: 44px; z-index: 10; border-right-width: 1px; }
+  .col-sticky-head-name { position: sticky; left: 44px; z-index: 20; border-right-width: 1px; }
   
   #grid-root-container .kbd {
     background: var(--surface-3);
@@ -467,9 +469,9 @@
         <span class="kbd absolute right-2.5 top-1/2 -translate-y-1/2">/</span>
       </div>
 
-      <button onclick="clearFilters()" class="chip !text-[12.5px]" title="Reset all filters back to default">
+      <button onclick="clearFilters()" class="chip !text-[12.5px] border border-current" title="Clear all filters">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        Reset Filters
+        Clear
       </button>
 
       <div class="ml-auto flex items-center gap-2">
@@ -547,10 +549,10 @@
         <table class="min-w-full border-collapse text-[13px]" id="main-table">
           <thead>
             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold">
-              <th class="th-cell col-sticky-head surface-2 border-b border-r bs px-3 py-3 text-left" style="width:44px;">
+              <th class="th-cell col-sticky-head surface-2 border-b border-r bs px-3 py-3 text-left" style="width:44px; min-width:44px; max-width:44px;">
                 <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" class="accent-indigo-500 w-4 h-4 rounded"/>
               </th>
-              <th data-colgrp="mid" class="th-cell col-sticky-head surface-2 border-b border-r bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:130px;">
+              <th data-colgrp="mid" class="th-cell surface-2 border-b bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:130px;">
                 <button onclick="sortBy('mid')" class="flex items-center gap-1 hover:t1 font-semibold uppercase tracking-wider text-[11px] t3 mb-1.5">Member ID <svg class="w-3 h-3 sort-icon" data-col="mid" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg></button>
                 <div class="relative">
                   <svg class="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 t3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
@@ -559,7 +561,7 @@
                 </div>
                 <div class="col-resize-handle"></div>
               </th>
-              <th data-colgrp="name" class="th-cell surface-2 border-b bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:160px;">
+              <th data-colgrp="name" class="th-cell col-sticky-head-name surface-2 border-b border-r bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:160px;">
                 <button onclick="sortBy('name')" class="flex items-center gap-1 hover:t1 font-semibold uppercase tracking-wider text-[11px] t3 mb-1.5">Member <svg class="w-3 h-3 sort-icon" data-col="name" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg></button>
                 <div class="relative">
                   <svg class="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 t3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
@@ -739,7 +741,14 @@
                 </div>
                 <div class="col-resize-handle"></div>
               </th>
-              <th class="th-cell surface-2 border-b bs px-3 py-3 text-center" style="min-width:100px;">Actions</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:100px;">
+                <div class="font-semibold uppercase tracking-wider text-[11px] t3 mb-1.5">Actions</div>
+                <div>
+                  <button type="button" onclick="clearFilters()" class="w-full px-2.5 py-1 text-[11px] font-semibold rounded border bs t2 hover:t1 hover:surface-3 transition bg-transparent cursor-pointer">
+                    Clear
+                  </button>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody id="table-body"><!-- rows injected by JS --></tbody>
@@ -1085,7 +1094,30 @@
     // Real database users list passed from controller
     const members = @json($allUsersJson);
     
-    function initials(n){ return n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+    function initials(n){
+      if (!n || typeof n !== 'string') return '?';
+      const clean = n.trim();
+      if (!clean) return '?';
+      const parts = clean.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return '?';
+      if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function renderAvatar(m, sizeClass = 'w-8 h-8 text-[11px]') {
+      const avatarUrl = (m && m.avatar && typeof m.avatar === 'string') ? m.avatar.trim() : '';
+      const initialText = initials(m ? m.name : '');
+      const bgColor = (m && m.color) ? m.color : '#6366F1';
+
+      if (!avatarUrl) {
+        return `<div class="avatar ${sizeClass} rounded-full font-bold flex items-center justify-center text-white flex-none" style="background:${bgColor}">${initialText}</div>`;
+      }
+
+      const safeUrl = avatarUrl.replace(/"/g, '&quot;');
+      const safeName = String((m && m.name) || '').replace(/"/g, '&quot;');
+
+      return `<img src="${safeUrl}" alt="${safeName}" class="${sizeClass} rounded-full object-cover flex-none" onerror="this.onerror=null; this.outerHTML='<div class=\\'avatar ${sizeClass} rounded-full font-bold flex items-center justify-center text-white flex-none\\' style=\\'background:${bgColor}\\'>${initialText}</div>';" />`;
+    }
     
     let selected = new Set();
     let sortState = {col:null, dir:1};
@@ -1230,6 +1262,21 @@
       applyFilters();
     }
 
+    function formatDateDMY(date) {
+      const day = String(date.getDate()).padStart(2, '0');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[date.getMonth()];
+      const year = date.getFullYear();
+      return `${day} ${month} ${year}`;
+    }
+
+    function formatMonthMY(date) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[date.getMonth()];
+      const year = date.getFullYear();
+      return `${month} ${year}`;
+    }
+
     function updateSummaryMetrics() {
       const totalNum = members.length;
       document.getElementById('kpi-total-num').textContent = totalNum;
@@ -1239,19 +1286,19 @@
       document.getElementById('kpi-active-num').textContent = activeNum;
 
       // New Today / Month
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const thisMonthStr = new Date().toISOString().slice(0, 7);
+      const todayStr = formatDateDMY(new Date());
+      const thisMonthStr = formatMonthMY(new Date());
       
-      const newToday = members.filter(m => m.joined && m.joined.startsWith(todayStr)).length;
-      const newMonth = members.filter(m => m.joined && m.joined.startsWith(thisMonthStr)).length;
+      const newToday = members.filter(m => m.joined && m.joined === todayStr).length;
+      const newMonth = members.filter(m => m.joined && m.joined.endsWith(thisMonthStr)).length;
       
       document.getElementById('kpi-newtoday-num').textContent = newToday;
       document.getElementById('kpi-newtoday-trend').textContent = `+${newToday}`;
       document.getElementById('kpi-newmonth-num').textContent = newMonth;
       
       // Renewals
-      const renewedToday = members.filter(m => m.lastPaymentDate && m.lastPaymentDate.startsWith(todayStr) && m.renewalCount > 0).length;
-      const renewedMonth = members.filter(m => m.lastPaymentDate && m.lastPaymentDate.startsWith(thisMonthStr) && m.renewalCount > 0).length;
+      const renewedToday = members.filter(m => m.lastPaymentDate && m.lastPaymentDate === todayStr && m.renewalCount > 0).length;
+      const renewedMonth = members.filter(m => m.lastPaymentDate && m.lastPaymentDate.endsWith(thisMonthStr) && m.renewalCount > 0).length;
       document.getElementById('kpi-renewtoday-num').textContent = renewedToday;
       document.getElementById('kpi-renewmonth-num').textContent = renewedMonth;
 
@@ -1461,15 +1508,15 @@
     function rowHTML(m){
       return `
       <tr class="row-anim data-row cursor-pointer ${selected.has(m.id)?'selected':''}" data-id="${m.id}" onclick="openDrawer('${m.id}')">
-        <td class="col-sticky surface border-b border-r bs px-3 py-2.5 align-top" onclick="event.stopPropagation()">
+        <td class="col-sticky surface border-b border-r bs px-3 py-2.5 align-top" style="width:44px; min-width:44px; max-width:44px;" onclick="event.stopPropagation()">
           <input type="checkbox" class="row-check accent-indigo-500 w-4 h-4 rounded mt-1" ${selected.has(m.id)?'checked':''} onchange="toggleRow('${m.id}', this)"/>
         </td>
-        <td class="col-sticky surface border-b border-r bs px-3 py-2.5 align-top font-mono font-medium text-[12.5px] t1">
+        <td class="border-b bs px-3 py-2.5 align-top font-mono font-medium text-[12.5px] t1">
           ${m.mid}
         </td>
-        <td class="border-b bs px-3 py-2.5 align-top">
+        <td class="col-sticky-name surface border-b border-r bs px-3 py-2.5 align-top">
           <div class="flex items-center gap-2.5">
-            <div class="avatar w-8 h-8 rounded-full text-[11px] font-bold flex items-center justify-center text-white" style="background:${m.color}">${initials(m.name)}</div>
+            ${renderAvatar(m, 'w-8 h-8 text-[11px]')}
             <div class="font-display font-medium text-indigo-500 hover:text-indigo-700 hover:underline transition">${m.name}</div>
           </div>
         </td>
@@ -1599,8 +1646,22 @@
         // Joined dates filter inputs
         const joinedStart = document.getElementById('f-joined-start')?.value;
         const joinedEnd = document.getElementById('f-joined-end')?.value;
-        if (joinedStart && m.joined && m.joined < joinedStart) return false;
-        if (joinedEnd && m.joined && m.joined > joinedEnd) return false;
+        if (m.joined && m.joined !== '—') {
+          const joinedDate = new Date(m.joined);
+          joinedDate.setHours(0,0,0,0);
+          if (joinedStart) {
+            const startDate = new Date(joinedStart);
+            startDate.setHours(0,0,0,0);
+            if (joinedDate < startDate) return false;
+          }
+          if (joinedEnd) {
+            const endDate = new Date(joinedEnd);
+            endDate.setHours(0,0,0,0);
+            if (joinedDate > endDate) return false;
+          }
+        } else if (joinedStart || joinedEnd) {
+          return false;
+        }
 
         // Header column filters
         if(currentFilters.industry && !m.industry.toLowerCase().includes(currentFilters.industry.toLowerCase())) return false;
@@ -1759,7 +1820,7 @@
       
       document.getElementById('drawer-body').innerHTML = `
         <div class="flex items-center gap-3 mb-4">
-          <div class="avatar w-14 h-14 rounded-full text-[16px] flex items-center justify-center text-white" style="background:${m.color}">${initials(m.name)}</div>
+          ${renderAvatar(m, 'w-14 h-14 text-[16px]')}
           <div>
             <div class="font-display font-semibold text-[16.5px] t1">${m.name}</div>
             <div class="text-[12px] t3 font-mono mt-0.5">${m.mid}</div>
@@ -2054,8 +2115,8 @@
           if (currentFilters.view === 'pending' && !(m.status.n.toLowerCase().includes('pending') || m.status.n.toLowerCase().includes('awaiting'))) return false;
           if (currentFilters.view === 'expiring' && (m.expiryDays < 0 || m.expiryDays > 30)) return false;
           if (currentFilters.view === 'new') {
-            const thisMonth = new Date().toISOString().slice(0, 7);
-            if (!m.joined || !m.joined.startsWith(thisMonth)) return false;
+            const thisMonthStr = formatMonthMY(new Date());
+            if (!m.joined || !m.joined.endsWith(thisMonthStr)) return false;
           }
 
           if (currentFilters.quick === 'expiring' && (m.expiryDays < 0 || m.expiryDays > 30)) return false;
@@ -2070,8 +2131,22 @@
 
           const joinedStart = document.getElementById('f-joined-start')?.value;
           const joinedEnd = document.getElementById('f-joined-end')?.value;
-          if (joinedStart && m.joined && m.joined < joinedStart) return false;
-          if (joinedEnd && m.joined && m.joined > joinedEnd) return false;
+          if (m.joined && m.joined !== '—') {
+            const joinedDate = new Date(m.joined);
+            joinedDate.setHours(0,0,0,0);
+            if (joinedStart) {
+              const startDate = new Date(joinedStart);
+              startDate.setHours(0,0,0,0);
+              if (joinedDate < startDate) return false;
+            }
+            if (joinedEnd) {
+              const endDate = new Date(joinedEnd);
+              endDate.setHours(0,0,0,0);
+              if (joinedDate > endDate) return false;
+            }
+          } else if (joinedStart || joinedEnd) {
+            return false;
+          }
 
           if(currentFilters.industry && !m.industry.toLowerCase().includes(currentFilters.industry.toLowerCase())) return false;
           if(currentFilters.city && !m.city.toLowerCase().includes(currentFilters.city.toLowerCase())) return false;

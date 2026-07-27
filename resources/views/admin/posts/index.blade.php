@@ -2,264 +2,269 @@
 
 @section('title', 'All Posts')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @if (session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
+        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">{{ session('success') }}</div>
     @endif
 
     @if ($errors->any())
-        <div class="alert alert-danger">{{ $errors->first() }}</div>
+        <div class="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">{{ $errors->first() }}</div>
     @endif
 
     <form id="postsFiltersForm" method="GET" action="{{ route('admin.posts.index') }}"></form>
 
-    <div class="card-activities-wrapper">
-        <div class="p-3 border-bottom">
-            <div class="row g-2 align-items-end">
-                <div class="col-12 col-md-2">
-                    <label class="form-label small text-muted">Active</label>
-                    <select name="active" form="postsFiltersForm" class="form-select form-select-sm">
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">All Posts</h2>
+            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total: {{ number_format($posts->total()) }}</span>
+        </div>
+
+        <!-- Filter Card -->
+        <div class="p-3 rounded-lg border bs surface-2">
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2.5 items-end">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Active</label>
+                    <select name="active" form="postsFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                         <option value="all" @selected(($filters['active'] ?? 'all') === 'all')>All</option>
                         <option value="active" @selected(($filters['active'] ?? '') === 'active')>Active</option>
                         <option value="deactivated" @selected(($filters['active'] ?? '') === 'deactivated')>Deactivated</option>
                     </select>
                 </div>
-                <div class="col-12 col-md-2">
-                    <label class="form-label small text-muted">Visibility</label>
-                    <select name="visibility" form="postsFiltersForm" class="form-select form-select-sm">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Visibility</label>
+                    <select name="visibility" form="postsFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                         <option value="">Any</option>
                         @foreach ($visibilities as $visibility)
                             <option value="{{ $visibility }}" @selected(($filters['visibility'] ?? '') === $visibility)>{{ ucfirst($visibility) }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="col-12 col-md-2">
-                    <label class="form-label small text-muted">Moderation Status</label>
-                    <select name="moderation_status" form="postsFiltersForm" class="form-select form-select-sm">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Moderation</label>
+                    <select name="moderation_status" form="postsFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                         @foreach ($moderationOptions as $value => $label)
                             <option value="{{ $value === 'any' ? '' : $value }}" @selected(($filters['moderation_status'] ?? '') === ($value === 'any' ? '' : $value))>{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="col-12 col-md-2">
-                    <label class="form-label small text-muted">Circle</label>
-                    <select name="circle_id" form="postsFiltersForm" class="form-select form-select-sm">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Circle</label>
+                    <select name="circle_id" form="postsFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                         <option value="all">All Circles</option>
                         @foreach ($circles as $c)
                             <option value="{{ $c->id }}" @selected(($circleId ?? 'all') == $c->id)>{{ $c->name }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="col-12 col-md-2">
-                    <label class="form-label small text-muted">Search</label>
-                    <input type="text" name="search" form="postsFiltersForm" class="form-control form-control-sm" placeholder="Content or owner" value="{{ $filters['search'] ?? '' }}">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+                    <input type="text" name="search" form="postsFiltersForm" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Content or owner" value="{{ $filters['search'] ?? '' }}">
                 </div>
-                <div class="col-12 col-md-2 d-flex gap-2">
-                    <button type="submit" form="postsFiltersForm" class="btn btn-sm btn-primary">Apply</button>
-                    <a href="{{ route('admin.posts.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                <div class="flex justify-end">
+                    <a href="{{ route('admin.posts.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline w-full">Clear</a>
                 </div>
             </div>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-premium mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th style="min-width: 140px;">Created At</th>
-                        <th style="min-width: 180px;">Peer Name</th>
-                        <th style="min-width: 120px;">Visibility</th>
-                        <th style="min-width: 150px;">Moderation Status</th>
-                        <th style="min-width: 120px;">Active?</th>
-                        <th style="min-width: 250px;">Content</th>
-                        <th style="min-width: 120px;">Media</th>
-                        <th class="text-end" style="min-width: 140px;">Actions</th>
-                    </tr>
-                    <tr class="bg-light filter-row">
-                        <th></th>
-                        <th><input type="text" name="peer" form="postsFiltersForm" class="form-control form-control-sm" style="min-width:180px" value="{{ $peer ?? '' }}" placeholder="Peer/Company/City"></th>
-                        <th>
-                            <select name="inline_visibility" form="postsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
-                                <option value="any">Any</option>
-                                @foreach ($visibilities as $visibility)
-                                    <option value="{{ $visibility }}" @selected(($inlineVisibility ?? 'any') === $visibility)>{{ ucfirst($visibility) }}</option>
-                                @endforeach
-                            </select>
-                        </th>
-                        <th>
-                            <select name="inline_moderation_status" form="postsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
-                                @foreach ($moderationOptions as $value => $label)
-                                    <option value="{{ $value }}" @selected(($inlineModerationStatus ?? 'any') === $value)>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </th>
-                        <th>
-                            <select name="inline_active" form="postsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
-                                <option value="any" @selected(($inlineActive ?? 'any') === 'any')>Any</option>
-                                <option value="yes" @selected(($inlineActive ?? '') === 'yes')>Yes</option>
-                                <option value="no" @selected(($inlineActive ?? '') === 'no')>No</option>
-                            </select>
-                        </th>
-                        <th></th>
-                        <th>
-                            <select name="media" form="postsFiltersForm" class="form-select form-select-sm js-no-searchable-select">
-                                <option value="any" @selected(($media ?? 'any') === 'any')>Any</option>
-                                <option value="has" @selected(($media ?? '') === 'has')>Has Media</option>
-                                <option value="none" @selected(($media ?? '') === 'none')>No Media</option>
-                            </select>
-                        </th>
-                        <th class="text-end" style="white-space:nowrap;">
-                            <div class="d-inline-flex align-items-center gap-2" style="flex-wrap:nowrap;">
-                                <button type="submit" form="postsFiltersForm" class="btn btn-sm btn-primary">Apply</button>
-                                <a href="{{ route('admin.posts.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($posts as $post)
-                        @php
-                            $isImpact = ($post->timeline_item_type ?? $post->source_type ?? 'post') === 'impact';
-                            $owner = $post->user;
-                            $circleName = optional($post->circle)->name;
-                            $isActive = $isImpact
-                                ? (bool) ($post->is_active ?? ! is_null($post->timeline_posted_at ?? null))
-                                : $post->deleted_at === null && ! (bool) ($post->is_deleted ?? false);
-                            $mediaUrl = (function ($media) {
-                                if (empty($media)) {
-                                    return null;
-                                }
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visibility</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Moderation Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Active</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Content</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Media</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                        </tr>
+                        <tr class="surface-2 border-b bs filter-row">
+                            <th class="px-2 py-1 text-center t3">—</th>
+                            <th class="px-2 py-1"><input type="text" name="peer" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" style="min-width:180px" value="{{ $peer ?? '' }}" placeholder="Peer/Company/City"></th>
+                            <th class="px-2 py-1">
+                                <select name="inline_visibility" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                    <option value="any">Any</option>
+                                    @foreach ($visibilities as $visibility)
+                                        <option value="{{ $visibility }}" @selected(($inlineVisibility ?? 'any') === $visibility)>{{ ucfirst($visibility) }}</option>
+                                    @endforeach
+                                </select>
+                            </th>
+                            <th class="px-2 py-1">
+                                <select name="inline_moderation_status" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                    @foreach ($moderationOptions as $value => $label)
+                                        <option value="{{ $value }}" @selected(($inlineModerationStatus ?? 'any') === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </th>
+                            <th class="px-2 py-1">
+                                <select name="inline_active" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                    <option value="any" @selected(($inlineActive ?? 'any') === 'any')>Any</option>
+                                    <option value="yes" @selected(($inlineActive ?? '') === 'yes')>Yes</option>
+                                    <option value="no" @selected(($inlineActive ?? '') === 'no')>No</option>
+                                </select>
+                            </th>
+                            <th class="px-2 py-1 text-center t3">—</th>
+                            <th class="px-2 py-1">
+                                <select name="media" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                    <option value="any" @selected(($media ?? 'any') === 'any')>Any</option>
+                                    <option value="has" @selected(($media ?? '') === 'has')>Has Media</option>
+                                    <option value="none" @selected(($media ?? '') === 'none')>No Media</option>
+                                </select>
+                            </th>
+                            <th class="px-2 py-1">
+                                <div class="flex justify-end">
+                                    <button type="button" onclick="clearAdminFilters(event, 'postsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse ($posts as $post)
+                            @php
+                                $isImpact = ($post->timeline_item_type ?? $post->source_type ?? 'post') === 'impact';
+                                $owner = $post->user;
+                                $circleName = optional($post->circle)->name;
+                                $isActive = $isImpact
+                                    ? (bool) ($post->is_active ?? ! is_null($post->timeline_posted_at ?? null))
+                                    : $post->deleted_at === null && ! (bool) ($post->is_deleted ?? false);
+                                $mediaUrl = (function ($media) {
+                                    if (empty($media)) {
+                                        return null;
+                                    }
 
-                                $items = [];
+                                    $items = [];
 
-                                if (is_array($media)) {
-                                    $items = $media;
-                                } elseif (is_object($media)) {
-                                    $items = data_get($media, 'items', []);
-                                }
+                                    if (is_array($media)) {
+                                        $items = $media;
+                                    } elseif (is_object($media)) {
+                                        $items = data_get($media, 'items', []);
+                                    }
 
-                                if (! is_array($items)) {
-                                    return null;
-                                }
+                                    if (! is_array($items)) {
+                                        return null;
+                                    }
 
-                                $imageItem = collect($items)->first(function ($item) {
-                                    return data_get($item, 'type') === 'image';
-                                });
+                                    $imageItem = collect($items)->first(function ($item) {
+                                        return data_get($item, 'type') === 'image';
+                                    });
 
-                                $candidate = $imageItem ?? (collect($items)->first() ?? []);
-                                $url = data_get($candidate, 'url');
+                                    $candidate = $imageItem ?? (collect($items)->first() ?? []);
+                                    $url = data_get($candidate, 'url');
 
-                                if ($url) {
-                                    return $url;
-                                }
+                                    if ($url) {
+                                        return $url;
+                                    }
 
-                                $id = data_get($candidate, 'id') ?? data_get($candidate, 'file_id');
+                                    $id = data_get($candidate, 'id') ?? data_get($candidate, 'file_id');
 
-                                if ($id) {
-                                    return url('/api/v1/files/' . $id);
-                                }
+                                    if ($id) {
+                                        return url('/api/v1/files/' . $id);
+                                    }
 
-                                return data_get($candidate, 'path');
-                            })($post->media ?? null);
-                            $isCompletedCollaboration = ! $isImpact
-                                && ($post->source_type ?? null) === 'collaboration_post'
-                                && ($post->source_event ?? null) === 'completed';
-                            $acceptedBy = $isCompletedCollaboration ? optional($post->collaborationPost)->acceptedByUser : null;
-                            $acceptedByName = $acceptedBy
-                                ? ($acceptedBy->display_name ?: trim(($acceptedBy->first_name ?? '') . ' ' . ($acceptedBy->last_name ?? '')))
-                                : null;
-                        @endphp
-                        <tr>
-                            <td>{{ $post->created_at?->format('Y-m-d H:i') }}</td>
-                            <td>@include('admin.partials.peer_identity', ['user' => $owner, 'circleName' => $circleName])</td>
-                            <td>{{ ucfirst($post->visibility) }}</td>
-                            <td>{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</td>
-                            <td>{{ $isActive ? 'Yes' : 'No' }}</td>
-                            <td>
-                                @if($isImpact)
-                                    <span class="badge bg-info text-dark me-1">Impact</span>
-                                @endif
-                                <div>{{ \Illuminate\Support\Str::limit($post->content_text, 60) }}</div>
-                                @if($isCompletedCollaboration)
-                                    <div class="small text-muted mt-1">
-                                        @if($acceptedBy)
-                                            <div><strong>Accepted by:</strong> {{ $acceptedByName !== '' ? $acceptedByName : 'Not available' }}</div>
-                                            <div><strong>Company:</strong> {{ $acceptedBy->company_name ?: '—' }}</div>
-                                            <div><strong>City:</strong> {{ $acceptedBy->city ?: '—' }}</div>
+                                    return data_get($candidate, 'path');
+                                })($post->media ?? null);
+                                $isCompletedCollaboration = ! $isImpact
+                                    && ($post->source_type ?? null) === 'collaboration_post'
+                                    && ($post->source_event ?? null) === 'completed';
+                                $acceptedBy = $isCompletedCollaboration ? optional($post->collaborationPost)->acceptedByUser : null;
+                                $acceptedByName = $acceptedBy
+                                    ? ($acceptedBy->display_name ?: trim(($acceptedBy->first_name ?? '') . ' ' . ($acceptedBy->last_name ?? '')))
+                                    : null;
+                            @endphp
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $post->created_at?->format('Y-m-d H:i') }}</td>
+                                <td class="px-3 py-2.5 text-xs">@include('admin.partials.peer_identity', ['user' => $owner, 'circleName' => $circleName])</td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($post->visibility) }}</span>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if($isActive)
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Yes</span>
+                                    @else
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">No</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if($isImpact)
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200 mb-1 inline-block">Impact</span>
+                                    @endif
+                                    <div class="t1 font-medium max-w-[250px] truncate" title="{{ $post->content_text }}">{{ \Illuminate\Support\Str::limit($post->content_text, 60) }}</div>
+                                    @if($isCompletedCollaboration)
+                                        <div class="t3 text-[10px] mt-1">
+                                            @if($acceptedBy)
+                                                <div><strong>Accepted by:</strong> {{ $acceptedByName !== '' ? $acceptedByName : 'Not available' }}</div>
+                                                <div><strong>Company:</strong> {{ $acceptedBy->company_name ?: '—' }}</div>
+                                                <div><strong>City:</strong> {{ $acceptedBy->city ?: '—' }}</div>
+                                            @else
+                                                <div><strong>Accepted by:</strong> Not available</div>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @if ($mediaUrl)
+                                        <a class="px-2 py-0.5 text-xs font-semibold rounded border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition no-underline" target="_blank" href="{{ $mediaUrl }}">View</a>
+                                    @else
+                                        <span class="t3">None</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                    <div class="flex justify-end gap-1.5 items-center">
+                                        @if($isImpact)
+                                            <a href="{{ route('admin.impacts.show', $post->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">View</a>
+                                            @if($isActive)
+                                                <form method="POST" action="{{ route('admin.posts.impacts.deactivate', $post->id) }}" class="inline">
+                                                    @csrf
+                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Are you sure you want to deactivate this impact?')">
+                                                        Deactivate
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <form method="POST" action="{{ route('admin.posts.impacts.activate', $post->id) }}" class="inline">
+                                                    @csrf
+                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" onclick="return confirm('Are you sure you want to activate this impact?')">
+                                                        Activate
+                                                    </button>
+                                                </form>
+                                            @endif
                                         @else
-                                            <div><strong>Accepted by:</strong> Not available</div>
+                                            <a href="{{ route('admin.posts.show', $post) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">View</a>
+
+                                            @if($isActive)
+                                                <form method="POST" action="{{ route('admin.posts.deactivate', $post) }}" class="inline">
+                                                    @csrf
+                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Are you sure you want to deactivate this post?')">
+                                                        Deactivate
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <form method="POST" action="{{ route('admin.posts.restore', $post->id) }}" class="inline">
+                                                    @csrf
+                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" onclick="return confirm('Are you sure you want to activate this post?')">
+                                                        Activate
+                                                    </button>
+                                                </form>
+                                            @endif
                                         @endif
                                     </div>
-                                @endif
-                            </td>
-                            <td style="white-space:nowrap;">
-                                @if ($mediaUrl)
-                                    <a class="btn btn-sm btn-outline-primary" target="_blank" href="{{ $mediaUrl }}">View</a>
-                                @else
-                                    <span class="text-muted">None</span>
-                                @endif
-                            </td>
-                            <td class="text-end" style="white-space:nowrap;">
-                                @if($isImpact)
-                                    <a href="{{ route('admin.impacts.show', $post->id) }}" class="btn btn-outline-primary btn-sm">View</a>
-                                    @if($isActive)
-                                        <form method="POST"
-                                              action="{{ route('admin.posts.impacts.deactivate', $post->id) }}"
-                                              style="display:inline-block; margin-left:6px;">
-                                            @csrf
-                                            <button type="submit"
-                                                    class="btn btn-danger btn-sm"
-                                                    onclick="return confirm('Are you sure you want to deactivate this impact?')">
-                                                Deactivate
-                                            </button>
-                                        </form>
-                                    @else
-                                        <form method="POST"
-                                              action="{{ route('admin.posts.impacts.activate', $post->id) }}"
-                                              style="display:inline-block; margin-left:6px;">
-                                            @csrf
-                                            <button type="submit"
-                                                    class="btn btn-success btn-sm"
-                                                    onclick="return confirm('Are you sure you want to activate this impact?')">
-                                                Activate
-                                            </button>
-                                        </form>
-                                    @endif
-                                @else
-                                    <a href="{{ route('admin.posts.show', $post) }}" class="btn btn-outline-primary btn-sm">View</a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="8" class="text-center py-8 text-xs t3">No posts found.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
 
-                                    @if($isActive)
-                                        <form method="POST"
-                                              action="{{ route('admin.posts.deactivate', $post) }}"
-                                              style="display:inline-block; margin-left:6px;">
-                                            @csrf
-                                            <button type="submit"
-                                                    class="btn btn-danger btn-sm"
-                                                    onclick="return confirm('Are you sure you want to deactivate this post?')">
-                                                Deactivate
-                                            </button>
-                                        </form>
-                                    @else
-                                        <form method="POST"
-                                              action="{{ route('admin.posts.restore', $post->id) }}"
-                                              style="display:inline-block; margin-left:6px;">
-                                            @csrf
-                                            <button type="submit"
-                                                    class="btn btn-success btn-sm"
-                                                    onclick="return confirm('Are you sure you want to activate this post?')">
-                                                Activate
-                                            </button>
-                                        </form>
-                                    @endif
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="8" class="text-center text-muted">No posts found.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $posts->links() }}
+            </div>
         </div>
     </div>
-
-    <div class="mt-3">{{ $posts->links() }}</div>
 @endsection
+

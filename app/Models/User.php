@@ -510,17 +510,34 @@ class User extends Authenticatable
 
     public function adminDisplayName(): string
     {
-        $displayName = trim((string) ($this->display_name ?? ''));
-
-        if ($displayName !== '') {
-            return $displayName;
+        $rawDisplayName = trim((string) ($this->getRawOriginal('display_name') ?? $this->attributes['display_name'] ?? ''));
+        if ($rawDisplayName !== '' && ! str_contains($rawDisplayName, '@')) {
+            return $rawDisplayName;
         }
 
-        $fullName = trim(
+        $rawFullName = trim((string) ($this->getRawOriginal('full_name') ?? $this->attributes['full_name'] ?? ''));
+        if ($rawFullName !== '' && ! str_contains($rawFullName, '@')) {
+            return $rawFullName;
+        }
+
+        $firstNameLastName = trim(
             trim((string) ($this->first_name ?? '')).' '.trim((string) ($this->last_name ?? ''))
         );
+        if ($firstNameLastName !== '' && ! str_contains($firstNameLastName, '@')) {
+            return $firstNameLastName;
+        }
 
-        return $fullName !== '' ? $fullName : 'Unknown';
+        if ($rawDisplayName !== '') {
+            return $rawDisplayName;
+        }
+
+        if ($rawFullName !== '') {
+            return $rawFullName;
+        }
+
+        $email = trim((string) ($this->email ?? ''));
+
+        return $email !== '' ? $email : '—';
     }
 
     public function getDisplayNameAttribute()

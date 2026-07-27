@@ -20,13 +20,18 @@ class RequirementNotificationService
             return 0;
         }
 
+        $creatorName = $this->resolveUserName($creator);
+        $subject = (string) ($requirement->subject ?? 'a requirement');
+        $title = 'Potential Business Match Found!';
+        $body = $creatorName.' is looking for: "'.$subject.'"';
+
         $notifiedCount = 0;
 
         User::query()
             ->where('id', '!=', $creator->id)
             ->whereNull('deleted_at')
             ->orderBy('id')
-            ->chunkById(500, function ($users) use ($creator, $requirement, &$notifiedCount): void {
+            ->chunkById(500, function ($users) use ($creator, $requirement, $creatorName, $subject, $title, $body, &$notifiedCount): void {
                 foreach ($users as $user) {
                     try {
                         $notification = $this->notifyUserService->notifyUser(
@@ -34,11 +39,16 @@ class RequirementNotificationService
                             $creator,
                             'requirement_created',
                             [
+                                'title' => $title,
+                                'body' => $body,
                                 'notification_type' => 'requirement_created',
                                 'requirement_id' => (string) $requirement->id,
+                                'person' => $creatorName,
+                                'requirement_title' => $subject,
+                                'requirement_subject' => $subject,
                                 'from_user' => [
                                     'id' => (string) $creator->id,
-                                    'name' => $this->resolveUserName($creator),
+                                    'name' => $creatorName,
                                     'company' => $this->resolveUserCompany($creator),
                                     'city' => (string) ($creator->city ?? ''),
                                 ],
