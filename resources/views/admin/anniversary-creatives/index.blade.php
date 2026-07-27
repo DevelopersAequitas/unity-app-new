@@ -64,62 +64,59 @@
 
         <!-- Saved Templates Grid -->
         <div class="col-xl-8 col-lg-7">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h5 class="card-title mb-0 fs-6 fw-bold text-dark">
-                        <i class="bi bi-list-task me-2 text-primary"></i>Configured Templates
-                    </h5>
+            <div class="rounded-xl border bs surface p-4 space-y-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Configured Templates</h2>
                 </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light text-muted small">
-                                <tr>
-                                    <th class="ps-4">Preview</th>
-                                    <th>Message Overlay</th>
-                                    <th>Status</th>
-                                    <th>Uploaded At</th>
-                                    <th class="text-end pe-4">Actions</th>
+
+                <div class="rounded-xl border bs surface overflow-hidden">
+                    <div class="overflow-x-auto relative">
+                        <table class="min-w-full border-collapse text-[13px]">
+                            <thead>
+                                <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left w-20">Preview</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Message Overlay</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Uploaded At</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="grid-body" class="divide-y divide-gray-200/50">
                                 @forelse($templates as $tpl)
-                                    <tr>
-                                        <td class="ps-4">
-                                            <div class="position-relative d-inline-block rounded border overflow-hidden bg-light" style="width: 70px; height: 70px;">
+                                    <tr class="hover:surface-2 transition border-b bs">
+                                        <td class="px-3 py-2.5">
+                                            <div class="w-12 h-12 rounded border bs overflow-hidden surface-2 flex-shrink-0">
                                                 <img src="{{ Storage::disk(config('filesystems.default', 'public'))->url($tpl->image_path) }}" 
-                                                     class="img-fluid w-100 h-100 object-fit-cover cursor-pointer"
+                                                     class="w-full h-full object-cover cursor-pointer"
                                                      alt="Anniversary Template"
                                                      onclick="viewTemplateOriginal('{{ Storage::disk(config('filesystems.default', 'public'))->url($tpl->image_path) }}')" />
                                             </div>
                                         </td>
-                                        <td>
-                                            <div class="text-dark fw-medium small mb-1">{{ Str::limit($tpl->message, 80) }}</div>
-                                            <div class="text-muted small">ID: <code class="small">{{ $tpl->id }}</code></div>
+                                        <td class="px-3 py-2.5 text-xs">
+                                            <div class="t1 font-medium max-w-[250px] truncate" title="{{ $tpl->message }}">{{ Str::limit($tpl->message, 80) }}</div>
+                                            <div class="t3 text-[10px] mt-0.5">ID: <code class="font-mono">{{ $tpl->id }}</code></div>
                                         </td>
-                                        <td>
+                                        <td class="px-3 py-2.5 text-xs">
                                             @if($tpl->is_active)
-                                                <span class="badge bg-success shadow-sm px-2.5 py-1.5 small fw-semibold">
-                                                    <i class="bi bi-check-circle me-1"></i>Active
-                                                </span>
+                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Active</span>
                                             @else
-                                                <span class="badge bg-secondary shadow-sm px-2.5 py-1.5 small fw-semibold">Inactive</span>
+                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Inactive</span>
                                             @endif
                                         </td>
-                                        <td class="text-muted small">{{ $tpl->created_at->format('Y-m-d H:i') }}</td>
-                                        <td class="text-end pe-4">
-                                            <div class="d-inline-flex gap-2">
-                                                <form action="{{ route('admin.anniversary-creatives.toggle', $tpl->id) }}" method="POST">
+                                        <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $tpl->created_at->format('Y-m-d H:i') }}</td>
+                                        <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                            <div class="flex justify-end gap-1.5 items-center">
+                                                <form action="{{ route('admin.anniversary-creatives.toggle', $tpl->id) }}" method="POST" class="inline">
                                                     @csrf
-                                                    <button type="submit" class="btn btn-sm btn-outline-{{ $tpl->is_active ? 'secondary' : 'success' }} fw-semibold px-3">
+                                                    <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">
                                                         {{ $tpl->is_active ? 'Disable' : 'Enable' }}
                                                     </button>
                                                 </form>
-                                                <form action="{{ route('admin.anniversary-creatives.destroy', $tpl->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this template?')">
+                                                <form action="{{ route('admin.anniversary-creatives.destroy', $tpl->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this template?')" class="inline">
                                                     @csrf
                                                     @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger fw-semibold px-2">
-                                                        <i class="bi bi-trash"></i>
+                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-rose-600 hover:bg-rose-500 text-white transition focus-ring">
+                                                        Delete
                                                     </button>
                                                 </form>
                                             </div>
@@ -127,12 +124,8 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center py-5">
-                                            <div class="text-muted mb-2">
-                                                <i class="bi bi-image-fill fs-1 text-light"></i>
-                                            </div>
-                                            <div class="fw-semibold text-muted">No custom templates configured.</div>
-                                            <div class="text-muted small">The system will dynamically use the default anniversary template.</div>
+                                        <td colspan="5" class="text-center py-8 text-xs t3">
+                                            No custom templates configured. Default anniversary template will be used.
                                         </td>
                                     </tr>
                                 @endforelse
@@ -145,23 +138,21 @@
     </div>
 
     <!-- Dynamic Overlay Live Preview -->
-    <div class="card shadow-sm border-0 mt-4">
-        <div class="card-header bg-white border-bottom py-3">
-            <h5 class="card-title mb-0 fs-6 fw-bold text-dark">
-                <i class="bi bi-eye me-2 text-primary"></i>Live Creative Preview with User Overlay
-            </h5>
+    <div class="rounded-xl border bs surface p-4 mt-4 space-y-3">
+        <div class="flex justify-between items-center">
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Live Creative Preview with User Overlay</h2>
         </div>
-        <div class="card-body p-4 text-center">
-            <div class="mb-4 w-50 mx-auto">
-                <label for="previewUserSelect" class="form-label text-muted small fw-semibold">Select Peer to generate live preview</label>
-                <select class="form-select mx-auto" id="previewUserSelect" onchange="updatePreviewImage()">
+        <div class="p-4 text-center">
+            <div class="mb-4 max-w-sm mx-auto">
+                <label for="previewUserSelect" class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Select Peer for preview</label>
+                <select class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" id="previewUserSelect" onchange="updatePreviewImage()">
                     @foreach($previewUsers as $pUser)
                         <option value="{{ $pUser->id }}">{{ $pUser->display_name ?: ($pUser->first_name . ' ' . $pUser->last_name) }}</option>
                     @endforeach
                 </select>
             </div>
 
-            <div class="preview-canvas-wrapper border rounded p-2 bg-light shadow-inner mx-auto mb-2" style="max-width: 380px; width: 100%; aspect-ratio: 1/1;">
+            <div class="preview-canvas-wrapper border rounded p-2 surface-2 shadow-inner mx-auto mb-2" style="max-width: 380px; width: 100%; aspect-ratio: 1/1;">
                 <div id="previewLoader" class="d-none w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-white rounded">
                     <div class="spinner-border text-primary mb-2" role="status">
                         <span class="visually-hidden">Loading...</span>
@@ -174,51 +165,51 @@
     </div>
 
     <!-- Today's Anniversaries Panel -->
-    <div class="card shadow-sm border-0 mt-4">
-        <div class="card-header bg-white border-bottom py-3">
-            <h5 class="card-title mb-0 fs-6 fw-bold text-danger">
-                <i class="bi bi-calendar-event me-2"></i>Today's Anniversaries ({{ now()->format('d M') }})
-            </h5>
+    <div class="rounded-xl border bs surface p-4 mt-4 space-y-3">
+        <div class="flex justify-between items-center">
+            <h2 class="font-display font-semibold text-xs text-rose-500 uppercase tracking-wider m-0">Today's Anniversaries ({{ now()->format('d M') }})</h2>
         </div>
-        <div class="table-responsive">
-            <table class="table table-striped mb-0 align-middle">
-                <thead>
-                    <tr>
-                        <th class="ps-4">Photo</th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Anniversary Date</th>
-                        <th>Designation</th>
-                        <th>Company</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($anniversaryUsers as $aUser)
-                        <tr>
-                            <td class="ps-4">
-                                @if($aUser->profile_photo_file_id)
-                                    <img src="{{ url('/api/v1/files/' . $aUser->profile_photo_file_id) }}" style="width: 40px; height: 40px; object-fit: cover;" class="rounded-circle border">
-                                @elseif($aUser->profile_photo_url)
-                                    <img src="{{ $aUser->profile_photo_url }}" style="width: 40px; height: 40px; object-fit: cover;" class="rounded-circle border">
-                                @else
-                                    <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 40px; height: 40px; font-size: 16px;">
-                                        {{ strtoupper(substr($aUser->display_name ?: $aUser->first_name ?: 'U', 0, 1)) }}
-                                    </div>
-                                @endif
-                            </td>
-                            <td><strong>{{ $aUser->display_name ?: ($aUser->first_name . ' ' . $aUser->last_name) }}</strong></td>
-                            <td>{{ $aUser->email }}</td>
-                            <td>{{ $aUser->anniversary_date ? \Carbon\Carbon::parse($aUser->anniversary_date)->format('d M Y') : '—' }}</td>
-                            <td>{{ $aUser->designation ?: '—' }}</td>
-                            <td>{{ $aUser->company_name ?: '—' }}</td>
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left w-14">Photo</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Anniversary Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Designation</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-4">No users celebrating a wedding anniversary today.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse($anniversaryUsers as $aUser)
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5">
+                                    @if($aUser->profile_photo_file_id)
+                                        <img src="{{ url('/api/v1/files/' . $aUser->profile_photo_file_id) }}" class="w-9 h-9 object-cover rounded-full border bs">
+                                    @elseif($aUser->profile_photo_url)
+                                        <img src="{{ $aUser->profile_photo_url }}" class="w-9 h-9 object-cover rounded-full border bs">
+                                    @else
+                                        <div class="w-9 h-9 rounded-full surface-2 text-indigo-600 font-bold flex items-center justify-center border bs text-xs">
+                                            {{ strtoupper(substr($aUser->display_name ?: $aUser->first_name ?: 'U', 0, 1)) }}
+                                        </div>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $aUser->display_name ?: ($aUser->first_name . ' ' . $aUser->last_name) }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $aUser->email }}</td>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $aUser->anniversary_date ? \Carbon\Carbon::parse($aUser->anniversary_date)->format('d M Y') : '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $aUser->designation ?: '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $aUser->company_name ?: '—' }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center py-8 text-xs t3">No users celebrating a wedding anniversary today.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>

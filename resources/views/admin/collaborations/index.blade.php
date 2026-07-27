@@ -2,6 +2,8 @@
 
 @section('title', 'Find & Build Collaborations')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @php
         use App\Support\CollaborationFormatter;
@@ -20,32 +22,19 @@
         };
     @endphp
 
-    <!-- Header Component -->
-    @include('admin.activities.partials.header', ['title' => 'Find & Build Collaborations'])
+    <form id="collaborationsFiltersForm" method="GET" action="{{ route('admin.collaborations.index') }}"></form>
 
-    <!-- Metrics Cards -->
-    <div class="activities-stats-grid">
-        <div class="activity-metric-card">
-            <div class="metric-icon bg-primary-subtle text-primary">
-                <i class="bi bi-link-45deg"></i>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <div>
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Find & Build Collaborations</h2>
+                <p class="text-xs t3 m-0 mt-0.5">Browse and manage community business collaboration opportunities.</p>
             </div>
-            <div class="metric-val">{{ number_format($total) }}</div>
-            <div class="metric-label">Total Collaboration Posts</div>
+            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">
+                Total: {{ number_format($total) }}
+            </span>
         </div>
 
-        <div class="activity-metric-card">
-            <div class="metric-icon bg-success-subtle text-success">
-                <i class="bi bi-check-circle-fill"></i>
-            </div>
-            <div class="metric-val">
-                {{ number_format($posts->filter(fn($p) => strtolower((string)$p->status) === 'active')->count()) }}
-            </div>
-            <div class="metric-label">Active Posts (Page)</div>
-        </div>
-    </div>
-
-    <!-- Filters Section -->
-    <form id="collaborationsFiltersForm" method="GET" action="{{ route('admin.collaborations.index') }}">
         @include('admin.components.activity-filter-bar-v2', [
             'actionUrl' => route('admin.collaborations.index'),
             'resetUrl' => route('admin.collaborations.index'),
@@ -57,82 +46,49 @@
             'formId' => 'collaborationsFiltersForm',
         ])
 
-        <!-- Table Card -->
-        <div class="card-activities-wrapper">
-            <div class="d-flex flex-wrap justify-content-between align-items-center p-3 gap-2 border-bottom bg-light">
-                <div class="d-flex align-items-center gap-2">
-                    <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
-                    <select id="perPage" name="per_page" class="form-select form-select-sm" style="width: 90px;">
-                        @foreach ([10, 20, 50, 100] as $size)
-                            <option value="{{ $size }}" @selected($rowsPerPage === $size)>{{ $size }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="small text-muted">
-                    @if($total > 0)
-                        Records {{ $from }} to {{ $to }} of {{ $total }}
-                    @else
-                        No records found
-                    @endif
-                </div>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-premium align-middle mb-0">
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
                     <thead>
-                        <tr>
-                            <th>Peer Details</th>
-                            <th>Type</th>
-                            <th>Title</th>
-                            <th>Scope</th>
-                            <th>Mode</th>
-                            <th>Stage</th>
-                            <th>Yrs Active</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Details</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Type</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Title</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Scope</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Mode</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Stage</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Yrs Active</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                         </tr>
-                        <tr class="bg-light filter-row">
-                            <th><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="form-control form-control-sm"></th>
-                            <th><input type="text" name="collaboration_type" value="{{ $filters['collaboration_type'] ?? '' }}" placeholder="Type" class="form-control form-control-sm"></th>
-                            <th><input type="text" name="title" value="{{ $filters['title'] ?? '' }}" placeholder="Title" class="form-control form-control-sm"></th>
-                            <th><input type="text" name="scope" value="{{ $filters['scope'] ?? '' }}" placeholder="Scope" class="form-control form-control-sm"></th>
-                            <th><input type="text" name="preferred_mode" value="{{ $filters['preferred_mode'] ?? '' }}" placeholder="Mode" class="form-control form-control-sm"></th>
-                            <th><input type="text" name="business_stage" value="{{ $filters['business_stage'] ?? '' }}" placeholder="Stage" class="form-control form-control-sm"></th>
-                            <th><input type="text" name="year_in_operation" value="{{ $filters['year_in_operation'] ?? '' }}" placeholder="Years" class="form-control form-control-sm"></th>
-                            <th>
-                                <select name="status" class="form-select form-select-sm">
+                        <tr class="surface-2 border-b bs filter-row">
+                            <th class="px-2 py-1"><input type="text" name="peer_name" form="collaborationsFiltersForm" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                            <th class="px-2 py-1"><input type="text" name="collaboration_type" form="collaborationsFiltersForm" value="{{ $filters['collaboration_type'] ?? '' }}" placeholder="Type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                            <th class="px-2 py-1"><input type="text" name="title" form="collaborationsFiltersForm" value="{{ $filters['title'] ?? '' }}" placeholder="Title" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                            <th class="px-2 py-1"><input type="text" name="scope" form="collaborationsFiltersForm" value="{{ $filters['scope'] ?? '' }}" placeholder="Scope" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                            <th class="px-2 py-1"><input type="text" name="preferred_mode" form="collaborationsFiltersForm" value="{{ $filters['preferred_mode'] ?? '' }}" placeholder="Mode" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                            <th class="px-2 py-1"><input type="text" name="business_stage" form="collaborationsFiltersForm" value="{{ $filters['business_stage'] ?? '' }}" placeholder="Stage" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                            <th class="px-2 py-1"><input type="text" name="year_in_operation" form="collaborationsFiltersForm" value="{{ $filters['year_in_operation'] ?? '' }}" placeholder="Years" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                            <th class="px-2 py-1">
+                                <select name="status" form="collaborationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     <option value="">Any</option>
                                     <option value="active" @selected(($filters['status'] ?? '') === 'active')>Active</option>
                                     <option value="inactive" @selected(($filters['status'] ?? '') === 'inactive')>Inactive</option>
                                 </select>
                             </th>
-                            <th>
-                                <div class="d-flex justify-content-end gap-2">
-                                    <button type="submit" class="btn btn-primary btn-sm px-3">Apply</button>
-                                    <a href="{{ route('admin.collaborations.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                            <th class="px-2 py-1">
+                                <div class="flex justify-end">
+                                    <button type="button" onclick="clearAdminFilters(event, 'collaborationsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
                                 </div>
                             </th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
                         @forelse ($posts as $post)
                             @php
-                                $peerName = $post->peer_name
-                                    ?? $post->person_name
-                                    ?? $post->name
-                                    ?? '—';
-
-                                $company = ($post->peer_company ?? null)
-                                    ?? $post->company
-                                    ?? $post->company_name
-                                    ?? $post->business_name
-                                    ?? '—';
-
-                                $city = ($post->peer_city ?? null)
-                                    ?? $post->city
-                                    ?? $post->user_city
-                                    ?? '—';
-
+                                $peerName = $post->peer_name ?? $post->person_name ?? $post->name ?? '—';
+                                $company = ($post->peer_company ?? null) ?? $post->company ?? $post->company_name ?? $post->business_name ?? '—';
+                                $city = ($post->peer_city ?? null) ?? $post->city ?? $post->user_city ?? '—';
                                 $typeName = $post->collaborationType?->name ?? CollaborationFormatter::humanize($post->collaboration_type);
                                 $title = $post->title ?? $post->collaboration_title ?? $post->subject ?? '—';
                                 $scope = CollaborationFormatter::humanize($post->scope ?? $post->collaboration_scope ?? $post->scope_text);
@@ -141,74 +97,52 @@
                                 $yearInOperation = CollaborationFormatter::humanize($post->year_in_operation ?? $post->years_in_operation ?? $post->operating_years ?? $post->years);
                                 $status = $post->status ?? '—';
                             @endphp
-                            <tr>
-                                <td>
-                                    <div class="peer-badge-wrapper">
-                                        <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($peerName) }}">
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-xs">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-full surface-2 text-indigo-600 font-bold flex items-center justify-center border bs text-xs flex-shrink-0">
                                             {{ $getInitials($peerName) }}
                                         </div>
-                                        <div class="peer-badge-info">
-                                            <div class="peer-badge-name">{{ $peerName }}</div>
-                                            <div class="peer-badge-meta">
+                                        <div>
+                                            <div class="font-semibold t1">{{ $peerName }}</div>
+                                            <div class="t3 text-[11px]">
                                                 @if($company) <span>{{ $company }}</span> @endif
                                                 @if($city) &bull; <span>{{ $city }}</span> @endif
                                             </div>
                                         </div>
                                     </div>
                                 </td>
-                                <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">{{ $typeName }}</span></td>
-                                <td><div class="fw-semibold text-dark small" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ $title }}</div></td>
-                                <td><span class="small">{{ $scope }}</span></td>
-                                <td><span class="small">{{ $preferredMode }}</span></td>
-                                <td><span class="small">{{ $businessStage }}</span></td>
-                                <td><span class="small">{{ $yearInOperation }}</span></td>
-                                <td>
-                                    <span class="badge {{ strtolower((string) $status) === 'active' ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' }} px-2 py-1">
-                                        {{ CollaborationFormatter::humanize((string) $status) }}
-                                    </span>
+                                <td class="px-3 py-2.5 text-xs">
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $typeName }}</span>
                                 </td>
-                                <td class="text-end">
-                                    <a class="btn btn-xs btn-outline-primary" style="font-size: 0.72rem; padding: 2px 8px;" href="{{ route('admin.collaborations.show', ['id' => $post->id] + request()->query()) }}">Details</a>
+                                <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] max-w-[150px] truncate" title="{{ $title }}">{{ $title }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $scope }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $preferredMode }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $businessStage }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $yearInOperation }}</td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if(strtolower((string) $status) === 'active')
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Active</span>
+                                    @else
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ CollaborationFormatter::humanize((string) $status) }}</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                    <a class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline" href="{{ route('admin.collaborations.show', ['id' => $post->id] + request()->query()) }}">Details</a>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">No collaboration posts found.</td>
+                                <td colspan="9" class="text-center py-8 text-xs t3">No collaboration posts found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-        </div>
-    </form>
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 gap-2">
-        <div>
-            {{ $posts->appends(request()->query())->links() }}
-        </div>
-        <div class="small text-muted">
-            @if($total > 0)
-                Showing {{ $from }}-{{ $to }} of {{ $total }} records
-            @else
-                No records
-            @endif
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $posts->appends(request()->query())->links() }}
+            </div>
         </div>
     </div>
 @endsection
-
-@push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const perPage = document.getElementById('perPage');
-
-        if (perPage) {
-            perPage.addEventListener('change', () => {
-                const params = new URLSearchParams(window.location.search);
-                params.set('per_page', perPage.value);
-                params.delete('page');
-                window.location = `${window.location.pathname}?${params.toString()}`;
-            });
-        }
-    });
-</script>
-@endpush

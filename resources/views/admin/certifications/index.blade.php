@@ -2,14 +2,16 @@
 
 @section('title', 'Certification Submissions')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @php
         $statusBadgeClass = static function (?string $status): string {
             return match (strtolower((string) $status)) {
-                'approved' => 'bg-success-subtle text-success border border-success-subtle',
-                'rejected' => 'bg-danger-subtle text-danger border border-danger-subtle',
-                'new' => 'bg-info-subtle text-info border border-info-subtle',
-                default => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
+                'approved' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200',
+                'rejected' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200',
+                'new' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200',
+                default => 'chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200',
             };
         };
 
@@ -17,132 +19,134 @@
         $formatDate = static fn ($value): string => $value ? $value->format('d M Y, h:i A') : '—';
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <div>
-            <h1 class="h4 mb-1">Certification Submissions</h1>
-            <div class="text-muted small">Review Leadership and Entrepreneur certification requests.</div>
-        </div>
-    </div>
-
     @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
             {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
     @if ($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <div class="fw-semibold mb-1">Please fix the following:</div>
-            <ul class="mb-0">
+        <div class="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            <div class="font-semibold mb-1">Please fix the following:</div>
+            <ul class="mb-0 list-disc list-inside">
                 @foreach ($errors->all() as $error)
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <form method="GET" action="{{ route('admin.certifications.index') }}" class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">Status</label>
-                    <select name="status" class="form-select form-select-sm js-no-searchable-select">
-                        <option value="">All</option>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <div>
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Certification Submissions</h2>
+                <p class="text-xs t3 m-0 mt-0.5">Review Leadership and Entrepreneur certification requests.</p>
+            </div>
+            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total: {{ number_format($items->total()) }}</span>
+        </div>
+
+        <!-- Filter Card -->
+        <div class="p-3 rounded-lg border bs surface-2">
+            <form method="GET" action="{{ route('admin.certifications.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
+                    <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                        <option value="">All Statuses</option>
                         @foreach (['new' => 'New', 'approved' => 'Approved', 'rejected' => 'Rejected'] as $value => $label)
                             <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label small text-muted">Type</label>
-                    <select name="type" class="form-select form-select-sm js-no-searchable-select">
-                        <option value="">All</option>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Type</label>
+                    <select name="type" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                        <option value="">All Types</option>
                         @foreach (['leadership' => 'Leadership', 'entrepreneur' => 'Entrepreneur'] as $value => $label)
                             <option value="{{ $value }}" @selected(($filters['type'] ?? '') === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label small text-muted">Search</label>
-                    <input type="text" name="search" class="form-control form-control-sm" value="{{ $filters['search'] ?? '' }}" placeholder="Name, business, email, or contact no">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
+                    <input type="text" name="search" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['search'] ?? '' }}" placeholder="Name, business, email, or contact">
                 </div>
-                <div class="col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-sm btn-primary flex-fill">Apply</button>
-                    <a href="{{ route('admin.certifications.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                <div class="flex justify-end">
+                    <a href="{{ route('admin.certifications.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline w-full">Clear</a>
                 </div>
             </form>
         </div>
-    </div>
 
-    <div class="card-activities-wrapper">
-        <div class="table-responsive">
-            <table class="table table-premium mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Type</th>
-                        <th>Name</th>
-                        <th>Business Name</th>
-                        <th>Email</th>
-                        <th>Contact No</th>
-                        <th>Score</th>
-                        <th>Percentage</th>
-                        <th>Level</th>
-                        <th>Status</th>
-                        <th>Submitted Date</th>
-                        <th class="text-end">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($items as $item)
-                        @php
-                            $downloadUrl = $item->status === \App\Models\CertificationSubmission::STATUS_APPROVED
-                                ? ((is_string($item->certificate_download_url) && str_contains($item->certificate_download_url, '/admin/certificates/') && str_contains($item->certificate_download_url, '/view')) ? $item->certificate_download_url : url('/admin/certificates/' . $item->id . '/view'))
-                                : null;
-                        @endphp
-                        <tr>
-                            <td>{{ $formatLabel($item->certification_type) }}</td>
-                            <td>{{ $item->full_name }}</td>
-                            <td>{{ $item->business_name ?: '—' }}</td>
-                            <td>{{ $item->email }}</td>
-                            <td>{{ $item->contact_no ?: '—' }}</td>
-                            <td>{{ $item->total_score }}</td>
-                            <td>{{ $item->percentage }}%</td>
-                            <td>{{ $item->certification_level ?: '—' }}</td>
-                            <td><span class="badge {{ $statusBadgeClass($item->status) }}">{{ $formatLabel($item->status) }}</span></td>
-                            <td>{{ $formatDate($item->created_at) }}</td>
-                            <td class="text-end">
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewCertification{{ $item->id }}">View</button>
-                                    @if ($item->status === \App\Models\CertificationSubmission::STATUS_NEW)
-                                        <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#approveCertification{{ $item->id }}">Approve</button>
-                                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectCertification{{ $item->id }}">Reject</button>
-                                    @endif
-                                    @if ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && $downloadUrl)
-                                        <a href="{{ $downloadUrl }}" target="_blank" rel="noopener" class="btn btn-outline-secondary">Open Certificate</a>
-                                    @elseif ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED)
-                                        <form method="POST" action="{{ route('admin.certifications.approve', $item->id) }}" class="d-inline">
-                                            @csrf
-                                            <button type="submit" class="btn btn-outline-warning">Refresh Certificate Link</button>
-                                        </form>
-                                    @endif
-                                </div>
-                            </td>
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Type</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Contact No</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Score</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">%</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Level</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="11" class="text-center text-muted py-4">No certification submissions found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse ($items as $item)
+                            @php
+                                $downloadUrl = $item->status === \App\Models\CertificationSubmission::STATUS_APPROVED
+                                    ? ((is_string($item->certificate_download_url) && str_contains($item->certificate_download_url, '/admin/certificates/') && str_contains($item->certificate_download_url, '/view')) ? $item->certificate_download_url : url('/admin/certificates/' . $item->id . '/view'))
+                                    : null;
+                            @endphp
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $formatLabel($item->certification_type) }}</td>
+                                <td class="px-3 py-2.5 text-xs font-medium t1">{{ $item->full_name }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $item->business_name ?: '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $item->email }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $item->contact_no ?: '—' }}</td>
+                                <td class="px-3 py-2.5 text-center text-xs font-medium t1">{{ $item->total_score }}</td>
+                                <td class="px-3 py-2.5 text-center text-xs font-medium t1">{{ $item->percentage }}%</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $item->certification_level ?: '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    <span class="{{ $statusBadgeClass($item->status) }}">{{ $formatLabel($item->status) }}</span>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDate($item->created_at) }}</td>
+                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                    <div class="flex justify-end gap-1.5 items-center">
+                                        <button type="button" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition" data-bs-toggle="modal" data-bs-target="#viewCertification{{ $item->id }}">View</button>
+                                        @if ($item->status === \App\Models\CertificationSubmission::STATUS_NEW)
+                                            <button type="button" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" data-bs-toggle="modal" data-bs-target="#approveCertification{{ $item->id }}">Approve</button>
+                                            <button type="button" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" data-bs-toggle="modal" data-bs-target="#rejectCertification{{ $item->id }}">Reject</button>
+                                        @endif
+                                        @if ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && $downloadUrl)
+                                            <a href="{{ $downloadUrl }}" target="_blank" rel="noopener" class="px-2 py-0.5 text-xs font-semibold rounded border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition no-underline">Open Certificate</a>
+                                        @elseif ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED)
+                                            <form method="POST" action="{{ route('admin.certifications.approve', $item->id) }}" class="inline">
+                                                @csrf
+                                                <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-amber-200 text-amber-700 hover:bg-amber-50 transition">Refresh Link</button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="11" class="text-center py-8 text-xs t3">No certification submissions found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $items->links() }}
+            </div>
         </div>
     </div>
 
-    <div class="mt-3">
-        {{ $items->links() }}
-    </div>
 
     @foreach ($items as $item)
         @php

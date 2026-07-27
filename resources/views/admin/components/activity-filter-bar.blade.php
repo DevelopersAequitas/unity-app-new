@@ -21,9 +21,8 @@
                 <label class="form-label small text-muted">To</label>
                 <input type="date" name="to" value="{{ $to }}" class="form-control" placeholder="dd-mm-yyyy">
             </div>
-            <div class="col-md-2 d-flex gap-2">
-                <button type="submit" class="btn btn-primary w-100">Apply</button>
-                <a href="{{ $resetUrl }}" class="btn btn-outline-secondary w-100">Reset</a>
+            <div class="col-md-2 flex justify-end">
+                <a href="{{ $resetUrl }}" class="btn btn-outline-secondary w-100">Clear</a>
             </div>
         </form>
         @if (!empty($showExport) && !empty($exportUrl))

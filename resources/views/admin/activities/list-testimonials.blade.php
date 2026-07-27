@@ -2,6 +2,8 @@
 
 @section('title', 'Testimonials')
 
+@include('admin.partials.grid-head')
+
 @section('content')
     @php
         $getInitials = function($name) {
@@ -56,116 +58,87 @@
         $peerName = trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? '')) ?: $member->display_name ?: 'Unnamed Peer';
     @endphp
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-        <div>
-            <h1 class="h3 mb-1 fw-bold text-dark" style="font-family: 'Outfit', sans-serif;">Testimonials Log</h1>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}" class="text-decoration-none text-muted">Admin</a></li>
-                    <li class="breadcrumb-item"><a href="{{ route('admin.activities.index') }}" class="text-decoration-none text-muted">Activities Summary</a></li>
-                    <li class="breadcrumb-item active text-primary fw-medium" aria-current="page">Testimonials of {{ $peerName }}</li>
-                </ol>
-            </nav>
-        </div>
-        <a href="{{ route('admin.activities.index') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Back to Activities
-        </a>
-    </div>
-
-    <!-- Member Info Card -->
-    <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: var(--radius-md);">
-        <div class="d-flex align-items-center gap-3 flex-wrap">
-            <div class="peer-badge-avatar" style="width: 60px; height: 60px; font-size: 1.3rem; background-color: {{ $getAvatarBg($peerName) }}">
-                {{ $getInitials($peerName) }}
-            </div>
+    <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-3">
             <div>
-                <h4 class="fw-bold text-dark mb-1">{{ $peerName }}</h4>
-                <div class="text-muted small">
-                    <span class="me-3"><i class="bi bi-envelope me-1"></i>{{ $member->email ?? '—' }}</span>
-                    <span><i class="bi bi-telephone me-1"></i>{{ $member->phone ?? '—' }}</span>
-                </div>
+                <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Testimonials Log</h2>
+                <p class="text-xs t1 font-medium m-0 mt-0.5">{{ $peerName }} • {{ $member->email ?? '-' }}</p>
             </div>
+            <a href="{{ route('admin.activities.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">
+                Back to Activities
+            </a>
         </div>
-    </div>
 
-    <!-- Logs Card -->
-    <div class="card-activities-wrapper">
-        <div class="border-bottom p-3 bg-light">
-            <form method="GET" class="d-flex flex-wrap gap-2 align-items-end">
-                <div class="input-group input-group-sm" style="width: 180px;">
-                    <span class="input-group-text bg-white"><i class="bi bi-calendar"></i></span>
-                    <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="form-control" placeholder="From">
+        <div class="border bs rounded-xl p-3.5 surface-2">
+            <form method="GET" class="flex flex-wrap gap-3 items-center">
+                <div>
+                    <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" placeholder="From">
                 </div>
-                <div class="input-group input-group-sm" style="width: 180px;">
-                    <span class="input-group-text bg-white"><i class="bi bi-calendar"></i></span>
-                    <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="form-control" placeholder="To">
+                <div>
+                    <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" placeholder="To">
                 </div>
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-sm btn-primary px-3">Apply</button>
-                    <a href="{{ route('admin.activities.testimonials', $member) }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                <div class="flex justify-end">
+                    <a href="{{ route('admin.activities.testimonials', $member) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
                 </div>
             </form>
         </div>
-        <div class="table-responsive">
-            <table class="table table-premium align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>To Peer</th>
-                        <th>Content</th>
-                        <th>Attachment</th>
-                        <th>Created At</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($items as $testimonial)
-                        @php
-                            $attachmentUrl = $extractMediaUrl($testimonial->media ?? null);
-                            $toName = $testimonial->toUser->display_name ?? trim(($testimonial->toUser->first_name ?? '') . ' ' . ($testimonial->toUser->last_name ?? '')) ?: '—';
-                        @endphp
-                        <tr>
-                            <td>
-                                <div class="peer-badge-wrapper">
-                                    <div class="peer-badge-avatar" style="background-color: {{ $getAvatarBg($toName) }}">
-                                        {{ $getInitials($toName) }}
-                                    </div>
-                                    <div class="peer-badge-info">
-                                        <div class="peer-badge-name">{{ $toName }}</div>
-                                        <div class="peer-badge-meta">
-                                            <span>{{ $testimonial->toUser->email ?? '—' }}</span>
+
+        <div class="rounded-xl border bs surface overflow-hidden">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">To Peer</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Content</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Attachment</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                        @forelse ($items as $testimonial)
+                            @php
+                                $attachmentUrl = $extractMediaUrl($testimonial->media ?? null);
+                                $toName = $testimonial->toUser->display_name ?? trim(($testimonial->toUser->first_name ?? '') . ' ' . ($testimonial->toUser->last_name ?? '')) ?: '-';
+                            @endphp
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($toName) }}">
+                                            {{ $getInitials($toName) }}
+                                        </div>
+                                        <div>
+                                            <div class="font-semibold t1 text-[12.5px]">{{ $toName }}</div>
+                                            <div class="t3 text-[10px]">{{ $testimonial->toUser->email ?? '-' }}</div>
                                         </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="text-truncate-multi text-secondary small" style="max-width: 350px;" title="{{ $testimonial->content }}">
-                                    {{ $testimonial->content ?? '—' }}
-                                </div>
-                            </td>
-                            <td>
-                                @if ($attachmentUrl)
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                        <i class="bi bi-paperclip me-1"></i>Available
-                                    </span>
-                                    <a href="{{ $attachmentUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ms-1" style="font-size: 0.72rem; padding: 2px 6px;">View</a>
-                                @else
-                                    <span class="text-muted small">—</span>
-                                @endif
-                            </td>
-                            <td>
-                                <span class="small text-muted">{{ optional($testimonial->created_at)->format('Y-m-d H:i') ?? '—' }}</span>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-4">No testimonials found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[320px] truncate" title="{{ $testimonial->content }}">
+                                    {{ $testimonial->content ?? '-' }}
+                                </td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if($attachmentUrl)
+                                        <a href="{{ $attachmentUrl }}" target="_blank" class="text-indigo-600 font-semibold no-underline">View Attachment</a>
+                                    @else
+                                        <span class="t3">-</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                    {{ optional($testimonial->created_at)->format('Y-m-d H:i') ?? '-' }}
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="text-center py-8 text-xs t3">No testimonials found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                {{ $items->links() }}
+            </div>
         </div>
     </div>
-
-    <div class="mt-3">
-        {{ $items->links() }}
-    </div>
 @endsection
+

@@ -104,11 +104,8 @@
                 <option value="this_month" @selected(($detailFilters['quick'] ?? 'any') === 'this_month')>This Month</option>
             </select>
         </div>
-        <div class="col-12 col-xl-1 d-flex gap-2">
-            <button type="submit" class="btn btn-primary flex-fill">Filter</button>
-        </div>
         <div class="col-12 d-flex justify-content-end">
-            <a href="{{ route('admin.contacts.show', $contactPost->id) }}" class="btn btn-outline-secondary">Reset</a>
+            <a href="{{ route('admin.contacts.show', $contactPost->id) }}" class="btn btn-outline-secondary">Clear</a>
         </div>
     </form>
 </div>

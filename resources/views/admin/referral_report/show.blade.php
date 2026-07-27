@@ -35,7 +35,6 @@
                     <option value="{{ $size }}" @selected(($filters['per_page'] ?? 20) == $size)>{{ $size }}</option>
                 @endforeach
             </select>
-            <button type="submit" form="referralUsersFilters" class="btn btn-primary btn-sm">Apply</button>
         </div>
         <div class="small text-muted">
             @if($records->total() > 0)

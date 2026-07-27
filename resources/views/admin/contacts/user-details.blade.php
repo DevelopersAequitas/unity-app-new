@@ -188,8 +188,7 @@
                 </select>
             </div>
             <div class="filter-buttons">
-                <button type="submit" class="btn btn-primary">Filter</button>
-                <a href="{{ route('admin.contacts.user-details', $userId) }}" class="btn btn-outline-secondary">Reset</a>
+                <a href="{{ route('admin.contacts.user-details', $userId) }}" class="btn btn-outline-secondary">Clear</a>
             </div>
         </div>
     </form>

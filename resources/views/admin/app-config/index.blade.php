@@ -201,8 +201,7 @@ if (! function_exists('isLightColor')) {
                 </select>
             </div>
             <div class="labels-filter-actions">
-                <button class="labels-apply-btn" type="submit">Apply</button>
-                <a class="labels-reset-btn" href="{{ route('admin.app-config.index', ['tab' => 'labels']) }}">Reset</a>
+                <a class="labels-reset-btn" href="{{ route('admin.app-config.index', ['tab' => 'labels']) }}">Clear</a>
             </div>
         </div>
     </form>

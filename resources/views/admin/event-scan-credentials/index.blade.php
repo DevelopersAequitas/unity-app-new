@@ -2,58 +2,53 @@
 
 @section('title', 'Event Scan Credentials')
 
+@include('admin.partials.grid-head')
+
 @section('content')
-<div class="container-fluid py-3">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
+<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
         <div>
-            <h1 class="h4 mb-1 font-bold text-slate-800">Event Scan Credentials</h1>
-            <p class="text-xs text-muted mb-0">Manage scanner app login credentials and multi-event scanner access</p>
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Event Scan Credentials</h2>
+            <p class="text-xs t3 m-0 mt-0.5">Manage scanner personnel access codes and event scanning credentials.</p>
         </div>
-        <a href="{{ route('admin.event-scan-credentials.create') }}" class="btn btn-primary px-3 py-2 text-xs font-semibold shadow-sm rounded-3">
-            <i class="bi bi-plus-lg me-1"></i>Create Credential
+        <a href="{{ route('admin.event-scan-credentials.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
+            ➕ Create Credential
         </a>
     </div>
 
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show text-xs py-2 px-3 mb-3" role="alert">
-            <i class="bi bi-check-circle me-1"></i>{{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" style="padding:0.75rem;"></button>
-        </div>
+        <div class="alert alert-success mb-4 text-xs py-2 px-3 rounded-lg">{{ session('success') }}</div>
     @endif
 
     <!-- Search & Filter Card -->
-    <form method="GET" action="{{ route('admin.event-scan-credentials.index') }}" class="card card-body border-0 shadow-sm rounded-3 mb-3 py-2 px-3">
-        <div class="row g-2 align-items-center">
+    <form method="GET" action="{{ route('admin.event-scan-credentials.index') }}" class="border bs rounded-xl p-3.5 mb-4 surface-2">
+        <div class="row g-3 align-items-center">
             <div class="col-md-5">
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                    <input class="form-control border-start-0 bg-light text-xs" name="search" value="{{ request('search') }}" placeholder="Search person name, username, hotel, or event...">
-                </div>
+                <input class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" name="search" value="{{ request('search') }}" placeholder="Search person name, username, hotel, or event...">
             </div>
             <div class="col-md-4 d-flex gap-2">
-                <button class="btn btn-sm btn-indigo text-xs px-3">Filter</button>
-                <a href="{{ route('admin.event-scan-credentials.index') }}" class="btn btn-sm btn-outline-secondary text-xs px-3">Reset</a>
+                <button class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring">Filter</button>
+                <a href="{{ route('admin.event-scan-credentials.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline inline-block">Clear</a>
             </div>
         </div>
     </form>
 
     <!-- Table Card -->
-    <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 text-xs">
-                <thead class="bg-light text-muted uppercase tracking-wider font-semibold border-bottom">
-                    <tr>
-                        <th class="py-3 px-3">Person</th>
-                        <th class="py-3 px-3">Username / Login ID</th>
-                        <th class="py-3 px-3">Hotel / Venue</th>
-                        <th class="py-3 px-3">Assigned Events</th>
-                        <th class="py-3 px-3">Status</th>
-                        <th class="py-3 px-3">Last Login</th>
-                        <th class="py-3 px-3 text-end">Actions</th>
+    <div class="rounded-xl border bs surface overflow-hidden">
+        <div class="overflow-x-auto relative">
+            <table class="min-w-full border-collapse text-[13px]">
+                <thead>
+                    <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Person</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Username / Login ID</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Hotel / Venue</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Assigned Events</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Last Login</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y">
+                <tbody id="grid-body" class="divide-y divide-gray-200/50">
                     @forelse($credentials as $credential)
                         @php
                             $assignedEvents = $credential->assignedEvents();
@@ -70,83 +65,73 @@
                             };
                             $initials = $getInitials($credential->name);
                         @endphp
-                        <tr>
-                            <td class="py-3 px-3">
+                        <tr class="hover:surface-2 transition border-b bs">
+                            <td class="px-3 py-2.5">
                                 <button type="button" class="btn p-0 border-0 text-start bg-transparent" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}" title="Click to view full user details">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="rounded-circle bg-indigo-600 text-white d-flex align-items-center justify-content-center font-bold text-xs shadow-sm" style="width: 34px; height: 34px; flex-shrink: 0; background: linear-gradient(135deg, #4f46e5, #7c3aed);">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs shrink-0" style="background: linear-gradient(135deg, #4f46e5, #7c3aed);">
                                             {{ $initials }}
                                         </div>
                                         <div>
-                                            <div class="font-semibold text-indigo-600 text-sm hover:underline cursor-pointer">
+                                            <div class="font-semibold text-indigo-600 text-[12.5px] hover:underline cursor-pointer">
                                                 {{ $credential->name }}
                                             </div>
-                                            <div class="text-muted text-[11px]">
+                                            <div class="t3 text-[10px]">
                                                 Click to view details
                                             </div>
                                         </div>
                                     </div>
                                 </button>
                             </td>
-                            <td class="py-3 px-3">
+                            <td class="px-3 py-2.5">
                                 <span class="font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200">
                                     {{ $credential->username }}
                                 </span>
                             </td>
-                            <td class="py-3 px-3 text-slate-700 font-medium">
-                                <i class="bi bi-building text-slate-400 me-1"></i>{{ $credential->hotel_name }}
-                            </td>
-                            <td class="py-3 px-3" style="max-width: 260px;">
+                            <td class="px-3 py-2.5 text-xs t2">{{ $credential->hotel_name }}</td>
+                            <td class="px-3 py-2.5 text-xs" style="max-width: 260px;">
                                 @if($assignedEvents->count() > 0)
-                                    <div class="d-flex flex-wrap gap-1">
+                                    <div class="flex flex-wrap gap-1">
                                         @foreach($assignedEvents->take(3) as $ev)
-                                            <span class="badge" style="background-color: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px;" title="{{ $ev->title }}">
+                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200" title="{{ $ev->title }}">
                                                 {{ Str::limit($ev->title, 22) }}
                                             </span>
                                         @endforeach
                                         @if($assignedEvents->count() > 3)
-                                            <span class="badge" style="background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px;" title="Click user to see all {{ $assignedEvents->count() }} events">
+                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200" title="Click user to see all {{ $assignedEvents->count() }} events">
                                                 +{{ $assignedEvents->count() - 3 }} more
                                             </span>
                                         @endif
                                     </div>
                                 @elseif($credential->event)
-                                    <span class="badge" style="background-color: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px;">
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
                                         {{ $credential->event->title }}
                                     </span>
                                 @else
-                                    <span class="text-muted text-[11px]">—</span>
+                                    <span class="t3 text-xs">—</span>
                                 @endif
                             </td>
-                            <td class="py-3 px-3">
-                                @if($credential->is_active)
-                                    <span class="badge" style="background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px;">
-                                        Active
-                                    </span>
-                                @else
-                                    <span class="badge" style="background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px;">
-                                        Inactive
-                                    </span>
-                                @endif
+                            <td class="px-3 py-2.5 text-xs">
+                                <span class="chip px-2.5 py-0.5 text-xs font-semibold {{ $credential->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-700 border-gray-200' }}">
+                                    {{ $credential->is_active ? 'Active' : 'Inactive' }}
+                                </span>
                             </td>
-                            <td class="py-3 px-3 text-slate-600 whitespace-nowrap">
+                            <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                                 @if($credential->last_login_at)
-                                    <i class="bi bi-clock-history text-slate-400 me-1"></i>{{ $credential->last_login_at->format('d M Y, h:i A') }}
+                                    {{ $credential->last_login_at->format('d M Y, h:i A') }}
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
-                            <td class="py-3 px-3 text-end">
-                                <div class="inline-flex items-center gap-1">
-                                    <button class="btn btn-sm btn-outline-info text-[11px] py-1 px-2.5 rounded-2" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}">
+                            <td class="px-3 py-2.5 text-right whitespace-nowrap">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <button class="px-2 py-0.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition bg-transparent" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}">
                                         View
                                     </button>
-                                    <a href="{{ route('admin.event-scan-credentials.edit', $credential->id) }}" class="btn btn-sm btn-outline-primary text-[11px] py-1 px-2.5 rounded-2">
-                                        Edit
-                                    </a>
-                                    <form action="{{ route('admin.event-scan-credentials.toggle', $credential->id) }}" method="POST" class="d-inline">
+                                    <a href="{{ route('admin.event-scan-credentials.edit', $credential->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">Edit</a>
+                                    <form action="{{ route('admin.event-scan-credentials.toggle', $credential->id) }}" method="POST" class="inline">
                                         @csrf
-                                        <button class="btn btn-sm {{ $credential->is_active ? 'btn-outline-warning' : 'btn-outline-success' }} text-[11px] py-1 px-2.5 rounded-2">
+                                        <button class="px-2 py-0.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition {{ $credential->is_active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50' }}">
                                             {{ $credential->is_active ? 'Deactivate' : 'Activate' }}
                                         </button>
                                     </form>
@@ -159,13 +144,13 @@
                             <div class="modal-dialog modal-dialog-centered modal-lg">
                                 <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
                                     <!-- Modal Header -->
-                                    <div class="modal-header bg-dark text-white py-3 px-4">
+                                    <div class="modal-header bg-dark text-white py-3 px-4 border-0">
                                         <div class="d-flex align-items-center gap-3">
                                             <div class="rounded-circle bg-indigo-500 text-white d-flex align-items-center justify-content-center font-bold text-base shadow" style="width: 44px; height: 44px; background: linear-gradient(135deg, #6366f1, #a855f7);">
                                                 {{ $initials }}
                                             </div>
                                             <div>
-                                                <h5 class="modal-title mb-0 fs-6 font-bold">{{ $credential->name }}</h5>
+                                                <h5 class="modal-title mb-0 fs-6 font-bold text-white">{{ $credential->name }}</h5>
                                                 <div class="small text-slate-300">Scanner App User Details</div>
                                             </div>
                                         </div>
@@ -236,7 +221,7 @@
                                                                             <i class="bi bi-calendar-event me-1"></i>{{ optional($eventItem->start_at)->format('d M Y, h:i A') ?? 'Scheduled' }}
                                                                         </div>
                                                                     </div>
-                                                                    <a href="{{ route('admin.events.show', $eventItem->id) }}" class="btn btn-xs btn-outline-indigo px-2 py-0.5 text-[10px]" target="_blank">View Event</a>
+                                                                    <a href="{{ route('admin.events.show', $eventItem->id) }}" class="btn btn-xs btn-outline-indigo px-2 py-0.5 text-[10px] no-underline" target="_blank">View Event</a>
                                                                 </div>
                                                             @endforeach
                                                         </div>
@@ -255,7 +240,7 @@
                                                         </h6>
                                                         <div class="d-flex align-items-center justify-content-between">
                                                             @include('admin.partials.peer_identity', ['user' => $peerUser])
-                                                            <a href="{{ route('admin.users.show', $peerUser->id) }}" class="btn btn-sm btn-indigo text-xs" target="_blank">
+                                                            <a href="{{ route('admin.users.show', $peerUser->id) }}" class="btn btn-sm btn-indigo text-xs no-underline" target="_blank">
                                                                 View Peer Profile <i class="bi bi-arrow-up-right me-1"></i>
                                                             </a>
                                                         </div>
@@ -266,8 +251,8 @@
                                     </div>
 
                                     <!-- Modal Footer -->
-                                    <div class="modal-footer bg-light py-2 px-4">
-                                        <a href="{{ route('admin.event-scan-credentials.edit', $credential->id) }}" class="btn btn-sm btn-primary text-xs">
+                                    <div class="modal-footer bg-light py-2 px-4 border-0">
+                                        <a href="{{ route('admin.event-scan-credentials.edit', $credential->id) }}" class="btn btn-sm btn-primary text-xs no-underline text-white">
                                             <i class="bi bi-pencil me-1"></i>Edit Credential
                                         </a>
                                         <button type="button" class="btn btn-sm btn-secondary text-xs" data-bs-dismiss="modal">Close</button>
@@ -276,18 +261,14 @@
                             </div>
                         </div>
                     @empty
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-5">
-                                <i class="bi bi-person-x text-3xl d-block mb-2 text-slate-300"></i>
-                                No scanner credentials found matching your criteria.
-                            </td>
-                        </tr>
+                        <tr><td colspan="7" class="text-center py-8 text-xs t3">No scanner credentials found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+        <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+            {{ $credentials->links() }}
+        </div>
     </div>
-
-    <div class="mt-3">{{ $credentials->links() }}</div>
 </div>
 @endsection

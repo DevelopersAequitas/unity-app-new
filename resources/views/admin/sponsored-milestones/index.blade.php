@@ -2,6 +2,8 @@
 
 @section('title', 'Sponsored Member Milestone Awards')
 
+@include('admin.partials.grid-head')
+
 @section('content')
 @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
@@ -10,22 +12,24 @@
     <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
 
-<div class="card p-3">
-    <div class="card border bg-white shadow-none">
-        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-            <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-trophy-fill text-warning me-2"></i>Sponsored Member Milestone Awards</h6>
+<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card">
+    <div class="rounded-xl border bs surface overflow-hidden">
+        <div class="px-4 py-3 surface-2 border-b bs flex items-center justify-between">
+            <h6 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0 flex items-center gap-2">
+                <i class="bi bi-trophy-fill text-amber-500"></i>Sponsored Member Milestone Awards
+            </h6>
         </div>
-        <div class="card-body p-3">
+        <div class="p-4">
             {{-- Filter Form --}}
-            <form id="milestonesFiltersForm" method="GET" class="border rounded-3 p-3 mb-3 bg-white">
+            <form id="milestonesFiltersForm" method="GET" class="border bs rounded-xl p-3.5 mb-4 surface-2">
                 <div class="row g-3 align-items-end">
                     <div class="col-12 col-md-4">
-                        <label class="form-label small text-muted" for="milestoneSearch">Search</label>
-                        <input type="text" id="milestoneSearch" name="q" class="form-control form-control-sm" placeholder="Search by name, email, company, phone..." value="{{ $filters['search'] ?? '' }}">
+                        <label class="block text-[11px] t3 mb-1 font-medium" for="milestoneSearch">Search</label>
+                        <input type="text" id="milestoneSearch" name="q" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" placeholder="Search by name, email, company, phone..." value="{{ $filters['search'] ?? '' }}">
                     </div>
                     <div class="col-12 col-md-3">
-                        <label class="form-label small text-muted" for="milestoneFilter">Milestone Threshold</label>
-                        <select id="milestoneFilter" name="milestone" class="form-select form-select-sm">
+                        <label class="block text-[11px] t3 mb-1 font-medium" for="milestoneFilter">Milestone Threshold</label>
+                        <select id="milestoneFilter" name="milestone" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                             <option value="">All Milestones</option>
                             @foreach([0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25] as $val)
                                 <option value="{{ $val }}" @selected(($filters['milestone'] !== null && $filters['milestone'] !== '') && (int)$filters['milestone'] === $val)>{{ $val === 0 ? '0 (No Milestone)' : $val . '+ Sponsored' }}</option>
@@ -33,8 +37,8 @@
                         </select>
                     </div>
                     <div class="col-12 col-md-3">
-                        <label class="form-label small text-muted" for="awardFilter">Award Name</label>
-                        <select id="awardFilter" name="award_name" class="form-select form-select-sm">
+                        <label class="block text-[11px] t3 mb-1 font-medium" for="awardFilter">Award Name</label>
+                        <select id="awardFilter" name="award_name" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                             <option value="">All Awards</option>
                             @foreach([
                                 'The Connector Award',
@@ -54,43 +58,42 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-12 col-md-2 d-flex gap-2">
-                        <button type="submit" class="btn btn-sm btn-primary w-100">Apply</button>
-                        <a href="{{ route('admin.sponsored-milestones.index') }}" class="btn btn-sm btn-outline-secondary w-100">Clear</a>
+                    <div class="col-12 col-md-2 d-flex justify-content-end">
+                        <a href="{{ route('admin.sponsored-milestones.index') }}" class="w-full px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">Clear</a>
                     </div>
                 </div>
             </form>
 
-            <div class="table-responsive">
-                <table class="table align-middle table-sm mb-0">
-                    <thead class="table-light small">
-                        <tr>
-                            <th>
-                                <a href="{{ route('admin.sponsored-milestones.index', array_merge(request()->query(), ['sort' => 'display_name', 'dir' => ($filters['sort'] ?? '') === 'display_name' && ($filters['dir'] ?? '') === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
+            <div class="overflow-x-auto relative">
+                <table class="min-w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">
+                                <a href="{{ route('admin.sponsored-milestones.index', array_merge(request()->query(), ['sort' => 'display_name', 'dir' => ($filters['sort'] ?? '') === 'display_name' && ($filters['dir'] ?? '') === 'asc' ? 'desc' : 'asc'])) }}" class="no-underline t1 hover:text-indigo-600 inline-flex items-center gap-1">
                                     Member Name
                                     @if (($filters['sort'] ?? '') === 'display_name')
-                                        <i class="bi bi-arrow-{{ ($filters['dir'] ?? '') === 'asc' ? 'up' : 'down' }}-short fs-6"></i>
+                                        <i class="bi bi-arrow-{{ ($filters['dir'] ?? '') === 'asc' ? 'up' : 'down' }}-short text-xs"></i>
                                     @endif
                                 </a>
                             </th>
-                            <th>Contact / Info</th>
-                            <th>Company Name</th>
-                            <th class="text-center">
-                                <a href="{{ route('admin.sponsored-milestones.index', array_merge(request()->query(), ['sort' => 'total_sponsored_members', 'dir' => ($filters['sort'] ?? '') === 'total_sponsored_members' && ($filters['dir'] ?? '') === 'asc' ? 'desc' : 'asc'])) }}" class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Contact / Info</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">
+                                <a href="{{ route('admin.sponsored-milestones.index', array_merge(request()->query(), ['sort' => 'total_sponsored_members', 'dir' => ($filters['sort'] ?? '') === 'total_sponsored_members' && ($filters['dir'] ?? '') === 'asc' ? 'desc' : 'asc'])) }}" class="no-underline t1 hover:text-indigo-600 inline-flex items-center gap-1">
                                     Sponsored Members
                                     @if (($filters['sort'] ?? '') === 'total_sponsored_members')
-                                        <i class="bi bi-arrow-{{ ($filters['dir'] ?? '') === 'asc' ? 'up' : 'down' }}-short fs-6"></i>
+                                        <i class="bi bi-arrow-{{ ($filters['dir'] ?? '') === 'asc' ? 'up' : 'down' }}-short text-xs"></i>
                                     @endif
                                 </a>
                             </th>
-                            <th>Current Milestone</th>
-                            <th>Award Name</th>
-                            <th>Recognition / Benefits</th>
-                            <th>Milestone Progress</th>
-                            <th class="text-end" style="padding-right: 15px;">Actions</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Current Milestone</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Award Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Recognition / Benefits</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Milestone Progress</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="small">
+                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
                         @forelse ($members as $member)
                             @php
                                 $name = $member->display_name ?: trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? ''));
@@ -98,58 +101,56 @@
                                 $gradientIndex = abs(crc32((string) $member->id)) % 5;
                                 $details = $member->milestoneDetails;
                             @endphp
-                            <tr>
-                                <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="peer-avatar-wrapper" style="width: 32px; height: 32px;">
+                            <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-full overflow-hidden flex-none border bs">
                                             @if ($avatar)
-                                                <img src="{{ $avatar }}" alt="{{ $name }}" class="peer-avatar-image" style="width: 32px; height: 32px; object-fit: cover; border-radius: 50%;">
+                                                <img src="{{ $avatar }}" alt="{{ $name }}" class="w-full h-full object-cover">
                                             @else
-                                                <div class="peer-avatar-placeholder bg-gradient-peer-{{ $gradientIndex }} rounded-circle text-center text-white" style="width: 32px; height: 32px; font-size: 0.8rem; line-height: 32px;">
+                                                <div class="w-full h-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs">
                                                     {{ strtoupper(substr($name ?: 'U', 0, 1)) }}
                                                 </div>
                                             @endif
                                         </div>
-                                        <div>
-                                            <span class="fw-semibold text-dark">{{ $name }}</span>
-                                        </div>
+                                        <div class="font-medium t1 text-[12.5px] whitespace-nowrap">{{ $name }}</div>
                                     </div>
                                 </td>
-                                <td>
-                                    <div class="d-flex flex-column lh-sm">
-                                        <span class="text-muted" style="font-size: 0.75rem;">{{ $member->email }}</span>
+                                <td class="px-3 py-2.5">
+                                    <div class="flex flex-col text-xs t3">
+                                        <span class="t2">{{ $member->email }}</span>
                                         @if ($member->phone)
-                                            <span class="text-muted" style="font-size: 0.75rem;">{{ $member->phone }}</span>
+                                            <span class="t3">{{ $member->phone }}</span>
                                         @endif
                                     </div>
                                 </td>
-                                <td>
-                                    <span class="text-secondary">{{ $member->company_name ?: '—' }}</span>
+                                <td class="px-3 py-2.5">
+                                    <span class="t2 text-[12.5px] whitespace-nowrap">{{ $member->company_name ?: '-' }}</span>
                                 </td>
-                                <td class="text-center">
-                                    <span class="badge bg-light text-dark border px-2 py-1">{{ $member->total_sponsored_members }}</span>
+                                <td class="px-3 py-2.5 text-center">
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $member->total_sponsored_members }}</span>
                                 </td>
-                                <td>
-                                    <span class="fw-semibold">{{ $details['current_milestone'] }}</span>
+                                <td class="px-3 py-2.5">
+                                    <span class="font-semibold t1 text-[12.5px]">{{ $details['current_milestone'] }}</span>
                                 </td>
-                                <td>
+                                <td class="px-3 py-2.5">
                                     @if ($details['award_name'])
-                                        <span class="text-primary fw-semibold">{{ $details['award_name'] }}</span>
+                                        <span class="text-indigo-600 font-semibold text-[12.5px] whitespace-nowrap">{{ $details['award_name'] }}</span>
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="t3">-</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td class="px-3 py-2.5">
                                     @if ($details['recognition'])
-                                        <span class="text-secondary" style="font-size: 0.75rem;">{{ $details['recognition'] }}</span>
+                                        <span class="t2 text-xs">{{ $details['recognition'] }}</span>
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="t3">-</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td class="px-3 py-2.5">
                                     @if ($details['next_milestone'])
-                                        <div class="d-flex flex-column" style="width: 100px;">
-                                            <div class="progress" style="height: 6px;">
+                                        <div class="flex flex-col w-28">
+                                            <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                                 @php
                                                     $prevMilestone = $details['current_milestone'];
                                                     $target = $details['next_milestone'];
@@ -157,26 +158,28 @@
                                                     $totalNeeded = $target - $prevMilestone;
                                                     $percent = $totalNeeded > 0 ? ($progressVal / $totalNeeded) * 100 : 0;
                                                 @endphp
-                                                <div class="progress-bar bg-success" role="progressbar" style="width: {{ $percent }}%;" aria-valuenow="{{ $percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                                <div class="bg-emerald-500 h-1.5 rounded-full" style="width: {{ $percent }}%;"></div>
                                             </div>
-                                            <span class="text-muted mt-1" style="font-size: 0.7rem;">{{ $details['members_remaining'] }} remaining to {{ $details['next_milestone'] }}</span>
+                                            <span class="t3 text-[10px] mt-1 whitespace-nowrap">{{ $details['members_remaining'] }} remaining to {{ $details['next_milestone'] }}</span>
                                         </div>
                                     @else
-                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-patch-check-fill me-1"></i>Max Milestone</span>
+                                        <span class="chip px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 inline-flex items-center gap-1">
+                                            <i class="bi bi-patch-check-fill"></i>Max Milestone
+                                        </span>
                                     @endif
                                 </td>
-                                <td class="text-end" style="padding-right: 15px;">
-                                    <a href="{{ route('admin.sponsored-milestones.show', $member->id) }}" class="btn btn-xs btn-outline-secondary py-1 px-2" style="font-size: 0.75rem;">
-                                        <i class="bi bi-eye-fill me-1"></i>View Details
+                                <td class="px-3 py-2.5 text-right">
+                                    <a href="{{ route('admin.sponsored-milestones.show', $member->id) }}" class="px-2.5 py-1 rounded-lg border bs text-xs font-medium t2 hover:t1 hover:surface-2 transition no-underline inline-flex items-center gap-1">
+                                        <i class="bi bi-eye-fill"></i>View Details
                                     </a>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center py-4">
-                                    <div class="text-muted mb-2"><i class="bi bi-inbox fs-3"></i></div>
-                                    <div class="fw-semibold">No sponsored milestone records found</div>
-                                    <div class="small text-muted mt-1">Try adjusting your filters or search terms.</div>
+                                <td colspan="9" class="text-center py-8 text-xs t3">
+                                    <div class="mb-2"><i class="bi bi-inbox text-2xl t3"></i></div>
+                                    <div class="font-semibold t1">No sponsored milestone records found</div>
+                                    <div class="t3 mt-0.5">Try adjusting your filters or search terms.</div>
                                 </td>
                             </tr>
                         @endforelse
@@ -184,10 +187,21 @@
                 </table>
             </div>
 
-            <div class="mt-3">
-                {{ $members->links() }}
+            {{-- Bottom Toolbar & Pagination --}}
+            <div id="grid-pagination" class="flex justify-between items-center mt-4 flex-wrap gap-2 pt-3 border-t bs">
+                <div>
+                    {{ $members->links() }}
+                </div>
+                <div class="text-xs t3">
+                    @if($members->total() > 0)
+                        Showing <span class="font-semibold t1">{{ $members->firstItem() }}-{{ $members->lastItem() }}</span> of <span class="font-semibold t1">{{ $members->total() }}</span> records
+                    @else
+                        No records
+                    @endif
+                </div>
             </div>
         </div>
     </div>
 </div>
 @endsection
+

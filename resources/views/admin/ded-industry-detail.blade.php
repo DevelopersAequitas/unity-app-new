@@ -112,9 +112,8 @@
             <label for="dateTo" class="form-label small text-muted mb-1 fw-bold">Date To</label>
             <input type="date" id="dateTo" name="date_to" class="form-control" value="{{ $filters['date_to'] ?? '' }}">
         </div>
-        <div class="col-md-2 d-flex gap-2">
-            <a href="{{ route('admin.ded.dashboard.industries.detail', $industryId) }}" class="btn btn-outline-secondary w-50">Reset</a>
-            <button type="submit" class="btn btn-primary w-50">Apply</button>
+        <div class="col-md-2 d-flex justify-content-end">
+            <a href="{{ route('admin.ded.dashboard.industries.detail', $industryId) }}" class="btn btn-outline-secondary">Clear</a>
         </div>
     </form>
 </div>

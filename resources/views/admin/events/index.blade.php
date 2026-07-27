@@ -2,99 +2,10 @@
 
 @section('title', 'Events Management')
 
-@push('styles')
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    corePlugins: {
-      preflight: false,
-    }
-  }
-</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  #grid-root-container {
-    --bg:#0A0E17; --surface:#10141F; --surface-2:#141926; --surface-3:#1A2030;
-    --border:#232A3B; --border-soft:#1B2130;
-    --text-1:#EEF0F5; --text-2:#9096A8; --text-3:#5C6478;
-    --accent:#6366F1; --accent-2:#8B5CF6; --accent-soft:#6366F11A;
-    --success:#10B981; --success-soft:#10B9811A;
-    --warning:#F59E0B; --warning-soft:#F59E0B1A;
-    --danger:#F43F5E; --danger-soft:#F43F5E1A;
-    --info:#0EA5E9; --info-soft:#0EA5E91A;
-    background-color: var(--bg);
-    color: var(--text-1);
-    font-family: 'Inter', sans-serif;
-  }
-  #grid-root-container.light {
-    --bg:#F8FAFC; --surface:#FFFFFF; --surface-2:#F1F5F9; --surface-3:#E2E8F0;
-    --border:#E2E8F0; --border-soft:#F1F5F9;
-    --text-1:#0F172A; --text-2:#475569; --text-3:#94A3B8;
-  }
-  
-  #grid-root-container .font-display { font-family: 'Lexend', sans-serif; }
-  #grid-root-container .font-mono { font-family: 'JetBrains Mono', monospace; }
-  #grid-root-container .t1 { color: var(--text-1); }
-  #grid-root-container .t2 { color: var(--text-2); }
-  #grid-root-container .t3 { color: var(--text-3); }
-  #grid-root-container .bg-accent, .bg-accent { background-color: var(--accent) !important; }
-  #grid-root-container .text-accent, .text-accent { color: var(--accent) !important; }
-  #grid-root-container .surface { background-color: var(--surface) !important; }
-  #grid-root-container .surface-2 { background-color: var(--surface-2) !important; }
-  #grid-root-container .surface-3 { background-color: var(--surface-3) !important; }
-  #grid-root-container .border { border-color: var(--border); }
-  #grid-root-container .bs { border-color: var(--border-soft); }
-  
-  #grid-root-container table { border-color: var(--border-soft) !important; }
-  #grid-root-container th { border-color: var(--border-soft) !important; }
-  #grid-root-container td { border-color: var(--border-soft) !important; }
-  
-  #grid-root-container input[type="text"], 
-  #grid-root-container input[type="email"], 
-  #grid-root-container input[type="date"], 
-  #grid-root-container select, 
-  #grid-root-container textarea {
-    background-color: var(--surface-2) !important;
-    border-color: var(--border) !important;
-    color: var(--text-1) !important;
-  }
-  
-  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; transition: .15s; display: block; width: 100%; text-align: left; }
-  .kpi-card:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-  .kpi-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex: none; }
-  .kpi-num { font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 20px; line-height: 1.1; color: var(--text-1); font-variant-numeric: tabular-nums; }
-  .kpi-title { font-size: 11px; font-weight: 600; color: var(--text-2); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
-
-  #grid-root-container .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 10px;
-    border-radius: 9999px;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1.25;
-  }
-  #grid-root-container .badge-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-  }
-
-  .focus-ring:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-</style>
-@endpush
+@include('admin.partials.grid-head')
 
 @section('content')
-<div class="container-fluid py-3">
-
-  <!-- Advanced Grid root container -->
-  <div id="grid-root-container" class="light rounded-xl border bs p-4 relative">
+<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card">
 
     <!-- Top Action Row -->
     <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
@@ -111,14 +22,14 @@
 
     <!-- KPI Summary Cards Row -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      <a href="{{ route('admin.events.index') }}" class="kpi-card">
+      <a href="{{ route('admin.events.index') }}" class="kpi-card no-underline">
         <div class="kpi-top">
           <div class="kpi-title">Total Events</div>
           <div class="kpi-icon bg-indigo-50 text-indigo-600"><i class="bi bi-calendar-event"></i></div>
         </div>
         <div class="kpi-num">{{ $events->total() }}</div>
       </a>
-      <a href="{{ route('admin.events.index', array_merge(request()->query(), ['mode' => 'offline'])) }}" class="kpi-card @if(request('mode') === 'offline') border-emerald-500 ring-1 ring-emerald-500 @endif">
+      <a href="{{ route('admin.events.index', array_merge(request()->query(), ['mode' => 'offline'])) }}" class="kpi-card no-underline @if(request('mode') === 'offline') border-emerald-500 ring-1 ring-emerald-500 @endif">
         <div class="kpi-top">
           <div class="kpi-title">Offline Events</div>
           <div class="kpi-icon bg-emerald-50 text-emerald-600"><i class="bi bi-geo-alt"></i></div>
@@ -129,7 +40,7 @@
         $firstEventWithAtt = $events->firstWhere('checked_in_count', '>', 0) ?? $events->first();
         $totalAttendanceUrl = $firstEventWithAtt ? route('admin.events.attendance', $firstEventWithAtt->id) : route('admin.events.index');
       @endphp
-      <a href="{{ $totalAttendanceUrl }}" class="kpi-card">
+      <a href="{{ $totalAttendanceUrl }}" class="kpi-card no-underline">
         <div class="kpi-top">
           <div class="kpi-title">Total Attendance</div>
           <div class="kpi-icon bg-emerald-50 text-emerald-600"><i class="bi bi-person-check"></i></div>
@@ -140,7 +51,7 @@
         $firstEventWithReg = $events->firstWhere('registered_count', '>', 0) ?? $events->first();
         $totalRegisteredUrl = $firstEventWithReg ? route('admin.events.show', $firstEventWithReg->id).'#registrations-section' : route('admin.event-joining-requests.index');
       @endphp
-      <a href="{{ $totalRegisteredUrl }}" class="kpi-card">
+      <a href="{{ $totalRegisteredUrl }}" class="kpi-card no-underline">
         <div class="kpi-top">
           <div class="kpi-title">Total Registered</div>
           <div class="kpi-icon bg-purple-50 text-purple-600"><i class="bi bi-people"></i></div>
@@ -181,7 +92,7 @@
         </div>
         <div class="flex items-center gap-1.5">
           <button type="submit" class="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition focus-ring">Filter</button>
-          <a href="{{ route('admin.events.index') }}" class="py-1.5 px-3 surface hover:surface-3 t2 rounded-lg text-xs font-medium border bs transition text-center no-underline">Reset</a>
+          <a href="{{ route('admin.events.index') }}" class="py-1.5 px-3 surface hover:surface-3 t2 rounded-lg text-xs font-medium border bs transition text-center no-underline">Clear</a>
         </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-2.5 mt-2 pt-2 border-t bs">
@@ -198,82 +109,79 @@
 
     <!-- Table Section -->
     <div class="surface rounded-xl border bs overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse text-xs">
+      <div class="overflow-x-auto relative">
+        <table class="min-w-full border-collapse text-[13px]">
           <thead>
-            <tr class="surface-2 border-b bs t2 text-[11px] uppercase tracking-wider font-semibold">
-              <th class="py-3 px-3">Title</th>
-              <th class="py-3 px-3">Type</th>
-              <th class="py-3 px-3">Circle</th>
-              <th class="py-3 px-3">Mode</th>
-              <th class="py-3 px-3">Start Date</th>
-              <th class="py-3 px-3">Recurrence</th>
-              <th class="py-3 px-3 text-center">Registered</th>
-              <th class="py-3 px-3 text-center">Checked-in</th>
-              <th class="py-3 px-3">Status</th>
-              <th class="py-3 px-3 text-right">Actions</th>
+            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Title</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Type</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Mode</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Start Date</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Recurrence</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Registered</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Checked-in</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody class="divide-y bs t1">
+          <tbody id="grid-body" class="divide-y divide-gray-200/50">
             @forelse($events as $event)
-              <tr class="hover:surface-2 transition">
-                <td class="py-3 px-3 font-semibold text-slate-900 t1">
+              <tr class="hover:surface-2 transition border-b bs">
+                <td class="px-3 py-2.5 font-semibold text-slate-900 t1">
                   <a href="{{ route('admin.events.show', $event->id) }}" class="text-indigo-600 hover:text-indigo-800 no-underline font-medium">
                     {{ $event->title }}
                   </a>
                 </td>
-                <td class="py-3 px-3">
-                  <span class="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                <td class="px-3 py-2.5 text-xs">
+                  <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">
                     {{ str_replace('_', ' ', ucfirst($event->event_type)) }}
                   </span>
                 </td>
-                <td class="py-3 px-3 t2">
+                <td class="px-3 py-2.5 text-xs t2">
                   {{ $event->circle?->name ?? '-' }}
                 </td>
-                <td class="py-3 px-3">
+                <td class="px-3 py-2.5 text-xs">
                   @if($event->mode === 'offline')
-                    <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span class="badge-dot bg-emerald-500"></span> Offline
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
+                      Offline
                     </span>
                   @elseif($event->mode === 'online')
-                    <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">
-                      <span class="badge-dot bg-indigo-500"></span> Online
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
+                      Online
                     </span>
                   @else
-                    <span class="badge bg-purple-50 text-purple-700 border border-purple-200">
-                      <span class="badge-dot bg-purple-500"></span> Hybrid
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border-purple-200">
+                      Hybrid
                     </span>
                   @endif
                 </td>
-                <td class="py-3 px-3 t2 whitespace-nowrap">
-                  <i class="bi bi-calendar-event text-slate-400 me-1"></i>
+                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                   {{ optional($event->start_at)->format('d M Y, h:i A') ?? '-' }}
                 </td>
-                <td class="py-3 px-3">
-                  <span class="capitalize px-2 py-0.5 text-[11px] rounded bg-slate-100 t2 font-mono">
-                    {{ $event->recurrence_type ?? 'none' }}
-                  </span>
+                <td class="px-3 py-2.5 text-xs font-mono t2">
+                  {{ $event->recurrence_type ?? 'none' }}
                 </td>
-                <td class="py-3 px-3 text-center">
-                  <a href="{{ route('admin.events.show', $event->id) }}#registrations-section" class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 no-underline" title="View event registrations table">
+                <td class="px-3 py-2.5 text-center">
+                  <a href="{{ route('admin.events.show', $event->id) }}#registrations-section" class="font-bold text-indigo-600 hover:text-indigo-700 no-underline text-xs" title="View event registrations table">
                     {{ $event->registered_count ?? 0 }}
                   </a>
                 </td>
-                <td class="py-3 px-3 text-center font-semibold t2">
+                <td class="px-3 py-2.5 text-center font-semibold text-xs t2">
                   {{ $event->checked_in_count ?? 0 }}
                 </td>
-                <td class="py-3 px-3">
+                <td class="px-3 py-2.5 text-xs">
                   @php $status = $event->computed_status; @endphp
                   @if($status === 'completed')
-                    <span class="badge bg-slate-100 text-slate-600 border border-slate-200">Completed</span>
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border-gray-200">Completed</span>
                   @elseif($status === 'cancelled')
-                    <span class="badge bg-rose-50 text-rose-600 border border-rose-200">Cancelled</span>
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-600 border-rose-200">Cancelled</span>
                   @else
-                    <span class="badge bg-emerald-50 text-emerald-600 border border-emerald-200">Scheduled</span>
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-600 border-emerald-200">Scheduled</span>
                   @endif
                 </td>
-                <td class="py-3 px-3 text-right">
-                  <div class="inline-flex items-center gap-1">
+                <td class="px-3 py-2.5 text-right whitespace-nowrap">
+                  <div class="flex items-center justify-end gap-1.5">
                     <a href="{{ route('admin.events.show', $event->id) }}" class="px-2 py-1 rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-[11px] font-medium no-underline transition">
                       View
                     </a>
@@ -291,8 +199,7 @@
               </tr>
             @empty
               <tr>
-                <td colspan="10" class="text-center py-8 text-slate-400">
-                  <i class="bi bi-calendar-x text-2xl d-block mb-2"></i>
+                <td colspan="10" class="text-center py-8 text-xs t3">
                   No events found matching your criteria.
                 </td>
               </tr>
@@ -302,7 +209,7 @@
       </div>
 
       @if($events->hasPages())
-        <div class="px-4 py-3 border-t bs surface-2">
+        <div class="p-3 border-t bs flex justify-between items-center">
           {{ $events->links() }}
         </div>
       @endif
