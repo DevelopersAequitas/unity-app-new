@@ -72,7 +72,7 @@ class UsersController extends Controller
         $membershipStatusLabels = $this->membershipFilterOptions();
 
         $allUsersJson = $allUsers->map(function (User $u) use ($membershipStatusLabels) {
-            $name = $u->name ?? trim((($u->first_name ?? '').' '.($u->last_name ?? '')));
+            $name = $u->adminDisplayName();
             $avatar = $u->profile_photo_url ?? ($u->profile_photo_file_id ? url('/api/v1/files/'.$u->profile_photo_file_id) : null);
 
             $cityName = $u->city->name ?? $u->city ?? '';
@@ -105,6 +105,7 @@ class UsersController extends Controller
             return [
                 'id' => $u->id,
                 'name' => $name,
+                'avatar' => $avatar,
                 'mid' => $u->peer_id ?? ('PGU-'.substr($u->id, 0, 5)),
                 'email' => $u->email ?? '',
                 'mobile' => $u->phone ?? '',
@@ -1294,9 +1295,7 @@ class UsersController extends Controller
 
     private function adminDisplayName(User $user): string
     {
-        $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))));
-
-        return $name !== '' ? $name : $this->normalizedAdminEmail($user);
+        return $user->adminDisplayName();
     }
 
     public function removeCircleMembership(Request $request, string $userId, string $circleMemberId): RedirectResponse

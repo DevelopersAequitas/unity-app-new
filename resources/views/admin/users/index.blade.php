@@ -1085,7 +1085,30 @@
     // Real database users list passed from controller
     const members = @json($allUsersJson);
     
-    function initials(n){ return n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+    function initials(n){
+      if (!n || typeof n !== 'string') return '?';
+      const clean = n.trim();
+      if (!clean) return '?';
+      const parts = clean.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return '?';
+      if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function renderAvatar(m, sizeClass = 'w-8 h-8 text-[11px]') {
+      const avatarUrl = (m && m.avatar && typeof m.avatar === 'string') ? m.avatar.trim() : '';
+      const initialText = initials(m ? m.name : '');
+      const bgColor = (m && m.color) ? m.color : '#6366F1';
+
+      if (!avatarUrl) {
+        return `<div class="avatar ${sizeClass} rounded-full font-bold flex items-center justify-center text-white flex-none" style="background:${bgColor}">${initialText}</div>`;
+      }
+
+      const safeUrl = avatarUrl.replace(/"/g, '&quot;');
+      const safeName = String((m && m.name) || '').replace(/"/g, '&quot;');
+
+      return `<img src="${safeUrl}" alt="${safeName}" class="${sizeClass} rounded-full object-cover flex-none" onerror="this.onerror=null; this.outerHTML='<div class=\\'avatar ${sizeClass} rounded-full font-bold flex items-center justify-center text-white flex-none\\' style=\\'background:${bgColor}\\'>${initialText}</div>';" />`;
+    }
     
     let selected = new Set();
     let sortState = {col:null, dir:1};
@@ -1469,7 +1492,7 @@
         </td>
         <td class="border-b bs px-3 py-2.5 align-top">
           <div class="flex items-center gap-2.5">
-            <div class="avatar w-8 h-8 rounded-full text-[11px] font-bold flex items-center justify-center text-white" style="background:${m.color}">${initials(m.name)}</div>
+            ${renderAvatar(m, 'w-8 h-8 text-[11px]')}
             <div class="font-display font-medium text-indigo-500 hover:text-indigo-700 hover:underline transition">${m.name}</div>
           </div>
         </td>
@@ -1759,7 +1782,7 @@
       
       document.getElementById('drawer-body').innerHTML = `
         <div class="flex items-center gap-3 mb-4">
-          <div class="avatar w-14 h-14 rounded-full text-[16px] flex items-center justify-center text-white" style="background:${m.color}">${initials(m.name)}</div>
+          ${renderAvatar(m, 'w-14 h-14 text-[16px]')}
           <div>
             <div class="font-display font-semibold text-[16.5px] t1">${m.name}</div>
             <div class="text-[12px] t3 font-mono mt-0.5">${m.mid}</div>
