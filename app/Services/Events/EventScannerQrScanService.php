@@ -26,7 +26,7 @@ class EventScannerQrScanService
             return $this->result(false, 'Scanner account is inactive.', 403);
         }
 
-        if ($expectedEventId !== null && (string) ($scanner->event_id ?? '') !== (string) $expectedEventId) {
+        if ($expectedEventId !== null && ! $scanner->canScanEvent((string) $expectedEventId)) {
             $message = 'Scanner is not assigned to this event.';
             $this->writeScanLog($expectedEventId, null, $scanner->id, $qrToken, 'wrong_event', $message, $deviceInfo, [
                 'scanner_event_id' => $scanner->event_id,
