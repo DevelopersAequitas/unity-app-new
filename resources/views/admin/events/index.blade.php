@@ -160,12 +160,14 @@
                   {{ $event->recurrence_type ?? 'none' }}
                 </td>
                 <td class="px-3 py-2.5 text-center">
-                  <a href="{{ route('admin.events.show', $event->id) }}#registrations-section" class="font-bold text-indigo-600 hover:text-indigo-700 no-underline text-xs" title="View event registrations table">
+                  <a href="{{ route('admin.events.total-registered', ['event_id' => $event->id]) }}" class="font-bold text-indigo-600 hover:text-indigo-700 no-underline text-xs" title="View registered list for this event">
                     {{ $event->registered_count ?? 0 }}
                   </a>
                 </td>
-                <td class="px-3 py-2.5 text-center font-semibold text-xs t2">
-                  {{ $event->checked_in_count ?? 0 }}
+                <td class="px-3 py-2.5 text-center">
+                  <a href="{{ route('admin.events.total-attendance', ['event_id' => $event->id]) }}" class="font-bold text-emerald-600 hover:text-emerald-700 no-underline text-xs" title="View attendance list for this event">
+                    {{ $event->checked_in_count ?? 0 }}
+                  </a>
                 </td>
                 <td class="px-3 py-2.5 text-xs">
                   @php $status = $event->computed_status; @endphp
@@ -182,13 +184,13 @@
                     <a href="{{ route('admin.events.show', $event->id) }}" class="px-2 py-1 rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-[11px] font-medium no-underline transition">
                       View
                     </a>
-                    <a href="{{ route('admin.events.show', $event->id) }}#registrations-section" class="px-2 py-1 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 text-[11px] font-medium no-underline transition">
+                    <a href="{{ route('admin.events.total-registered', ['event_id' => $event->id]) }}" class="px-2 py-1 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 text-[11px] font-medium no-underline transition">
                       Registrations
                     </a>
                     <a href="{{ route('admin.events.edit', $event->id) }}" class="px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 text-[11px] font-medium no-underline transition">
                       Edit
                     </a>
-                    <a href="{{ route('admin.events.attendance', $event->id) }}" class="px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[11px] font-medium no-underline transition">
+                    <a href="{{ route('admin.events.total-attendance', ['event_id' => $event->id]) }}" class="px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[11px] font-medium no-underline transition">
                       Attendance
                     </a>
                   </div>

@@ -11,7 +11,13 @@
     <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
       <div>
         <h2 class="text-base font-bold tracking-wider uppercase text-indigo-600 font-display m-0">Total Attendance</h2>
-        <p class="text-xs t3 m-0 mt-0.5">Overview and history of all checked-in event attendees across all circles</p>
+        <p class="text-xs t3 m-0 mt-0.5">
+          @if(request('event_id') && ($selectedEvt = $events->firstWhere('id', request('event_id'))))
+            Showing attendance records for event: <span class="font-semibold text-emerald-600">{{ $selectedEvt->title }}</span>
+          @else
+            Overview and history of all checked-in event attendees across all circles
+          @endif
+        </p>
       </div>
       <div class="flex items-center gap-2">
         <a href="{{ route('admin.events.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold surface hover:surface-2 transition text-slate-700 no-underline flex items-center gap-1.5">
