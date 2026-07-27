@@ -45,7 +45,7 @@
                             @endif
                         </tr>
                     </thead>
-                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                    <tbody class="divide-y divide-gray-200/50">
                         @foreach ($topIntroducers as $index => $introducer)
                             @php
                                 $introducerName = $introducer->name ?? trim((($introducer->first_name ?? '') . ' ' . ($introducer->last_name ?? '')));

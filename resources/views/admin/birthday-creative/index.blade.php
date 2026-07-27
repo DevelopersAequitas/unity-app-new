@@ -79,7 +79,7 @@
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                            <tbody class="divide-y divide-gray-200/50">
                                 @if($config->template_file_id)
                                     <tr class="hover:surface-2 transition border-b bs">
                                         <td class="px-3 py-2.5">

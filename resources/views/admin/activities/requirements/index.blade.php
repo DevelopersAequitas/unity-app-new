@@ -162,7 +162,7 @@
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Total Requirements</th>
                                 </tr>
                             </thead>
-                            <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                            <tbody class="divide-y divide-gray-200/50">
                                 @forelse ($topMembers as $index => $member)
                                     <tr class="hover:surface-2 transition border-b bs">
                                         <td class="px-3 py-2.5 text-xs font-semibold t3">#{{ $index + 1 }}</td>

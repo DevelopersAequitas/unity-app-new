@@ -64,7 +64,7 @@
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
             </tr>
           </thead>
-          <tbody id="grid-body" class="divide-y divide-gray-200/50">
+          <tbody class="divide-y divide-gray-200/50">
             @forelse($assignments as $row)
               <tr class="hover:surface-2 transition border-b bs">
                 <td class="px-3 py-2.5 font-semibold t1 text-[12.5px] whitespace-nowrap">{{ $row->user_name }}</td>
@@ -80,7 +80,7 @@
           </tbody>
         </table>
       </div>
-      <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+      <div class="p-3 border-t bs flex justify-between items-center">
         {{ $assignments->withQueryString()->links() }}
       </div>
     </div>
@@ -98,7 +98,7 @@
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Score</th>
             </tr>
           </thead>
-          <tbody id="grid-body" class="divide-y divide-gray-200/50">
+          <tbody class="divide-y divide-gray-200/50">
             @forelse($performance as $p)
               <tr class="hover:surface-2 transition border-b bs">
                 <td class="px-3 py-2.5 font-semibold t1 text-[12.5px] whitespace-nowrap">{{ $p->display_name }}</td>
