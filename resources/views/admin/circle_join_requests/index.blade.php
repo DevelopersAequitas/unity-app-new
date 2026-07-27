@@ -53,7 +53,7 @@
                 <input type="date" name="date_to" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['date_to'] ?? '' }}">
             </div>
             <div class="flex justify-end">
-                <a href="{{ route('admin.circle-join-requests.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline">Clear</a>
+                <a href="{{ route('admin.circle-joining-requests.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline">Clear</a>
             </div>
         </form>
     </div>
