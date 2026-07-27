@@ -1211,7 +1211,7 @@ class UsersController extends Controller
             : 'User updated successfully.';
 
         return redirect()
-            ->route('admin.users.show', $user->id)
+            ->route('admin.users.edit', $user->id)
             ->with('success', $statusMessage);
     }
 
