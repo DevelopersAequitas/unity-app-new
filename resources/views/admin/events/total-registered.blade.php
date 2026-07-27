@@ -129,46 +129,48 @@
                 $isCheckedIn = strtolower((string) ($row->checkin_status ?? '')) === 'checked_in' || !empty($row->checked_in_at);
               @endphp
               <tr class="hover:surface-2 transition border-b bs">
-                <td class="px-3 py-2.5 font-semibold text-slate-900 t1">
-                  {{ $name }}
-                  <span class="chip ml-1.5 px-2 py-0.5 text-[10px] font-semibold {{ $isMember ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-purple-50 text-purple-700 border-purple-200' }}">
-                    {{ $isMember ? 'Member' : 'Visitor' }}
-                  </span>
+                <td class="px-3 py-2.5 font-semibold text-slate-900 t1 whitespace-nowrap">
+                  <div class="inline-flex items-center gap-1.5 flex-wrap">
+                    <span>{{ $name }}</span>
+                    <span class="chip px-2 py-0.5 text-[10px] font-semibold inline-flex items-center align-middle {{ $isMember ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-purple-50 text-purple-700 border-purple-200' }}">
+                      {{ $isMember ? 'Member' : 'Visitor' }}
+                    </span>
+                  </div>
                 </td>
-                <td class="px-3 py-2.5 text-xs t2">
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
                   <div>{{ $email }}</div>
                   @if($phone !== '-')<div class="text-[11px] text-gray-500">{{ $phone }}</div>@endif
                 </td>
-                <td class="px-3 py-2.5 text-xs">
+                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                   <a href="{{ route('admin.events.show', $row->event_id) }}" class="text-indigo-600 hover:text-indigo-800 no-underline font-medium">
                     {{ $row->event?->title ?? 'Event #'.$row->event_id }}
                   </a>
                 </td>
-                <td class="px-3 py-2.5 text-xs t2">
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
                   {{ $row->event?->circle?->name ?? '-' }}
                 </td>
-                <td class="px-3 py-2.5 text-xs">
+                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                   @if(in_array($pStatus, ['paid', 'completed', 'success'], true))
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
+                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
                       Paid
                     </span>
                   @elseif($pStatus === 'free' || !(bool)($row->payment_required ?? false))
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">
+                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">
                       Free
                     </span>
                   @else
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">
+                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">
                       {{ ucfirst($pStatus ?: 'Pending') }}
                     </span>
                   @endif
                 </td>
-                <td class="px-3 py-2.5 text-xs">
+                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                   @if($isCheckedIn)
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
+                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
                       Checked In
                     </span>
                   @else
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border-gray-200">
+                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border-gray-200">
                       Not Checked In
                     </span>
                   @endif
@@ -176,8 +178,8 @@
                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                   {{ optional($row->created_at)->format('d M Y, h:i A') ?? '-' }}
                 </td>
-                <td class="px-3 py-2.5 text-right text-xs">
-                  <a href="{{ route('admin.events.show', $row->event_id) }}#registrations-section" class="px-2 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold no-underline hover:bg-indigo-100">
+                <td class="px-3 py-2.5 text-right text-xs whitespace-nowrap">
+                  <a href="{{ route('admin.events.show', $row->event_id) }}#registrations-section" class="inline-flex items-center justify-center px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold no-underline hover:bg-indigo-100 transition whitespace-nowrap">
                     View Details
                   </a>
                 </td>

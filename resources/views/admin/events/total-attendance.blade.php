@@ -125,28 +125,28 @@
                 $phone = $isMember ? ($row->user?->phone ?: '-') : ($row->visitor_phone ?: '-');
               @endphp
               <tr class="hover:surface-2 transition border-b bs">
-                <td class="px-3 py-2.5 font-semibold text-slate-900 t1">
+                <td class="px-3 py-2.5 font-semibold text-slate-900 t1 whitespace-nowrap">
                   {{ $name }}
                 </td>
-                <td class="px-3 py-2.5 text-xs t2">
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
                   <div>{{ $email }}</div>
                   @if($phone !== '-')<div class="text-[11px] text-gray-500">{{ $phone }}</div>@endif
                 </td>
-                <td class="px-3 py-2.5 text-xs">
+                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                   <a href="{{ route('admin.events.show', $row->event_id) }}" class="text-indigo-600 hover:text-indigo-800 no-underline font-medium">
                     {{ $row->event?->title ?? 'Event #'.$row->event_id }}
                   </a>
                 </td>
-                <td class="px-3 py-2.5 text-xs t2">
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
                   {{ $row->event?->circle?->name ?? '-' }}
                 </td>
-                <td class="px-3 py-2.5 text-xs">
+                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                   @if($isMember)
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-blue-50 text-blue-700 border-blue-200">
+                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-blue-50 text-blue-700 border-blue-200">
                       Member
                     </span>
                   @else
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border-purple-200">
+                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border-purple-200">
                       Visitor
                     </span>
                   @endif
@@ -154,8 +154,8 @@
                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                   {{ optional($row->checked_in_at)->format('d M Y, h:i A') ?? '-' }}
                 </td>
-                <td class="px-3 py-2.5 text-right text-xs">
-                  <a href="{{ route('admin.events.attendance', $row->event_id) }}" class="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold no-underline hover:bg-emerald-100">
+                <td class="px-3 py-2.5 text-right text-xs whitespace-nowrap">
+                  <a href="{{ route('admin.events.attendance', $row->event_id) }}" class="inline-flex items-center justify-center px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold no-underline hover:bg-emerald-100 transition whitespace-nowrap">
                     Attendance Log
                   </a>
                 </td>
