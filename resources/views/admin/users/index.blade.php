@@ -130,6 +130,8 @@
   
   .col-sticky { position: sticky; left: 0; z-index: 10; border-right-width: 1px; }
   .col-sticky-head { position: sticky; left: 0; z-index: 20; border-right-width: 1px; }
+  .col-sticky-name { position: sticky; left: 44px; z-index: 10; border-right-width: 1px; }
+  .col-sticky-head-name { position: sticky; left: 44px; z-index: 20; border-right-width: 1px; }
   
   #grid-root-container .kbd {
     background: var(--surface-3);
@@ -547,10 +549,10 @@
         <table class="min-w-full border-collapse text-[13px]" id="main-table">
           <thead>
             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold">
-              <th class="th-cell col-sticky-head surface-2 border-b border-r bs px-3 py-3 text-left" style="width:44px;">
+              <th class="th-cell col-sticky-head surface-2 border-b border-r bs px-3 py-3 text-left" style="width:44px; min-width:44px; max-width:44px;">
                 <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" class="accent-indigo-500 w-4 h-4 rounded"/>
               </th>
-              <th data-colgrp="mid" class="th-cell col-sticky-head surface-2 border-b border-r bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:130px;">
+              <th data-colgrp="mid" class="th-cell surface-2 border-b bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:130px;">
                 <button onclick="sortBy('mid')" class="flex items-center gap-1 hover:t1 font-semibold uppercase tracking-wider text-[11px] t3 mb-1.5">Member ID <svg class="w-3 h-3 sort-icon" data-col="mid" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg></button>
                 <div class="relative">
                   <svg class="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 t3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
@@ -559,7 +561,7 @@
                 </div>
                 <div class="col-resize-handle"></div>
               </th>
-              <th data-colgrp="name" class="th-cell surface-2 border-b bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:160px;">
+              <th data-colgrp="name" class="th-cell col-sticky-head-name surface-2 border-b border-r bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:160px;">
                 <button onclick="sortBy('name')" class="flex items-center gap-1 hover:t1 font-semibold uppercase tracking-wider text-[11px] t3 mb-1.5">Member <svg class="w-3 h-3 sort-icon" data-col="name" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg></button>
                 <div class="relative">
                   <svg class="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 t3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
@@ -1506,13 +1508,13 @@
     function rowHTML(m){
       return `
       <tr class="row-anim data-row cursor-pointer ${selected.has(m.id)?'selected':''}" data-id="${m.id}" onclick="openDrawer('${m.id}')">
-        <td class="col-sticky surface border-b border-r bs px-3 py-2.5 align-top" onclick="event.stopPropagation()">
+        <td class="col-sticky surface border-b border-r bs px-3 py-2.5 align-top" style="width:44px; min-width:44px; max-width:44px;" onclick="event.stopPropagation()">
           <input type="checkbox" class="row-check accent-indigo-500 w-4 h-4 rounded mt-1" ${selected.has(m.id)?'checked':''} onchange="toggleRow('${m.id}', this)"/>
         </td>
-        <td class="col-sticky surface border-b border-r bs px-3 py-2.5 align-top font-mono font-medium text-[12.5px] t1">
+        <td class="border-b bs px-3 py-2.5 align-top font-mono font-medium text-[12.5px] t1">
           ${m.mid}
         </td>
-        <td class="border-b bs px-3 py-2.5 align-top">
+        <td class="col-sticky-name surface border-b border-r bs px-3 py-2.5 align-top">
           <div class="flex items-center gap-2.5">
             ${renderAvatar(m, 'w-8 h-8 text-[11px]')}
             <div class="font-display font-medium text-indigo-500 hover:text-indigo-700 hover:underline transition">${m.name}</div>
