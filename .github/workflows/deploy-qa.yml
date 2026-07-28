@@ -66,9 +66,8 @@ jobs:
                 exit 1
             fi
 
-            chmod 755 /home/devunity /home/devunity/laravel /home/devunity/laravel/public || true
-            chmod -R 755 storage bootstrap/cache
-            chmod -R 755 storage/app/public
+            chmod -R ug+rwX,o+rX storage/app/public
+            chmod -R ug+rwX storage bootstrap/cache
 
             php artisan optimize:clear
             php artisan config:cache
