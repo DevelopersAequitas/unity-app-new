@@ -1038,17 +1038,19 @@
 
 <!-- ============ QUICK PREVIEW DRAWER ============ -->
 <div id="drawer-scrim" onclick="closeDrawer()" class="scrim hidden fixed inset-0 bg-black/50 z-40"></div>
-<aside id="drawer" class="drawer drawer-hidden fixed top-0 right-0 h-full w-full sm:w-[420px] surface border-l bs z-50 flex flex-col shadow-2xl">
-  <div class="flex items-center justify-between px-5 h-16 border-b bs flex-none">
-    <span class="font-display font-semibold text-[15px] t1">Member profile</span>
-    <button onclick="closeDrawer()" class="w-8 h-8 flex items-center justify-center rounded-lg t3 hover:surface-3 hover:t1"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+<aside id="drawer" class="drawer drawer-hidden fixed top-0 right-0 h-full w-full sm:w-[420px] bg-white border-l border-slate-200 z-50 flex flex-col shadow-2xl">
+  <div class="flex items-center justify-between px-5 h-16 border-b border-slate-200 flex-none bg-white">
+    <span class="font-display font-semibold text-[15px] text-slate-900">Member profile</span>
+    <button onclick="closeDrawer()" class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
   </div>
-  <div class="flex-1 overflow-y-auto p-5" id="drawer-body">
+  <div class="flex-1 overflow-y-auto p-5 space-y-5 bg-white" id="drawer-body">
     <!-- filled by JS -->
   </div>
-  <div class="flex-none p-4 border-t bs flex gap-2">
-    <button id="view-full-profile-btn" class="flex-1 py-2 rounded-lg bg-accent text-white text-[12.5px] font-medium">View full profile</button>
-    <button onclick="openEditModal(window.currentDrawerPeerId)" class="px-3.5 py-2 rounded-lg border bs t2 hover:t1 text-[12.5px] font-medium">Quick edit</button>
+  <div class="flex-none p-4 border-t border-slate-200 bg-white flex gap-2.5">
+    <button id="view-full-profile-btn" class="flex-1 py-2.5 rounded-xl bg-[#00bcd4] hover:bg-[#00acc1] text-white text-[12.5px] font-semibold transition shadow-sm text-center border-0 cursor-pointer">View full profile</button>
+    <button onclick="openEditModal(window.currentDrawerPeerId)" class="px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12.5px] font-semibold transition cursor-pointer">Quick edit</button>
   </div>
 </aside>
 
@@ -1818,68 +1820,53 @@
         window.open(`/admin/users/${m.id}/edit`, '_blank');
       };
       
+      const memberTypeLabel = m.memberType === 'unity' ? 'Unity' : (m.memberType === 'circle_peer' ? 'Circle Peer' : (m.memberType === 'free' ? 'Free' : (m.memberType || 'Free')));
+
       document.getElementById('drawer-body').innerHTML = `
-        <div class="flex items-center gap-3 mb-4">
+        <div class="flex items-center gap-3.5 mb-2">
           ${renderAvatar(m, 'w-14 h-14 text-[16px]')}
           <div>
-            <div class="font-display font-semibold text-[16.5px] t1">${m.name}</div>
-            <div class="text-[12px] t3 font-mono mt-0.5">${m.mid}</div>
+            <div class="font-display font-semibold text-[17px] text-slate-900">${m.name}</div>
+            <div class="text-[12px] text-slate-400 font-mono mt-0.5">${m.mid}</div>
           </div>
         </div>
-        <div class="flex gap-2 mb-6">${statusBadge(m.status)}${membershipBadge(m.membership)}</div>
+        <div class="flex items-center gap-2 mb-6">
+          ${statusBadge(m.status)}
+          ${membershipBadge(m.membership)}
+        </div>
         
-        <div class="space-y-6 text-[12.5px] pb-6">
+        <div class="space-y-5 text-[12.5px] pb-4">
           <div>
-            <div class="font-display font-semibold text-[10.5px] uppercase tracking-wider text-indigo-400 mb-2">👤 Member Info Group</div>
-            <div class="space-y-2 border bs rounded-lg p-3 surface-2">
-              <div class="flex justify-between gap-4"><span class="t3">Email</span><span class="t1 truncate max-w-[200px] text-right font-medium" title="${m.email}">${m.email}</span></div>
-              <div class="flex justify-between"><span class="t3">Mobile</span><span class="t1 font-mono font-medium">${m.mobile}</span></div>
-              <div class="flex justify-between"><span class="t3">Company</span><span class="t1 font-medium">${m.company}</span></div>
-              <div class="flex justify-between"><span class="t3">Industry</span><span class="t1 font-medium">${m.industry}</span></div>
-              <div class="flex justify-between"><span class="t3">Role</span><span class="t1 font-medium">${m.role}</span></div>
-              <div class="flex justify-between"><span class="t3">Member Type</span><span class="t1 font-medium">${m.memberType === 'unity' ? 'Unity' : (m.memberType === 'circle_peer' ? 'Circle Peer' : 'Free')}</span></div>
+            <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-indigo-600 mb-2 flex items-center gap-1.5">
+              <span>👤</span> MEMBER INFO GROUP
+            </div>
+            <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
+              <div class="flex justify-between gap-4"><span class="text-slate-400">Email</span><span class="text-slate-800 truncate max-w-[210px] text-right font-medium" title="${m.email || ''}">${m.email || '—'}</span></div>
+              <div class="flex justify-between"><span class="text-slate-400">Mobile</span><span class="text-slate-800 font-mono font-medium">${m.mobile || '—'}</span></div>
+              <div class="flex justify-between"><span class="text-slate-400">Company</span><span class="text-slate-800 font-medium">${m.company || '—'}</span></div>
+              <div class="flex justify-between"><span class="text-slate-400">Industry</span><span class="text-slate-800 font-medium">${m.industry || '—'}</span></div>
+              <div class="flex justify-between"><span class="text-slate-400">Role</span><span class="text-slate-800 font-medium">${m.role || 'Member'}</span></div>
+              <div class="flex justify-between"><span class="text-slate-400">MemberType</span><span class="text-slate-800 font-medium">${memberTypeLabel}</span></div>
             </div>
           </div>
     
           <div>
-            <div class="font-display font-semibold text-[10.5px] uppercase tracking-wider text-indigo-400 mb-2">🌐 Region & Business Group</div>
-            <div class="space-y-2 border bs rounded-lg p-3 surface-2">
-              <div class="flex justify-between"><span class="t3">City</span><span class="t1 font-medium">${m.city}</span></div>
-              <div class="flex justify-between"><span class="t3">Country</span><span class="t1 font-medium">${m.country}</span></div>
-              <div class="flex justify-between"><span class="t3">Circle</span><span class="t1 text-indigo-400 font-medium">${m.circle}</span></div>
+            <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-indigo-600 mb-2 flex items-center gap-1.5">
+              <span>🌐</span> REGION & BUSINESS GROUP
+            </div>
+            <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
+              <div class="flex justify-between"><span class="text-slate-400">City</span><span class="text-slate-800 font-medium">${m.city || '—'}</span></div>
+              <div class="flex justify-between"><span class="text-slate-400">Country</span><span class="text-slate-800 font-medium">${m.country || 'India'}</span></div>
+              <div class="flex justify-between"><span class="text-slate-400">Circle</span><span class="text-slate-800 font-medium">${m.circle || '—'}</span></div>
             </div>
           </div>
     
           <div>
-            <div class="font-display font-semibold text-[10.5px] uppercase tracking-wider text-indigo-400 mb-2">⭐ Membership & Renewal</div>
-            <div class="space-y-2 border bs rounded-lg p-3 surface-2">
-              <div class="flex justify-between"><span class="t3">Joined Date</span><span class="t1 font-medium">${m.joined}</span></div>
-              <div class="flex justify-between"><span class="t3">Expiry Days</span><span class="t1 font-medium">${m.expiryDays} days left</span></div>
-              <div class="flex justify-between"><span class="t3">Renewals Count</span><span class="t1 font-mono font-medium">${m.renewalCount || 0}</span></div>
+            <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-amber-500 mb-2 flex items-center gap-1.5">
+              <span>⭐</span> MEMBERSHIP & RENEWAL
             </div>
-          </div>
-    
-          <div>
-            <div class="font-display font-semibold text-[10.5px] uppercase tracking-wider text-indigo-400 mb-2">💳 Financial Summary</div>
-            <div class="space-y-2 border bs rounded-lg p-3 surface-2">
-              <div class="flex justify-between"><span class="t3">Payment Status</span>${statusBadge(m.payment)}</div>
-              <div class="flex justify-between"><span class="t3">Last Payment Date</span><span class="t1 font-medium">${m.lastPaymentDate}</span></div>
-              <div class="flex justify-between"><span class="t3">Last Payment Amt</span><span class="t1 font-mono font-medium">${m.lastPaymentAmt ? ('₹' + m.lastPaymentAmt.toLocaleString()) : '—'}</span></div>
-              <div class="flex justify-between"><span class="t3">Pending Amount</span><span class="t1 font-mono font-medium">${m.pendingAmount ? ('₹' + m.pendingAmount.toLocaleString()) : '—'}</span></div>
-            </div>
-          </div>
-    
-          <div>
-            <div class="font-display font-semibold text-[10.5px] uppercase tracking-wider text-indigo-400 mb-2">📊 Engagement & Metrics</div>
-            <div class="space-y-2 border bs rounded-lg p-3 surface-2">
-              <div class="flex justify-between items-center"><span class="t3 flex-none mr-2">Activity Score</span>${activityBar(m.activity)}</div>
-              <div class="flex justify-between"><span class="t3">Coins Balance</span><span class="t1 font-mono font-semibold text-amber-500">${m.coins.toLocaleString()}</span></div>
-              <div class="flex justify-between"><span class="t3">Referrals Count</span><span class="t1 font-mono font-medium">${m.referrals}</span></div>
-              <div class="flex justify-between"><span class="t3">Events Attended</span><span class="t1 font-mono font-medium">${m.events}</span></div>
-              <div class="flex justify-between"><span class="t3">Support Tickets</span><span class="t1 font-mono font-medium">${m.tickets}</span></div>
-              <div class="flex justify-between"><span class="t3">Documents Uploaded</span><span class="t1 font-mono font-medium">${m.docs}</span></div>
-              <div class="flex justify-between"><span class="t3">Last Event Joined</span><span class="t1 font-medium">${m.lastEvent}</span></div>
-              <div class="flex justify-between"><span class="t3">Last Login</span><span class="t1 font-medium">${m.lastLogin}</span></div>
+            <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
+              <div class="flex justify-between"><span class="text-slate-400">Joined Date</span><span class="text-slate-800 font-medium">${m.joined || '—'}</span></div>
             </div>
           </div>
         </div>
