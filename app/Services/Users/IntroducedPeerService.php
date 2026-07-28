@@ -12,10 +12,14 @@ use InvalidArgumentException;
 class IntroducedPeerService
 {
     protected UserMilestoneSyncService $milestoneSyncService;
+    protected PeerIntroductionService $peerIntroductionService;
 
-    public function __construct(UserMilestoneSyncService $milestoneSyncService)
-    {
+    public function __construct(
+        UserMilestoneSyncService $milestoneSyncService,
+        PeerIntroductionService $peerIntroductionService
+    ) {
         $this->milestoneSyncService = $milestoneSyncService;
+        $this->peerIntroductionService = $peerIntroductionService;
     }
 
     /**
@@ -68,6 +72,9 @@ class IntroducedPeerService
             // Sync user milestones
             $this->milestoneSyncService->sync($user);
         });
+
+        // Trigger introduction creative rendering, timeline post and notifications
+        $this->peerIntroductionService->handlePeerIntroduction($user, $introducedUser);
 
         return $introducedUser;
     }

@@ -3176,6 +3176,13 @@ class UsersController extends Controller
         // Recalculate introducer's total introduced members count
         $this->recalculateIntroducedCount($user);
 
+        // Trigger introduction creative rendering, timeline post and notifications
+        try {
+            app(\App\Services\Users\PeerIntroductionService::class)->handlePeerIntroduction($user, $introducedMember);
+        } catch (\Throwable $e) {
+            Log::error("Failed to run PeerIntroductionService in admin panel: " . $e->getMessage());
+        }
+
         return back()->with('success', 'Introduced member added successfully.');
     }
 
