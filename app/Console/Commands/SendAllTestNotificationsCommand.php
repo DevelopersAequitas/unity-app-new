@@ -20,11 +20,9 @@ class SendAllTestNotificationsCommand extends Command
     {
         $userInput = $this->argument('user');
 
-        $query = User::where('email', $userInput);
-        if (Str::isUuid($userInput)) {
-            $query->orWhere('id', $userInput);
-        }
-        $user = $query->first();
+        $user = User::where('id', $userInput)
+            ->orWhere('email', $userInput)
+            ->first();
 
         if (! $user) {
             $this->error("User not found with email or UUID: {$userInput}");
