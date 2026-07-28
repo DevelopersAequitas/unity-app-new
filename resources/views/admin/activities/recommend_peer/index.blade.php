@@ -43,18 +43,22 @@
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-hand-thumbs-up-fill"></i>
                 </div>
-                <div class="metric-val">{{ number_format($items->total()) }}</div>
-                <div class="metric-label">Total Recommendations</div>
+                <div>
+                    <div class="metric-val">{{ number_format($items->total()) }}</div>
+                    <div class="metric-label">Total Recommendations</div>
+                </div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-person-fill-check"></i>
                 </div>
-                <div class="metric-val">
-                    {{ number_format($items->filter(fn($item) => $item->is_aware)->count()) }}
+                <div>
+                    <div class="metric-val">
+                        {{ number_format($items->filter(fn($item) => $item->is_aware)->count()) }}
+                    </div>
+                    <div class="metric-label">Peers Aware (Page)</div>
                 </div>
-                <div class="metric-label">Peers Aware (Page)</div>
             </div>
         </div>
 

@@ -47,18 +47,22 @@
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-person-vcard-fill"></i>
                 </div>
-                <div class="metric-val">{{ number_format($items->total()) }}</div>
-                <div class="metric-label">Total Registered Visitors</div>
+                <div>
+                    <div class="metric-val">{{ number_format($items->total()) }}</div>
+                    <div class="metric-label">Total Registered Visitors</div>
+                </div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-calendar-check"></i>
                 </div>
-                <div class="metric-val">
-                    {{ number_format($items->filter(fn($item) => strtolower((string)$item->status) === 'approved' || strtolower((string)$item->status) === 'attended')->count()) }}
+                <div>
+                    <div class="metric-val">
+                        {{ number_format($items->filter(fn($item) => strtolower((string)$item->status) === 'approved' || strtolower((string)$item->status) === 'attended')->count()) }}
+                    </div>
+                    <div class="metric-label">Approved / Attended Visitors (Page)</div>
                 </div>
-                <div class="metric-label">Approved / Attended Visitors (Page)</div>
             </div>
         </div>
 

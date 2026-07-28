@@ -93,6 +93,84 @@
 
             return [];
         };
+
+        $makePeerPayload = function($p) use ($getInitials, $getAvatarBg) {
+            $userId = $p->actor_id ?? $p->id ?? $p->user_id ?? '';
+            $name = $p->peer_name ?? $p->display_name ?? trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? '')) ?: 'Peer';
+            $company = $p->peer_company ?? $p->company_name ?? '';
+            $city = $p->peer_city ?? $p->city_name ?? $p->city ?? '';
+            $circle = $p->circle_name ?? '';
+            $email = $p->email ?? '';
+            $phone = $p->phone ?? '';
+            $designation = $p->designation ?? 'Member';
+
+            $score = (int) ($p->performance_score ?? (
+                ($p->testimonials_count ?? 0) +
+                ($p->referrals_count ?? 0) +
+                ($p->business_deals_count ?? 0) +
+                ($p->p2p_completed_count ?? 0) +
+                ($p->requirements_count ?? $p->total_count ?? 0) +
+                ($p->become_leader_count ?? 0) +
+                ($p->recommend_peer_count ?? 0) +
+                ($p->register_visitor_count ?? 0)
+            ));
+
+            return json_encode([
+                'id' => $userId,
+                'name' => $name,
+                'company' => $company,
+                'city' => $city,
+                'circle' => $circle,
+                'email' => $email,
+                'phone' => $phone,
+                'designation' => $designation,
+                'initials' => $getInitials($name),
+                'avatarBg' => $getAvatarBg($name),
+                'testimonials' => (int) ($p->testimonials_count ?? 0),
+                'testimonialsUrl' => route('admin.activities.testimonials', $userId),
+                'referrals' => (int) ($p->referrals_count ?? 0),
+                'referralsUrl' => route('admin.activities.referrals', $userId),
+                'deals' => (int) ($p->business_deals_count ?? 0),
+                'dealsUrl' => route('admin.activities.business-deals', $userId),
+                'p2p' => (int) ($p->p2p_completed_count ?? 0),
+                'p2pUrl' => route('admin.activities.p2p-meetings', $userId),
+                'requirements' => (int) ($p->requirements_count ?? $p->total_count ?? 0),
+                'requirementsUrl' => route('admin.activities.requirements', $userId),
+                'leadership' => (int) ($p->become_leader_count ?? 0),
+                'leadershipUrl' => route('admin.activities.become-a-leader.show', $userId),
+                'recommendations' => (int) ($p->recommend_peer_count ?? 0),
+                'recommendationsUrl' => route('admin.activities.recommend-peer.show', $userId),
+                'visitors' => (int) ($p->register_visitor_count ?? 0),
+                'visitorsUrl' => route('admin.activities.register-visitor.show', $userId),
+                'score' => $score,
+            ]);
+        };
+
+        $makeRequirementPayload = function($r) use ($displayName, $getInitials, $getAvatarBg, $mediaSummary, $firstMediaId, $decodeFilter, $formatDateTime) {
+            $fromName = $r->from_user_name ?? $displayName($r->actor_display_name ?? null, $r->actor_first_name ?? null, $r->actor_last_name ?? null);
+            $mediaInfo = $mediaSummary($r->media ?? null);
+            $mediaId = $firstMediaId($r->media ?? null);
+            $regionFilter = $decodeFilter($r->region_filter ?? null);
+            $categoryFilter = $decodeFilter($r->category_filter ?? null);
+
+            return json_encode([
+                'id' => $r->id,
+                'from_name' => $fromName,
+                'from_company' => $r->from_company ?? '',
+                'from_city' => $r->from_city ?? '',
+                'from_initials' => $getInitials($fromName),
+                'from_bg' => $getAvatarBg($fromName),
+                'subject' => $r->subject ?? '',
+                'description' => $r->description ?? '',
+                'region' => $regionFilter['region_label'] ?? $regionFilter['region_name'] ?? $regionFilter['city_name'] ?? 'Any',
+                'category' => $categoryFilter['category'] ?? 'Any',
+                'status' => $r->status ?? 'open',
+                'media_has' => $mediaInfo['has'],
+                'media_count' => $mediaInfo['count'],
+                'media_url' => $mediaId ? url('/api/v1/files/' . $mediaId) : null,
+                'created_at' => $formatDateTime($r->created_at ?? null),
+            ]);
+        };
     @endphp
 
     <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
@@ -105,32 +183,38 @@
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-file-earmark-text-fill"></i>
                 </div>
-                <div class="metric-val">{{ number_format($total) }}</div>
-                <div class="metric-label">Total Requirements</div>
+                <div>
+                    <div class="metric-val">{{ number_format($total) }}</div>
+                    <div class="metric-label">Total Requirements</div>
+                </div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-warning-subtle text-warning-emphasis">
                     <i class="bi bi-star-fill"></i>
                 </div>
-                <div class="metric-val">
-                    @if(($topMembers ?? collect())->isNotEmpty())
-                        {{ $topMembers->first()->total_count ?? 0 }}
-                    @else
-                        0
-                    @endif
+                <div>
+                    <div class="metric-val">
+                        @if(($topMembers ?? collect())->isNotEmpty())
+                            {{ $topMembers->first()->total_count ?? 0 }}
+                        @else
+                            0
+                        @endif
+                    </div>
+                    <div class="metric-label">Most Requirements by One Peer</div>
                 </div>
-                <div class="metric-label">Most Requirements by One Peer</div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-images"></i>
                 </div>
-                <div class="metric-val">
-                    {{ number_format(count($validMediaIds ?? [])) }}
+                <div>
+                    <div class="metric-val">
+                        {{ number_format(count($validMediaIds ?? [])) }}
+                    </div>
+                    <div class="metric-label">Verified Attachments</div>
                 </div>
-                <div class="metric-label">Verified Attachments</div>
             </div>
         </div>
 
@@ -164,7 +248,7 @@
                             </thead>
                             <tbody class="divide-y divide-gray-200/50">
                                 @forelse ($topMembers as $index => $member)
-                                    <tr class="hover:surface-2 transition border-b bs">
+                                    <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-peer="{{ $makePeerPayload($member) }}" onclick="openActivityPeerModal(this, event)">
                                         <td class="px-3 py-2.5 text-xs font-semibold t3">#{{ $index + 1 }}</td>
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
@@ -250,7 +334,7 @@
 
                                         $fromName = $requirement->from_user_name ?? $actorName;
                                     @endphp
-                                    <tr class="hover:surface-2 transition border-b bs">
+                                    <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-requirement="{{ $makeRequirementPayload($requirement) }}" onclick="openRequirementDetailModal(this, event)">
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($fromName) }}">
@@ -287,7 +371,6 @@
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
                                                     Available ({{ $mediaInfo['count'] }})
                                                 </span>
-                                                <a href="{{ url('/api/v1/files/' . $mediaId) }}" target="_blank" rel="noopener" class="text-indigo-600 font-semibold text-xs ms-1 no-underline">View</a>
                                             @else
                                                 <span class="t3">No Media</span>
                                             @endif
@@ -312,5 +395,7 @@
             </div>
         </form>
     </div>
-@endsection
 
+    @include('admin.activities.partials.peer-modal')
+    @include('admin.activities.requirements.partials.detail-modal')
+@endsection

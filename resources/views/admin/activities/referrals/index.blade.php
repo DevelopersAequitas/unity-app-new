@@ -35,6 +35,85 @@
         $formatDate = function ($value): string {
             return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '—';
         };
+
+        $makePeerPayload = function($p) use ($getInitials, $getAvatarBg) {
+            $userId = $p->actor_id ?? $p->id ?? $p->user_id ?? '';
+            $name = $p->peer_name ?? $p->display_name ?? trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? '')) ?: 'Peer';
+            $company = $p->peer_company ?? $p->company_name ?? '';
+            $city = $p->peer_city ?? $p->city_name ?? $p->city ?? '';
+            $circle = $p->circle_name ?? '';
+            $email = $p->email ?? '';
+            $phone = $p->phone ?? '';
+            $designation = $p->designation ?? 'Member';
+
+            $score = (int) ($p->performance_score ?? (
+                ($p->testimonials_count ?? 0) +
+                ($p->referrals_count ?? $p->total_count ?? 0) +
+                ($p->business_deals_count ?? 0) +
+                ($p->p2p_completed_count ?? 0) +
+                ($p->requirements_count ?? 0) +
+                ($p->become_leader_count ?? 0) +
+                ($p->recommend_peer_count ?? 0) +
+                ($p->register_visitor_count ?? 0)
+            ));
+
+            return json_encode([
+                'id' => $userId,
+                'name' => $name,
+                'company' => $company,
+                'city' => $city,
+                'circle' => $circle,
+                'email' => $email,
+                'phone' => $phone,
+                'designation' => $designation,
+                'initials' => $getInitials($name),
+                'avatarBg' => $getAvatarBg($name),
+                'testimonials' => (int) ($p->testimonials_count ?? 0),
+                'testimonialsUrl' => route('admin.activities.testimonials', $userId),
+                'referrals' => (int) ($p->referrals_count ?? $p->total_count ?? 0),
+                'referralsUrl' => route('admin.activities.referrals', $userId),
+                'deals' => (int) ($p->business_deals_count ?? 0),
+                'dealsUrl' => route('admin.activities.business-deals', $userId),
+                'p2p' => (int) ($p->p2p_completed_count ?? 0),
+                'p2pUrl' => route('admin.activities.p2p-meetings', $userId),
+                'requirements' => (int) ($p->requirements_count ?? 0),
+                'requirementsUrl' => route('admin.activities.requirements', $userId),
+                'leadership' => (int) ($p->become_leader_count ?? 0),
+                'leadershipUrl' => route('admin.activities.become-a-leader.show', $userId),
+                'recommendations' => (int) ($p->recommend_peer_count ?? 0),
+                'recommendationsUrl' => route('admin.activities.recommend-peer.show', $userId),
+                'visitors' => (int) ($p->register_visitor_count ?? 0),
+                'visitorsUrl' => route('admin.activities.register-visitor.show', $userId),
+                'score' => $score,
+            ]);
+        };
+
+        $makeReferralPayload = function($r) use ($displayName, $getInitials, $getAvatarBg, $formatDateTime, $formatDate) {
+            $fromName = $r->from_user_name ?? $displayName($r->actor_display_name ?? null, $r->actor_first_name ?? null, $r->actor_last_name ?? null);
+            $toName = $r->to_user_name ?? $displayName($r->peer_display_name ?? null, $r->peer_first_name ?? null, $r->peer_last_name ?? null);
+
+            return json_encode([
+                'id' => $r->id,
+                'from_name' => $fromName,
+                'from_company' => $r->from_company ?? '',
+                'from_city' => $r->from_city ?? '',
+                'from_initials' => $getInitials($fromName),
+                'from_bg' => $getAvatarBg($fromName),
+                'to_name' => $toName,
+                'to_company' => $r->to_company ?? '',
+                'to_city' => $r->to_city ?? '',
+                'to_initials' => $getInitials($toName),
+                'to_bg' => $getAvatarBg($toName),
+                'referral_type' => $r->referral_type ?? '',
+                'referral_of' => $r->referral_of ?? '',
+                'referral_date' => $formatDate($r->referral_date ?? null),
+                'phone' => $r->phone ?? '',
+                'email' => $r->email ?? '',
+                'address' => $r->address ?? '',
+                'remarks' => $r->remarks ?? '',
+                'created_at' => $formatDateTime($r->created_at ?? null),
+            ]);
+        };
     @endphp
 
     <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
@@ -47,32 +126,38 @@
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-person-plus-fill"></i>
                 </div>
-                <div class="metric-val">{{ number_format($total) }}</div>
-                <div class="metric-label">Total Referrals</div>
+                <div>
+                    <div class="metric-val">{{ number_format($total) }}</div>
+                    <div class="metric-label">Total Referrals</div>
+                </div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-warning-subtle text-warning-emphasis">
                     <i class="bi bi-star-fill"></i>
                 </div>
-                <div class="metric-val">
-                    @if(($topMembers ?? collect())->isNotEmpty())
-                        {{ $topMembers->first()->total_count ?? 0 }}
-                    @else
-                        0
-                    @endif
+                <div>
+                    <div class="metric-val">
+                        @if(($topMembers ?? collect())->isNotEmpty())
+                            {{ $topMembers->first()->total_count ?? 0 }}
+                        @else
+                            0
+                        @endif
+                    </div>
+                    <div class="metric-label">Most Referrals by One Peer</div>
                 </div>
-                <div class="metric-label">Most Referrals by One Peer</div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-danger-subtle text-danger">
                     <i class="bi bi-fire"></i>
                 </div>
-                <div class="metric-val">
-                    {{ number_format($items->where('hot_value', '>', 3)->count()) }}
+                <div>
+                    <div class="metric-val">
+                        {{ number_format($items->where('hot_value', '>', 3)->count()) }}
+                    </div>
+                    <div class="metric-label">Hot Referrals (Page)</div>
                 </div>
-                <div class="metric-label">Hot Referrals (Page)</div>
             </div>
         </div>
 
@@ -106,7 +191,7 @@
                             </thead>
                             <tbody class="divide-y divide-gray-200/50">
                                 @forelse ($topMembers as $index => $member)
-                                    <tr class="hover:surface-2 transition border-b bs">
+                                    <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-peer="{{ $makePeerPayload($member) }}" onclick="openActivityPeerModal(this, event)">
                                         <td class="px-3 py-2.5 text-xs font-semibold t3">#{{ $index + 1 }}</td>
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
@@ -183,7 +268,7 @@
                                         $fromName = $referral->from_user_name ?? $actorName;
                                         $toName = $referral->to_user_name ?? $peerName;
                                     @endphp
-                                    <tr class="hover:surface-2 transition border-b bs">
+                                    <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-referral="{{ $makeReferralPayload($referral) }}" onclick="openReferralDetailModal(this, event)">
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($fromName) }}">
@@ -268,10 +353,12 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </form>
+        </form>
 
     <div class="mt-3">
         {{ $items->links() }}
     </div>
+
+    @include('admin.activities.partials.peer-modal')
+    @include('admin.activities.referrals.partials.detail-modal')
 @endsection

@@ -35,6 +35,91 @@
         $formatDate = function ($value): string {
             return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '—';
         };
+
+        $makePeerPayload = function($p) use ($getInitials, $getAvatarBg) {
+            $userId = $p->actor_id ?? $p->id ?? $p->user_id ?? '';
+            $name = $p->peer_name ?? $p->display_name ?? trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? '')) ?: 'Peer';
+            $company = $p->peer_company ?? $p->company_name ?? '';
+            $city = $p->peer_city ?? $p->city_name ?? $p->city ?? '';
+            $circle = $p->circle_name ?? '';
+            $email = $p->email ?? '';
+            $phone = $p->phone ?? '';
+            $designation = $p->designation ?? 'Member';
+
+            $score = (int) ($p->performance_score ?? (
+                ($p->testimonials_count ?? 0) +
+                ($p->referrals_count ?? 0) +
+                ($p->business_deals_count ?? 0) +
+                ($p->p2p_completed_count ?? $p->total_count ?? 0) +
+                ($p->requirements_count ?? 0) +
+                ($p->become_leader_count ?? 0) +
+                ($p->recommend_peer_count ?? 0) +
+                ($p->register_visitor_count ?? 0)
+            ));
+
+            return json_encode([
+                'id' => $userId,
+                'name' => $name,
+                'company' => $company,
+                'city' => $city,
+                'circle' => $circle,
+                'email' => $email,
+                'phone' => $phone,
+                'designation' => $designation,
+                'initials' => $getInitials($name),
+                'avatarBg' => $getAvatarBg($name),
+                'testimonials' => (int) ($p->testimonials_count ?? 0),
+                'testimonialsUrl' => route('admin.activities.testimonials', $userId),
+                'referrals' => (int) ($p->referrals_count ?? 0),
+                'referralsUrl' => route('admin.activities.referrals', $userId),
+                'deals' => (int) ($p->business_deals_count ?? 0),
+                'dealsUrl' => route('admin.activities.business-deals', $userId),
+                'p2p' => (int) ($p->p2p_completed_count ?? $p->total_count ?? 0),
+                'p2pUrl' => route('admin.activities.p2p-meetings', $userId),
+                'requirements' => (int) ($p->requirements_count ?? 0),
+                'requirementsUrl' => route('admin.activities.requirements', $userId),
+                'leadership' => (int) ($p->become_leader_count ?? 0),
+                'leadershipUrl' => route('admin.activities.become-a-leader.show', $userId),
+                'recommendations' => (int) ($p->recommend_peer_count ?? 0),
+                'recommendationsUrl' => route('admin.activities.recommend-peer.show', $userId),
+                'visitors' => (int) ($p->register_visitor_count ?? 0),
+                'visitorsUrl' => route('admin.activities.register-visitor.show', $userId),
+                'score' => $score,
+            ]);
+        };
+
+        $makeP2pPayload = function($m) use ($displayName, $getInitials, $getAvatarBg, $formatDateTime, $formatDate) {
+            $fromName = $m->from_user_name ?? $displayName($m->actor_display_name ?? null, $m->actor_first_name ?? null, $m->actor_last_name ?? null);
+            $toName = $m->to_user_name ?? $displayName($m->peer_display_name ?? null, $m->peer_first_name ?? null, $m->peer_last_name ?? null);
+            $hasMedia = (int) ($m->has_media ?? 0) === 1;
+            $mediaRef = (string) ($m->media_reference ?? '');
+            $mediaUrl = null;
+            if ($hasMedia && $mediaRef) {
+                $mediaUrl = str_starts_with($mediaRef, 'http://') || str_starts_with($mediaRef, 'https://')
+                    ? $mediaRef
+                    : url('/api/v1/files/' . $mediaRef);
+            }
+
+            return json_encode([
+                'id' => $m->id,
+                'from_name' => $fromName,
+                'from_company' => $m->from_company ?? '',
+                'from_city' => $m->from_city ?? '',
+                'from_initials' => $getInitials($fromName),
+                'from_bg' => $getAvatarBg($fromName),
+                'to_name' => $toName,
+                'to_company' => $m->to_company ?? '',
+                'to_city' => $m->to_city ?? '',
+                'to_initials' => $getInitials($toName),
+                'to_bg' => $getAvatarBg($toName),
+                'meeting_date' => $formatDate($m->meeting_date ?? null),
+                'meeting_place' => $m->meeting_place ?? '',
+                'remarks' => $m->remarks ?? '',
+                'media_has' => $hasMedia,
+                'media_url' => $mediaUrl,
+                'created_at' => $formatDateTime($m->created_at ?? null),
+            ]);
+        };
     @endphp
 
     <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
@@ -47,41 +132,47 @@
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-people-fill"></i>
                 </div>
-                <div class="metric-val">{{ number_format($total) }}</div>
-                <div class="metric-label">Total Meetings</div>
+                <div>
+                    <div class="metric-val">{{ number_format($total) }}</div>
+                    <div class="metric-label">Total Meetings</div>
+                </div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-warning-subtle text-warning-emphasis">
                     <i class="bi bi-star-fill"></i>
                 </div>
-                <div class="metric-val">
-                    @if(($topMembers ?? collect())->isNotEmpty())
-                        {{ $topMembers->first()->total_count ?? 0 }}
-                    @else
-                        0
-                    @endif
+                <div>
+                    <div class="metric-val">
+                        @if(($topMembers ?? collect())->isNotEmpty())
+                            {{ $topMembers->first()->total_count ?? 0 }}
+                        @else
+                            0
+                        @endif
+                    </div>
+                    <div class="metric-label">Most Meetings by One Peer</div>
                 </div>
-                <div class="metric-label">Most Meetings by One Peer</div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-images"></i>
                 </div>
-                <div class="metric-val">
-                    {{ number_format($items->filter(function($m) {
-                        $media = $m->media_reference ?? null;
-                        if (is_string($media)) {
-                            $trim = trim($media);
-                            return ($trim !== '' && $trim !== 'null' && $trim !== '[]' && $trim !== '{}');
-                        } elseif (is_array($media)) {
-                            return count($media) > 0;
-                        }
-                        return !is_null($media);
-                    })->count()) }}
+                <div>
+                    <div class="metric-val">
+                        {{ number_format($items->filter(function($m) {
+                            $media = $m->media_reference ?? null;
+                            if (is_string($media)) {
+                                $trim = trim($media);
+                                return ($trim !== '' && $trim !== 'null' && $trim !== '[]' && $trim !== '{}');
+                            } elseif (is_array($media)) {
+                                return count($media) > 0;
+                            }
+                            return !is_null($media);
+                        })->count()) }}
+                    </div>
+                    <div class="metric-label">Meetings with Media (Page)</div>
                 </div>
-                <div class="metric-label">Meetings with Media (Page)</div>
             </div>
         </div>
 
@@ -115,7 +206,7 @@
                             </thead>
                             <tbody class="divide-y divide-gray-200/50">
                                 @forelse ($topMembers as $index => $member)
-                                    <tr class="hover:surface-2 transition border-b bs">
+                                    <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-peer="{{ $makePeerPayload($member) }}" onclick="openActivityPeerModal(this, event)">
                                         <td class="px-3 py-2.5 text-xs font-semibold t3">#{{ $index + 1 }}</td>
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
@@ -200,7 +291,7 @@
                                         $fromName = $meeting->from_user_name ?? $actorName;
                                         $toName = $meeting->to_user_name ?? $peerName;
                                     @endphp
-                                    <tr class="hover:surface-2 transition border-b bs">
+                                    <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-p2p="{{ $makeP2pPayload($meeting) }}" onclick="openP2pMeetingDetailModal(this, event)">
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($fromName) }}">
@@ -243,8 +334,6 @@
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
                                                     Available
                                                 </span>
-                                                <button type="button" class="text-indigo-600 font-semibold text-xs ms-1 bg-transparent border-0 cursor-pointer p-0" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $meeting->id }}">View</button>
-                                                <script type="application/json" id="media-json-{{ $meeting->id }}">{{ e(json_encode(is_string($meeting->media_reference ?? null) ? json_decode($meeting->media_reference ?? '[]', true) : ($meeting->media_reference ?? []))) }}</script>
                                             @else
                                                 <span class="t3">No Media</span>
                                             @endif
@@ -353,4 +442,6 @@
             });
         });
     </script>
+    @include('admin.activities.partials.peer-modal')
+    @include('admin.activities.p2p_meetings.partials.detail-modal')
 @endsection

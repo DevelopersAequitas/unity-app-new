@@ -35,6 +35,92 @@
         $formatDate = function ($value): string {
             return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '—';
         };
+
+        $makePeerPayload = function($p) use ($getInitials, $getAvatarBg) {
+            $userId = $p->actor_id ?? $p->id ?? $p->user_id ?? '';
+            $name = $p->peer_name ?? $p->display_name ?? trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? '')) ?: 'Peer';
+            $company = $p->peer_company ?? $p->company_name ?? '';
+            $city = $p->peer_city ?? $p->city_name ?? $p->city ?? '';
+            $circle = $p->circle_name ?? '';
+            $email = $p->email ?? '';
+            $phone = $p->phone ?? '';
+            $designation = $p->designation ?? 'Member';
+
+            $score = (int) ($p->performance_score ?? (
+                ($p->testimonials_count ?? 0) +
+                ($p->referrals_count ?? 0) +
+                ($p->business_deals_count ?? $p->total_count ?? 0) +
+                ($p->p2p_completed_count ?? 0) +
+                ($p->requirements_count ?? 0) +
+                ($p->become_leader_count ?? 0) +
+                ($p->recommend_peer_count ?? 0) +
+                ($p->register_visitor_count ?? 0)
+            ));
+
+            return json_encode([
+                'id' => $userId,
+                'name' => $name,
+                'company' => $company,
+                'city' => $city,
+                'circle' => $circle,
+                'email' => $email,
+                'phone' => $phone,
+                'designation' => $designation,
+                'initials' => $getInitials($name),
+                'avatarBg' => $getAvatarBg($name),
+                'testimonials' => (int) ($p->testimonials_count ?? 0),
+                'testimonialsUrl' => route('admin.activities.testimonials', $userId),
+                'referrals' => (int) ($p->referrals_count ?? 0),
+                'referralsUrl' => route('admin.activities.referrals', $userId),
+                'deals' => (int) ($p->business_deals_count ?? $p->total_count ?? 0),
+                'dealsUrl' => route('admin.activities.business-deals', $userId),
+                'p2p' => (int) ($p->p2p_completed_count ?? 0),
+                'p2pUrl' => route('admin.activities.p2p-meetings', $userId),
+                'requirements' => (int) ($p->requirements_count ?? 0),
+                'requirementsUrl' => route('admin.activities.requirements', $userId),
+                'leadership' => (int) ($p->become_leader_count ?? 0),
+                'leadershipUrl' => route('admin.activities.become-a-leader.show', $userId),
+                'recommendations' => (int) ($p->recommend_peer_count ?? 0),
+                'recommendationsUrl' => route('admin.activities.recommend-peer.show', $userId),
+                'visitors' => (int) ($p->register_visitor_count ?? 0),
+                'visitorsUrl' => route('admin.activities.register-visitor.show', $userId),
+                'score' => $score,
+            ]);
+        };
+
+        $makeDealPayload = function($d) use ($displayName, $getInitials, $getAvatarBg, $formatDateTime, $formatDate) {
+            $fromName = $d->from_user_name ?? $displayName($d->actor_display_name ?? null, $d->actor_first_name ?? null, $d->actor_last_name ?? null);
+            $toName = $d->to_user_name ?? $displayName($d->peer_display_name ?? null, $d->peer_first_name ?? null, $d->peer_last_name ?? null);
+            $hasMedia = (int) ($d->has_media ?? 0) === 1;
+            $mediaRef = (string) ($d->media_reference ?? '');
+            $mediaUrl = null;
+            if ($hasMedia && $mediaRef) {
+                $mediaUrl = str_starts_with($mediaRef, 'http://') || str_starts_with($mediaRef, 'https://')
+                    ? $mediaRef
+                    : url('/api/v1/files/' . $mediaRef);
+            }
+
+            return json_encode([
+                'id' => $d->id,
+                'from_name' => $fromName,
+                'from_company' => $d->from_company ?? '',
+                'from_city' => $d->from_city ?? '',
+                'from_initials' => $getInitials($fromName),
+                'from_bg' => $getAvatarBg($fromName),
+                'to_name' => $toName,
+                'to_company' => $d->to_company ?? '',
+                'to_city' => $d->to_city ?? '',
+                'to_initials' => $getInitials($toName),
+                'to_bg' => $getAvatarBg($toName),
+                'deal_amount' => $d->deal_amount ?? 0,
+                'business_type' => $d->business_type ?? '',
+                'deal_date' => $formatDate($d->deal_date ?? null),
+                'comment' => $d->comment ?? '',
+                'media_has' => $hasMedia,
+                'media_url' => $mediaUrl,
+                'created_at' => $formatDateTime($d->created_at ?? null),
+            ]);
+        };
     @endphp
 
     <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
@@ -47,32 +133,38 @@
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-briefcase-fill"></i>
                 </div>
-                <div class="metric-val">{{ number_format($total) }}</div>
-                <div class="metric-label">Total Deals</div>
+                <div>
+                    <div class="metric-val">{{ number_format($total) }}</div>
+                    <div class="metric-label">Total Deals</div>
+                </div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-currency-rupee"></i>
                 </div>
-                <div class="metric-val">
-                    ₹{{ number_format($items->sum('deal_amount'), 2) }}
+                <div>
+                    <div class="metric-val">
+                        ₹{{ number_format($items->sum('deal_amount'), 2) }}
+                    </div>
+                    <div class="metric-label">Total Deal Value (Page)</div>
                 </div>
-                <div class="metric-label">Total Deal Value (Page)</div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-warning-subtle text-warning-emphasis">
                     <i class="bi bi-star-fill"></i>
                 </div>
-                <div class="metric-val">
-                    @if(($topMembers ?? collect())->isNotEmpty())
-                        {{ $topMembers->first()->total_count ?? 0 }}
-                    @else
-                        0
-                    @endif
+                <div>
+                    <div class="metric-val">
+                        @if(($topMembers ?? collect())->isNotEmpty())
+                            {{ $topMembers->first()->total_count ?? 0 }}
+                        @else
+                            0
+                        @endif
+                    </div>
+                    <div class="metric-label">Most Deals by One Peer</div>
                 </div>
-                <div class="metric-label">Most Deals by One Peer</div>
             </div>
         </div>
 
@@ -107,7 +199,7 @@
                             </thead>
                             <tbody class="divide-y divide-gray-200/50">
                                 @forelse ($topMembers as $index => $member)
-                                    <tr class="hover:surface-2 transition border-b bs">
+                                    <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-peer="{{ $makePeerPayload($member) }}" onclick="openActivityPeerModal(this, event)">
                                         <td class="px-3 py-2.5 text-xs font-semibold t3">#{{ $index + 1 }}</td>
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
@@ -194,7 +286,7 @@
                                         $fromName = $deal->from_user_name ?? $actorName;
                                         $toName = $deal->to_user_name ?? $peerName;
                                     @endphp
-                                    <tr class="hover:surface-2 transition border-b bs">
+                                    <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-deal="{{ $makeDealPayload($deal) }}" onclick="openBusinessDealDetailModal(this, event)">
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($fromName) }}">
@@ -350,5 +442,7 @@
             });
         });
     </script>
+    @include('admin.activities.partials.peer-modal')
+    @include('admin.activities.business_deals.partials.detail-modal')
 @endsection
 

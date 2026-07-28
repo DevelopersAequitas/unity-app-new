@@ -56,18 +56,22 @@
                 <div class="metric-icon bg-primary-subtle text-primary">
                     <i class="bi bi-award-fill"></i>
                 </div>
-                <div class="metric-val">{{ number_format($items->total()) }}</div>
-                <div class="metric-label">Total Submissions</div>
+                <div>
+                    <div class="metric-val">{{ number_format($items->total()) }}</div>
+                    <div class="metric-label">Total Submissions</div>
+                </div>
             </div>
 
             <div class="activity-metric-card">
                 <div class="metric-icon bg-success-subtle text-success">
                     <i class="bi bi-calendar-check"></i>
                 </div>
-                <div class="metric-val">
-                    {{ number_format($items->filter(fn($item) => $item->created_at >= now()->subDays(30))->count()) }}
+                <div>
+                    <div class="metric-val">
+                        {{ number_format($items->filter(fn($item) => $item->created_at >= now()->subDays(30))->count()) }}
+                    </div>
+                    <div class="metric-label">Recent Submissions (30 Days)</div>
                 </div>
-                <div class="metric-label">Recent Submissions (30 Days)</div>
             </div>
         </div>
 
