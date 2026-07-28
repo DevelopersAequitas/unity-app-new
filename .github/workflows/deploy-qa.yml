@@ -84,27 +84,3 @@ jobs:
             php artisan view:cache
             php artisan queue:restart
             php artisan reverb:restart
-
-            FILE="ads/fTRrFc8ao6by6RvQ52BI8TRshddT8vXedezKceTJ.png"
-
-            echo "=== Laravel storage file ==="
-            test -f "storage/app/public/$FILE" && echo "storage file: EXISTS" || echo "storage file: MISSING"
-            ls -l "storage/app/public/$FILE" || true
-            file "storage/app/public/$FILE" || true
-
-            echo "=== Public symlink file ==="
-            test -f "public/storage/$FILE" && echo "public file: EXISTS" || echo "public file: MISSING"
-            ls -l "public/storage/$FILE" || true
-            file "public/storage/$FILE" || true
-
-            echo "=== Symlink state ==="
-            ls -ld public/storage || true
-            readlink public/storage || true
-            readlink -f public/storage || true
-            readlink -f storage/app/public || true
-
-            echo "=== Exact URL ==="
-            curl -sS -D /tmp/ad.headers -o /tmp/ad.body "https://dev.peersunity.com/storage/ads/fTRrFc8ao6by6RvQ52BI8TRshddT8vXedezKceTJ.png" || true
-            cat /tmp/ad.headers || true
-            file /tmp/ad.body || true
-            wc -c /tmp/ad.body || true
