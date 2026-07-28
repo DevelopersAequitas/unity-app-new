@@ -41,7 +41,7 @@ class RequirementNotificationService
                             [
                                 'title' => $title,
                                 'body' => $body,
-                                'navigation_screen' => '/requirements',
+                                'navigation_screen' => '/feed',
                                 'activity_type' => 'requirement',
                                 'type' => 'requirement',
                                 'notification_type' => 'requirement_created',

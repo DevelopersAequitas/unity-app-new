@@ -48,10 +48,10 @@ class AppNotification extends Model
         if (! $navScreen) {
             $navScreen = match ($type) {
                 'new_post' => '/member-profile',
-                'requirement', 'requirement_created', 'requirement_posted' => '/requirements',
+                'requirement', 'requirement_created', 'requirement_posted' => '/feed',
                 'brand_partner_offer', 'brand_offer', 'brand_partner_joined', 'brand_offer_added' => '/brand-partner-details',
                 'membership_expiry', 'membership_expired', 'circle_membership_expiry_reminder', 'upcoming_membership_expired' => '/profile',
-                'trending_circle', 'circle_highlight', 'circle_details' => '/circle-details',
+                'trending_circle', 'circle_highlight', 'circle_details', 'join_circle' => '/join-circle',
                 default => null,
             };
         }
