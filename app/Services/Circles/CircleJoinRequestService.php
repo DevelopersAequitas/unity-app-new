@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\Circles;
 
 use App\Models\Circle;
@@ -24,7 +26,7 @@ class CircleJoinRequestService
 
     public function submitRequest(User $user, Circle $circle, ?string $reason, array $categoryIds = []): CircleJoinRequest
     {
-        return DB::transaction(function () use ($user, $circle, $reason, $categoryIds) {
+        $request = DB::transaction(function () use ($user, $circle, $reason, $categoryIds) {
             $alreadyMember = CircleMember::query()
                 ->where('circle_id', $circle->id)
                 ->where('user_id', $user->id)
@@ -88,12 +90,12 @@ class CircleJoinRequestService
                 ]);
             }
 
-            $request = CircleJoinRequest::query()->create($payload);
-
-            $this->notifyStakeholders($request, $user);
-
-            return $request;
+            return CircleJoinRequest::query()->create($payload);
         });
+
+        $this->notifyStakeholders($request, $user);
+
+        return $request;
     }
 
     private function resolveCategorySelection(array $selection): array
@@ -146,7 +148,7 @@ class CircleJoinRequestService
 
     public function approveByCd(CircleJoinRequest $request, User $admin): CircleJoinRequest
     {
-        return DB::transaction(function () use ($request, $admin) {
+        $updated = DB::transaction(function () use ($request, $admin) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_CD_APPROVAL);
 
@@ -170,23 +172,25 @@ class CircleJoinRequestService
                 'approved_by' => $admin->id,
             ]);
 
-            $this->safeSendTransitionNotifications(
-                $updated,
-                fn () => $this->circleJoinRequestNotificationService->sendCdApprovedToUser($updated)
-            );
-
-            $this->safeSendTransitionNotifications(
-                $updated,
-                fn () => $this->circleJoinRequestNotificationService->sendJoinRequestApprovedCongratulations($updated)
-            );
-
             return $updated;
         });
+
+        $this->safeSendTransitionNotifications(
+            $updated,
+            fn () => $this->circleJoinRequestNotificationService->sendCdApprovedToUser($updated)
+        );
+
+        $this->safeSendTransitionNotifications(
+            $updated,
+            fn () => $this->circleJoinRequestNotificationService->sendJoinRequestApprovedCongratulations($updated)
+        );
+
+        return $updated;
     }
 
     public function rejectByCd(CircleJoinRequest $request, User $admin, string $reason): CircleJoinRequest
     {
-        return DB::transaction(function () use ($request, $admin, $reason) {
+        $updated = DB::transaction(function () use ($request, $admin, $reason) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_CD_APPROVAL);
 
@@ -197,20 +201,20 @@ class CircleJoinRequestService
                 'cd_rejection_reason' => $reason,
             ])->save();
 
-            $updated = $locked->fresh(['user', 'circle']);
-
-            $this->safeSendTransitionNotifications(
-                $updated,
-                fn () => $this->circleJoinRequestNotificationService->sendCdRejectedToUser($updated)
-            );
-
-            return $updated;
+            return $locked->fresh(['user', 'circle']);
         });
+
+        $this->safeSendTransitionNotifications(
+            $updated,
+            fn () => $this->circleJoinRequestNotificationService->sendCdRejectedToUser($updated)
+        );
+
+        return $updated;
     }
 
     public function approveById(CircleJoinRequest $request, User $admin): CircleJoinRequest
     {
-        return DB::transaction(function () use ($request, $admin) {
+        $updated = DB::transaction(function () use ($request, $admin) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL);
 
@@ -234,23 +238,25 @@ class CircleJoinRequestService
                 'approved_by' => $admin->id,
             ]);
 
-            $this->safeSendTransitionNotifications(
-                $updated,
-                fn () => $this->circleJoinRequestNotificationService->sendIdApprovedToUser($updated)
-            );
-
-            $this->safeSendTransitionNotifications(
-                $updated,
-                fn () => $this->circleJoinRequestNotificationService->sendJoinRequestApprovedCongratulations($updated)
-            );
-
             return $updated;
         });
+
+        $this->safeSendTransitionNotifications(
+            $updated,
+            fn () => $this->circleJoinRequestNotificationService->sendIdApprovedToUser($updated)
+        );
+
+        $this->safeSendTransitionNotifications(
+            $updated,
+            fn () => $this->circleJoinRequestNotificationService->sendJoinRequestApprovedCongratulations($updated)
+        );
+
+        return $updated;
     }
 
     public function rejectById(CircleJoinRequest $request, User $admin, string $reason): CircleJoinRequest
     {
-        return DB::transaction(function () use ($request, $admin, $reason) {
+        $updated = DB::transaction(function () use ($request, $admin, $reason) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_ID_APPROVAL);
 
@@ -263,15 +269,15 @@ class CircleJoinRequestService
                 'id_rejection_reason' => $reason,
             ])->save();
 
-            $updated = $locked->fresh(['user', 'circle']);
-
-            $this->safeSendTransitionNotifications(
-                $updated,
-                fn () => $this->circleJoinRequestNotificationService->sendIdRejectedToUser($updated)
-            );
-
-            return $updated;
+            return $locked->fresh(['user', 'circle']);
         });
+
+        $this->safeSendTransitionNotifications(
+            $updated,
+            fn () => $this->circleJoinRequestNotificationService->sendIdRejectedToUser($updated)
+        );
+
+        return $updated;
     }
 
     public function cancelByUser(CircleJoinRequest $request, User $user): CircleJoinRequest
@@ -304,7 +310,7 @@ class CircleJoinRequestService
 
     public function markPaidAndConvertToMember(CircleJoinRequest $request, array $context = []): CircleJoinRequest
     {
-        return DB::transaction(function () use ($request, $context) {
+        $updated = DB::transaction(function () use ($request, $context) {
             $locked = $this->lockOrFail($request->id);
             $this->ensureStatus($locked, CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE);
 
@@ -343,15 +349,15 @@ class CircleJoinRequestService
                 'notes' => array_merge((array) $locked->notes, $context),
             ])->save();
 
-            $updated = $locked->fresh(['user', 'circle']);
-
-            $this->safeSendTransitionNotifications(
-                $updated,
-                fn () => $this->circleJoinRequestNotificationService->sendCircleMemberConfirmedToUser($updated)
-            );
-
-            return $updated;
+            return $locked->fresh(['user', 'circle']);
         });
+
+        $this->safeSendTransitionNotifications(
+            $updated,
+            fn () => $this->circleJoinRequestNotificationService->sendCircleMemberConfirmedToUser($updated)
+        );
+
+        return $updated;
     }
 
     private function lockOrFail(string $id): CircleJoinRequest
@@ -386,41 +392,56 @@ class CircleJoinRequestService
 
     private function notifyStakeholders(CircleJoinRequest $request, User $actor): void
     {
-        $circle = $request->circle()->first();
+        try {
+            $circle = $request->circle()->first();
 
-        if (! $circle) {
-            return;
-        }
+            if (! $circle) {
+                return;
+            }
 
-        $targets = User::query()
-            ->whereIn('id', array_filter([
-                $circle->director_user_id,
-                $circle->industry_director_user_id,
-                $circle->ded_user_id,
-            ]))
-            ->get();
-
-        $globalAdminRoleId = Role::query()
-            ->where('key', 'global_admin')
-            ->value('id');
-
-        if ($globalAdminRoleId) {
-            $globalAdmins = User::query()
-                ->whereHas('roles', fn ($q) => $q->where('roles.id', $globalAdminRoleId))
+            $targets = User::query()
+                ->whereIn('id', array_filter([
+                    $circle->director_user_id,
+                    $circle->industry_director_user_id,
+                    $circle->ded_user_id,
+                ]))
                 ->get();
 
-            $targets = $targets->merge($globalAdmins);
-        }
+            $globalAdminRoleId = Role::query()
+                ->where('key', 'global_admin')
+                ->value('id');
 
-        $targets->unique('id')->each(function (User $recipient) use ($actor, $request): void {
-            $this->notifyUser(
-                $recipient,
-                $actor,
-                'circle_join_request_submitted',
-                'A new circle join request was submitted.',
-                ['circle_join_request_id' => $request->id]
-            );
-        });
+            if ($globalAdminRoleId) {
+                $globalAdmins = User::query()
+                    ->whereHas('roles', fn ($q) => $q->where('roles.id', $globalAdminRoleId))
+                    ->get();
+
+                $targets = $targets->merge($globalAdmins);
+            }
+
+            $targets->unique('id')->each(function (User $recipient) use ($actor, $request): void {
+                try {
+                    $this->notifyUser(
+                        $recipient,
+                        $actor,
+                        'circle_join_request_submitted',
+                        'A new circle join request was submitted.',
+                        ['circle_join_request_id' => $request->id]
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to notify stakeholder for circle join request', [
+                        'recipient_id' => (string) $recipient->id,
+                        'request_id' => (string) $request->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            });
+        } catch (\Throwable $exception) {
+            Log::warning('notifyStakeholders failed for circle join request', [
+                'request_id' => (string) $request->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function notifyUser(User $to, User $from, string $type, string $body, array $data = []): void
