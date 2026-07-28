@@ -40,129 +40,128 @@
             @endforeach
         </div>
 
-        <div class="border bs rounded-xl p-3.5 surface-2">
-            <div class="flex flex-wrap justify-between items-center gap-3">
-                <div class="flex flex-wrap items-center gap-2">
-                    <div class="flex items-center gap-1.5">
-                        <label for="perPage" class="text-xs t3 m-0 font-medium">Rows per page:</label>
-                        <select id="perPage" name="per_page" form="lifeImpactFiltersForm" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
-                            @foreach ([10, 20, 25, 50, 100] as $size)
-                                <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
+        <form id="lifeImpactFiltersForm" method="GET" action="{{ route('admin.life-impact.index') }}" class="admin-filter-form space-y-4">
+            <div class="border bs rounded-xl p-3.5 surface-2">
+                <div class="flex flex-wrap justify-between items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex items-center gap-1.5">
+                            <label for="perPage" class="text-xs t3 m-0 font-medium">Rows per page:</label>
+                            <select id="perPage" name="per_page" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                                @foreach ([10, 20, 25, 50, 100] as $size)
+                                    <option value="{{ $size }}" @selected($filters['per_page'] === $size)>{{ $size }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="date" id="lifeImpactFrom" name="from" value="{{ $filters['from'] ?? '' }}" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                            <span class="t3 text-xs">to</span>
+                            <input type="date" id="lifeImpactTo" name="to" value="{{ $filters['to'] ?? '' }}" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            @foreach ($quickDateRanges as $key => $range)
+                                <a
+                                    href="{{ route('admin.life-impact.index', array_filter(['q' => $filters['q'] ?? '', 'circle_id' => $filters['circle_id'] ?? 'all', 'per_page' => $filters['per_page'] ?? 20, 'quick_date' => $key])) }}"
+                                    class="px-2.5 py-1 rounded-lg text-xs font-semibold no-underline transition {{ ($filters['quick_date'] ?? '') === $key ? 'bg-indigo-600 text-white' : 'border bs surface t2 hover:t1' }}"
+                                >{{ $range['label'] }}</a>
                             @endforeach
-                        </select>
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="clearAdminFilters(event, 'lifeImpactFiltersForm')" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition">Clear</button>
+                            <button type="button" class="px-3 py-1 rounded-md border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition js-life-impact-export">Export</button>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <input type="date" id="lifeImpactFrom" name="from" form="lifeImpactFiltersForm" value="{{ $filters['from'] ?? '' }}" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
-                        <span class="t3 text-xs">to</span>
-                        <input type="date" id="lifeImpactTo" name="to" form="lifeImpactFiltersForm" value="{{ $filters['to'] ?? '' }}" class="px-2.5 py-1 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
+                    <div class="text-xs t3">
+                        @if($members->total() > 0)
+                            Showing <span class="font-semibold t1">{{ $members->firstItem() }}-{{ $members->lastItem() }}</span> of <span class="font-semibold t1">{{ $members->total() }}</span> records
+                        @else
+                            No records found
+                        @endif
+                        @if($dateFilterActive)
+                            <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border-amber-200 ml-1">Date filtered</span>
+                        @endif
                     </div>
-                    <div class="flex flex-wrap gap-1">
-                        @foreach ($quickDateRanges as $key => $range)
-                            <a
-                                href="{{ route('admin.life-impact.index', array_filter(['q' => $filters['q'] ?? '', 'circle_id' => $filters['circle_id'] ?? 'all', 'per_page' => $filters['per_page'] ?? 20, 'quick_date' => $key])) }}"
-                                class="px-2.5 py-1 rounded-lg text-xs font-semibold no-underline transition {{ ($filters['quick_date'] ?? '') === $key ? 'bg-indigo-600 text-white' : 'border bs surface t2 hover:t1' }}"
-                            >{{ $range['label'] }}</a>
-                        @endforeach
-                    </div>
-                    <div class="flex gap-2">
-                        <a href="{{ route('admin.life-impact.index') }}" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
-                        <button type="button" class="px-3 py-1 rounded-md border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition js-life-impact-export">Export</button>
-                    </div>
-                </div>
-                <div class="text-xs t3">
-                    @if($members->total() > 0)
-                        Showing <span class="font-semibold t1">{{ $members->firstItem() }}-{{ $members->lastItem() }}</span> of <span class="font-semibold t1">{{ $members->total() }}</span> records
-                    @else
-                        No records found
-                    @endif
-                    @if($dateFilterActive)
-                        <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border-amber-200 ml-1">Date filtered</span>
-                    @endif
                 </div>
             </div>
-        </div>
 
-        <div class="rounded-xl border bs surface overflow-hidden">
-            <div class="overflow-x-auto relative">
-                <table class="min-w-full border-collapse text-[13px]">
-                    <thead>
-                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 280px;">Peer Name</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 140px;">Total Life Impacted</th>
-                            @foreach ($categories as $category)
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 120px;">
-                                    {{ $category['label'] }}
-                                </th>
-                            @endforeach
-                        </tr>
-
-                        <tr class="surface-2 border-b bs align-middle">
-                            <th class="px-3 py-2">
-                                <div class="flex flex-col gap-1.5">
-                                    <input
-                                        id="lifeImpactQ"
-                                        type="text"
-                                        name="q"
-                                        form="lifeImpactFiltersForm"
-                                        class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal"
-                                        placeholder="Peer / Company / City"
-                                        value="{{ $filters['q'] }}"
-                                    >
-                                    <select id="lifeImpactCircle" name="circle_id" form="lifeImpactFiltersForm" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-searchable-select" data-placeholder="All Circles">
-                                        <option value="all">All Circles</option>
-                                        @foreach ($circles as $circle)
-                                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </th>
-                            @foreach (range(1, count($categories)) as $index)
-                                <th class="text-center t3 text-xs">-</th>
-                            @endforeach
-                            <th class="px-3 py-2 text-right">
-                                <form id="lifeImpactFiltersForm" method="GET" class="flex items-center justify-end gap-1.5 flex-nowrap">
-                                    <a href="{{ route('admin.life-impact.index') }}" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
-                                    <button type="button" id="lifeImpactExportBtn" class="px-3 py-1 rounded-md border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition js-life-impact-export">Export</button>
-                                </form>
-                                <form id="lifeImpactExportForm" method="GET" action="{{ route('admin.life-impact.export') }}" class="d-none"></form>
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody id="grid-body" class="divide-y divide-gray-200/50">
-                        @forelse ($members as $member)
-                            @php
-                                $stats = $impactStats[(string) $member->id] ?? [];
-                                $totalLifeImpacted = $dateFilterActive
-                                    ? (int) ($stats['total_life_impacted'] ?? 0)
-                                    : (int) ($member->life_impacted_count ?? 0);
-                            @endphp
-                            <tr class="hover:surface-2 transition border-b bs">
-                                <td class="px-3 py-2.5">
-                                    @include('admin.shared.peer_card', ['user' => $member])
-                                </td>
-                                <td class="px-3 py-2.5 text-center">
-                                    <a href="{{ route('admin.life-impact.history', $member) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 no-underline" target="_blank" rel="noopener">{{ number_format($totalLifeImpacted) }}</a>
-                                </td>
-                                @foreach (array_keys($categories) as $key)
-                                    <td class="px-3 py-2.5 text-center">
-                                        <a href="{{ route('admin.life-impact.history.category', [$member, $key]) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold t2 hover:t1 no-underline" target="_blank" rel="noopener">{{ number_format((int) ($stats[$key] ?? 0)) }}</a>
-                                    </td>
+            <div class="rounded-xl border bs surface overflow-hidden">
+                <div class="overflow-x-auto relative w-full">
+                    <table class="w-full min-w-[900px] border-collapse text-[13px]">
+                        <thead>
+                            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 250px;">Peer Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 140px;">Total Life Impacted</th>
+                                @foreach ($categories as $category)
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 120px;">
+                                        {{ $category['label'] }}
+                                    </th>
                                 @endforeach
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="{{ count($categories) + 2 }}" class="text-center py-8 text-xs t3">No members found.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
 
-            <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
-                {{ $members->links() }}
+                            <tr class="surface-2 border-b bs align-middle filter-row">
+                                <th class="px-3 py-2 text-left">
+                                    <div class="flex flex-col gap-1.5">
+                                        <input
+                                            id="lifeImpactQ"
+                                            type="text"
+                                            name="q"
+                                            class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal"
+                                            placeholder="Peer / Company / City"
+                                            value="{{ $filters['q'] }}"
+                                        >
+                                        <select id="lifeImpactCircle" name="circle_id" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-searchable-select" data-placeholder="All Circles">
+                                            <option value="all">All Circles</option>
+                                            @foreach ($circles as $circle)
+                                                <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </th>
+                                <th class="text-center t3 text-xs">-</th>
+                                @foreach (range(1, count($categories) - 1) as $index)
+                                    <th class="text-center t3 text-xs">-</th>
+                                @endforeach
+                                <th class="px-3 py-2 text-center">
+                                    <button type="button" onclick="clearAdminFilters(event, 'lifeImpactFiltersForm')" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="grid-body" class="divide-y divide-gray-200/50">
+                            @forelse ($members as $member)
+                                @php
+                                    $stats = $impactStats[(string) $member->id] ?? [];
+                                    $totalLifeImpacted = $dateFilterActive
+                                        ? (int) ($stats['total_life_impacted'] ?? 0)
+                                        : (int) ($member->life_impacted_count ?? 0);
+                                @endphp
+                                <tr class="hover:surface-2 transition border-b bs">
+                                    <td class="px-3 py-2.5 text-left align-middle">
+                                        @include('admin.shared.peer_card', ['user' => $member])
+                                    </td>
+                                    <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap">
+                                        <a href="{{ route('admin.life-impact.history', $member) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 no-underline inline-block" target="_blank" rel="noopener">{{ number_format($totalLifeImpacted) }}</a>
+                                    </td>
+                                    @foreach (array_keys($categories) as $key)
+                                        <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap">
+                                            <a href="{{ route('admin.life-impact.history.category', [$member, $key]) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold t2 hover:t1 no-underline inline-block" target="_blank" rel="noopener">{{ number_format((int) ($stats[$key] ?? 0)) }}</a>
+                                        </td>
+                                    @endforeach
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="{{ count($categories) + 2 }}" class="text-center py-8 text-xs t3">No members found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="grid-pagination" class="p-3 border-t bs flex justify-between items-center">
+                    {{ $members->links() }}
+                </div>
             </div>
-        </div>
+        </form>
+        <form id="lifeImpactExportForm" method="GET" action="{{ route('admin.life-impact.export') }}" class="d-none"></form>
     </div>
 
     @push('scripts')

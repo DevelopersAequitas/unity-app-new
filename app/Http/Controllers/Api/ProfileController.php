@@ -26,11 +26,7 @@ class ProfileController extends BaseApiController
 {
     public function show(Request $request)
     {
-        $user = $request->user()->load([
-            'profilePhotoFile',
-            'coverPhotoFile',
-            'userLinks',
-        ]);
+        $user = $this->loadProfileRelations($request->user());
 
         return $this->success(new UserProfileResource($user), 'Profile fetched successfully');
     }
@@ -135,9 +131,63 @@ class ProfileController extends BaseApiController
             'linkedin_profile_db' => $user->linkedin_profile,
         ]);
 
-        $user->load(['profilePhotoFile', 'coverPhotoFile', 'userLinks']);
+        $user = $this->loadProfileRelations($user);
 
         return $this->success(new UserProfileResource($user), 'Profile updated successfully');
+    }
+
+    private function loadProfileRelations(User $user): User
+    {
+        $user->load([
+            'city',
+            'activeCircle.cityRef',
+            'mainBusinessCategory',
+            'businessCategory',
+            'profilePhotoFile',
+            'coverPhotoFile',
+            'userLinks',
+            'introducedBy',
+            'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+        ]);
+
+        if (Schema::hasTable('followers')) {
+            $user->loadCount([
+                'followers as followers_count',
+                'following as following_count',
+            ]);
+        }
+
+        if (Schema::hasTable('posts')) {
+            $user->loadCount([
+                'posts as posts_count',
+            ]);
+        }
+
+        if (Schema::hasTable('connections')) {
+            $user->loadCount([
+                'approvedSentConnections as approved_sent_count',
+                'approvedReceivedConnections as approved_received_count',
+            ]);
+        }
+
+        return $user;
+    }
+
+    private function joinedCircleMembershipsQuery($query): void
+    {
+        $query
+            ->where('status', (string) config('circle.member_joined_status', 'approved'))
+            ->whereNull('deleted_at')
+            ->whereNull('left_at')
+            ->where(function ($nested): void {
+                $nested->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
+
+                if (Schema::hasColumn('circle_members', 'expires_at')) {
+                    $nested->orWhere('expires_at', '>=', now());
+                }
+            })
+            ->orderByDesc('joined_at')
+            ->with('circle:id,name,slug');
     }
 
     private function persistProfilePayloadToUsersTable($user, array $payload): void

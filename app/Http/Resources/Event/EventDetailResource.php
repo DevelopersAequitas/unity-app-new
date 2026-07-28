@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\Events\EventService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Schema;
 
 class EventDetailResource extends JsonResource
 {
@@ -14,11 +15,18 @@ class EventDetailResource extends JsonResource
         $metadata = $this->normalizedMetadata($this->metadata);
         $zohoFormUrl = $this->zoho_form_url ?? data_get($metadata, 'zoho_form_url');
         $visitorRegistrationEnabled = app(EventService::class)->visitorRegistrationEnabled($this->resource);
-        $circles = $this->whenLoaded('circles', fn () => $this->circles->map(fn ($circle) => [
-            'id' => $circle->id,
-            'name' => $circle->name,
-            'state_name' => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null,
-        ])->values()->all(), []);
+        $circles = [];
+        if (Schema::hasTable('event_circles') && $this->relationLoaded('circles')) {
+            try {
+                $circles = $this->circles->map(fn ($circle) => [
+                    'id' => $circle->id,
+                    'name' => $circle->name,
+                    'state_name' => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null,
+                ])->values()->all();
+            } catch (\Throwable) {
+                $circles = [];
+            }
+        }
         if ($circles === [] && $this->circle) {
             $circles = [[
                 'id' => $this->circle->id,

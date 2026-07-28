@@ -102,7 +102,14 @@ class NotificationEngineController extends BaseApiController
         }
 
         if ($request->filled('type')) {
-            $query->where('type', $request->type);
+            $typeFilter = (string) $request->type;
+            $query->where(function ($q) use ($typeFilter): void {
+                $q->where('type', $typeFilter)
+                    ->orWhere('category', $typeFilter)
+                    ->orWhere('data->type', $typeFilter)
+                    ->orWhere('data->notification_type', $typeFilter)
+                    ->orWhere('data->activity_type', $typeFilter);
+            });
         }
 
         $perPage = min(max((int) $request->get('per_page', 20), 1), 100);
@@ -113,32 +120,39 @@ class NotificationEngineController extends BaseApiController
             $unreadQuery->whereNull('deleted_at');
         }
 
-        $mappedNotifications = collect($paginator->items())->map(fn (AppNotification $notification): array => [
-            'id' => (string) $notification->id,
-            'type' => $notification->type,
-            'category' => $notification->category,
-            'title' => $notification->title,
-            'body' => $notification->body,
-            'message' => $notification->body,
-            'channel' => $notification->channel,
-            'priority' => $notification->priority,
-            'screen' => $notification->screen,
-            'tap_destination' => $notification->data['tap_destination'] ?? $notification->screen,
-            'reference_type' => $notification->reference_type,
-            'reference_id' => $notification->reference_id,
-            'data' => $notification->data ?? [],
-            'payload' => array_merge($notification->data ?? [], [
-                'title' => $notification->title,
-                'body' => $notification->body,
-                'notification_type' => $notification->type,
-            ]),
-            'status' => $notification->status,
-            'is_read' => $notification->read_at !== null,
-            'sent_at' => $notification->sent_at,
-            'read_at' => $notification->read_at,
-            'clicked_at' => $notification->clicked_at,
-            'created_at' => $notification->created_at,
-        ])->values();
+        $mappedNotifications = collect($paginator->items())->map(function (AppNotification $notification): array {
+            $dataPayload = $notification->dataPayload();
+            $type = (string) ($notification->type !== 'activity_update'
+                ? $notification->type
+                : ($dataPayload['type'] ?? $dataPayload['notification_type'] ?? $notification->category ?? $notification->type));
+
+            return [
+                'id' => (string) $notification->id,
+                'type' => $type,
+                'category' => (string) ($notification->category ?? $type),
+                'title' => (string) ($notification->title ?? ''),
+                'body' => (string) ($notification->body ?? $notification->message ?? ''),
+                'message' => (string) ($notification->body ?? $notification->message ?? ''),
+                'channel' => (string) ($notification->channel ?? 'push'),
+                'priority' => (string) ($notification->priority ?? 'normal'),
+                'screen' => (string) ($notification->screen ?? $dataPayload['navigation_screen'] ?? '/post-details'),
+                'tap_destination' => (string) ($dataPayload['tap_destination'] ?? $notification->screen ?? $dataPayload['navigation_screen'] ?? '/post-details'),
+                'reference_type' => $notification->reference_type,
+                'reference_id' => $notification->reference_id,
+                'data' => $dataPayload,
+                'payload' => array_merge($dataPayload, [
+                    'title' => (string) ($notification->title ?? ''),
+                    'body' => (string) ($notification->body ?? ''),
+                    'notification_type' => $type,
+                ]),
+                'status' => $notification->status,
+                'is_read' => $notification->read_at !== null,
+                'sent_at' => $notification->sent_at,
+                'read_at' => $notification->read_at,
+                'clicked_at' => $notification->clicked_at,
+                'created_at' => $notification->created_at,
+            ];
+        })->values();
 
         return $this->success([
             'notifications' => $mappedNotifications,

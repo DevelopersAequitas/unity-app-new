@@ -60,18 +60,26 @@ class AnniversaryImageGenerator
 
             // Compute coordinates and sizes based on template type
             if ($isCustomTemplate) {
-                // behavior aligned to Anniversary Template measurements:
-                // circle center is at Y = 515, radius = 195 (Avatar size 390)
                 $centerX = (int) ($width / 2);
-                $centerY = (int) ($height * 0.3815); // Center Y: 515
-                $avatarSize = 390; // Circle size: 390 (matches Birthday)
-                $nameStartY = 745; // Starts 50px below the bottom of circle
-                $nameFontSize = 42; // Reduced to 42px — SemiBold at 42pt = elegant & balanced
-                $companyFontSize = 32; // Matches Birthday
+                if ($height === 1350) {
+                    // Portrait custom template (1080x1350)
+                    // circle center is at Y = 515, radius = 195 (Avatar size 390)
+                    $centerY = (int) ($height * 0.3815); // Center Y: 515
+                    $avatarSize = 390;
+                    $nameStartY = 745;
+                    $nameColor = imagecolorallocate($canvas, 255, 255, 255); // White
+                    $companyColor = imagecolorallocate($canvas, 193, 154, 88); // Gold (#C19A58)
+                } else {
+                    // Square custom template (e.g. 1080x1080)
+                    $centerY = 520; // Center Y of the pre-printed ring
+                    $avatarSize = 340; // Set to 340 so that the outer ring is clearly visible around the image
+                    $nameStartY = 735; // Starts directly below the circle ornament
+                    $nameColor = imagecolorallocate($canvas, 18, 58, 112); // Navy Blue
+                    $companyColor = imagecolorallocate($canvas, 197, 48, 48); // Red
+                }
+                $nameFontSize = 36; // Reduced to 36px for a cleaner look
+                $companyFontSize = 24; // Reduced to 24px
                 $clearCirclePadding = 12;
-
-                $nameColor = imagecolorallocate($canvas, 255, 255, 255); // White
-                $companyColor = imagecolorallocate($canvas, 193, 154, 88); // Gold (#C19A58)
             } else {
                 // Static Anniversary layout parameters (original parameters)
                 $centerX = config('anniversary.photo.center_x', 540);
@@ -99,8 +107,8 @@ class AnniversaryImageGenerator
             // Draw profile photo or initials
             $this->drawAvatarOrInitial($canvas, $user, $centerX, $centerY, $avatarSize, $isCustomTemplate);
 
-            // Draw premium gold ring and glow frame
-            if ($isCustomTemplate) {
+            // Draw premium gold ring and glow frame (only for portrait custom templates, since square templates typically have their own custom frame)
+            if ($isCustomTemplate && $height === 1350) {
                 $this->drawPremiumGoldFrame($canvas, $centerX, $centerY, $avatarSize, $white, '#C19A58');
             }
 
@@ -262,12 +270,13 @@ class AnniversaryImageGenerator
         $fontPathSemiBold = $this->getFontPath('semibold');
 
         $displayName = strtoupper($user->display_name ?: ($user->first_name.' '.$user->last_name));
+        $height = imagesy($canvas);
 
         if ($isCustomTemplate) {
-            // Apply vertical height safety loop to prevent overlapping with greeting message at Y = 870
-            $maxAllowedY = 870;
-            $nameSpacing = 18;
-            $companySpacing = 18;
+            // Apply vertical height safety loop
+            $maxAllowedY = ($height === 1350) ? 870 : 915;
+            $nameSpacing = ($height === 1350) ? 18 : 12;
+            $companySpacing = ($height === 1350) ? 18 : 12;
             $companyName = $user->company_name ?: ($user->designation ?: 'Global Peer');
 
             do {

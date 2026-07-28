@@ -102,7 +102,7 @@ class CircleJoiningRequestsTest extends TestCase
 
         $response->assertOk();
         $response->assertSee($category->name);
-        $response->assertSee('Category ID: '.$category->id);
+        $response->assertSee('ID: '.$category->id);
 
         // 7. Request show page
         $responseShow = $this->actingAs($admin, 'admin')
@@ -319,6 +319,31 @@ class CircleJoiningRequestsTest extends TestCase
         $this->assertDatabaseHas('circle_join_requests', [
             'circle_id' => $circle5->id,
             'reason_for_joining' => 'Should resolve circle_id automatically',
+        ]);
+
+        // Test POST with 'circle_id' and without 'category_id'
+        $circle6 = new Circle;
+        $circle6->id = (string) Str::uuid();
+        $circle6->name = 'Sixth active Circle';
+        $circle6->slug = 'sixth-active-circle';
+        $circle6->status = 'active';
+        $circle6->template_id = $template->id;
+        $circle6->save();
+
+        $payload6 = [
+            'circle_id' => $circle6->id,
+            'reason_for_joining' => 'I have too much Intrest in this circle for Joining',
+        ];
+        $response6 = $this->postJson('/api/v1/circle-join-requests', $payload6);
+        $response6->assertStatus(201);
+        $response6->assertJsonFragment([
+            'circle_id' => $circle6->id,
+            'reason' => 'I have too much Intrest in this circle for Joining',
+        ]);
+
+        $this->assertDatabaseHas('circle_join_requests', [
+            'circle_id' => $circle6->id,
+            'reason_for_joining' => 'I have too much Intrest in this circle for Joining',
         ]);
     }
 

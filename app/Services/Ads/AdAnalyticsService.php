@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\Ads;
 
 use App\Models\Ad;
@@ -12,6 +14,15 @@ use Illuminate\Support\Facades\Schema;
 
 class AdAnalyticsService
 {
+    private function hasTable(string $table): bool
+    {
+        try {
+            return Schema::hasTable($table);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
     private function hasColumn(string $table, string $column): bool
     {
         try {
@@ -25,14 +36,18 @@ class AdAnalyticsService
     {
         $now = Carbon::now();
 
-        $hasIsActive = $this->hasColumn('ads', 'is_active');
-        $hasStartsAt = $this->hasColumn('ads', 'starts_at');
-        $hasEndsAt = $this->hasColumn('ads', 'ends_at');
+        $hasAdsTable = $this->hasTable('ads');
+        $hasViewsTable = $this->hasTable('ad_views');
+        $hasClicksTable = $this->hasTable('ad_clicks');
+
+        $hasIsActive = $hasAdsTable && $this->hasColumn('ads', 'is_active');
+        $hasStartsAt = $hasAdsTable && $this->hasColumn('ads', 'starts_at');
+        $hasEndsAt = $hasAdsTable && $this->hasColumn('ads', 'ends_at');
 
         // Cards statistics
-        $totalAds = Ad::count();
+        $totalAds = $hasAdsTable ? Ad::count() : 0;
 
-        if ($hasIsActive) {
+        if ($hasAdsTable && $hasIsActive) {
             if ($hasStartsAt || $hasEndsAt) {
                 $activeAds = Ad::currentlyVisible()->count();
             } else {
@@ -46,19 +61,23 @@ class AdAnalyticsService
             $scheduledAds = 0;
         }
 
-        $expiredAds = $hasEndsAt ? Ad::whereNotNull('ends_at')->where('ends_at', '<', $now)->count() : 0;
+        $expiredAds = ($hasAdsTable && $hasEndsAt) ? Ad::whereNotNull('ends_at')->where('ends_at', '<', $now)->count() : 0;
 
         // Views tracking
-        $totalViews = AdView::count();
-        $uniqueViewsRaw = AdView::selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
-            ->first();
-        $uniqueViews = (int) ($uniqueViewsRaw->count ?? 0);
+        $totalViews = $hasViewsTable ? AdView::count() : 0;
+        $uniqueViews = 0;
+        if ($hasViewsTable) {
+            $uniqueViewsRaw = AdView::selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')->first();
+            $uniqueViews = (int) ($uniqueViewsRaw->count ?? 0);
+        }
 
         // Clicks tracking
-        $totalClicks = AdClick::count();
-        $uniqueClicksRaw = AdClick::selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
-            ->first();
-        $uniqueClicks = (int) ($uniqueClicksRaw->count ?? 0);
+        $totalClicks = $hasClicksTable ? AdClick::count() : 0;
+        $uniqueClicks = 0;
+        if ($hasClicksTable) {
+            $uniqueClicksRaw = AdClick::selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')->first();
+            $uniqueClicks = (int) ($uniqueClicksRaw->count ?? 0);
+        }
 
         // Force unique clicks to be <= unique views for mathematical sanity
         if ($uniqueClicks > $uniqueViews) {
@@ -77,18 +96,26 @@ class AdAnalyticsService
         $ctr = round($ctr, 2);
 
         // Top Performing Ad (Most Clicked)
-        $topAdRow = AdClick::select('ad_id', DB::raw('COUNT(*) as click_count'))
-            ->groupBy('ad_id')
-            ->orderByDesc('click_count')
-            ->first();
-        $topPerformingAd = $topAdRow ? Ad::find($topAdRow->ad_id) : null;
+        $topAdRow = null;
+        $topPerformingAd = null;
+        if ($hasClicksTable && $hasAdsTable) {
+            $topAdRow = AdClick::select('ad_id', DB::raw('COUNT(*) as click_count'))
+                ->groupBy('ad_id')
+                ->orderByDesc('click_count')
+                ->first();
+            $topPerformingAd = $topAdRow ? Ad::find($topAdRow->ad_id) : null;
+        }
 
         // Most Viewed Ad
-        $mostViewedRow = AdView::select('ad_id', DB::raw('COUNT(*) as view_count'))
-            ->groupBy('ad_id')
-            ->orderByDesc('view_count')
-            ->first();
-        $mostViewedAd = $mostViewedRow ? Ad::find($mostViewedRow->ad_id) : null;
+        $mostViewedRow = null;
+        $mostViewedAd = null;
+        if ($hasViewsTable && $hasAdsTable) {
+            $mostViewedRow = AdView::select('ad_id', DB::raw('COUNT(*) as view_count'))
+                ->groupBy('ad_id')
+                ->orderByDesc('view_count')
+                ->first();
+            $mostViewedAd = $mostViewedRow ? Ad::find($mostViewedRow->ad_id) : null;
+        }
 
         return [
             'total_ads' => $totalAds,
@@ -113,36 +140,41 @@ class AdAnalyticsService
         $days30Ago = Carbon::now()->subDays(30)->startOfDay();
         $months6Ago = Carbon::now()->subMonths(6)->startOfMonth();
 
+        $hasAdsTable = $this->hasTable('ads');
+        $hasViewsTable = $this->hasTable('ad_views');
+        $hasClicksTable = $this->hasTable('ad_clicks');
+
         // Daily traffic (views and clicks for the last 30 days)
-        $dailyViews = AdView::selectRaw('DATE(viewed_at) as date, COUNT(*) as count')
+        $dailyViews = $hasViewsTable ? AdView::selectRaw('DATE(viewed_at) as date, COUNT(*) as count')
             ->where('viewed_at', '>=', $days30Ago)
             ->groupBy('date')
             ->orderBy('date')
             ->get()
             ->pluck('count', 'date')
-            ->toArray();
+            ->toArray() : [];
 
-        $dailyClicks = AdClick::selectRaw('DATE(created_at) as date, COUNT(*) as count')
+        $dailyClicks = $hasClicksTable ? AdClick::selectRaw('DATE(created_at) as date, COUNT(*) as count')
             ->where('created_at', '>=', $days30Ago)
             ->groupBy('date')
             ->orderBy('date')
             ->get()
             ->pluck('count', 'date')
-            ->toArray();
+            ->toArray() : [];
 
         // Fill in missing dates for the last 30 days
         $trafficChart = [];
         for ($i = 30; $i >= 0; $i--) {
-            $dateStr = Carbon::now()->subDays($i)->format('Y-m-d');
+            $dt = Carbon::now()->subDays($i);
+            $dateKey = $dt->format('Y-m-d');
             $trafficChart[] = [
-                'date' => $dateStr,
-                'views' => (int) ($dailyViews[$dateStr] ?? 0),
-                'clicks' => (int) ($dailyClicks[$dateStr] ?? 0),
+                'date' => $dt->format('d M'),
+                'views' => (int) ($dailyViews[$dateKey] ?? 0),
+                'clicks' => (int) ($dailyClicks[$dateKey] ?? 0),
             ];
         }
 
         // Placement breakdown (only if column exists)
-        $hasPlacement = $this->hasColumn('ads', 'placement');
+        $hasPlacement = $hasAdsTable && $this->hasColumn('ads', 'placement');
         $placements = [];
 
         if ($hasPlacement) {
@@ -157,9 +189,20 @@ class AdAnalyticsService
                 ->toArray();
         }
 
-        // Top ads by engagement (used as fallback or secondary view)
-        $topAdsByEngagement = Ad::query()
-            ->withCount(['views', 'clicks'])
+        // Top ads by engagement
+        $topAdsByEngagement = $hasAdsTable ? Ad::query()
+            ->withCount([
+                'views' => function ($q) use ($hasViewsTable) {
+                    if (! $hasViewsTable) {
+                        $q->whereRaw('1 = 0');
+                    }
+                },
+                'clicks' => function ($q) use ($hasClicksTable) {
+                    if (! $hasClicksTable) {
+                        $q->whereRaw('1 = 0');
+                    }
+                },
+            ])
             ->get()
             ->map(function ($ad) {
                 $views = (int) ($ad->views_count ?? 0);
@@ -177,28 +220,28 @@ class AdAnalyticsService
             ->sortByDesc('clicks')
             ->take(5)
             ->values()
-            ->toArray();
+            ->toArray() : [];
 
         // Monthly performance (last 6 months)
         $isSqlite = DB::getDriverName() === 'sqlite';
         $viewMonthExpr = $isSqlite ? "strftime('%Y-%m', viewed_at)" : "TO_CHAR(viewed_at, 'YYYY-MM')";
         $clickMonthExpr = $isSqlite ? "strftime('%Y-%m', created_at)" : "TO_CHAR(created_at, 'YYYY-MM')";
 
-        $monthlyViews = AdView::selectRaw("{$viewMonthExpr} as month, COUNT(*) as count")
+        $monthlyViews = $hasViewsTable ? AdView::selectRaw("{$viewMonthExpr} as month, COUNT(*) as count")
             ->where('viewed_at', '>=', $months6Ago)
             ->groupBy('month')
             ->orderBy('month')
             ->get()
             ->pluck('count', 'month')
-            ->toArray();
+            ->toArray() : [];
 
-        $monthlyClicks = AdClick::selectRaw("{$clickMonthExpr} as month, COUNT(*) as count")
+        $monthlyClicks = $hasClicksTable ? AdClick::selectRaw("{$clickMonthExpr} as month, COUNT(*) as count")
             ->where('created_at', '>=', $months6Ago)
             ->groupBy('month')
             ->orderBy('month')
             ->get()
             ->pluck('count', 'month')
-            ->toArray();
+            ->toArray() : [];
 
         $monthlyPerformance = [];
         for ($i = 5; $i >= 0; $i--) {
@@ -222,22 +265,32 @@ class AdAnalyticsService
 
     public function getAdAnalytics(string $adId): array
     {
-        $views = AdView::where('ad_id', $adId)->count();
-        $uniqueViewsRaw = AdView::where('ad_id', $adId)
-            ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
-            ->first();
-        $uniqueViews = (int) ($uniqueViewsRaw->count ?? 0);
+        $hasViewsTable = $this->hasTable('ad_views');
+        $hasClicksTable = $this->hasTable('ad_clicks');
 
-        $clicksQuery = AdClick::where('ad_id', $adId);
-        $totalClicks = (clone $clicksQuery)->count();
-        $uniqueClicksRaw = (clone $clicksQuery)
-            ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
-            ->first();
-        $uniqueClicks = (int) ($uniqueClicksRaw->count ?? 0);
+        $views = $hasViewsTable ? AdView::where('ad_id', $adId)->count() : 0;
+        $uniqueViews = 0;
+        if ($hasViewsTable) {
+            $uniqueViewsRaw = AdView::where('ad_id', $adId)
+                ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
+                ->first();
+            $uniqueViews = (int) ($uniqueViewsRaw->count ?? 0);
+        }
 
-        // Force unique clicks to be <= unique views for mathematical sanity
-        if ($uniqueClicks > $uniqueViews) {
-            $uniqueClicks = $uniqueViews;
+        $totalClicks = 0;
+        $uniqueClicks = 0;
+        if ($hasClicksTable) {
+            $clicksQuery = AdClick::where('ad_id', $adId);
+            $totalClicks = (clone $clicksQuery)->count();
+            $uniqueClicksRaw = (clone $clicksQuery)
+                ->selectRaw('COUNT(DISTINCT COALESCE(CAST(user_id AS VARCHAR), ip_address, session_id)) as count')
+                ->first();
+            $uniqueClicks = (int) ($uniqueClicksRaw->count ?? 0);
+
+            // Force unique clicks to be <= unique views for mathematical sanity
+            if ($uniqueClicks > $uniqueViews) {
+                $uniqueClicks = $uniqueViews;
+            }
         }
 
         // Unique CTR Safety Validation

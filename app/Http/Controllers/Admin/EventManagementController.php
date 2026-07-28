@@ -607,29 +607,33 @@ class EventManagementController extends Controller
 
     private function withDefaults(array $data): array
     {
-        $locationMeta = array_filter([
-            'venue_name' => $data['venue_name'] ?? null,
-            'address_line' => $data['address_line'] ?? null,
-            'city' => $data['city'] ?? null,
-            'state' => $data['state'] ?? null,
-            'google_maps_url' => $data['google_maps_url'] ?? null,
-            'zoho_form_url' => $data['zoho_form_url'] ?? null,
-        ], fn ($value) => filled($value));
+        $locationMeta = [
+            'venue_name' => filled($data['venue_name'] ?? null) ? trim((string) $data['venue_name']) : null,
+            'address_line' => filled($data['address_line'] ?? null) ? trim((string) $data['address_line']) : null,
+            'city' => filled($data['city'] ?? null) ? trim((string) $data['city']) : null,
+            'state' => filled($data['state'] ?? null) ? trim((string) $data['state']) : null,
+            'google_maps_url' => filled($data['google_maps_url'] ?? null) ? trim((string) $data['google_maps_url']) : null,
+            'zoho_form_url' => filled($data['zoho_form_url'] ?? null) ? trim((string) $data['zoho_form_url']) : null,
+        ];
 
-        $locationParts = array_filter([
-            $data['venue_name'] ?? null,
-            $data['address_line'] ?? null,
-            $data['city'] ?? null,
-            $data['state'] ?? null,
-        ], fn ($value) => filled($value));
+        $locationParts = array_values(array_unique(array_filter([
+            $locationMeta['venue_name'],
+            $locationMeta['address_line'],
+            $locationMeta['city'],
+            $locationMeta['state'],
+        ], fn ($value) => filled($value))));
 
-        if (blank($data['location_text'] ?? null) && $locationParts) {
-            $data['location_text'] = implode(', ', $locationParts);
+        $data['location_text'] = $locationParts ? implode(', ', $locationParts) : null;
+
+        $metadata = (array) ($data['metadata'] ?? []);
+        foreach ($locationMeta as $key => $val) {
+            if ($val !== null) {
+                $metadata[$key] = $val;
+            } else {
+                unset($metadata[$key]);
+            }
         }
-
-        if ($locationMeta) {
-            $data['metadata'] = array_merge((array) ($data['metadata'] ?? []), $locationMeta);
-        }
+        $data['metadata'] = $metadata;
 
         unset($data['venue_name'], $data['address_line'], $data['city'], $data['state'], $data['google_maps_url'], $data['circle_ids']);
 

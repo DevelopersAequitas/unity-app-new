@@ -88,6 +88,7 @@ use App\Http\Controllers\Api\V1\Ded\DedPeersController;
 use App\Http\Controllers\Api\V1\Ded\DedPendingRequestsController;
 use App\Http\Controllers\Api\V1\Ded\DedReportsController;
 use App\Http\Controllers\Api\V1\EventApiController;
+use App\Http\Controllers\Api\V1\EventFeedbackController;
 use App\Http\Controllers\Api\V1\EventGalleryApiController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\Api\V1\FollowController;
@@ -111,6 +112,8 @@ use App\Http\Controllers\Api\V1\NotificationEngineController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\P2PMeetingRescheduleController;
 use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\PeerAnniversaryController;
+use App\Http\Controllers\Api\V1\PeerBirthdayController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
 use App\Http\Controllers\Api\V1\PostReportController;
@@ -315,6 +318,10 @@ Route::prefix('v1')->group(function () {
     Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
     Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
     Route::get('/events/all', [EventApiController::class, 'allEvents']);
+    Route::get('/event-feedbacks/check-pending', [EventFeedbackController::class, 'checkPending']);
+    Route::post('/event-feedbacks', [EventFeedbackController::class, 'store']);
+    Route::get('/event-feedbacks/my', [EventFeedbackController::class, 'myFeedbacks']);
+    Route::get('/event-feedbacks/event/{eventId}', [EventFeedbackController::class, 'eventFeedbacks']);
     Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register', [EventController::class, 'visitorRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
     Route::get('/events/registrations/{registration_id}/payment-status', [EventController::class, 'paymentStatus'])->whereUuid('registration_id');
     Route::post('/events/registrations/{registration_id}/razorpay/verify', [EventController::class, 'verifyRazorpay'])->whereUuid('registration_id');
@@ -425,6 +432,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/peers/{user}/block', [PeerBlockController::class, 'store'])->whereUuid('user');
         Route::delete('/peers/{user}/block', [PeerBlockController::class, 'destroy'])->whereUuid('user');
         Route::get('/peers/{user}/block-status', [PeerBlockController::class, 'status'])->whereUuid('user');
+        Route::get('/peers/birthdays', [PeerBirthdayController::class, 'index']);
+        Route::get('/peers/anniversaries', [PeerAnniversaryController::class, 'index']);
 
         // Members & connections
         Route::get('/members/top-introducers', [MemberController::class, 'topIntroducers']);

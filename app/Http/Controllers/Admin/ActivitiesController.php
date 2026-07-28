@@ -89,7 +89,9 @@ class ActivitiesController extends Controller
             ->select([
                 'users.id',
                 'users.email',
+                'users.phone',
                 'users.company_name',
+                'users.designation',
                 DB::raw("trim(coalesce(users.display_name, '' )) as display_name"),
                 DB::raw("coalesce(nullif(trim(coalesce(users.display_name, '')), ''), nullif(trim(concat(coalesce(users.first_name, ''), ' ', coalesce(users.last_name, ''))), ''), users.email) as peer_name"),
                 DB::raw("coalesce(nullif(trim(coalesce(users.city, '')), ''), cities.name) as city_name"),

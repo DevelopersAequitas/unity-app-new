@@ -267,6 +267,10 @@ class CircleJoinRequest extends Model
             $id = DB::table('circle_category_level4')->where('id', $this->level4_category_id)->value('circle_category_id');
         }
 
+        if (! $id && $this->circle_id && Schema::hasTable('circle_category_mappings')) {
+            $id = DB::table('circle_category_mappings')->where('circle_id', $this->circle_id)->value('category_id');
+        }
+
         if (! $id) {
             $notes = $this->notes;
             $notesSelection = is_array($notes) ? ($notes['category_selection'] ?? []) : [];

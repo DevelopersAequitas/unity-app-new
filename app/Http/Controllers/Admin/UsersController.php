@@ -32,6 +32,7 @@ use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -3228,5 +3229,200 @@ class UsersController extends Controller
 
         return false;
     }
+
+    public function upcomingEvents(Request $request): View
+    {
+        $search = trim((string) $request->input('q', $request->input('search', '')));
+        $eventType = (string) $request->input('event_type', 'all');
+        $allowedEventTypes = ['all', 'birthday', 'anniversary'];
+        if (! in_array($eventType, $allowedEventTypes, true)) {
+            $eventType = 'all';
+        }
+
+        $period = (int) $request->input('period', 30);
+        $allowedPeriods = [7, 15, 30, 60, 90];
+        if (! in_array($period, $allowedPeriods, true)) {
+            $period = 30;
+        }
+
+        $activeTab = (string) $request->input('tab', $eventType === 'anniversary' ? 'anniversaries' : 'birthdays');
+        if (! in_array($activeTab, ['birthdays', 'anniversaries'], true)) {
+            $activeTab = 'birthdays';
+        }
+
+        $adminUser = Auth::guard('admin')->user();
+        $query = User::query()
+            ->where('status', 'active')
+            ->whereNull('deleted_at')
+            ->with(['city']);
+
+        if (AdminAccess::isDed($adminUser)) {
+            AdminCircleScope::applyToUsersQuery($query, $adminUser);
+        }
+
+        $industryScope = app(IndustryScopeService::class);
+        if ($industryScope->isIndustryDirector($adminUser)) {
+            $industryScope->applyPeersScope($query, $adminUser->id);
+        }
+
+        if ($search !== '') {
+            $words = array_filter(explode(' ', $search));
+            $query->where(function ($q) use ($words): void {
+                foreach ($words as $word) {
+                    $like = "%{$word}%";
+                    $q->where(function ($sub) use ($like): void {
+                        $searchableColumns = [
+                            'first_name',
+                            'last_name',
+                            'display_name',
+                            'email',
+                            'phone',
+                            'company_name',
+                            'business_name',
+                            'city',
+                        ];
+                        $hasFirst = false;
+                        foreach ($searchableColumns as $col) {
+                            if (! Schema::hasColumn('users', $col)) {
+                                continue;
+                            }
+                            if (! $hasFirst) {
+                                $sub->where($col, 'ILIKE', $like);
+                                $hasFirst = true;
+                            } else {
+                                $sub->orWhere($col, 'ILIKE', $like);
+                            }
+                        }
+                        $driver = DB::connection()->getDriverName();
+                        if ($driver === 'sqlite') {
+                            $sub->orWhereRaw("LOWER(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) LIKE ?", [strtolower($like)]);
+                        } else {
+                            $sub->orWhereRaw("TRIM(CONCAT_WS(' ', COALESCE(first_name, ''), COALESCE(last_name, ''))) ILIKE ?", [$like]);
+                        }
+                        $sub->orWhereHas('city', function ($cityQuery) use ($like): void {
+                            $cityQuery->where('name', 'ILIKE', $like);
+                        });
+                    });
+                }
+            });
+        }
+
+        $allPeers = $query->get();
+        $today = Carbon::today();
+
+        $birthdaysList = collect();
+        $anniversariesList = collect();
+
+        foreach ($allPeers as $peer) {
+            if ($eventType !== 'anniversary' && ! empty($peer->dob)) {
+                $birthdayData = $this->calculateUpcomingEvent(
+                    $peer,
+                    Carbon::parse($peer->dob),
+                    $today,
+                    $period
+                );
+                if ($birthdayData !== null) {
+                    $birthdayData['type'] = 'birthday';
+                    $birthdayData['turning_age'] = $birthdayData['years_completed'] > 0 ? $birthdayData['years_completed'] : null;
+                    $birthdaysList->push($birthdayData);
+                }
+            }
+
+            if ($eventType !== 'birthday' && ! empty($peer->anniversary_date)) {
+                $anniversaryData = $this->calculateUpcomingEvent(
+                    $peer,
+                    Carbon::parse($peer->anniversary_date),
+                    $today,
+                    $period
+                );
+                if ($anniversaryData !== null) {
+                    $anniversaryData['type'] = 'anniversary';
+                    $anniversaryData['completed_years'] = $anniversaryData['years_completed'] > 0 ? $anniversaryData['years_completed'] : null;
+                    $anniversaryData['anniversary_label'] = 'Wedding Anniversary';
+                    $anniversariesList->push($anniversaryData);
+                }
+            }
+        }
+
+        $sortedBirthdays = $birthdaysList->sortBy('days_remaining')->values();
+        $sortedAnniversaries = $anniversariesList->sortBy('days_remaining')->values();
+
+        $perPage = 20;
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+        $activeCollection = $activeTab === 'anniversaries' ? $sortedAnniversaries : $sortedBirthdays;
+        $currentPageItems = $activeCollection->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $paginatedRecords = new LengthAwarePaginator(
+            $currentPageItems,
+            $activeCollection->count(),
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => $request->query()]
+        );
+
+        return view('admin.users.upcoming_events', [
+            'paginatedRecords' => $paginatedRecords,
+            'birthdaysCount' => $sortedBirthdays->count(),
+            'anniversariesCount' => $sortedAnniversaries->count(),
+            'totalUpcomingCount' => $sortedBirthdays->count() + $sortedAnniversaries->count(),
+            'activeTab' => $activeTab,
+            'filters' => [
+                'search' => $search,
+                'event_type' => $eventType,
+                'period' => $period,
+                'tab' => $activeTab,
+            ],
+        ]);
+    }
+
+    private function calculateUpcomingEvent(User $peer, Carbon $origDate, Carbon $today, int $periodDays): ?array
+    {
+        $currentYear = $today->year;
+        $origMonth = $origDate->month;
+        $origDay = $origDate->day;
+
+        $isFeb29 = ($origMonth === 2 && $origDay === 29);
+
+        $dayInCurrentYear = ($isFeb29 && ! Carbon::createFromDate($currentYear, 1, 1)->isLeapYear()) ? 28 : $origDay;
+        $upcomingDate = Carbon::create($currentYear, $origMonth, $dayInCurrentYear)->startOfDay();
+
+        if ($upcomingDate->lt($today)) {
+            $nextYear = $currentYear + 1;
+            $dayInNextYear = ($isFeb29 && ! Carbon::createFromDate($nextYear, 1, 1)->isLeapYear()) ? 28 : $origDay;
+            $upcomingDate = Carbon::create($nextYear, $origMonth, $dayInNextYear)->startOfDay();
+        }
+
+        $daysRemaining = (int) $today->diffInDays($upcomingDate);
+
+        if ($daysRemaining > $periodDays) {
+            return null;
+        }
+
+        $yearsCompleted = $upcomingDate->year - $origDate->year;
+
+        $cityName = is_string($peer->city) ? $peer->city : ($peer->city?->name ?? '');
+        if (is_string($cityName) && str_starts_with(trim($cityName), '{')) {
+            $decoded = json_decode($cityName, true);
+            $cityName = $decoded['name'] ?? $decoded['label'] ?? $cityName;
+        }
+
+        $companyName = $peer->company_name ?? ($peer->company ?? ($peer->business_name ?? ''));
+
+        $avatarUrl = $peer->profile_photo_url ?? ($peer->profile_photo_file_id ? url('/api/v1/files/'.$peer->profile_photo_file_id) : null);
+
+        return [
+            'peer' => $peer,
+            'avatar_url' => $avatarUrl,
+            'full_name' => $peer->adminDisplayName(),
+            'company_name' => $companyName,
+            'city_name' => $cityName,
+            'original_date' => $origDate->format('Y-m-d'),
+            'original_date_formatted' => $origDate->format('d M Y'),
+            'upcoming_date' => $upcomingDate->format('Y-m-d'),
+            'upcoming_date_formatted' => $upcomingDate->format('d M Y'),
+            'days_remaining' => $daysRemaining,
+            'years_completed' => $yearsCompleted,
+        ];
+    }
 }
-// Cleaned up syntax

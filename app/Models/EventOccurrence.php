@@ -20,6 +20,7 @@ class EventOccurrence extends Model
     public $incrementing = false;
 
     protected $fillable = [
+        'id',
         'event_id',
         'occurrence_date',
         'start_at',
