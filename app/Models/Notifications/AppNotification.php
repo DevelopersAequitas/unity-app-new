@@ -3,10 +3,12 @@
 namespace App\Models\Notifications;
 
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class AppNotification extends Model
 {
@@ -82,6 +84,28 @@ class AppNotification extends Model
             'campaign_id' => (string) ($this->campaign_id ?? ''),
             'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
         ], $data);
+
+        // For event notifications: always override event_date from the live events table
+        // so that changes to start_at after the notification was created are reflected.
+        if (in_array($type, ['event', 'event_created', 'new_event_announcement'], true)) {
+            $liveEventId = $data['event_id'] ?? ($this->reference_type === 'event' ? (string) $this->reference_id : null);
+            if (filled($liveEventId)) {
+                $liveRow = DB::table('events')
+                    ->where('id', $liveEventId)
+                    ->whereNull('deleted_at')
+                    ->select('start_at')
+                    ->first();
+
+                if ($liveRow && filled($liveRow->start_at)) {
+                    // start_at is stored in UTC in the DB; keep the date/time in UTC
+                    // to stay consistent with what the admin UI saves/displays.
+                    $liveStartAt = Carbon::parse($liveRow->start_at, 'UTC');
+                    $merged['event_date'] = $liveStartAt->toDateString();
+                    $merged['event_time'] = $liveStartAt->format('H:i');
+                    $merged['event_start_at'] = $liveStartAt->toISOString();
+                }
+            }
+        }
 
         if (filled($userId)) {
             $merged['user_id'] = (string) $userId;
