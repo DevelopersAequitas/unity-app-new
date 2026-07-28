@@ -111,6 +111,8 @@ use App\Http\Controllers\Api\V1\NotificationEngineController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\P2PMeetingRescheduleController;
 use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\PeerAnniversaryController;
+use App\Http\Controllers\Api\V1\PeerBirthdayController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
 use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
 use App\Http\Controllers\Api\V1\PostReportController;
@@ -425,6 +427,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/peers/{user}/block', [PeerBlockController::class, 'store'])->whereUuid('user');
         Route::delete('/peers/{user}/block', [PeerBlockController::class, 'destroy'])->whereUuid('user');
         Route::get('/peers/{user}/block-status', [PeerBlockController::class, 'status'])->whereUuid('user');
+        Route::get('/peers/birthdays', [PeerBirthdayController::class, 'index']);
+        Route::get('/peers/anniversaries', [PeerAnniversaryController::class, 'index']);
 
         // Members & connections
         Route::get('/members/top-introducers', [MemberController::class, 'topIntroducers']);
