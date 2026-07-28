@@ -45,9 +45,9 @@ jobs:
             php artisan view:cache
             php artisan queue:restart
             php artisan reverb:restart
-            if [ -d "../public_html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css ../public_html/css/; fi
-            if [ -d "/var/www/html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css /var/www/html/css/; fi
-            ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public public/storage
-            if [ -d "../public_html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public ../public_html/storage; fi
-            if [ -d "/var/www/html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public /var/www/html/storage; fi
+            if [ -d "../public_html/css" ] && [ -w "../public_html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css ../public_html/css/; fi
+            if [ -d "/var/www/html/css" ] && [ -w "/var/www/html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css /var/www/html/css/; fi
+            php artisan storage:link --force || true
+            if [ -d "../public_html" ] && [ -w "../public_html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public ../public_html/storage || true; fi
+            if [ -d "/var/www/html" ] && [ -w "/var/www/html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public /var/www/html/storage || true; fi
 
