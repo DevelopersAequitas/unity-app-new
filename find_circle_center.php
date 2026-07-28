@@ -1,8 +1,9 @@
 <?php
-$cleanSource = "C:\\Users\\DEll\\.gemini\\antigravity-ide\\brain\\e3327d0e-ee58-4b72-9713-5458adfb8b6f\\media__1785220893759.jpg";
 
-if (!file_exists($cleanSource)) {
-    die("Clean source not found.\n");
+$cleanSource = 'C:\\Users\\DEll\\.gemini\\antigravity-ide\\brain\\e3327d0e-ee58-4b72-9713-5458adfb8b6f\\media__1785220893759.jpg';
+
+if (! file_exists($cleanSource)) {
+    exit("Clean source not found.\n");
 }
 
 $im = imagecreatefromjpeg($cleanSource);
@@ -23,14 +24,22 @@ for ($y = 310; $y < 710; $y++) {
         $r = ($rgb >> 16) & 0xFF;
         $g = ($rgb >> 8) & 0xFF;
         $b = $rgb & 0xFF;
-        
+
         // If the pixel is not white (distance from 255,255,255 is significant)
         // AND it's part of the red or blue ring
         if ($r < 240 || $g < 240 || $b < 240) {
-            if ($x < $minX) $minX = $x;
-            if ($x > $maxX) $maxX = $x;
-            if ($y < $minY) $minY = $y;
-            if ($y > $maxY) $maxY = $y;
+            if ($x < $minX) {
+                $minX = $x;
+            }
+            if ($x > $maxX) {
+                $maxX = $x;
+            }
+            if ($y < $minY) {
+                $minY = $y;
+            }
+            if ($y > $maxY) {
+                $maxY = $y;
+            }
         }
     }
 }
