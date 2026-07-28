@@ -2,271 +2,260 @@
 
 @section('title', 'Ads Dashboard')
 
+@include('admin.partials.grid-head')
+
+@push('styles')
+<style>
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; transition: all .2s ease; display: block; width: 100%; text-align: left; text-decoration: none !important; }
+  .kpi-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .kpi-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; font-size: 1.15rem; }
+  .kpi-num { font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 1.45rem; line-height: 1.1; color: var(--text-1); font-variant-numeric: tabular-nums; }
+  .kpi-title { font-size: 11px; font-weight: 600; color: var(--text-2); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+  .mini-stat-card { background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 10px; padding: 12px 14px; text-align: center; }
+  .mini-stat-label { font-size: 10.5px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .mini-stat-val { font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 1.25rem; color: var(--text-1); margin-top: 4px; }
+
+  .highlight-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; transition: all .2s ease; }
+</style>
+@endpush
+
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Ads Dashboard</h1>
-    <div class="d-flex gap-2">
-        <a href="{{ route('admin.ads.index') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-megaphone me-1"></i>All Ads</a>
-        <a href="{{ route('admin.ads.create') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Add Ad</a>
-    </div>
-</div>
+<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card mb-4">
 
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-@endif
-
-@if($stats['unique_views'] == 0)
-    <div class="alert alert-info border-0 shadow-sm d-flex align-items-center gap-3 mb-4 bg-info-subtle text-info-emphasis rounded-3 p-3">
-        <i class="bi bi-info-circle-fill fs-4"></i>
+    <!-- Top Command Center Header & Quick Actions -->
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-4 pb-3 border-b bs">
         <div>
-            <div class="fw-bold">Analytics collection in progress</div>
-            <span class="small opacity-75">Ad views, clicks, unique tracking metrics and CTR will populate automatically as peers interact with advertisements.</span>
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Advertisement Command Center</h2>
+            <p class="text-xs t3 m-0 mt-0.5">Real-time ad metrics, placement performance, views tracking, and CTR analytics.</p>
+        </div>
+        <div class="flex items-center flex-wrap gap-2">
+            <a href="{{ route('admin.ads.index') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
+                <i class="bi bi-megaphone text-indigo-400"></i> All Ads
+            </a>
+            <a href="{{ route('admin.ads.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[12px] font-semibold transition focus-ring no-underline flex items-center gap-1">
+                <i class="bi bi-plus-lg"></i> Add Ad
+            </a>
+            <a href="{{ route('admin.ads.analytics') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
+                <i class="bi bi-graph-up text-sky-400"></i> Analytics Report
+            </a>
         </div>
     </div>
-@endif
 
-<!-- Quick Actions -->
-<div class="card border-0 shadow-sm mb-4 bg-white rounded-3">
-    <div class="card-body py-3 d-flex flex-wrap gap-2 align-items-center justify-content-between">
-        <div class="d-flex align-items-center">
-            <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-lightning-charge-fill text-warning me-2"></i>Quick Actions</h6>
-        </div>
-        <div class="d-flex flex-wrap gap-2">
-            <a href="{{ route('admin.ads.create') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Add Ad</a>
-            <a href="{{ route('admin.ads.index') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-task me-1"></i>All Ads</a>
-            <a href="{{ route('admin.ads.analytics') }}" class="btn btn-sm btn-outline-info"><i class="bi bi-graph-up me-1"></i>Analytics Report</a>
-        </div>
-    </div>
-</div>
+    @if(session('success'))
+        <div class="alert alert-success mb-4 rounded-xl shadow-sm border-0">{{ session('success') }}</div>
+    @endif
 
-<!-- Section 1: Primary KPI Cards -->
-<div class="row g-3 mb-4">
-    <!-- Total Ads -->
-    <div class="col-lg col-md-4 col-sm-6 col-12">
-        <div class="card border-0 shadow-sm p-3 h-100 bg-white rounded-3">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <span class="text-muted small text-uppercase fw-semibold" style="font-size: 11px; letter-spacing: 0.5px;">Total Ads</span>
-                    <h3 class="fw-bold mb-0 mt-2 text-dark fs-2">{{ number_format($stats['total_ads']) }}</h3>
-                </div>
-                <div class="bg-primary-subtle text-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
-                    <i class="bi bi-megaphone-fill fs-5"></i>
-                </div>
+    @if($stats['unique_views'] == 0)
+        <div class="surface-2 border bs rounded-xl p-3.5 mb-4 flex items-center gap-3">
+            <i class="bi bi-info-circle-fill text-indigo-400 text-xl"></i>
+            <div>
+                <div class="font-semibold text-xs t1">Analytics Collection Active</div>
+                <span class="text-xs t3">Ad views, clicks, unique tracking metrics and CTR will populate automatically as peers interact with advertisements.</span>
             </div>
         </div>
-    </div>
-    <!-- Active Ads -->
-    <div class="col-lg col-md-4 col-sm-6 col-12">
-        <div class="card border-0 shadow-sm p-3 h-100 bg-white rounded-3">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <span class="text-muted small text-uppercase fw-semibold" style="font-size: 11px; letter-spacing: 0.5px;">Active Ads</span>
-                    <h3 class="fw-bold mb-0 mt-2 text-success fs-2">{{ number_format($stats['active_ads']) }}</h3>
-                </div>
-                <div class="bg-success-subtle text-success rounded-circle p-2.5 d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
-                    <i class="bi bi-check-circle-fill fs-5"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Total Views -->
-    <div class="col-lg col-md-4 col-sm-6 col-12">
-        <div class="card border-0 shadow-sm p-3 h-100 bg-white rounded-3">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <span class="text-muted small text-uppercase fw-semibold" style="font-size: 11px; letter-spacing: 0.5px;">Total Views</span>
-                    <h3 class="fw-bold mb-0 mt-2 text-info fs-2">{{ number_format($stats['total_views']) }}</h3>
-                    @if($stats['unique_views'] > 0)
-                        <span class="text-muted small d-block mt-1" style="font-size: 11px;">Unique: {{ number_format($stats['unique_views']) }}</span>
-                    @endif
-                </div>
-                <div class="bg-info-subtle text-info rounded-circle p-2.5 d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
-                    <i class="bi bi-eye-fill fs-5"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Total Clicks -->
-    <div class="col-lg col-md-4 col-sm-6 col-12">
-        <div class="card border-0 shadow-sm p-3 h-100 bg-white rounded-3">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <span class="text-muted small text-uppercase fw-semibold" style="font-size: 11px; letter-spacing: 0.5px;">Total Clicks</span>
-                    <h3 class="fw-bold mb-0 mt-2 text-primary fs-2">{{ number_format($stats['total_clicks']) }}</h3>
-                    @if($stats['unique_views'] > 0)
-                        <span class="text-muted small d-block mt-1" style="font-size: 11px;">Unique: {{ number_format($stats['unique_clicks']) }}</span>
-                    @endif
-                </div>
-                <div class="bg-primary-subtle text-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
-                    <i class="bi bi-cursor-fill fs-5"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Unique CTR -->
-    <div class="col-lg col-md-4 col-sm-6 col-12">
-        <div class="card border-0 shadow-sm p-3 h-100 bg-white rounded-3">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <span class="text-muted small text-uppercase fw-semibold" style="font-size: 11px; letter-spacing: 0.5px;">Unique CTR</span>
-                    <h3 class="fw-bold mb-0 mt-2 text-warning fs-2">{{ $stats['ctr'] }}%</h3>
-                </div>
-                <div class="bg-warning-subtle text-warning rounded-circle p-2.5 d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
-                    <i class="bi bi-percent fs-5"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+    @endif
 
-<!-- Section 2: Secondary Statistics -->
-<div class="row row-cols-2 row-cols-sm-3 row-cols-md-5 g-3 mb-4">
-    <!-- Unique Views -->
-    <div class="col">
-        <div class="card border-0 shadow-sm p-3 bg-white text-center rounded-3">
-            <span class="text-muted small text-uppercase fw-semibold" style="font-size: 10px; letter-spacing: 0.5px;">Unique Views</span>
-            <div class="fw-bold text-dark fs-4 mt-2">{{ number_format($stats['unique_views']) }}</div>
+    <!-- Section 1: Primary KPI Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-4">
+        <!-- Total Ads -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Total Ads</div>
+                <div class="kpi-icon bg-indigo-500/10 text-indigo-500">
+                    <i class="bi bi-megaphone-fill"></i>
+                </div>
+            </div>
+            <div class="kpi-num">{{ number_format($stats['total_ads']) }}</div>
+            <div class="kpi-sub">Campaign Ads</div>
         </div>
-    </div>
-    <!-- Unique Clicks -->
-    <div class="col">
-        <div class="card border-0 shadow-sm p-3 bg-white text-center rounded-3">
-            <span class="text-muted small text-uppercase fw-semibold" style="font-size: 10px; letter-spacing: 0.5px;">Unique Clicks</span>
-            <div class="fw-bold text-dark fs-4 mt-2">{{ number_format($stats['unique_clicks']) }}</div>
-        </div>
-    </div>
-    <!-- Scheduled Ads -->
-    <div class="col">
-        <div class="card border-0 shadow-sm p-3 bg-white text-center rounded-3">
-            <span class="text-muted small text-uppercase fw-semibold" style="font-size: 10px; letter-spacing: 0.5px;">Scheduled</span>
-            <div class="fw-bold text-info fs-4 mt-2">{{ number_format($stats['scheduled_ads']) }}</div>
-        </div>
-    </div>
-    <!-- Expired Ads -->
-    <div class="col">
-        <div class="card border-0 shadow-sm p-3 bg-white text-center rounded-3">
-            <span class="text-muted small text-uppercase fw-semibold" style="font-size: 10px; letter-spacing: 0.5px;">Expired</span>
-            <div class="fw-bold text-danger fs-4 mt-2">{{ number_format($stats['expired_ads']) }}</div>
-        </div>
-    </div>
-    <!-- Inactive Ads -->
-    <div class="col">
-        <div class="card border-0 shadow-sm p-3 bg-white text-center rounded-3">
-            <span class="text-muted small text-uppercase fw-semibold" style="font-size: 10px; letter-spacing: 0.5px;">Inactive</span>
-            <div class="fw-bold text-secondary fs-4 mt-2">{{ number_format($stats['inactive_ads']) }}</div>
-        </div>
-    </div>
-</div>
 
-<!-- Section 3: Performance Highlights -->
-<div class="row g-3 mb-4">
-    <!-- Top Performing Ad -->
-    <div class="col-md-6 col-12">
-        <div class="card border-0 shadow-sm p-3 h-100 bg-white d-flex flex-row align-items-center justify-content-between rounded-3">
-            <div class="d-flex align-items-center gap-3">
-                <div class="rounded-circle bg-success-subtle p-3 text-success">
-                    <i class="bi bi-graph-up-arrow fs-2"></i>
+        <!-- Active Ads -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Active Ads</div>
+                <div class="kpi-icon bg-emerald-500/10 text-emerald-500">
+                    <i class="bi bi-check-circle-fill"></i>
+                </div>
+            </div>
+            <div class="kpi-num text-emerald-500">{{ number_format($stats['active_ads']) }}</div>
+            <div class="kpi-sub">Live Campaigns</div>
+        </div>
+
+        <!-- Total Views -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Total Views</div>
+                <div class="kpi-icon bg-sky-500/10 text-sky-500">
+                    <i class="bi bi-eye-fill"></i>
+                </div>
+            </div>
+            <div class="kpi-num text-sky-500">{{ number_format($stats['total_views']) }}</div>
+            <div class="kpi-sub">
+                @if($stats['unique_views'] > 0)
+                    Unique: {{ number_format($stats['unique_views']) }}
+                @else
+                    Impressions
+                @endif
+            </div>
+        </div>
+
+        <!-- Total Clicks -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Total Clicks</div>
+                <div class="kpi-icon bg-violet-500/10 text-violet-500">
+                    <i class="bi bi-cursor-fill"></i>
+                </div>
+            </div>
+            <div class="kpi-num text-violet-500">{{ number_format($stats['total_clicks']) }}</div>
+            <div class="kpi-sub">
+                @if($stats['unique_views'] > 0)
+                    Unique: {{ number_format($stats['unique_clicks']) }}
+                @else
+                    Banner Clicks
+                @endif
+            </div>
+        </div>
+
+        <!-- Unique CTR -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <div class="kpi-title">Unique CTR</div>
+                <div class="kpi-icon bg-amber-500/10 text-amber-500">
+                    <i class="bi bi-percent"></i>
+                </div>
+            </div>
+            <div class="kpi-num text-amber-500">{{ $stats['ctr'] }}%</div>
+            <div class="kpi-sub">Click-Through Rate</div>
+        </div>
+    </div>
+
+    <!-- Section 2: Secondary Statistics Grid -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+        <div class="mini-stat-card">
+            <div class="mini-stat-label">Unique Views</div>
+            <div class="mini-stat-val">{{ number_format($stats['unique_views']) }}</div>
+        </div>
+        <div class="mini-stat-card">
+            <div class="mini-stat-label">Unique Clicks</div>
+            <div class="mini-stat-val">{{ number_format($stats['unique_clicks']) }}</div>
+        </div>
+        <div class="mini-stat-card">
+            <div class="mini-stat-label">Scheduled</div>
+            <div class="mini-stat-val text-sky-500">{{ number_format($stats['scheduled_ads']) }}</div>
+        </div>
+        <div class="mini-stat-card">
+            <div class="mini-stat-label">Expired</div>
+            <div class="mini-stat-val text-rose-500">{{ number_format($stats['expired_ads']) }}</div>
+        </div>
+        <div class="mini-stat-card">
+            <div class="mini-stat-label">Inactive</div>
+            <div class="mini-stat-val text-slate-400">{{ number_format($stats['inactive_ads']) }}</div>
+        </div>
+    </div>
+
+    <!-- Section 3: Performance Highlights -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <!-- Top Performing Ad -->
+        <div class="highlight-card flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-xl flex-none">
+                    <i class="bi bi-graph-up-arrow"></i>
                 </div>
                 <div>
-                    <span class="text-muted small text-uppercase fw-semibold">Top Performing Ad</span>
-                    <h5 class="fw-bold mb-0 text-dark mt-1">
+                    <span class="text-[11px] font-semibold t3 uppercase tracking-wider">Top Performing Ad</span>
+                    <h4 class="font-display font-bold text-sm t1 m-0 mt-0.5">
                         {{ $stats['top_performing_ad']?->title ?? 'None Yet' }}
-                    </h5>
-                    <span class="text-muted small">Highest engagement with {{ number_format($stats['top_performing_clicks']) }} clicks.</span>
+                    </h4>
+                    <p class="text-xs t3 m-0 mt-1">Highest engagement with {{ number_format($stats['top_performing_clicks']) }} clicks.</p>
                 </div>
             </div>
             @if($stats['top_performing_ad'])
-                <a href="{{ route('admin.ads.show', $stats['top_performing_ad']) }}" class="btn btn-sm btn-outline-secondary">Details</a>
+                <a href="{{ route('admin.ads.show', $stats['top_performing_ad']) }}" class="px-3 py-1.5 rounded-lg border bs text-xs t2 hover:t1 hover:surface-2 transition font-medium no-underline">View Details</a>
             @endif
         </div>
-    </div>
-    <!-- Most Viewed Ad -->
-    <div class="col-md-6 col-12">
-        <div class="card border-0 shadow-sm p-3 h-100 bg-white d-flex flex-row align-items-center justify-content-between rounded-3">
-            <div class="d-flex align-items-center gap-3">
-                <div class="rounded-circle bg-info-subtle p-3 text-info">
-                    <i class="bi bi-eye-fill fs-2"></i>
+
+        <!-- Most Viewed Ad -->
+        <div class="highlight-card flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center text-xl flex-none">
+                    <i class="bi bi-eye-fill"></i>
                 </div>
                 <div>
-                    <span class="text-muted small text-uppercase fw-semibold">Most Viewed Ad</span>
-                    <h5 class="fw-bold mb-0 text-dark mt-1">
+                    <span class="text-[11px] font-semibold t3 uppercase tracking-wider">Most Viewed Ad</span>
+                    <h4 class="font-display font-bold text-sm t1 m-0 mt-0.5">
                         {{ $stats['most_viewed_ad']?->title ?? 'None Yet' }}
-                    </h5>
-                    <span class="text-muted small">Highest visibility with {{ number_format($stats['most_viewed_count']) }} views.</span>
+                    </h4>
+                    <p class="text-xs t3 m-0 mt-1">Highest visibility with {{ number_format($stats['most_viewed_count']) }} views.</p>
                 </div>
             </div>
             @if($stats['most_viewed_ad'])
-                <a href="{{ route('admin.ads.show', $stats['most_viewed_ad']) }}" class="btn btn-sm btn-outline-secondary">Details</a>
+                <a href="{{ route('admin.ads.show', $stats['most_viewed_ad']) }}" class="px-3 py-1.5 rounded-lg border bs text-xs t2 hover:t1 hover:surface-2 transition font-medium no-underline">View Details</a>
             @endif
         </div>
     </div>
-</div>
 
-<!-- Section 4: Analytics Charts / Insights -->
-<div class="row g-3">
-    <!-- Traffic Chart (Line) -->
-    <div class="col-md-8 col-12">
-        <div class="card border-0 shadow-sm p-4 bg-white rounded-3">
-            <h5 class="fw-bold mb-3 text-secondary">Daily Traffic (Last 30 Days)</h5>
+    <!-- Section 4: Analytics Charts & Placements -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- Daily Traffic Chart (Line) -->
+        <div class="lg:col-span-8 surface border bs rounded-xl p-4">
+            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0 mb-3">Daily Traffic (Last 30 Days)</h3>
             <div style="height: 300px; position: relative;">
                 <canvas id="trafficChartCanvas"></canvas>
             </div>
         </div>
-    </div>
-    @if(!empty($charts['has_placement']))
-        <!-- Placements Breakdown (Doughnut) -->
-        <div class="col-md-4 col-12">
-            <div class="card border-0 shadow-sm p-4 bg-white h-100 rounded-3">
-                <h5 class="fw-bold mb-3 text-secondary">Placement Performance</h5>
-                <div style="height: 250px; position: relative;" class="d-flex align-items-center justify-content-center">
+
+        @if(!empty($charts['has_placement']) && !empty($charts['placements']))
+            <!-- Placements Breakdown (Doughnut) -->
+            <div class="lg:col-span-4 surface border bs rounded-xl p-4">
+                <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0 mb-3">Placement Performance</h3>
+                <div style="height: 250px; position: relative;" class="flex items-center justify-center">
                     <canvas id="placementsChartCanvas"></canvas>
                 </div>
             </div>
-        </div>
-    @else
-        <!-- Top Ads by Engagement Table -->
-        <div class="col-md-4 col-12">
-            <div class="card border-0 shadow-sm p-3 bg-white h-100 rounded-3">
-                <h5 class="fw-bold mb-3 text-secondary">Top Ads by Engagement</h5>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Ad</th>
-                                <th class="text-center">Views</th>
-                                <th class="text-center">Clicks</th>
-                                <th class="text-end">CTR</th>
+        @else
+            <!-- Top Ads by Engagement Table -->
+            <div class="lg:col-span-4 surface border bs rounded-xl p-4">
+                <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0 mb-3">Top Ads by Engagement</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left align-middle border-collapse">
+                        <thead>
+                            <tr class="border-b bs text-xs t3">
+                                <th class="py-2 px-1">Ad</th>
+                                <th class="py-2 text-center">Views</th>
+                                <th class="py-2 text-center">Clicks</th>
+                                <th class="py-2 text-right">CTR</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody class="divide-y bs">
                             @forelse($charts['top_ads_by_engagement'] as $ad)
                                 <tr>
-                                    <td>
-                                        <a href="{{ route('admin.ads.show', $ad['id']) }}" class="text-decoration-none fw-semibold text-dark">
+                                    <td class="py-2 px-1 font-medium">
+                                        <a href="{{ route('admin.ads.show', $ad['id']) }}" class="no-underline t1 hover:text-indigo-400">
                                             {{ Str::limit($ad['title'], 18) }}
                                         </a>
                                     </td>
-                                    <td class="text-center text-info fw-bold">{{ number_format($ad['views']) }}</td>
-                                    <td class="text-center text-primary fw-bold">{{ number_format($ad['clicks']) }}</td>
-                                    <td class="text-end text-warning fw-bold">{{ $ad['ctr'] }}%</td>
+                                    <td class="py-2 text-center text-sky-500 font-semibold">{{ number_format($ad['views']) }}</td>
+                                    <td class="py-2 text-center text-indigo-500 font-semibold">{{ number_format($ad['clicks']) }}</td>
+                                    <td class="py-2 text-right text-amber-500 font-semibold">{{ $ad['ctr'] }}%</td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-3">No engagement data yet.</td>
+                                    <td colspan="4" class="text-center t3 py-4">No engagement data yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
-    @endif
+        @endif
+    </div>
 </div>
 
-<!-- ChartJS Script -->
+<!-- ChartJS Integration -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -285,18 +274,22 @@
                     {
                         label: 'Views',
                         data: trafficViews,
-                        borderColor: '#0dcaf0',
-                        backgroundColor: '#0dcaf010',
+                        borderColor: '#0ea5e9',
+                        backgroundColor: 'rgba(14, 165, 233, 0.08)',
                         fill: true,
-                        tension: 0.3
+                        tension: 0.35,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
                     },
                     {
                         label: 'Clicks',
                         data: trafficClicks,
-                        borderColor: '#0d6efd',
-                        backgroundColor: '#0d6efd10',
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.08)',
                         fill: true,
-                        tension: 0.3
+                        tension: 0.35,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
                     }
                 ]
             },
@@ -304,34 +297,50 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'top' }
+                    legend: {
+                        position: 'top',
+                        labels: { boxWidth: 12, usePointStyle: true, font: { family: 'Inter', size: 12 } }
+                    }
                 },
                 scales: {
-                    x: { grid: { display: false } },
-                    y: { beginAtZero: true }
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            autoSkip: true,
+                            maxTicksLimit: 8,
+                            maxRotation: 0,
+                            minRotation: 0,
+                            font: { family: 'Inter', size: 11 }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { precision: 0, font: { family: 'Inter', size: 11 } }
+                    }
                 }
             }
         });
 
         // 2. Placements Chart (Doughnut - if enabled)
-        if (chartsData.has_placement && document.getElementById('placementsChartCanvas')) {
+        const placementsCanvas = document.getElementById('placementsChartCanvas');
+        if (placementsCanvas && chartsData.has_placement && chartsData.placements && chartsData.placements.length > 0) {
             const placeLabels = chartsData.placements.map(item => item.name);
             const placeCounts = chartsData.placements.map(item => item.count);
 
-            new Chart(document.getElementById('placementsChartCanvas'), {
+            new Chart(placementsCanvas, {
                 type: 'doughnut',
                 data: {
-                    labels: placeLabels.length ? placeLabels : ['No Data'],
+                    labels: placeLabels,
                     datasets: [{
-                        data: placeCounts.length ? placeCounts : [1],
-                        backgroundColor: ['#4A90E2', '#F5A623', '#E28499', '#7ED321', '#BD10E0', '#CCCCCC']
+                        data: placeCounts,
+                        backgroundColor: ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6']
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'right' }
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Inter', size: 11 } } }
                     }
                 }
             });

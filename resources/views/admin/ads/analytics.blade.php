@@ -2,85 +2,102 @@
 
 @section('title', 'Ads Analytics & Reports')
 
+@include('admin.partials.grid-head')
+
+@push('styles')
+<style>
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; transition: all .2s ease; display: block; width: 100%; text-align: left; }
+  .kpi-card:hover { border-color: var(--accent); }
+</style>
+@endpush
+
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Ads Analytics &amp; Performance Reports</h1>
-    <div class="d-flex gap-2">
-        <a href="{{ route('admin.ads.index') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-megaphone me-1"></i>All Ads</a>
-        <a href="{{ route('admin.ads.create') }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Add Ad</a>
-    </div>
-</div>
+<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card mb-4">
 
-<div class="row g-3">
-    <!-- Click Through Rate widget -->
-    <div class="col-md-6 col-12">
-        <div class="card border-0 shadow-sm p-4 bg-white text-center h-100">
-            <h6 class="text-uppercase text-secondary fw-semibold mb-2">Overall Click-Through Rate (CTR)</h6>
-            <div class="display-3 fw-bold text-primary my-3">{{ $stats['ctr'] }}%</div>
-            <p class="text-muted small mb-0">Percentage of unique ad impressions that resulted in unique clicks.</p>
+    <!-- Header & Quick Actions -->
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-4 pb-3 border-b bs">
+        <div>
+            <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Ads Analytics &amp; Reports</h2>
+            <p class="text-xs t3 m-0 mt-0.5">Comprehensive performance analytics, click-through rates, and historical overview.</p>
         </div>
-    </div>
-    <!-- Total Engagement widget -->
-    <div class="col-md-6 col-12">
-        <div class="card border-0 shadow-sm p-4 bg-white text-center h-100">
-            <h6 class="text-uppercase text-secondary fw-semibold mb-2">Total Interactions</h6>
-            <div class="display-3 fw-bold text-success my-3">{{ number_format($stats['total_views'] + $stats['total_clicks']) }}</div>
-            <p class="text-muted small mb-0">Combined total of views ({{ number_format($stats['total_views']) }}) and clicks ({{ number_format($stats['total_clicks']) }}).</p>
+        <div class="flex items-center flex-wrap gap-2">
+            <a href="{{ route('admin.ads.dashboard') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
+                <i class="bi bi-speedometer2 text-indigo-400"></i> Dashboard
+            </a>
+            <a href="{{ route('admin.ads.index') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
+                <i class="bi bi-megaphone text-indigo-400"></i> All Ads
+            </a>
+            <a href="{{ route('admin.ads.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[12px] font-semibold transition focus-ring no-underline flex items-center gap-1">
+                <i class="bi bi-plus-lg"></i> Add Ad
+            </a>
         </div>
     </div>
 
-    <!-- Placement Distribution OR Top Ads Engagement -->
-    <div class="col-md-6 col-12 mt-3">
-        <div class="card border-0 shadow-sm p-4 bg-white h-100">
+    <!-- Top Summary Widgets -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="kpi-card text-center">
+            <h4 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Overall Click-Through Rate (CTR)</h4>
+            <div class="font-display font-extrabold text-4xl text-amber-500 my-2">{{ $stats['ctr'] }}%</div>
+            <p class="text-xs t3 m-0">Percentage of unique ad impressions that resulted in unique clicks.</p>
+        </div>
+        <div class="kpi-card text-center">
+            <h4 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Total Interactions</h4>
+            <div class="font-display font-extrabold text-4xl text-emerald-500 my-2">{{ number_format($stats['total_views'] + $stats['total_clicks']) }}</div>
+            <p class="text-xs t3 m-0">Combined total of views ({{ number_format($stats['total_views']) }}) and clicks ({{ number_format($stats['total_clicks']) }}).</p>
+        </div>
+    </div>
+
+    <!-- Analytics Breakdown Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Placement Distribution / Top Ads -->
+        <div class="surface border bs rounded-xl p-4">
             @if(!empty($charts['has_placement']))
-                <h5 class="fw-bold mb-3 text-secondary">Placements Distribution</h5>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Placement</th>
-                                <th class="text-center">Ads Count</th>
+                <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0 mb-3">Placements Distribution</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left align-middle border-collapse">
+                        <thead>
+                            <tr class="border-b bs text-xs t3">
+                                <th class="py-2 px-1">Placement</th>
+                                <th class="py-2 text-center">Ads Count</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody class="divide-y bs">
                             @foreach($charts['placements'] as $place)
                                 <tr>
-                                    <td>
-                                        <span class="fw-bold text-dark">{{ $place['name'] }}</span>
-                                    </td>
-                                    <td class="text-center fw-semibold text-primary">{{ number_format($place['count']) }}</td>
+                                    <td class="py-2 px-1 font-semibold t1">{{ $place['name'] }}</td>
+                                    <td class="py-2 text-center text-indigo-500 font-bold">{{ number_format($place['count']) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
             @else
-                <h5 class="fw-bold mb-3 text-secondary">Top Ads Engagement</h5>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Ad</th>
-                                <th class="text-center">Views</th>
-                                <th class="text-center">Clicks</th>
-                                <th class="text-end">CTR</th>
+                <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0 mb-3">Top Ads Engagement</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left align-middle border-collapse">
+                        <thead>
+                            <tr class="border-b bs text-xs t3">
+                                <th class="py-2 px-1">Ad</th>
+                                <th class="py-2 text-center">Views</th>
+                                <th class="py-2 text-center">Clicks</th>
+                                <th class="py-2 text-right">CTR</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody class="divide-y bs">
                             @forelse($charts['top_ads_by_engagement'] as $ad)
                                 <tr>
-                                    <td>
-                                        <a href="{{ route('admin.ads.show', $ad['id']) }}" class="text-decoration-none fw-semibold text-dark">
-                                            {{ Str::limit($ad['title'], 20) }}
+                                    <td class="py-2 px-1 font-medium">
+                                        <a href="{{ route('admin.ads.show', $ad['id']) }}" class="no-underline t1 hover:text-indigo-400">
+                                            {{ Str::limit($ad['title'], 22) }}
                                         </a>
                                     </td>
-                                    <td class="text-center text-info fw-bold">{{ number_format($ad['views']) }}</td>
-                                    <td class="text-center text-primary fw-bold">{{ number_format($ad['clicks']) }}</td>
-                                    <td class="text-end text-warning fw-bold">{{ $ad['ctr'] }}%</td>
+                                    <td class="py-2 text-center text-sky-500 font-bold">{{ number_format($ad['views']) }}</td>
+                                    <td class="py-2 text-center text-indigo-500 font-bold">{{ number_format($ad['clicks']) }}</td>
+                                    <td class="py-2 text-right text-amber-500 font-bold">{{ $ad['ctr'] }}%</td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-3">No engagement data yet.</td>
+                                    <td colspan="4" class="text-center t3 py-4">No engagement data yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -88,32 +105,30 @@
                 </div>
             @endif
         </div>
-    </div>
 
-    <!-- Last 6 Months Metrics -->
-    <div class="col-md-6 col-12 mt-3">
-        <div class="card border-0 shadow-sm p-4 bg-white h-100">
-            <h5 class="fw-bold mb-3 text-secondary">Historical Overview</h5>
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Month</th>
-                            <th class="text-center">Views</th>
-                            <th class="text-center">Clicks</th>
-                            <th class="text-center">CTR</th>
+        <!-- Last 6 Months Metrics -->
+        <div class="surface border bs rounded-xl p-4">
+            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0 mb-3">Historical Overview</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left align-middle border-collapse">
+                    <thead>
+                        <tr class="border-b bs text-xs t3">
+                            <th class="py-2 px-1">Month</th>
+                            <th class="py-2 text-center">Views</th>
+                            <th class="py-2 text-center">Clicks</th>
+                            <th class="py-2 text-right">CTR</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="divide-y bs">
                         @foreach($charts['monthly_performance'] as $month)
                             @php
                                 $mCtr = $month['views'] > 0 ? round(($month['clicks'] / $month['views']) * 100, 2) : 0;
                             @endphp
                             <tr>
-                                <td class="fw-semibold text-dark">{{ $month['month'] }}</td>
-                                <td class="text-center text-info">{{ number_format($month['views']) }}</td>
-                                <td class="text-center text-primary">{{ number_format($month['clicks']) }}</td>
-                                <td class="text-center fw-bold text-warning">{{ $mCtr }}%</td>
+                                <td class="py-2 px-1 font-semibold t1">{{ $month['month'] }}</td>
+                                <td class="py-2 text-center text-sky-500 font-semibold">{{ number_format($month['views']) }}</td>
+                                <td class="py-2 text-center text-indigo-500 font-semibold">{{ number_format($month['clicks']) }}</td>
+                                <td class="py-2 text-right text-amber-500 font-bold">{{ $mCtr }}%</td>
                             </tr>
                         @endforeach
                     </tbody>
