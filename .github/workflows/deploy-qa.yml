@@ -66,16 +66,7 @@ jobs:
                 exit 1
             fi
 
-            echo "Storage symlink verified:"
-            ls -ld "$LINK"
-            readlink -f "$LINK"
-
             chmod -R ug+rwX storage bootstrap/cache
-            stat -c '%U:%G %a %n' storage storage/app/public storage/app/public/ads bootstrap/cache
-
-            echo "=== TEST2 AD RECORD & FILE CHECK ==="
-            php artisan tinker --execute="\$ad = App\Models\Ad::where('title', 'test2')->latest()->first(); dump(\$ad?->only(['id','title','image_path'])); dump(['image_url' => \$ad?->image_url]);" || true
-            find storage/app/public/ads -maxdepth 1 -type f -printf '%f %s bytes\n' 2>/dev/null || true
 
             php artisan optimize:clear
             php artisan config:cache
