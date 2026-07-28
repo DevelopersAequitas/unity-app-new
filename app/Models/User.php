@@ -293,13 +293,23 @@ class User extends Authenticatable
                 }
 
                 if ($hasPeerIdColumn) {
+                    $usedSeq = false;
                     try {
-                        $seqResult = DB::selectOne("SELECT 'PG3182736' || nextval('peer_id_seq') AS peer_id");
-                        if ($seqResult && ! empty($seqResult->peer_id)) {
-                            $user->peer_id = (string) $seqResult->peer_id;
+                        if (DB::getDriverName() === 'pgsql') {
+                            $seqCheck = DB::selectOne("SELECT to_regclass('peer_id_seq') AS seq_exists");
+                            if (! empty($seqCheck?->seq_exists)) {
+                                $seqResult = DB::selectOne("SELECT 'PG3182736' || nextval('peer_id_seq') AS peer_id");
+                                if (! empty($seqResult?->peer_id)) {
+                                    $user->peer_id = (string) $seqResult->peer_id;
+                                    $usedSeq = true;
+                                }
+                            }
                         }
                     } catch (Throwable) {
-                        // Fallback for testing environments (e.g. SQLite) where PostgreSQL sequences do not exist
+                        $usedSeq = false;
+                    }
+
+                    if (! $usedSeq) {
                         $maxNum = 0;
                         try {
                             $maxUser = static::query()
