@@ -61,10 +61,13 @@ class NotifyUserService
             'read_at' => null,
         ]);
 
+        $appNotificationType = (string) ($data['type'] ?? $data['notification_type'] ?? $type);
+        $screen = (string) ($data['navigation_screen'] ?? $data['screen'] ?? $type);
+
         try {
             AppNotification::create([
                 'user_id' => $to->id,
-                'type' => 'activity_update',
+                'type' => $appNotificationType,
                 'category' => $type,
                 'title' => $title,
                 'body' => $body,
@@ -73,7 +76,7 @@ class NotifyUserService
                 'priority' => 'high',
                 'reference_type' => $notifiable ? get_class($notifiable) : null,
                 'reference_id' => $notifiable ? (string) $notifiable->getKey() : null,
-                'screen' => $type,
+                'screen' => $screen,
                 'data' => array_merge($data, [
                     'notification_id' => (string) $notification->id,
                     'from_user_id' => (string) $from->id,
