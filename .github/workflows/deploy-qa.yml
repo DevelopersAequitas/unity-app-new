@@ -69,8 +69,14 @@ jobs:
                 exit 1
             fi
 
-            chmod -R ug+rwX storage bootstrap/cache
-            chmod -R o+rX storage/app/public
+            mkdir -p storage/app/public/ads
+            mkdir -p storage/framework/cache
+            mkdir -p storage/framework/sessions
+            mkdir -p storage/framework/views
+            mkdir -p bootstrap/cache
+
+            chmod -R ug+rwX,o+rX storage/app/public
+            chmod -R ug+rwX storage/framework bootstrap/cache
 
             php artisan optimize:clear
             php artisan config:cache
