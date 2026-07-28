@@ -58,6 +58,9 @@
         $peerName = trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? '')) ?: $member->display_name ?: 'Unnamed Peer';
     @endphp
 
+    <!-- Activities Hub Header -->
+    @include('admin.activities.partials.header', ['title' => 'Testimonials'])
+
     <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div>

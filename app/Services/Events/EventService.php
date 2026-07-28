@@ -53,7 +53,12 @@ class EventService
             $this->syncEventCircles($event, $circleIds);
             $this->occurrenceGenerator->generate($event);
 
-            return $event->load(['circle', 'circles', 'occurrences']);
+            $relations = ['circle', 'occurrences'];
+            if (Schema::hasTable('event_circles')) {
+                $relations[] = 'circles';
+            }
+
+            return $event->load($relations);
         });
 
         // afterResponse() runs the job immediately after the HTTP response is sent.
@@ -72,7 +77,12 @@ class EventService
             $this->syncEventCircles($event, $circleIds);
             $this->occurrenceGenerator->regenerateFuture($event);
 
-            return $event->load(['circle', 'circles', 'occurrences']);
+            $relations = ['circle', 'occurrences'];
+            if (Schema::hasTable('event_circles')) {
+                $relations[] = 'circles';
+            }
+
+            return $event->load($relations);
         });
     }
 
@@ -87,8 +97,14 @@ class EventService
 
         $totalEventsBeforeFilters = Event::query()->count();
 
+        $withRelations = ['event.circle'];
+        if (Schema::hasTable('event_circles')) {
+            $withRelations[] = 'event.circles.cityRef';
+        }
+        $withRelations['registrations'] = fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0');
+
         $query = EventOccurrence::query()
-            ->with(['event.circle', 'event.circles.cityRef', 'registrations' => fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0')])
+            ->with($withRelations)
             ->withCount([
                 'registrations as registered_count' => fn ($q) => $q
                     ->whereNull('deleted_at')
@@ -106,7 +122,10 @@ class EventService
             ->whereHas('event', function (Builder $eventQuery) use ($filters, $eventType, $search, $user): void {
                 $this->applyEventTypeFilter($eventQuery, $eventType)
                     ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void {
-                        $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v));
+                        $circleQuery->where('circle_id', $v);
+                        if (Schema::hasTable('event_circles')) {
+                            $circleQuery->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v));
+                        }
                     }))
                     ->when($filters['mode'] ?? null, fn ($q, $v) => $this->applyModeFilter($q, $v))
                     ->when($search, function ($q, $v): void {
@@ -219,7 +238,10 @@ class EventService
 
         $this->applyEventTypeFilter($eventQuery, $eventType)
             ->when($filters['circle_id'] ?? null, fn ($q, $v) => $q->where(function ($circleQuery) use ($v): void {
-                $circleQuery->where('circle_id', $v)->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v));
+                $circleQuery->where('circle_id', $v);
+                if (Schema::hasTable('event_circles')) {
+                    $circleQuery->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $v));
+                }
             }))
             ->when($filters['mode'] ?? null, fn ($q, $v) => $this->applyModeFilter($q, $v))
             ->when($search, function ($q, $v): void {
@@ -648,16 +670,52 @@ class EventService
         if ($actor && empty($data['organizer_user_id'])) {
             $data['organizer_user_id'] = $actor->id;
         }
+        $hasLocationInput = array_key_exists('venue_name', $data)
+            || array_key_exists('address_line', $data)
+            || array_key_exists('city', $data)
+            || array_key_exists('state', $data)
+            || array_key_exists('google_maps_url', $data);
+
         $hasMetadataInput = array_key_exists('metadata', $data)
             || ! empty($data['zoho_form_url'])
             || array_key_exists('what_youll_gain', $data)
             || array_key_exists('organizer_name', $data)
             || array_key_exists('organizer_phone', $data)
             || array_key_exists('organizer_email', $data)
-            || array_key_exists('organizer_website', $data);
+            || array_key_exists('organizer_website', $data)
+            || $hasLocationInput;
 
         if ($hasMetadataInput) {
             $metadata = $this->normalizeMetadata($data['metadata'] ?? []);
+            if ($hasLocationInput) {
+                $locationMeta = [
+                    'venue_name' => filled($data['venue_name'] ?? null) ? trim((string) $data['venue_name']) : null,
+                    'address_line' => filled($data['address_line'] ?? null) ? trim((string) $data['address_line']) : null,
+                    'city' => filled($data['city'] ?? null) ? trim((string) $data['city']) : null,
+                    'state' => filled($data['state'] ?? null) ? trim((string) $data['state']) : null,
+                    'google_maps_url' => filled($data['google_maps_url'] ?? null) ? trim((string) $data['google_maps_url']) : null,
+                ];
+
+                foreach ($locationMeta as $key => $val) {
+                    if (array_key_exists($key, $data)) {
+                        if ($val !== null) {
+                            $metadata[$key] = $val;
+                        } else {
+                            unset($metadata[$key]);
+                        }
+                    }
+                }
+
+                $locationParts = array_values(array_unique(array_filter([
+                    $metadata['venue_name'] ?? null,
+                    $metadata['address_line'] ?? null,
+                    $metadata['city'] ?? null,
+                    $metadata['state'] ?? null,
+                ], fn ($val) => filled($val))));
+
+                $data['location_text'] = $locationParts ? implode(', ', $locationParts) : null;
+                unset($data['venue_name'], $data['address_line'], $data['city'], $data['state'], $data['google_maps_url']);
+            }
             if (! empty($data['zoho_form_url'])) {
                 $metadata['zoho_form_url'] = $data['zoho_form_url'];
             }

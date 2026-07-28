@@ -7,6 +7,7 @@ use App\Services\Events\EventQrService;
 use App\Services\Events\EventService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Schema;
 
 class EventOccurrenceListResource extends JsonResource
 {
@@ -25,11 +26,18 @@ class EventOccurrenceListResource extends JsonResource
         $metadata = is_array($metadata) ? $metadata : [];
         $zohoFormUrl = $event->zoho_form_url ?? data_get($metadata, 'zoho_form_url');
         $visitorRegistrationEnabled = $eventService->visitorRegistrationEnabled($event);
-        $circles = $event->relationLoaded('circles') ? $event->circles->map(fn ($circle) => [
-            'id' => $circle->id,
-            'name' => $circle->name,
-            'state_name' => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null,
-        ])->values()->all() : [];
+        $circles = [];
+        if (Schema::hasTable('event_circles') && $event->relationLoaded('circles')) {
+            try {
+                $circles = $event->circles->map(fn ($circle) => [
+                    'id' => $circle->id,
+                    'name' => $circle->name,
+                    'state_name' => $circle->state_name ?? $circle->state ?? $circle->cityRef?->state_name ?? $circle->cityRef?->state ?? null,
+                ])->values()->all();
+            } catch (\Throwable) {
+                $circles = [];
+            }
+        }
         if ($circles === [] && $event->circle) {
             $circles = [['id' => $event->circle->id, 'name' => $event->circle->name, 'state_name' => $event->circle->state_name ?? $event->circle->state ?? null]];
         }

@@ -11,61 +11,61 @@
         [
             'label' => 'Summary',
             'route' => 'admin.activities.index',
-            'active_check' => 'admin.activities.index',
+            'active_check' => ['admin.activities.index'],
             'icon' => 'bi-grid-1x2-fill'
         ],
         [
             'label' => 'Testimonials',
             'route' => 'admin.activities.testimonials.index',
-            'active_check' => 'admin.activities.testimonials.*',
+            'active_check' => ['admin.activities.testimonials*'],
             'icon' => 'bi-chat-quote-fill'
         ],
         [
             'label' => 'Requirements',
             'route' => 'admin.activities.requirements.index',
-            'active_check' => 'admin.activities.requirements.*',
+            'active_check' => ['admin.activities.requirements*'],
             'icon' => 'bi-file-earmark-text-fill'
         ],
         [
             'label' => 'Referrals',
             'route' => 'admin.activities.referrals.index',
-            'active_check' => 'admin.activities.referrals.*',
+            'active_check' => ['admin.activities.referrals*'],
             'icon' => 'bi-person-plus-fill'
         ],
         [
             'label' => 'P2P Meetings',
             'route' => 'admin.activities.p2p-meetings.index',
-            'active_check' => 'admin.activities.p2p-meetings.*',
+            'active_check' => ['admin.activities.p2p-meetings*'],
             'icon' => 'bi-people-fill'
         ],
         [
             'label' => 'Business Deals',
             'route' => 'admin.activities.business-deals.index',
-            'active_check' => 'admin.activities.business-deals.*',
+            'active_check' => ['admin.activities.business-deals*'],
             'icon' => 'bi-briefcase-fill'
         ],
         [
             'label' => 'Leadership Requests',
             'route' => 'admin.activities.become-a-leader.index',
-            'active_check' => 'admin.activities.become-a-leader.*',
+            'active_check' => ['admin.activities.become-a-leader*'],
             'icon' => 'bi-award-fill'
         ],
         [
             'label' => 'Recommended Peers',
             'route' => 'admin.activities.recommend-peer.index',
-            'active_check' => 'admin.activities.recommend-peer.*',
+            'active_check' => ['admin.activities.recommend-peer*'],
             'icon' => 'bi-hand-thumbs-up-fill'
         ],
         [
             'label' => 'Collaborations',
             'route' => 'admin.collaborations.index',
-            'active_check' => 'admin.collaborations.*',
+            'active_check' => ['admin.collaborations*'],
             'icon' => 'bi-link-45deg'
         ],
         [
             'label' => 'Registered Visitor',
             'route' => 'admin.activities.register-visitor.index',
-            'active_check' => 'admin.activities.register-visitor.*',
+            'active_check' => ['admin.activities.register-visitor*'],
             'icon' => 'bi-person-vcard-fill'
         ]
     ];
@@ -92,7 +92,7 @@
     <!-- Quick Navigation Pills -->
     <div class="activities-nav-container mb-4">
         @foreach($navItems as $item)
-            <a href="{{ route($item['route']) }}" class="activities-nav-pill {{ request()->routeIs($item['active_check']) ? 'active' : '' }}">
+            <a href="{{ route($item['route']) }}" class="activities-nav-pill {{ request()->routeIs(...(array)$item['active_check']) ? 'active' : '' }}">
                 <i class="bi {{ $item['icon'] }}"></i>
                 <span>{{ $item['label'] }}</span>
             </a>

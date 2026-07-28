@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Event;
-use App\Models\EventFeedback;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
@@ -86,7 +85,7 @@ class EventFeedbackApiTest extends TestCase
                     'what_to_improve',
                     'additional_comments',
                     'submitted_at',
-                ]
+                ],
             ]);
 
         // Check DB entry
@@ -249,7 +248,7 @@ class EventFeedbackApiTest extends TestCase
 
         Sanctum::actingAs($user1);
 
-        $response = $this->getJson('/api/v1/event-feedbacks/event/' . $eventId);
+        $response = $this->getJson('/api/v1/event-feedbacks/event/'.$eventId);
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true)
@@ -265,7 +264,7 @@ class EventFeedbackApiTest extends TestCase
             'id' => (string) Str::uuid(),
             'first_name' => 'Peer',
             'last_name' => 'Member',
-            'display_name' => 'Peer Member ' . Str::random(4),
+            'display_name' => 'Peer Member '.Str::random(4),
             'email' => 'peer-'.Str::uuid().'@example.com',
             'phone' => (string) random_int(1000000000, 9999999999),
             'password_hash' => Hash::make('password'),
