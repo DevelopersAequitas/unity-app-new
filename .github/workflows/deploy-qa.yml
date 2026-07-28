@@ -49,10 +49,13 @@ jobs:
                     rm "$LINK"
                     ln -s "$TARGET" "$LINK"
                 fi
-            elif [ -e "$LINK" ]; then
-                echo "ERROR: $LINK exists but is not a symbolic link"
-                ls -ld "$LINK"
-                exit 1
+            elif [ -d "$LINK" ]; then
+                echo "Notice: $LINK is a real directory. Migrating files to $TARGET and creating backup."
+                cp -a public/storage/. storage/app/public/
+                BACKUP="public/storage_backup_$(date +%Y%m%d_%H%M%S)"
+                mv public/storage "$BACKUP"
+                echo "Backed up real directory to $BACKUP"
+                ln -s "$TARGET" "$LINK"
             else
                 ln -s "$TARGET" "$LINK"
             fi
@@ -66,8 +69,8 @@ jobs:
                 exit 1
             fi
 
-            chmod -R ug+rwX,o+rX storage/app/public
             chmod -R ug+rwX storage bootstrap/cache
+            chmod -R o+rX storage/app/public
 
             php artisan optimize:clear
             php artisan config:cache
