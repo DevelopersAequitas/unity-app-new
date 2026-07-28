@@ -52,17 +52,17 @@ class SendAllTestNotificationsCommand extends Command
                 ],
             ],
             [
-                
                 'type' => 'requirement',
                 'category' => 'business',
                 'title' => 'New Requirement Posted',
-                'body' => 'A new requirement has been posted in your network.',
-                'screen' => '/feed',
+                'body' => 'A new business requirement has been posted: Need UI/UX Designer.',
+                'screen' => '/post-details',
                 'priority' => 'high',
                 'data' => [
-                    'navigation_screen' => '/feed',
+                    'navigation_screen' => '/post-details',
                     'activity_type' => 'requirement',
                     'type' => 'requirement',
+                    'post_id' => 'req_post_987654',
                     'requirement_id' => 'req_555777',
                 ],
             ],
@@ -97,7 +97,7 @@ class SendAllTestNotificationsCommand extends Command
                 'type' => 'trending_circle',
                 'category' => 'engagement',
                 'title' => 'Trending Circle Highlight',
-                'body' => 'Design Thinkers Circle is trending! Tap to join.',
+                'body' => 'Design Thinkers Circle is trending! Tap to view and join.',
                 'screen' => '/join-circle',
                 'priority' => 'medium',
                 'data' => [

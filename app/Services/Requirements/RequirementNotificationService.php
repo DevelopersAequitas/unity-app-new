@@ -8,7 +8,6 @@ use App\Services\Notifications\NotifyUserService;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-
 class RequirementNotificationService
 {
     public function __construct(private readonly NotifyUserService $notifyUserService) {}
@@ -42,10 +41,11 @@ class RequirementNotificationService
                             [
                                 'title' => $title,
                                 'body' => $body,
-                                'navigation_screen' => '/feed',
+                                'navigation_screen' => '/post-details',
                                 'activity_type' => 'requirement',
                                 'type' => 'requirement',
                                 'notification_type' => 'requirement_created',
+                                'post_id' => (string) $requirement->id,
                                 'requirement_id' => (string) $requirement->id,
                                 'user_id' => (string) $creator->id,
                                 'person' => $creatorName,
