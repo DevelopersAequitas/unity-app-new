@@ -47,4 +47,7 @@ jobs:
             php artisan reverb:restart
             if [ -d "../public_html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css ../public_html/css/; fi
             if [ -d "/var/www/html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css /var/www/html/css/; fi
+            ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public public/storage
+            if [ -d "../public_html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public ../public_html/storage; fi
+            if [ -d "/var/www/html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public /var/www/html/storage; fi
 
