@@ -38,24 +38,45 @@ jobs:
                 --no-interaction
             php artisan migrate --force
 
-            TARGET="${{ secrets.QA_DEPLOY_PATH }}/storage/app/public"
-            LINK="${{ secrets.QA_DEPLOY_PATH }}/public/storage"
+            TARGET="$(readlink -f storage/app/public)"
+            LINK="public/storage"
+
+            mkdir -p storage/app/public/ads
 
             if [ -L "$LINK" ]; then
-                rm "$LINK"
+                CURRENT="$(readlink -f "$LINK" || true)"
+                if [ "$CURRENT" != "$TARGET" ]; then
+                    rm "$LINK"
+                    ln -s "$TARGET" "$LINK"
+                fi
             elif [ -e "$LINK" ]; then
-                echo "ERROR: $LINK exists and is not a symlink"
+                echo "ERROR: $LINK exists but is not a symbolic link"
+                ls -ld "$LINK"
+                exit 1
+            else
+                ln -s "$TARGET" "$LINK"
+            fi
+
+            FINAL="$(readlink -f "$LINK" || true)"
+
+            if [ "$FINAL" != "$TARGET" ]; then
+                echo "ERROR: storage symlink verification failed"
+                echo "Expected: $TARGET"
+                echo "Actual:   $FINAL"
                 exit 1
             fi
 
-            ln -s "$TARGET" "$LINK"
-
-            if [ "$(readlink -f "$LINK")" != "$(readlink -f "$TARGET")" ]; then
-                echo "ERROR: $LINK target mismatch"
-                exit 1
-            fi
+            echo "Storage symlink verified:"
+            ls -ld "$LINK"
+            readlink -f "$LINK"
 
             chmod -R ug+rwX storage bootstrap/cache
+            stat -c '%U:%G %a %n' storage storage/app/public storage/app/public/ads bootstrap/cache
+
+            echo "=== TEST2 AD RECORD & FILE CHECK ==="
+            php artisan tinker --execute="\$ad = App\Models\Ad::where('title', 'test2')->latest()->first(); dump(\$ad?->only(['id','title','image_path'])); dump(['image_url' => \$ad?->image_url]);" || true
+            find storage/app/public/ads -maxdepth 1 -type f -printf '%f %s bytes\n' 2>/dev/null || true
+
             php artisan optimize:clear
             php artisan config:cache
             php artisan route:cache
