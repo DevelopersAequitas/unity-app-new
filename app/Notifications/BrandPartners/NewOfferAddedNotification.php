@@ -26,14 +26,16 @@ class NewOfferAddedNotification extends Notification
 
     public function toDatabase(object $notifiable): array
     {
-        return [
-            'notification_type' => 'brand_offer_added',
-            'title' => '🔥 Limited Time Offer',
-            'body' => $this->partner->offer_title.' Grab before expiry.',
-            'partner_id' => $this->partner->id,
+        return array_filter([
+            'title' => 'Exclusive Brand Offer!',
+            'body' => $this->partner->offer_title ? $this->partner->offer_title.' Grab before expiry.' : 'Get exclusive discounts with our new Brand Partner offer.',
+            'navigation_screen' => '/brand-partner-details',
+            'type' => 'brand_partner_offer',
+            'partner_id' => (string) $this->partner->id,
+            'brand_partner_id' => (string) $this->partner->id,
             'partner_name' => $this->partner->name,
             'offer_title' => $this->partner->offer_title,
             'coupon_code' => $this->partner->coupon_code,
-        ];
+        ], fn ($value) => $value !== null && $value !== '');
     }
 }

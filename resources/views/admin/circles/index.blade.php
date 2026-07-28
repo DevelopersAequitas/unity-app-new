@@ -4,6 +4,14 @@
 
 @include('admin.partials.grid-head')
 
+@push('styles')
+<style>
+  .scrim { backdrop-filter: blur(4px); transition: all 0.3s ease; }
+  .drawer { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .drawer-hidden { transform: translateX(100%); }
+</style>
+@endpush
+
 @section('content')
 <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card">
     <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
@@ -184,7 +192,7 @@
                                 $isActive = $statusValue === 'active';
                                 $detailsId = 'circle-details-' . $circle->id;
                             @endphp
-                            <tr class="hover:surface-2 transition border-b bs">
+                            <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openCircleDrawer('{{ $circle->id }}')">
                                 <td class="px-3 py-2.5">
                                     <div class="flex items-center gap-2.5">
                                         <div class="w-8 h-8 rounded-lg overflow-hidden flex-none border bs bg-gray-100 flex items-center justify-center">
@@ -249,13 +257,16 @@
                                         </span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-right whitespace-nowrap">
-                                    <div class="flex justify-end gap-2">
+                                <td class="px-3 py-2.5 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                                    <div class="flex justify-end gap-1.5">
                                         <a href="{{ route('admin.circles.edit', $circle) }}" class="px-2.5 py-1 rounded-lg border bs text-xs font-medium t2 hover:t1 hover:surface-2 transition no-underline inline-flex items-center gap-1" target="_blank" rel="noopener">
                                             <i class="bi bi-pencil"></i>Edit
                                         </a>
-                                        <button class="px-2.5 py-1 rounded-lg border bs text-xs font-medium text-indigo-600 hover:text-indigo-700 surface-2 transition btn-details-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ $detailsId }}" aria-expanded="false" aria-controls="{{ $detailsId }}">
-                                            Details<i class="bi bi-chevron-down details-chevron ms-1"></i>
+                                        <button class="px-2.5 py-1 rounded-lg border bs text-xs font-medium text-indigo-600 hover:text-indigo-700 surface-2 transition" type="button" onclick="event.stopPropagation(); openCircleDrawer('{{ $circle->id }}')">
+                                            Details
+                                        </button>
+                                        <button type="button" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition inline-flex items-center gap-1 btn-delete-circle" data-url="{{ route('admin.circles.destroy', $circle) }}" data-id="{{ $circle->id }}" data-name="{{ $circle->name }}" data-members="{{ $circle->members_count ?? 0 }}" onclick="event.stopPropagation();">
+                                            <i class="bi bi-trash"></i>Delete
                                         </button>
                                     </div>
                                 </td>
@@ -382,8 +393,197 @@
     </div>
 </div>
 
+<?php
+    $circlesJsonData = $circles->getCollection()->map(function($c) {
+        $rankingData = $c->getCircleRanking();
+        $industryTags = $c->industry_tags;
+        if (is_array($industryTags)) {
+            $industryTagsText = implode(', ', array_filter($industryTags));
+        } else {
+            $industryTagsText = trim((string) $industryTags);
+        }
+        return [
+            'id' => (string)$c->id,
+            'name' => $c->name ?? '—',
+            'cover_image_url' => $c->cover_image_url,
+            'founder' => $c->founder?->display_name ?? '—',
+            'city' => $c->city_name ?? '—',
+            'country' => $c->country ?? $c->city?->country ?? 'India',
+            'type' => strtoupper($c->type ?? 'PUBLIC'),
+            'members_count' => $c->members_count ?? 0,
+            'rank' => $rankingData['rank'] ?? 'Bronze',
+            'rank_title' => $rankingData['title'] ?? 'Rising Circle',
+            'status' => ucfirst(strtolower($c->status ?? 'active')),
+            'director' => $c->director?->display_name ?? '—',
+            'circle_stage' => $c->circle_stage ?? '—',
+            'meeting_mode' => !empty($c->meeting_mode) ? ucfirst(strtolower($c->meeting_mode)) : '—',
+            'meeting_frequency' => !empty($c->meeting_frequency) ? ucfirst(strtolower($c->meeting_frequency)) : '—',
+            'launch_date' => !empty($c->launch_date) ? \Carbon\Carbon::parse($c->launch_date)->format('d M Y') : '—',
+            'industry_tags' => $industryTagsText !== '' ? $industryTagsText : '—',
+            'created_at' => optional($c->created_at)->format('d M Y') ?? '—',
+            'show_url' => route('admin.circles.show', $c),
+            'edit_url' => route('admin.circles.edit', $c),
+            'destroy_url' => route('admin.circles.destroy', $c),
+            'members_url' => route('admin.users.index', ['circle_id' => $c->id]),
+        ];
+    })->values();
+?>
+
+<!-- ============ CIRCLE PREVIEW DRAWER ============ -->
+<div id="circle-drawer-scrim" onclick="closeCircleDrawer()" class="scrim hidden fixed inset-0 bg-black/50 z-40"></div>
+<aside id="circle-drawer" class="drawer drawer-hidden fixed top-0 right-0 h-full w-full sm:w-[420px] bg-white border-l border-slate-200 z-50 flex flex-col shadow-2xl">
+  <div class="flex items-center justify-between px-5 h-16 border-b border-slate-200 flex-none bg-white">
+    <span class="font-display font-semibold text-[15px] text-slate-900">Circle profile</span>
+    <button onclick="closeCircleDrawer()" class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="flex-1 overflow-y-auto p-5 space-y-5 bg-white" id="circle-drawer-body">
+    <!-- filled by JS -->
+  </div>
+  <div class="flex-none p-4 border-t border-slate-200 bg-white flex gap-2">
+    <a id="circle-view-full-btn" href="#" class="flex-1 py-2.5 rounded-xl bg-[#00bcd4] hover:bg-[#00acc1] text-white text-[12.5px] font-semibold transition shadow-sm text-center border-0 cursor-pointer no-underline">View full circle</a>
+    <a id="circle-quick-edit-btn" href="#" class="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12.5px] font-semibold transition cursor-pointer no-underline">Quick edit</a>
+    <button type="button" id="circle-drawer-delete-btn" class="px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[12.5px] font-semibold transition cursor-pointer flex items-center gap-1 border-0">Delete</button>
+  </div>
+</aside>
+
 @push('scripts')
 <script>
+    const circlesData = @json($circlesJsonData);
+
+    function triggerCircleDeleteModal(url, name, members, id) {
+        const deleteModalEl = document.getElementById('deleteCircleModal');
+        if (!deleteModalEl) return;
+        const deleteModal = bootstrap.Modal.getInstance(deleteModalEl) || new bootstrap.Modal(deleteModalEl);
+        const deleteForm = document.getElementById('deleteCircleForm');
+        const nameEl = document.getElementById('deleteCircleName');
+        const membersEl = document.getElementById('deleteMembersCount');
+        const meetingsEl = document.getElementById('deleteMeetingsCount');
+        const relatedEl = document.getElementById('deleteRelatedCount');
+
+        deleteForm.setAttribute('action', url);
+        nameEl.textContent = name;
+        membersEl.textContent = members;
+        meetingsEl.textContent = 'Loading...';
+        relatedEl.textContent = 'Loading...';
+
+        deleteModal.show();
+
+        fetch(`/admin/circles/${id}/delete-stats`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    meetingsEl.textContent = data.meetings_count;
+                    relatedEl.textContent = data.related_count;
+                } else {
+                    meetingsEl.textContent = 'Error';
+                    relatedEl.textContent = 'Error';
+                }
+            })
+            .catch(err => {
+                meetingsEl.textContent = 'Error';
+                relatedEl.textContent = 'Error';
+            });
+    }
+
+    function openCircleDrawer(id) {
+        const c = circlesData.find(x => x.id === String(id));
+        if (!c) return;
+
+        document.getElementById('circle-view-full-btn').href = c.show_url;
+        document.getElementById('circle-quick-edit-btn').href = c.edit_url;
+
+        const deleteBtn = document.getElementById('circle-drawer-delete-btn');
+        if (deleteBtn) {
+            deleteBtn.onclick = function(e) {
+                e.preventDefault();
+                closeCircleDrawer();
+                triggerCircleDeleteModal(c.destroy_url, c.name, c.members_count, c.id);
+            };
+        }
+
+        const coverHtml = c.cover_image_url 
+            ? '<img src="' + c.cover_image_url + '" alt="' + c.name + '" class="w-full h-full object-cover"/>' 
+            : '<i class="bi bi-people text-slate-400 text-xl"></i>';
+
+        const statusClass = c.status === 'Active' 
+            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+            : 'bg-slate-100 text-slate-700 border border-slate-200';
+
+        const statusDot = c.status === 'Active' ? '• ' : '';
+
+        document.getElementById('circle-drawer-body').innerHTML = `
+            <div class="flex items-center gap-3.5 mb-2">
+                <div class="w-14 h-14 rounded-xl overflow-hidden flex-none border border-slate-200 bg-slate-100 flex items-center justify-center">
+                    ${coverHtml}
+                </div>
+                <div>
+                    <div class="font-display font-semibold text-[17px] text-slate-900">${c.name}</div>
+                    <div class="text-[12px] text-slate-400 font-mono mt-0.5">${c.city} • ${c.country}</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 mb-6">
+                <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full ${statusClass}">
+                    ${statusDot}${c.status}
+                </span>
+                <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 uppercase">
+                    ${c.type}
+                </span>
+                <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1">
+                    <i class="bi bi-trophy text-amber-500 text-xs"></i> ${c.rank}
+                </span>
+            </div>
+
+            <div class="space-y-5 text-[12.5px] pb-4">
+                <div>
+                    <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-indigo-600 mb-2 flex items-center gap-1.5">
+                        <span>⭕</span> CIRCLE INFO GROUP
+                    </div>
+                    <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
+                        <div class="flex justify-between gap-4"><span class="text-slate-400">Founder</span><span class="text-slate-800 font-medium">${c.founder}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">City</span><span class="text-slate-800 font-medium">${c.city}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Type</span><span class="text-slate-800 font-medium">${c.type}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Peers Count</span><a href="${c.members_url}" class="text-indigo-600 font-semibold no-underline">${c.members_count} members</a></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Meeting Mode</span><span class="text-slate-800 font-medium">${c.meeting_mode}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Meeting Frequency</span><span class="text-slate-800 font-medium">${c.meeting_frequency}</span></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-indigo-600 mb-2 flex items-center gap-1.5">
+                        <span>🌐</span> LEADERSHIP & REGION
+                    </div>
+                    <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
+                        <div class="flex justify-between"><span class="text-slate-400">Director</span><span class="text-slate-800 font-medium">${c.director}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Circle Stage</span><span class="text-slate-800 font-medium">${c.circle_stage}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Country</span><span class="text-slate-800 font-medium">${c.country}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Industry Tags</span><span class="text-slate-800 font-medium">${c.industry_tags}</span></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-amber-500 mb-2 flex items-center gap-1.5">
+                        <span>⭐</span> RANKING & DETAILS
+                    </div>
+                    <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
+                        <div class="flex justify-between"><span class="text-slate-400">Rank</span><span class="text-slate-800 font-medium">${c.rank} (${c.rank_title})</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Launch Date</span><span class="text-slate-800 font-medium">${c.launch_date}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">Created At</span><span class="text-slate-800 font-medium">${c.created_at}</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('circle-drawer').classList.remove('drawer-hidden');
+        document.getElementById('circle-drawer-scrim').classList.remove('hidden');
+    }
+
+    function closeCircleDrawer() {
+        document.getElementById('circle-drawer').classList.add('drawer-hidden');
+        document.getElementById('circle-drawer-scrim').classList.add('hidden');
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         const form = document.getElementById('circleFiltersForm');
 
@@ -409,68 +609,14 @@
             });
         }
 
-        const deleteButtons = document.querySelectorAll('.btn-delete-circle');
-        const deleteModalEl = document.getElementById('deleteCircleModal');
-        
-        if (deleteButtons.length && deleteModalEl) {
-            const deleteModal = new bootstrap.Modal(deleteModalEl);
-            const deleteForm = document.getElementById('deleteCircleForm');
-            const nameEl = document.getElementById('deleteCircleName');
-            const membersEl = document.getElementById('deleteMembersCount');
-            const meetingsEl = document.getElementById('deleteMeetingsCount');
-            const relatedEl = document.getElementById('deleteRelatedCount');
-
-            deleteButtons.forEach(button => {
-                button.addEventListener('click', function () {
-                    const url = this.getAttribute('data-url');
-                    const name = this.getAttribute('data-name');
-                    const members = this.getAttribute('data-members');
-                    const id = this.getAttribute('data-id');
-
-                    deleteForm.setAttribute('action', url);
-                    nameEl.textContent = name;
-                    membersEl.textContent = members;
-                    meetingsEl.textContent = 'Loading...';
-                    relatedEl.textContent = 'Loading...';
-
-                    deleteModal.show();
-
-                    // Fetch stats via AJAX
-                    fetch(`/admin/circles/${id}/delete-stats`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                meetingsEl.textContent = data.meetings_count;
-                                relatedEl.textContent = data.related_count;
-                            } else {
-                                meetingsEl.textContent = 'Error';
-                                relatedEl.textContent = 'Error';
-                            }
-                        })
-                        .catch(err => {
-                            meetingsEl.textContent = 'Error';
-                            relatedEl.textContent = 'Error';
-                        });
-                });
-            });
-        }
-
-        // Handle details toggle manual fallback to ensure it opens and closes properly
-        document.querySelectorAll('.btn-details-toggle').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                const targetId = this.getAttribute('data-bs-target');
-                const target = document.querySelector(targetId);
-                if (target) {
-                    const isVisible = target.classList.contains('show');
-                    if (isVisible) {
-                        target.classList.remove('show');
-                        this.setAttribute('aria-expanded', 'false');
-                    } else {
-                        target.classList.add('show');
-                        this.setAttribute('aria-expanded', 'true');
-                    }
-                }
+        document.querySelectorAll('.btn-delete-circle').forEach(button => {
+            button.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const url = this.getAttribute('data-url');
+                const name = this.getAttribute('data-name');
+                const members = this.getAttribute('data-members');
+                const id = this.getAttribute('data-id');
+                triggerCircleDeleteModal(url, name, members, id);
             });
         });
     });

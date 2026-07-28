@@ -22,8 +22,8 @@ class RequirementNotificationService
 
         $creatorName = $this->resolveUserName($creator);
         $subject = (string) ($requirement->subject ?? 'a requirement');
-        $title = 'Potential Business Match Found!';
-        $body = $creatorName.' is looking for: "'.$subject.'"';
+        $title = 'New Requirement Posted';
+        $body = 'A new business requirement has been posted in your network.';
 
         $notifiedCount = 0;
 
@@ -41,8 +41,12 @@ class RequirementNotificationService
                             [
                                 'title' => $title,
                                 'body' => $body,
+                                'navigation_screen' => '/requirements',
+                                'activity_type' => 'requirement',
+                                'type' => 'requirement',
                                 'notification_type' => 'requirement_created',
                                 'requirement_id' => (string) $requirement->id,
+                                'user_id' => (string) $creator->id,
                                 'person' => $creatorName,
                                 'requirement_title' => $subject,
                                 'requirement_subject' => $subject,
