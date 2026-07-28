@@ -52,6 +52,7 @@ class SendAllTestNotificationsCommand extends Command
                 ],
             ],
             [
+                
                 'type' => 'requirement',
                 'category' => 'business',
                 'title' => 'New Requirement Posted',

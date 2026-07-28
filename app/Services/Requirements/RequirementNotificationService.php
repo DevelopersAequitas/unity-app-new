@@ -8,6 +8,7 @@ use App\Services\Notifications\NotifyUserService;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
+
 class RequirementNotificationService
 {
     public function __construct(private readonly NotifyUserService $notifyUserService) {}
