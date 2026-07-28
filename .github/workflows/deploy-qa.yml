@@ -45,9 +45,20 @@ jobs:
             php artisan view:cache
             php artisan queue:restart
             php artisan reverb:restart
-            if [ -d "../public_html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css ../public_html/css/; fi
-            if [ -d "/var/www/html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css /var/www/html/css/; fi
-            ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public public/storage
-            if [ -d "../public_html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public ../public_html/storage; fi
-            if [ -d "/var/www/html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public /var/www/html/storage; fi
+            echo "=== AUDIT PHASE 2: DEV SERVER CONFIG & ROOT ==="
+            pwd
+            whoami
+            php -r "echo 'Base path: ' . base_path() . PHP_EOL;"
+            echo "--- NGINX / APACHE VHOST CHECK ---"
+            nginx -T 2>/dev/null | grep -n -A15 -B5 "dev.peersunity.com" || apache2ctl -S 2>/dev/null || httpd -S 2>/dev/null || true
+            echo "--- DIRECTORY LISTINGS ---"
+            ls -la /home/devunity || true
+            ls -la /home/devunity/laravel || true
+            ls -la /home/devunity/laravel/public || true
+            ls -la ../public_html 2>/dev/null || true
+            ls -la /var/www/html 2>/dev/null || true
+
+            echo "=== AUDIT PHASE 3: VERIFY FILE STORAGE & ADS IN DB ==="
+            php artisan tinker --execute="App\Models\Ad::query()->select('id','title','image_path')->get()->each(fn (\$ad) => dump(['id' => \$ad->id, 'title' => \$ad->title, 'image_path' => \$ad->image_path, 'image_url' => \$ad->image_url]));" || true
+            find storage/app/public/ads -maxdepth 1 -type f -printf '%f %s bytes\n' 2>/dev/null || true
 
