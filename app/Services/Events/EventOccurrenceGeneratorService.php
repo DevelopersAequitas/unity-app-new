@@ -19,6 +19,58 @@ class EventOccurrenceGeneratorService
             $starts = $this->buildStarts($event);
             $durationSeconds = max(0, CarbonImmutable::parse($event->end_at ?? $event->start_at)->diffInSeconds(CarbonImmutable::parse($event->start_at), true));
             $created = collect();
+            $type = $event->recurrence_type ?: 'none';
+
+            if ($type === 'none') {
+                $occurrenceStart = $starts[0] ?? CarbonImmutable::parse($event->start_at);
+                $occurrenceEnd = $durationSeconds > 0 ? $occurrenceStart->addSeconds($durationSeconds) : null;
+                $occurrenceDate = $occurrenceStart->toDateString();
+
+                $allOccurrences = $event->occurrences()->withTrashed()->get();
+
+                $primaryOccurrence = $allOccurrences->first(fn ($occ) => $occ->registrations()->exists())
+                    ?? $allOccurrences->firstWhere('occurrence_date', $occurrenceDate)
+                    ?? $allOccurrences->first();
+
+                $payload = [
+                    'event_id' => $event->id,
+                    'occurrence_date' => $occurrenceDate,
+                    'start_at' => $occurrenceStart,
+                    'end_at' => $occurrenceEnd,
+                    'status' => 'scheduled',
+                ];
+
+                if ($primaryOccurrence) {
+                    $primaryOccurrence->fill($payload);
+                    if ($primaryOccurrence->trashed()) {
+                        $primaryOccurrence->restore();
+                    }
+                    $primaryOccurrence->save();
+                    $created->push($primaryOccurrence);
+
+                    foreach ($allOccurrences as $extra) {
+                        if ($extra->id !== $primaryOccurrence->id && ! $extra->registrations()->exists()) {
+                            $extra->forceDelete();
+                        }
+                    }
+                } else {
+                    $sequence = (int) $event->occurrences()->withTrashed()->max('sequence') + 1;
+                    $payload['sequence'] = $sequence;
+                    if (Schema::hasColumn('event_occurrences', 'registration_limit')) {
+                        $payload['registration_limit'] = $event->registration_limit;
+                    }
+                    if (Schema::hasColumn('event_occurrences', 'registered_count')) {
+                        $payload['registered_count'] = 0;
+                    }
+                    if (Schema::hasColumn('event_occurrences', 'checked_in_count')) {
+                        $payload['checked_in_count'] = 0;
+                    }
+                    $created->push(EventOccurrence::query()->create($payload));
+                }
+
+                return $created;
+            }
+
             $sequence = (int) $event->occurrences()->withTrashed()->max('sequence');
 
             foreach ($starts as $occurrenceStart) {
@@ -71,10 +123,26 @@ class EventOccurrenceGeneratorService
     public function regenerateFuture(Event $event): Collection
     {
         return DB::transaction(function () use ($event): Collection {
-            $event->occurrences()
-                ->where('start_at', '>=', now())
-                ->whereDoesntHave('registrations')
-                ->delete();
+            $type = $event->recurrence_type ?: 'none';
+
+            if ($type === 'none') {
+                $allOccurrences = $event->occurrences()->get();
+                if ($allOccurrences->count() > 1) {
+                    $keepId = $allOccurrences->first(fn ($occ) => $occ->registrations()->exists())?->id
+                        ?? $allOccurrences->firstWhere('occurrence_date', CarbonImmutable::parse($event->start_at)->toDateString())?->id
+                        ?? $allOccurrences->first()?->id;
+
+                    $event->occurrences()
+                        ->where('id', '!=', $keepId)
+                        ->whereDoesntHave('registrations')
+                        ->delete();
+                }
+            } else {
+                $event->occurrences()
+                    ->where('start_at', '>=', now())
+                    ->whereDoesntHave('registrations')
+                    ->delete();
+            }
 
             return $this->generate($event);
         });

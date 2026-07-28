@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(CategorySeeder::class);
+        $this->call(BrandPartnerCategorySeeder::class);
         $this->call(AdSeeder::class);
         $this->call(DailyNotificationReminderSeeder::class);
         $this->call(GreenpreneurAppConfigSeeder::class);

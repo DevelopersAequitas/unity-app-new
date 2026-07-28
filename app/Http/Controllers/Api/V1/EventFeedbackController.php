@@ -25,7 +25,7 @@ class EventFeedbackController extends BaseApiController
         $registeredEventIds = EventRegistration::where('user_id', $userId)
             ->where(function ($q) {
                 $q->whereNotNull('checked_in_at')
-                  ->orWhere('checkin_status', 'checked_in');
+                    ->orWhere('checkin_status', 'checked_in');
             })
             ->pluck('event_id');
 
@@ -53,7 +53,7 @@ class EventFeedbackController extends BaseApiController
             ->orderByDesc('end_at')
             ->first(['id', 'title', 'start_at', 'end_at', 'location_text']);
 
-        if (!$pendingEvent) {
+        if (! $pendingEvent) {
             return $this->success(null, 'No pending feedbacks.');
         }
 
@@ -64,7 +64,7 @@ class EventFeedbackController extends BaseApiController
                 'start_at' => $pendingEvent->start_at,
                 'end_at' => $pendingEvent->end_at,
                 'location_text' => $pendingEvent->location_text,
-            ]
+            ],
         ], 'Pending event feedback found.');
     }
 
@@ -93,15 +93,15 @@ class EventFeedbackController extends BaseApiController
             ->where('event_id', $eventId)
             ->where(function ($q) {
                 $q->whereNotNull('checked_in_at')
-                  ->orWhere('checkin_status', 'checked_in');
+                    ->orWhere('checkin_status', 'checked_in');
             })
             ->exists()
             || EventRsvp::where('user_id', $userId)
-            ->where('event_id', $eventId)
-            ->where('checked_in', true)
-            ->exists();
+                ->where('event_id', $eventId)
+                ->where('checked_in', true)
+                ->exists();
 
-        if (!$attended) {
+        if (! $attended) {
             return $this->error('You must attend the event to submit feedback.', 403);
         }
 
@@ -115,7 +115,7 @@ class EventFeedbackController extends BaseApiController
         }
 
         $user = auth()->user();
-        $displayName = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+        $displayName = $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
         if (empty($displayName)) {
             $displayName = 'Peer Member';
         }
@@ -166,7 +166,7 @@ class EventFeedbackController extends BaseApiController
     public function eventFeedbacks(Request $request, string $eventId): JsonResponse
     {
         $event = Event::query()->find($eventId);
-        if (!$event) {
+        if (! $event) {
             return $this->error('Event not found.', 404);
         }
 

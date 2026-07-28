@@ -48,6 +48,9 @@
         $peerName = $displayName($peer->display_name ?? null, $peer->first_name ?? null, $peer->last_name ?? null);
     @endphp
 
+    <!-- Activities Hub Header -->
+    @include('admin.activities.partials.header', ['title' => 'Leadership Requests'])
+
     <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div>

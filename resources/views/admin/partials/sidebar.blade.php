@@ -78,16 +78,16 @@
             ]);
 
     $fullActivityMenu = [
-        ['label' => 'Summary', 'route' => 'admin.activities.index'],
-        ['label' => 'Testimonials', 'route' => 'admin.activities.testimonials.index'],
-        ['label' => 'Requirements', 'route' => 'admin.activities.requirements.index'],
-        ['label' => 'Referrals', 'route' => 'admin.activities.referrals.index'],
-        ['label' => 'P2P Meetings', 'route' => 'admin.activities.p2p-meetings.index'],
-        ['label' => 'Business Deals', 'route' => 'admin.activities.business-deals.index'],
-        ['label' => 'Leadership Requests', 'route' => 'admin.activities.become-a-leader.index'],
-        ['label' => 'Recommended Peers', 'route' => 'admin.activities.recommend-peer.index'],
-        ['label' => 'Collaborations', 'route' => 'admin.collaborations.index'],
-        ['label' => 'Registered Visitor', 'route' => 'admin.activities.register-visitor.index'],
+        ['label' => 'Summary', 'route' => 'admin.activities.index', 'active_routes' => ['admin.activities.index']],
+        ['label' => 'Testimonials', 'route' => 'admin.activities.testimonials.index', 'active_routes' => ['admin.activities.testimonials*']],
+        ['label' => 'Requirements', 'route' => 'admin.activities.requirements.index', 'active_routes' => ['admin.activities.requirements*']],
+        ['label' => 'Referrals', 'route' => 'admin.activities.referrals.index', 'active_routes' => ['admin.activities.referrals*']],
+        ['label' => 'P2P Meetings', 'route' => 'admin.activities.p2p-meetings.index', 'active_routes' => ['admin.activities.p2p-meetings*']],
+        ['label' => 'Business Deals', 'route' => 'admin.activities.business-deals.index', 'active_routes' => ['admin.activities.business-deals*']],
+        ['label' => 'Leadership Requests', 'route' => 'admin.activities.become-a-leader.index', 'active_routes' => ['admin.activities.become-a-leader*']],
+        ['label' => 'Recommended Peers', 'route' => 'admin.activities.recommend-peer.index', 'active_routes' => ['admin.activities.recommend-peer*']],
+        ['label' => 'Collaborations', 'route' => 'admin.collaborations.index', 'active_routes' => ['admin.collaborations*']],
+        ['label' => 'Registered Visitor', 'route' => 'admin.activities.register-visitor.index', 'active_routes' => ['admin.activities.register-visitor*']],
     ];
 
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
@@ -98,7 +98,7 @@
         }));
     }
 
-    $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
+    $activityActive = request()->routeIs('admin.activities*') || request()->routeIs('admin.collaborations*');
     $referralReportItem = (! $isCircleCommittee && ($isSuper || $isCircleScoped || $isDed || $isIndustryDirector))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
@@ -316,7 +316,7 @@
                         <ul class="nav flex-column ms-3">
                             @foreach ($activityMenu as $item)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                    <a class="nav-link {{ (isset($item['active_routes']) ? request()->routeIs(...$item['active_routes']) : request()->routeIs($item['route'])) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                                         {{ $item['label'] }}
                                     </a>
                                 </li>
