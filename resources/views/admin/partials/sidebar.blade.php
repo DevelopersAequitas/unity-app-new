@@ -507,6 +507,26 @@
                             </div>
                         </li>
                     @endif
+                @elseif ($item['label'] === 'Peers')
+                    @php
+                        $peersActive = request()->routeIs('admin.users.*');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $peersActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex justify-content-between align-items-center {{ $peersActive ? 'active' : '' }}" href="#peersSubmenu" role="button" aria-expanded="{{ $peersActive ? 'true' : 'false' }}" aria-controls="peersSubmenu">
+                            <span><i class="bi bi-people me-2"></i>Peers</span>
+                            <i class="bi bi-chevron-right menu-arrow"></i>
+                        </a>
+                        <div class="collapse {{ $peersActive ? 'show' : '' }}" id="peersSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.users.index') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">All Peers</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ request()->routeIs('admin.users.upcoming-events') ? 'active' : '' }}" href="{{ route('admin.users.upcoming-events') }}">Upcoming Birthdays &amp; Anniversaries</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
                 @else
                     <li class="nav-item">
                         @if ($item['route'] === '#')
