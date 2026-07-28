@@ -113,20 +113,27 @@ class NotificationService
 
         $this->postNotificationRecipientQuery($post)
             ->select('users.*')
-            ->chunkById(100, function ($users) use ($post, $authorName, $body, $dedupeKeyPrefix, &$summary): void {
+            ->chunkById(100, function ($users) use ($post, $authorName, $dedupeKeyPrefix, &$summary): void {
                 foreach ($users as $user) {
                     $summary['recipients_count']++;
 
                     $notification = $this->sendToUser(
                         $user,
                         'new_post',
-                        'New post by '.$authorName,
-                        $body,
+                        'New Post Published',
+                        $authorName.' published a new post.',
                         [
+                            'title' => 'New Post Published',
+                            'body' => $authorName.' published a new post.',
+                            'navigation_screen' => '/member-profile',
+                            'type' => 'new_post',
+                            'user_id' => (string) $post->user_id,
+                            'member_id' => (string) $post->user_id,
+                            'author_id' => (string) $post->user_id,
                             'post_id' => (string) $post->id,
                             'actor_id' => (string) $post->user_id,
-                            'screen' => 'post_detail',
-                            'tap_destination' => 'post_detail',
+                            'screen' => '/member-profile',
+                            'tap_destination' => '/member-profile',
                             'reference_type' => 'post',
                             'reference_id' => (string) $post->id,
                         ],

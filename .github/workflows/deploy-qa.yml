@@ -31,20 +31,61 @@ jobs:
             git reset --hard origin/develop
             git rev-parse HEAD
             git status --short
-            grep -n "admin-sidebar .collapse.show" public/css/admin.css || true
-            stat public/css/admin.css
             composer install \
                 --no-dev \
                 --prefer-dist \
                 --optimize-autoloader \
                 --no-interaction
             php artisan migrate --force
+
+            TARGET="$(readlink -f storage/app/public)"
+            LINK="public/storage"
+
+            mkdir -p storage/app/public/ads
+
+            if [ -L "$LINK" ]; then
+                CURRENT="$(readlink -f "$LINK" || true)"
+                if [ "$CURRENT" != "$TARGET" ]; then
+                    rm "$LINK"
+                    ln -s "$TARGET" "$LINK"
+                fi
+            elif [ -d "$LINK" ]; then
+                echo "Notice: $LINK is a real directory. Migrating files to $TARGET and creating backup."
+                cp -a public/storage/. storage/app/public/
+                BACKUP="public/storage_backup_$(date +%Y%m%d_%H%M%S)"
+                mv public/storage "$BACKUP"
+                echo "Backed up real directory to $BACKUP"
+                ln -s "$TARGET" "$LINK"
+            else
+                ln -s "$TARGET" "$LINK"
+            fi
+
+            FINAL="$(readlink -f "$LINK" || true)"
+
+            if [ "$FINAL" != "$TARGET" ]; then
+                echo "ERROR: storage symlink verification failed"
+                echo "Expected: $TARGET"
+                echo "Actual:   $FINAL"
+                exit 1
+            fi
+
+            mkdir -p storage/app/public/ads
+            mkdir -p storage/framework/cache
+            mkdir -p storage/framework/sessions
+            mkdir -p storage/framework/views
+            mkdir -p bootstrap/cache
+
+            chmod -R ug+rwX,o+rX storage/app/public || true
+            chmod -R ug+rwX storage/app storage/framework bootstrap/cache || true
+
             php artisan optimize:clear
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
             php artisan queue:restart
             php artisan reverb:restart
-            if [ -d "../public_html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css ../public_html/css/; fi
-            if [ -d "/var/www/html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css /var/www/html/css/; fi
-
+            if [ -d "../public_html/css" ] && [ -w "../public_html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css ../public_html/css/; fi
+            if [ -d "/var/www/html/css" ] && [ -w "/var/www/html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css /var/www/html/css/; fi
+            php artisan storage:link --force || true
+            if [ -d "../public_html" ] && [ -w "../public_html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public ../public_html/storage || true; fi
+            if [ -d "/var/www/html" ] && [ -w "/var/www/html" ]; then ln -sfn ${{ secrets.QA_DEPLOY_PATH }}/storage/app/public /var/www/html/storage || true; fi

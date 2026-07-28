@@ -80,11 +80,11 @@ class Ad extends Model
             return $path;
         }
 
-        if (! Storage::disk('public')->exists($path)) {
-            return null;
+        if (! Str::contains($path, '/') && ! Storage::disk('public')->exists($path) && Storage::disk('public')->exists('ads/'.$path)) {
+            $path = 'ads/'.$path;
         }
 
-        return Storage::disk('public')->url($path);
+        return asset('storage/'.ltrim($path, '/'));
     }
 
     public function setImagePathAttribute($value): void

@@ -25,11 +25,14 @@ class MembershipExpiryNotification extends Notification
             ? $this->user->membership_ends_at->format('d M Y')
             : '';
 
-        return [
-            'notification_type' => 'membership_expired',
-            'title' => 'Membership Expired – Action Required',
-            'body' => "Dear {$this->user->display_name}, your membership with Peers Global Unity has expired as of {$formattedDate}. Please renew your membership.",
+        return array_filter([
+            'title' => 'Membership Expiring Soon',
+            'body' => $formattedDate ? "Your membership will expire on {$formattedDate}. Tap to renew now." : 'Your membership will expire soon. Tap to renew now.',
+            'navigation_screen' => '/profile',
+            'type' => 'membership_expiry',
+            'activity_type' => 'membership_expiry',
+            'user_id' => (string) $this->user->id,
             'membership_ends_at' => $this->user->membership_ends_at ? $this->user->membership_ends_at->toIso8601String() : null,
-        ];
+        ], fn ($value) => $value !== null && $value !== '');
     }
 }
