@@ -23,9 +23,18 @@ class CircleJoinRequestController extends BaseApiController
 
         if (! $circleId) {
             $categoryId = $request->validated('category_id');
-            $circleId = DB::table('circle_category_mappings')
-                ->where('category_id', $categoryId)
-                ->value('circle_id');
+
+            if (! $categoryId && $request->validated('level4_category_id')) {
+                $categoryId = DB::table('circle_category_level4')
+                    ->where('id', $request->validated('level4_category_id'))
+                    ->value('circle_category_id');
+            }
+
+            if ($categoryId) {
+                $circleId = DB::table('circle_category_mappings')
+                    ->where('category_id', $categoryId)
+                    ->value('circle_id');
+            }
         }
 
         if (! $circleId) {
@@ -40,12 +49,19 @@ class CircleJoinRequestController extends BaseApiController
 
         try {
             $reason = $request->validated('reason') ?? $request->validated('reason_for_joining');
+            $categoryId = $request->validated('category_id');
+            if (! $categoryId) {
+                $categoryId = DB::table('circle_category_mappings')
+                    ->where('circle_id', $circle->id)
+                    ->value('category_id');
+            }
+
             $record = $this->service->submitRequest(
                 $request->user(),
                 $circle,
                 $reason,
                 [
-                    'level1_category_id' => $request->validated('category_id'),
+                    'level1_category_id' => $categoryId,
                     'level4_category_id' => $request->validated('level4_category_id'),
                 ]
             );
