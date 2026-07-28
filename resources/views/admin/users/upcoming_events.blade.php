@@ -219,59 +219,64 @@
             $peer = $item['peer'];
             $days = $item['days_remaining'];
           @endphp
-          <div class="event-card p-4 flex flex-col justify-between">
-            <div>
+          <div class="event-card p-4 flex flex-col justify-between h-full">
+            <div class="flex flex-col flex-grow">
+              <!-- Card Header -->
               <div class="flex items-start justify-between gap-3 mb-3">
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 min-w-0 flex-1">
                   @if($item['avatar_url'])
-                    <img src="{{ $item['avatar_url'] }}" alt="{{ $item['full_name'] }}" class="avatar-img" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'avatar-placeholder\'>{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>';"/>
+                    <img src="{{ $item['avatar_url'] }}" alt="{{ $item['full_name'] }}" class="avatar-img flex-none" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'avatar-placeholder flex-none\'>{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>';"/>
                   @else
-                    <div class="avatar-placeholder">{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>
+                    <div class="avatar-placeholder flex-none">{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>
                   @endif
-                  <div>
-                    <h4 class="text-sm font-semibold t1 m-0">{{ $item['full_name'] }}</h4>
+                  <div class="min-w-0 flex-1">
+                    <h4 class="text-sm font-semibold t1 m-0 truncate" title="{{ $item['full_name'] }}">{{ $item['full_name'] }}</h4>
                     @if($item['company_name'])
-                      <div class="text-xs t2 font-medium truncate max-w-[180px]">{{ $item['company_name'] }}</div>
+                      <div class="text-xs t2 font-medium truncate" title="{{ $item['company_name'] }}">{{ $item['company_name'] }}</div>
                     @endif
                     @if($item['city_name'])
-                      <div class="text-[11px] t3 flex items-center gap-1">
-                        <span>📍</span> {{ $item['city_name'] }}
+                      <div class="text-[11px] t3 flex items-center gap-1 truncate mt-0.5" title="{{ $item['city_name'] }}">
+                        <span>📍</span> <span class="truncate">{{ $item['city_name'] }}</span>
                       </div>
                     @endif
                   </div>
                 </div>
 
-                <!-- Days Badge -->
-                <div>
+                <!-- Badges Column -->
+                <div class="flex flex-col items-end gap-1.5 flex-none shrink-0">
                   @if($days === 0)
-                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white animate-pulse">Today! 🎈</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-white animate-pulse">Today! 🎈</span>
                   @elseif($days === 1)
-                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-white">Tomorrow</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white">Tomorrow</span>
                   @else
-                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">In {{ $days }} days</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-700">In {{ $days }} days</span>
                   @endif
+
+                  <span class="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-pink-50 text-pink-700 border border-pink-200">🎂 Birthday</span>
                 </div>
               </div>
 
-              <div class="border-t bs pt-3 mt-1 space-y-1.5 text-xs">
-                <div class="flex justify-between items-center">
-                  <span class="t3">Date of Birth:</span>
-                  <span class="t1 font-medium">{{ $item['original_date_formatted'] }}</span>
+              <!-- Card Body (Label/Value list) -->
+              <div class="border-t bs pt-3 mt-1 space-y-2 text-xs flex-grow">
+                <div class="flex justify-between items-center py-0.5">
+                  <span class="t3 font-medium text-left">Date of Birth:</span>
+                  <span class="t1 font-medium text-right truncate ml-2">{{ $item['original_date_formatted'] }}</span>
                 </div>
-                <div class="flex justify-between items-center">
-                  <span class="t3">Upcoming Birthday:</span>
-                  <span class="t1 font-semibold text-indigo-600">{{ $item['upcoming_date_formatted'] }}</span>
+                <div class="flex justify-between items-center py-0.5">
+                  <span class="t3 font-medium text-left">Upcoming Birthday:</span>
+                  <span class="t1 font-semibold text-indigo-600 text-right truncate ml-2">{{ $item['upcoming_date_formatted'] }}</span>
                 </div>
                 @if($item['turning_age'])
-                  <div class="flex justify-between items-center">
-                    <span class="t3">Completing Age:</span>
-                    <span class="t1 font-bold text-amber-600">{{ $item['turning_age'] }} Years</span>
+                  <div class="flex justify-between items-center py-0.5">
+                    <span class="t3 font-medium text-left">Completing Age:</span>
+                    <span class="t1 font-bold text-amber-600 text-right truncate ml-2">{{ $item['turning_age'] }} Years</span>
                   </div>
                 @endif
               </div>
             </div>
 
-            <div class="mt-4 pt-3 border-t bs flex justify-end">
+            <!-- Card Footer -->
+            <div class="mt-auto pt-3 border-t bs flex justify-end items-center">
               <a href="{{ route('admin.users.show', $peer->id) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-medium t2 hover:t1 hover:surface-2 transition text-decoration-none flex items-center gap-1">
                 <span>View Peer</span> ➔
               </a>
@@ -287,63 +292,68 @@
             $peer = $item['peer'];
             $days = $item['days_remaining'];
           @endphp
-          <div class="event-card p-4 flex flex-col justify-between">
-            <div>
+          <div class="event-card p-4 flex flex-col justify-between h-full">
+            <div class="flex flex-col flex-grow">
+              <!-- Card Header -->
               <div class="flex items-start justify-between gap-3 mb-3">
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 min-w-0 flex-1">
                   @if($item['avatar_url'])
-                    <img src="{{ $item['avatar_url'] }}" alt="{{ $item['full_name'] }}" class="avatar-img" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'avatar-placeholder\'>{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>';"/>
+                    <img src="{{ $item['avatar_url'] }}" alt="{{ $item['full_name'] }}" class="avatar-img flex-none" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'avatar-placeholder flex-none\'>{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>';"/>
                   @else
-                    <div class="avatar-placeholder">{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>
+                    <div class="avatar-placeholder flex-none">{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>
                   @endif
-                  <div>
-                    <h4 class="text-sm font-semibold t1 m-0">{{ $item['full_name'] }}</h4>
+                  <div class="min-w-0 flex-1">
+                    <h4 class="text-sm font-semibold t1 m-0 truncate" title="{{ $item['full_name'] }}">{{ $item['full_name'] }}</h4>
                     @if($item['company_name'])
-                      <div class="text-xs t2 font-medium truncate max-w-[180px]">{{ $item['company_name'] }}</div>
+                      <div class="text-xs t2 font-medium truncate" title="{{ $item['company_name'] }}">{{ $item['company_name'] }}</div>
                     @endif
                     @if($item['city_name'])
-                      <div class="text-[11px] t3 flex items-center gap-1">
-                        <span>📍</span> {{ $item['city_name'] }}
+                      <div class="text-[11px] t3 flex items-center gap-1 truncate mt-0.5" title="{{ $item['city_name'] }}">
+                        <span>📍</span> <span class="truncate">{{ $item['city_name'] }}</span>
                       </div>
                     @endif
                   </div>
                 </div>
 
-                <!-- Days Badge -->
-                <div>
+                <!-- Badges Column -->
+                <div class="flex flex-col items-end gap-1.5 flex-none shrink-0">
                   @if($days === 0)
-                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white animate-pulse">Today! 💐</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-white animate-pulse">Today! 💐</span>
                   @elseif($days === 1)
-                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-white">Tomorrow</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white">Tomorrow</span>
                   @else
-                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">In {{ $days }} days</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-700">In {{ $days }} days</span>
                   @endif
+
+                  <span class="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-50 text-amber-700 border border-amber-200">💍 Anniversary</span>
                 </div>
               </div>
 
-              <div class="border-t bs pt-3 mt-1 space-y-1.5 text-xs">
-                <div class="flex justify-between items-center">
-                  <span class="t3">Anniversary Type:</span>
-                  <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">{{ $item['anniversary_label'] }}</span>
+              <!-- Card Body (Label/Value list) -->
+              <div class="border-t bs pt-3 mt-1 space-y-2 text-xs flex-grow">
+                <div class="flex justify-between items-center py-0.5">
+                  <span class="t3 font-medium text-left">Anniversary Type:</span>
+                  <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 text-right truncate ml-2">{{ $item['anniversary_label'] }}</span>
                 </div>
-                <div class="flex justify-between items-center">
-                  <span class="t3">Original Date:</span>
-                  <span class="t1 font-medium">{{ $item['original_date_formatted'] }}</span>
+                <div class="flex justify-between items-center py-0.5">
+                  <span class="t3 font-medium text-left">Original Date:</span>
+                  <span class="t1 font-medium text-right truncate ml-2">{{ $item['original_date_formatted'] }}</span>
                 </div>
-                <div class="flex justify-between items-center">
-                  <span class="t3">Upcoming Date:</span>
-                  <span class="t1 font-semibold text-purple-600">{{ $item['upcoming_date_formatted'] }}</span>
+                <div class="flex justify-between items-center py-0.5">
+                  <span class="t3 font-medium text-left">Upcoming Anniversary:</span>
+                  <span class="t1 font-semibold text-purple-600 text-right truncate ml-2">{{ $item['upcoming_date_formatted'] }}</span>
                 </div>
                 @if($item['completed_years'])
-                  <div class="flex justify-between items-center">
-                    <span class="t3">Completed Milestone:</span>
-                    <span class="t1 font-bold text-emerald-600">{{ $item['completed_years'] }} Years</span>
+                  <div class="flex justify-between items-center py-0.5">
+                    <span class="t3 font-medium text-left">Completed Years:</span>
+                    <span class="t1 font-bold text-emerald-600 text-right truncate ml-2">{{ $item['completed_years'] }} Years</span>
                   </div>
                 @endif
               </div>
             </div>
 
-            <div class="mt-4 pt-3 border-t bs flex justify-end">
+            <!-- Card Footer -->
+            <div class="mt-auto pt-3 border-t bs flex justify-end items-center">
               <a href="{{ route('admin.users.show', $peer->id) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-medium t2 hover:t1 hover:surface-2 transition text-decoration-none flex items-center gap-1">
                 <span>View Peer</span> ➔
               </a>
@@ -354,7 +364,7 @@
     @endif
 
     <!-- Pagination -->
-    <div class="mt-4 flex justify-between items-center">
+    <div class="mt-4 flex flex-wrap justify-between items-center gap-3">
       <div class="text-xs t3">
         Showing {{ $paginatedRecords->firstItem() ?? 0 }} to {{ $paginatedRecords->lastItem() ?? 0 }} of {{ $paginatedRecords->total() }} entries
       </div>
