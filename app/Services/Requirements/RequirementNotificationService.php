@@ -2,6 +2,7 @@
 
 namespace App\Services\Requirements;
 
+use App\Models\Post;
 use App\Models\Requirement;
 use App\Models\User;
 use App\Services\Notifications\NotifyUserService;
@@ -14,7 +15,7 @@ class RequirementNotificationService
 
     public function notifyRequirementCreated(Requirement $requirement): int
     {
-        $creator = $requirement->user;
+        $creator = $requirement->user ?? User::find($requirement->user_id);
 
         if (! $creator) {
             return 0;
@@ -27,11 +28,19 @@ class RequirementNotificationService
 
         $notifiedCount = 0;
 
+        $postId = Post::query()
+            ->where('source_id', $requirement->id)
+            ->whereIn('source_type', ['requirement', 'requirements'])
+            ->latest('created_at')
+            ->value('id');
+
+        $effectivePostId = (string) ($postId ?? $requirement->id);
+
         User::query()
             ->where('id', '!=', $creator->id)
             ->whereNull('deleted_at')
             ->orderBy('id')
-            ->chunkById(500, function ($users) use ($creator, $requirement, $creatorName, $subject, $title, $body, &$notifiedCount): void {
+            ->chunkById(500, function ($users) use ($creator, $requirement, $creatorName, $subject, $title, $body, $effectivePostId, &$notifiedCount): void {
                 foreach ($users as $user) {
                     try {
                         $notification = $this->notifyUserService->notifyUser(
@@ -45,7 +54,7 @@ class RequirementNotificationService
                                 'activity_type' => 'requirement',
                                 'type' => 'requirement',
                                 'notification_type' => 'requirement_created',
-                                'post_id' => (string) $requirement->id,
+                                'post_id' => $effectivePostId,
                                 'requirement_id' => (string) $requirement->id,
                                 'user_id' => (string) $creator->id,
                                 'person' => $creatorName,

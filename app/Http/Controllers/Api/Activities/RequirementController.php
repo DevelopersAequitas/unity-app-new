@@ -8,12 +8,17 @@ use App\Http\Requests\Activities\StoreRequirementRequest;
 use App\Models\Post;
 use App\Models\Requirement;
 use App\Services\Coins\CoinsService;
+use App\Services\Requirements\RequirementNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class RequirementController extends BaseApiController
 {
+    public function __construct(
+        private readonly RequirementNotificationService $requirementNotificationService
+    ) {}
+
     protected function addUrlsToMedia(?array $media): array
     {
         if (empty($media)) {
@@ -130,6 +135,16 @@ class RequirementController extends BaseApiController
 
             // NEW: auto-create post (do NOT award coins again)
             $this->createPostForRequirement($requirement);
+
+            try {
+                $requirement->load('user');
+                $this->requirementNotificationService->notifyRequirementCreated($requirement);
+            } catch (Throwable $notificationException) {
+                Log::error('Requirement notification failed', [
+                    'requirement_id' => (string) $requirement->id,
+                    'error' => $notificationException->getMessage(),
+                ]);
+            }
 
             event(new ActivityCreated(
                 'Requirement',

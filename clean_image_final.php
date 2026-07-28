@@ -1,33 +1,35 @@
 <?php
+
 require 'vendor/autoload.php';
 $app = require_once 'bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\AnniversaryTemplate;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Storage;
 
 $template = AnniversaryTemplate::where('is_active', true)->first();
-if (!$template) {
-    die("No active template found.\n");
+if (! $template) {
+    exit("No active template found.\n");
 }
 
 $disk = config('filesystems.default', 'public');
-if (!Storage::disk($disk)->exists($template->image_path)) {
-    die("File does not exist in storage.\n");
+if (! Storage::disk($disk)->exists($template->image_path)) {
+    exit("File does not exist in storage.\n");
 }
 
 $realPath = Storage::disk($disk)->path($template->image_path);
-$cleanSource = "C:\\Users\\DEll\\.gemini\\antigravity-ide\\brain\\e3327d0e-ee58-4b72-9713-5458adfb8b6f\\media__1785220893759.jpg";
+$cleanSource = 'C:\\Users\\DEll\\.gemini\\antigravity-ide\\brain\\e3327d0e-ee58-4b72-9713-5458adfb8b6f\\media__1785220893759.jpg';
 
-if (!file_exists($cleanSource)) {
-    die("Clean source file not found.\n");
+if (! file_exists($cleanSource)) {
+    exit("Clean source file not found.\n");
 }
 
 // Load clean source image
 $im = imagecreatefromjpeg($cleanSource);
-if (!$im) {
-    die("Failed to load clean source image.\n");
+if (! $im) {
+    exit("Failed to load clean source image.\n");
 }
 
 $white = imagecolorallocate($im, 255, 255, 255);
