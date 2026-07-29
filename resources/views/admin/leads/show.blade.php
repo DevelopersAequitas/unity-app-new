@@ -18,6 +18,26 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h4 mb-0 fw-bold">{{ $resource['menu_label'] }} Details</h1>
         <div class="d-flex gap-2 align-items-center">
+            @if (in_array($resource['key'], ['leadership_certification', 'entrepreneur_certification'], true))
+                @php
+                    $certSubmission = \App\Models\CertificationSubmission::find($item->id);
+                @endphp
+                @if ($certSubmission && $certSubmission->status === \App\Models\CertificationSubmission::STATUS_NEW)
+                    <form method="POST" action="{{ route('admin.certifications.approve', $certSubmission->id) }}" class="d-inline">
+                        @csrf
+                        <button type="submit" class="btn btn-success d-inline-flex align-items-center gap-1">
+                            <i class="bi bi-check-circle"></i> Approve & Generate Certificate
+                        </button>
+                    </form>
+                    <button type="button" class="btn btn-outline-danger d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#rejectCertificationModal">
+                        <i class="bi bi-x-circle"></i> Reject
+                    </button>
+                @elseif ($certSubmission && $certSubmission->status === \App\Models\CertificationSubmission::STATUS_APPROVED)
+                    <a href="{{ route('admin.certifications.certificate', $certSubmission->id) }}" target="_blank" rel="noopener" class="btn btn-primary d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-file-earmark-pdf"></i> Open Certificate
+                    </a>
+                @endif
+            @endif
             <a href="{{ route($resource['index_route'], request()->query()) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
                 <i class="bi bi-arrow-left"></i> Back
             </a>
@@ -43,4 +63,27 @@
             </div>
         </div>
     </div>
+
+    @if (isset($certSubmission) && $certSubmission)
+        <div class="modal fade" id="rejectCertificationModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <form method="POST" action="{{ route('admin.certifications.reject', $certSubmission->id) }}" class="modal-content">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reject Certification</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Reject certification for <strong>{{ $certSubmission->full_name }}</strong>?</p>
+                        <label class="form-label">Admin Note <span class="text-danger">*</span></label>
+                        <textarea name="admin_note" class="form-control" rows="4" required placeholder="Reason for rejection"></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Reject</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 @endsection

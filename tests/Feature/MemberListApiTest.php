@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Connection;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -76,6 +77,48 @@ class MemberListApiTest extends TestCase
             ->firstWhere('id', $member->id);
 
         $this->assertSame(0, $memberPayload['life_impacted_count']);
+    }
+
+    public function test_members_index_returns_life_impacted_count_from_history_fallback(): void
+    {
+        $this->createSchema();
+
+        $authUser = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Auth',
+            'display_name' => 'Auth User',
+            'email' => 'auth@example.com',
+            'status' => 'active',
+            'life_impacted_count' => 0,
+        ]);
+
+        $member = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'History User',
+            'display_name' => 'History User',
+            'email' => 'history@example.com',
+            'status' => 'active',
+            'life_impacted_count' => 0,
+        ]);
+
+        DB::table('life_impact_histories')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => $member->id,
+            'impact_value' => 0,
+            'life_impacted' => 25,
+            'status' => 'approved',
+            'counted_in_total' => true,
+        ]);
+
+        Sanctum::actingAs($authUser);
+
+        $response = $this->getJson('/api/v1/members?per_page=10')
+            ->assertOk();
+
+        $memberPayload = collect($response->json('data'))
+            ->firstWhere('id', $member->id);
+
+        $this->assertSame(25, $memberPayload['life_impacted_count']);
     }
 
     public function test_members_index_returns_contact_visibility_and_connection_count(): void
@@ -161,6 +204,7 @@ class MemberListApiTest extends TestCase
 
     private function createSchema(): void
     {
+        Schema::dropIfExists('life_impact_histories');
         Schema::dropIfExists('circle_subscriptions');
         Schema::dropIfExists('circle_members');
         Schema::dropIfExists('circles');
@@ -169,6 +213,16 @@ class MemberListApiTest extends TestCase
         Schema::dropIfExists('cities');
         Schema::dropIfExists('connections');
         Schema::dropIfExists('users');
+
+        Schema::create('life_impact_histories', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->integer('impact_value')->default(0);
+            $table->integer('life_impacted')->default(0);
+            $table->string('status')->nullable();
+            $table->boolean('counted_in_total')->default(true);
+            $table->timestamps();
+        });
 
         Schema::create('users', function (Blueprint $table): void {
             $table->uuid('id')->primary();

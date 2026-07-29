@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CertificationSubmission;
+use App\Models\EntrepreneurCertificationSubmission;
+use App\Models\LeadershipCertificationSubmission;
 use App\Services\Certifications\CertificateGeneratorService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -98,6 +100,12 @@ class CertificationSubmissionsController extends Controller
             'rejected_by' => auth('admin')->id(),
             'rejected_at' => now(),
         ])->save();
+
+        if ($submission->certification_type === CertificationSubmission::TYPE_LEADERSHIP) {
+            LeadershipCertificationSubmission::query()->where('id', $submission->id)->update(['status' => 'rejected']);
+        } elseif ($submission->certification_type === CertificationSubmission::TYPE_ENTREPRENEUR) {
+            EntrepreneurCertificationSubmission::query()->where('id', $submission->id)->update(['status' => 'rejected']);
+        }
 
         return back()->with('success', 'Certification submission rejected successfully.');
     }

@@ -143,6 +143,31 @@ class EventListApiTest extends TestCase
             ->assertJsonPath('data.pagination.total', 1);
     }
 
+    public function test_events_api_returns_null_ticket_price_when_null_in_db(): void
+    {
+        $user = $this->unityUser();
+        $circle = $this->circle('Test');
+        $eventId = (string) Str::uuid();
+        $occurrenceId = (string) Str::uuid();
+
+        $this->insertEvent($eventId, $circle->id, 'null price event', 'circle_meeting', 'scheduled', '2026-06-09 00:00:00', null);
+        $this->insertOccurrence($occurrenceId, $eventId, 'scheduled', '2026-06-09 00:00:00');
+        DB::table('circle_members')->insert([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circle->id,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/events')
+            ->assertOk()
+            ->assertJsonPath('data.items.0.ticket_price', null);
+    }
+
     private function unityUser(): User
     {
         return User::query()->create([
@@ -166,7 +191,7 @@ class EventListApiTest extends TestCase
         ]);
     }
 
-    private function insertEvent(string $id, string $circleId, string $title, string $eventType, string $status, string $startAt): void
+    private function insertEvent(string $id, string $circleId, string $title, string $eventType, string $status, string $startAt, mixed $ticketPrice = 0): void
     {
         DB::table('events')->insert([
             'id' => $id,
@@ -179,6 +204,7 @@ class EventListApiTest extends TestCase
             'location_text' => 'Ahmedabad',
             'visibility' => 'members',
             'is_paid' => false,
+            'ticket_price' => $ticketPrice,
             'event_type' => $eventType,
             'event_category' => 'networking',
             'mode' => 'offline',
@@ -257,7 +283,7 @@ class EventListApiTest extends TestCase
             $table->string('event_category')->nullable();
             $table->string('mode')->nullable();
             $table->integer('registration_limit')->nullable();
-            $table->decimal('ticket_price', 10, 2)->default(0);
+            $table->decimal('ticket_price', 10, 2)->nullable()->default(0);
             $table->boolean('qr_checkin_enabled')->default(false);
             $table->boolean('is_public')->default(false);
             $table->string('recurrence_type')->nullable();

@@ -184,7 +184,7 @@ class MemberController extends BaseApiController
             );
         }
 
-        $query->orderByDesc('created_at');
+        $query->orderByDesc('life_impacted_count')->orderByDesc('created_at');
 
         $request->attributes->set('profile_match_enabled', true);
         $request->attributes->set('profile_match_auth_user', $authUser);
@@ -221,6 +221,7 @@ class MemberController extends BaseApiController
         if ($includeAuthUserWhenMissing && ! $members->contains(fn (User $member): bool => (string) $member->id === $authUserId)) {
             $self = User::query()
                 ->select($selectColumns)
+                ->addSelect($this->lifeImpactedCountExpression())
                 ->with([
                     'city:id,name',
                     'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
@@ -254,7 +255,18 @@ class MemberController extends BaseApiController
                 $aScore = (int) data_get($a->getAttribute('profile_match'), 'percentage', 0);
                 $bScore = (int) data_get($b->getAttribute('profile_match'), 'percentage', 0);
 
-                return $bScore <=> $aScore;
+                if ($aScore !== $bScore) {
+                    return $bScore <=> $aScore;
+                }
+
+                $aImpact = (int) ($a->life_impacted_count ?? 0);
+                $bImpact = (int) ($b->life_impacted_count ?? 0);
+
+                if ($aImpact !== $bImpact) {
+                    return $bImpact <=> $aImpact;
+                }
+
+                return 0;
             })
             ->values();
     }
@@ -365,7 +377,7 @@ class MemberController extends BaseApiController
     public function limited(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
-        $users = $query->orderByDesc('created_at')->get();
+        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
 
         return UserResource::collection($users)->additional([
             'success' => true,
@@ -379,9 +391,9 @@ class MemberController extends BaseApiController
 
         if ($request->has('per_page') || $request->has('page')) {
             $perPage = (int) $request->input('per_page', 15);
-            $users = $query->orderByDesc('created_at')->paginate($perPage);
+            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage);
         } else {
-            $users = $query->orderByDesc('created_at')->get();
+            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
         }
 
         return LimitedUserResource::collection($users)->additional([
@@ -800,6 +812,22 @@ class MemberController extends BaseApiController
     private function lifeImpactedCountExpression()
     {
         if (! Schema::hasTable('life_impact_histories')) {
+            if (Schema::hasTable('impacts')) {
+                $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
+                $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+                $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(impacts.life_impacted, 0), 1)' : '1';
+                $impactsWhere = ['impacts.user_id = users.id'];
+                if ($hasImpactsStatus) {
+                    $impactsWhere[] = "(impacts.status IS NULL OR impacts.status = 'approved')";
+                }
+                $impactsWhereStr = implode(' AND ', $impactsWhere);
+                $impactsSubquery = "(SELECT COALESCE(SUM({$impactsLifeExpr}), 0) FROM impacts WHERE {$impactsWhereStr})";
+
+                return DB::raw(
+                    "COALESCE(NULLIF(users.life_impacted_count, 0), NULLIF({$impactsSubquery}, 0), 0) as life_impacted_count"
+                );
+            }
+
             return 'life_impacted_count';
         }
 
@@ -809,8 +837,8 @@ class MemberController extends BaseApiController
         $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
 
         $valueExpr = ($hasImpactValue && $hasLifeImpacted)
-            ? 'COALESCE(impact_value, life_impacted, 0)'
-            : ($hasImpactValue ? 'COALESCE(impact_value, 0)' : ($hasLifeImpacted ? 'COALESCE(life_impacted, 0)' : '0'));
+            ? 'COALESCE(NULLIF(life_impact_histories.impact_value, 0), NULLIF(life_impact_histories.life_impacted, 0), 0)'
+            : ($hasImpactValue ? 'COALESCE(NULLIF(life_impact_histories.impact_value, 0), 0)' : ($hasLifeImpacted ? 'COALESCE(NULLIF(life_impact_histories.life_impacted, 0), 0)' : '0'));
 
         $whereConditions = ['life_impact_histories.user_id = users.id'];
         if ($hasCounted) {
@@ -821,9 +849,23 @@ class MemberController extends BaseApiController
         }
 
         $whereStr = implode(' AND ', $whereConditions);
+        $historiesSubquery = "(SELECT COALESCE(SUM({$valueExpr}), 0) FROM life_impact_histories WHERE {$whereStr})";
+
+        $impactsSubquery = '0';
+        if (Schema::hasTable('impacts')) {
+            $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
+            $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+            $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(impacts.life_impacted, 0), 1)' : '1';
+            $impactsWhere = ['impacts.user_id = users.id'];
+            if ($hasImpactsStatus) {
+                $impactsWhere[] = "(impacts.status IS NULL OR impacts.status = 'approved')";
+            }
+            $impactsWhereStr = implode(' AND ', $impactsWhere);
+            $impactsSubquery = "(SELECT COALESCE(SUM({$impactsLifeExpr}), 0) FROM impacts WHERE {$impactsWhereStr})";
+        }
 
         return DB::raw(
-            "COALESCE(NULLIF(users.life_impacted_count, 0), (SELECT COALESCE(SUM({$valueExpr}), 0) FROM life_impact_histories WHERE {$whereStr}), 0) as life_impacted_count"
+            "COALESCE(NULLIF(users.life_impacted_count, 0), NULLIF({$historiesSubquery}, 0), NULLIF({$impactsSubquery}, 0), 0) as life_impacted_count"
         );
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests\Forms;
 
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,7 +16,8 @@ class SubmitPartnerWithUsRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'full_name' => $this->trimValue($this->input('full_name')),
+            'first_name' => $this->trimValue($this->input('first_name')),
+            'last_name' => $this->trimValue($this->input('last_name')),
             'mobile_number' => $this->trimValue($this->input('mobile_number')),
             'email_id' => $this->trimValue($this->input('email_id')),
             'city' => $this->trimValue($this->input('city')),
@@ -30,7 +33,8 @@ class SubmitPartnerWithUsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'full_name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
             'mobile_number' => ['required', 'string', 'max:30'],
             'email_id' => ['required', 'email', 'max:255'],
             'city' => ['required', 'string', 'max:150'],
