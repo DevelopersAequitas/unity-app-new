@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class FileController extends BaseApiController
 {
@@ -24,7 +25,7 @@ class FileController extends BaseApiController
     public function show(Request $request, string $id)
     {
         try {
-            $file = File::find($id);
+            $file = Str::isUuid($id) ? File::find($id) : null;
 
             if (! $file) {
                 $cleanId = ltrim(preg_replace('#^(storage/|public/)+#i', '', $id), '/');
@@ -37,39 +38,81 @@ class FileController extends BaseApiController
                     'ads/'.$baseName,
                     'uploads/'.$baseName,
                 ]));
-                $disk = config('filesystems.default', 'public');
-                $foundPath = null;
 
-                foreach ($candidatePaths as $candidate) {
-                    if (Storage::disk($disk)->exists($candidate)) {
-                        $foundPath = $candidate;
-                        break;
-                    }
-                    if ($disk !== 'public' && Storage::disk('public')->exists($candidate)) {
-                        $disk = 'public';
-                        $foundPath = $candidate;
-                        break;
+                $disks = array_unique([config('filesystems.default', 'public'), 'public', 'local']);
+                $foundDisk = null;
+                $foundPath = null;
+                $absolutePath = null;
+
+                foreach ($disks as $diskName) {
+                    foreach ($candidatePaths as $candidate) {
+                        try {
+                            if (Storage::disk($diskName)->exists($candidate)) {
+                                $foundDisk = $diskName;
+                                $foundPath = $candidate;
+                                break 2;
+                            }
+                        } catch (\Throwable $e) {
+                        }
                     }
                 }
 
-                if ($foundPath) {
-                    $mime = Storage::disk($disk)->mimeType($foundPath) ?: 'application/octet-stream';
+                if (! $foundPath) {
+                    foreach ($candidatePaths as $candidate) {
+                        $checkPaths = [
+                            public_path($candidate),
+                            public_path('storage/'.$candidate),
+                            storage_path('app/'.$candidate),
+                            storage_path('app/public/'.$candidate),
+                            storage_path('app/public/ads/'.$candidate),
+                        ];
+                        foreach ($checkPaths as $absPath) {
+                            if (is_file($absPath)) {
+                                $absolutePath = $absPath;
+                                break 2;
+                            }
+                        }
+                    }
+                }
+
+                if ($foundDisk && $foundPath) {
+                    $mime = Storage::disk($foundDisk)->mimeType($foundPath)
+                        ?: 'application/octet-stream';
+
                     if ($request->isMethod('HEAD')) {
                         return response('', 200, [
                             'Content-Type' => $mime,
-                            'Content-Length' => Storage::disk($disk)->size($foundPath),
+                            'Content-Length' => Storage::disk($foundDisk)->size($foundPath),
                             'Cache-Control' => 'no-cache, must-revalidate',
                         ]);
                     }
 
-                    return Storage::disk($disk)->response($foundPath, null, [
+                    return Storage::disk($foundDisk)->response($foundPath, null, [
                         'Content-Type' => $mime,
                         'Cache-Control' => 'no-cache, must-revalidate',
                     ]);
                 }
 
-                Log::warning("File API lookup failed: Database record not found for UUID: {$id}", [
-                    'uuid' => $id,
+                if ($absolutePath && is_file($absolutePath)) {
+                    $mime = mime_content_type($absolutePath) ?: 'application/octet-stream';
+                    $size = filesize($absolutePath);
+
+                    if ($request->isMethod('HEAD')) {
+                        return response('', 200, [
+                            'Content-Type' => $mime,
+                            'Content-Length' => $size,
+                            'Cache-Control' => 'no-cache, must-revalidate',
+                        ]);
+                    }
+
+                    return response()->file($absolutePath, [
+                        'Content-Type' => $mime,
+                        'Cache-Control' => 'no-cache, must-revalidate',
+                    ]);
+                }
+
+                Log::warning("File API lookup failed: Database record and physical file not found for: {$id}", [
+                    'id' => $id,
                     'ip' => $request->ip(),
                     'user_id' => auth()->id() ?? auth('admin')->id(),
                 ]);
