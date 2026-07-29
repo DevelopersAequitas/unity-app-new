@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Ads\StoreAdRequest;
 use App\Http\Requests\Admin\Ads\UpdateAdRequest;
 use App\Models\Ad;
+use App\Models\FileModel;
 use App\Services\Ads\AdAnalyticsService;
+use App\Services\Media\FileUploadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -14,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class AdController extends Controller
@@ -21,7 +24,8 @@ class AdController extends Controller
     private const PLACEMENTS = ['timeline', 'dashboard', 'home', 'banner', 'popup', 'sidebar'];
 
     public function __construct(
-        private readonly AdAnalyticsService $analyticsService
+        private readonly AdAnalyticsService $analyticsService,
+        private readonly FileUploadService $fileUploadService
     ) {}
 
     public function index(Request $request): View
@@ -107,7 +111,14 @@ class AdController extends Controller
             $data['image_path'] = $this->storeImage($request);
 
             if ($oldImagePath && ! str_starts_with($oldImagePath, 'http')) {
-                Storage::disk('public')->delete($oldImagePath);
+                if (Str::isUuid($oldImagePath)) {
+                    $oldFileModel = FileModel::find($oldImagePath);
+                    if ($oldFileModel) {
+                        $this->fileUploadService->delete($oldFileModel);
+                    }
+                } else {
+                    Storage::disk('public')->delete($oldImagePath);
+                }
             }
         }
 
@@ -121,7 +132,14 @@ class AdController extends Controller
         $imagePath = $ad->normalizedImagePath();
 
         if ($imagePath && ! str_starts_with($imagePath, 'http')) {
-            Storage::disk('public')->delete($imagePath);
+            if (Str::isUuid($imagePath)) {
+                $fileModel = FileModel::find($imagePath);
+                if ($fileModel) {
+                    $this->fileUploadService->delete($fileModel);
+                }
+            } else {
+                Storage::disk('public')->delete($imagePath);
+            }
         }
 
         $ad->delete();
@@ -165,6 +183,8 @@ class AdController extends Controller
 
     private function storeImage(StoreAdRequest|UpdateAdRequest $request): string
     {
-        return (string) $request->file('image')->store('ads', 'public');
+        $fileModel = $this->fileUploadService->store($request->file('image'), Auth::guard('admin')->user());
+
+        return $fileModel->id;
     }
 }

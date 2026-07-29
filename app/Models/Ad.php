@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class Ad extends Model
@@ -80,11 +79,7 @@ class Ad extends Model
             return $path;
         }
 
-        if (! Str::contains($path, '/') && ! Storage::disk('public')->exists($path) && Storage::disk('public')->exists('ads/'.$path)) {
-            $path = 'ads/'.$path;
-        }
-
-        return asset('storage/'.ltrim($path, '/'));
+        return url('/api/v1/files/'.ltrim($path, '/'));
     }
 
     public function setImagePathAttribute($value): void

@@ -23,69 +23,96 @@ class AdAnalyticsTest extends TestCase
     {
         parent::setUp();
 
-        Schema::create('users', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('first_name', 100)->nullable();
-            $table->string('last_name', 100)->nullable();
-            $table->string('display_name', 150)->nullable();
-            $table->string('email')->nullable();
-            $table->string('phone', 50)->nullable();
-            $table->string('company_name', 255)->nullable();
-            $table->string('membership_status', 50)->default('visitor');
-            $table->integer('coins_balance')->default(0);
-            $table->string('password_hash')->nullable();
-            $table->string('public_profile_slug', 80)->nullable();
-            $table->timestamps();
-            $table->softDeletes();
-        });
+        if (! Schema::hasTable('users')) {
+            Schema::create('users', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('first_name', 100)->nullable();
+                $table->string('last_name', 100)->nullable();
+                $table->string('display_name', 150)->nullable();
+                $table->string('email')->nullable();
+                $table->string('phone', 50)->nullable();
+                $table->string('company_name', 255)->nullable();
+                $table->string('membership_status', 50)->default('visitor');
+                $table->integer('coins_balance')->default(0);
+                $table->string('password_hash')->nullable();
+                $table->string('public_profile_slug', 80)->nullable();
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
 
-        Schema::create('admin_users', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('admin_users')) {
+            Schema::create('admin_users', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('name');
+                $table->string('email')->unique();
+                $table->string('password');
+                $table->timestamps();
+            });
+        }
 
-        Schema::create('roles', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('key', 50)->unique();
-            $table->string('name', 100);
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('roles')) {
+            Schema::create('roles', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('key', 50)->unique();
+                $table->string('name', 100);
+                $table->timestamps();
+            });
+        }
 
-        Schema::create('admin_user_roles', function (Blueprint $table) {
-            $table->uuid('user_id');
-            $table->uuid('role_id');
-        });
+        if (! Schema::hasTable('admin_user_roles')) {
+            Schema::create('admin_user_roles', function (Blueprint $table) {
+                $table->uuid('user_id');
+                $table->uuid('role_id');
+            });
+        }
 
-        Schema::create('tbl_permission_cache', function (Blueprint $table) {
-            $table->uuid('user_id')->primary();
-            $table->text('circle_ids')->nullable();
-            $table->timestamp('computed_at')->nullable();
-            $table->integer('version')->default(1);
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('tbl_permission_cache')) {
+            Schema::create('tbl_permission_cache', function (Blueprint $table) {
+                $table->uuid('user_id')->primary();
+                $table->text('circle_ids')->nullable();
+                $table->timestamp('computed_at')->nullable();
+                $table->integer('version')->default(1);
+                $table->timestamps();
+            });
+        }
 
-        Schema::create('ads', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('title');
-            $table->string('subtitle')->nullable();
-            $table->text('description')->nullable();
-            $table->string('image_path')->nullable();
-            $table->string('redirect_url')->nullable();
-            $table->string('button_text')->nullable();
-            $table->string('placement')->nullable();
-            $table->string('page_name')->nullable();
-            $table->integer('timeline_position')->nullable();
-            $table->integer('sort_order')->default(0);
-            $table->boolean('is_active')->default(true);
-            $table->timestamp('starts_at')->nullable();
-            $table->timestamp('ends_at')->nullable();
-            $table->uuid('created_by')->nullable();
-            $table->softDeletes();
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('ads')) {
+            Schema::create('ads', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('title');
+                $table->string('subtitle')->nullable();
+                $table->text('description')->nullable();
+                $table->string('image_path')->nullable();
+                $table->string('redirect_url')->nullable();
+                $table->string('button_text')->nullable();
+                $table->string('placement')->nullable();
+                $table->string('page_name')->nullable();
+                $table->integer('timeline_position')->nullable();
+                $table->integer('sort_order')->default(0);
+                $table->boolean('is_active')->default(true);
+                $table->timestamp('starts_at')->nullable();
+                $table->timestamp('ends_at')->nullable();
+                $table->uuid('created_by')->nullable();
+                $table->softDeletes();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('files')) {
+            Schema::create('files', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('uploader_user_id')->nullable();
+                $table->string('s3_key');
+                $table->string('mime_type');
+                $table->integer('size_bytes');
+                $table->integer('width')->nullable();
+                $table->integer('height')->nullable();
+                $table->integer('duration')->nullable();
+                $table->boolean('is_orphaned')->default(false);
+                $table->timestamps();
+            });
+        }
 
         // Ensure ad_views and ad_clicks tables exist in SQLite testing memory
         SqliteMigrator::run(file_get_contents(base_path('database/manual_sql/ads/001_ad_views.sql')));
@@ -262,7 +289,7 @@ class AdAnalyticsTest extends TestCase
         $resAnalytics = $this->actingAs($admin, 'admin')
             ->get('/admin/ads/analytics');
         $resAnalytics->assertStatus(200)
-            ->assertSee('Analytics &amp; Performance Reports', false);
+            ->assertSee('Ads Analytics &amp; Reports', false);
 
         // 3. Show Ad page
         $resShow = $this->actingAs($admin, 'admin')

@@ -116,6 +116,7 @@
         ['label' => 'Partner With Us', 'route' => 'admin.leads.partner-with-us.index'],
         ['label' => 'Become Speaker', 'route' => 'admin.leads.become-speaker.index'],
         ['label' => 'Become Mentor', 'route' => 'admin.leads.become-mentor.index'],
+        ['label' => 'Story Submissions', 'route' => 'admin.stories.index'],
     ];
 
     $pendingRequestsMenu = $isIndustryDirector
@@ -129,7 +130,6 @@
             ['label' => 'Coin Claims', 'route' => 'admin.coin-claims.index'],
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
             ['label' => 'Certifications', 'route' => 'admin.certifications.index'],
-            ['label' => 'Story Submissions', 'route' => 'admin.stories.index'],
             ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
             ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
@@ -150,13 +150,12 @@
         ));
     }
 
-    $leadsActive = request()->routeIs('admin.leads.*');
+    $leadsActive = request()->routeIs('admin.leads.*') || request()->routeIs('admin.stories.*');
     $pendingRequestsActive =
         request()->routeIs('admin.visitor-registrations.*') ||
         request()->routeIs('admin.coin-claims.*') ||
         request()->routeIs('admin.circle-joining-requests.*') ||
         request()->routeIs('admin.certifications.*') ||
-        request()->routeIs('admin.stories.*') ||
         request()->routeIs('admin.impacts.pending') ||
         request()->routeIs('admin.account-deletion.*') ||
         request()->routeIs('admin.introduction-requests.*');

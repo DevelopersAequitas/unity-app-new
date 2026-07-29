@@ -109,6 +109,7 @@ class AppNotification extends Model
 
         if (filled($userId)) {
             $merged['user_id'] = (string) $userId;
+            $merged['member_id'] = (string) ($data['member_id'] ?? $data['author_id'] ?? $userId);
         }
         if (filled($postId)) {
             $merged['post_id'] = (string) $postId;
