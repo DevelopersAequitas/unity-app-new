@@ -244,7 +244,67 @@ class User extends Authenticatable
 
     public function getLifeImpactedCountAttribute($value): int
     {
-        return (int) ($value ?? 0);
+        $count = (int) ($value ?? 0);
+        if ($count > 0) {
+            return $count;
+        }
+
+        if (! $this->exists || ! isset($this->id)) {
+            return 0;
+        }
+
+        if (Schema::hasTable('life_impact_histories')) {
+            $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
+            $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
+            $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
+            $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
+
+            $valueExpr = ($hasImpactValue && $hasLifeImpacted)
+                ? 'COALESCE(NULLIF(impact_value, 0), NULLIF(life_impacted, 0), 0)'
+                : ($hasImpactValue ? 'COALESCE(NULLIF(impact_value, 0), 0)' : ($hasLifeImpacted ? 'COALESCE(NULLIF(life_impacted, 0), 0)' : '0'));
+
+            $query = DB::table('life_impact_histories')
+                ->where('user_id', (string) $this->id);
+
+            if ($hasCounted) {
+                $query->where(function ($q): void {
+                    $q->whereNull('counted_in_total')->orWhere('counted_in_total', true);
+                });
+            }
+
+            if ($hasStatus) {
+                $query->where(function ($q): void {
+                    $q->whereNull('status')->orWhere('status', 'approved');
+                });
+            }
+
+            $sum = (int) $query->sum(DB::raw($valueExpr));
+            if ($sum > 0) {
+                return $sum;
+            }
+        }
+
+        if (Schema::hasTable('impacts')) {
+            $hasImpactsStatus = Schema::hasColumn('impacts', 'status');
+            $hasImpactsLife = Schema::hasColumn('impacts', 'life_impacted');
+            $impactsLifeExpr = $hasImpactsLife ? 'COALESCE(NULLIF(life_impacted, 0), 1)' : '1';
+
+            $query = DB::table('impacts')
+                ->where('user_id', (string) $this->id);
+
+            if ($hasImpactsStatus) {
+                $query->where(function ($q): void {
+                    $q->whereNull('status')->orWhere('status', 'approved');
+                });
+            }
+
+            $sum = (int) $query->sum(DB::raw($impactsLifeExpr));
+            if ($sum > 0) {
+                return $sum;
+            }
+        }
+
+        return 0;
     }
 
     public function contactPosts(): HasMany
