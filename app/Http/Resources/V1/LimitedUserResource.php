@@ -46,6 +46,7 @@ class LimitedUserResource extends JsonResource
             'city' => $cityName,
             'business' => $user->company_name,
             'total_life_impact' => (int) ($user->life_impacted_count ?? 0),
+            'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
             'profile_photo_image' => $user->profile_photo_url,
             'designation' => $user->designation,
             'level4_category' => $user->level4Category ? $user->level4Category->name : null,

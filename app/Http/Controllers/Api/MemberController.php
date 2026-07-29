@@ -17,6 +17,7 @@ use App\Services\ProfileVisibilityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class MemberController extends BaseApiController
@@ -35,7 +36,6 @@ class MemberController extends BaseApiController
             'phone',
             'membership_status',
             'coins_balance',
-            'life_impacted_count',
             'last_login_at',
             'created_at',
             'updated_at',
@@ -101,10 +101,11 @@ class MemberController extends BaseApiController
             }
         }
 
-        $selectColumns = array_values(array_unique($selectColumns));
+        $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
 
         $query = User::query()
             ->select($selectColumns)
+            ->addSelect($this->lifeImpactedCountExpression())
             ->with([
                 'city:id,name',
                 'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
@@ -298,7 +299,6 @@ class MemberController extends BaseApiController
             'city_id',
             'city',
             'city_of_residence',
-            'life_impacted_count',
             'status',
             'deleted_at',
             'business_category_id',
@@ -321,8 +321,11 @@ class MemberController extends BaseApiController
             $selectColumns[] = 'contact_visibility';
         }
 
+        $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
+
         $query = User::query()
             ->select($selectColumns)
+            ->addSelect($this->lifeImpactedCountExpression())
             ->with([
                 'city:id,name',
                 'level4Category:id,name',
@@ -785,6 +788,36 @@ class MemberController extends BaseApiController
         return $this->success(
             TopIntroducerResource::collection($topIntroducers),
             'Top introduced members fetched successfully'
+        );
+    }
+
+    private function lifeImpactedCountExpression()
+    {
+        if (! Schema::hasTable('life_impact_histories')) {
+            return 'life_impacted_count';
+        }
+
+        $hasStatus = Schema::hasColumn('life_impact_histories', 'status');
+        $hasCounted = Schema::hasColumn('life_impact_histories', 'counted_in_total');
+        $hasImpactValue = Schema::hasColumn('life_impact_histories', 'impact_value');
+        $hasLifeImpacted = Schema::hasColumn('life_impact_histories', 'life_impacted');
+
+        $valueExpr = ($hasImpactValue && $hasLifeImpacted)
+            ? 'COALESCE(impact_value, life_impacted, 0)'
+            : ($hasImpactValue ? 'COALESCE(impact_value, 0)' : ($hasLifeImpacted ? 'COALESCE(life_impacted, 0)' : '0'));
+
+        $whereConditions = ['life_impact_histories.user_id = users.id'];
+        if ($hasCounted) {
+            $whereConditions[] = '(life_impact_histories.counted_in_total IS NULL OR life_impact_histories.counted_in_total = true)';
+        }
+        if ($hasStatus) {
+            $whereConditions[] = "(life_impact_histories.status IS NULL OR life_impact_histories.status = 'approved')";
+        }
+
+        $whereStr = implode(' AND ', $whereConditions);
+
+        return DB::raw(
+            "COALESCE(NULLIF(users.life_impacted_count, 0), (SELECT COALESCE(SUM({$valueExpr}), 0) FROM life_impact_histories WHERE {$whereStr}), 0) as life_impacted_count"
         );
     }
 }

@@ -516,6 +516,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/support-tickets', [SupportTicketController::class, 'index'])->name('support-tickets.index');
         Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show'])->name('support-tickets.show');
         Route::put('/support-tickets/{id}', [SupportTicketController::class, 'update'])->name('support-tickets.update');
+        Route::post('/support-tickets/{id}/send-email', [SupportTicketController::class, 'sendEmail'])->whereUuid('id')->name('support-tickets.send-email');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');

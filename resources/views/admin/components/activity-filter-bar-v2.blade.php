@@ -10,37 +10,33 @@
 @endphp
 
 <div class="card shadow-sm mb-3">
-    <div class="card-body">
+    <div class="card-body py-2 px-3">
         @if ($renderFormTag)
-            <form method="GET" action="{{ $actionUrl }}" class="row g-3 align-items-end admin-filter-form" @if($formId) id="{{ $formId }}" @endif>
+            <form method="GET" action="{{ $actionUrl }}" class="row g-2 align-items-center admin-filter-form" @if($formId) id="{{ $formId }}" @endif>
         @else
-            <div class="row g-3 align-items-end">
+            <div class="row g-2 align-items-center">
         @endif
-            <div class="col-md-4">
-                <label for="activityFilterQuery" class="form-label small text-muted">{{ $label }}</label>
-                <input id="activityFilterQuery" type="text" name="q" value="{{ $q }}" class="form-control" placeholder="Name, company, or city" @if($formId) form="{{ $formId }}" @endif>
-                <div class="mt-2">
-                    <label for="activityFilterCircle" class="form-label small text-muted">Circle</label>
-                    <select id="activityFilterCircle" name="circle_id" class="form-select js-searchable-select" @if($formId) form="{{ $formId }}" @endif>
-                        <option value="">All Circles</option>
-                        @foreach (($circles ?? collect()) as $circle)
-                            <option value="{{ $circle->id }}" @selected($circleId !== '' && $circleId === (string) $circle->id)>{{ $circle->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
+            <div class="col-md-3">
+                <input id="activityFilterQuery" type="text" name="q" value="{{ $q }}" class="form-control form-control-sm text-xs" placeholder="Name, company, or city" title="{{ $label }}" @if($formId) form="{{ $formId }}" @endif>
+            </div>
+            <div class="col-md-3">
+                <select id="activityFilterCircle" name="circle_id" class="form-select form-select-sm text-xs js-searchable-select" @if($formId) form="{{ $formId }}" @endif>
+                    <option value="">All Circles</option>
+                    @foreach (($circles ?? collect()) as $circle)
+                        <option value="{{ $circle->id }}" @selected($circleId !== '' && $circleId === (string) $circle->id)>{{ $circle->name }}</option>
+                    @endforeach
+                </select>
             </div>
             <div class="col-md-2">
-                <label for="activityFilterFrom" class="form-label small text-muted">From</label>
-                <input id="activityFilterFrom" type="date" name="from" value="{{ $from }}" class="form-control" placeholder="dd-mm-yyyy" @if($formId) form="{{ $formId }}" @endif>
+                <input id="activityFilterFrom" type="date" name="from" value="{{ $from }}" class="form-control form-control-sm text-xs" placeholder="From" title="From Date" @if($formId) form="{{ $formId }}" @endif>
             </div>
             <div class="col-md-2">
-                <label for="activityFilterTo" class="form-label small text-muted">To</label>
-                <input id="activityFilterTo" type="date" name="to" value="{{ $to }}" class="form-control" placeholder="dd-mm-yyyy" @if($formId) form="{{ $formId }}" @endif>
+                <input id="activityFilterTo" type="date" name="to" value="{{ $to }}" class="form-control form-control-sm text-xs" placeholder="To" title="To Date" @if($formId) form="{{ $formId }}" @endif>
             </div>
-            <div class="col-md-4 d-flex gap-2 justify-content-end">
-                <a href="{{ $resetUrl }}" class="btn btn-outline-secondary">Clear</a>
+            <div class="col-md-2 d-flex gap-1.5 justify-content-end">
+                <a href="{{ $resetUrl }}" class="btn btn-sm btn-outline-secondary px-2.5 py-1 text-xs">Clear</a>
                 @if (!empty($showExport) && !empty($exportUrl))
-                    <a href="{{ $exportUrl }}" class="btn btn-outline-primary">Export</a>
+                    <a href="{{ $exportUrl }}" class="btn btn-sm btn-outline-primary px-2.5 py-1 text-xs">Export</a>
                 @endif
             </div>
         @if ($renderFormTag)

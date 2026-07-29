@@ -44,4 +44,5 @@ enum NotificationType: string
     case UNCLAIMED_COINS = 'unclaimed_coins';
     case COIN_MILESTONE = 'coin_milestone';
     case BADGE_UNLOCKED = 'badge_unlocked';
+    case MEMBER_INTRODUCED = 'member_introduced';
 }

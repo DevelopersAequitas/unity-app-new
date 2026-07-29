@@ -55,7 +55,7 @@ class ActivitiesReferralsController extends Controller
             ->paginate($filters['per_page'])
             ->withQueryString();
 
-        $topMembers = $this->topMembers($request);
+        $topMembers = $this->enrichTopMembers($this->topMembers($request));
 
         return view('admin.activities.referrals.index', [
             'items' => $items,
@@ -521,5 +521,71 @@ class ActivitiesReferralsController extends Controller
         $name = trim(($firstName ?? '').' '.($lastName ?? ''));
 
         return $name !== '' ? $name : '—';
+    }
+
+    private function enrichTopMembers($topMembers)
+    {
+        $actorIds = $topMembers->pluck('actor_id')->filter()->values()->all();
+        if (empty($actorIds)) {
+            return $topMembers;
+        }
+
+        $users = DB::table('users')
+            ->leftJoin('cities', 'cities.id', '=', 'users.city_id')
+            ->whereIn('users.id', $actorIds)
+            ->select([
+                'users.id',
+                'users.email',
+                'users.phone',
+                'users.company_name',
+                'users.designation',
+                DB::raw("trim(coalesce(users.display_name, '')) as display_name"),
+                DB::raw("coalesce(nullif(trim(coalesce(users.display_name, '')), ''), nullif(trim(concat(coalesce(users.first_name, ''), ' ', coalesce(users.last_name, ''))), ''), users.email) as peer_name"),
+                DB::raw("coalesce(nullif(trim(coalesce(users.city, '')), ''), cities.name) as city_name"),
+            ])
+            ->selectSub(function ($sub) {
+                $sub->from('circle_members')
+                    ->join('circles', 'circles.id', '=', 'circle_members.circle_id')
+                    ->select('circles.name')
+                    ->whereColumn('circle_members.user_id', 'users.id')
+                    ->where('circle_members.status', 'approved')
+                    ->whereNull('circle_members.deleted_at')
+                    ->limit(1);
+            }, 'circle_name')
+            ->selectSub(fn ($sub) => $sub->from('testimonials')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('from_user_id', 'users.id')->orWhereColumn('to_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'testimonials_count')
+            ->selectSub(fn ($sub) => $sub->from('referrals')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('from_user_id', 'users.id')->orWhereColumn('to_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'referrals_count')
+            ->selectSub(fn ($sub) => $sub->from('business_deals')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('from_user_id', 'users.id')->orWhereColumn('to_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'business_deals_count')
+            ->selectSub(fn ($sub) => $sub->from('p2p_meetings')->selectRaw('count(*)')->where(fn ($q) => $q->whereColumn('initiator_user_id', 'users.id')->orWhereColumn('peer_user_id', 'users.id'))->where('is_deleted', false)->whereNull('deleted_at'), 'p2p_completed_count')
+            ->selectSub(fn ($sub) => $sub->from('requirements')->selectRaw('count(*)')->whereColumn('user_id', 'users.id')->whereNull('deleted_at'), 'requirements_count')
+            ->selectSub(fn ($sub) => $sub->from('leader_interest_submissions')->selectRaw('count(*)')->whereColumn('user_id', 'users.id'), 'become_leader_count')
+            ->selectSub(fn ($sub) => $sub->from('peer_recommendations')->selectRaw('count(*)')->whereColumn('user_id', 'users.id'), 'recommend_peer_count')
+            ->selectSub(fn ($sub) => $sub->from('visitor_registrations')->selectRaw('count(*)')->whereColumn('user_id', 'users.id'), 'register_visitor_count')
+            ->get()
+            ->keyBy('id');
+
+        return $topMembers->map(function ($item) use ($users) {
+            $actorId = $item->actor_id ?? $item->id ?? null;
+            if ($actorId && isset($users[$actorId])) {
+                $u = $users[$actorId];
+                $item->id = $u->id;
+                $item->actor_id = $u->id;
+                $item->email = $u->email;
+                $item->phone = $u->phone;
+                $item->designation = $u->designation;
+                $item->circle_name = $u->circle_name;
+                $item->peer_company = $u->company_name;
+                $item->peer_city = $u->city_name;
+                $item->testimonials_count = $u->testimonials_count;
+                $item->referrals_count = $u->referrals_count;
+                $item->business_deals_count = $u->business_deals_count;
+                $item->p2p_completed_count = $u->p2p_completed_count;
+                $item->requirements_count = $u->requirements_count;
+                $item->become_leader_count = $u->become_leader_count;
+                $item->recommend_peer_count = $u->recommend_peer_count;
+                $item->register_visitor_count = $u->register_visitor_count;
+            }
+
+            return $item;
+        });
     }
 }
