@@ -28,4 +28,17 @@ class ImpactApiTest extends TestCase
 
         $response->assertStatus(422);
     }
+
+    public function test_story_to_share_and_additional_remarks_are_optional(): void
+    {
+        $user = new User(['id' => '00000000-0000-0000-0000-000000000001']);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/life-impact', [
+                'date' => '2026-07-30',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonMissingValidationErrors(['story_to_share', 'additional_remarks']);
+    }
 }

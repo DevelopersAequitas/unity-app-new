@@ -30,7 +30,7 @@ class ImpactService
             'impacted_peer_id' => $data['impacted_peer_id'],
             'impact_date' => $data['date'] ?? now()->toDateString(),
             'action' => $data['action'],
-            'story_to_share' => $data['story_to_share'],
+            'story_to_share' => $data['story_to_share'] ?? null,
             'life_impacted' => $impactScore,
             'additional_remarks' => $data['additional_remarks'] ?? null,
             'requires_leadership_approval' => (bool) config('impact.requires_leadership_approval', true),
