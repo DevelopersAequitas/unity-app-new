@@ -131,7 +131,7 @@ class BecomeMentorController extends BaseApiController
                 'email' => $data['email'],
                 'phone' => $data['phone'],
                 'city' => $data['city'],
-                'linkedin_profile' => $data['linkedin_profile'],
+                'linkedin_profile' => $data['linkedin_profile'] ?? null,
                 'status' => 'new',
             ]);
 

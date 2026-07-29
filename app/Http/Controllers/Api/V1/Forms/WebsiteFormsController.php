@@ -223,10 +223,10 @@ class WebsiteFormsController extends BaseApiController
                 'email' => $data['email'],
                 'phone' => $data['phone'],
                 'city' => $data['city'],
-                'linkedin_profile_url' => $data['linkedin_profile_url'],
+                'linkedin_profile_url' => $data['linkedin_profile_url'] ?? null,
                 'company_name' => $data['company_name'],
                 'brief_bio' => $data['brief_bio'],
-                'topics_to_speak_on' => $data['topics_to_speak_on'],
+                'topics_to_speak_on' => $data['topics_to_speak_on'] ?? null,
                 'image_file_id' => $storedImage?->id,
                 'status' => 'new',
             ]);
