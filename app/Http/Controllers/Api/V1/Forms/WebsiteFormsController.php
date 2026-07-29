@@ -16,6 +16,7 @@ use App\Models\FileModel;
 use App\Models\LeadershipCertificationSubmission;
 use App\Models\PartnerWithUsSubmission;
 use App\Models\SmeBusinessStorySubmission;
+use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -366,7 +367,7 @@ class WebsiteFormsController extends BaseApiController
                     ['status' => 'new']
                 ));
 
-                $userId = $request->user()?->id ?? User::query()->where('email', $legacySubmission->email)->value('id');
+                $userId = $request->user()?->id ?? User::query()->whereRaw('LOWER(email) = ?', [strtolower((string) $legacySubmission->email)])->value('id');
 
                 CertificationSubmission::create([
                     'id' => $legacySubmission->id,
@@ -420,11 +421,13 @@ class WebsiteFormsController extends BaseApiController
                 ],
             ], 201);
         } catch (\Throwable $exception) {
-            Log::error('Leadership certification submission failed', [
+            Log::error('Leadership certification submission failed: '.$exception->getMessage(), [
                 'email' => $data['email'] ?? null,
                 'contact_no' => $data['contact_no'] ?? null,
                 'ip' => $request->ip(),
+                'exception' => $exception::class,
                 'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
             ]);
 
             return response()->json([
@@ -454,7 +457,7 @@ class WebsiteFormsController extends BaseApiController
                     ['status' => 'new']
                 ));
 
-                $userId = $request->user()?->id ?? User::query()->where('email', $legacySubmission->email)->value('id');
+                $userId = $request->user()?->id ?? User::query()->whereRaw('LOWER(email) = ?', [strtolower((string) $legacySubmission->email)])->value('id');
 
                 CertificationSubmission::create([
                     'id' => $legacySubmission->id,
@@ -508,11 +511,13 @@ class WebsiteFormsController extends BaseApiController
                 ],
             ], 201);
         } catch (\Throwable $exception) {
-            Log::error('Entrepreneur certification submission failed', [
+            Log::error('Entrepreneur certification submission failed: '.$exception->getMessage(), [
                 'email' => $data['email'] ?? null,
                 'contact_no' => $data['contact_no'] ?? null,
                 'ip' => $request->ip(),
+                'exception' => $exception::class,
                 'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
             ]);
 
             return response()->json([

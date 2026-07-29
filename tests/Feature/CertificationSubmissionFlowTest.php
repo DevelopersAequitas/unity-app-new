@@ -232,7 +232,8 @@ class CertificationSubmissionFlowTest extends TestCase
         $adminResponse = $this->actingAs($admin, 'admin')
             ->get('/admin/pending-requests/certifications?status=new');
 
-        $adminResponse->assertStatus(200);
+        $adminResponse->assertStatus(200)
+            ->assertSee('Jane Leader');
 
         // 3. Admin approves submission
         $approveResponse = $this->actingAs($admin, 'admin')
