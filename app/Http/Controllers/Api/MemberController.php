@@ -376,7 +376,13 @@ class MemberController extends BaseApiController
     public function limitedPaginated(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
-        $users = $query->orderByDesc('created_at')->paginate(15);
+
+        if ($request->has('per_page') || $request->has('page')) {
+            $perPage = (int) $request->input('per_page', 15);
+            $users = $query->orderByDesc('created_at')->paginate($perPage);
+        } else {
+            $users = $query->orderByDesc('created_at')->get();
+        }
 
         return LimitedUserResource::collection($users)->additional([
             'success' => true,
