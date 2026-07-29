@@ -60,6 +60,7 @@ use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
+use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
 use App\Http\Controllers\Api\V1\Billing\InvoiceController;
@@ -162,6 +163,8 @@ Route::prefix('auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
+    Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
@@ -193,6 +196,8 @@ Route::prefix('v1')->group(function () {
         Route::post('login', [AuthController::class, 'login']);
         Route::post('request-otp', [AuthController::class, 'requestOtp']);
         Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+        Route::post('request-whatsapp-otp', [WhatsAppAuthController::class, 'requestOtp']);
+        Route::post('verify-whatsapp-otp', [WhatsAppAuthController::class, 'verifyOtp']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
 

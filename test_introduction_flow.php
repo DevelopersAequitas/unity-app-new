@@ -2,17 +2,16 @@
 
 require 'vendor/autoload.php';
 
-use Illuminate\Contracts\Console\Kernel;
 use App\Models\Notifications\AppNotification;
 use App\Models\Notifications\NotificationPreference;
 use App\Models\Post;
 use App\Models\User;
 use App\Services\Users\PeerIntroductionService;
+use Illuminate\Contracts\Console\Kernel;
 
 $app = require_once 'bootstrap/app.php';
 $kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
-
 
 // 1. Fetch two active users from database or create demo ones
 $introducer = User::where('status', 'active')->first();
