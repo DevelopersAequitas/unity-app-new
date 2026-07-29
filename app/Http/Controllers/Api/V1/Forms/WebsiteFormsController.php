@@ -29,6 +29,16 @@ class WebsiteFormsController extends BaseApiController
     public function indexBecomeSpeaker(Request $request)
     {
         $query = BecomeSpeakerSubmission::query();
+
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                $subQuery->where('email', $user->email);
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('phone', $user->phone);
+                }
+            });
+        }
+
         $this->applyCommonFilters($query, $request, ['first_name', 'last_name', 'email', 'city', 'company_name']);
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
@@ -41,9 +51,20 @@ class WebsiteFormsController extends BaseApiController
         ]);
     }
 
-    public function showBecomeSpeaker(string $id)
+    public function showBecomeSpeaker(Request $request, string $id)
     {
-        $item = BecomeSpeakerSubmission::find($id);
+        $query = BecomeSpeakerSubmission::where('id', $id);
+
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                $subQuery->where('email', $user->email);
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('phone', $user->phone);
+                }
+            });
+        }
+
+        $item = $query->first();
 
         if (! $item) {
             return $this->submissionNotFound();
@@ -631,7 +652,6 @@ class WebsiteFormsController extends BaseApiController
             'company_name' => $item->company_name,
             'brief_bio' => $item->brief_bio,
             'topics_to_speak_on' => $item->topics_to_speak_on,
-            'status' => $item->status,
             'notes' => $item->notes,
             'image_file_id' => $item->image_file_id,
             'image_url' => $item->image_file_id ? url('/api/v1/files/'.$item->image_file_id) : null,
