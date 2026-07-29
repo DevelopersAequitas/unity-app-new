@@ -15,6 +15,16 @@ class NotificationPreference extends Model
 
     public $incrementing = false;
 
+    protected $attributes = [
+        'push_enabled' => true,
+        'email_enabled' => true,
+        'chat_enabled' => true,
+        'event_enabled' => true,
+        'circle_enabled' => true,
+        'business_enabled' => true,
+        'campaign_enabled' => true,
+    ];
+
     protected $fillable = [
         'user_id', 'push_enabled', 'email_enabled', 'chat_enabled', 'event_enabled', 'circle_enabled',
         'business_enabled', 'campaign_enabled', 'quiet_hours_start', 'quiet_hours_end', 'config',

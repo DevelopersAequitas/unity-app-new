@@ -18,6 +18,15 @@ class BecomeMentorController extends BaseApiController
     {
         $query = BecomeMentorSubmission::query();
 
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                $subQuery->where('email', $user->email);
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('phone', $user->phone);
+                }
+            });
+        }
+
         if ($search = trim((string) $request->query('search', ''))) {
             $query->where(function ($subQuery) use ($search) {
                 $subQuery->where('first_name', 'ilike', '%'.$search.'%')
@@ -55,9 +64,20 @@ class BecomeMentorController extends BaseApiController
         ]);
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        $submission = BecomeMentorSubmission::find($id);
+        $query = BecomeMentorSubmission::where('id', $id);
+
+        if ($user = $request->user()) {
+            $query->where(function ($subQuery) use ($user) {
+                $subQuery->where('email', $user->email);
+                if (! empty($user->phone)) {
+                    $subQuery->orWhere('phone', $user->phone);
+                }
+            });
+        }
+
+        $submission = $query->first();
 
         if (! $submission) {
             return response()->json([
@@ -111,7 +131,7 @@ class BecomeMentorController extends BaseApiController
                 'email' => $data['email'],
                 'phone' => $data['phone'],
                 'city' => $data['city'],
-                'linkedin_profile' => $data['linkedin_profile'],
+                'linkedin_profile' => $data['linkedin_profile'] ?? null,
                 'status' => 'new',
             ]);
 
