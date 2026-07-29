@@ -86,7 +86,7 @@ class EventOccurrenceListResource extends JsonResource
             'what_youll_gain' => array_values((array) data_get($metadata, 'what_youll_gain', [])),
             'organizer' => data_get($metadata, 'organizer'),
             'is_paid' => (bool) $event->is_paid,
-            'ticket_price' => null,
+            'ticket_price' => $event->ticket_price !== null ? (string) $event->ticket_price : null,
             'registration_limit' => $limit,
             'registered_count' => $registeredCount,
             'checkin_count' => (int) ($this->checked_in_count ?? 0),
