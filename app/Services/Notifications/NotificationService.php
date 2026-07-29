@@ -99,7 +99,11 @@ class NotificationService
         }
 
         $authorName = $this->displayName($author);
-        $body = $this->postPreview($post) ?: 'A new post has been published';
+        $preview = $this->postPreview($post);
+        $title = 'New Post from '.$authorName;
+        $body = $preview !== '' && $preview !== 'A new post has been published'
+            ? $authorName.' published a new post: '.$preview
+            : $authorName.' published a new post.';
         $dedupeKeyPrefix = 'new_post:'.$post->id.($force ? ':force:'.now()->timestamp : '');
         $summary = [
             'recipients_count' => 0,
@@ -113,22 +117,22 @@ class NotificationService
 
         $this->postNotificationRecipientQuery($post)
             ->select('users.*')
-            ->chunkById(100, function ($users) use ($post, $authorName, $dedupeKeyPrefix, &$summary): void {
+            ->chunkById(100, function ($users) use ($post, $title, $body, $dedupeKeyPrefix, &$summary): void {
                 foreach ($users as $user) {
                     $summary['recipients_count']++;
 
                     $notification = $this->sendToUser(
                         $user,
                         'new_post',
-                        'New Post Published',
-                        $authorName.' published a new post.',
+                        $title,
+                        $body,
                         [
-                            'title' => 'New Post Published',
-                            'body' => $authorName.' published a new post.',
+                            'title' => $title,
+                            'body' => $body,
                             'navigation_screen' => '/member-profile',
                             'type' => 'new_post',
-                            'user_id' => (string) $post->user_id,
                             'member_id' => (string) $post->user_id,
+                            'user_id' => (string) $post->user_id,
                             'author_id' => (string) $post->user_id,
                             'post_id' => (string) $post->id,
                             'actor_id' => (string) $post->user_id,

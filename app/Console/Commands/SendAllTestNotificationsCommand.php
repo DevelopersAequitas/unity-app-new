@@ -40,13 +40,14 @@ class SendAllTestNotificationsCommand extends Command
             [
                 'type' => 'new_post',
                 'category' => 'feed',
-                'title' => 'New Post Published',
-                'body' => 'John Doe published a new post.',
+                'title' => 'New Post from John',
+                'body' => 'John published a new post: Check out our latest updates!',
                 'screen' => '/member-profile',
                 'priority' => 'high',
                 'data' => [
                     'navigation_screen' => '/member-profile',
                     'type' => 'new_post',
+                    'member_id' => (string) $user->id,
                     'user_id' => (string) $user->id,
                     'post_id' => 'post_123456',
                 ],
