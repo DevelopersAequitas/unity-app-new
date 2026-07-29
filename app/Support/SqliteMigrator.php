@@ -101,6 +101,10 @@ class SqliteMigrator
         $replacements = [
             'UUID PRIMARY KEY DEFAULT gen_random_uuid()' => 'TEXT PRIMARY KEY',
             'UUID PRIMARY KEY' => 'TEXT PRIMARY KEY',
+            'DEFAULT gen_random_uuid()' => '',
+            'DEFAULT gen_random_TEXT()' => '',
+            'gen_random_uuid()' => "''",
+            'gen_random_TEXT()' => "''",
             'UUID' => 'TEXT',
             'TIMESTAMPTZ' => 'DATETIME',
             'JSONB' => 'TEXT',
