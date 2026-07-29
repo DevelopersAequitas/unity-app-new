@@ -16,7 +16,8 @@ class PartnerWithUsSubmission extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'full_name',
+        'first_name',
+        'last_name',
         'mobile_number',
         'email_id',
         'city',
