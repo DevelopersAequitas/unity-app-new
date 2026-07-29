@@ -66,7 +66,7 @@ class EventDetailResource extends JsonResource
             'organizer' => data_get($metadata, 'organizer'),
             'visibility' => $this->visibility,
             'is_paid' => (bool) $this->is_paid,
-            'ticket_price' => $this->ticket_price !== null ? (string) $this->ticket_price : null,
+            'ticket_price' => null,
             'registration_limit' => $this->registration_limit,
             'qr_checkin_enabled' => (bool) $this->qr_checkin_enabled,
             'is_public' => (bool) $this->is_public,
