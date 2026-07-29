@@ -27,6 +27,42 @@ class FileController extends BaseApiController
             $file = File::find($id);
 
             if (! $file) {
+                $candidatePaths = [
+                    $id,
+                    'ads/'.$id,
+                    ltrim($id, '/'),
+                ];
+                $disk = config('filesystems.default', 'public');
+                $foundPath = null;
+
+                foreach ($candidatePaths as $candidate) {
+                    if (Storage::disk($disk)->exists($candidate)) {
+                        $foundPath = $candidate;
+                        break;
+                    }
+                    if ($disk !== 'public' && Storage::disk('public')->exists($candidate)) {
+                        $disk = 'public';
+                        $foundPath = $candidate;
+                        break;
+                    }
+                }
+
+                if ($foundPath) {
+                    $mime = Storage::disk($disk)->mimeType($foundPath) ?: 'application/octet-stream';
+                    if ($request->isMethod('HEAD')) {
+                        return response('', 200, [
+                            'Content-Type' => $mime,
+                            'Content-Length' => Storage::disk($disk)->size($foundPath),
+                            'Cache-Control' => 'no-cache, must-revalidate',
+                        ]);
+                    }
+
+                    return Storage::disk($disk)->response($foundPath, null, [
+                        'Content-Type' => $mime,
+                        'Cache-Control' => 'no-cache, must-revalidate',
+                    ]);
+                }
+
                 Log::warning("File API lookup failed: Database record not found for UUID: {$id}", [
                     'uuid' => $id,
                     'ip' => $request->ip(),
