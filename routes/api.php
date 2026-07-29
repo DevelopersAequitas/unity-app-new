@@ -830,6 +830,7 @@ Route::prefix('v1')->group(function () {
         // Impact system
         Route::get('/impacts/actions', [ImpactController::class, 'actions']);
         Route::post('/impacts', [ImpactController::class, 'store']);
+        Route::post('/life-impact', [ImpactController::class, 'store']);
         Route::get('/impacts/my', [ImpactController::class, 'my']);
         Route::get('/impacts/timeline', [ImpactController::class, 'timeline']);
         Route::get('/life-impact/history', [LifeImpactHistoryController::class, 'index']);
