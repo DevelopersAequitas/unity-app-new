@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('partner_with_us_submissions')) {
+            return;
+        }
+
         Schema::table('partner_with_us_submissions', function (Blueprint $table) {
             if (! Schema::hasColumn('partner_with_us_submissions', 'first_name')) {
                 $table->string('first_name', 255)->nullable()->after('id');

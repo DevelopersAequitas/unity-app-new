@@ -366,10 +366,12 @@ class WebsiteFormsController extends BaseApiController
                     ['status' => 'new']
                 ));
 
+                $userId = $request->user()?->id ?? User::query()->where('email', $legacySubmission->email)->value('id');
+
                 CertificationSubmission::create([
                     'id' => $legacySubmission->id,
                     'certification_type' => CertificationSubmission::TYPE_LEADERSHIP,
-                    'user_id' => $request->user()?->id,
+                    'user_id' => $userId,
                     'full_name' => $legacySubmission->full_name,
                     'business_name' => $legacySubmission->business_name,
                     'email' => $legacySubmission->email,
@@ -452,10 +454,12 @@ class WebsiteFormsController extends BaseApiController
                     ['status' => 'new']
                 ));
 
+                $userId = $request->user()?->id ?? User::query()->where('email', $legacySubmission->email)->value('id');
+
                 CertificationSubmission::create([
                     'id' => $legacySubmission->id,
                     'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
-                    'user_id' => $request->user()?->id,
+                    'user_id' => $userId,
                     'full_name' => $legacySubmission->full_name,
                     'business_name' => $legacySubmission->business_name,
                     'email' => $legacySubmission->email,
