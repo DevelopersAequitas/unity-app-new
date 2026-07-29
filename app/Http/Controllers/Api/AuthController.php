@@ -819,7 +819,7 @@ class AuthController extends BaseApiController
 
         $trialEndsAt = now()->addDays(3);
 
-        $user->status = 'inactive';
+        $user->status = 'active';
         $user->registration_source = 'App';
         $user->membership_status = User::STATUS_FREE_TRIAL;
         $user->membership_starts_at = now();
