@@ -207,7 +207,16 @@
                                                     {{ $getInitials($member->peer_name ?? '') }}
                                                 </div>
                                                 <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">{{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
+                                                    <div class="font-semibold t1 text-[12.5px]">
+                                                        @php $mId = $member->actor_id ?? $member->id ?? $member->user_id ?? null; @endphp
+                                                        @if(!empty($mId))
+                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $mId }}', event);">
+                                                                {{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}
+                                                            </a>
+                                                        @else
+                                                            {{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}
+                                                        @endif
+                                                    </div>
                                                     <div class="t3 text-[10px]">{{ $member->peer_company ?? '' }}</div>
                                                 </div>
                                             </div>
@@ -285,6 +294,8 @@
 
                                         $fromName = $deal->from_user_name ?? $actorName;
                                         $toName = $deal->to_user_name ?? $peerName;
+                                        $fromId = $deal->actor_id ?? $deal->from_user_id ?? null;
+                                        $toId = $deal->user_id ?? $deal->to_user_id ?? null;
                                     @endphp
                                     <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-deal="{{ $makeDealPayload($deal) }}" onclick="openBusinessDealDetailModal(this, event)">
                                         <td class="px-3 py-2.5">
@@ -293,7 +304,15 @@
                                                     {{ $getInitials($fromName) }}
                                                 </div>
                                                 <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">{{ $fromName }}</div>
+                                                    <div class="font-semibold t1 text-[12.5px]">
+                                                        @if(!empty($fromId))
+                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $fromId }}', event);">
+                                                                {{ $fromName }}
+                                                            </a>
+                                                        @else
+                                                            {{ $fromName }}
+                                                        @endif
+                                                    </div>
                                                     <div class="t3 text-[10px]">
                                                         @if($deal->from_company) <span>{{ $deal->from_company }}</span> @endif
                                                         @if($deal->from_city) &bull; <span>{{ $deal->from_city }}</span> @endif
@@ -307,7 +326,15 @@
                                                     {{ $getInitials($toName) }}
                                                 </div>
                                                 <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">{{ $toName }}</div>
+                                                    <div class="font-semibold t1 text-[12.5px]">
+                                                        @if(!empty($toId))
+                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $toId }}', event);">
+                                                                {{ $toName }}
+                                                            </a>
+                                                        @else
+                                                            {{ $toName }}
+                                                        @endif
+                                                    </div>
                                                     <div class="t3 text-[10px]">
                                                         @if($deal->to_company) <span>{{ $deal->to_company }}</span> @endif
                                                         @if($deal->to_city) &bull; <span>{{ $deal->to_city }}</span> @endif

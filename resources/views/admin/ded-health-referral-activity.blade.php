@@ -105,43 +105,35 @@
         <table class="table table-bordered table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th>From (Sender)</th>
-                    <th>Sender Info</th>
-                    <th>To (Receiver)</th>
-                    <th>Receiver Info</th>
+                    <th>Sender Name</th>
+                    <th>Sender Company</th>
+                    <th>Sender Phone</th>
+                    <th>Sender Email</th>
+                    <th>Receiver Name</th>
+                    <th>Receiver Company</th>
+                    <th>Receiver Phone</th>
+                    <th>Receiver Email</th>
                     <th>Referral Date</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($records as $r)
                     <tr>
-                        <td>
-                            <div class="fw-bold text-dark">{{ $r['from_user_name'] }}</div>
-                            <div class="small text-muted">{{ $r['from_user_company'] }}</div>
-                        </td>
-                        <td>
-                            <div class="small text-muted">
-                                <div><i class="bi bi-phone"></i> {{ $r['from_user_phone'] }}</div>
-                                <div><i class="bi bi-envelope"></i> {{ $r['from_user_email'] }}</div>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="fw-bold text-dark">{{ $r['to_user_name'] }}</div>
-                            <div class="small text-muted">{{ $r['to_user_company'] }}</div>
-                        </td>
-                        <td>
-                            <div class="small text-muted">
-                                <div><i class="bi bi-phone"></i> {{ $r['to_user_phone'] }}</div>
-                                <div><i class="bi bi-envelope"></i> {{ $r['to_user_email'] }}</div>
-                            </div>
-                        </td>
+                        <td class="fw-bold text-dark">{{ $r['from_user_name'] }}</td>
+                        <td class="small text-muted">{{ $r['from_user_company'] }}</td>
+                        <td class="small text-muted">{{ $r['from_user_phone'] }}</td>
+                        <td class="small text-muted">{{ $r['from_user_email'] }}</td>
+                        <td class="fw-bold text-dark">{{ $r['to_user_name'] }}</td>
+                        <td class="small text-muted">{{ $r['to_user_company'] }}</td>
+                        <td class="small text-muted">{{ $r['to_user_phone'] }}</td>
+                        <td class="small text-muted">{{ $r['to_user_email'] }}</td>
                         <td class="small text-muted">
                             {{ $r['created_at'] ? \Illuminate\Support\Carbon::parse($r['created_at'])->format('Y-m-d H:i') : '—' }}
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">No referral activity records found.</td>
+                        <td colspan="9" class="text-center text-muted py-4">No referral activity records found.</td>
                     </tr>
                 @endforelse
             </tbody>

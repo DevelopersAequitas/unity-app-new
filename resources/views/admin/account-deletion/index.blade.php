@@ -93,7 +93,9 @@
                                         <div>
                                             @if($linkedUser)
                                                 <div class="font-semibold t1">
-                                                    {{ $linkedUser->display_name ?? trim($linkedUser->first_name . ' ' . $linkedUser->last_name) }}
+                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $linkedUser->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline no-underline font-semibold">
+                                                        {{ $linkedUser->display_name ?? trim($linkedUser->first_name . ' ' . $linkedUser->last_name) }}
+                                                    </a>
                                                 </div>
                                                 <div class="mt-0.5">
                                                     @if($userIsDeactivated)

@@ -103,7 +103,15 @@
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $formatLabel($item->certification_type) }}</td>
-                                <td class="px-3 py-2.5 text-xs font-medium t1">{{ $item->full_name }}</td>
+                                <td class="px-3 py-2.5 text-xs font-medium t1">
+                                    @if(!empty($item->user_id ?? $item->user?->id))
+                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->user?->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                            {{ $item->full_name }}
+                                        </a>
+                                    @else
+                                        {{ $item->full_name }}
+                                    @endif
+                                </td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $item->business_name ?: '—' }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $item->email }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $item->contact_no ?: '—' }}</td>

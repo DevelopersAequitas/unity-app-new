@@ -131,13 +131,21 @@
         $circleCity = data_get($circle, 'city.name') ?: (data_get($circle, 'city_name') ?: '—');
         $circleCountry = data_get($circle, 'city.country') ?: (data_get($circle, 'country') ?: '—');
 
-        $circleFounder = data_get($circle, 'circleFounder.display_name')
-            ?: data_get($circle, 'circleFounder.name')
-            ?: trim((string) data_get($circle, 'circleFounder.first_name', '') . ' ' . (string) data_get($circle, 'circleFounder.last_name', ''))
-            ?: data_get($circle, 'founder.display_name')
-            ?: data_get($circle, 'founder.name')
-            ?: trim((string) data_get($circle, 'founder.first_name', '') . ' ' . (string) data_get($circle, 'founder.last_name', ''));
-        $circleFounder = trim((string) $circleFounder) !== '' ? trim((string) $circleFounder) : '—';
+        $founderUser = $circle->circleFounder ?? $circle->founder ?? null;
+        $founderName = $founderUser
+            ? ($founderUser->display_name
+                ?: $founderUser->name
+                ?: trim((string) ($founderUser->first_name ?? '') . ' ' . (string) ($founderUser->last_name ?? '')))
+            : null;
+        if (empty($founderName)) {
+            $founderName = data_get($circle, 'circleFounder.display_name')
+                ?: data_get($circle, 'circleFounder.name')
+                ?: data_get($circle, 'founder.display_name')
+                ?: data_get($circle, 'founder.name');
+        }
+        $founderName = trim((string) $founderName) !== '' ? trim((string) $founderName) : '—';
+        $circleFounder = $founderName;
+        $founderId = $founderUser->id ?? null;
 
         $circleDescription = data_get($circle, 'description') ?: '—';
         $circlePurpose = data_get($circle, 'purpose') ?: '—';
@@ -157,28 +165,50 @@
                 $value = trim($value);
             }
 
-            return filled($value)
-                ? '<span class="font-semibold t1">' . e($value) . '</span>'
-                : '<span class="t3">—</span>';
-        };
+            if (! filled($value)) {
+                return '<span class="t3">—</span>';
+            }
 
+            if (str_contains((string) $value, '<a ')) {
+                return '<span class="font-semibold t1">' . $value . '</span>';
+            }
+
+            return '<span class="font-semibold t1">' . e($value) . '</span>';
+        };
         $formatUser = static function ($user) {
             if (! $user) {
                 return null;
             }
 
-            $name = data_get($user, 'name')
-                ?: data_get($user, 'display_name')
+            if (is_array($user)) {
+                $id = data_get($user, 'id');
+                $name = data_get($user, 'display_name') ?: data_get($user, 'name') ?: trim((string) data_get($user, 'first_name', '') . ' ' . (string) data_get($user, 'last_name', ''));
+                return ['id' => $id ? (string) $id : null, 'name' => $name ?: '—'];
+            }
+
+            if (is_string($user) || is_numeric($user)) {
+                $uStr = trim((string) $user);
+                return $uStr !== '' ? ['id' => null, 'name' => $uStr] : null;
+            }
+
+            $name = data_get($user, 'display_name')
+                ?: data_get($user, 'name')
                 ?: trim((string) data_get($user, 'first_name', '') . ' ' . (string) data_get($user, 'last_name', ''));
 
             $name = trim((string) $name);
             $email = trim((string) data_get($user, 'email', ''));
 
-            if ($name !== '' && $email !== '') {
-                return $name . ' (' . $email . ')';
+            $text = $name !== '' && $email !== '' ? $name . ' (' . $email . ')' : ($name !== '' ? $name : ($email !== '' ? $email : null));
+
+            $userId = data_get($user, 'id');
+            if (! $text && ! $userId) {
+                return null;
             }
 
-            return $name !== '' ? $name : ($email !== '' ? $email : null);
+            return [
+                'id' => $userId ? (string) $userId : null,
+                'name' => $text ?: (string) $userId,
+            ];
         };
 
         $calendar = is_array($circle->calendar ?? null) ? $circle->calendar : [];
@@ -336,7 +366,7 @@
             $endsAtRaw = $membership->expires_at ?? $membership->paid_ends_at ?? data_get($m, 'membership_ends_at');
             $endsAt = $endsAtRaw ? \Carbon\Carbon::parse($endsAtRaw)->format('d M Y') : '—';
 
-            $editUrl = $m && !empty($m->id) ? route('admin.users.edit', $m->id) : '#';
+            $editUrl = $m && !empty($m->id) ? route('admin.users.show', $m->id) : '#';
 
             return [
                 'id' => (string) ($m ? $m->id : ''),
@@ -388,7 +418,18 @@
                     <div class="flex justify-between gap-4"><span class="t3">Slug</span><span class="t1 font-medium font-mono">{{ $circleSlug }}</span></div>
                     <div class="flex justify-between"><span class="t3">City</span><span class="t1 font-medium">{{ $circleCity }}</span></div>
                     <div class="flex justify-between"><span class="t3">Country</span><span class="t1 font-medium">{{ $circleCountry }}</span></div>
-                    <div class="flex justify-between"><span class="t3">Founder</span><span class="t1 font-medium">{{ $circleFounder }}</span></div>
+                    <div class="flex justify-between items-center">
+                        <span class="t3">Founder</span>
+                        <span class="t1 font-medium">
+                            @if(!empty($founderId))
+                                <a href="#" data-peer-id="{{ $founderId }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $founderId }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                    {{ $founderName }}
+                                </a>
+                            @else
+                                <span>{{ $founderName }}</span>
+                            @endif
+                        </span>
+                    </div>
                     <div class="flex justify-between"><span class="t3">Created</span><span class="t1 font-medium">{{ optional($circle->created_at)->format('Y-m-d H:i') ?: '—' }}</span></div>
                 </div>
             </div>
@@ -448,19 +489,71 @@
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">Circle Director</span>
-                <span class="t1 font-semibold">{!! $displayValue($formatUser($circle->circleDirector ?? $circle->director ?? null)) !!}</span>
+                @php $usr = $formatUser($circle->circleDirector ?? $circle->director ?? null); @endphp
+                @if(is_array($usr) && !empty($usr['name']))
+                    @if(!empty($usr['id']))
+                        <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                            {{ $usr['name'] }}
+                        </a>
+                    @else
+                        <span class="font-semibold t1">{{ $usr['name'] }}</span>
+                    @endif
+                @elseif(is_string($usr) && trim($usr) !== '')
+                    {!! $usr !!}
+                @else
+                    <span class="t3">—</span>
+                @endif
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">Industry Director</span>
-                <span class="t1 font-semibold">{!! $displayValue($formatUser($circle->industryDirector ?? null)) !!}</span>
+                @php $usr = $formatUser($circle->industryDirector ?? null); @endphp
+                @if(is_array($usr) && !empty($usr['name']))
+                    @if(!empty($usr['id']))
+                        <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                            {{ $usr['name'] }}
+                        </a>
+                    @else
+                        <span class="font-semibold t1">{{ $usr['name'] }}</span>
+                    @endif
+                @elseif(is_string($usr) && trim($usr) !== '')
+                    {!! $usr !!}
+                @else
+                    <span class="t3">—</span>
+                @endif
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">DED</span>
-                <span class="t1 font-semibold">{!! $displayValue($formatUser($circle->ded ?? null)) !!}</span>
+                @php $usr = $formatUser($circle->ded ?? null); @endphp
+                @if(is_array($usr) && !empty($usr['name']))
+                    @if(!empty($usr['id']))
+                        <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                            {{ $usr['name'] }}
+                        </a>
+                    @else
+                        <span class="font-semibold t1">{{ $usr['name'] }}</span>
+                    @endif
+                @elseif(is_string($usr) && trim($usr) !== '')
+                    {!! $usr !!}
+                @else
+                    <span class="t3">—</span>
+                @endif
             </div>
             <div class="p-3 border bs rounded-xl surface-2">
                 <span class="t3 block mb-1 font-medium">EED</span>
-                <span class="t1 font-semibold">{!! $displayValue($formatUser($circle->eed ?? null)) !!}</span>
+                @php $usr = $formatUser($circle->eed ?? null); @endphp
+                @if(is_array($usr) && !empty($usr['name']))
+                    @if(!empty($usr['id']))
+                        <a href="#" data-peer-id="{{ $usr['id'] }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $usr['id'] }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                            {{ $usr['name'] }}
+                        </a>
+                    @else
+                        <span class="font-semibold t1">{{ $usr['name'] }}</span>
+                    @endif
+                @elseif(is_string($usr) && trim($usr) !== '')
+                    {!! $usr !!}
+                @else
+                    <span class="t3">—</span>
+                @endif
             </div>
             <div class="p-3 border bs rounded-xl surface-2 md:col-span-2">
                 <span class="t3 block mb-1 font-medium">Meeting Repeat</span>

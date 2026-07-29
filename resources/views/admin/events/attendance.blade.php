@@ -59,8 +59,10 @@
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Name</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Type</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Phone / Email</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company / City</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Phone</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Payment</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Razorpay</th>
@@ -78,14 +80,10 @@
                             <td class="px-3 py-2.5 text-xs">
                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold uppercase bg-gray-100 text-gray-700 border-gray-200">{{ $item['attendee_type'] }}</span>
                             </td>
-                            <td class="px-3 py-2.5 text-xs t2">
-                                {{ $item['user']['phone'] ?? $item['visitor']['phone'] ?? '-' }}
-                                <div class="t3 text-[10px]">{{ $item['user']['email'] ?? $item['visitor']['email'] ?? '' }}</div>
-                            </td>
-                            <td class="px-3 py-2.5 text-xs t2">
-                                {{ $item['user']['company_name'] ?? $item['visitor']['company'] ?? '-' }}
-                                <div class="t3 text-[10px]">{{ $item['user']['city'] ?? $item['visitor']['city'] ?? '' }}</div>
-                            </td>
+                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item['user']['phone'] ?? $item['visitor']['phone'] ?? '-' }}</td>
+                            <td class="px-3 py-2.5 text-xs t2">{{ $item['user']['email'] ?? $item['visitor']['email'] ?? '-' }}</td>
+                            <td class="px-3 py-2.5 text-xs t2">{{ $item['user']['company_name'] ?? $item['visitor']['company'] ?? '-' }}</td>
+                            <td class="px-3 py-2.5 text-xs t2">{{ $item['user']['city'] ?? $item['visitor']['city'] ?? '-' }}</td>
                             <td class="px-3 py-2.5 text-xs font-medium t1">{{ $item['status'] }}</td>
                             <td class="px-3 py-2.5 text-xs t2">{{ $item['payment_status'] ?? '-' }}</td>
                             <td class="px-3 py-2.5 text-xs t3 font-mono">{{ $item['razorpay_payment_id'] ?? '-' }}</td>
@@ -110,7 +108,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="12" class="text-center py-8 text-xs t3">No registrations found.</td></tr>
+                        <tr><td colspan="14" class="text-center py-8 text-xs t3">No registrations found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

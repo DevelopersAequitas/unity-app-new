@@ -94,7 +94,7 @@
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs">
                                     @if ($item->user)
-                                        <a href="{{ route('admin.users.show', $item->user->id) }}" class="font-semibold text-indigo-600 hover:underline no-underline">{{ $item->user->display_name ?: trim($item->user->first_name . ' ' . $item->user->last_name) }}</a>
+                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user->id }}', event);" class="font-semibold text-indigo-600 hover:underline no-underline">{{ $item->user->display_name ?: trim($item->user->first_name . ' ' . $item->user->last_name) }}</a>
                                     @else
                                         <span class="t1 font-medium">{{ $item->full_name }}</span>
                                         <span class="chip px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 border-gray-200 ml-1">Guest</span>
@@ -156,7 +156,7 @@
                                     <div class="small text-muted">Full Name</div>
                                     <div class="fw-semibold text-dark">
                                         @if ($item->user)
-                                            <a href="{{ route('admin.users.show', $item->user->id) }}">{{ $item->full_name ?: ($item->user->display_name ?: trim($item->user->first_name . ' ' . $item->user->last_name)) }}</a>
+                                            <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user->id }}', event);" class="text-indigo-600 hover:underline no-underline fw-semibold">{{ $item->full_name ?: ($item->user->display_name ?: trim($item->user->first_name . ' ' . $item->user->last_name)) }}</a>
                                         @else
                                             {{ $item->full_name ?: 'Not Provided' }}
                                         @endif

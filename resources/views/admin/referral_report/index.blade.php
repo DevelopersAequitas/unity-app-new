@@ -59,10 +59,13 @@
 
     <div class="rounded-xl border bs surface overflow-hidden">
         <div class="overflow-x-auto relative">
-            <table class="min-w-full border-collapse text-[13px]">
+            <table class="min-w-[1100px] w-full border-collapse text-[13px]">
                 <thead>
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referrer</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Referrer Name</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Phone Number</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referral Code</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 280px;">Referred Users</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Total Users</th>
@@ -74,21 +77,25 @@
                 <tbody id="grid-body" class="divide-y divide-gray-200/50">
                     @forelse ($records as $record)
                         <tr class="hover:surface-2 transition border-b bs">
-                            <td class="px-3 py-2.5 text-xs">
+                            <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                 <div class="flex items-center gap-2.5">
                                     <div class="w-8 h-8 rounded-full surface-2 text-indigo-600 font-bold flex items-center justify-center border bs text-xs flex-shrink-0">
                                         {{ $getInitials($record->referrer_name ?? '') }}
                                     </div>
-                                    <div>
-                                        <div class="font-semibold t1">{{ $record->referrer_name ?: 'Deleted / Unknown User' }}</div>
-                                        <div class="t3 text-[11px]">
-                                            @if($record->referrer_company) <span>{{ $record->referrer_company }}</span> @endif
-                                            @if($record->referrer_city) &bull; <span>{{ $record->referrer_city }}</span> @endif
-                                            @if($record->referrer_phone) &bull; <span>{{ $record->referrer_phone }}</span> @endif
-                                        </div>
+                                    <div class="font-semibold t1">
+                                        @if(!empty($record->referrer_user_id))
+                                            <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $record->referrer_user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                {{ $record->referrer_name ?: 'Deleted / Unknown User' }}
+                                            </a>
+                                        @else
+                                            {{ $record->referrer_name ?: 'Deleted / Unknown User' }}
+                                        @endif
                                     </div>
                                 </div>
                             </td>
+                            <td class="px-3 py-2.5 text-xs t2">{{ $record->referrer_company ?: '—' }}</td>
+                            <td class="px-3 py-2.5 text-xs t2">{{ $record->referrer_city ?: '—' }}</td>
+                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $record->referrer_phone ?: '—' }}</td>
                             <td class="px-3 py-2.5 text-xs">
                                 <code class="text-[11px] font-mono bg-gray-100 px-1.5 py-0.5 rounded border bs">{{ $record->referral_codes ?: '—' }}</code>
                             </td>
@@ -100,7 +107,15 @@
                                     <div class="space-y-1.5 max-h-48 overflow-y-auto">
                                         @foreach($referredUsers as $referredUser)
                                             <div class="p-2 rounded border bs surface-2 text-xs">
-                                                <div class="font-semibold t1">{{ $referredUser->referred_name ?: 'Unknown' }}</div>
+                                                <div class="font-semibold t1">
+                                                    @if(!empty($referredUser->user_id))
+                                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $referredUser->user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                            {{ $referredUser->referred_name ?: 'Unknown' }}
+                                                        </a>
+                                                    @else
+                                                        {{ $referredUser->referred_name ?: 'Unknown' }}
+                                                    @endif
+                                                </div>
                                                 <div class="t3 text-[10px]">
                                                     @if($referredUser->company_name) <span>{{ $referredUser->company_name }}</span> @endif
                                                     @if($referredUser->city) &bull; <span>{{ $referredUser->city }}</span> @endif
@@ -135,7 +150,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center py-8 text-xs t3">No referral records found.</td>
+                            <td colspan="10" class="text-center py-8 text-xs t3">No referral records found.</td>
                         </tr>
                     @endforelse
                 </tbody>

@@ -4,6 +4,25 @@
 
 @include('admin.partials.grid-head')
 
+@php
+    $getInitials = function (?string $name): string {
+        if (! $name) return 'P';
+        $words = explode(' ', trim($name));
+        $initials = '';
+        foreach ($words as $w) {
+            if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+        }
+        return substr($initials, 0, 2) ?: 'P';
+    };
+
+    $getAvatarBg = function (?string $name): string {
+        if (! $name) return '#6366f1';
+        $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+        $hash = crc32($name);
+        return $colors[abs($hash) % count($colors)];
+    };
+@endphp
+
 @section('content')
     @if (session('success'))
         <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">{{ session('success') }}</div>
@@ -70,11 +89,14 @@
 
         <div class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
-                <table class="min-w-full border-collapse text-[13px]">
+                <table class="min-w-[1100px] w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visibility</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Moderation Status</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Active</th>
@@ -84,7 +106,10 @@
                         </tr>
                         <tr class="surface-2 border-b bs filter-row">
                             <th class="px-2 py-1 text-center t3">—</th>
-                            <th class="px-2 py-1"><input type="text" name="peer" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" style="min-width:180px" value="{{ $peer ?? '' }}" placeholder="Peer/Company/City"></th>
+                            <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);"><input type="text" name="peer" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" style="min-width:180px" value="{{ $peer ?? '' }}" placeholder="Peer Search"></th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
                             <th class="px-2 py-1">
                                 <select name="inline_visibility" form="postsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     <option value="any">Any</option>
@@ -127,6 +152,7 @@
                             @php
                                 $isImpact = ($post->timeline_item_type ?? $post->source_type ?? 'post') === 'impact';
                                 $owner = $post->user;
+                                $ownerName = $owner ? ($owner->display_name ?: trim(($owner->first_name ?? '') . ' ' . ($owner->last_name ?? ''))) : '—';
                                 $circleName = optional($post->circle)->name;
                                 $isActive = $isImpact
                                     ? (bool) ($post->is_active ?? ! is_null($post->timeline_posted_at ?? null))
@@ -177,7 +203,23 @@
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $post->created_at?->format('Y-m-d H:i') }}</td>
-                                <td class="px-3 py-2.5 text-xs">@include('admin.partials.peer_identity', ['user' => $owner, 'circleName' => $circleName])</td>
+                                <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                                    @if($owner)
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($ownerName) }}">
+                                                {{ $getInitials($ownerName) }}
+                                            </div>
+                                            <a href="{{ route('admin.users.show', $owner->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                {{ $ownerName }}
+                                            </a>
+                                        </div>
+                                    @else
+                                        <span class="t3">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $owner->company_name ?? $owner->company ?? $owner->business_name ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $owner->city ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $circleName ?: '—' }}</td>
                                 <td class="px-3 py-2.5 text-xs">
                                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($post->visibility) }}</span>
                                 </td>
@@ -255,7 +297,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="8" class="text-center py-8 text-xs t3">No posts found.</td></tr>
+                            <tr><td colspan="11" class="text-center py-8 text-xs t3">No posts found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

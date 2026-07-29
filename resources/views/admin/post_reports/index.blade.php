@@ -4,6 +4,25 @@
 
 @include('admin.partials.grid-head')
 
+@php
+    $getInitials = function (?string $name): string {
+        if (! $name) return 'P';
+        $words = explode(' ', trim($name));
+        $initials = '';
+        foreach ($words as $w) {
+            if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+        }
+        return substr($initials, 0, 2) ?: 'P';
+    };
+
+    $getAvatarBg = function (?string $name): string {
+        if (! $name) return '#6366f1';
+        $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+        $hash = crc32($name);
+        return $colors[abs($hash) % count($colors)];
+    };
+@endphp
+
 @section('content')
     @if (session('success'))
         <div class="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">{{ session('success') }}</div>
@@ -71,6 +90,9 @@
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Reported At</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Post ID</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Reporter Name</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Reason</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
@@ -83,6 +105,9 @@
                                 <th class="px-2 py-1 text-center t3">—</th>
                                 <th class="px-2 py-1"><input type="text" name="post_id" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $postId ?? '' }}" placeholder="Post ID"></th>
                                 <th class="px-2 py-1"><input type="text" name="peer" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $peer ?? '' }}" placeholder="Peer Name"></th>
+                                <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
                                 <th class="px-2 py-1"><input type="text" name="reporter" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $reporter ?? '' }}" placeholder="Reporter Name"></th>
                                 <th class="px-2 py-1"><input type="text" name="reason_text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $reasonText ?? '' }}" placeholder="Reason"></th>
                                 <th class="px-2 py-1">
@@ -126,6 +151,7 @@
                             @forelse ($reports as $report)
                                 @php
                                     $postOwner = $report->post?->user;
+                                    $postOwnerName = $postOwner ? ($postOwner->display_name ?: trim(($postOwner->first_name ?? '') . ' ' . ($postOwner->last_name ?? ''))) : '—';
                                     $circleName = $report->post?->circle?->name;
                                     $reporterName = $report->reporter?->display_name ?: trim(($report->reporter?->first_name ?? '') . ' ' . ($report->reporter?->last_name ?? ''));
                                     $isPostActive = $report->post ? ! $report->post->is_deleted && ! $report->post->deleted_at : false;
@@ -169,7 +195,23 @@
                                 <tr class="hover:surface-2 transition border-b bs">
                                     <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $report->created_at?->format('Y-m-d H:i') }}</td>
                                     <td class="px-3 py-2.5 text-xs font-mono t2">{{ $report->post_id }}</td>
-                                    <td class="px-3 py-2.5 text-xs">@include('admin.partials.peer_identity', ['user' => $postOwner, 'circleName' => $circleName])</td>
+                                    <td class="px-3 py-2.5 text-xs">
+                                        @if($postOwner)
+                                            <div class="flex items-center gap-2">
+                                                <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($postOwnerName) }}">
+                                                    {{ $getInitials($postOwnerName) }}
+                                                </div>
+                                                <a href="{{ route('admin.users.show', $postOwner->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                    {{ $postOwnerName }}
+                                                </a>
+                                            </div>
+                                        @else
+                                            <span class="t3">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $postOwner->company_name ?? $postOwner->company ?? $postOwner->business_name ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $postOwner->city ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $circleName ?: '—' }}</td>
                                     <td class="px-3 py-2.5 text-xs t1 font-medium">{{ $reporterName !== '' ? $reporterName : 'Unknown' }}</td>
                                     <td class="px-3 py-2.5 text-xs t2">{{ $report->reasonOption?->title ?? $report->reason ?? '—' }}</td>
                                     <td class="px-3 py-2.5 text-xs">
@@ -193,24 +235,29 @@
                                     <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
                                         <div class="flex justify-end gap-1.5 items-center">
                                             <a href="{{ route('admin.post-reports.show', $report) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">View</a>
-                                            @if ($report->post)
-                                                @if ($isPostActive)
-                                                    <form method="POST" action="{{ route('admin.posts.deactivate', $report->post) }}" class="inline">
-                                                        @csrf
-                                                        <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring">Deactivate</button>
-                                                    </form>
-                                                @else
-                                                    <form method="POST" action="{{ route('admin.posts.restore', $report->post) }}" class="inline">
-                                                        @csrf
-                                                        <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" onclick="return confirm('Restore this post report?')">Restore</button>
-                                                    </form>
-                                                @endif
+                                            @if($isPostActive)
+                                                <form method="POST" action="{{ route('admin.posts.deactivate', $report->post_id) }}" class="inline">
+                                                    @csrf
+                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Deactivate this reported post?')">Deactivate Post</button>
+                                                </form>
+                                            @endif
+                                            @if($report->status !== 'resolved')
+                                                <form method="POST" action="{{ route('admin.post-reports.resolve', $report) }}" class="inline">
+                                                    @csrf
+                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" onclick="return confirm('Resolve this report?')">Resolve</button>
+                                                </form>
+                                            @endif
+                                            @if($report->status !== 'dismissed')
+                                                <form method="POST" action="{{ route('admin.post-reports.dismiss', $report) }}" class="inline">
+                                                    @csrf
+                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition focus-ring" onclick="return confirm('Dismiss this report?')">Dismiss</button>
+                                                </form>
                                             @endif
                                         </div>
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="10" class="text-center py-8 text-xs t3">No reports found.</td></tr>
+                                <tr><td colspan="13" class="text-center py-8 text-xs t3">No reports found.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

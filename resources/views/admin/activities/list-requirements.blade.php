@@ -78,7 +78,14 @@
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div>
                 <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Requirements Log</h2>
-                <p class="text-xs t1 font-medium m-0 mt-0.5">{{ $peerName }} • {{ $member->email ?? '-' }}</p>
+                <p class="text-xs t1 font-medium m-0 mt-0.5">
+                    @if(!empty($member->id))
+                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $member->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">{{ $peerName }}</a>
+                    @else
+                        {{ $peerName }}
+                    @endif
+                    • {{ $member->email ?? '-' }}
+                </p>
             </div>
             <a href="{{ route('admin.activities.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">
                 Back to Activities
@@ -104,8 +111,10 @@
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Subject & Description</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Region & Category</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Subject</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Description</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Region</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Category</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Attachment</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
@@ -121,18 +130,13 @@
                                 $category = $categoryFilter['category'] ?? null;
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
+                                <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] max-w-[200px] truncate" title="{{ $requirement->subject }}">{{ $requirement->subject ?? '-' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[250px] truncate" title="{{ $requirement->description }}">{{ $requirement->description ?? '-' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $regionLabel ?? '-' }}</td>
                                 <td class="px-3 py-2.5 text-xs">
-                                    <div class="font-semibold t1 text-[12.5px] max-w-[280px] truncate" title="{{ $requirement->subject }}">{{ $requirement->subject ?? '-' }}</div>
-                                    <div class="t2 text-[11px] max-w-[280px] truncate mt-0.5" title="{{ $requirement->description }}">{{ $requirement->description ?? '-' }}</div>
-                                </td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    @if($regionLabel)
-                                        <div class="t2 font-medium">{{ $regionLabel }}</div>
-                                    @endif
                                     @if($category)
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 mt-0.5">{{ $category }}</span>
-                                    @endif
-                                    @if(! $regionLabel && ! $category)
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $category }}</span>
+                                    @else
                                         <span class="t3">-</span>
                                     @endif
                                 </td>
@@ -152,7 +156,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center py-8 text-xs t3">No requirements found.</td>
+                                <td colspan="7" class="text-center py-8 text-xs t3">No requirements found.</td>
                             </tr>
                         @endforelse
                     </tbody>

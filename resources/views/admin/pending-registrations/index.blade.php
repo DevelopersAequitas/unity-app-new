@@ -73,7 +73,8 @@
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Mobile</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company & Designation</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Designation</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                         </tr>
@@ -92,10 +93,8 @@
                                 <td class="px-3 py-2.5 text-xs t2">{{ $registration->email }}</td>
                                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $registration->phone ?? '—' }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $city }}</td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    <div class="font-medium t1">{{ $company }}</div>
-                                    <div class="t3 text-[11px]">{{ $designation }}</div>
-                                </td>
+                                <td class="px-3 py-2.5 text-xs font-medium t1">{{ $company }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $designation }}</td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if ($registration->status === 'inactive')
                                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Inactive</span>
@@ -189,7 +188,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-8 text-xs t3">No inactive or rejected registration requests found.</td>
+                                <td colspan="9" class="text-center py-8 text-xs t3">No inactive or rejected registration requests found.</td>
                             </tr>
                         @endforelse
                     </tbody>

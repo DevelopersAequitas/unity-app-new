@@ -38,7 +38,14 @@
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div>
                 <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Referrals Log</h2>
-                <p class="text-xs t1 font-medium m-0 mt-0.5">{{ $peerName }} • {{ $member->email ?? '-' }}</p>
+                <p class="text-xs t1 font-medium m-0 mt-0.5">
+                    @if(!empty($member->id))
+                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $member->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">{{ $peerName }}</a>
+                    @else
+                        {{ $peerName }}
+                    @endif
+                    • {{ $member->email ?? '-' }}
+                </p>
             </div>
             <a href="{{ route('admin.activities.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">
                 Back to Activities
@@ -65,8 +72,12 @@
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referred Peer</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referral Info</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Contact Details</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referral Of</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referral Type</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referral Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Phone</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Address</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Hot Value</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Remarks</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
@@ -84,23 +95,29 @@
                                             {{ $getInitials($toName) }}
                                         </div>
                                         <div>
-                                            <div class="font-semibold t1 text-[12.5px]">{{ $toName }}</div>
+                                            <div class="font-semibold t1 text-[12.5px]">
+                                                @if(!empty($referral->toUser?->id))
+                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $referral->toUser->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                        {{ $toName }}
+                                                    </a>
+                                                @else
+                                                    {{ $toName }}
+                                                @endif
+                                            </div>
                                             <div class="t3 text-[10px]">{{ $referral->toUser->email ?? '-' }}</div>
                                         </div>
                                     </div>
                                 </td>
+                                <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $referral->referral_of ?? '-' }}</td>
                                 <td class="px-3 py-2.5 text-xs">
-                                    <div class="font-semibold t1 text-[12px]">{{ $referral->referral_of ?? '-' }}</div>
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 mt-0.5">{{ $referral->referral_type ?? '-' }}</span>
-                                    @if($referral->referral_date)
-                                        <div class="t3 text-[10px] mt-0.5">{{ $formatDate($referral->referral_date) }}</div>
-                                    @endif
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $referral->referral_type ?? '-' }}</span>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2">
-                                    <div>{{ $referral->phone ?? '-' }}</div>
-                                    <div class="t3 text-[10px]">{{ $referral->email ?? '-' }}</div>
-                                    <div class="t3 text-[10px] truncate max-w-[160px]">{{ $referral->address ?? '-' }}</div>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                    {{ $referral->referral_date ? $formatDate($referral->referral_date) : '-' }}
                                 </td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $referral->phone ?? '-' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $referral->email ?? '-' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[160px] truncate" title="{{ $referral->address }}">{{ $referral->address ?? '-' }}</td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if($referral->hot_value)
                                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">
@@ -119,7 +136,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center py-8 text-xs t3">No referrals found.</td>
+                                <td colspan="10" class="text-center py-8 text-xs t3">No referrals found.</td>
                             </tr>
                         @endforelse
                     </tbody>

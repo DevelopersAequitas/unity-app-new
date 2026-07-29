@@ -102,7 +102,15 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <span class="text-muted small d-block">Contact Name</span>
-                            <span class="text-dark fw-semibold">{{ $ticket->contact_name }}</span>
+                            <span class="text-dark fw-semibold">
+                                @if(!empty($ticket->user_id ?? $ticket->user?->id))
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user_id ?? $ticket->user?->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $ticket->contact_name }}
+                                    </a>
+                                @else
+                                    {{ $ticket->contact_name }}
+                                @endif
+                            </span>
                         </div>
                         <div class="col-md-6">
                             <span class="text-muted small d-block">Email Address</span>
@@ -111,7 +119,9 @@
                         <div class="col-md-6">
                             <span class="text-muted small d-block">Associated App Account</span>
                             @if($ticket->user)
-                                <span class="text-success"><i class="bi bi-person-check-fill me-1"></i>Linked Account (ID: {{ $ticket->user->id }})</span>
+                                <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user->id }}', event);" class="text-success hover:underline no-underline fw-semibold">
+                                    <i class="bi bi-person-check-fill me-1"></i>Linked Account (ID: {{ $ticket->user->id }})
+                                </a>
                             @else
                                 <span class="text-muted"><i class="bi bi-person-x-fill me-1"></i>No linked account (Guest Submission)</span>
                             @endif

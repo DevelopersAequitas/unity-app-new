@@ -51,7 +51,9 @@
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Details</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Type</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Title</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Scope</th>
@@ -63,6 +65,8 @@
                         </tr>
                         <tr class="surface-2 border-b bs filter-row">
                             <th class="px-2 py-1"><input type="text" name="peer_name" form="collaborationsFiltersForm" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
                             <th class="px-2 py-1"><input type="text" name="collaboration_type" form="collaborationsFiltersForm" value="{{ $filters['collaboration_type'] ?? '' }}" placeholder="Type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                             <th class="px-2 py-1"><input type="text" name="title" form="collaborationsFiltersForm" value="{{ $filters['title'] ?? '' }}" placeholder="Title" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                             <th class="px-2 py-1"><input type="text" name="scope" form="collaborationsFiltersForm" value="{{ $filters['scope'] ?? '' }}" placeholder="Scope" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
@@ -99,23 +103,33 @@
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs">
-                                    <div class="flex items-center gap-2.5">
-                                        <div class="w-8 h-8 rounded-full surface-2 text-indigo-600 font-bold flex items-center justify-center border bs text-xs flex-shrink-0">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($peerName) }}">
                                             {{ $getInitials($peerName) }}
                                         </div>
-                                        <div>
-                                            <div class="font-semibold t1">{{ $peerName }}</div>
-                                            <div class="t3 text-[11px]">
-                                                @if($company) <span>{{ $company }}</span> @endif
-                                                @if($city) &bull; <span>{{ $city }}</span> @endif
-                                            </div>
-                                        </div>
+                                        @if(!empty($post->user_id ?? $post->user?->id))
+                                            <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $post->user_id ?? $post->user?->id }}', event);" class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                {{ $peerName }}
+                                            </a>
+                                        @else
+                                            <span class="font-semibold t1">{{ $peerName }}</span>
+                                        @endif
                                     </div>
                                 </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $company }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $city }}</td>
                                 <td class="px-3 py-2.5 text-xs">
                                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $typeName }}</span>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] max-w-[150px] truncate" title="{{ $title }}">{{ $title }}</td>
+                                <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] max-w-[150px] truncate" title="{{ $title }}">
+                                    @if(!empty($post->id))
+                                        <a href="{{ route('admin.collaborations.show', ['id' => $post->id] + request()->query()) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                            {{ $title }}
+                                        </a>
+                                    @else
+                                        {{ $title }}
+                                    @endif
+                                </td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $scope }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $preferredMode }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $businessStage }}</td>
@@ -133,7 +147,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center py-8 text-xs t3">No collaboration posts found.</td>
+                                <td colspan="11" class="text-center py-8 text-xs t3">No collaboration posts found.</td>
                             </tr>
                         @endforelse
                     </tbody>

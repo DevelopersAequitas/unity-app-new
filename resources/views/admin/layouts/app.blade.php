@@ -164,5 +164,7 @@
             });
         });
     </script>
+
+    @include('admin.activities.partials.peer-modal')
 </body>
 </html>
