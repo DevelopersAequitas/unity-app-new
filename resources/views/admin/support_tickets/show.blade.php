@@ -25,6 +25,14 @@
         </div>
     @endif
 
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
     <div class="row g-4">
         <!-- Main Content Column -->
         <div class="col-lg-8">
@@ -86,7 +94,7 @@
             </div>
 
             <!-- Contact & User Information -->
-            <div class="card shadow-sm">
+            <div class="card shadow-sm mb-4">
                 <div class="card-header bg-white py-3">
                     <h6 class="mb-0 text-dark fw-bold">Customer Information</h6>
                 </div>
@@ -115,6 +123,69 @@
                             </div>
                         @endif
                     </div>
+                </div>
+            </div>
+
+            <!-- Direct Email Response Card -->
+            <div class="card shadow-sm border-primary border-opacity-25">
+                <div class="card-header bg-primary bg-opacity-10 py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 text-primary fw-bold">
+                        <i class="bi bi-envelope-paper-fill me-2"></i>Send Email Response to Customer
+                    </h6>
+                    <span class="badge bg-primary rounded-pill px-3 py-2">
+                        <i class="bi bi-send me-1"></i>To: {{ $ticket->email }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ route('admin.support-tickets.send-email', $ticket->id) }}">
+                        @csrf
+                        <div class="mb-3">
+                            <label for="email_subject" class="form-label text-dark small fw-semibold">Email Subject</label>
+                            <input type="text" name="subject" id="email_subject" class="form-control @error('subject') is-invalid @enderror" 
+                                   value="{{ old('subject', 'Re: [Ticket #' . $ticket->ticket_number . '] ' . $ticket->subject) }}" required>
+                            @error('subject')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label for="email_message" class="form-label text-dark small fw-semibold mb-0">Response Message / Answer</label>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-0 px-2 fs-7" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-magic me-1"></i>Quick Templates
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                        <li><a class="dropdown-item small" href="javascript:void(0)" onclick="applyTemplate('resolved')">Resolution Confirmation</a></li>
+                                        <li><a class="dropdown-item small" href="javascript:void(0)" onclick="applyTemplate('info_needed')">Request More Details</a></li>
+                                        <li><a class="dropdown-item small" href="javascript:void(0)" onclick="applyTemplate('in_progress')">Issue Under Investigation</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <textarea name="message" id="email_message" rows="6" class="form-control @error('message') is-invalid @enderror" 
+                                      placeholder="Type your response or solution to the user's issue here..." required>{{ old('message') }}</textarea>
+                            @error('message')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="row align-items-center g-3">
+                            <div class="col-md-6">
+                                <label for="update_status" class="form-label text-muted small fw-semibold mb-1">Update Ticket Status on Send</label>
+                                <select name="status" id="update_status" class="form-select form-select-sm">
+                                    <option value="">Keep Current Status ({{ ucfirst(str_replace('_', ' ', $ticket->status)) }})</option>
+                                    <option value="in_progress">Set to In Progress</option>
+                                    <option value="resolved" {{ $ticket->status !== 'resolved' ? 'selected' : '' }}>Set to Resolved</option>
+                                    <option value="closed">Set to Closed</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 text-md-end pt-md-3">
+                                <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2 px-4 py-2">
+                                    <i class="bi bi-send-fill"></i> Send Email Response
+                                </button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -151,8 +222,8 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="admin_note" class="form-label text-muted small fw-semibold">Admin Notes</label>
-                            <textarea name="admin_note" id="admin_note" rows="5" class="form-control" placeholder="Add details or response notes here...">{{ $ticket->admin_note }}</textarea>
+                            <label for="admin_note" class="form-label text-muted small fw-semibold">Admin Notes & Activity Log</label>
+                            <textarea name="admin_note" id="admin_note" rows="8" class="form-control" placeholder="Add details or response notes here...">{{ $ticket->admin_note }}</textarea>
                         </div>
 
                         <button type="submit" class="btn btn-primary w-100">
@@ -164,4 +235,24 @@
         </div>
     </div>
 </div>
+
+<script>
+function applyTemplate(type) {
+    const msgInput = document.getElementById('email_message');
+    const statusSelect = document.getElementById('update_status');
+    const contactName = @json($ticket->contact_name);
+    const subject = @json($ticket->subject);
+
+    if (type === 'resolved') {
+        msgInput.value = `Hello ${contactName},\n\nWe have looked into your request regarding "${subject}" and resolved the issue.\n\nPlease verify on your side. If you continue to experience any issues or have additional questions, feel free to reply to this email.\n\nBest regards,\nPeers Global Support Team`;
+        if (statusSelect) statusSelect.value = 'resolved';
+    } else if (type === 'info_needed') {
+        msgInput.value = `Hello ${contactName},\n\nThank you for reaching out to Peers Global Support. To help us investigate and solve your issue regarding "${subject}", could you please provide additional details or screenshots?\n\nWe look forward to hearing from you.\n\nBest regards,\nPeers Global Support Team`;
+        if (statusSelect) statusSelect.value = 'in_progress';
+    } else if (type === 'in_progress') {
+        msgInput.value = `Hello ${contactName},\n\nWe are currently investigating your reported issue regarding "${subject}". Our technical team is working on resolving this as quickly as possible.\n\nWe will update you as soon as we have progress.\n\nBest regards,\nPeers Global Support Team`;
+        if (statusSelect) statusSelect.value = 'in_progress';
+    }
+}
+</script>
 @endsection

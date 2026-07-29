@@ -25,6 +25,7 @@ use App\Services\Firebase\FcmService as FirebaseFcmService;
 use App\Services\IndustryDirector\IndustryScopeService;
 use App\Services\Membership\MembershipNotificationService;
 use App\Services\Membership\MembershipWelcomeEmailService;
+use App\Services\Users\PeerIntroductionService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Services\Users\UserMilestoneSyncService;
 use App\Support\AdminAccess;
@@ -3178,9 +3179,9 @@ class UsersController extends Controller
 
         // Trigger introduction creative rendering, timeline post and notifications
         try {
-            app(\App\Services\Users\PeerIntroductionService::class)->handlePeerIntroduction($user, $introducedMember);
-        } catch (\Throwable $e) {
-            Log::error("Failed to run PeerIntroductionService in admin panel: " . $e->getMessage());
+            app(PeerIntroductionService::class)->handlePeerIntroduction($user, $introducedMember);
+        } catch (Throwable $e) {
+            Log::error('Failed to run PeerIntroductionService in admin panel: '.$e->getMessage());
         }
 
         return back()->with('success', 'Introduced member added successfully.');

@@ -28,15 +28,15 @@ class PeerIntroductionService
         try {
             // 1. Generate the congratulations creative image
             $fileRecord = $this->imageGenerator->generate($introducer, $introduced);
-            $imageUrl = url('/api/v1/files/' . $fileRecord->id);
+            $imageUrl = url('/api/v1/files/'.$fileRecord->id);
 
             // Names for text messages
-            $introducerName = $introducer->display_name ?: trim(($introducer->first_name ?? '') . ' ' . ($introducer->last_name ?? ''));
+            $introducerName = $introducer->display_name ?: trim(($introducer->first_name ?? '').' '.($introducer->last_name ?? ''));
             if (empty($introducerName)) {
                 $introducerName = 'Peer Member';
             }
 
-            $introducedName = $introduced->display_name ?: trim(($introduced->first_name ?? '') . ' ' . ($introduced->last_name ?? ''));
+            $introducedName = $introduced->display_name ?: trim(($introduced->first_name ?? '').' '.($introduced->last_name ?? ''));
             if (empty($introducedName)) {
                 $introducedName = 'New Member';
             }
@@ -46,7 +46,7 @@ class PeerIntroductionService
             // 2. Create the timeline announcement post
             // Find a system/admin fallback account to own the automated post
             $systemUser = User::where('email', 'info@peersglobal.com')->first();
-            if (!$systemUser) {
+            if (! $systemUser) {
                 $systemUser = User::create([
                     'id' => (string) Str::uuid(),
                     'first_name' => 'PeersGlobal',
@@ -115,7 +115,7 @@ class PeerIntroductionService
             }
 
         } catch (\Throwable $e) {
-            Log::error("[PeerIntroductionService] Failed handling introduction flow: " . $e->getMessage(), [
+            Log::error('[PeerIntroductionService] Failed handling introduction flow: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
             if (app()->environment('testing')) {

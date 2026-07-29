@@ -12,6 +12,7 @@ use InvalidArgumentException;
 class IntroducedPeerService
 {
     protected UserMilestoneSyncService $milestoneSyncService;
+
     protected PeerIntroductionService $peerIntroductionService;
 
     public function __construct(

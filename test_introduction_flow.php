@@ -1,13 +1,15 @@
 <?php
+
 require 'vendor/autoload.php';
 $app = require_once 'bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
-use App\Models\User;
-use App\Models\Post;
 use App\Models\Notifications\AppNotification;
+use App\Models\Post;
+use App\Models\User;
 use App\Services\Users\PeerIntroductionService;
+use Illuminate\Contracts\Console\Kernel;
 
 // 1. Fetch two active users from database or create demo ones
 $introducer = User::where('status', 'active')->first();
@@ -15,7 +17,7 @@ $introduced = User::where('status', 'active')
     ->where('id', '!=', $introducer?->id)
     ->first();
 
-if (!$introducer || !$introduced) {
+if (! $introducer || ! $introduced) {
     echo "Could not find two active users in the database to run the test.\n";
     exit(1);
 }
@@ -40,7 +42,7 @@ try {
         echo "   - Post ID: {$latestPost->id}\n";
         echo "   - Title: {$latestPost->title}\n";
         echo "   - Content: {$latestPost->content_text}\n";
-        echo "   - Media Attached: " . json_encode($latestPost->media) . "\n\n";
+        echo '   - Media Attached: '.json_encode($latestPost->media)."\n\n";
     } else {
         echo "❌ Post was not found in database.\n\n";
     }
@@ -50,7 +52,7 @@ try {
         ->where('type', 'member_introduced')
         ->orderBy('created_at', 'desc')
         ->first();
-        
+
     if ($latestNotification) {
         echo "✅ Push Notification Registered:\n";
         echo "   - Notification ID: {$latestNotification->id}\n";
@@ -63,7 +65,7 @@ try {
 
     echo "Check your timeline and notifications in the mobile app/admin panel!\n";
 
-} catch (\Throwable $e) {
-    echo "Error running flow: " . $e->getMessage() . "\n";
-    echo $e->getTraceAsString() . "\n";
+} catch (Throwable $e) {
+    echo 'Error running flow: '.$e->getMessage()."\n";
+    echo $e->getTraceAsString()."\n";
 }

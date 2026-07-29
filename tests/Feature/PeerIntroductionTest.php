@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\FileModel;
 use App\Models\Notifications\AppNotification;
+use App\Models\Notifications\NotificationPreference;
 use App\Models\Post;
 use App\Models\User;
 use App\Services\Users\PeerIntroductionService;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -179,7 +178,7 @@ class PeerIntroductionTest extends TestCase
         ]);
 
         // Create notification preferences to ensure notifications are not muted/suppressed
-        \App\Models\Notifications\NotificationPreference::create([
+        NotificationPreference::create([
             'id' => (string) Str::uuid(),
             'user_id' => $introducer->id,
             'push_enabled' => true,

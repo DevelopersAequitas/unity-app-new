@@ -27,12 +27,12 @@ class IntroductionImageGenerator
     {
         try {
             $templatePath = public_path('images/introduction-template.png');
-            if (!file_exists($templatePath)) {
-                throw new \RuntimeException('Introduction template image not found at: ' . $templatePath);
+            if (! file_exists($templatePath)) {
+                throw new \RuntimeException('Introduction template image not found at: '.$templatePath);
             }
 
             $baseImg = @imagecreatefrompng($templatePath);
-            if (!$baseImg) {
+            if (! $baseImg) {
                 throw new \RuntimeException('Failed to load introduction template PNG.');
             }
 
@@ -67,12 +67,12 @@ class IntroductionImageGenerator
             $fontBold = $this->getFontPath('bold');
             $fontRegular = $this->getFontPath('regular');
 
-            $referrerName = $referrer->display_name ?: trim(($referrer->first_name ?? '') . ' ' . ($referrer->last_name ?? ''));
+            $referrerName = $referrer->display_name ?: trim(($referrer->first_name ?? '').' '.($referrer->last_name ?? ''));
             if (empty($referrerName)) {
                 $referrerName = 'Peer Member';
             }
 
-            $newMemberName = $newMember->display_name ?: trim(($newMember->first_name ?? '') . ' ' . ($newMember->last_name ?? ''));
+            $newMemberName = $newMember->display_name ?: trim(($newMember->first_name ?? '').' '.($newMember->last_name ?? ''));
             if (empty($newMemberName)) {
                 $newMemberName = 'New Member';
             }
@@ -81,16 +81,16 @@ class IntroductionImageGenerator
             $nameFontSize = 18;
             $bboxLeft = imagettfbbox($nameFontSize, 0, $fontBold, $referrerName);
             $wLeft = abs($bboxLeft[4] - $bboxLeft[0]);
-            imagettftext($canvas, $nameFontSize, 0, (int)($leftCenterX - ($wLeft / 2)), $nameStartY, $gold, $fontBold, $referrerName);
+            imagettftext($canvas, $nameFontSize, 0, (int) ($leftCenterX - ($wLeft / 2)), $nameStartY, $gold, $fontBold, $referrerName);
 
             // Draw New Member Name
             $bboxRight = imagettfbbox($nameFontSize, 0, $fontBold, $newMemberName);
             $wRight = abs($bboxRight[4] - $bboxRight[0]);
-            imagettftext($canvas, $nameFontSize, 0, (int)($rightCenterX - ($wRight / 2)), $nameStartY, $gold, $fontBold, $newMemberName);
+            imagettftext($canvas, $nameFontSize, 0, (int) ($rightCenterX - ($wRight / 2)), $nameStartY, $gold, $fontBold, $newMemberName);
 
             // 4. Draw Congratulations Paragraph Text in White (Y = 675)
             $paragraph = "Congratulations to {$referrerName} for introducing {$newMemberName} to the Peers Global Community of Collaboration. Wishing you both a successful journey filled with meaningful connections, collaboration, and endless opportunities.";
-            
+
             $lines = $this->wrapTextToLines($paragraph, 15, $fontRegular, 680); // 680 width for clean margins
             $currentY = $textStartY;
             $lineHeight = 28;
@@ -99,12 +99,12 @@ class IntroductionImageGenerator
                 $bbox = imagettfbbox(15, 0, $fontRegular, $line);
                 $w = abs($bbox[4] - $bbox[0]);
                 $x = ($width / 2) - ($w / 2);
-                imagettftext($canvas, 15, 0, (int)$x, $currentY, $white, $fontRegular, $line);
+                imagettftext($canvas, 15, 0, (int) $x, $currentY, $white, $fontRegular, $line);
                 $currentY += $lineHeight;
             }
 
             // Save high-quality WebP & Register via FileUploadService
-            $filename = 'introduction_' . Str::uuid() . '.webp';
+            $filename = 'introduction_'.Str::uuid().'.webp';
             $tempPath = tempnam(sys_get_temp_dir(), 'intro');
 
             imagewebp($canvas, $tempPath, 95); // Premium quality 95
@@ -127,7 +127,7 @@ class IntroductionImageGenerator
                     $fileContent = Storage::disk($disk)->get($fileModel->s3_key);
                     Storage::disk('public')->put($fileModel->s3_key, $fileContent);
                 } catch (\Throwable $e) {
-                    Log::error('IntroductionImageGenerator: Failed to copy creative to public disk: ' . $e->getMessage());
+                    Log::error('IntroductionImageGenerator: Failed to copy creative to public disk: '.$e->getMessage());
                 }
             }
 
@@ -135,7 +135,7 @@ class IntroductionImageGenerator
 
             return $fileModel;
         } catch (\Throwable $e) {
-            Log::error('Failed to generate introduction creative: ' . $e->getMessage(), [
+            Log::error('Failed to generate introduction creative: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
             throw $e;
@@ -163,7 +163,7 @@ class IntroductionImageGenerator
             }
         }
 
-        if (!$avatarSource && $user->profile_photo_url) {
+        if (! $avatarSource && $user->profile_photo_url) {
             if (filter_var($user->profile_photo_url, FILTER_VALIDATE_URL)) {
                 try {
                     $response = Http::timeout(5)->get($user->profile_photo_url);
@@ -173,7 +173,7 @@ class IntroductionImageGenerator
                         $avatarSource = $tempFilePath;
                     }
                 } catch (\Throwable $e) {
-                    Log::warning('Could not download remote user avatar: ' . $e->getMessage());
+                    Log::warning('Could not download remote user avatar: '.$e->getMessage());
                 }
             }
         }
@@ -183,10 +183,10 @@ class IntroductionImageGenerator
         if ($avatarSource && file_exists($avatarSource)) {
             try {
                 $avatarImg = @imagecreatefrompng($avatarSource);
-                if (!$avatarImg) {
+                if (! $avatarImg) {
                     $avatarImg = @imagecreatefromjpeg($avatarSource);
                 }
-                if (!$avatarImg) {
+                if (! $avatarImg) {
                     $avatarData = file_get_contents($avatarSource);
                     $avatarImg = @imagecreatefromstring($avatarData);
                 }
@@ -196,14 +196,14 @@ class IntroductionImageGenerator
                     if ($circularPhoto) {
                         $tx = $centerX - ($avatarSize / 2);
                         $ty = $centerY - ($avatarSize / 2);
-                        imagecopy($canvas, $circularPhoto, (int)$tx, (int)$ty, 0, 0, $avatarSize, $avatarSize);
+                        imagecopy($canvas, $circularPhoto, (int) $tx, (int) $ty, 0, 0, $avatarSize, $avatarSize);
                         imagedestroy($circularPhoto);
                         $drawnSuccessfully = true;
                     }
                     imagedestroy($avatarImg);
                 }
             } catch (\Throwable $e) {
-                Log::warning('Could not process user avatar for introduction creative: ' . $e->getMessage());
+                Log::warning('Could not process user avatar for introduction creative: '.$e->getMessage());
             } finally {
                 if ($tempFilePath && file_exists($tempFilePath)) {
                     @unlink($tempFilePath);
@@ -212,7 +212,7 @@ class IntroductionImageGenerator
         }
 
         // Fallback to initials
-        if (!$drawnSuccessfully) {
+        if (! $drawnSuccessfully) {
             $displayName = $user->display_name ?: $user->first_name ?: 'User';
             $initial = strtoupper(substr($displayName, 0, 1));
 
@@ -223,16 +223,16 @@ class IntroductionImageGenerator
             imagefill($avatarImg, 0, 0, $transparent);
 
             $avatarRadius = $avatarSize / 2;
-            imagefilledellipse($avatarImg, (int)$avatarRadius, (int)$avatarRadius, $avatarSize, $avatarSize, $fallbackBgColor);
+            imagefilledellipse($avatarImg, (int) $avatarRadius, (int) $avatarRadius, $avatarSize, $avatarSize, $fallbackBgColor);
 
             // Draw initial letter
             $fontPath = $this->getFontPath('bold');
             $whiteColor = imagecolorallocate($avatarImg, 255, 255, 255);
-            $fontSizeInit = (int)($avatarSize * 0.42);
+            $fontSizeInit = (int) ($avatarSize * 0.42);
             if (file_exists($fontPath)) {
                 $this->drawCenteredBoldText($avatarImg, $fontSizeInit, $avatarRadius, $avatarRadius, $whiteColor, $fontPath, $initial);
             } else {
-                imagestring($avatarImg, 5, (int)($avatarRadius - 10), (int)($avatarRadius - 10), $initial, $whiteColor);
+                imagestring($avatarImg, 5, (int) ($avatarRadius - 10), (int) ($avatarRadius - 10), $initial, $whiteColor);
             }
 
             $circularAvatar = $this->createCircularPhoto($avatarImg, $avatarSize);
@@ -240,7 +240,7 @@ class IntroductionImageGenerator
 
             $tx = $centerX - ($avatarSize / 2);
             $ty = $centerY - ($avatarSize / 2);
-            imagecopy($canvas, $circularAvatar, (int)$tx, (int)$ty, 0, 0, $avatarSize, $avatarSize);
+            imagecopy($canvas, $circularAvatar, (int) $tx, (int) $ty, 0, 0, $avatarSize, $avatarSize);
             imagedestroy($circularAvatar);
         }
     }
