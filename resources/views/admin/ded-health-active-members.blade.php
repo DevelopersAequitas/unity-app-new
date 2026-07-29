@@ -120,8 +120,10 @@
             <thead class="table-light">
                 <tr>
                     <th>Name</th>
-                    <th>Contact Info</th>
-                    <th>Company / Industry</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Company</th>
+                    <th>Industry</th>
                     <th>Created At</th>
                     <th>Last Login</th>
                     <th>Status</th>
@@ -134,15 +136,11 @@
                         <td>
                             <div class="fw-bold text-dark">{{ $r['name'] }}</div>
                         </td>
-                        <td>
-                            <div class="small">
-                                <div><i class="bi bi-phone"></i> {{ $r['phone'] }}</div>
-                                <div><i class="bi bi-envelope"></i> {{ $r['email'] }}</div>
-                            </div>
-                        </td>
-                        <td>
-                            <div>{{ $r['company'] }}</div>
-                            <span class="badge bg-light text-secondary border small mt-1">{{ $r['industry'] }}</span>
+                        <td class="small text-muted">{{ $r['phone'] }}</td>
+                        <td class="small text-muted">{{ $r['email'] }}</td>
+                        <td class="small text-muted">{{ $r['company'] }}</td>
+                        <td class="small">
+                            <span class="badge bg-light text-secondary border small">{{ $r['industry'] }}</span>
                         </td>
                         <td class="small text-muted">
                             {{ $r['created_at'] ? \Illuminate\Support\Carbon::parse($r['created_at'])->format('Y-m-d H:i') : '—' }}
@@ -156,14 +154,14 @@
                             </span>
                         </td>
                         <td>
-                            <a href="{{ route('admin.users.show', $r['id']) }}" class="btn btn-sm btn-outline-secondary px-3" target="_blank" rel="noopener">
+                            <a href="#" class="btn btn-sm btn-outline-secondary px-3" onclick="event.preventDefault(); openActivityPeerModal('{{ $r['id'] }}', event);">
                                 View Profile
                             </a>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">No member records found.</td>
+                        <td colspan="9" class="text-center text-muted py-4">No member records found.</td>
                     </tr>
                 @endforelse
             </tbody>

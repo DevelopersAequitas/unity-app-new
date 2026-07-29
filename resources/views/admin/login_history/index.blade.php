@@ -110,7 +110,9 @@
                                             </div>
                                         @endif
                                     </div>
-                                    <div class="font-medium t1 text-[12.5px] whitespace-nowrap">{{ $peerName }}</div>
+                                    <div class="font-medium t1 text-[12.5px] whitespace-nowrap">
+                                        <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $record->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">{{ $peerName }}</a>
+                                    </div>
                                 </div>
                             </td>
                             <td class="px-3 py-2.5">

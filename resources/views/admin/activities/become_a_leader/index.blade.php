@@ -139,7 +139,15 @@
                                                 {{ $getInitials($peerName) }}
                                             </div>
                                             <div>
-                                                <div class="font-semibold t1 text-[12.5px]">{{ $peerName }}</div>
+                                                <div class="font-semibold t1 text-[12.5px]">
+                                                    @if(!empty($item->user_id ?? $item->actor_id))
+                                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->actor_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                            {{ $peerName }}
+                                                        </a>
+                                                    @else
+                                                        {{ $peerName }}
+                                                    @endif
+                                                </div>
                                                 <div class="t3 text-[10px]">
                                                     @if($item->peer_company) <span>{{ $item->peer_company }}</span> @endif
                                                     @if($item->peer_city) &bull; <span>{{ $item->peer_city }}</span> @endif
@@ -153,7 +161,15 @@
                                     </td>
                                     <td class="px-3 py-2.5 text-xs">
                                         @if($item->referred_name)
-                                            <div class="font-semibold t1">{{ $item->referred_name }}</div>
+                                            <div class="font-semibold t1">
+                                                @if(!empty($item->referred_user_id))
+                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->referred_user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                        {{ $item->referred_name }}
+                                                    </a>
+                                                @else
+                                                    {{ $item->referred_name }}
+                                                @endif
+                                            </div>
                                             <div class="t3 text-[10px]">{{ $item->referred_mobile ?: '—' }}</div>
                                         @else
                                             <span class="t3">—</span>

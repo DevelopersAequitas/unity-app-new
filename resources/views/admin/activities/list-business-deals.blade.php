@@ -38,7 +38,14 @@
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div>
                 <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Business Deals Log</h2>
-                <p class="text-xs t1 font-medium m-0 mt-0.5">{{ $peerName }} • {{ $member->email ?? '-' }}</p>
+                <p class="text-xs t1 font-medium m-0 mt-0.5">
+                    @if(!empty($member->id))
+                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $member->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">{{ $peerName }}</a>
+                    @else
+                        {{ $peerName }}
+                    @endif
+                    • {{ $member->email ?? '-' }}
+                </p>
             </div>
             <a href="{{ route('admin.activities.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">
                 Back to Activities
@@ -64,8 +71,9 @@
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Deal With</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Deal Info</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Target Peer</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Deal Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Type</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Amount</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Comment</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
@@ -74,7 +82,8 @@
                     <tbody id="grid-body" class="divide-y divide-gray-200/50">
                         @forelse ($items as $deal)
                             @php
-                                $targetName = $deal->toUser->display_name ?? trim(($deal->toUser->first_name ?? '') . ' ' . ($deal->toUser->last_name ?? '')) ?: '-';
+                                $targetUser = $deal->toUser ?? null;
+                                $targetName = $targetUser ? ($targetUser->display_name ?: trim($targetUser->first_name . ' ' . $targetUser->last_name)) : ($deal->target_peer_name ?? '—');
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5">
@@ -83,15 +92,23 @@
                                             {{ $getInitials($targetName) }}
                                         </div>
                                         <div>
-                                            <div class="font-semibold t1 text-[12.5px]">{{ $targetName }}</div>
+                                            <div class="font-semibold t1 text-[12.5px]">
+                                                @if(!empty($deal->toUser?->id))
+                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $deal->toUser->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                        {{ $targetName }}
+                                                    </a>
+                                                @else
+                                                    {{ $targetName }}
+                                                @endif
+                                            </div>
                                             <div class="t3 text-[10px]">{{ $deal->toUser->email ?? '-' }}</div>
                                         </div>
                                     </div>
                                 </td>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                    {{ $deal->deal_date ? $formatDate($deal->deal_date) : '-' }}
+                                </td>
                                 <td class="px-3 py-2.5 text-xs">
-                                    @if($deal->deal_date)
-                                        <div class="font-semibold t1 text-[11px]">{{ $formatDate($deal->deal_date) }}</div>
-                                    @endif
                                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $deal->business_type ?? '-' }}</span>
                                 </td>
                                 <td class="px-3 py-2.5 font-bold text-emerald-600 text-xs">
@@ -106,7 +123,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center py-8 text-xs t3">No business deals found.</td>
+                                <td colspan="6" class="text-center py-8 text-xs t3">No business deals found.</td>
                             </tr>
                         @endforelse
                     </tbody>

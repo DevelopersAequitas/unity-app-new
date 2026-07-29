@@ -100,7 +100,15 @@
                                                 </div>
                                             @endif
                                         </div>
-                                        <div class="font-medium t1 text-[12.5px] whitespace-nowrap">{{ $introducerName !== '' ? $introducerName : '-' }}</div>
+                                        <div class="font-medium t1 text-[12.5px] whitespace-nowrap">
+                                            @if(!empty($introducer->id))
+                                                <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $introducer->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                    {{ $introducerName !== '' ? $introducerName : '-' }}
+                                                </a>
+                                            @else
+                                                {{ $introducerName !== '' ? $introducerName : '-' }}
+                                            @endif
+                                        </div>
                                     </div>
                                 </td>
                                 <td class="px-3 py-2.5">
@@ -138,15 +146,9 @@
                                                     </div>
                                                 @endif
                                             </div>
-                                            @if ($canEditUsers)
-                                                <a href="{{ route('admin.users.edit', $parentIntroducer->id) }}#introduced-tab" class="text-indigo-600 hover:text-indigo-700 font-medium text-[12.5px] no-underline whitespace-nowrap">
-                                                    {{ $parentIntroducerName }}
-                                                </a>
-                                            @else
-                                                <a href="{{ route('admin.users.show', $parentIntroducer->id) }}#introduced-tab" class="text-indigo-600 hover:text-indigo-700 font-medium text-[12.5px] no-underline whitespace-nowrap">
-                                                    {{ $parentIntroducerName }}
-                                                </a>
-                                            @endif
+                                            <a href="#" data-peer-id="{{ $parentIntroducer->id }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $parentIntroducer->id }}', event);" class="text-indigo-600 hover:text-indigo-800 font-medium text-[12.5px] no-underline hover:underline whitespace-nowrap">
+                                                {{ $parentIntroducerName }}
+                                            </a>
                                         </div>
                                     @else
                                         <span class="t3">-</span>
@@ -162,7 +164,7 @@
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $introducedCount }}</span>
                                             </a>
                                         @else
-                                            <a href="{{ route('admin.users.show', $introducer->id) }}#introduced-tab" class="no-underline">
+                                            <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $introducer->id }}', event);" class="no-underline">
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $introducedCount }}</span>
                                             </a>
                                         @endif
@@ -305,7 +307,15 @@
                                                 </div>
                                             @endif
                                         </div>
-                                        <div class="font-medium t1 text-[12.5px] whitespace-nowrap">{{ $introducerName !== '' ? $introducerName : '-' }}</div>
+                                        <div class="font-medium t1 text-[12.5px] whitespace-nowrap">
+                                            @if(!empty($introducer->id))
+                                                <a href="#" data-peer-id="{{ $introducer->id }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $introducer->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                    {{ $introducerName !== '' ? $introducerName : '-' }}
+                                                </a>
+                                            @else
+                                                {{ $introducerName !== '' ? $introducerName : '-' }}
+                                            @endif
+                                        </div>
                                     </div>
                                 </td>
                                 <td class="px-3 py-2.5">
@@ -343,15 +353,9 @@
                                                     </div>
                                                 @endif
                                             </div>
-                                            @if ($canEditUsers)
-                                                <a href="{{ route('admin.users.edit', $parentIntroducer->id) }}#introduced-tab" class="text-indigo-600 hover:text-indigo-700 font-medium text-[12.5px] no-underline whitespace-nowrap">
-                                                    {{ $parentIntroducerName }}
-                                                </a>
-                                            @else
-                                                <a href="{{ route('admin.users.show', $parentIntroducer->id) }}#introduced-tab" class="text-indigo-600 hover:text-indigo-700 font-medium text-[12.5px] no-underline whitespace-nowrap">
-                                                    {{ $parentIntroducerName }}
-                                                </a>
-                                            @endif
+                                            <a href="#" data-peer-id="{{ $parentIntroducer->id }}" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $parentIntroducer->id }}', event);" class="text-indigo-600 hover:text-indigo-800 font-medium text-[12.5px] no-underline hover:underline whitespace-nowrap">
+                                                {{ $parentIntroducerName }}
+                                            </a>
                                         </div>
                                     @else
                                         <span class="t3">-</span>
@@ -367,7 +371,7 @@
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $introducedCount }}</span>
                                             </a>
                                         @else
-                                            <a href="{{ route('admin.users.show', $introducer->id) }}#introduced-tab" class="no-underline">
+                                            <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $introducer->id }}', event);" class="no-underline">
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $introducedCount }}</span>
                                             </a>
                                         @endif

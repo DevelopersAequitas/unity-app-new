@@ -199,7 +199,16 @@
                                                     {{ $getInitials($member->peer_name ?? '') }}
                                                 </div>
                                                 <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">{{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
+                                                    <div class="font-semibold t1 text-[12.5px]">
+                                                        @php $mId = $member->actor_id ?? $member->id ?? $member->user_id ?? null; @endphp
+                                                        @if(!empty($mId))
+                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $mId }}', event);">
+                                                                {{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}
+                                                            </a>
+                                                        @else
+                                                            {{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}
+                                                        @endif
+                                                    </div>
                                                     <div class="t3 text-[10px]">{{ $member->peer_company ?? '' }}</div>
                                                 </div>
                                             </div>
@@ -223,27 +232,34 @@
                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Page count: {{ number_format(count($items)) }}</span>
                     </div>
                     <div class="overflow-x-auto relative">
-                        <table class="min-w-full border-collapse text-[13px]">
+                        <table class="min-w-[1400px] w-full border-collapse text-[13px]" style="table-layout:auto;">
                             <thead>
                                 <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">From</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">To</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Referral Info</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Contact details</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Hot Value</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Remarks</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Media</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">From</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">From Company</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:160px;">To</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">To Company</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Referral Of</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Type</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:100px;">Referral Date</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Phone</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:150px;">Email</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:75px;">Hot</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:140px;">Remarks</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:80px;">Media</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Created At</th>
                                 </tr>
                                 <tr class="surface-2 border-b bs filter-row">
-                                    <th class="px-2 py-1"><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);"><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
                                     <th class="px-2 py-1"><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                    <th class="px-2 py-1">
-                                        <input type="text" name="referral_of" value="{{ $filters['referral_of'] ?? '' }}" placeholder="Referral of" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1">
-                                        <input type="text" name="referral_type" value="{{ $filters['referral_type'] ?? '' }}" placeholder="Type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
-                                    </th>
-                                    <th class="px-2 py-1"><input type="text" name="phone" value="{{ $filters['phone'] ?? '' }}" placeholder="Phone/Email" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                    <th class="px-2 py-1"><input type="number" name="hot_value" value="{{ $filters['hot_value'] ?? '' }}" placeholder="Hot value" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                    <th class="px-2 py-1"><input type="text" name="referral_of" value="{{ $filters['referral_of'] ?? '' }}" placeholder="Referral of" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" name="referral_type" value="{{ $filters['referral_type'] ?? '' }}" placeholder="Type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                    <th class="px-2 py-1"><input type="text" name="phone" value="{{ $filters['phone'] ?? '' }}" placeholder="Phone" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                    <th class="px-2 py-1"><input type="number" name="hot_value" value="{{ $filters['hot_value'] ?? '' }}" placeholder="Hot" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1"><input type="text" name="remarks" value="{{ $filters['remarks'] ?? '' }}" placeholder="Remarks" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1">
                                         <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
@@ -267,65 +283,88 @@
 
                                         $fromName = $referral->from_user_name ?? $actorName;
                                         $toName = $referral->to_user_name ?? $peerName;
+                                        $fromId = $referral->actor_id ?? $referral->from_user_id ?? null;
+                                        $toId = $referral->user_id ?? $referral->to_user_id ?? null;
                                     @endphp
                                     <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-referral="{{ $makeReferralPayload($referral) }}" onclick="openReferralDetailModal(this, event)">
-                                        <td class="px-3 py-2.5">
+                                        {{-- From peer (sticky) --}}
+                                        <td class="px-3 py-2.5 sticky left-0 z-10 surface" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                             <div class="flex items-center gap-2">
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($fromName) }}">
                                                     {{ $getInitials($fromName) }}
                                                 </div>
                                                 <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">{{ $fromName }}</div>
-                                                    <div class="t3 text-[10px]">
-                                                        @if($referral->from_company) <span>{{ $referral->from_company }}</span> @endif
-                                                        @if($referral->from_city) &bull; <span>{{ $referral->from_city }}</span> @endif
+                                                    <div class="font-semibold t1 text-[12.5px]">
+                                                        @if(!empty($fromId))
+                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $fromId }}', event);">
+                                                                {{ $fromName }}
+                                                            </a>
+                                                        @else
+                                                            {{ $fromName }}
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
+                                        {{-- From Company --}}
+                                        <td class="px-3 py-2.5 text-xs t2">
+                                            <div>{{ $referral->from_company ?? '—' }}</div>
+                                            @if($referral->from_city)<div class="t3 text-[10px]">{{ $referral->from_city }}</div>@endif
+                                        </td>
+                                        {{-- To peer --}}
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($toName) }}">
                                                     {{ $getInitials($toName) }}
                                                 </div>
-                                                <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">{{ $toName }}</div>
-                                                    <div class="t3 text-[10px]">
-                                                        @if($referral->to_company) <span>{{ $referral->to_company }}</span> @endif
-                                                        @if($referral->to_city) &bull; <span>{{ $referral->to_city }}</span> @endif
-                                                    </div>
+                                                <div class="font-semibold t1 text-[12.5px]">
+                                                    @if(!empty($toId))
+                                                        <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $toId }}', event);">
+                                                            {{ $toName }}
+                                                        </a>
+                                                    @else
+                                                        {{ $toName }}
+                                                    @endif
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs">
-                                            <div class="font-semibold t1 text-[12px]">{{ $referral->referral_of ?? '—' }}</div>
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 mt-0.5">{{ $referral->referral_type ?? '—' }}</span>
-                                            @if($referral->referral_date)
-                                                <div class="t3 text-[10px] mt-0.5">{{ $formatDate($referral->referral_date) }}</div>
-                                            @endif
-                                        </td>
+                                        {{-- To Company --}}
                                         <td class="px-3 py-2.5 text-xs t2">
-                                            <div>{{ $referral->phone ?? '—' }}</div>
-                                            <div class="t3 text-[10px]">{{ $referral->email ?? '—' }}</div>
-                                            <div class="t3 text-[10px] truncate max-w-[160px]">{{ $referral->address ?? '—' }}</div>
+                                            <div>{{ $referral->to_company ?? '—' }}</div>
+                                            @if($referral->to_city)<div class="t3 text-[10px]">{{ $referral->to_city }}</div>@endif
                                         </td>
+                                        {{-- Referral Of --}}
+                                        <td class="px-3 py-2.5 text-xs font-semibold t1" title="{{ $referral->referral_of }}">
+                                            {{ $referral->referral_of ?? '—' }}
+                                        </td>
+                                        {{-- Type --}}
                                         <td class="px-3 py-2.5 text-xs">
+                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $referral->referral_type ?? '—' }}</span>
+                                        </td>
+                                        {{-- Referral Date --}}
+                                        <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                            {{ $referral->referral_date ? $formatDate($referral->referral_date) : '—' }}
+                                        </td>
+                                        {{-- Phone --}}
+                                        <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $referral->phone ?? '—' }}</td>
+                                        {{-- Email --}}
+                                        <td class="px-3 py-2.5 text-xs t2 max-w-[160px] truncate" title="{{ $referral->email }}">{{ $referral->email ?? '—' }}</td>
+                                        {{-- Hot Value --}}
+                                        <td class="px-3 py-2.5 text-xs text-center">
                                             @if($referral->hot_value)
-                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">
-                                                    {{ $referral->hot_value }}
-                                                </span>
+                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">{{ $referral->hot_value }}</span>
                                             @else
                                                 <span class="t3">—</span>
                                             @endif
                                         </td>
+                                        {{-- Remarks --}}
                                         <td class="px-3 py-2.5 text-xs t2 max-w-[150px] truncate" title="{{ $referral->remarks }}">
                                             {{ $referral->remarks ?? '—' }}
                                         </td>
+                                        {{-- Media --}}
                                         <td class="px-3 py-2.5 text-xs">
                                             @if ((int) ($referral->has_media ?? 0) === 1)
-                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
-                                                    Yes
-                                                </span>
+                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Yes</span>
                                                 @if (!empty($referral->media_reference))
                                                     @php
                                                         $mediaReference = (string) $referral->media_reference;
@@ -339,13 +378,14 @@
                                                 <span class="t3">No Media</span>
                                             @endif
                                         </td>
+                                        {{-- Created At --}}
                                         <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                                             {{ $formatDateTime($referral->created_at ?? null) }}
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8" class="text-center text-muted py-4">No referrals found.</td>
+                                        <td colspan="13" class="text-center text-muted py-4 text-xs t3">No referrals found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

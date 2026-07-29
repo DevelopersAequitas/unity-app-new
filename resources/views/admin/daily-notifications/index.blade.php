@@ -41,7 +41,8 @@
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Feature</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Activity</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Notification (Title & Body)</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Notification Title</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Notification Body</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Action / Trigger Timing</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Eligible Users</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
@@ -58,11 +59,11 @@
                             <td class="px-3 py-2.5 text-xs font-semibold t1">
                                 {{ $reminder->activity }}
                             </td>
-                            <td class="px-3 py-2.5 text-xs">
-                                <div class="font-bold t1 mb-0.5">{{ $reminder->notification_title }}</div>
-                                <div class="t2 max-w-[450px] truncate" title="{{ $reminder->notification_body }}">
-                                    {{ $reminder->notification_body }}
-                                </div>
+                            <td class="px-3 py-2.5 text-xs font-bold t1">
+                                {{ $reminder->notification_title }}
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[350px] truncate" title="{{ $reminder->notification_body }}">
+                                {{ $reminder->notification_body }}
                             </td>
                             <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
                                 ⏱️ <span class="font-medium t1">{{ $reminder->action_trigger_timing }}</span>
@@ -102,7 +103,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center py-8 text-xs t3">
+                            <td colspan="7" class="text-center py-8 text-xs t3">
                                 No reminders found in database. Run the seeder to populate.
                             </td>
                         </tr>

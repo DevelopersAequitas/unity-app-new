@@ -5,7 +5,7 @@
 @include('admin.partials.grid-head')
 
 @section('content')
-<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card">
+<div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4 max-w-full min-w-0">
 
     <!-- Top Action Row -->
     <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
@@ -111,11 +111,12 @@
     <!-- Table Section -->
     <div class="surface rounded-xl border bs overflow-hidden">
       <div class="overflow-x-auto relative">
-        <table class="min-w-full border-collapse text-[13px]">
+        <table class="min-w-[900px] w-full border-collapse text-[13px]">
           <thead>
             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Registrant</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Contact Info</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Registrant</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Phone</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Payment</th>
@@ -135,25 +136,35 @@
                 $isCheckedIn = strtolower((string) ($row->checkin_status ?? '')) === 'checked_in' || !empty($row->checked_in_at);
               @endphp
               <tr class="hover:surface-2 transition border-b bs">
-                <td class="px-3 py-2.5 font-semibold text-slate-900 t1 whitespace-nowrap">
+                <td class="px-3 py-2.5 font-semibold text-slate-900 t1 whitespace-nowrap sticky left-0 z-10 surface" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                   <div class="inline-flex items-center gap-1.5 flex-wrap">
-                    <span>{{ $name }}</span>
+                    @if($isMember && !empty($row->user_id))
+                      <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $row->user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                        {{ $name }}
+                      </a>
+                    @else
+                      <span>{{ $name }}</span>
+                    @endif
                     <span class="chip px-2 py-0.5 text-[10px] font-semibold inline-flex items-center align-middle {{ $isMember ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-purple-50 text-purple-700 border-purple-200' }}">
                       {{ $isMember ? 'Member' : 'Visitor' }}
                     </span>
                   </div>
                 </td>
-                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
-                  <div>{{ $email }}</div>
-                  @if($phone !== '-')<div class="text-[11px] text-gray-500">{{ $phone }}</div>@endif
-                </td>
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $phone }}</td>
+                <td class="px-3 py-2.5 text-xs t2">{{ $email }}</td>
                 <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                   <a href="{{ route('admin.events.show', $row->event_id) }}" class="text-indigo-600 hover:text-indigo-800 no-underline font-medium">
                     {{ $row->event?->title ?? 'Event #'.$row->event_id }}
                   </a>
                 </td>
                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
-                  {{ $row->event?->circle?->name ?? '-' }}
+                  @if(!empty($row->event?->circle?->id))
+                    <a href="{{ route('admin.circles.show', $row->event->circle->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium no-underline">
+                      {{ $row->event->circle->name }}
+                    </a>
+                  @else
+                    {{ $row->event?->circle?->name ?? '-' }}
+                  @endif
                 </td>
                 <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                   @if(in_array($pStatus, ['paid', 'completed', 'success'], true))
@@ -192,7 +203,7 @@
               </tr>
             @empty
               <tr>
-                <td colspan="8" class="px-4 py-8 text-center t3 text-xs">
+                <td colspan="9" class="px-4 py-8 text-center t3 text-xs">
                   No registration records found.
                 </td>
               </tr>

@@ -58,7 +58,11 @@
                                 $totalAmount = round($price + $gstAmount, 2);
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
-                                <td class="px-3 py-2.5 font-semibold t1 text-[12.5px] whitespace-nowrap">{{ $plan->name }}</td>
+                                <td class="px-3 py-2.5 font-semibold t1 text-[12.5px] whitespace-nowrap">
+                                    <a href="{{ route('admin.unity-peers-plans.edit', $plan) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $plan->name }}
+                                    </a>
+                                </td>
                                 <td class="px-3 py-2.5 text-xs font-mono text-indigo-600">{{ $plan->slug }}</td>
                                 <td class="px-3 py-2.5 text-xs t1 font-medium">₹{{ number_format($price, 2) }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ number_format($gstPercent, 2) }}%</td>

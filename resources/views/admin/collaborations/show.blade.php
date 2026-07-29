@@ -59,7 +59,15 @@
                         {{ $getInitials($name) }}
                     </div>
                     <div>
-                        <h5 class="fw-bold text-dark mb-1">{{ $name }}</h5>
+                        <h5 class="fw-bold text-dark mb-1">
+                            @if($user && !empty($user->id))
+                                <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $user->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline no-underline fw-bold">
+                                    {{ $name }}
+                                </a>
+                            @else
+                                {{ $name }}
+                            @endif
+                        </h5>
                         @if($userCompany)
                             <div class="text-muted small"><i class="bi bi-building me-1"></i>{{ $userCompany }}</div>
                         @endif

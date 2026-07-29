@@ -124,6 +124,7 @@
                                                 'name' => $item->from_user_name ?? $actorName,
                                                 'company' => $item->from_company ?? '',
                                                 'city' => $item->from_city ?? '',
+                                                'userId' => $item->actor_id ?? $item->from_user_id ?? null,
                                             ])
                                         </td>
                                         <td class="px-3 py-2.5">
@@ -131,6 +132,7 @@
                                                 'name' => $item->to_user_name ?? $peerName,
                                                 'company' => $item->to_company ?? '',
                                                 'city' => $item->to_city ?? '',
+                                                'userId' => $item->user_id ?? $item->to_user_id ?? null,
                                             ])
                                         </td>
                                         <td class="px-3 py-2.5 text-xs">

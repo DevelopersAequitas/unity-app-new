@@ -11,6 +11,22 @@
         $labelForType = function (?string $type): ?string {
             return $type ? \App\Support\Coins\CoinLedgerFormatter::why($type) : null;
         };
+        $getInitials = function (?string $name): string {
+            if (! $name) return 'P';
+            $words = explode(' ', trim($name));
+            $initials = '';
+            foreach ($words as $w) {
+                if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+            }
+            return substr($initials, 0, 2) ?: 'P';
+        };
+
+        $getAvatarBg = function (?string $name): string {
+            if (! $name) return '#6366f1';
+            $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+            $hash = crc32($name);
+            return $colors[abs($hash) % count($colors)];
+        };
         $resetUrl = $activeType ? route('admin.coins.ledger.type', [$member, $activeType]) : route('admin.coins.ledger', $member);
     @endphp
 
@@ -56,8 +72,11 @@
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Balance After</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Why</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created By</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
                         </tr>
-                        <tr class="surface-2 border-b bs align-middle">
+                        <tr class="surface-2 border-b bs align-middle filter-row">
                             <th class="px-3 py-2">
                                 <input
                                     type="date"
@@ -90,29 +109,47 @@
                                 </select>
                             </th>
                             <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" placeholder="-" disabled></th>
                         </tr>
                     </thead>
                     <tbody id="grid-body" class="divide-y divide-gray-200/50">
                         @forelse ($items as $item)
                             @php
                                 $reasonType = trim((string) ($item->reason_type ?? ''));
+                                $creator = $item->createdBy;
+                                $creatorName = $creator ? ($creator->display_name ?: trim(($creator->first_name ?? '') . ' ' . ($creator->last_name ?? ''))) : '—';
+                                $creatorCompany = $creator->company_name ?? $creator->company ?? $creator->business_name ?? '—';
+                                $creatorCity = $creator->city ?? '—';
+                                $creatorCircle = $creator ? ($creator->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ') ?: '—') : '—';
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ optional($item->created_at)->format('Y-m-d H:i') ?? '-' }}</td>
                                 <td class="px-3 py-2.5 font-semibold text-indigo-600 text-[12.5px]">{{ $item->amount }}</td>
                                 <td class="px-3 py-2.5 text-[12.5px] t1 font-medium">{{ $item->balance_after }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ \App\Support\Coins\CoinLedgerFormatter::why($reasonType) }}</td>
-                                <td class="px-3 py-2.5">
-                                    @if ($item->createdBy)
-                                        @include('admin.shared.peer_card', ['user' => $item->createdBy])
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if ($creator)
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($creatorName) }}">
+                                                {{ $getInitials($creatorName) }}
+                                            </div>
+                                            <a href="{{ route('admin.users.show', $creator->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                {{ $creatorName }}
+                                            </a>
+                                        </div>
                                     @else
-                                        <span class="t3">-</span>
+                                        <span class="t3">—</span>
                                     @endif
                                 </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $creatorCompany }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $creatorCity }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $creatorCircle }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center py-8 text-xs t3">No ledger entries found.</td>
+                                <td colspan="8" class="text-center py-8 text-xs t3">No ledger entries found.</td>
                             </tr>
                         @endforelse
                     </tbody>

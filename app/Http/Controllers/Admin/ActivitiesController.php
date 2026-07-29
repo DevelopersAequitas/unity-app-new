@@ -18,6 +18,7 @@ use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -180,8 +181,9 @@ class ActivitiesController extends Controller
             $this->applyDateRangeToSubQuery($sub, $from, $to, 'visitor_registrations.created_at');
         }, 'register_visitor_count');
 
-        if ($filters['q'] !== '') {
-            $like = "%{$filters['q']}%";
+        $searchQ = trim((string) ($filters['q'] ?? ''));
+        if ($searchQ !== '') {
+            $like = "%{$searchQ}%";
             $query->where(function ($q) use ($like) {
                 $q->where('users.display_name', 'ILIKE', $like)
                     ->orWhere('users.first_name', 'ILIKE', $like)
@@ -1032,5 +1034,268 @@ class ActivitiesController extends Controller
         }
 
         return null;
+    }
+
+    public function peerSummary(Request $request, string $userId): JsonResponse
+    {
+        $admin = auth('admin')->user();
+
+        $user = User::withTrashed()->find($userId);
+        if (! $user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        $query = $this->buildPeerSummaryQuery([], $admin);
+        $peerData = $query->where('users.id', $user->id)->first();
+
+        $name = $peerData->peer_name ?? $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+        if (empty(trim((string) $name))) {
+            $name = $user->email ?? 'Member';
+        }
+
+        $score = (int) collect([
+            'testimonials_count',
+            'referrals_count',
+            'requirements_count',
+            'business_deals_count',
+            'p2p_completed_count',
+            'become_leader_count',
+            'recommend_peer_count',
+            'register_visitor_count',
+        ])->sum(fn (string $column) => (int) ($peerData->{$column} ?? 0));
+
+        $colors = ['#6366f1', '#ec4899', '#8b5cf6', '#10b981', '#f59e0b', '#06b6d4', '#3b82f6'];
+        $avatarBg = $colors[abs(crc32((string) $user->id)) % count($colors)];
+        $initials = strtoupper(substr(trim($name), 0, 1)) ?: 'P';
+
+        return response()->json([
+            'id' => $user->id,
+            'name' => $name,
+            'designation' => $user->designation ?? 'Member',
+            'company' => $user->company_name ?? '',
+            'city' => $peerData->city_name ?? $user->city ?? '',
+            'circle' => $peerData->circle_name ?? '',
+            'email' => $user->email ?? '—',
+            'phone' => $user->phone ?? '—',
+            'avatarBg' => $avatarBg,
+            'initials' => $initials,
+            'testimonials' => (int) ($peerData->testimonials_count ?? 0),
+            'testimonialsUrl' => route('admin.activities.testimonials.index', ['q' => $user->id]),
+            'referrals' => (int) ($peerData->referrals_count ?? 0),
+            'referralsUrl' => route('admin.activities.referrals.index', ['q' => $user->id]),
+            'deals' => (int) ($peerData->business_deals_count ?? 0),
+            'dealsUrl' => route('admin.activities.business-deals.index', ['q' => $user->id]),
+            'p2p' => (int) ($peerData->p2p_completed_count ?? 0),
+            'p2pUrl' => route('admin.activities.p2p-meetings.index', ['q' => $user->id]),
+            'requirements' => (int) ($peerData->requirements_count ?? 0),
+            'requirementsUrl' => route('admin.activities.requirements.index', ['q' => $user->id]),
+            'leadership' => (int) ($peerData->become_leader_count ?? 0),
+            'leadershipUrl' => route('admin.activities.become-a-leader.index'),
+            'recommendations' => (int) ($peerData->recommend_peer_count ?? 0),
+            'recommendationsUrl' => route('admin.activities.recommend-peer.index'),
+            'visitors' => (int) ($peerData->register_visitor_count ?? 0),
+            'visitorsUrl' => route('admin.activities.register-visitor.index'),
+            'score' => $score,
+        ]);
+    }
+
+    public function peerActivityDetails(Request $request, string $userId, string $type): JsonResponse
+    {
+        $user = User::withTrashed()->find($userId);
+        if (! $user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        $items = [];
+
+        try {
+            switch ($type) {
+                case 'testimonials':
+                    $records = Testimonial::with(['fromUser', 'toUser'])
+                        ->where(function ($q) use ($user) {
+                            $q->where('from_user_id', $user->id)
+                                ->orWhere('to_user_id', $user->id);
+                        })
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) use ($user) {
+                        $isFromMe = $r->from_user_id === $user->id;
+                        $otherUser = $isFromMe ? $r->toUser : $r->fromUser;
+                        $otherName = $otherUser ? ($otherUser->display_name ?: trim(($otherUser->first_name ?? '').' '.($otherUser->last_name ?? ''))) : 'Member';
+
+                        return [
+                            'title' => $isFromMe ? 'Given to '.$otherName : 'Received from '.$otherName,
+                            'details' => $r->content ?: '—',
+                            'badge' => $r->rating ? $r->rating.' ★' : 'Testimonial',
+                            'badgeClass' => 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                case 'referrals':
+                    $records = Referral::with(['fromUser', 'toUser'])
+                        ->where(function ($q) use ($user) {
+                            $q->where('from_user_id', $user->id)
+                                ->orWhere('to_user_id', $user->id);
+                        })
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) use ($user) {
+                        $isFromMe = $r->from_user_id === $user->id;
+                        $otherUser = $isFromMe ? $r->toUser : $r->fromUser;
+                        $otherName = $otherUser ? ($otherUser->display_name ?: trim(($otherUser->first_name ?? '').' '.($otherUser->last_name ?? ''))) : 'Member';
+
+                        return [
+                            'title' => ($isFromMe ? 'Given to ' : 'Received from ').$otherName,
+                            'details' => ($r->referral_of ?: 'Referral').($r->remarks ? ' • '.$r->remarks : ''),
+                            'badge' => ucfirst((string) ($r->referral_type ?: 'Referral')),
+                            'badgeClass' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                            'date' => $r->referral_date ? Carbon::parse($r->referral_date)->format('d M Y') : ($r->created_at ? $r->created_at->format('d M Y') : '—'),
+                        ];
+                    });
+                    break;
+
+                case 'deals':
+                    $records = BusinessDeal::with(['fromUser', 'toUser'])
+                        ->where(function ($q) use ($user) {
+                            $q->where('from_user_id', $user->id)
+                                ->orWhere('to_user_id', $user->id);
+                        })
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) use ($user) {
+                        $isFromMe = $r->from_user_id === $user->id;
+                        $otherUser = $isFromMe ? $r->toUser : $r->fromUser;
+                        $otherName = $otherUser ? ($otherUser->display_name ?: trim(($otherUser->first_name ?? '').' '.($otherUser->last_name ?? ''))) : 'Member';
+                        $amount = $r->deal_amount ? '₹'.number_format((float) $r->deal_amount) : 'Business Deal';
+
+                        return [
+                            'title' => 'Deal with '.$otherName,
+                            'details' => ($r->business_type ?: 'Deal').($r->comment ? ' • '.$r->comment : ''),
+                            'badge' => $amount,
+                            'badgeClass' => 'bg-amber-50 text-amber-700 border-amber-200',
+                            'date' => $r->deal_date ? Carbon::parse($r->deal_date)->format('d M Y') : ($r->created_at ? $r->created_at->format('d M Y') : '—'),
+                        ];
+                    });
+                    break;
+
+                case 'p2p':
+                    $records = P2pMeeting::with(['initiator', 'peer'])
+                        ->where(function ($q) use ($user) {
+                            $q->where('initiator_user_id', $user->id)
+                                ->orWhere('peer_user_id', $user->id);
+                        })
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) use ($user) {
+                        $isInitiator = $r->initiator_user_id === $user->id;
+                        $otherUser = $isInitiator ? $r->peer : $r->initiator;
+                        $otherName = $otherUser ? ($otherUser->display_name ?: trim(($otherUser->first_name ?? '').' '.($otherUser->last_name ?? ''))) : 'Member';
+
+                        return [
+                            'title' => 'P2P Meeting with '.$otherName,
+                            'details' => ($r->meeting_place ? 'Location: '.$r->meeting_place : 'P2P Meeting').($r->remarks ? ' • '.$r->remarks : ''),
+                            'badge' => 'P2P Meeting',
+                            'badgeClass' => 'bg-sky-50 text-sky-700 border-sky-200',
+                            'date' => $r->meeting_date ? Carbon::parse($r->meeting_date)->format('d M Y') : ($r->created_at ? $r->created_at->format('d M Y') : '—'),
+                        ];
+                    });
+                    break;
+
+                case 'requirements':
+                    $records = Requirement::where('user_id', $user->id)
+                        ->whereNull('deleted_at')
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) {
+                        return [
+                            'title' => $r->subject ?: 'Requirement',
+                            'details' => $r->description ?: '—',
+                            'badge' => ucfirst((string) ($r->status ?: 'Active')),
+                            'badgeClass' => 'bg-rose-50 text-rose-700 border-rose-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                case 'leadership':
+                    $records = LeaderInterestSubmission::where('user_id', $user->id)
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) {
+                        return [
+                            'title' => $r->applying_for ?: 'Leadership Role',
+                            'details' => ($r->primary_domain ? 'Domain: '.$r->primary_domain : 'Leadership Request').($r->why_interested ? ' • '.$r->why_interested : ''),
+                            'badge' => $r->contribute_city ?: 'Submitted',
+                            'badgeClass' => 'bg-purple-50 text-purple-700 border-purple-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                case 'recommendations':
+                    $records = PeerRecommendation::where('user_id', $user->id)
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) {
+                        return [
+                            'title' => $r->peer_name ?: 'Recommended Peer',
+                            'details' => ($r->peer_business ? 'Business: '.$r->peer_business : 'Peer Recommendation').($r->note ? ' • '.$r->note : ''),
+                            'badge' => $r->peer_city ?: 'Recommended',
+                            'badgeClass' => 'bg-violet-50 text-violet-700 border-violet-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                case 'visitors':
+                    $records = VisitorRegistration::where('user_id', $user->id)
+                        ->latest()
+                        ->take(50)
+                        ->get();
+
+                    $items = $records->map(function ($r) {
+                        return [
+                            'title' => $r->visitor_full_name ?: 'Visitor',
+                            'details' => ($r->visitor_business ? 'Business: '.$r->visitor_business : 'Visitor Registration').($r->event_name ? ' • Event: '.$r->event_name : ''),
+                            'badge' => ucfirst((string) ($r->status ?: 'Registered')),
+                            'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                            'date' => $r->created_at ? $r->created_at->format('d M Y') : '—',
+                        ];
+                    });
+                    break;
+
+                default:
+                    return response()->json(['error' => 'Invalid activity type'], 400);
+            }
+
+            return response()->json([
+                'type' => $type,
+                'items' => $items,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("[PeerDetails] Failed to load {$type} for user {$userId}: ".$e->getMessage());
+
+            return response()->json(['error' => 'Failed to load details: '.$e->getMessage()], 500);
+        }
     }
 }

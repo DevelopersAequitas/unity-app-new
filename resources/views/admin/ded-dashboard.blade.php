@@ -347,7 +347,7 @@
                             @forelse ($quickFinder['circle_founders'] as $founder)
                                 <div class="list-group-item px-0 py-2 border-0">
                                     <div class="fw-bold text-dark">
-                                        <a href="{{ route('admin.users.show', $founder['id']) }}" class="text-primary text-decoration-none">
+                                        <a href="#" class="text-primary text-decoration-none" onclick="event.preventDefault(); openActivityPeerModal('{{ $founder['id'] }}', event);">
                                             {{ $founder['name'] }}
                                         </a>
                                     </div>
@@ -365,7 +365,7 @@
                             @forelse ($quickFinder['circle_directors'] as $director)
                                 <div class="list-group-item px-0 py-2 border-0">
                                     <div class="fw-bold text-dark">
-                                        <a href="{{ route('admin.users.show', $director['id']) }}" class="text-primary text-decoration-none">
+                                        <a href="#" class="text-primary text-decoration-none" onclick="event.preventDefault(); openActivityPeerModal('{{ $director['id'] }}', event);">
                                             {{ $director['name'] }}
                                         </a>
                                     </div>
@@ -383,7 +383,7 @@
                             @forelse ($quickFinder['industry_directors'] as $idr)
                                 <div class="list-group-item px-0 py-2 border-0">
                                     <div class="fw-bold text-dark">
-                                        <a href="{{ route('admin.users.show', $idr['id']) }}" class="text-primary text-decoration-none">
+                                        <a href="#" class="text-primary text-decoration-none" onclick="event.preventDefault(); openActivityPeerModal('{{ $idr['id'] }}', event);">
                                             {{ $idr['name'] }}
                                         </a>
                                     </div>
@@ -401,7 +401,7 @@
                             @forelse ($quickFinder['chairs'] as $ch)
                                 <div class="list-group-item px-0 py-2 border-0">
                                     <div class="fw-bold text-dark">
-                                        <a href="{{ route('admin.users.show', $ch['id']) }}" class="text-primary text-decoration-none">
+                                        <a href="#" class="text-primary text-decoration-none" onclick="event.preventDefault(); openActivityPeerModal('{{ $ch['id'] }}', event);">
                                             {{ $ch['name'] }}
                                         </a>
                                         <span class="badge bg-primary-subtle text-primary">Chair</span>

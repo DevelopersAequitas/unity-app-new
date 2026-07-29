@@ -27,6 +27,23 @@
 
             return $name !== '' ? $name : '—';
         };
+
+        $getInitials = function (?string $name): string {
+            if (! $name) return 'P';
+            $words = explode(' ', trim($name));
+            $initials = '';
+            foreach ($words as $w) {
+                if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+            }
+            return substr($initials, 0, 2) ?: 'P';
+        };
+
+        $getAvatarBg = function (?string $name): string {
+            if (! $name) return '#6366f1';
+            $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+            $hash = crc32($name);
+            return $colors[abs($hash) % count($colors)];
+        };
     @endphp
 
     <form id="coinClaimsFiltersForm" method="GET" action="{{ route('admin.coin-claims.index') }}"></form>
@@ -73,10 +90,13 @@
 
         <div class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
-                <table class="min-w-full border-collapse text-[13px]">
+                <table class="min-w-[1000px] w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Phone</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Activity</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Key Fields</th>
@@ -84,9 +104,12 @@
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                         </tr>
                         <tr class="surface-2 border-b bs filter-row">
-                            <th class="px-2 py-1">
-                                <input type="text" name="peer_q" form="coinClaimsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer/Company/City" value="{{ $filters['peer_q'] }}">
+                            <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
+                                <input type="text" name="peer_q" form="coinClaimsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer Search" value="{{ $filters['peer_q'] }}">
                             </th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
                             <th class="px-2 py-1">
                                 <input type="text" name="peer_phone" form="coinClaimsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer Phone" value="{{ $filters['peer_phone'] }}">
                             </th>
@@ -115,18 +138,33 @@
                         @forelse ($claims as $claim)
                             @php
                                 $user = $claim->user;
-                                $company = $user->company_name ?? $user->company ?? $user->business_name ?? 'No Company';
-                                $city = $user->city ?? 'No City';
+                                $userName = $user ? ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))) : '—';
+                                $company = $user->company_name ?? $user->company ?? $user->business_name ?? '—';
+                                $city = $user->city ?? '—';
                                 $userCircles = $user
                                     ? $user->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
                                     : '';
-                                $circleName = $userCircles !== '' ? $userCircles : 'No Circle';
+                                $circleName = $userCircles !== '' ? $userCircles : '—';
                                 $keyFieldsRows = CoinClaimKeyFieldsFormatter::formatForAdminList(data_get($claim->payload, 'fields', data_get($claim->payload, 'key_fields')));
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
-                                <td class="px-3 py-2.5 text-xs">
-                                    @include('admin.partials.peer_identity', ['user' => $user, 'circleName' => $circleName])
+                                <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                                    @if ($user)
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($userName) }}">
+                                                {{ $getInitials($userName) }}
+                                            </div>
+                                            <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $user->id }}', event);" class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                {{ $userName }}
+                                            </a>
+                                        </div>
+                                    @else
+                                        <span class="t3">—</span>
+                                    @endif
                                 </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $company }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $city }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $circleName }}</td>
                                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $user->phone ?? '—' }}</td>
                                 <td class="px-3 py-2.5 text-xs font-medium t1">{{ data_get($registry->get($claim->activity_code), 'label', $claim->activity_code) }}</td>
                                 <td class="px-3 py-2.5 text-xs">
@@ -165,7 +203,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-center py-8 text-xs t3">No coin claims found.</td></tr>
+                            <tr><td colspan="9" class="text-center py-8 text-xs t3">No coin claims found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

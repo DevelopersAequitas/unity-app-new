@@ -105,7 +105,11 @@
                                     @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-xs">
-                                    <div class="font-semibold t1">{{ $partner->name }}</div>
+                                    <div class="font-semibold t1">
+                                        <a href="{{ route('admin.brand-partners.show', $partner) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                            {{ $partner->name }}
+                                        </a>
+                                    </div>
                                     <div class="t3 text-[11px]">/{{ $partner->slug }}</div>
                                 </td>
                                 <td class="px-3 py-2.5 text-xs">

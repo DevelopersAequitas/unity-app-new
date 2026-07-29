@@ -4,6 +4,25 @@
 
 @include('admin.partials.grid-head')
 
+@php
+    $getInitials = function (?string $name): string {
+        if (! $name) return 'P';
+        $words = explode(' ', trim($name));
+        $initials = '';
+        foreach ($words as $w) {
+            if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+        }
+        return substr($initials, 0, 2) ?: 'P';
+    };
+
+    $getAvatarBg = function (?string $name): string {
+        if (! $name) return '#6366f1';
+        $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+        $hash = crc32($name);
+        return $colors[abs($hash) % count($colors)];
+    };
+@endphp
+
 @section('content')
     <form id="introRequestsFiltersForm" method="GET" action="{{ route('admin.introduction-requests.index') }}"></form>
 
@@ -48,8 +67,16 @@
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Member</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Introducer</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Member Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Member Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Member City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Member Circle</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Member Email</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Introducer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Introducer Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Introducer City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Introducer Circle</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Introducer Email</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Requested At</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                         </tr>
@@ -59,24 +86,56 @@
                             @php
                                 $requester  = $introRequest->requester;
                                 $introducer = $introRequest->introducer;
+
+                                $reqName = $requester ? ($requester->display_name ?: trim(($requester->first_name ?? '') . ' ' . ($requester->last_name ?? ''))) : '—';
+                                $reqCompany = $requester->company_name ?? $requester->company ?? $requester->business_name ?? '—';
+                                $reqCity = $requester->city ?? '—';
+                                $reqCircles = $requester ? $requester->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ') : '';
+                                $reqCircle = $reqCircles !== '' ? $reqCircles : '—';
+
+                                $introName = $introducer ? ($introducer->display_name ?: trim(($introducer->first_name ?? '') . ' ' . ($introducer->last_name ?? ''))) : '—';
+                                $introCompany = $introducer->company_name ?? $introducer->company ?? $introducer->business_name ?? '—';
+                                $introCity = $introducer->city ?? '—';
+                                $introCircles = $introducer ? $introducer->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ') : '';
+                                $introCircle = $introCircles !== '' ? $introCircles : '—';
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs">
                                     @if ($requester)
-                                        @include('admin.partials.peer_identity', ['user' => $requester])
-                                        <div class="t3 text-[11px] mt-0.5">{{ $requester->email ?? '—' }}</div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($reqName) }}">
+                                                {{ $getInitials($reqName) }}
+                                            </div>
+                                            <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $requester->id }}', event);" class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                {{ $reqName }}
+                                            </a>
+                                        </div>
                                     @else
                                         <span class="t3">—</span>
                                     @endif
                                 </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $reqCompany }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $reqCity }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $reqCircle }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $requester->email ?? '—' }}</td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if ($introducer)
-                                        @include('admin.partials.peer_identity', ['user' => $introducer])
-                                        <div class="t3 text-[11px] mt-0.5">{{ $introducer->email ?? '—' }}</div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($introName) }}">
+                                                {{ $getInitials($introName) }}
+                                            </div>
+                                            <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $introducer->id }}', event);" class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                {{ $introName }}
+                                            </a>
+                                        </div>
                                     @else
                                         <span class="t3">—</span>
                                     @endif
                                 </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $introCompany }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $introCity }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $introCircle }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $introducer->email ?? '—' }}</td>
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                                     {{ $introRequest->requested_at?->format('d M Y, h:i A') ?? '—' }}
                                 </td>
@@ -123,7 +182,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="text-center py-8 text-xs t3">No pending introduction requests.</td>
+                                <td colspan="12" class="text-center py-8 text-xs t3">No pending introduction requests.</td>
                             </tr>
                         @endforelse
                     </tbody>

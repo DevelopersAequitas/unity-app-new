@@ -33,7 +33,11 @@
                     @endif
                 </div>
 
-                <h5 class="fw-bold mb-1 text-dark">{{ $name }}</h5>
+                <h5 class="fw-bold mb-1 text-dark">
+                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $member->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-bold no-underline">
+                        {{ $name }}
+                    </a>
+                </h5>
                 <p class="text-muted small mb-3">{{ $member->designation ?: 'Sponsor' }}</p>
 
                 <hr>

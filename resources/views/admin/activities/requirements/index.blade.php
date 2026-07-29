@@ -256,7 +256,16 @@
                                                     {{ $getInitials($member->peer_name ?? '') }}
                                                 </div>
                                                 <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">{{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}</div>
+                                                    <div class="font-semibold t1 text-[12.5px]">
+                                                        @php $mId = $member->actor_id ?? $member->id ?? $member->user_id ?? null; @endphp
+                                                        @if(!empty($mId))
+                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $mId }}', event);">
+                                                                {{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}
+                                                            </a>
+                                                        @else
+                                                            {{ $member->peer_name ?? $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null) }}
+                                                        @endif
+                                                    </div>
                                                     <div class="t3 text-[10px]">{{ $member->peer_company ?? '' }}</div>
                                                 </div>
                                             </div>
@@ -284,8 +293,10 @@
                             <thead>
                                 <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">From</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Subject & Description</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Region & Category</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Subject</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Description</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Region</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Category</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Media</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
@@ -295,8 +306,11 @@
                                         <input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     </th>
                                     <th class="px-2 py-1"><input type="text" name="subject" value="{{ $filters['subject'] ?? '' }}" placeholder="Subject" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
                                     <th class="px-2 py-1">
-                                        <input type="text" name="region" value="{{ $filters['region'] ?? '' }}" placeholder="Region" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1">
+                                        <input type="text" name="region" value="{{ $filters['region'] ?? '' }}" placeholder="Region" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                    </th>
+                                    <th class="px-2 py-1">
                                         <input type="text" name="category" value="{{ $filters['category'] ?? '' }}" placeholder="Category" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     </th>
                                     <th class="px-2 py-1">
@@ -333,6 +347,7 @@
                                         $categoryLabel = $categoryFilter['category'] ?? null;
 
                                         $fromName = $requirement->from_user_name ?? $actorName;
+                                        $fromId = $requirement->actor_id ?? $requirement->user_id ?? null;
                                     @endphp
                                     <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-requirement="{{ $makeRequirementPayload($requirement) }}" onclick="openRequirementDetailModal(this, event)">
                                         <td class="px-3 py-2.5">
@@ -341,7 +356,15 @@
                                                     {{ $getInitials($fromName) }}
                                                 </div>
                                                 <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">{{ $fromName }}</div>
+                                                    <div class="font-semibold t1 text-[12.5px]">
+                                                        @if(!empty($fromId))
+                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $fromId }}', event);">
+                                                                {{ $fromName }}
+                                                            </a>
+                                                        @else
+                                                            {{ $fromName }}
+                                                        @endif
+                                                    </div>
                                                     <div class="t3 text-[10px]">
                                                         @if($requirement->from_company) <span>{{ $requirement->from_company }}</span> @endif
                                                         @if($requirement->from_city) &bull; <span>{{ $requirement->from_city }}</span> @endif
@@ -349,15 +372,15 @@
                                                 </div>
                                             </div>
                                         </td>
+                                        <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px] max-w-[200px] truncate" title="{{ $requirement->subject }}">{{ $requirement->subject ?? '—' }}</td>
+                                        <td class="px-3 py-2.5 text-xs t3 max-w-[250px] truncate" title="{{ $requirement->description }}">{{ $requirement->description ?? '—' }}</td>
+                                        <td class="px-3 py-2.5 text-xs t2">{{ $regionLabel ?: '—' }}</td>
                                         <td class="px-3 py-2.5 text-xs">
-                                            <div class="font-semibold t1 text-[12px]">{{ $requirement->subject ?? '—' }}</div>
-                                            <div class="t3 text-[10px] max-w-[250px] truncate" title="{{ $requirement->description }}">
-                                                {{ $requirement->description ?? '—' }}
-                                            </div>
-                                        </td>
-                                        <td class="px-3 py-2.5 text-xs t2">
-                                            <div><span class="t3">Region:</span> {{ $regionLabel ?: '—' }}</div>
-                                            <div class="mt-0.5"><span class="t3">Category:</span> <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $categoryLabel ?: '—' }}</span></div>
+                                            @if($categoryLabel)
+                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $categoryLabel }}</span>
+                                            @else
+                                                <span class="t3">—</span>
+                                            @endif
                                         </td>
                                         <td class="px-3 py-2.5 text-xs">
                                             @if($requirement->status === 'active')
@@ -381,7 +404,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="text-center py-8 text-xs t3">No requirements found.</td>
+                                        <td colspan="8" class="text-center py-8 text-xs t3">No requirements found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

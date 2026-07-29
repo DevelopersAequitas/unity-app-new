@@ -43,7 +43,11 @@
         </div>
     @endif
     <div class="flex flex-col min-w-0 text-left">
-        <div class="font-semibold t1 text-[12.5px] truncate" title="{{ $name }}">{{ $name }}</div>
+        @if($user && $user->id)
+            <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $user->id }}', event);" class="font-semibold text-indigo-600 hover:text-indigo-800 text-[12.5px] truncate no-underline hover:underline" title="{{ $name }}">{{ $name }}</a>
+        @else
+            <div class="font-semibold t1 text-[12.5px] truncate" title="{{ $name }}">{{ $name }}</div>
+        @endif
         <div class="text-[11px] t3 flex items-center gap-1.5 flex-wrap">
             @if($company !== '')<span>{{ $company }}</span>@endif
             @if($company !== '' && $city !== '')<span>&bull;</span>@endif

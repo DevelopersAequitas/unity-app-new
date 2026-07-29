@@ -4,6 +4,25 @@
 
 @include('admin.partials.grid-head')
 
+@php
+    $getInitials = function (?string $name): string {
+        if (! $name) return 'P';
+        $words = explode(' ', trim($name));
+        $initials = '';
+        foreach ($words as $w) {
+            if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+        }
+        return substr($initials, 0, 2) ?: 'P';
+    };
+
+    $getAvatarBg = function (?string $name): string {
+        if (! $name) return '#6366f1';
+        $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+        $hash = crc32($name);
+        return $colors[abs($hash) % count($colors)];
+    };
+@endphp
+
 @section('content')
 <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card">
 
@@ -117,12 +136,19 @@
             <table class="table table-premium mb-0 align-middle">
                 <thead>
                     <tr class="bg-slate-50 border-b border-slate-200">
-                        <th style="min-width: 220px;">Requested By</th>
-                        <th style="min-width: 280px;">Event Details</th>
-                        <th style="min-width: 180px;">Reason</th>
-                        <th style="min-width: 110px;">Status</th>
-                        <th style="min-width: 140px;">Requested At</th>
-                        <th style="min-width: 160px;">Admin Note</th>
+                        <th style="min-width: 160px; position: sticky; left: 0; z-index: 10; background: #f8fafc; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Requested By</th>
+                        <th>Company</th>
+                        <th>City</th>
+                        <th>Circle</th>
+                        <th style="min-width: 160px;">Event Name</th>
+                        <th>Event Type</th>
+                        <th>Event Circle</th>
+                        <th style="min-width: 140px;">Event Date/Time</th>
+                        <th style="min-width: 140px;">Location/Mode</th>
+                        <th style="min-width: 160px;">Reason</th>
+                        <th style="min-width: 100px;">Status</th>
+                        <th style="min-width: 130px;">Requested At</th>
+                        <th style="min-width: 140px;">Admin Note</th>
                         <th class="text-end" style="min-width: 160px;">Action</th>
                     </tr>
                 </thead>
@@ -130,10 +156,13 @@
                 @forelse($requests as $joinRequest)
                     @php
                         $user = $joinRequest->user;
+                        $userName = $user ? ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))) : '—';
+                        $userCompany = $user->company_name ?? $user->company ?? $user->business_name ?? '—';
+                        $userCity = $user->city ?? '—';
                         $userCircles = $user
                             ? $user->circleMemberships->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
                             : '';
-                        $userCircleName = $userCircles !== '' ? $userCircles : null;
+                        $userCircleName = $userCircles !== '' ? $userCircles : '—';
                         $event = $joinRequest->event;
                         $occurrence = $joinRequest->occurrence;
                         $registration = $joinRequest->registration;
@@ -147,25 +176,42 @@
                         }
                     @endphp
                     <tr>
-                        <td>
-                            @include('admin.partials.peer_identity', ['user' => $user, 'circleName' => $userCircleName])
-                        </td>
-                        <td>
-                            <div class="fw-bold text-slate-900 text-sm mb-0.5">{{ $event?->title ?? '—' }}</div>
-                            <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 mb-1">
-                                <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">{{ ucfirst(str_replace('_', ' ', $event?->event_type ?? 'Event')) }}</span>
-                                <span>&bull;</span>
-                                <span class="text-indigo-600 font-medium">{{ $event?->circle?->name ?? 'Global Circle' }}</span>
-                            </div>
-                            <div class="text-xs text-slate-600 flex items-center gap-1 mb-0.5">
-                                <i class="bi bi-clock text-slate-400"></i>
-                                <span>{{ optional($occurrence?->start_at)->format('d M Y, h:i A') }} @if($occurrence?->end_at) - {{ optional($occurrence?->end_at)->format('h:i A') }} @endif</span>
-                            </div>
-                            @if($event?->mode || $rawLoc)
-                                <div class="text-xs text-slate-500 flex items-start gap-1 max-w-xs truncate" title="{{ $rawLoc }}">
-                                    <i class="bi bi-geo-alt text-slate-400 mt-0.5"></i>
-                                    <span class="truncate">{{ ucfirst((string) ($event?->mode ?? 'offline')) }} @if($rawLoc) &bull; {{ $rawLoc }} @endif</span>
+                        <td style="position: sticky; left: 0; z-index: 8; background: #fff; min-width: 160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                            @if ($user)
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($userName) }}">
+                                        {{ $getInitials($userName) }}
+                                    </div>
+                                    <a href="{{ route('admin.users.show', $user->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline text-xs">
+                                        {{ $userName }}
+                                    </a>
                                 </div>
+                            @else
+                                <span class="text-xs text-slate-400">—</span>
+                            @endif
+                        </td>
+                        <td class="text-xs text-slate-600">{{ $userCompany }}</td>
+                        <td class="text-xs text-slate-600">{{ $userCity }}</td>
+                        <td class="text-xs text-slate-600">{{ $userCircleName }}</td>
+                        <td>
+                            <div class="fw-bold text-slate-900 text-sm">{{ $event?->title ?? '—' }}</div>
+                        </td>
+                        <td class="text-xs">
+                            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">{{ ucfirst(str_replace('_', ' ', $event?->event_type ?? 'Event')) }}</span>
+                        </td>
+                        <td class="text-xs text-indigo-600 font-medium">
+                            {{ $event?->circle?->name ?? 'Global Circle' }}
+                        </td>
+                        <td class="text-xs text-slate-600 whitespace-nowrap">
+                            {{ optional($occurrence?->start_at)->format('d M Y, h:i A') }} @if($occurrence?->end_at) - {{ optional($occurrence?->end_at)->format('h:i A') }} @endif
+                        </td>
+                        <td class="text-xs text-slate-500">
+                            @if($event?->mode || $rawLoc)
+                                <div class="max-w-xs truncate" title="{{ $rawLoc }}">
+                                    {{ ucfirst((string) ($event?->mode ?? 'offline')) }} @if($rawLoc) &bull; {{ $rawLoc }} @endif
+                                </div>
+                            @else
+                                —
                             @endif
                         </td>
                         <td>
@@ -221,7 +267,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="text-center text-slate-500 py-8">
+                        <td colspan="14" class="text-center text-slate-500 py-8">
                             <i class="bi bi-inbox text-3xl text-slate-300 block mb-2"></i>
                             <span>No event joining requests found matching your filters.</span>
                         </td>
