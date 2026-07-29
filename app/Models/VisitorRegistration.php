@@ -46,6 +46,11 @@ class VisitorRegistration extends Model
         'coins_awarded_at' => 'datetime',
     ];
 
+    protected $appends = [
+        'visitor_designation',
+        'visitor_business_brief',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (self $model): void {
