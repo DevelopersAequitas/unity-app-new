@@ -5,12 +5,28 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\AppVersion;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class AppVersionApiTest extends TestCase
 {
-    use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Schema::dropIfExists('app_versions');
+
+        Schema::create('app_versions', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('platform');
+            $table->string('latest_version');
+            $table->string('min_version');
+            $table->string('update_type');
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+    }
 
     public function test_app_version_returns_configured_store_urls(): void
     {
