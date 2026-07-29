@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\FileModel;
 use App\Models\User;
 use App\Support\Media\Probe;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
@@ -101,6 +103,33 @@ class FileUploadTest extends TestCase
         $files = Storage::disk('public')->allFiles('uploads');
         $this->assertCount(1, $files);
         $this->assertEquals($file->s3_key, $files[0]);
+    }
+
+    public function test_file_show_endpoint_supports_path_fallback(): void
+    {
+        if (! Schema::hasTable('files')) {
+            Schema::create('files', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('uploader_user_id')->nullable();
+                $table->string('s3_key');
+                $table->string('mime_type');
+                $table->integer('size_bytes');
+                $table->integer('width')->nullable();
+                $table->integer('height')->nullable();
+                $table->integer('duration')->nullable();
+                $table->boolean('is_orphaned')->default(false);
+                $table->timestamps();
+            });
+        }
+
+        Storage::fake('public');
+        Storage::disk('public')->put('ads/sample-ad-image.png', 'fake image content');
+
+        $response = $this->get('/api/v1/files/ads/sample-ad-image.png');
+        $response->assertStatus(200);
+
+        $response2 = $this->get('/api/v1/files/sample-ad-image.png');
+        $response2->assertStatus(200);
     }
 
     private function makeUser(): User

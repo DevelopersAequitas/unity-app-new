@@ -27,11 +27,16 @@ class FileController extends BaseApiController
             $file = File::find($id);
 
             if (! $file) {
-                $candidatePaths = [
+                $cleanId = ltrim(preg_replace('#^(storage/|public/)+#i', '', $id), '/');
+                $baseName = basename($cleanId);
+                $candidatePaths = array_values(array_unique([
                     $id,
-                    'ads/'.$id,
-                    ltrim($id, '/'),
-                ];
+                    $cleanId,
+                    'ads/'.$cleanId,
+                    $baseName,
+                    'ads/'.$baseName,
+                    'uploads/'.$baseName,
+                ]));
                 $disk = config('filesystems.default', 'public');
                 $foundPath = null;
 
