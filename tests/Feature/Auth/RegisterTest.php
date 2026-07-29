@@ -67,12 +67,12 @@ class RegisterTest extends TestCase
 
         $response->assertStatus(201)
             ->assertJsonPath('data.user.membership_status', User::STATUS_FREE_TRIAL)
-            ->assertJsonPath('data.user.status', 'inactive');
+            ->assertJsonPath('data.user.status', 'active');
 
         $this->assertDatabaseHas('users', [
             'email' => 'trial-user@example.com',
             'membership_status' => User::STATUS_FREE_TRIAL,
-            'status' => 'inactive',
+            'status' => 'active',
             'registration_source' => 'App',
         ]);
 
