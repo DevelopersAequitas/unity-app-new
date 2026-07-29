@@ -33,8 +33,8 @@ class ShareController extends Controller
             $appName = 'Greenpreneur';
         } else {
             $appScheme = "peersunity://share?type={$type}&id={$id}";
-            $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.peers.peersunity';
-            $appStoreUrl = 'https://apps.apple.com/us/app/peers-global-unity/id6739198477';
+            $playStoreUrl = (string) config('app_links.android.store_url', 'https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share');
+            $appStoreUrl = (string) config('app_links.ios.store_url', 'https://apps.apple.com/in/app/peers-global-unity/id6739198477');
             $appName = 'Peers Global Unity';
         }
 
