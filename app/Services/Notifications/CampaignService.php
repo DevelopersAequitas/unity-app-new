@@ -23,14 +23,96 @@ class CampaignService
         $skipped = 0;
         foreach ($users as $user) {
             $displayName = trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? ''))) ?: (string) ($user->name ?? 'Peer');
+            // Initialize dynamic values
+            $personName = $displayName;
+            $requirementTitle = 'a relevant requirement';
+            $eventTitle = 'Upcoming Event';
+            $circleName = 'your Circle';
+            $eventDate = now()->format('d M Y');
+            $xVal = '1';
+            $postPreview = 'Check out the latest updates';
+
+            // Resolve dynamic placeholders based on campaign code
+            if ($campaign->code === 'requirement_lead' || $campaign->code === 'pending_requirement_reminder') {
+                $latestRequirement = \App\Models\Requirement::where('status', 'active')
+                    ->where('user_id', '!=', $user->id)
+                    ->latest()
+                    ->first();
+                if ($latestRequirement) {
+                    $creator = $latestRequirement->user;
+                    if ($creator) {
+                        $personName = trim((string) ($creator->display_name ?? '')) ?: trim(((string) ($creator->first_name ?? '')).' '.((string) ($creator->last_name ?? ''))) ?: (string) ($creator->name ?? 'A member');
+                    }
+                    $requirementTitle = $latestRequirement->subject;
+                }
+                if ($campaign->code === 'pending_requirement_reminder') {
+                    $pendingCount = \App\Models\Requirement::where('status', 'active')
+                        ->where('user_id', '!=', $user->id)
+                        ->count();
+                    $xVal = (string) ($pendingCount ?: 1);
+                }
+            } elseif ($campaign->code === 'new_post_activity_circle') {
+                $latestPost = \App\Models\Post::where('user_id', '!=', $user->id)
+                    ->where('visibility', 'public')
+                    ->where('is_deleted', false)
+                    ->latest()
+                    ->first();
+                if ($latestPost) {
+                    $author = $latestPost->user;
+                    if ($author) {
+                        $personName = trim((string) ($author->display_name ?? '')) ?: trim(((string) ($author->first_name ?? '')).' '.((string) ($author->last_name ?? ''))) ?: (string) ($author->name ?? 'A member');
+                    }
+                    $postPreview = \Illuminate\Support\Str::limit(strip_tags($latestPost->content_text ?? ''), 50) ?: 'published a new post';
+                }
+            } elseif ($campaign->code === 'circle_activity') {
+                $latestCirclePost = \App\Models\Post::whereNotNull('circle_id')
+                    ->where('user_id', '!=', $user->id)
+                    ->latest()
+                    ->first();
+                if ($latestCirclePost) {
+                    $author = $latestCirclePost->user;
+                    if ($author) {
+                        $personName = trim((string) ($author->display_name ?? '')) ?: trim(((string) ($author->first_name ?? '')).' '.((string) ($author->last_name ?? ''))) ?: (string) ($author->name ?? 'A member');
+                    }
+                    if ($latestCirclePost->circle) {
+                        $circleName = $latestCirclePost->circle->name;
+                    }
+                }
+            } elseif ($campaign->code === 'people_to_connect') {
+                $connectionCount = \App\Models\User::where('id', '!=', $user->id)
+                    ->where('status', 'active')
+                    ->where('city', $user->city)
+                    ->count();
+                if ($connectionCount === 0) {
+                    $connectionCount = \App\Models\User::where('id', '!=', $user->id)
+                        ->where('status', 'active')
+                        ->count();
+                }
+                $xVal = (string) min(10, max(3, $connectionCount));
+            } elseif (in_array($campaign->code, ['upcoming_event_reminder', 'event_starting_now', 'post_event_feedback'], true)) {
+                $latestEvent = \App\Models\Event::where('start_at', '>=', now())
+                    ->orderBy('start_at', 'asc')
+                    ->first();
+                if (! $latestEvent) {
+                    $latestEvent = \App\Models\Event::latest()->first();
+                }
+                if ($latestEvent) {
+                    $eventTitle = $latestEvent->title;
+                    $eventDate = $latestEvent->start_at->format('d M Y');
+                }
+            } elseif ($campaign->code === 'unclaimed_coins') {
+                $xVal = (string) max(10, (int) ($user->coin_balance ?? 0));
+            }
+
             $placeholders = [
                 'name' => $displayName,
-                'person' => $displayName,
-                'requirement_title' => 'a relevant requirement',
-                'event_title' => 'Upcoming Event',
-                'circle_name' => 'your Circle',
-                'date' => now()->format('d M Y'),
-                'x' => '1',
+                'person' => $personName,
+                'requirement_title' => $requirementTitle,
+                'event_title' => $eventTitle,
+                'circle_name' => $circleName,
+                'date' => $eventDate,
+                'x' => $xVal,
+                'post_preview_content' => $postPreview,
                 'amount' => '₹0',
                 'status' => 'Active',
                 'badge_name' => 'Member',
