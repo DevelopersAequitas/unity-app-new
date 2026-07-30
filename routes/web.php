@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\AdminFileUploadController;
 use App\Http\Controllers\Admin\AnniversaryTemplateController;
 use App\Http\Controllers\Admin\AppConfigPageController;
+use App\Http\Controllers\Admin\AppUpdatesController;
 use App\Http\Controllers\Admin\Auth\AdminAuthController;
 use App\Http\Controllers\Admin\BirthdayCreativeController;
 use App\Http\Controllers\Admin\BrandPartnerAnalyticsController;
@@ -145,6 +146,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/tutorials/{id}', [TutorialController::class, 'destroy'])->whereUuid('id')->name('tutorials.destroy');
 
         Route::get('/app-config', [AppConfigPageController::class, 'index'])->name('app-config.index');
+        Route::get('/app-updates', [AppUpdatesController::class, 'index'])->name('app-updates.index');
+        Route::post('/app-updates/save/{platform}', [AppUpdatesController::class, 'saveSettings'])->name('app-updates.save');
+        Route::post('/app-updates/notify-selected', [AppUpdatesController::class, 'notifySelected'])->name('app-updates.notify-selected');
         Route::get('/birthday-creative', [BirthdayCreativeController::class, 'index'])->name('birthday-creative.index');
         Route::post('/birthday-creative', [BirthdayCreativeController::class, 'update'])->name('birthday-creative.update');
         Route::get('/birthday-creative/preview/{userId}', [BirthdayCreativeController::class, 'preview'])->name('birthday-creative.preview');

@@ -24,6 +24,7 @@ class AppVersion extends Model
         'min_version',
         'update_type',
         'is_active',
+        'release_notes',
     ];
 
     protected $casts = [
