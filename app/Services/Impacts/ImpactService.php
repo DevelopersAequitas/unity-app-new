@@ -178,12 +178,7 @@ class ImpactService
                 'rejected_by' => $actorUserId,
             ]);
 
-            $this->notify((string) $impact->user_id, 'impact_rejected', [
-                'impact_id' => (string) $impact->id,
-                'title' => 'Impact rejected',
-                'body' => 'Your impact was reviewed and rejected.',
-                'review_remarks' => $reviewRemarks,
-            ]);
+            $this->notificationService->sendRejected($impact, $reviewRemarks);
 
             return $impact;
         });

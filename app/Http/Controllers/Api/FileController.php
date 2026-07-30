@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\MediaProcessingException;
@@ -76,39 +78,21 @@ class FileController extends BaseApiController
                 }
 
                 if ($foundDisk && $foundPath) {
-                    $mime = Storage::disk($foundDisk)->mimeType($foundPath)
-                        ?: 'application/octet-stream';
+                    $rawMime = Storage::disk($foundDisk)->mimeType($foundPath);
+                    $mime = $this->resolveMimeType($foundPath, $rawMime);
+                    $size = Storage::disk($foundDisk)->size($foundPath);
+                    $stream = Storage::disk($foundDisk)->readStream($foundPath);
 
-                    if ($request->isMethod('HEAD')) {
-                        return response('', 200, [
-                            'Content-Type' => $mime,
-                            'Content-Length' => Storage::disk($foundDisk)->size($foundPath),
-                            'Cache-Control' => 'no-cache, must-revalidate',
-                        ]);
-                    }
-
-                    return Storage::disk($foundDisk)->response($foundPath, null, [
-                        'Content-Type' => $mime,
-                        'Cache-Control' => 'no-cache, must-revalidate',
-                    ]);
+                    return $this->buildStreamResponse($request, $stream, $size, $mime);
                 }
 
                 if ($absolutePath && is_file($absolutePath)) {
-                    $mime = mime_content_type($absolutePath) ?: 'application/octet-stream';
+                    $rawMime = mime_content_type($absolutePath) ?: null;
+                    $mime = $this->resolveMimeType($absolutePath, $rawMime);
                     $size = filesize($absolutePath);
+                    $stream = fopen($absolutePath, 'rb');
 
-                    if ($request->isMethod('HEAD')) {
-                        return response('', 200, [
-                            'Content-Type' => $mime,
-                            'Content-Length' => $size,
-                            'Cache-Control' => 'no-cache, must-revalidate',
-                        ]);
-                    }
-
-                    return response()->file($absolutePath, [
-                        'Content-Type' => $mime,
-                        'Cache-Control' => 'no-cache, must-revalidate',
-                    ]);
+                    return $this->buildStreamResponse($request, $stream, $size, $mime);
                 }
 
                 Log::warning("File API lookup failed: Database record and physical file not found for: {$id}", [
@@ -141,26 +125,12 @@ class FileController extends BaseApiController
                 }
             }
 
-            $mime = $file->mime_type
-                ?: Storage::disk($disk)->mimeType($file->s3_key)
-                ?: 'application/octet-stream';
+            $rawMime = $file->mime_type ?: Storage::disk($disk)->mimeType($file->s3_key);
+            $mime = $this->resolveMimeType($file->s3_key, $rawMime);
+            $size = $file->size_bytes ?: Storage::disk($disk)->size($file->s3_key);
+            $stream = Storage::disk($disk)->readStream($file->s3_key);
 
-            if ($request->isMethod('HEAD')) {
-                return response('', 200, [
-                    'Content-Type' => $mime,
-                    'Content-Length' => $file->size_bytes ?: Storage::disk($disk)->size($file->s3_key),
-                    'Cache-Control' => 'no-cache, must-revalidate',
-                ]);
-            }
-
-            return Storage::disk($disk)->response(
-                $file->s3_key,
-                null,
-                [
-                    'Content-Type' => $mime,
-                    'Cache-Control' => 'no-cache, must-revalidate',
-                ]
-            );
+            return $this->buildStreamResponse($request, $stream, $size, $mime);
         } catch (\Throwable $e) {
             Log::error("File API error for UUID {$id}: ".$e->getMessage(), [
                 'uuid' => $id,
@@ -225,5 +195,156 @@ class FileController extends BaseApiController
         }
 
         return new FileResource($model);
+    }
+
+    private function resolveMimeType(string $pathOrName, ?string $fallbackMime): string
+    {
+        $extension = strtolower(pathinfo($pathOrName, PATHINFO_EXTENSION));
+
+        $extensionMap = [
+            'mp4' => 'video/mp4',
+            'mov' => 'video/quicktime',
+            'webm' => 'video/webm',
+            'm4v' => 'video/x-m4v',
+            'ogv' => 'video/ogg',
+            'avi' => 'video/x-msvideo',
+            'mkv' => 'video/x-matroska',
+            '3gp' => 'video/3gpp',
+            'mp3' => 'audio/mpeg',
+            'wav' => 'audio/wav',
+            'aac' => 'audio/aac',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+        ];
+
+        if (isset($extensionMap[$extension])) {
+            return $extensionMap[$extension];
+        }
+
+        if ($fallbackMime && $fallbackMime !== 'application/octet-stream' && $fallbackMime !== 'text/html') {
+            return $fallbackMime;
+        }
+
+        return 'application/octet-stream';
+    }
+
+    private function buildStreamResponse(Request $request, $stream, int $fileSize, string $mime)
+    {
+        if (! is_resource($stream)) {
+            abort(404, 'File resource unreadable');
+        }
+
+        $rangeHeader = $request->header('Range');
+
+        if ($rangeHeader && preg_match('/bytes=\s*(\d*)\s*-\s*(\d*)/i', (string) $rangeHeader, $matches)) {
+            $rawStart = $matches[1];
+            $rawEnd = $matches[2];
+
+            if ($rawStart === '' && $rawEnd !== '') {
+                $suffixLength = (int) $rawEnd;
+                $start = max(0, $fileSize - $suffixLength);
+                $end = $fileSize - 1;
+            } elseif ($rawStart !== '' && $rawEnd === '') {
+                $start = (int) $rawStart;
+                $end = $fileSize - 1;
+            } else {
+                $start = (int) $rawStart;
+                $end = (int) $rawEnd;
+            }
+
+            if ($start > $end || $start >= $fileSize) {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+
+                return response('', 416, [
+                    'Content-Range' => "bytes */{$fileSize}",
+                    'Accept-Ranges' => 'bytes',
+                ]);
+            }
+
+            $end = min($end, $fileSize - 1);
+            $length = $end - $start + 1;
+
+            $headers = [
+                'Content-Type' => $mime,
+                'Accept-Ranges' => 'bytes',
+                'Content-Range' => "bytes {$start}-{$end}/{$fileSize}",
+                'Content-Length' => (string) $length,
+                'Cache-Control' => 'no-cache, must-revalidate',
+            ];
+
+            if ($request->isMethod('HEAD')) {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+
+                return response('', 206, $headers);
+            }
+
+            return response()->stream(function () use ($stream, $start, $length) {
+                try {
+                    if ($start > 0) {
+                        if (@fseek($stream, $start) !== 0) {
+                            $discardLeft = $start;
+                            while ($discardLeft > 0 && ! feof($stream)) {
+                                $discardSize = min(64 * 1024, $discardLeft);
+                                $read = fread($stream, $discardSize);
+                                if ($read === false || $read === '') {
+                                    break;
+                                }
+                                $discardLeft -= strlen($read);
+                            }
+                        }
+                    }
+
+                    $bytesLeft = $length;
+                    $bufferSize = 64 * 1024;
+
+                    while ($bytesLeft > 0 && ! feof($stream)) {
+                        $readSize = min($bufferSize, $bytesLeft);
+                        $buffer = fread($stream, $readSize);
+                        if ($buffer === false || $buffer === '') {
+                            break;
+                        }
+                        echo $buffer;
+                        flush();
+                        $bytesLeft -= strlen($buffer);
+                    }
+                } finally {
+                    if (is_resource($stream)) {
+                        fclose($stream);
+                    }
+                }
+            }, 206, $headers);
+        }
+
+        $headers = [
+            'Content-Type' => $mime,
+            'Accept-Ranges' => 'bytes',
+            'Content-Length' => (string) $fileSize,
+            'Cache-Control' => 'no-cache, must-revalidate',
+        ];
+
+        if ($request->isMethod('HEAD')) {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            return response('', 200, $headers);
+        }
+
+        return response()->stream(function () use ($stream) {
+            try {
+                fpassthru($stream);
+            } finally {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }
+        }, 200, $headers);
     }
 }

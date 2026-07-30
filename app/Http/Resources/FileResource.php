@@ -11,7 +11,9 @@ class FileResource extends JsonResource
     {
         $url = null;
 
-        if ($this->s3_key) {
+        if ($this->id) {
+            $url = url('/api/v1/files/'.$this->id);
+        } elseif ($this->s3_key) {
             $url = Storage::url($this->s3_key);
         }
 
