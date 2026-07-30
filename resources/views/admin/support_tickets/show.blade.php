@@ -104,7 +104,11 @@
                             <span class="text-muted small d-block">Contact Name</span>
                             <span class="text-dark fw-semibold">
                                 @if(!empty($ticket->user_id ?? $ticket->user?->id))
-                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user_id ?? $ticket->user?->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user_id ?? $ticket->user?->id }}', event, 'support_tickets');" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $ticket->contact_name }}
+                                    </a>
+                                @elseif(!empty($ticket->email))
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->email }}', event, 'support_tickets');" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
                                         {{ $ticket->contact_name }}
                                     </a>
                                 @else
@@ -119,7 +123,7 @@
                         <div class="col-md-6">
                             <span class="text-muted small d-block">Associated App Account</span>
                             @if($ticket->user)
-                                <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user->id }}', event);" class="text-success hover:underline no-underline fw-semibold">
+                                <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user->id }}', event, 'support_tickets');" class="text-success hover:underline no-underline fw-semibold">
                                     <i class="bi bi-person-check-fill me-1"></i>Linked Account (ID: {{ $ticket->user->id }})
                                 </a>
                             @else

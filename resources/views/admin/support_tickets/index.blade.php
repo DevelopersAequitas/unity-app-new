@@ -95,7 +95,11 @@
                             </td>
                             <td class="px-3 py-2.5 text-xs font-medium t1">
                                 @if(!empty($ticket->user_id ?? $ticket->user?->id))
-                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user_id ?? $ticket->user?->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user_id ?? $ticket->user?->id }}', event, 'support_tickets');" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $ticket->contact_name }}
+                                    </a>
+                                @elseif(!empty($ticket->email))
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->email }}', event, 'support_tickets');" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
                                         {{ $ticket->contact_name }}
                                     </a>
                                 @else

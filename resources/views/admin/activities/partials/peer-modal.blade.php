@@ -89,7 +89,7 @@
                     </div>
 
                     {{-- Activity Summary --}}
-                    <div>
+                    <div id="actModalActivitySummarySection">
                         <div class="d-flex justify-content-between align-items-center mb-2 px-1">
                             <span class="fw-bold text-uppercase" style="font-size:10px;color:#64748b;letter-spacing:.07em;">
                                 Activity Summary Breakdown
@@ -141,7 +141,7 @@
                 {{-- BREAKDOWN LIST VIEW --}}
                 <div id="actModalDetailView" class="d-none">
                     <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
-                        <button type="button" onclick="window.showPeerSummaryView()"
+                        <button type="button" id="actModalBackButton" onclick="window.showPeerSummaryView()"
                                 class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1"
                                 style="font-size:12px;font-weight:600;border-radius:.5rem;">
                             <i class="bi bi-arrow-left"></i> Back to Summary
@@ -200,10 +200,12 @@
         }
 
         window.showPeerSummaryView = function() {
-            const s = document.getElementById('actModalSummaryView');
+            const summarySection = document.getElementById('actModalActivitySummarySection');
             const d = document.getElementById('actModalDetailView');
-            if (s) s.classList.remove('d-none');
+            const backBtn = document.getElementById('actModalBackButton');
+            if (summarySection) summarySection.classList.remove('d-none');
             if (d) d.classList.add('d-none');
+            if (backBtn) backBtn.classList.remove('d-none');
         };
 
         window.renderPeerModalData = function(peer) {
@@ -272,6 +274,7 @@
             setVal('actModalValLeadership',      peer.leadership);
             setVal('actModalValRecommendations', peer.recommendations);
             setVal('actModalValVisitors',        peer.visitors);
+            setVal('actModalValSupportTickets',  peer.supportTickets);
         };
 
         window.loadPeerActivityBreakdown = function(type, event) {
@@ -291,14 +294,25 @@
                 requirements:   '📄 Requirements',
                 leadership:     '🏅 Leadership Requests',
                 recommendations:'👍 Recommended Peers',
-                visitors:       '🪪 Registered Visitors'
+                visitors:       '🪪 Registered Visitors',
+                support_tickets:'🎧 Support Tickets'
             };
 
             if (detailTitle) detailTitle.textContent = titles[type] || 'Activity Records';
             if (detailList) detailList.innerHTML = '<div class="text-center py-5 text-muted" style="font-size:12px;"><div class="spinner-border spinner-border-sm text-primary mb-2"></div><br>Loading records…</div>';
 
-            if (summaryView) summaryView.classList.add('d-none');
-            if (detailView)  detailView.classList.remove('d-none');
+            const summarySection = document.getElementById('actModalActivitySummarySection');
+            const backBtn = document.getElementById('actModalBackButton');
+
+            if (type === 'support_tickets') {
+                if (summarySection) summarySection.classList.add('d-none');
+                if (backBtn) backBtn.classList.add('d-none');
+            } else {
+                if (summarySection) summarySection.classList.add('d-none');
+                if (backBtn) backBtn.classList.remove('d-none');
+            }
+
+            if (detailView) detailView.classList.remove('d-none');
 
             fetch('/admin/activities/peer-details/' + encodeURIComponent(currentPeerId) + '/' + encodeURIComponent(type), {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -322,9 +336,12 @@
                     row.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem;padding:.75rem;background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;transition:background .15s;';
                     row.onmouseenter = function() { this.style.background = '#f8fafc'; };
                     row.onmouseleave = function() { this.style.background = '#fff'; };
+                    const titleHtml = item.url
+                        ? `<a href="${item.url}" style="color:#4f46e5;text-decoration:none;font-weight:600;" onmouseenter="this.style.textDecoration='underline'" onmouseleave="this.style.textDecoration='none'">${item.title || 'Record'} <i class="bi bi-box-arrow-up-right ms-1" style="font-size:10px;"></i></a>`
+                        : (item.title || 'Record');
                     row.innerHTML = `
                         <div style="min-width:0;flex:1;">
-                            <div style="font-size:12px;font-weight:600;color:#0f172a;">${item.title || 'Record'}</div>
+                            <div style="font-size:12px;font-weight:600;color:#0f172a;">${titleHtml}</div>
                             <div style="font-size:11px;color:#64748b;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${item.details || '—'}</div>
                         </div>
                         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
@@ -342,7 +359,7 @@
             });
         };
 
-        window.openActivityPeerModal = function(trigger, event) {
+        window.openActivityPeerModal = function(trigger, event, initialType) {
             if (event) { if (event.stopPropagation) event.stopPropagation(); if (event.preventDefault) event.preventDefault(); }
 
             let peerId  = null;
@@ -360,6 +377,7 @@
                     window.renderPeerModalData(trigger);
                     const modalEl = document.getElementById('activityPeerModal');
                     if (modalEl) { let m = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); m.show(); }
+                    if (initialType) window.loadPeerActivityBreakdown(initialType);
                     return;
                 }
             }
@@ -370,6 +388,7 @@
                     window.renderPeerModalData(peer);
                     const modalEl = document.getElementById('activityPeerModal');
                     if (modalEl) { let m = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); m.show(); }
+                    if (initialType) window.loadPeerActivityBreakdown(initialType);
                     return;
                 } catch(e) { console.warn('[PeerModal] Failed to parse inline data:', e); }
             }
@@ -396,7 +415,7 @@
                 const avatarEl = document.getElementById('actModalAvatar');
                 if (avatarEl) { avatarEl.textContent = '…'; avatarEl.style.backgroundColor = '#6366f1'; }
                 ['actModalValTestimonials','actModalValReferrals','actModalValDeals','actModalValP2p',
-                 'actModalValRequirements','actModalValLeadership','actModalValRecommendations','actModalValVisitors']
+                 'actModalValRequirements','actModalValLeadership','actModalValRecommendations','actModalValVisitors','actModalValSupportTickets']
                     .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
 
                 setLoadingState(true);
@@ -417,6 +436,9 @@
                 .then(function(data) {
                     if (data && !data.error) {
                         window.renderPeerModalData(data);
+                        if (initialType) {
+                            window.loadPeerActivityBreakdown(initialType);
+                        }
                     } else {
                         showError(data && data.error ? data.error : 'Peer not found.');
                     }
