@@ -170,6 +170,13 @@ class ImpactUserNotificationService
                 ], $payload, [
                     'notification_id' => (string) $notification->id,
                 ]),
+                'payload' => array_merge([
+                    'screen' => '/life-impact',
+                    'navigation_screen' => '/life-impact',
+                    'tap_destination' => '/life-impact',
+                ], $payload, [
+                    'notification_id' => (string) $notification->id,
+                ]),
                 'status' => 'pending',
                 'created_at' => now(),
                 'updated_at' => now(),
