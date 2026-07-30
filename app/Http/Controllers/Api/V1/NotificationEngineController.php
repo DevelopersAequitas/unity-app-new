@@ -103,12 +103,24 @@ class NotificationEngineController extends BaseApiController
 
         if ($request->filled('type')) {
             $typeFilter = (string) $request->type;
-            $query->where(function ($q) use ($typeFilter): void {
+            $normalizedType = strtolower(str_replace('-', '_', trim($typeFilter)));
+
+            $query->where(function ($q) use ($typeFilter, $normalizedType): void {
                 $q->where('type', $typeFilter)
+                    ->orWhere('type', $normalizedType)
                     ->orWhere('category', $typeFilter)
+                    ->orWhere('category', $normalizedType)
                     ->orWhere('data->type', $typeFilter)
+                    ->orWhere('data->type', $normalizedType)
                     ->orWhere('data->notification_type', $typeFilter)
-                    ->orWhere('data->activity_type', $typeFilter);
+                    ->orWhere('data->notification_type', $normalizedType)
+                    ->orWhere('data->activity_type', $typeFilter)
+                    ->orWhere('data->activity_type', $normalizedType);
+
+                if (in_array($normalizedType, ['impact', 'life_impact', 'impacts'], true)) {
+                    $q->orWhereIn('type', ['impact_submitted', 'impact_received', 'impact_approved', 'impact_rejected', 'life_impact'])
+                        ->orWhere('category', 'life_impact');
+                }
             });
         }
 
