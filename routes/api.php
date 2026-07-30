@@ -60,6 +60,8 @@ use App\Http\Controllers\Api\V1\Admin\SponsoredMembersMilestonesController;
 use App\Http\Controllers\Api\V1\Admin\UserManagementController;
 use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\AppVersionController;
+use App\Http\Controllers\Api\V1\AppChangelogController;
+use App\Http\Controllers\Api\V1\UserMobileVersionController;
 use App\Http\Controllers\Api\V1\Auth\WhatsAppAuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingCheckoutController;
 use App\Http\Controllers\Api\V1\Billing\CircleSubscriptionController;
@@ -300,6 +302,7 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
+    Route::get('/app/changelogs', [AppChangelogController::class, 'index']);
     Route::post('/notifications/send-test', SendTestNotificationController::class);
     Route::get('/referrals/search', [ReferralController::class, 'search']);
     Route::get('/referrals/validate/{code}', [ReferralController::class, 'validateCode']);
@@ -357,6 +360,7 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/user/contacts/permission', [UserContactsController::class, 'permission']);
+        Route::post('/user/mobile-version', [UserMobileVersionController::class, 'store']);
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::post('/events/{event}/occurrences/{occurrence}/register', [EventController::class, 'register'])
             ->middleware('unity.user')
