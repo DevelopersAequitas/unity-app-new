@@ -531,6 +531,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}">
+                        <i class="bi bi-arrow-up-circle me-2"></i>App Updates Manager
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.birthday-creative.*') ? 'active' : '' }}" href="{{ route('admin.birthday-creative.index') }}">
                         <i class="bi bi-gift me-2"></i>Birthday Creative
                     </a>
