@@ -28,11 +28,19 @@ class AppVersionApiTest extends TestCase
         });
     }
 
-    public function test_app_version_returns_configured_store_urls(): void
+    public function test_app_version_returns_configured_store_urls_and_platform_versions(): void
     {
         AppVersion::query()->create([
             'platform' => 'android',
             'latest_version' => '1.8.0',
+            'min_version' => '1.8.0',
+            'update_type' => 'optional',
+            'is_active' => true,
+        ]);
+
+        AppVersion::query()->create([
+            'platform' => 'ios',
+            'latest_version' => '1.9.0',
             'min_version' => '1.8.0',
             'update_type' => 'optional',
             'is_active' => true,
@@ -44,7 +52,8 @@ class AppVersionApiTest extends TestCase
             ->assertJson([
                 'status' => true,
                 'data' => [
-                    'latest_version' => '1.8.0',
+                    'latest_version_android' => '1.8.0',
+                    'latest_version_ios' => '1.9.0',
                     'min_version' => '1.8.0',
                     'update_type' => 'optional',
                     'playstore_url' => 'https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share',
