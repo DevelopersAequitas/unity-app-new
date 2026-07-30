@@ -10,6 +10,7 @@ use App\Models\Notification;
 use App\Models\Notifications\AppNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ImpactUserNotificationService
 {
@@ -153,7 +154,7 @@ class ImpactUserNotificationService
         ]);
 
         try {
-            AppNotification::create([
+            $notificationData = [
                 'user_id' => $userId,
                 'type' => $type,
                 'category' => 'life_impact',
@@ -172,17 +173,16 @@ class ImpactUserNotificationService
                 ], $payload, [
                     'notification_id' => (string) $notification->id,
                 ]),
-                'payload' => array_merge([
-                    'screen' => '/life-impact',
-                    'navigation_screen' => '/life-impact',
-                    'tap_destination' => '/life-impact',
-                ], $payload, [
-                    'notification_id' => (string) $notification->id,
-                ]),
                 'status' => 'pending',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+
+            if (Schema::hasColumn('app_notifications', 'payload')) {
+                $notificationData['payload'] = $notificationData['data'];
+            }
+
+            AppNotification::create($notificationData);
         } catch (\Throwable $e) {
             Log::error('Failed to create AppNotification in ImpactUserNotificationService', [
                 'error' => $e->getMessage(),
