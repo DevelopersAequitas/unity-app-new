@@ -12,51 +12,50 @@ use App\Models\SupportTicket;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class SupportTicketController extends Controller
 {
     public function __construct(
-        private readonly EmailLogService $emailLogService
+        protected EmailLogService $emailLogService
     ) {}
 
     /**
-     * Display a listing of the support tickets.
+     * Display a listing of support tickets.
      */
     public function index(Request $request): View
     {
         $query = SupportTicket::query()->with('user');
 
-        // Filter by Status
-        if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
         }
 
-        // Filter by Priority
-        if ($request->filled('priority') && $request->priority !== 'all') {
-            $query->where('priority', $request->priority);
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->input('priority'));
         }
 
-        // Search term
         if ($request->filled('search')) {
-            $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $request->search).'%';
-            $query->where(function ($q) use ($search) {
-                $q->where('ticket_number', 'ilike', $search)
-                    ->orWhere('contact_name', 'ilike', $search)
-                    ->orWhere('email', 'ilike', $search)
-                    ->orWhere('subject', 'ilike', $search);
+            $search = (string) $request->input('search');
+            $query->where(function ($q) use ($search): void {
+                $q->where('ticket_number', 'like', "%{$search}%")
+                    ->orWhere('contact_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('subject', 'like', "%{$search}%");
             });
         }
 
-        $tickets = $query->orderByDesc('created_at')->paginate(20)->withQueryString();
+        $tickets = $query->latest()->paginate(15);
 
         return view('admin.support_tickets.index', compact('tickets'));
     }
 
     /**
-     * Display the specified support ticket detail.
+     * Display details of a specific support ticket.
      */
     public function show(string $id): View
     {
@@ -66,34 +65,40 @@ class SupportTicketController extends Controller
     }
 
     /**
-     * Update the specified support ticket (status, priority, admin note).
+     * Update the support ticket status and/or admin note.
      */
     public function update(Request $request, string $id): RedirectResponse
     {
+        $ticket = SupportTicket::query()->findOrFail($id);
+
         $validated = $request->validate([
             'status' => ['required', 'string', 'in:open,in_progress,resolved,closed'],
             'priority' => ['required', 'string', 'in:low,normal,high,urgent'],
             'admin_note' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        $ticket = SupportTicket::query()->findOrFail($id);
         $previousStatus = $ticket->status;
 
-        $ticket->fill($validated);
-
-        $shouldSendResolvedEmail = $previousStatus !== 'resolved' && $validated['status'] === 'resolved';
+        $ticket->status = $validated['status'];
+        $ticket->priority = $validated['priority'];
+        $ticket->admin_note = $validated['admin_note'];
 
         if ($validated['status'] === 'resolved' && $previousStatus !== 'resolved') {
             $ticket->resolved_at = now();
+
+            try {
+                Mail::to($ticket->email)->send(new SupportTicketResolvedMail($ticket));
+            } catch (\Throwable $e) {
+                Log::error('Failed to send support ticket resolution email.', [
+                    'ticket_id' => $ticket->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
         } elseif ($validated['status'] !== 'resolved') {
             $ticket->resolved_at = null;
         }
 
         $ticket->save();
-
-        if ($shouldSendResolvedEmail) {
-            $this->sendResolvedNotification($ticket);
-        }
 
         return redirect()->route('admin.support-tickets.show', $id)
             ->with('success', 'Support ticket updated successfully.');
@@ -110,7 +115,31 @@ class SupportTicketController extends Controller
         $message = (string) $request->input('message');
         $status = $request->input('status');
 
-        $mailable = new SupportTicketResponseMail($ticket, $subject, $message);
+        $attachmentsList = [];
+        $attachedNames = [];
+
+        if ($request->hasFile('attachments')) {
+            /** @var array<UploadedFile> $files */
+            $files = (array) $request->file('attachments');
+            foreach ($files as $file) {
+                if ($file && $file->isValid()) {
+                    $originalName = $file->getClientOriginalName();
+                    $extension = $file->getClientOriginalExtension();
+                    $filename = time().'_'.Str::random(8).($extension ? '.'.$extension : '');
+                    $storedPath = $file->storeAs('ticket_attachments/'.$ticket->id, $filename, 'public');
+
+                    $fullPath = storage_path('app/public/'.$storedPath);
+                    $attachmentsList[] = [
+                        'path' => $fullPath,
+                        'name' => $originalName,
+                        'mime' => $file->getClientMimeType(),
+                    ];
+                    $attachedNames[] = $originalName;
+                }
+            }
+        }
+
+        $mailable = new SupportTicketResponseMail($ticket, $subject, $message, $attachmentsList);
 
         try {
             Mail::to($ticket->email)->send($mailable);
@@ -144,7 +173,8 @@ class SupportTicketController extends Controller
 
         // Record response note entry in admin_note log
         $timestamp = now()->format('Y-m-d H:i');
-        $noteEntry = "[Email Sent - {$timestamp}]\nSubject: {$subject}\n\n{$message}";
+        $attachmentLogStr = ! empty($attachedNames) ? "\nAttachments: ".implode(', ', $attachedNames) : '';
+        $noteEntry = "[Email Sent - {$timestamp}]{$attachmentLogStr}\nSubject: {$subject}\n\n{$message}";
         $ticket->admin_note = $ticket->admin_note ? $ticket->admin_note."\n\n".$noteEntry : $noteEntry;
 
         // Optionally update ticket status if specified

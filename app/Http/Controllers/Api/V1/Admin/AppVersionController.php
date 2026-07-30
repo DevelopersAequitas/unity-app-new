@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
@@ -17,11 +19,21 @@ class AppVersionController extends Controller
         try {
             $payload = $request->validated();
 
+            $androidLatest = $payload['latest_version_android'] ?? $payload['latest_version'] ?? null;
+            $iosLatest = $payload['latest_version_ios'] ?? $payload['latest_version'] ?? null;
+            $defaultLatest = $payload['latest_version'] ?? $androidLatest ?? $iosLatest ?? '';
+
             foreach (self::PLATFORMS as $platform) {
+                $latestForPlatform = match ($platform) {
+                    'android' => $androidLatest ?? $defaultLatest,
+                    'ios' => $iosLatest ?? $defaultLatest,
+                    default => $defaultLatest,
+                };
+
                 AppVersion::updateOrCreate(
                     ['platform' => $platform],
                     [
-                        'latest_version' => $payload['latest_version'],
+                        'latest_version' => $latestForPlatform,
                         'min_version' => $payload['min_version'],
                         'update_type' => $payload['update_type'],
                         'is_active' => true,
@@ -33,7 +45,8 @@ class AppVersionController extends Controller
                 'status' => true,
                 'message' => 'App version updated successfully',
                 'data' => [
-                    'latest_version' => $payload['latest_version'],
+                    'latest_version_android' => $androidLatest ?? $defaultLatest,
+                    'latest_version_ios' => $iosLatest ?? $defaultLatest,
                     'min_version' => $payload['min_version'],
                     'update_type' => $payload['update_type'],
                 ],

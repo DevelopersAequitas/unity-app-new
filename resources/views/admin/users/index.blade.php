@@ -216,6 +216,41 @@
     margin: 0 0 6px 0 !important;
     cursor: pointer !important;
   }
+
+  /* Sticky columns: Checkbox (left:0), Member ID (left:44px), Member Name (left:174px) */
+  .col-sticky-head,
+  .col-sticky {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 10 !important;
+    background-color: var(--surface) !important;
+    box-shadow: none !important;
+  }
+  .col-sticky-head {
+    background-color: var(--surface-2) !important;
+  }
+  .col-sticky-head-mid,
+  .col-sticky-mid {
+    position: sticky !important;
+    left: 44px !important;
+    z-index: 10 !important;
+    background-color: var(--surface) !important;
+    box-shadow: none !important;
+  }
+  .col-sticky-head-mid {
+    background-color: var(--surface-2) !important;
+  }
+  .col-sticky-head-name,
+  .col-sticky-name {
+    position: sticky !important;
+    left: 174px !important;
+    z-index: 10 !important;
+    background-color: var(--surface) !important;
+    box-shadow: 2px 0 6px -2px rgba(0,0,0,0.14) !important;
+  }
+  .col-sticky-head-name {
+    background-color: var(--surface-2) !important;
+  }
 </style>
 @endpush
 
@@ -552,7 +587,7 @@
               <th class="th-cell col-sticky-head surface-2 border-b border-r bs px-3 py-3 text-left" style="width:44px; min-width:44px; max-width:44px;">
                 <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" class="accent-indigo-500 w-4 h-4 rounded"/>
               </th>
-              <th data-colgrp="mid" class="th-cell surface-2 border-b bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:130px;">
+              <th data-colgrp="mid" class="th-cell col-sticky-head-mid surface-2 border-b bs px-3 py-2 text-left relative header-dropdown-container" style="min-width:130px;">
                 <button onclick="sortBy('mid')" class="flex items-center gap-1 hover:t1 font-semibold uppercase tracking-wider text-[11px] t3 mb-1.5">Member ID <svg class="w-3 h-3 sort-icon" data-col="mid" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg></button>
                 <div class="relative">
                   <svg class="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 t3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
@@ -1513,7 +1548,7 @@
         <td class="col-sticky surface border-b border-r bs px-3 py-2.5 align-top" style="width:44px; min-width:44px; max-width:44px;" onclick="event.stopPropagation()">
           <input type="checkbox" class="row-check accent-indigo-500 w-4 h-4 rounded mt-1" ${selected.has(m.id)?'checked':''} onchange="toggleRow('${m.id}', this)"/>
         </td>
-        <td class="border-b bs px-3 py-2.5 align-top font-mono font-medium text-[12.5px] t1">
+        <td class="col-sticky-mid surface border-b bs px-3 py-2.5 align-top font-mono font-medium text-[12.5px] t1">
           ${m.mid}
         </td>
         <td class="col-sticky-name surface border-b border-r bs px-3 py-2.5 align-top">

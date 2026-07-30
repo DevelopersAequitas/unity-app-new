@@ -125,7 +125,15 @@
                                                 {{ $getInitials($peerName) }}
                                             </div>
                                             <div>
-                                                <div class="font-semibold t1 text-[12.5px]">{{ $peerName }}</div>
+                                                <div class="font-semibold t1 text-[12.5px]">
+                                                    @if(!empty($item->user_id ?? $item->actor_id))
+                                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->actor_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                            {{ $peerName }}
+                                                        </a>
+                                                    @else
+                                                        {{ $peerName }}
+                                                    @endif
+                                                </div>
                                                 <div class="t3 text-[10px]">
                                                     @if($item->from_company) <span>{{ $item->from_company }}</span> @endif
                                                     @if($item->from_city) &bull; <span>{{ $item->from_city }}</span> @endif
@@ -140,7 +148,15 @@
                                                 {{ $getInitials($item->peer_name ?? '') }}
                                             </div>
                                             <div>
-                                                <div class="font-semibold t1 text-[12.5px]">{{ $item->peer_name ?? '—' }}</div>
+                                                <div class="font-semibold t1 text-[12.5px]">
+                                                    @if(!empty($item->recommended_user_id))
+                                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->recommended_user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                            {{ $item->peer_name ?? '—' }}
+                                                        </a>
+                                                    @else
+                                                        {{ $item->peer_name ?? '—' }}
+                                                    @endif
+                                                </div>
                                             </div>
                                         </div>
                                     </td>

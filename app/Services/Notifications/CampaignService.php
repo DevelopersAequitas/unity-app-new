@@ -2,9 +2,13 @@
 
 namespace App\Services\Notifications;
 
+use App\Models\Event;
 use App\Models\Notifications\NotificationCampaign;
 use App\Models\Notifications\NotificationCampaignRun;
+use App\Models\Post;
+use App\Models\Requirement;
 use App\Models\User;
+use Illuminate\Support\Str;
 
 class CampaignService
 {
@@ -34,7 +38,7 @@ class CampaignService
 
             // Resolve dynamic placeholders based on campaign code
             if ($campaign->code === 'requirement_lead' || $campaign->code === 'pending_requirement_reminder') {
-                $latestRequirement = \App\Models\Requirement::where('status', 'active')
+                $latestRequirement = Requirement::where('status', 'active')
                     ->where('user_id', '!=', $user->id)
                     ->latest()
                     ->first();
@@ -46,13 +50,13 @@ class CampaignService
                     $requirementTitle = $latestRequirement->subject;
                 }
                 if ($campaign->code === 'pending_requirement_reminder') {
-                    $pendingCount = \App\Models\Requirement::where('status', 'active')
+                    $pendingCount = Requirement::where('status', 'active')
                         ->where('user_id', '!=', $user->id)
                         ->count();
                     $xVal = (string) ($pendingCount ?: 1);
                 }
             } elseif ($campaign->code === 'new_post_activity_circle') {
-                $latestPost = \App\Models\Post::where('user_id', '!=', $user->id)
+                $latestPost = Post::where('user_id', '!=', $user->id)
                     ->where('visibility', 'public')
                     ->where('is_deleted', false)
                     ->latest()
@@ -62,10 +66,10 @@ class CampaignService
                     if ($author) {
                         $personName = trim((string) ($author->display_name ?? '')) ?: trim(((string) ($author->first_name ?? '')).' '.((string) ($author->last_name ?? ''))) ?: (string) ($author->name ?? 'A member');
                     }
-                    $postPreview = \Illuminate\Support\Str::limit(strip_tags($latestPost->content_text ?? ''), 50) ?: 'published a new post';
+                    $postPreview = Str::limit(strip_tags($latestPost->content_text ?? ''), 50) ?: 'published a new post';
                 }
             } elseif ($campaign->code === 'circle_activity') {
-                $latestCirclePost = \App\Models\Post::whereNotNull('circle_id')
+                $latestCirclePost = Post::whereNotNull('circle_id')
                     ->where('user_id', '!=', $user->id)
                     ->latest()
                     ->first();
@@ -79,22 +83,22 @@ class CampaignService
                     }
                 }
             } elseif ($campaign->code === 'people_to_connect') {
-                $connectionCount = \App\Models\User::where('id', '!=', $user->id)
+                $connectionCount = User::where('id', '!=', $user->id)
                     ->where('status', 'active')
                     ->where('city', $user->city)
                     ->count();
                 if ($connectionCount === 0) {
-                    $connectionCount = \App\Models\User::where('id', '!=', $user->id)
+                    $connectionCount = User::where('id', '!=', $user->id)
                         ->where('status', 'active')
                         ->count();
                 }
                 $xVal = (string) min(10, max(3, $connectionCount));
             } elseif (in_array($campaign->code, ['upcoming_event_reminder', 'event_starting_now', 'post_event_feedback'], true)) {
-                $latestEvent = \App\Models\Event::where('start_at', '>=', now())
+                $latestEvent = Event::where('start_at', '>=', now())
                     ->orderBy('start_at', 'asc')
                     ->first();
                 if (! $latestEvent) {
-                    $latestEvent = \App\Models\Event::latest()->first();
+                    $latestEvent = Event::latest()->first();
                 }
                 if ($latestEvent) {
                     $eventTitle = $latestEvent->title;

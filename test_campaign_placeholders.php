@@ -1,12 +1,11 @@
 <?php
 
-require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__.'/vendor/autoload.php';
 
-use App\Models\User;
-use App\Models\Requirement;
-use App\Models\Post;
-use App\Models\Notifications\NotificationCampaign;
 use App\Models\Notifications\AppNotification;
+use App\Models\Notifications\NotificationCampaign;
+use App\Models\Requirement;
+use App\Models\User;
 use App\Services\Notifications\CampaignService;
 use Illuminate\Contracts\Console\Kernel;
 
@@ -26,7 +25,7 @@ $requirement = Requirement::create([
     'user_id' => $author->id,
     'subject' => 'Need Laravel developer for a cool startup project',
     'description' => 'Looking for a senior developer with 5+ years of experience.',
-    'status' => 'active'
+    'status' => 'active',
 ]);
 echo "Created Requirement: '{$requirement->subject}'\n";
 
@@ -58,7 +57,7 @@ echo "Campaign Run status: {$run->status}, Sent: {$run->sent_count}\n";
 $notifications = AppNotification::where('type', 'requirement_lead')->latest()->limit(5)->get();
 foreach ($notifications as $n) {
     echo "\n--- Notification #{$n->id} ---\n";
-    echo "To User: " . User::find($n->user_id)?->display_name . "\n";
+    echo 'To User: '.User::find($n->user_id)?->display_name."\n";
     echo "Title: {$n->title}\n";
     echo "Body: {$n->body}\n";
 }

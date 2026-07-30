@@ -38,7 +38,14 @@
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div>
                 <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">P2P Meetings Log</h2>
-                <p class="text-xs t1 font-medium m-0 mt-0.5">{{ $peerName }} • {{ $member->email ?? '-' }}</p>
+                <p class="text-xs t1 font-medium m-0 mt-0.5">
+                    @if(!empty($member->id))
+                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $member->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">{{ $peerName }}</a>
+                    @else
+                        {{ $peerName }}
+                    @endif
+                    • {{ $member->email ?? '-' }}
+                </p>
             </div>
             <a href="{{ route('admin.activities.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">
                 Back to Activities
@@ -65,7 +72,8 @@
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Meeting Info</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Meeting Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Meeting Location</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Remarks</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
                         </tr>
@@ -82,16 +90,24 @@
                                             {{ $getInitials($targetName) }}
                                         </div>
                                         <div>
-                                            <div class="font-semibold t1 text-[12.5px]">{{ $targetName }}</div>
+                                            <div class="font-semibold t1 text-[12.5px]">
+                                                @if(!empty($meeting->peer?->id))
+                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $meeting->peer->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                        {{ $targetName }}
+                                                    </a>
+                                                @else
+                                                    {{ $targetName }}
+                                                @endif
+                                            </div>
                                             <div class="t3 text-[10px]">{{ $meeting->peer->email ?? '-' }}</div>
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    @if($meeting->meeting_date)
-                                        <div class="font-semibold t1 text-[11px]">{{ $formatDate($meeting->meeting_date) }}</div>
-                                    @endif
-                                    <div class="t3 text-[11px] mt-0.5">{{ $meeting->meeting_place ?? '-' }}</div>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                    {{ $meeting->meeting_date ? $formatDate($meeting->meeting_date) : '-' }}
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2">
+                                    {{ $meeting->meeting_place ?? '-' }}
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t2 max-w-[250px] truncate" title="{{ $meeting->remarks }}">
                                     {{ $meeting->remarks ?? '-' }}
@@ -102,7 +118,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="text-center py-8 text-xs t3">No P2P meetings found.</td>
+                                <td colspan="5" class="text-center py-8 text-xs t3">No P2P meetings found.</td>
                             </tr>
                         @endforelse
                     </tbody>

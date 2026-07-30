@@ -176,9 +176,9 @@
                                     {{ $m['joined_date'] ? \Illuminate\Support\Carbon::parse($m['joined_date'])->format('Y-m-d H:i') : '—' }}
                                 </td>
                                 <td class="text-center">
-                                    <a href="{{ route('admin.users.show', $m['id']) }}" class="btn btn-sm btn-outline-secondary px-3" target="_blank">
-                                        View Profile
-                                    </a>
+                                     <a href="#" class="btn btn-sm btn-outline-secondary px-3" onclick="event.preventDefault(); openActivityPeerModal('{{ $m['id'] }}', event);">
+                                         View Profile
+                                     </a>
                                 </td>
                             </tr>
                         @empty

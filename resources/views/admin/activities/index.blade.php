@@ -96,7 +96,7 @@
                                         <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center" style="background-color: {{ $getAvatarBg($peer->peer_name) }}">
                                             {{ $getInitials($peer->peer_name) }}
                                         </div>
-                                        <span class="font-semibold text-xs t1">{{ $peer->peer_name }}</span>
+                                        <a href="#" class="font-semibold text-xs text-indigo-600 hover:text-indigo-800 hover:underline no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $peer->id }}', event);">{{ $peer->peer_name }}</a>
                                     </div>
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $peer->company_name ?: '-' }}</td>
@@ -148,13 +148,16 @@
             </div>
 
             <div class="overflow-x-auto relative">
-                <table class="min-w-full border-collapse text-[13px]">
+                <table class="min-w-[1100px] w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="width: 40px;">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center sticky left-0 z-10" style="width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.08);">
                                 <input type="checkbox" class="form-check-input" id="select-all-members">
                             </th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Details</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-[40px] z-10" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Testimonials</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Referrals</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Business Deals</th>
@@ -165,24 +168,26 @@
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Registered Visitor</th>
                         </tr>
                         <tr class="surface-2 border-b bs align-middle">
-                            <th class="px-3 py-2"></th>
+                            <th class="px-3 py-2 sticky left-0 z-10 surface-2" style="width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.08);"></th>
+                            <th class="px-3 py-2 sticky left-[40px] z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
+                                <input
+                                    type="text"
+                                    name="q"
+                                    form="activitiesFiltersForm"
+                                    class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal"
+                                    placeholder="Search peer, company, city"
+                                    value="{{ $filters['q'] ?? '' }}"
+                                >
+                            </th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
                             <th class="px-3 py-2">
-                                <div class="flex flex-col gap-1.5 py-1">
-                                    <input
-                                        type="text"
-                                        name="q"
-                                        form="activitiesFiltersForm"
-                                        class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal"
-                                        placeholder="Name, company, city"
-                                        value="{{ $filters['q'] ?? '' }}"
-                                    >
-                                    <select name="circle_id" form="activitiesFiltersForm" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal">
-                                        <option value="any">All Circles</option>
-                                        @foreach ($circles as $circle)
-                                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '') === $circle->id)>{{ $circle->name }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
+                                <select name="circle_id" form="activitiesFiltersForm" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal">
+                                    <option value="any">All Circles</option>
+                                    @foreach ($circles as $circle)
+                                        <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '') === $circle->id)>{{ $circle->name }}</option>
+                                    @endforeach
+                                </select>
                             </th>
                             <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
                             <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
@@ -202,21 +207,33 @@
                     <tbody id="grid-body" class="divide-y divide-gray-200/50">
                         @forelse ($members as $member)
                             <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-peer="{{ $makePeerPayload($member) }}" onclick="openActivityPeerModal(this, event)">
-                                <td class="px-3 py-2.5 text-center"><input type="checkbox" class="form-check-input member-checkbox" value="{{ $member->id }}"></td>
-                                <td class="px-3 py-2.5">
+                                <td class="px-3 py-2.5 text-center sticky left-0 z-10 surface" style="width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.06);"><input type="checkbox" class="form-check-input member-checkbox" value="{{ $member->id }}"></td>
+                                <td class="px-3 py-2.5 sticky left-[40px] z-10 surface" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                     <div class="flex items-center gap-2">
                                         <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($member->peer_name) }}">
                                             {{ $getInitials($member->peer_name) }}
                                         </div>
-                                        <div>
-                                            <div class="font-semibold t1 text-[12.5px]">{{ $member->peer_name }}</div>
-                                            <div class="t3 text-[10px]">
-                                                @if($member->company_name) <span class="font-medium t2">{{ $member->company_name }}</span> @endif
-                                                @if($member->city_name) &bull; <span>{{ $member->city_name }}</span> @endif
-                                                @if($member->circle_name) &bull; <span class="text-indigo-600 font-medium">{{ $member->circle_name }}</span> @endif
-                                            </div>
+                                        <div class="font-semibold t1 text-[12.5px]">
+                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline no-underline font-semibold" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $member->id }}', event);">
+                                                {{ $member->peer_name }}
+                                            </a>
                                         </div>
                                     </div>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $member->company_name ?: '-' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $member->city_name ?: '-' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">
+                                    @if($member->circle_name)
+                                        @if(!empty($member->circle_id))
+                                            <a href="{{ route('admin.circles.show', $member->circle_id) }}" class="text-indigo-600 font-medium hover:underline no-underline" onclick="event.stopPropagation();">
+                                                {{ $member->circle_name }}
+                                            </a>
+                                        @else
+                                            <span class="text-indigo-600 font-medium">{{ $member->circle_name }}</span>
+                                        @endif
+                                    @else
+                                        -
+                                    @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-center">
                                     @if ($member->testimonials_count > 0)
@@ -292,7 +309,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="10" class="text-center py-8 text-xs t3">No peers found.</td></tr>
+                            <tr><td colspan="13" class="text-center py-8 text-xs t3">No peers found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

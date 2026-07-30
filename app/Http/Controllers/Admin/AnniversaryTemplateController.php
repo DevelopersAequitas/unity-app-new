@@ -123,6 +123,17 @@ class AnniversaryTemplateController extends Controller
     public function preview(string $userId)
     {
         try {
+            if (! extension_loaded('gd') || ! function_exists('imagecreatetruecolor')) {
+                return response(
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="380" height="380" viewBox="0 0 380 380"><rect width="380" height="380" fill="#f8fafc"/><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold" fill="#475569">Anniversary Creative</text><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#94a3b8">PHP GD Extension Required for Image Rendering</text></svg>',
+                    200,
+                    [
+                        'Content-Type' => 'image/svg+xml',
+                        'Cache-Control' => 'no-cache, must-revalidate',
+                    ]
+                );
+            }
+
             $user = User::findOrFail($userId);
             $activeTemplate = AnniversaryTemplate::where('is_active', true)->first();
 
@@ -151,7 +162,15 @@ class AnniversaryTemplateController extends Controller
             return $response;
         } catch (\Throwable $e) {
             Log::error('Failed to generate preview for anniversary creative: '.$e->getMessage());
-            abort(500, 'Error generating preview: '.$e->getMessage());
+
+            return response(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="380" height="380" viewBox="0 0 380 380"><rect width="380" height="380" fill="#fff1f2"/><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="bold" fill="#e11d48">Anniversary Creative Preview</text><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#9f1239">Preview unavailable</text></svg>',
+                200,
+                [
+                    'Content-Type' => 'image/svg+xml',
+                    'Cache-Control' => 'no-cache, must-revalidate',
+                ]
+            );
         }
     }
 

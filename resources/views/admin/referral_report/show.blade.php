@@ -50,26 +50,34 @@
             <thead class="table-light">
                 <tr>
                     <th>Referred User</th>
-                    <th>Company / City</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Company</th>
+                    <th>City</th>
                     <th>Referral Code Used</th>
                     <th class="text-center">Coins Granted</th>
                     <th>Reward Status</th>
-                    <th>Used At / Registered At</th>
+                    <th>Used At</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($records as $record)
                     <tr>
                         <td>
-                            <div class="fw-semibold text-dark">{{ $record->referred_name ?: 'Deleted / Unknown User' }}</div>
-                            <div class="text-muted small">{{ $record->referred_email ?: 'No email' }}</div>
-                            <div class="text-muted small">{{ $record->referred_phone ?: 'No phone' }}</div>
-                            <div class="text-muted small">ID: {{ $record->referred_user_id ?: '—' }}</div>
+                            <div class="fw-semibold text-dark">
+                                @if(!empty($record->referred_user_id))
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $record->referred_user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $record->referred_name ?: 'Deleted / Unknown User' }}
+                                    </a>
+                                @else
+                                    {{ $record->referred_name ?: 'Deleted / Unknown User' }}
+                                @endif
+                            </div>
                         </td>
-                        <td>
-                            <div>{{ $record->company_name ?: 'No company' }}</div>
-                            <div class="text-muted small">{{ $record->city ?: 'No city' }}</div>
-                        </td>
+                        <td class="text-muted small">{{ $record->referred_email ?: '—' }}</td>
+                        <td class="text-muted small">{{ $record->referred_phone ?: '—' }}</td>
+                        <td>{{ $record->company_name ?: '—' }}</td>
+                        <td class="text-muted small">{{ $record->city ?: '—' }}</td>
                         <td><span class="badge bg-light text-dark border">{{ $record->referral_code ?: '—' }}</span></td>
                         <td class="text-center">{{ number_format((int) $record->coins) }}</td>
                         <td>
@@ -88,7 +96,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">No referred users found for this referrer.</td>
+                        <td colspan="9" class="text-center text-muted py-4">No referred users found for this referrer.</td>
                     </tr>
                 @endforelse
             </tbody>

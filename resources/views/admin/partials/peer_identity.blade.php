@@ -1,11 +1,14 @@
 @php
     $user = $user ?? (object) [];
+    $userId = $userId ?? $user->id ?? $user->uuid ?? null;
 
     $name = $user->name
         ?? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))
         ?? '—';
-
-    $name = $name !== '' ? $name : '—';
+    if (trim($name) === '' || $name === '—') {
+        $name = $user->display_name ?? '—';
+    }
+    $name = trim($name) !== '' ? trim($name) : '—';
 
     $company = $user->company_name
         ?? $user->company
@@ -41,7 +44,15 @@
         {{ $getInitials($name) }}
     </div>
     <div class="peer-badge-info">
-        <div class="peer-badge-name">{{ $name }}</div>
+        <div class="peer-badge-name">
+            @if(!empty($userId) && auth('admin')->check())
+                <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $userId }}', event);">
+                    {{ $name }}
+                </a>
+            @else
+                {{ $name }}
+            @endif
+        </div>
         <div class="peer-badge-meta">
             @if($company) <span>{{ $company }}</span> @endif
             @if($city) {!! $company ? ' &bull; ' : '' !!}<span>{{ $city }}</span> @endif
@@ -49,3 +60,4 @@
         </div>
     </div>
 </div>
+

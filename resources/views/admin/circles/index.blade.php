@@ -114,10 +114,10 @@
 
         <div class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
-                <table class="min-w-full border-collapse text-[13px]">
+                <table class="min-w-[1100px] w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 170px;">Circle</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width: 170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Circle</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 150px;">Founder</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 140px;">City</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 130px;">Type</th>
@@ -127,7 +127,7 @@
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="min-width: 150px;">Actions</th>
                         </tr>
                         <tr class="surface-2 border-b bs filter-row">
-                            <th class="px-2 py-1">
+                            <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
                                 <select name="circle_name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" style="min-width: 150px;">
                                     <option value="">All Circles</option>
                                     @foreach ($circleNames as $circleName)
@@ -193,7 +193,7 @@
                                 $detailsId = 'circle-details-' . $circle->id;
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openCircleDrawer('{{ $circle->id }}')">
-                                <td class="px-3 py-2.5">
+                                <td class="px-3 py-2.5 sticky left-0 z-10 surface" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                     <div class="flex items-center gap-2.5">
                                         <div class="w-8 h-8 rounded-lg overflow-hidden flex-none border bs bg-gray-100 flex items-center justify-center">
                                             @if ($circle->cover_image_url)
@@ -202,13 +202,19 @@
                                                 <i class="bi bi-people t3 text-xs"></i>
                                             @endif
                                         </div>
-                                        <div class="font-medium t1 text-[12.5px] whitespace-nowrap">{{ $circle->name ?? '-' }}</div>
+                                        <div class="font-medium t1 text-[12.5px] whitespace-nowrap">
+                                            <a href="{{ route('admin.circles.show', $circle->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.stopPropagation();">
+                                                {{ $circle->name ?? '-' }}
+                                            </a>
+                                        </div>
                                     </div>
                                 </td>
                                 <td class="px-3 py-2.5">
                                     @if ($circle->founder)
                                         <span class="t1 inline-flex items-center gap-1 whitespace-nowrap text-[12.5px]">
-                                            <i class="bi bi-person t3 text-xs"></i>{{ $circle->founder->display_name }}
+                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium no-underline flex items-center gap-1" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $circle->founder->id }}', event);">
+                                                <i class="bi bi-person t3 text-xs"></i>{{ $circle->founder->display_name }}
+                                            </a>
                                         </span>
                                     @else
                                         <span class="t3">-</span>

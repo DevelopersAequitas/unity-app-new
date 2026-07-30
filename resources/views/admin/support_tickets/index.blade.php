@@ -88,11 +88,29 @@
                             };
                         @endphp
                         <tr class="hover:surface-2 transition border-b bs">
-                            <td class="px-3 py-2.5 text-xs font-mono font-semibold text-indigo-600">#{{ $ticket->ticket_number }}</td>
-                            <td class="px-3 py-2.5 text-xs font-medium t1">{{ $ticket->contact_name }}</td>
+                            <td class="px-3 py-2.5 text-xs font-mono font-semibold text-indigo-600">
+                                <a href="{{ route('admin.support-tickets.show', $ticket->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                    #{{ $ticket->ticket_number }}
+                                </a>
+                            </td>
+                            <td class="px-3 py-2.5 text-xs font-medium t1">
+                                @if(!empty($ticket->user_id ?? $ticket->user?->id))
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user_id ?? $ticket->user?->id }}', event, 'support_tickets');" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $ticket->contact_name }}
+                                    </a>
+                                @elseif(!empty($ticket->email))
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->email }}', event, 'support_tickets');" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $ticket->contact_name }}
+                                    </a>
+                                @else
+                                    {{ $ticket->contact_name }}
+                                @endif
+                            </td>
                             <td class="px-3 py-2.5 text-xs t2"><a href="mailto:{{ $ticket->email }}" class="no-underline hover:underline text-indigo-600">{{ $ticket->email }}</a></td>
                             <td class="px-3 py-2.5 text-xs t2 max-w-[250px] truncate" title="{{ $ticket->subject }}">
-                                {{ $ticket->subject }}
+                                <a href="{{ route('admin.support-tickets.show', $ticket->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                    {{ $ticket->subject }}
+                                </a>
                             </td>
                             <td class="px-3 py-2.5 text-xs">
                                 <span class="{{ $statusBadge }}">{{ ucwords(str_replace('_', ' ', $ticket->status)) }}</span>

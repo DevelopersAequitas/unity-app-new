@@ -81,35 +81,38 @@
             <!-- Table Card -->
             <div class="rounded-xl border bs surface overflow-hidden">
                 <div class="overflow-x-auto relative">
-                    <table class="min-w-full border-collapse text-[13px]">
+                    <table class="min-w-[1300px] w-full border-collapse text-[13px]">
                         <thead>
                             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Details</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Phone</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Details</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor Details</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Type</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Date</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Mobile</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Coins Awarded</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                             </tr>
                             <tr class="surface-2 border-b bs filter-row">
                                 <th class="px-2 py-1 text-center t3">—</th>
-                                <th class="px-2 py-1">
-                                    <input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
-                                </th>
+                                <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);"><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
                                 <th class="px-2 py-1"><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Phone" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1">
-                                    <input type="text" name="event_type" value="{{ $filters['event_type'] ?? '' }}" placeholder="Event type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1">
-                                    <input type="text" name="event_name" value="{{ $filters['event_name'] ?? '' }}" placeholder="Event name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1">
-                                    <input type="date" name="event_date" value="{{ $filters['event_date'] ?? '' }}" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
-                                </th>
-                                <th class="px-2 py-1">
-                                    <input type="text" name="visitor_name" value="{{ $filters['visitor_name'] ?? '' }}" placeholder="Visitor name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1">
-                                    <input type="text" name="visitor_mobile" value="{{ $filters['visitor_mobile'] ?? '' }}" placeholder="Mobile" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1">
-                                    <input type="text" name="visitor_city" value="{{ $filters['visitor_city'] ?? '' }}" placeholder="City" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1">
-                                    <input type="text" name="visitor_business" value="{{ $filters['visitor_business'] ?? '' }}" placeholder="Business" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
-                                </th>
+                                <th class="px-2 py-1"><input type="text" name="event_name" value="{{ $filters['event_name'] ?? '' }}" placeholder="Event Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" name="event_type" value="{{ $filters['event_type'] ?? '' }}" placeholder="Type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="date" name="event_date" value="{{ $filters['event_date'] ?? '' }}" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" name="visitor_name" value="{{ $filters['visitor_name'] ?? '' }}" placeholder="Visitor" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" name="visitor_mobile" value="{{ $filters['visitor_mobile'] ?? '' }}" placeholder="Mobile" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" name="visitor_business" value="{{ $filters['visitor_business'] ?? '' }}" placeholder="Business" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1"><input type="text" name="visitor_city" value="{{ $filters['visitor_city'] ?? '' }}" placeholder="City" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                 <th class="px-2 py-1"><input type="text" name="status" value="{{ $filters['status'] ?? '' }}" placeholder="Status" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                 <th class="px-2 py-1"><input type="number" name="coins_awarded" value="{{ $filters['coins_awarded'] ?? '' }}" placeholder="Coins" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                 <th class="px-2 py-1">
@@ -127,33 +130,46 @@
                                 @endphp
                                 <tr class="hover:surface-2 transition border-b bs">
                                     <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($item->created_at ?? null) }}</td>
-                                    <td class="px-3 py-2.5">
+                                    <td class="px-3 py-2.5 sticky left-0 z-10 surface" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                         <div class="flex items-center gap-2">
                                             <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($peerName) }}">
                                                 {{ $getInitials($peerName) }}
                                             </div>
-                                            <div>
-                                                <div class="font-semibold t1 text-[12.5px]">{{ $peerName }}</div>
-                                                <div class="t3 text-[10px]">
-                                                    @if($item->peer_company) <span>{{ $item->peer_company }}</span> @endif
-                                                    @if($item->peer_city) &bull; <span>{{ $item->peer_city }}</span> @endif
-                                                </div>
+                                            <div class="font-semibold t1 text-[12.5px]">
+                                                @if(!empty($item->user_id ?? $item->actor_id))
+                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->actor_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                        {{ $peerName }}
+                                                    </a>
+                                                @else
+                                                    {{ $peerName }}
+                                                @endif
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->peer_phone ?? '—' }}</td>
-                                    <td class="px-3 py-2.5 text-xs">
-                                        <div class="font-semibold t1 text-[12px]">{{ $item->event_name ?? '—' }}</div>
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 mt-0.5">{{ ucfirst($item->event_type ?? '—') }}</span>
-                                        @if($item->event_date)
-                                            <div class="t3 text-[10px] mt-0.5">{{ $formatDate($item->event_date) }}</div>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->peer_company ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->peer_city ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->peer_phone ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px]">
+                                        @if(!empty($item->event_id))
+                                            <a href="{{ route('admin.events.show', $item->event_id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                {{ $item->event_name ?? '—' }}
+                                            </a>
+                                        @else
+                                            {{ $item->event_name ?? '—' }}
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs t2">
-                                        <div class="font-semibold t1 text-[12px]">{{ $item->visitor_full_name ?? '—' }}</div>
-                                        <div class="t3 text-[10px]">{{ $item->visitor_mobile ?? '—' }}</div>
-                                        <div class="t3 text-[10px]">{{ $item->visitor_business ?? '—' }} ({{ $item->visitor_city ?? '—' }})</div>
+                                    <td class="px-3 py-2.5 text-xs">
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($item->event_type ?? '—') }}</span>
                                     </td>
+                                    <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                        {{ $item->event_date ? $formatDate($item->event_date) : '—' }}
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px]">
+                                        {{ $item->visitor_full_name ?? '—' }}
+                                    </td>
+                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->visitor_mobile ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->visitor_business ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->visitor_city ?? '—' }}</td>
                                     <td class="px-3 py-2.5 text-xs">
                                         @if(strtolower((string)$item->status) === 'approved' || strtolower((string)$item->status) === 'attended')
                                             <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">{{ ucfirst($item->status ?? '—') }}</span>
@@ -180,7 +196,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center py-8 text-xs t3">No registered visitors found.</td>
+                                    <td colspan="15" class="text-center py-8 text-xs t3">No registered visitors found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

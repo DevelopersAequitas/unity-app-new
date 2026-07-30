@@ -102,7 +102,19 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <span class="text-muted small d-block">Contact Name</span>
-                            <span class="text-dark fw-semibold">{{ $ticket->contact_name }}</span>
+                            <span class="text-dark fw-semibold">
+                                @if(!empty($ticket->user_id ?? $ticket->user?->id))
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user_id ?? $ticket->user?->id }}', event, 'support_tickets');" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $ticket->contact_name }}
+                                    </a>
+                                @elseif(!empty($ticket->email))
+                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->email }}', event, 'support_tickets');" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $ticket->contact_name }}
+                                    </a>
+                                @else
+                                    {{ $ticket->contact_name }}
+                                @endif
+                            </span>
                         </div>
                         <div class="col-md-6">
                             <span class="text-muted small d-block">Email Address</span>
@@ -111,7 +123,9 @@
                         <div class="col-md-6">
                             <span class="text-muted small d-block">Associated App Account</span>
                             @if($ticket->user)
-                                <span class="text-success"><i class="bi bi-person-check-fill me-1"></i>Linked Account (ID: {{ $ticket->user->id }})</span>
+                                <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user->id }}', event, 'support_tickets');" class="text-success hover:underline no-underline fw-semibold">
+                                    <i class="bi bi-person-check-fill me-1"></i>Linked Account (ID: {{ $ticket->user->id }})
+                                </a>
                             @else
                                 <span class="text-muted"><i class="bi bi-person-x-fill me-1"></i>No linked account (Guest Submission)</span>
                             @endif
@@ -123,69 +137,6 @@
                             </div>
                         @endif
                     </div>
-                </div>
-            </div>
-
-            <!-- Direct Email Response Card -->
-            <div class="card shadow-sm border-primary border-opacity-25">
-                <div class="card-header bg-primary bg-opacity-10 py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 text-primary fw-bold">
-                        <i class="bi bi-envelope-paper-fill me-2"></i>Send Email Response to Customer
-                    </h6>
-                    <span class="badge bg-primary rounded-pill px-3 py-2">
-                        <i class="bi bi-send me-1"></i>To: {{ $ticket->email }}
-                    </span>
-                </div>
-                <div class="card-body">
-                    <form method="POST" action="{{ route('admin.support-tickets.send-email', $ticket->id) }}">
-                        @csrf
-                        <div class="mb-3">
-                            <label for="email_subject" class="form-label text-dark small fw-semibold">Email Subject</label>
-                            <input type="text" name="subject" id="email_subject" class="form-control @error('subject') is-invalid @enderror" 
-                                   value="{{ old('subject', 'Re: [Ticket #' . $ticket->ticket_number . '] ' . $ticket->subject) }}" required>
-                            @error('subject')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label for="email_message" class="form-label text-dark small fw-semibold mb-0">Response Message / Answer</label>
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-0 px-2 fs-7" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-magic me-1"></i>Quick Templates
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                        <li><a class="dropdown-item small" href="javascript:void(0)" onclick="applyTemplate('resolved')">Resolution Confirmation</a></li>
-                                        <li><a class="dropdown-item small" href="javascript:void(0)" onclick="applyTemplate('info_needed')">Request More Details</a></li>
-                                        <li><a class="dropdown-item small" href="javascript:void(0)" onclick="applyTemplate('in_progress')">Issue Under Investigation</a></li>
-                                    </ul>
-                                </div>
-                            </div>
-                            <textarea name="message" id="email_message" rows="6" class="form-control @error('message') is-invalid @enderror" 
-                                      placeholder="Type your response or solution to the user's issue here..." required>{{ old('message') }}</textarea>
-                            @error('message')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="row align-items-center g-3">
-                            <div class="col-md-6">
-                                <label for="update_status" class="form-label text-muted small fw-semibold mb-1">Update Ticket Status on Send</label>
-                                <select name="status" id="update_status" class="form-select form-select-sm">
-                                    <option value="">Keep Current Status ({{ ucfirst(str_replace('_', ' ', $ticket->status)) }})</option>
-                                    <option value="in_progress">Set to In Progress</option>
-                                    <option value="resolved" {{ $ticket->status !== 'resolved' ? 'selected' : '' }}>Set to Resolved</option>
-                                    <option value="closed">Set to Closed</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 text-md-end pt-md-3">
-                                <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2 px-4 py-2">
-                                    <i class="bi bi-send-fill"></i> Send Email Response
-                                </button>
-                            </div>
-                        </div>
-                    </form>
                 </div>
             </div>
         </div>
@@ -234,6 +185,99 @@
             </div>
         </div>
     </div>
+
+    <!-- Direct Email Response Card (Full Width) -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div id="emailResponseCardWrapper" class="email-card-fullscreen-wrapper">
+                <div class="card shadow-sm border-primary border-opacity-25" id="emailResponseCard">
+                    <div class="card-header bg-primary bg-opacity-10 py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 text-primary fw-bold d-flex align-items-center gap-2">
+                            <i class="bi bi-envelope-paper-fill"></i>
+                            <span>Send Email Response to Customer</span>
+                        </h6>
+                        <span class="badge bg-primary rounded-pill px-3 py-2">
+                            <i class="bi bi-send me-1"></i>To: {{ $ticket->email }}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ route('admin.support-tickets.send-email', $ticket->id) }}" enctype="multipart/form-data">
+                            @csrf
+                            <div class="mb-3">
+                                <label for="email_subject" class="form-label text-dark small fw-semibold">Email Subject</label>
+                                <input type="text" name="subject" id="email_subject" class="form-control @error('subject') is-invalid @enderror" 
+                                       value="{{ old('subject', 'Re: [Ticket #' . $ticket->ticket_number . '] ' . $ticket->subject) }}" required>
+                                @error('subject')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label for="email_message" class="form-label text-dark small fw-semibold mb-0">Response Message / Answer</label>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-0 px-2 fs-7" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="bi bi-magic me-1"></i>Quick Templates
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                            <li><a class="dropdown-item small" href="javascript:void(0)" onclick="applyTemplate('resolved')">Resolution Confirmation</a></li>
+                                            <li><a class="dropdown-item small" href="javascript:void(0)" onclick="applyTemplate('info_needed')">Request More Details</a></li>
+                                            <li><a class="dropdown-item small" href="javascript:void(0)" onclick="applyTemplate('in_progress')">Issue Under Investigation</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <textarea name="message" id="email_message" rows="6" class="form-control @error('message') is-invalid @enderror" 
+                                          placeholder="Type your response or solution to the user's issue here..." required>{{ old('message') }}</textarea>
+                                @error('message')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <!-- Media Files & Attachments Section -->
+                            <div class="mb-3 p-3 bg-light rounded border">
+                                <label for="email_attachments" class="form-label text-dark small fw-semibold d-flex justify-content-between align-items-center mb-1">
+                                    <span class="d-flex align-items-center gap-1">
+                                        <i class="bi bi-paperclip text-primary fs-6"></i>
+                                        <span>Attach Media Files & Documents</span>
+                                    </span>
+                                    <small class="text-muted fw-normal">(Max 5 files, up to 20MB total: Images, Videos, PDFs, Documents, Archives)</small>
+                                </label>
+                                <input type="file" name="attachments[]" id="email_attachments" 
+                                       class="form-control @error('attachments') is-invalid @enderror @error('attachments.*') is-invalid @enderror" 
+                                       multiple 
+                                       accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt" 
+                                       onchange="previewSelectedFiles(this)">
+                                @error('attachments')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                                @error('attachments.*')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                                <div id="filePreviewContainer" class="mt-2 d-flex flex-wrap gap-2"></div>
+                            </div>
+
+                            <div class="row align-items-center g-3">
+                                <div class="col-md-6">
+                                    <label for="update_status" class="form-label text-muted small fw-semibold mb-1">Update Ticket Status on Send</label>
+                                    <select name="status" id="update_status" class="form-select form-select-sm">
+                                        <option value="">Keep Current Status ({{ ucfirst(str_replace('_', ' ', $ticket->status)) }})</option>
+                                        <option value="in_progress">Set to In Progress</option>
+                                        <option value="resolved" {{ $ticket->status !== 'resolved' ? 'selected' : '' }}>Set to Resolved</option>
+                                        <option value="closed">Set to Closed</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 text-md-end pt-md-3">
+                                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2 px-4 py-2">
+                                        <i class="bi bi-send-fill"></i> Send Email Response
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -253,6 +297,53 @@ function applyTemplate(type) {
         msgInput.value = `Hello ${contactName},\n\nWe are currently investigating your reported issue regarding "${subject}". Our technical team is working on resolving this as quickly as possible.\n\nWe will update you as soon as we have progress.\n\nBest regards,\nPeers Global Support Team`;
         if (statusSelect) statusSelect.value = 'in_progress';
     }
+}
+
+function previewSelectedFiles(input) {
+    const container = document.getElementById('filePreviewContainer');
+    container.innerHTML = '';
+
+    if (!input.files || input.files.length === 0) {
+        return;
+    }
+
+    Array.from(input.files).forEach((file, index) => {
+        const fileBadge = document.createElement('div');
+        fileBadge.className = 'badge bg-white text-dark border p-2 d-flex align-items-center gap-2 shadow-sm rounded';
+
+        let iconClass = 'bi-file-earmark-text text-secondary';
+        if (file.type.startsWith('image/')) {
+            iconClass = 'bi-image text-primary';
+        } else if (file.type.startsWith('video/')) {
+            iconClass = 'bi-camera-video text-success';
+        } else if (file.type.includes('pdf')) {
+            iconClass = 'bi-file-earmark-pdf text-danger';
+        } else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+            iconClass = 'bi-file-earmark-word text-info';
+        } else if (file.type.includes('zip') || file.type.includes('rar')) {
+            iconClass = 'bi-file-earmark-zip text-warning';
+        }
+
+        const sizeInMb = (file.size / (1024 * 1024)).toFixed(2);
+
+        let previewHtml = `<i class="bi ${iconClass} fs-5"></i>`;
+        
+        // If image file, create instant thumbnail preview
+        if (file.type.startsWith('image/')) {
+            const imgUrl = URL.createObjectURL(file);
+            previewHtml = `<img src="${imgUrl}" alt="preview" class="rounded border" style="width: 32px; height: 32px; object-fit: cover;">`;
+        }
+
+        fileBadge.innerHTML = `
+            ${previewHtml}
+            <div class="text-start">
+                <span class="fw-semibold d-block text-truncate" style="max-width: 180px;">${file.name}</span>
+                <small class="text-muted" style="font-size: 11px;">${sizeInMb} MB</small>
+            </div>
+        `;
+
+        container.appendChild(fileBadge);
+    });
 }
 </script>
 @endsection

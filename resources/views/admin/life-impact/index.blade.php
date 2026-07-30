@@ -10,6 +10,23 @@
     @endif
 
     @php
+        $getInitials = function (?string $name): string {
+            if (! $name) return 'P';
+            $words = explode(' ', trim($name));
+            $initials = '';
+            foreach ($words as $w) {
+                if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+            }
+            return substr($initials, 0, 2) ?: 'P';
+        };
+
+        $getAvatarBg = function (?string $name): string {
+            if (! $name) return '#6366f1';
+            $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+            $hash = crc32($name);
+            return $colors[abs($hash) % count($colors)];
+        };
+
         $historyDateParams = array_filter([
             'from' => $filters['from'] ?? '',
             'to' => $filters['to'] ?? '',
@@ -88,7 +105,10 @@
                     <table class="w-full min-w-[900px] border-collapse text-[13px]">
                         <thead>
                             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width: 250px;">Peer Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width: 180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
                                 <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 140px;">Total Life Impacted</th>
                                 @foreach ($categories as $category)
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width: 120px;">
@@ -98,23 +118,25 @@
                             </tr>
 
                             <tr class="surface-2 border-b bs align-middle filter-row">
+                                <th class="px-3 py-2 text-left sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
+                                    <input
+                                        id="lifeImpactQ"
+                                        type="text"
+                                        name="q"
+                                        class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal"
+                                        placeholder="Search peer, company, city"
+                                        value="{{ $filters['q'] }}"
+                                    >
+                                </th>
+                                <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                                <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
                                 <th class="px-3 py-2 text-left">
-                                    <div class="flex flex-col gap-1.5">
-                                        <input
-                                            id="lifeImpactQ"
-                                            type="text"
-                                            name="q"
-                                            class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal"
-                                            placeholder="Peer / Company / City"
-                                            value="{{ $filters['q'] }}"
-                                        >
-                                        <select id="lifeImpactCircle" name="circle_id" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-searchable-select" data-placeholder="All Circles">
-                                            <option value="all">All Circles</option>
-                                            @foreach ($circles as $circle)
-                                                <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
+                                    <select id="lifeImpactCircle" name="circle_id" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-searchable-select" data-placeholder="All Circles">
+                                        <option value="all">All Circles</option>
+                                        @foreach ($circles as $circle)
+                                            <option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? 'all') == $circle->id)>{{ $circle->name }}</option>
+                                        @endforeach
+                                    </select>
                                 </th>
                                 <th class="text-center t3 text-xs">-</th>
                                 @foreach (range(1, count($categories) - 1) as $index)
@@ -133,11 +155,30 @@
                                     $totalLifeImpacted = $dateFilterActive
                                         ? (int) ($stats['total_life_impacted'] ?? 0)
                                         : (int) ($member->life_impacted_count ?? 0);
+                                    $memberName = $member ? ($member->display_name ?: trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? ''))) : '—';
+                                    $company = $member->company_name ?? $member->company ?? $member->business_name ?? '—';
+                                    $city = $member->city ?? '—';
+                                    $userCircles = $member ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ') : '';
+                                    $circleName = $userCircles !== '' ? $userCircles : '—';
                                 @endphp
                                 <tr class="hover:surface-2 transition border-b bs">
-                                    <td class="px-3 py-2.5 text-left align-middle">
-                                        @include('admin.shared.peer_card', ['user' => $member])
+                                    <td class="px-3 py-2.5 text-left align-middle sticky left-0 z-10 surface" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                                        @if ($member)
+                                            <div class="flex items-center gap-2">
+                                                <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($memberName) }}">
+                                                    {{ $getInitials($memberName) }}
+                                                </div>
+                                                <a href="{{ route('admin.users.show', $member->id) }}" class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                    {{ $memberName }}
+                                                </a>
+                                            </div>
+                                        @else
+                                            <span class="t3">—</span>
+                                        @endif
                                     </td>
+                                    <td class="px-3 py-2.5 text-xs t2 align-middle">{{ $company }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2 align-middle">{{ $city }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2 align-middle">{{ $circleName }}</td>
                                     <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap">
                                         <a href="{{ route('admin.life-impact.history', $member) . $historyQueryString }}" class="chip px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 no-underline inline-block" target="_blank" rel="noopener">{{ number_format($totalLifeImpacted) }}</a>
                                     </td>
@@ -149,7 +190,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ count($categories) + 2 }}" class="text-center py-8 text-xs t3">No members found.</td>
+                                    <td colspan="{{ count($categories) + 5 }}" class="text-center py-8 text-xs t3">No members found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

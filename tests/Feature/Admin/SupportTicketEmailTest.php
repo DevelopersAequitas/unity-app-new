@@ -10,9 +10,11 @@ use App\Models\Role;
 use App\Models\SupportTicket;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -187,6 +189,44 @@ class SupportTicketEmailTest extends TestCase
             'related_id' => $ticket->id,
             'status' => 'sent',
         ]);
+    }
+
+    public function test_admin_can_send_email_response_with_media_attachments(): void
+    {
+        Mail::fake();
+        Storage::fake('public');
+
+        $ticket = SupportTicket::create([
+            'ticket_number' => 'SUP-20260729-0003',
+            'contact_name' => 'Media User',
+            'email' => 'mediauser@example.com',
+            'subject' => 'Media Test',
+            'description' => 'Testing attachments',
+            'status' => 'open',
+            'priority' => 'normal',
+        ]);
+
+        $file = UploadedFile::fake()->image('screenshot.png');
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->post(route('admin.support-tickets.send-email', $ticket->id), [
+                'subject' => 'Re: Media Test',
+                'message' => 'Please see the attached screenshot.',
+                'status' => 'in_progress',
+                'attachments' => [$file],
+            ]);
+
+        $response->assertRedirect(route('admin.support-tickets.show', $ticket->id));
+        $response->assertSessionHas('success');
+
+        Mail::assertSent(SupportTicketResponseMail::class, function (SupportTicketResponseMail $mail): bool {
+            return $mail->hasTo('mediauser@example.com')
+                && count($mail->attachmentsList) === 1
+                && $mail->attachmentsList[0]['name'] === 'screenshot.png';
+        });
+
+        $ticket->refresh();
+        $this->assertStringContainsString('Attachments: screenshot.png', (string) $ticket->admin_note);
     }
 
     public function test_send_email_validates_required_fields(): void

@@ -240,7 +240,7 @@
                                                         </h6>
                                                         <div class="d-flex align-items-center justify-content-between">
                                                             @include('admin.partials.peer_identity', ['user' => $peerUser])
-                                                            <a href="{{ route('admin.users.show', $peerUser->id) }}" class="btn btn-sm btn-indigo text-xs no-underline" target="_blank">
+                                                            <a href="#" class="btn btn-sm btn-indigo text-xs no-underline" onclick="event.preventDefault(); openActivityPeerModal('{{ $peerUser->id }}', event);">
                                                                 View Peer Profile <i class="bi bi-arrow-up-right me-1"></i>
                                                             </a>
                                                         </div>

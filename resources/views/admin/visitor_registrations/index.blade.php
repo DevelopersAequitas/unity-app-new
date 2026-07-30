@@ -17,6 +17,23 @@
             return $computed !== '' ? $computed : '—';
         };
 
+        $getInitials = function (?string $name): string {
+            if (! $name) return 'P';
+            $words = explode(' ', trim($name));
+            $initials = '';
+            foreach ($words as $w) {
+                if (! empty($w)) $initials .= strtoupper(substr($w, 0, 1));
+            }
+            return substr($initials, 0, 2) ?: 'P';
+        };
+
+        $getAvatarBg = function (?string $name): string {
+            if (! $name) return '#6366f1';
+            $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
+            $hash = crc32($name);
+            return $colors[abs($hash) % count($colors)];
+        };
+
         $formatDate = function ($value): string {
             return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '—';
         };
@@ -109,54 +126,51 @@
 
         <div class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
-                <table class="min-w-full border-collapse text-[13px]">
+                <table class="min-w-[1400px] w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center w-10">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center sticky left-0 z-10" style="width:40px; min-width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.08);">
                                 <input type="checkbox" id="selectAll" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" title="Select All">
                             </th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-[40px] z-10" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Circle</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor Name</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Phone Number</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Name</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Name</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Phone</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Type</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Name</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor Email</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor Mobile</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor Company</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Category</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
                         </tr>
                         <tr class="surface-2 border-b bs filter-row">
-                            <th class="px-2 py-1 text-center t3">—</th>
+                            <th class="px-2 py-1 text-center t3 sticky left-0 z-10 surface-2" style="width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.08);">—</th>
+                            <th class="px-2 py-1 sticky left-[40px] z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
+                                <input type="text" name="peer_q" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer Search" value="{{ $filters['peer_q'] }}">
+                            </th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
                             <th class="px-2 py-1">
                                 <input type="text" name="visitor_name" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Visitor Name" value="{{ $filters['visitor_name'] }}">
                             </th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
                             <th class="px-2 py-1">
                                 <input type="text" name="visitor_mobile" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Visitor Mobile" value="{{ $filters['visitor_mobile'] }}">
                             </th>
                             <th class="px-2 py-1">
                                 <input type="text" name="visitor_business" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Visitor Business" value="{{ $filters['visitor_business'] }}">
                             </th>
-                            <th class="px-2 py-1 text-center t3">—</th>
-                            <th class="px-2 py-1">
-                                <input type="text" name="peer_q" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer/Company/City" value="{{ $filters['peer_q'] }}">
-                            </th>
-                            <th class="px-2 py-1">
-                                <input type="text" name="peer_phone" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer Phone" value="{{ $filters['peer_phone'] }}">
-                            </th>
-                            <th class="px-2 py-1">
-                                <input type="text" name="event_type" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Event Type" value="{{ $filters['event_type'] }}">
-                            </th>
-                            <th class="px-2 py-1">
-                                <input type="text" name="event_name" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Event Name" value="{{ $filters['event_name'] }}">
-                            </th>
-                            <th class="px-2 py-1">
-                                <input type="date" name="event_date" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['event_date'] }}">
-                            </th>
                             <th class="px-2 py-1">
                                 <input type="text" name="visitor_city" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Visitor City" value="{{ $filters['visitor_city'] }}">
+                            </th>
+                            <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                            <th class="px-2 py-1">
+                                <input type="text" name="event_name" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Event Name" value="{{ $filters['event_name'] }}">
                             </th>
                             <th class="px-2 py-1">
                                 <select name="status" form="visitorRegistrationsFiltersForm" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
@@ -166,6 +180,7 @@
                                     <option value="rejected" @selected($filters['status'] === 'rejected')>Rejected</option>
                                 </select>
                             </th>
+                            <th class="px-2 py-1 text-center t3">—</th>
                             <th class="px-2 py-1">
                                 <div class="flex justify-end">
                                     <button type="button" onclick="clearAdminFilters(event, 'visitorRegistrationsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
@@ -178,31 +193,46 @@
                             @php
                                 $member = $registration->user;
                                 $memberName = $displayName($member->display_name ?? null, $member->first_name ?? null, $member->last_name ?? null, $member->name ?? null);
-                                $memberCompany = $member->company_name ?? $member->company ?? $member->business_name ?? 'No Company';
-                                $memberCity = $member->city ?? 'No City';
+                                $memberCompany = $member->company_name ?? $member->company ?? $member->business_name ?? '—';
+                                $memberCity = $member->city ?? '—';
                                 $memberCircles = $member
                                     ? $member->circleMembers->map(fn($cm) => optional($cm->circle)->name)->filter()->unique()->implode(', ')
                                     : '';
-                                $memberCircle = $memberCircles !== '' ? $memberCircles : 'No Circle';
+                                $memberCircle = $memberCircles !== '' ? $memberCircles : '—';
+                                $visitorEmail = $registration->visitor_email ?? $registration->email ?? '—';
+                                $visitorCategory = $registration->business_category ?? $registration->category ?? '—';
+                                $eventName = $registration->event_name ?? ($registration->event_type ? ucfirst($registration->event_type) : '—');
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
-                                <td class="px-3 py-2.5 text-center">
+                                <td class="px-3 py-2.5 text-center sticky left-0 z-10 surface" style="width:40px; min-width:40px; box-shadow: none;">
                                     <input type="checkbox" name="ids[]" value="{{ $registration->id }}" form="bulkDeleteForm" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 row-checkbox">
                                 </td>
+                                <td class="px-3 py-2.5 text-xs sticky left-[40px] z-10 surface" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                                    @if ($member)
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($memberName) }}">
+                                                {{ $getInitials($memberName) }}
+                                            </div>
+                                            <a href="#"
+                                               onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $member->id }}', event);"
+                                               class="text-indigo-600 font-semibold hover:underline no-underline">
+                                                {{ $memberName }}
+                                            </a>
+                                        </div>
+                                    @else
+                                        <span class="t3">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $memberCompany }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $memberCity }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $memberCircle }}</td>
                                 <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $registration->visitor_full_name ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $visitorEmail }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_mobile ?? '—' }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_business ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($registration->created_at ?? null) }}</td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    @include('admin.partials.peer_identity', ['user' => $member, 'circleName' => $memberCircle])
-                                </td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $member->phone ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($registration->event_type ?? '—') }}</span>
-                                </td>
-                                <td class="px-3 py-2.5 text-xs t1 font-medium">{{ $registration->event_name ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDate($registration->event_date ?? null) }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_city ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2">{{ $visitorCategory }}</td>
+                                <td class="px-3 py-2.5 text-xs t1 font-medium">{{ $eventName }}</td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if($registration->status === 'approved')
                                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Approved</span>
@@ -212,6 +242,7 @@
                                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">Pending</span>
                                     @endif
                                 </td>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($registration->created_at ?? null) }}</td>
                                 <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
                                     <div class="flex justify-end gap-1.5 items-center">
                                         <a href="{{ route('admin.visitor-registrations.export-single', $registration->id) }}" class="p-1 rounded border bs t2 hover:t1 hover:surface-2 transition no-underline" title="Export Single CSV">
@@ -239,7 +270,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="13" class="text-center py-8 text-xs t3">No visitor registrations found.</td>
+                                <td colspan="15" class="text-center py-8 text-xs t3">No visitor registrations found.</td>
                             </tr>
                         @endforelse
                     </tbody>

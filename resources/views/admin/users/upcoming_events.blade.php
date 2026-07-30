@@ -230,7 +230,9 @@
                     <div class="avatar-placeholder flex-none">{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>
                   @endif
                   <div class="min-w-0 flex-1">
-                    <h4 class="text-sm font-semibold t1 m-0 truncate" title="{{ $item['full_name'] }}">{{ $item['full_name'] }}</h4>
+                    <h4 class="text-sm font-semibold t1 m-0 truncate" title="{{ $item['full_name'] ?: ($item['peer']->display_name ?: trim(($item['peer']->first_name ?? '').' '.($item['peer']->last_name ?? ''))) }}">
+                        {{ $item['full_name'] ?: ($item['peer']->display_name ?: trim(($item['peer']->first_name ?? '').' '.($item['peer']->last_name ?? ''))) ?: ($item['peer']->email ?? 'N/A') }}
+                    </h4>
                     @if($item['company_name'])
                       <div class="text-xs t2 font-medium truncate" title="{{ $item['company_name'] }}">{{ $item['company_name'] }}</div>
                     @endif
@@ -266,10 +268,10 @@
                   <span class="t3 font-medium text-left">Upcoming Birthday:</span>
                   <span class="t1 font-semibold text-indigo-600 text-right truncate ml-2">{{ $item['upcoming_date_formatted'] }}</span>
                 </div>
-                @if($item['turning_age'])
+                @if(!empty($item['turning_age']) || !empty($item['years_completed']))
                   <div class="flex justify-between items-center py-0.5">
                     <span class="t3 font-medium text-left">Completing Age:</span>
-                    <span class="t1 font-bold text-amber-600 text-right truncate ml-2">{{ $item['turning_age'] }} Years</span>
+                    <span class="t1 font-bold text-amber-600 text-right truncate ml-2">{{ $item['turning_age'] ?? $item['years_completed'] }} Years</span>
                   </div>
                 @endif
               </div>
@@ -303,7 +305,9 @@
                     <div class="avatar-placeholder flex-none">{{ strtoupper(substr($item['full_name'], 0, 1)) }}</div>
                   @endif
                   <div class="min-w-0 flex-1">
-                    <h4 class="text-sm font-semibold t1 m-0 truncate" title="{{ $item['full_name'] }}">{{ $item['full_name'] }}</h4>
+                    <h4 class="text-sm font-semibold t1 m-0 truncate" title="{{ $item['full_name'] ?: ($item['peer']->display_name ?: trim(($item['peer']->first_name ?? '').' '.($item['peer']->last_name ?? ''))) }}">
+                        {{ $item['full_name'] ?: ($item['peer']->display_name ?: trim(($item['peer']->first_name ?? '').' '.($item['peer']->last_name ?? ''))) ?: ($item['peer']->email ?? 'N/A') }}
+                    </h4>
                     @if($item['company_name'])
                       <div class="text-xs t2 font-medium truncate" title="{{ $item['company_name'] }}">{{ $item['company_name'] }}</div>
                     @endif

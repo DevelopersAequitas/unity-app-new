@@ -64,67 +64,80 @@
 
         <!-- Saved Templates Grid -->
         <div class="col-xl-8 col-lg-7">
-            <div class="rounded-xl border bs surface p-4 space-y-3">
+            <div class="rounded-xl border bs surface p-4 space-y-4 shadow-2xs">
                 <div class="flex justify-between items-center">
-                    <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Configured Templates</h2>
+                    <h2 class="font-display font-semibold text-xs text-indigo-500 uppercase tracking-wider m-0 flex items-center gap-2">
+                        <i class="bi bi-collection-play text-sm"></i>Configured Templates
+                    </h2>
                 </div>
 
                 <div class="rounded-xl border bs surface overflow-hidden">
                     <div class="overflow-x-auto relative">
-                        <table class="min-w-full border-collapse text-[13px]">
+                        <table class="w-full min-w-full border-collapse text-[13px] align-middle">
                             <thead>
                                 <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left w-20">Preview</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Message Overlay</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Uploaded At</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                                    <th class="th-cell px-3 py-2.5 text-left" style="width: 100px;">Preview</th>
+                                    <th class="th-cell px-3 py-2.5 text-left" style="min-width: 240px;">Message Overlay</th>
+                                    <th class="th-cell px-3 py-2.5 text-left" style="width: 110px;">Status</th>
+                                    <th class="th-cell px-3 py-2.5 text-left" style="width: 140px;">Uploaded At</th>
+                                    <th class="th-cell px-3 py-2.5 text-right" style="width: 170px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200/50">
                                 @forelse($templates as $tpl)
                                     <tr class="hover:surface-2 transition border-b bs">
-                                        <td class="px-3 py-2.5">
-                                            <div class="w-12 h-12 rounded border bs overflow-hidden surface-2 flex-shrink-0">
+                                        <td class="px-3 py-3">
+                                            <div class="w-20 h-20 rounded-lg border bs overflow-hidden surface-2 flex-shrink-0 relative shadow-2xs">
                                                 <img src="{{ Storage::disk(config('filesystems.default', 'public'))->url($tpl->image_path) }}" 
-                                                     class="w-full h-full object-cover cursor-pointer"
+                                                     class="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
                                                      alt="Anniversary Template"
+                                                     onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
                                                      onclick="viewTemplateOriginal('{{ Storage::disk(config('filesystems.default', 'public'))->url($tpl->image_path) }}')" />
+                                                <div class="w-full h-full bg-slate-100 text-slate-400 flex flex-col items-center justify-center text-[10px] text-center p-1" style="display:none;">
+                                                    <i class="bi bi-image text-lg mb-0.5 text-slate-400"></i>
+                                                    <span class="font-medium text-[9px] leading-tight">No preview</span>
+                                                </div>
                                             </div>
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs">
-                                            <div class="t1 font-medium max-w-[250px] truncate" title="{{ $tpl->message }}">{{ Str::limit($tpl->message, 80) }}</div>
-                                            <div class="t3 text-[10px] mt-0.5">ID: <code class="font-mono">{{ $tpl->id }}</code></div>
+                                        <td class="px-3 py-3 text-xs">
+                                            <div class="t1 font-medium max-w-[300px] leading-relaxed" style="word-break:break-word; white-space:normal;" title="{{ $tpl->message }}">{{ Str::limit($tpl->message, 100) }}</div>
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs">
+                                        <td class="px-3 py-3 text-xs">
                                             @if($tpl->is_active)
-                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Active</span>
+                                                <span class="chip px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 rounded-full inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Active</span>
                                             @else
-                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Inactive</span>
+                                                <span class="chip px-2.5 py-1 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 rounded-full">Inactive</span>
                                             @endif
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $tpl->created_at->format('Y-m-d H:i') }}</td>
-                                        <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
-                                            <div class="flex justify-end gap-1.5 items-center">
-                                                <form action="{{ route('admin.anniversary-creatives.toggle', $tpl->id) }}" method="POST" class="inline">
+                                        <td class="px-3 py-3 text-xs t3 whitespace-nowrap font-mono">{{ $tpl->created_at->format('Y-m-d H:i') }}</td>
+                                        <td class="px-3 py-3 text-xs text-right whitespace-nowrap">
+                                            <div class="flex items-center justify-end gap-2">
+                                                <form action="{{ route('admin.anniversary-creatives.toggle', $tpl->id) }}" method="POST" class="inline m-0">
                                                     @csrf
-                                                    <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">
+                                                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded-lg border bs t2 hover:t1 hover:surface-2 transition min-w-[72px] text-center">
                                                         {{ $tpl->is_active ? 'Disable' : 'Enable' }}
                                                     </button>
                                                 </form>
-                                                <form action="{{ route('admin.anniversary-creatives.destroy', $tpl->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this template?')" class="inline">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-rose-600 hover:bg-rose-500 text-white transition focus-ring">
+                                                @if($tpl->is_active)
+                                                    <button type="button" disabled title="Deactivate template before deleting" aria-disabled="true" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-400 border bs cursor-not-allowed min-w-[72px] text-center opacity-60">
                                                         Delete
                                                     </button>
-                                                </form>
+                                                @else
+                                                    <form action="{{ route('admin.anniversary-creatives.destroy', $tpl->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this template?')" class="inline m-0">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition min-w-[72px] text-center shadow-2xs">
+                                                            Delete
+                                                        </button>
+                                                    </form>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center py-8 text-xs t3">
+                                        <td colspan="5" class="text-center py-10 text-xs t3">
+                                            <i class="bi bi-images text-2xl d-block mb-1 text-slate-300"></i>
                                             No custom templates configured. Default anniversary template will be used.
                                         </td>
                                     </tr>
@@ -164,7 +177,7 @@
         </div>
     </div>
 
-    <!-- Today's Anniversaries Panel -->
+    <!-- Today's Anniversary Users Panel -->
     <div class="rounded-xl border bs surface p-4 mt-4 space-y-3">
         <div class="flex justify-between items-center">
             <h2 class="font-display font-semibold text-xs text-rose-500 uppercase tracking-wider m-0">Today's Anniversaries ({{ now()->format('d M') }})</h2>
@@ -191,12 +204,19 @@
                                     @elseif($aUser->profile_photo_url)
                                         <img src="{{ $aUser->profile_photo_url }}" class="w-9 h-9 object-cover rounded-full border bs">
                                     @else
-                                        <div class="w-9 h-9 rounded-full surface-2 text-indigo-600 font-bold flex items-center justify-center border bs text-xs">
-                                            {{ strtoupper(substr($aUser->display_name ?: $aUser->first_name ?: 'U', 0, 1)) }}
+                                        <div class="w-9 h-9 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs border bs">
+                                            {{ strtoupper(substr($aUser->display_name ?: $aUser->first_name ?: 'A', 0, 1)) }}
                                         </div>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $aUser->display_name ?: ($aUser->first_name . ' ' . $aUser->last_name) }}</td>
+                                <td class="px-3 py-2.5 text-xs font-semibold t1">
+                                    @php $anniversaryName = $aUser->display_name ?: trim(($aUser->first_name ?? '').' '.($aUser->last_name ?? '')); @endphp
+                                    @if($aUser->id)
+                                        <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $aUser->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline no-underline font-semibold">{{ $anniversaryName ?: '—' }}</a>
+                                    @else
+                                        {{ $anniversaryName ?: '—' }}
+                                    @endif
+                                </td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $aUser->email }}</td>
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $aUser->anniversary_date ? \Carbon\Carbon::parse($aUser->anniversary_date)->format('d M Y') : '—' }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $aUser->designation ?: '—' }}</td>
@@ -234,15 +254,12 @@
         const img = document.getElementById('creativePreviewImg');
         const loader = document.getElementById('previewLoader');
 
-        // Show loader, hide image
         img.classList.add('d-none');
         loader.classList.remove('d-none');
 
-        // Generate cache-busting timestamp
         const t = new Date().getTime();
         const srcUrl = `/admin/anniversary-creatives/preview/${userId}?t=${t}`;
 
-        // Load image in background
         const tempImg = new Image();
         tempImg.onload = function() {
             img.src = srcUrl;

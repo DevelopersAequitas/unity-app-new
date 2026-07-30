@@ -65,7 +65,14 @@
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div>
                 <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Testimonials Log</h2>
-                <p class="text-xs t1 font-medium m-0 mt-0.5">{{ $peerName }} • {{ $member->email ?? '-' }}</p>
+                <p class="text-xs t1 font-medium m-0 mt-0.5">
+                    @if(!empty($member->id))
+                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $member->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">{{ $peerName }}</a>
+                    @else
+                        {{ $peerName }}
+                    @endif
+                    • {{ $member->email ?? '-' }}
+                </p>
             </div>
             <a href="{{ route('admin.activities.index') }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">
                 Back to Activities
@@ -91,9 +98,9 @@
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">To Peer</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Target Peer</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Content</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Attachment</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Media</th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
                         </tr>
                     </thead>
@@ -110,7 +117,15 @@
                                             {{ $getInitials($toName) }}
                                         </div>
                                         <div>
-                                            <div class="font-semibold t1 text-[12.5px]">{{ $toName }}</div>
+                                            <div class="font-semibold t1 text-[12.5px]">
+                                                @if(!empty($testimonial->toUser?->id))
+                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $testimonial->toUser->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                        {{ $toName }}
+                                                    </a>
+                                                @else
+                                                    {{ $toName }}
+                                                @endif
+                                            </div>
                                             <div class="t3 text-[10px]">{{ $testimonial->toUser->email ?? '-' }}</div>
                                         </div>
                                     </div>

@@ -114,7 +114,8 @@
           <thead>
             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Attendee</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Contact Info</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Phone</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Type</th>
@@ -132,19 +133,29 @@
               @endphp
               <tr class="hover:surface-2 transition border-b bs">
                 <td class="px-3 py-2.5 font-semibold text-slate-900 t1 whitespace-nowrap">
-                  {{ $name }}
+                  @if($isMember && !empty($row->user_id))
+                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $row->user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                      {{ $name }}
+                    </a>
+                  @else
+                    {{ $name }}
+                  @endif
                 </td>
-                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
-                  <div>{{ $email }}</div>
-                  @if($phone !== '-')<div class="text-[11px] text-gray-500">{{ $phone }}</div>@endif
-                </td>
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $phone }}</td>
+                <td class="px-3 py-2.5 text-xs t2">{{ $email }}</td>
                 <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                   <a href="{{ route('admin.events.show', $row->event_id) }}" class="text-indigo-600 hover:text-indigo-800 no-underline font-medium">
                     {{ $row->event?->title ?? 'Event #'.$row->event_id }}
                   </a>
                 </td>
                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
-                  {{ $row->event?->circle?->name ?? '-' }}
+                  @if(!empty($row->event?->circle?->id))
+                    <a href="{{ route('admin.circles.show', $row->event->circle->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium no-underline">
+                      {{ $row->event->circle->name }}
+                    </a>
+                  @else
+                    {{ $row->event?->circle?->name ?? '-' }}
+                  @endif
                 </td>
                 <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                   @if($isMember)
@@ -168,7 +179,7 @@
               </tr>
             @empty
               <tr>
-                <td colspan="7" class="px-4 py-8 text-center t3 text-xs">
+                <td colspan="8" class="px-4 py-8 text-center t3 text-xs">
                   No attendance records found.
                 </td>
               </tr>

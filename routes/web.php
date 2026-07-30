@@ -222,6 +222,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/stories/{id}/reject', [StorySubmissionsController::class, 'reject'])->name('stories.reject')->whereUuid('id');
 
         Route::get('/activities', [ActivitiesController::class, 'index'])->name('activities.index');
+        Route::get('/activities/peer-summary/{user}', [ActivitiesController::class, 'peerSummary'])->name('activities.peer-summary');
+        Route::get('/activities/peer-details/{user}/{type}', [ActivitiesController::class, 'peerActivityDetails'])->name('activities.peer-details');
         Route::post('/activities/export', [ActivitiesController::class, 'export'])->name('activities.export');
         Route::get('/activities/testimonials', [ActivitiesTestimonialsController::class, 'index'])->name('activities.testimonials.index');
         Route::get('/activities/testimonials/export', [ActivitiesTestimonialsController::class, 'export'])->name('activities.testimonials.export');

@@ -259,9 +259,9 @@
                                                 {{ $initials }}
                                             </div>
                                         @endif
-                                        <div>
-                                            <div class="fw-semibold text-dark">{{ $fullName }}</div>
-                                            <div class="text-muted" style="font-size: 0.75rem;">{{ $peer->designation ?? 'Member' }}</div>
+                                            <div class="fw-semibold text-dark">
+                                                <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $peer->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">{{ $fullName }}</a>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
