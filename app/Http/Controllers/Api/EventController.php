@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Requests\Event\CirclePastEventsRequest;
 use App\Http\Requests\Event\EventCheckinRequest;
 use App\Http\Requests\Event\EventRsvpRequest;
 use App\Http\Requests\Event\RegisterEventOccurrenceRequest;
@@ -14,6 +15,7 @@ use App\Http\Resources\Event\EventRegistrationResource;
 use App\Http\Resources\EventResource;
 use App\Http\Resources\EventRsvpResource;
 use App\Jobs\SendEventCreatedNotificationJob;
+use App\Models\Circle;
 use App\Models\CircleCategory;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
@@ -70,6 +72,35 @@ class EventController extends BaseApiController
                 'total' => $paginator->total(),
             ],
         ], 'Events fetched successfully.');
+    }
+
+    public function pastEvents(CirclePastEventsRequest $request, ?string $circle_id = null)
+    {
+        $circleId = $request->validated('circle_id') ?? $request->input('circle_id') ?? $circle_id;
+
+        if (! $circleId) {
+            return $this->error('The circle_id field is required.', 422);
+        }
+
+        $circle = Circle::query()->find($circleId);
+
+        if (! $circle) {
+            return $this->error('Circle not found.', 404);
+        }
+
+        $perPage = max(1, min((int) $request->input('per_page', 10), 100));
+        $paginator = $this->events->listPastOccurrences($circleId, $request->user(), $perPage);
+
+        return $this->success([
+            'total' => $paginator->total(),
+            'items' => EventOccurrenceListResource::collection($paginator->getCollection()),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+        ], 'Past events fetched successfully.');
     }
 
     public function allWithLiveStatus(Request $request)

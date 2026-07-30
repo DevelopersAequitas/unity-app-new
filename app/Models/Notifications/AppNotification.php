@@ -54,6 +54,7 @@ class AppNotification extends Model
                 'brand_partner_offer', 'brand_offer', 'brand_partner_joined', 'brand_offer_added' => '/brand-partner-details',
                 'membership_expiry', 'membership_expired', 'circle_membership_expiry_reminder', 'upcoming_membership_expired' => '/profile',
                 'trending_circle', 'circle_highlight', 'circle_details', 'join_circle' => '/join-circle',
+                'impact_submitted', 'impact_approved', 'impact_received', 'impact_rejected', 'life_impact' => '/life-impact',
                 default => null,
             };
         }

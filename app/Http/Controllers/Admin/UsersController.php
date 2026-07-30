@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendWelcomeWhatsappJob;
 use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\CircleCategory;
@@ -347,6 +348,10 @@ class UsersController extends Controller
             ));
             $membership->save();
         });
+
+        if ($user && $user->exists) {
+            SendWelcomeWhatsappJob::dispatch((string) $user->id);
+        }
 
         return redirect()
             ->route('admin.users.index')
@@ -1499,7 +1504,8 @@ class UsersController extends Controller
                         'password_hash' => bcrypt(Str::random(32)),
                     ];
 
-                    User::create($payload);
+                    $createdUser = User::create($payload);
+                    SendWelcomeWhatsappJob::dispatch((string) $createdUser->id);
                     $results['created']++;
                 }
             } catch (Throwable $e) {
