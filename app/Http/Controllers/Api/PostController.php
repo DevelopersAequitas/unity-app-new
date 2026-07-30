@@ -670,36 +670,8 @@ class PostController extends BaseApiController
             'user_id' => $authUser->id,
         ]);
 
-        if ($like->wasRecentlyCreated && (string) $post->user_id !== (string) $authUser->id) {
-            try {
-                if ($postOwner = User::find($post->user_id)) {
-                    $likerName = $this->displayName($authUser);
-                    $notifications->sendToUser(
-                        $postOwner,
-                        'post_like',
-                        $likerName.' liked your post',
-                        $likerName.' liked your post',
-                        [
-                            'post_id' => (string) $post->id,
-                            'like_id' => (string) $like->id,
-                            'actor_id' => (string) $authUser->id,
-                            'screen' => 'post_detail',
-                            'tap_destination' => 'post_detail',
-                            'reference_type' => 'post',
-                            'reference_id' => (string) $post->id,
-                        ],
-                        [
-                            'actor_id' => (string) $authUser->id,
-                            'channel' => 'push',
-                            'reference_type' => 'post',
-                            'reference_id' => (string) $post->id,
-                            'dedupe_key' => 'post_like:'.$post->id.':'.$authUser->id,
-                        ]
-                    );
-                }
-            } catch (Throwable $e) {
-                Log::warning('Post like notification failed', ['post_id' => (string) $post->id, 'liker_user_id' => (string) $authUser->id, 'error' => $e->getMessage()]);
-            }
+        if ($like->wasRecentlyCreated) {
+            $this->sendPostLikeNotification($post, $like, $authUser, $notifications);
         }
 
         $likeCount = PostLike::where('post_id', $post->id)->count();
@@ -751,38 +723,7 @@ class PostController extends BaseApiController
         $comment->parent_id = $data['parent_id'] ?? null;
         $comment->save();
 
-        if ((string) $post->user_id !== (string) $authUser->id) {
-            try {
-                if ($postOwner = User::find($post->user_id)) {
-                    $commenterName = $this->displayName($authUser);
-                    $preview = Str::limit(trim((string) $comment->content), 120) ?: ($commenterName.' commented on your post');
-                    $notifications->sendToUser(
-                        $postOwner,
-                        'post_comment',
-                        $commenterName.' commented on your post',
-                        $preview,
-                        [
-                            'post_id' => (string) $post->id,
-                            'comment_id' => (string) $comment->id,
-                            'actor_id' => (string) $authUser->id,
-                            'screen' => 'post_detail',
-                            'tap_destination' => 'post_detail',
-                            'reference_type' => 'post',
-                            'reference_id' => (string) $post->id,
-                        ],
-                        [
-                            'actor_id' => (string) $authUser->id,
-                            'channel' => 'push',
-                            'reference_type' => 'post',
-                            'reference_id' => (string) $post->id,
-                            'dedupe_key' => 'post_comment:'.$comment->id,
-                        ]
-                    );
-                }
-            } catch (Throwable $e) {
-                Log::warning('Post comment notification failed', ['post_id' => (string) $post->id, 'comment_id' => (string) $comment->id, 'error' => $e->getMessage()]);
-            }
-        }
+        $this->sendPostCommentNotification($post, $comment, $authUser, $notifications);
 
         $this->dispatchMentionNotifications($mentionNotifications, $post, $authUser, $comment->content, $comment);
 
@@ -877,5 +818,200 @@ class PostController extends BaseApiController
     private function displayName(User $user): string
     {
         return trim((string) ($user->display_name ?? '')) ?: trim(((string) ($user->first_name ?? '')).' '.((string) ($user->last_name ?? ''))) ?: (string) ($user->name ?? 'A member');
+    }
+
+    private function sendPostLikeNotification(Post $post, PostLike $like, User $authUser, NotificationService $notifications): void
+    {
+        $targets = [];
+        $likerName = $this->displayName($authUser);
+
+        if (in_array($post->post_type, ['introduction', 'birthday', 'anniversary', 'global_peer_certificate'], true)) {
+            $subjectUser = User::find($post->source_id);
+            if ($subjectUser) {
+                $subjectName = $this->displayName($subjectUser);
+                if ($post->post_type === 'introduction') {
+                    if ((string) $subjectUser->id !== (string) $authUser->id) {
+                        $targets[] = [
+                            'user' => $subjectUser,
+                            'title' => 'New Like on Introduction',
+                            'body' => $likerName.' liked your introduction post',
+                        ];
+                    }
+                    if ($subjectUser->introduced_by) {
+                        $introducerUser = User::find($subjectUser->introduced_by);
+                        if ($introducerUser && (string) $introducerUser->id !== (string) $authUser->id) {
+                            $targets[] = [
+                                'user' => $introducerUser,
+                                'title' => 'New Like on Introduction',
+                                'body' => $likerName.' liked the introduction of '.$subjectName,
+                            ];
+                        }
+                    }
+                } else {
+                    if ((string) $subjectUser->id !== (string) $authUser->id) {
+                        $title = match ($post->post_type) {
+                            'birthday' => 'Birthday Wish Liked',
+                            'anniversary' => 'Anniversary Wish Liked',
+                            'global_peer_certificate' => 'Certificate Liked',
+                            default => 'Post Liked',
+                        };
+                        $body = match ($post->post_type) {
+                            'birthday' => $likerName.' liked your birthday post',
+                            'anniversary' => $likerName.' liked your anniversary post',
+                            'global_peer_certificate' => $likerName.' liked your Global Peer Certificate post',
+                            default => $likerName.' liked your post',
+                        };
+                        $targets[] = [
+                            'user' => $subjectUser,
+                            'title' => $title,
+                            'body' => $body,
+                        ];
+                    }
+                }
+            }
+        } else {
+            if ((string) $post->user_id !== (string) $authUser->id) {
+                $postOwner = User::find($post->user_id);
+                if ($postOwner) {
+                    $targets[] = [
+                        'user' => $postOwner,
+                        'title' => 'Post Liked',
+                        'body' => $likerName.' liked your post',
+                    ];
+                }
+            }
+        }
+
+        foreach ($targets as $target) {
+            try {
+                $notifications->sendToUser(
+                    $target['user'],
+                    'post_like',
+                    $target['title'],
+                    $target['body'],
+                    [
+                        'post_id' => (string) $post->id,
+                        'like_id' => (string) $like->id,
+                        'actor_id' => (string) $authUser->id,
+                        'screen' => 'post_detail',
+                        'tap_destination' => 'post_detail',
+                        'reference_type' => 'post',
+                        'reference_id' => (string) $post->id,
+                    ],
+                    [
+                        'actor_id' => (string) $authUser->id,
+                        'channel' => 'push',
+                        'reference_type' => 'post',
+                        'reference_id' => (string) $post->id,
+                        'dedupe_key' => 'post_like:'.$post->id.':'.$authUser->id.':'.$target['user']->id,
+                    ]
+                );
+            } catch (Throwable $e) {
+                Log::warning('Post like notification failed', [
+                    'post_id' => (string) $post->id,
+                    'liker_user_id' => (string) $authUser->id,
+                    'recipient_user_id' => (string) $target['user']->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    private function sendPostCommentNotification(Post $post, PostComment $comment, User $authUser, NotificationService $notifications): void
+    {
+        $targets = [];
+        $commenterName = $this->displayName($authUser);
+        $preview = Str::limit(trim((string) $comment->content), 120);
+
+        if (in_array($post->post_type, ['introduction', 'birthday', 'anniversary', 'global_peer_certificate'], true)) {
+            $subjectUser = User::find($post->source_id);
+            if ($subjectUser) {
+                $subjectName = $this->displayName($subjectUser);
+                if ($post->post_type === 'introduction') {
+                    if ((string) $subjectUser->id !== (string) $authUser->id) {
+                        $targets[] = [
+                            'user' => $subjectUser,
+                            'title' => 'New Comment on Introduction',
+                            'body' => $commenterName.' commented on your introduction post',
+                        ];
+                    }
+                    if ($subjectUser->introduced_by) {
+                        $introducerUser = User::find($subjectUser->introduced_by);
+                        if ($introducerUser && (string) $introducerUser->id !== (string) $authUser->id) {
+                            $targets[] = [
+                                'user' => $introducerUser,
+                                'title' => 'New Comment on Introduction',
+                                'body' => $commenterName.' commented on the introduction of '.$subjectName,
+                            ];
+                        }
+                    }
+                } else {
+                    if ((string) $subjectUser->id !== (string) $authUser->id) {
+                        $title = match ($post->post_type) {
+                            'birthday' => 'New Birthday Comment',
+                            'anniversary' => 'New Anniversary Comment',
+                            'global_peer_certificate' => 'New Comment on Certificate',
+                            default => 'New Comment on Post',
+                        };
+                        $body = match ($post->post_type) {
+                            'birthday' => $commenterName.' commented on your birthday post',
+                            'anniversary' => $commenterName.' commented on your anniversary post',
+                            'global_peer_certificate' => $commenterName.' commented on your Global Peer Certificate post',
+                            default => $commenterName.' commented on your post',
+                        };
+                        $targets[] = [
+                            'user' => $subjectUser,
+                            'title' => $title,
+                            'body' => $body,
+                        ];
+                    }
+                }
+            }
+        } else {
+            if ((string) $post->user_id !== (string) $authUser->id) {
+                $postOwner = User::find($post->user_id);
+                if ($postOwner) {
+                    $targets[] = [
+                        'user' => $postOwner,
+                        'title' => 'New Comment on Post',
+                        'body' => $commenterName.' commented on your post',
+                    ];
+                }
+            }
+        }
+
+        foreach ($targets as $target) {
+            try {
+                $notifications->sendToUser(
+                    $target['user'],
+                    'post_comment',
+                    $target['title'],
+                    $preview ?: $target['body'],
+                    [
+                        'post_id' => (string) $post->id,
+                        'comment_id' => (string) $comment->id,
+                        'actor_id' => (string) $authUser->id,
+                        'screen' => 'post_detail',
+                        'tap_destination' => 'post_detail',
+                        'reference_type' => 'post',
+                        'reference_id' => (string) $post->id,
+                    ],
+                    [
+                        'actor_id' => (string) $authUser->id,
+                        'channel' => 'push',
+                        'reference_type' => 'post',
+                        'reference_id' => (string) $post->id,
+                        'dedupe_key' => 'post_comment:'.$comment->id.':'.$target['user']->id,
+                    ]
+                );
+            } catch (Throwable $e) {
+                Log::warning('Post comment notification failed', [
+                    'post_id' => (string) $post->id,
+                    'comment_id' => (string) $comment->id,
+                    'recipient_user_id' => (string) $target['user']->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 }
