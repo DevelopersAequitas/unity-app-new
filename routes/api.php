@@ -793,6 +793,8 @@ Route::prefix('v1')->group(function () {
 
         // Events
         Route::get('/events', [EventController::class, 'index']);
+        Route::get('/events/past', [EventController::class, 'pastEvents']);
+        Route::get('/circles/{circle_id}/past-events', [EventController::class, 'pastEvents'])->whereUuid('circle_id');
         Route::get('/events/all-with-live-status', [EventController::class, 'allWithLiveStatus']);
         Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
         Route::get('/my/event-registrations', [EventController::class, 'myEventRegistrations']);

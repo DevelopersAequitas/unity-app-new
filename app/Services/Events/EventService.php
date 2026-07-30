@@ -175,6 +175,88 @@ class EventService
         return $query->orderBy('start_at')->paginate($perPage);
     }
 
+    public function listPastOccurrences(string $circleId, ?User $user = null, int $perPage = 10): LengthAwarePaginator
+    {
+        $timezone = config('app.timezone') ?: 'UTC';
+        $now = Carbon::now($timezone);
+
+        $this->ensureMissingOneTimeOccurrencesForCircle($circleId, $timezone);
+
+        $withRelations = ['event.circle'];
+        if (Schema::hasTable('event_circles')) {
+            $withRelations[] = 'event.circles.cityRef';
+        }
+        $withRelations['registrations'] = fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0');
+
+        $query = EventOccurrence::query()
+            ->with($withRelations)
+            ->withCount([
+                'registrations as registered_count' => fn ($q) => $q
+                    ->whereNull('deleted_at')
+                    ->where(function ($countQuery): void {
+                        $countQuery->where('status', 'registered')
+                            ->orWhere('payment_status', 'paid')
+                            ->orWhere(function ($inner): void {
+                                $inner->where('payment_required', false)->where('status', '!=', 'cancelled');
+                            });
+                    }),
+                'registrations as checked_in_count' => fn ($q) => $q
+                    ->whereNull('deleted_at')
+                    ->where('checkin_status', 'checked_in'),
+            ])
+            ->whereHas('event', function (Builder $eventQuery) use ($circleId, $user): void {
+                $eventQuery->where(function ($circleQuery) use ($circleId): void {
+                    $circleQuery->where('circle_id', $circleId);
+                    if (Schema::hasTable('event_circles')) {
+                        $circleQuery->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $circleId));
+                    }
+                });
+
+                $this->applyValidEventStatusScope($eventQuery);
+                $this->applyEventVisibilityScope($eventQuery, $user);
+            });
+
+        $this->applyValidOccurrenceStatusScope($query);
+
+        $query->where(function (Builder $q) use ($now): void {
+            $q->where(function (Builder $sub) use ($now): void {
+                $sub->whereNotNull('end_at')->where('end_at', '<', $now);
+            })->orWhere(function (Builder $sub) use ($now): void {
+                $sub->whereNull('end_at')->whereNotNull('start_at')->where('start_at', '<', $now);
+            })->orWhere(function (Builder $sub) use ($now): void {
+                $sub->whereNull('end_at')->whereNull('start_at')
+                    ->whereHas('event', function (Builder $eq) use ($now): void {
+                        $eq->where(function (Builder $eventSub) use ($now): void {
+                            $eventSub->whereNotNull('end_at')->where('end_at', '<', $now);
+                        })->orWhere(function (Builder $eventSub) use ($now): void {
+                            $eventSub->whereNull('end_at')->where('start_at', '<', $now);
+                        });
+                    });
+            });
+        });
+
+        return $query->orderBy(DB::raw('COALESCE(end_at, start_at)'), 'desc')->paginate($perPage);
+    }
+
+    private function ensureMissingOneTimeOccurrencesForCircle(string $circleId, string $timezone): void
+    {
+        $eventQuery = Event::query()
+            ->whereDoesntHave('occurrences')
+            ->where(function ($circleQuery) use ($circleId): void {
+                $circleQuery->where('circle_id', $circleId);
+                if (Schema::hasTable('event_circles')) {
+                    $circleQuery->orWhereHas('circles', fn ($multiCircleQuery) => $multiCircleQuery->where('circles.id', $circleId));
+                }
+            })
+            ->where(function (Builder $recurrenceQuery): void {
+                $recurrenceQuery->whereNull('recurrence_type')->orWhere('recurrence_type', 'none');
+            });
+
+        $this->applyValidEventStatusScope($eventQuery);
+
+        $eventQuery->limit(100)->get()->each(fn (Event $event) => $this->occurrenceGenerator->generate($event));
+    }
+
     private function applyEventTypeFilter(Builder $query, ?string $eventType): Builder
     {
         $hasEventType = Schema::hasColumn('events', 'event_type');
