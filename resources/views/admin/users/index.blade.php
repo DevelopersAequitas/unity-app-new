@@ -265,22 +265,22 @@
     </div>
     <div class="flex items-center gap-2">
       <a href="{{ route('admin.users.import') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
-        📥 Import
+        <i class="bi bi-download" aria-hidden="true"></i> Import
       </a>
       <div class="relative">
         <button type="button" onclick="toggleExportMenu()" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring flex items-center gap-1.5">
-          📤 Export <svg class="w-2.5 h-2.5 ml-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          <i class="bi bi-upload" aria-hidden="true"></i> Export <svg class="w-2.5 h-2.5 ml-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
         </button>
         <div id="export-menu" class="hidden absolute right-0 mt-2 w-44 rounded-xl border bs surface shadow-2xl py-1.5 z-40 fade-in">
-          <button onclick="exportData('csv')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><span class="w-4">📄</span>Export as CSV</button>
-          <button onclick="exportData('xlsx')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><span class="w-4">📊</span>Export as Excel</button>
-          <button onclick="exportData('pdf')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><span class="w-4">🧾</span>Export as PDF</button>
+          <button onclick="exportData('csv')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-file-earmark-text admin-icon w-4" aria-hidden="true"></i>Export as CSV</button>
+          <button onclick="exportData('xlsx')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-file-earmark-excel admin-icon w-4" aria-hidden="true"></i>Export as Excel</button>
+          <button onclick="exportData('pdf')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-file-earmark-pdf admin-icon w-4" aria-hidden="true"></i>Export as PDF</button>
           <div class="my-1 border-t bs"></div>
-          <button onclick="window.print(); toggleExportMenu();" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><span class="w-4">🖨️</span>Print view</button>
+          <button onclick="window.print(); toggleExportMenu();" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-printer admin-icon w-4" aria-hidden="true"></i>Print view</button>
         </div>
       </div>
       <a href="{{ route('admin.users.create') }}" class="px-3 py-1.5 rounded-lg bg-accent hover:bg-opacity-95 text-white text-[12px] font-semibold transition focus-ring no-underline flex items-center gap-1">
-        ➕ Add Peer
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i> Add Peer
       </a>
     </div>
   </div>
@@ -312,11 +312,11 @@
   <!-- Saved views tab strip -->
   <div class="flex-none flex items-center gap-1 pb-2 border-b bs surface overflow-x-auto mb-4">
     <button data-view="all" onclick="setView(this)" class="tab-underline active px-3 py-1.5 text-[12.5px] font-medium t1 whitespace-nowrap">All Members</button>
-    <button data-view="unity" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">👥 Only Unity Members</button>
-    <button data-view="circles" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">🔵 Circles Peers</button>
-    <button data-view="multiple" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">🌀 Multiple Circle Peers</button>
-    <button data-view="free" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">🆓 Free Peers</button>
-    <button data-view="vip" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">⭐ VIP Circle</button>
+    <button data-view="unity" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i>Only Unity Members</button>
+    <button data-view="circles" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-record-circle-fill admin-icon me-1" aria-hidden="true"></i>Circles Peers</button>
+    <button data-view="multiple" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-diagram-3-fill admin-icon me-1" aria-hidden="true"></i>Multiple Circle Peers</button>
+    <button data-view="free" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-person admin-icon me-1" aria-hidden="true"></i>Free Peers</button>
+    <button data-view="vip" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition"><i class="bi bi-star-fill admin-icon me-1" aria-hidden="true"></i>VIP Circle</button>
     <button data-view="pending" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">Awaiting Review</button>
     <button data-view="expiring" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">Expiring Soon</button>
     <button data-view="new" onclick="setView(this)" class="tab-underline px-3 py-1.5 text-[12.5px] font-medium t3 hover:t1 whitespace-nowrap transition">New This Month</button>
@@ -485,12 +485,12 @@
 
       <!-- Compact widget strip -->
       <div class="flex items-stretch gap-2 pb-2 overflow-x-auto whitespace-nowrap" style="scrollbar-width: thin;">
-        <div class="mini-widget"><span class="mini-label">🎂 Birthdays Today</span><span class="mini-value" id="widget-birthdays">-</span></div>
-        <div class="mini-widget"><span class="mini-label">📅 Upcoming Events</span><span class="mini-value" id="widget-events">-</span></div>
-        <div class="mini-widget"><span class="mini-label">🆕 Recently Joined</span><span class="mini-value" id="widget-recent">-</span></div>
-        <div class="mini-widget"><span class="mini-label">🏆 Top Circle</span><span class="mini-value" id="widget-top-circle">-</span></div>
-        <div class="mini-widget"><span class="mini-label">🏭 Top Industry</span><span class="mini-value" id="widget-top-industry">-</span></div>
-        <div class="mini-widget"><span class="mini-label">🎫 Pending Approvals</span><span class="mini-value" id="widget-pending-approvals">0</span></div>
+        <div class="mini-widget"><span class="mini-label"><i class="bi bi-cake2-fill admin-icon me-1" aria-hidden="true"></i>Birthdays Today</span><span class="mini-value" id="widget-birthdays">-</span></div>
+        <div class="mini-widget"><span class="mini-label"><i class="bi bi-calendar-event-fill admin-icon me-1" aria-hidden="true"></i>Upcoming Events</span><span class="mini-value" id="widget-events">-</span></div>
+        <div class="mini-widget"><span class="mini-label"><i class="bi bi-person-lines-fill admin-icon me-1" aria-hidden="true"></i>Recently Joined</span><span class="mini-value" id="widget-recent">-</span></div>
+        <div class="mini-widget"><span class="mini-label"><i class="bi bi-trophy-fill admin-icon me-1" aria-hidden="true"></i>Top Circle</span><span class="mini-value" id="widget-top-circle">-</span></div>
+        <div class="mini-widget"><span class="mini-label"><i class="bi bi-building-fill admin-icon me-1" aria-hidden="true"></i>Top Industry</span><span class="mini-value" id="widget-top-industry">-</span></div>
+        <div class="mini-widget"><span class="mini-label"><i class="bi bi-clock-history admin-icon me-1" aria-hidden="true"></i>Pending Approvals</span><span class="mini-value" id="widget-pending-approvals">0</span></div>
       </div>
     </div>
   </div>
@@ -516,9 +516,9 @@
             Saved filters
           </button>
           <div id="saved-filters-menu" class="hidden absolute right-0 mt-2 w-52 rounded-xl border bs surface shadow-2xl py-1.5 z-40 fade-in">
-            <button onclick="applySavedFilter('gold')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 border-none bg-transparent">🔥 Gold members</button>
-            <button onclick="applySavedFilter('expiring')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 border-none bg-transparent">⏳ Expiring next 30 days</button>
-            <button onclick="applySavedFilter('inactive')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 border-none bg-transparent">💤 Inactive 30d+</button>
+            <button onclick="applySavedFilter('gold')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 border-none bg-transparent"><i class="bi bi-fire admin-icon me-1.5" aria-hidden="true"></i>Gold members</button>
+            <button onclick="applySavedFilter('expiring')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 border-none bg-transparent"><i class="bi bi-hourglass-split admin-icon me-1.5" aria-hidden="true"></i>Expiring next 30 days</button>
+            <button onclick="applySavedFilter('inactive')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 border-none bg-transparent"><i class="bi bi-moon-stars admin-icon me-1.5" aria-hidden="true"></i>Inactive 30d+</button>
           </div>
         </div>
         <div class="relative">
@@ -861,22 +861,22 @@
     <!-- Modal Tabs -->
     <div class="px-6 py-2 border-b bs surface-2 flex flex-wrap gap-1 flex-none">
       <button onclick="setEditTab(1)" id="edit-tab-btn-1" class="px-3 py-1.5 rounded-lg text-[11.5px] font-medium transition flex items-center gap-1.5 bg-accent text-white border-none cursor-pointer">
-        👤 1. Personal Profile
+        <i class="bi bi-person-fill me-1" aria-hidden="true"></i>1. Personal Profile
       </button>
       <button onclick="setEditTab(2)" id="edit-tab-btn-2" class="px-3 py-1.5 rounded-lg text-[11.5px] font-medium transition flex items-center gap-1.5 t2 hover:surface-3 hover:t1 border-none bg-transparent cursor-pointer">
-        💼 2. Business Details
+        <i class="bi bi-briefcase-fill me-1" aria-hidden="true"></i>2. Business Details
       </button>
       <button onclick="setEditTab(3)" id="edit-tab-btn-3" class="px-3 py-1.5 rounded-lg text-[11.5px] font-medium transition flex items-center gap-1.5 t2 hover:surface-3 hover:t1 border-none bg-transparent cursor-pointer">
-        💳 3. Membership & Coins
+        <i class="bi bi-credit-card-2-front-fill me-1" aria-hidden="true"></i>3. Membership & Coins
       </button>
       <button onclick="setEditTab(4)" id="edit-tab-btn-4" class="px-3 py-1.5 rounded-lg text-[11.5px] font-medium transition flex items-center gap-1.5 t2 hover:surface-3 hover:t1 border-none bg-transparent cursor-pointer">
-        ⭕ 4. Circles & Admin
+        <i class="bi bi-record-circle-fill me-1" aria-hidden="true"></i>4. Circles & Admin
       </button>
       <button onclick="setEditTab(5)" id="edit-tab-btn-5" class="px-3 py-1.5 rounded-lg text-[11.5px] font-medium transition flex items-center gap-1.5 t2 hover:surface-3 hover:t1 border-none bg-transparent cursor-pointer">
-        📄 5. Story Submissions (0)
+        <i class="bi bi-file-earmark-richtext-fill me-1" aria-hidden="true"></i>5. Story Submissions (0)
       </button>
       <button onclick="setEditTab(6)" id="edit-tab-btn-6" class="px-3 py-1.5 rounded-lg text-[11.5px] font-medium transition flex items-center gap-1.5 t2 hover:surface-3 hover:t1 border-none bg-transparent cursor-pointer">
-        👥 6. Introduced Members (0)
+        <i class="bi bi-people-fill me-1" aria-hidden="true"></i>6. Introduced Members (0)
       </button>
     </div>
     
@@ -886,7 +886,7 @@
         <!-- Tab 1: Personal Profile -->
         <div id="edit-tab-content-1" class="space-y-6">
           <div class="border-b bs pb-2.5">
-            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">📇 Personal Identification</h3>
+            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5"><i class="bi bi-card-heading me-1" aria-hidden="true"></i>Personal Identification</h3>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -943,7 +943,7 @@
         <!-- Tab 2: Business Details -->
         <div id="edit-tab-content-2" class="hidden space-y-6">
           <div class="border-b bs pb-2.5">
-            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">🏢 Business & Organization Details</h3>
+            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5"><i class="bi bi-building-fill me-1" aria-hidden="true"></i>Business & Organization Details</h3>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -970,7 +970,7 @@
         <!-- Tab 3: Membership & Coins -->
         <div id="edit-tab-content-3" class="hidden space-y-6">
           <div class="border-b bs pb-2.5">
-            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">💳 Membership Status & Wallet</h3>
+            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5"><i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Membership Status & Wallet</h3>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
@@ -1026,7 +1026,7 @@
         <!-- Tab 4: Circles & Admin -->
         <div id="edit-tab-content-4" class="hidden space-y-6">
           <div class="border-b bs pb-2.5">
-            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">⭕ Circle Assignments & Roles</h3>
+            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5"><i class="bi bi-diagram-3-fill me-1" aria-hidden="true"></i>Circle Assignments & Roles</h3>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1048,7 +1048,7 @@
         <!-- Tab 5: Story Submissions -->
         <div id="edit-tab-content-5" class="hidden space-y-6">
           <div class="border-b bs pb-2.5">
-            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">📄 Stories & Vyapaar Submissions</h3>
+            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>Stories & Vyapaar Submissions</h3>
           </div>
           <div class="text-center py-8 text-xs t3">No story submissions recorded for this peer.</div>
         </div>
@@ -1056,7 +1056,7 @@
         <!-- Tab 6: Introduced Members -->
         <div id="edit-tab-content-6" class="hidden space-y-6">
           <div class="border-b bs pb-2.5">
-            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">👥 Introduced Peers & Referrals</h3>
+            <h3 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider flex items-center gap-1.5"><i class="bi bi-person-plus-fill me-1" aria-hidden="true"></i>Introduced Peers & Referrals</h3>
           </div>
           <div class="text-center py-8 text-xs t3">No introduced peers found.</div>
         </div>
@@ -1558,13 +1558,13 @@
           </div>
         </td>
         <td class="border-b bs px-3 py-2.5 align-top font-mono text-[12.5px] t2">${m.mobile || '—'}</td>
-        <td class="border-b bs px-3 py-2.5 align-top t2">${m.email || '—'}</td>
-        <td class="border-b bs px-3 py-2.5 align-top t2">${m.company || '—'}</td>
-        <td class="border-b bs px-3 py-2.5 align-top t2">${m.industry || '—'}</td>
-        <td class="border-b bs px-3 py-2.5 align-top t2">${m.city || '—'}</td>
-        <td class="border-b bs px-3 py-2.5 align-top t2">${m.country || '—'}</td>
-        <td class="border-b bs px-3 py-2.5 align-top t2">${m.circle || '—'}</td>
-        <td class="border-b bs px-3 py-2.5 align-top t2">${m.role || '—'}</td>
+        <td class="border-b bs px-3 py-2.5 align-top t2"><div class="admin-grid-text-clamp">${m.email || '—'}</div></td>
+        <td class="border-b bs px-3 py-2.5 align-top t2"><div class="admin-grid-text-clamp">${m.company || '—'}</div></td>
+        <td class="border-b bs px-3 py-2.5 align-top t2"><div class="admin-grid-text-clamp">${m.industry || '—'}</div></td>
+        <td class="border-b bs px-3 py-2.5 align-top t2"><div class="admin-grid-text-clamp">${m.city || '—'}</div></td>
+        <td class="border-b bs px-3 py-2.5 align-top t2"><div class="admin-grid-text-clamp">${m.country || '—'}</div></td>
+        <td class="border-b bs px-3 py-2.5 align-top t2"><div class="admin-grid-text-clamp">${m.circle || '—'}</div></td>
+        <td class="border-b bs px-3 py-2.5 align-top t2"><div class="admin-grid-text-clamp">${m.role || '—'}</div></td>
         <td class="border-b bs px-3 py-2.5 align-top">${membershipBadge(m.membership)}</td>
         <td class="border-b bs px-3 py-2.5 align-top">${statusBadge(m.status)}</td>
         <td class="border-b bs px-3 py-2.5 align-top">${statusBadge(m.payment)}</td>
@@ -1575,7 +1575,7 @@
         <td class="border-b bs px-3 py-2.5 align-top text-right font-mono t2">${m.renewalCount}</td>
         <td class="border-b bs px-3 py-2.5 align-top text-right font-mono t2">${m.referrals}</td>
         <td class="border-b bs px-3 py-2.5 align-top text-right font-mono text-rose-500">${m.pendingAmount > 0 ? '₹' + m.pendingAmount.toLocaleString() : '—'}</td>
-        <td class="border-b bs px-3 py-2.5 align-top t2 truncate max-w-[120px]" title="${m.lastEvent}">${m.lastEvent}</td>
+        <td class="border-b bs px-3 py-2.5 align-top t2"><div class="admin-grid-text-clamp">${m.lastEvent}</div></td>
         <td class="border-b bs px-3 py-2.5 text-center align-top" onclick="event.stopPropagation()">
           <div class="flex items-center justify-center gap-1.5">
             <a href="/admin/users/${m.id}/edit" class="px-2 py-1 rounded hover:surface-3 t2 hover:t1 transition border bs text-xs text-decoration-none">Edit</a>
@@ -1873,7 +1873,7 @@
         <div class="space-y-5 text-[12.5px] pb-4">
           <div>
             <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-indigo-600 mb-2 flex items-center gap-1.5">
-              <span>👤</span> MEMBER INFO GROUP
+              <i class="bi bi-person-circle" aria-hidden="true"></i> MEMBER INFO GROUP
             </div>
             <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
               <div class="flex justify-between gap-4"><span class="text-slate-400">Email</span><span class="text-slate-800 truncate max-w-[210px] text-right font-medium" title="${m.email || ''}">${m.email || '—'}</span></div>
@@ -1887,7 +1887,7 @@
     
           <div>
             <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-indigo-600 mb-2 flex items-center gap-1.5">
-              <span>🌐</span> REGION & BUSINESS GROUP
+              <i class="bi bi-globe" aria-hidden="true"></i> REGION & BUSINESS GROUP
             </div>
             <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
               <div class="flex justify-between"><span class="text-slate-400">City</span><span class="text-slate-800 font-medium">${m.city || '—'}</span></div>
@@ -1898,7 +1898,7 @@
     
           <div>
             <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-amber-500 mb-2 flex items-center gap-1.5">
-              <span>⭐</span> MEMBERSHIP & RENEWAL
+              <i class="bi bi-star-fill" aria-hidden="true"></i> MEMBERSHIP & RENEWAL
             </div>
             <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
               <div class="flex justify-between"><span class="text-slate-400">Joined Date</span><span class="text-slate-800 font-medium">${m.joined || '—'}</span></div>

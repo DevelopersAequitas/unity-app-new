@@ -170,7 +170,11 @@
                                         @elseif ($column === 'id')
                                             <span class="font-mono text-xs t3">{{ $formatValue($value, $column) }}</span>
                                         @else
-                                            <span class="t1" @if($isLongText) title="{{ (string) $value }}" @endif>{{ $formatValue($value, $column, $isLongText) }}</span>
+                                            @if ($isLongText)
+                                                <x-admin-grid-text :text="(string) $value" class="t1" />
+                                            @else
+                                                <span class="t1">{{ $formatValue($value, $column, false) }}</span>
+                                            @endif
                                         @endif
                                     </td>
                                 @endforeach

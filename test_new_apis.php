@@ -24,14 +24,14 @@ $requestAll = Request::create('/api/v1/app/changelogs', 'GET');
 $responseAll = $changelogController->index($requestAll);
 
 echo "All Changelogs Response:\n";
-echo json_encode(json_decode($responseAll->getContent()), JSON_PRETTY_PRINT) . "\n\n";
+echo json_encode(json_decode($responseAll->getContent()), JSON_PRETTY_PRINT)."\n\n";
 
 // Test listing only Android changelogs
 $requestAndroid = Request::create('/api/v1/app/changelogs', 'GET', ['platform' => 'android']);
 $responseAndroid = $changelogController->index($requestAndroid);
 
 echo "Android Changelogs Response:\n";
-echo json_encode(json_decode($responseAndroid->getContent()), JSON_PRETTY_PRINT) . "\n\n";
+echo json_encode(json_decode($responseAndroid->getContent()), JSON_PRETTY_PRINT)."\n\n";
 
 echo "==================================================\n";
 echo "2. TESTING POST /api/v1/user/mobile-version\n";
@@ -39,11 +39,11 @@ echo "==================================================\n";
 
 // Find an active user in the database to run the test
 $user = User::where('status', 'active')->first();
-if (!$user) {
+if (! $user) {
     $user = User::first();
 }
 
-if (!$user) {
+if (! $user) {
     echo "No user found to test POST /api/v1/user/mobile-version\n";
     exit(1);
 }
@@ -55,19 +55,19 @@ $payload = [
     'platform' => 'android',
     'app_version' => '1.0.5',
     'device_model' => 'Samsung S24 Ultra',
-    'os_version' => 'Android 14'
+    'os_version' => 'Android 14',
 ];
 
 $mobileVersionController = app(UserMobileVersionController::class);
 
 // Make the request and inject the user
 $requestPost = Request::create('/api/v1/user/mobile-version', 'POST', $payload);
-$requestPost->setUserResolver(fn() => $user);
+$requestPost->setUserResolver(fn () => $user);
 
 $responsePost = $mobileVersionController->store($requestPost);
 
 echo "POST Response:\n";
-echo json_encode(json_decode($responsePost->getContent()), JSON_PRETTY_PRINT) . "\n\n";
+echo json_encode(json_decode($responsePost->getContent()), JSON_PRETTY_PRINT)."\n\n";
 
 // Verify DB entry
 $stored = UserMobileVersion::where('user_id', $user->id)->where('platform', 'android')->first();

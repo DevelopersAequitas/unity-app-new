@@ -57,13 +57,13 @@
                                 </span>
                             </td>
                             <td class="px-3 py-2.5 text-xs font-semibold t1">
-                                {{ $reminder->activity }}
+                                <x-admin-grid-text :text="$reminder->activity" />
                             </td>
                             <td class="px-3 py-2.5 text-xs font-bold t1">
-                                {{ $reminder->notification_title }}
+                                <x-admin-grid-text :text="$reminder->notification_title" />
                             </td>
-                            <td class="px-3 py-2.5 text-xs t2 max-w-[350px] truncate" title="{{ $reminder->notification_body }}">
-                                {{ $reminder->notification_body }}
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[350px]">
+                                <x-admin-grid-text :text="$reminder->notification_body" />
                             </td>
                             <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
                                 ⏱️ <span class="font-medium t1">{{ $reminder->action_trigger_timing }}</span>
@@ -74,7 +74,7 @@
                                         data-id="{{ $reminder->id }}"
                                         data-activity="{{ $reminder->activity }}">
                                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
-                                        👥 {{ $counts[$reminder->activity] ?? 0 }}
+                                        <i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $counts[$reminder->activity] ?? 0 }}</span>
                                     </span>
                                 </button>
                             </td>

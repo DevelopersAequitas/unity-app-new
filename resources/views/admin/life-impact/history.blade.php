@@ -135,9 +135,9 @@
                                         <div class="t3 text-[10px] mt-0.5">{{ $item->action_key }}</div>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t1 max-w-[220px] truncate" title="{{ $clean($item->title ?? '') }}">{{ $clean($item->title ?? '') }}</td>
-                                <td class="px-3 py-2.5 text-xs t2 max-w-[280px] truncate" title="{{ $clean($item->description ?? '') }}">{{ $clean($item->description ?? '') }}</td>
-                                <td class="px-3 py-2.5 text-xs t3 max-w-[240px] truncate" title="{{ $clean($item->remarks ?? '') }}">{{ $clean($item->remarks ?? '') }}</td>
+                                <td class="px-3 py-2.5 text-xs t1 max-w-[220px]"><x-admin-grid-text :text="$clean($item->title ?? '')" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[280px]"><x-admin-grid-text :text="$clean($item->description ?? '')" /></td>
+                                <td class="px-3 py-2.5 text-xs t3 max-w-[240px]"><x-admin-grid-text :text="$clean($item->remarks ?? '')" /></td>
                             </tr>
                         @empty
                             <tr>

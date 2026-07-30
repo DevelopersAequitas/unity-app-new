@@ -287,18 +287,18 @@
             const detailList   = document.getElementById('actModalDetailList');
 
             const titles = {
-                testimonials:   '💬 Testimonials',
-                referrals:      '👥 Referrals',
-                deals:          '💼 Business Deals',
-                p2p:            '🤝 P2P Meetings',
-                requirements:   '📄 Requirements',
-                leadership:     '🏅 Leadership Requests',
-                recommendations:'👍 Recommended Peers',
-                visitors:       '🪪 Registered Visitors',
-                support_tickets:'🎧 Support Tickets'
+                testimonials:   '<i class="bi bi-chat-quote-fill admin-icon me-1.5" aria-hidden="true"></i>Testimonials',
+                referrals:      '<i class="bi bi-person-plus-fill admin-icon me-1.5" aria-hidden="true"></i>Referrals',
+                deals:          '<i class="bi bi-briefcase-fill admin-icon me-1.5" aria-hidden="true"></i>Business Deals',
+                p2p:            '<i class="bi bi-people-fill admin-icon me-1.5" aria-hidden="true"></i>P2P Meetings',
+                requirements:   '<i class="bi bi-file-earmark-text-fill admin-icon me-1.5" aria-hidden="true"></i>Requirements',
+                leadership:     '<i class="bi bi-award-fill admin-icon me-1.5" aria-hidden="true"></i>Leadership Requests',
+                recommendations:'<i class="bi bi-hand-thumbs-up-fill admin-icon me-1.5" aria-hidden="true"></i>Recommended Peers',
+                visitors:       '<i class="bi bi-person-badge-fill admin-icon me-1.5" aria-hidden="true"></i>Registered Visitors',
+                support_tickets:'<i class="bi bi-headset admin-icon me-1.5" aria-hidden="true"></i>Support Tickets'
             };
 
-            if (detailTitle) detailTitle.textContent = titles[type] || 'Activity Records';
+            if (detailTitle) detailTitle.innerHTML = titles[type] || 'Activity Records';
             if (detailList) detailList.innerHTML = '<div class="text-center py-5 text-muted" style="font-size:12px;"><div class="spinner-border spinner-border-sm text-primary mb-2"></div><br>Loading records…</div>';
 
             const summarySection = document.getElementById('actModalActivitySummarySection');

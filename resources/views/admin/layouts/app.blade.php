@@ -33,6 +33,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="{{ asset('js/admin-filters.js') }}?v={{ filemtime(public_path('js/admin-filters.js')) }}"></script>
+    <script src="{{ asset('js/admin-grid-clamp.js') }}?v={{ filemtime(public_path('js/admin-grid-clamp.js')) }}"></script>
     @stack('scripts')
 
     <!-- Media Preview Modal -->

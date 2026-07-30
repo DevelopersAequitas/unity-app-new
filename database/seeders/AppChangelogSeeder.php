@@ -24,7 +24,7 @@ class AppChangelogSeeder extends Seeder
             'features' => [
                 'Optimized push notifications delivery speed',
                 'Added automated app version compatibility warning checks',
-                'Enhanced security controls on user profile data'
+                'Enhanced security controls on user profile data',
             ],
             'is_released' => true,
             'released_at' => now(),
@@ -39,7 +39,7 @@ class AppChangelogSeeder extends Seeder
             'features' => [
                 'Fixed notch layout overlaps on iPhone 15/16',
                 'Increased contact visibility status update responsiveness',
-                'Reduced background battery consumption during live chat'
+                'Reduced background battery consumption during live chat',
             ],
             'is_released' => true,
             'released_at' => now()->subDays(5),
@@ -54,7 +54,7 @@ class AppChangelogSeeder extends Seeder
             'features' => [
                 'Peer Introduction creative cards generated automatically on timeline',
                 'Milestone tracker showing earned medals for your network contributions',
-                'Brand Partner offers expiry reminder notifications'
+                'Brand Partner offers expiry reminder notifications',
             ],
             'is_released' => true,
             'released_at' => now()->subDays(12),

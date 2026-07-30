@@ -6,7 +6,6 @@ namespace Tests\Feature;
 
 use App\Models\AppChangelog;
 use App\Models\User;
-use App\Models\UserMobileVersion;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;

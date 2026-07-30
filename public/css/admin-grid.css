@@ -363,3 +363,86 @@
   z-index: 20;
   border-right-width: 1px;
 }
+
+/* ============================================================
+   ADMIN GRID TEXT CLAMP & HOVER TOOLTIP DESIGN SYSTEM
+   ============================================================ */
+
+.admin-grid-text-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.4;
+  max-height: 2.8em;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.admin-grid-text-single {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+td.admin-grid-text-clamp {
+  display: table-cell;
+  max-height: none;
+}
+
+td.admin-grid-text-clamp > * {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.4;
+  max-height: 2.8em;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.tooltip.admin-grid-tooltip {
+  z-index: 1090 !important;
+  pointer-events: none;
+}
+
+.tooltip.admin-grid-tooltip .tooltip-inner {
+  max-width: 350px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  background-color: var(--surface-3, #1A2030);
+  color: var(--text-1, #EEF0F5);
+  border: 1px solid var(--border, #232A3B);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+  border-radius: 6px;
+  text-align: left;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.admin-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: inherit;
+  vertical-align: middle;
+  line-height: 1;
+}

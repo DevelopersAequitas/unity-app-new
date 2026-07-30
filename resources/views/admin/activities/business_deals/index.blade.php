@@ -314,8 +314,8 @@
                                                         @endif
                                                     </div>
                                                     <div class="t3 text-[10px]">
-                                                        @if($deal->from_company) <span>{{ $deal->from_company }}</span> @endif
-                                                        @if($deal->from_city) &bull; <span>{{ $deal->from_city }}</span> @endif
+                                                        @if($deal->from_company) <x-admin-grid-text :text="$deal->from_company" class="inline-block" /> @endif
+                                                        @if($deal->from_city) &bull; <x-admin-grid-text :text="$deal->from_city" class="inline-block" /> @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -336,8 +336,8 @@
                                                         @endif
                                                     </div>
                                                     <div class="t3 text-[10px]">
-                                                        @if($deal->to_company) <span>{{ $deal->to_company }}</span> @endif
-                                                        @if($deal->to_city) &bull; <span>{{ $deal->to_city }}</span> @endif
+                                                        @if($deal->to_company) <x-admin-grid-text :text="$deal->to_company" class="inline-block" /> @endif
+                                                        @if($deal->to_city) &bull; <x-admin-grid-text :text="$deal->to_city" class="inline-block" /> @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -346,13 +346,13 @@
                                             @if($deal->deal_date)
                                                 <div class="font-semibold t1 text-[11px]">{{ $formatDate($deal->deal_date) }}</div>
                                             @endif
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 mt-0.5">{{ $deal->business_type ?? '—' }}</span>
+                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 mt-0.5 admin-grid-text-clamp" data-full-text="{{ $deal->business_type }}">{{ $deal->business_type ?? '—' }}</span>
                                         </td>
                                         <td class="px-3 py-2.5 text-xs font-bold text-emerald-600">
                                             ₹{{ number_format($deal->deal_amount ?? 0, 2) }}
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs t2 max-w-[150px] truncate" title="{{ $deal->comment }}">
-                                            {{ $deal->comment ?? '—' }}
+                                        <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:180px;">
+                                            <x-admin-grid-text :text="$deal->comment ?? '—'" :lines="2" />
                                         </td>
                                         <td class="px-3 py-2.5 text-xs">
                                             @if ($hasMedia)

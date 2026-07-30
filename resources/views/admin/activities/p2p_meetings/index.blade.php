@@ -319,8 +319,8 @@
                                                         @endif
                                                     </div>
                                                     <div class="t3 text-[10px]">
-                                                        @if($meeting->from_company) <span>{{ $meeting->from_company }}</span> @endif
-                                                        @if($meeting->from_city) &bull; <span>{{ $meeting->from_city }}</span> @endif
+                                                        @if($meeting->from_company) <x-admin-grid-text :text="$meeting->from_company" class="inline-block" /> @endif
+                                                        @if($meeting->from_city) &bull; <x-admin-grid-text :text="$meeting->from_city" class="inline-block" /> @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -341,8 +341,8 @@
                                                         @endif
                                                     </div>
                                                     <div class="t3 text-[10px]">
-                                                        @if($meeting->to_company) <span>{{ $meeting->to_company }}</span> @endif
-                                                        @if($meeting->to_city) &bull; <span>{{ $meeting->to_city }}</span> @endif
+                                                        @if($meeting->to_company) <x-admin-grid-text :text="$meeting->to_company" class="inline-block" /> @endif
+                                                        @if($meeting->to_city) &bull; <x-admin-grid-text :text="$meeting->to_city" class="inline-block" /> @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -351,10 +351,10 @@
                                             @if($meeting->meeting_date)
                                                 <div class="font-semibold t1 text-[11px]">{{ $formatDate($meeting->meeting_date) }}</div>
                                             @endif
-                                            <div class="t3 text-[10px] mt-0.5">{{ $meeting->meeting_place ?? '—' }}</div>
+                                            <x-admin-grid-text :text="$meeting->meeting_place ?? '—'" :lines="2" class="t3 text-[10px] mt-0.5" />
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs t2 max-w-[200px] truncate" title="{{ $meeting->remarks }}">
-                                            {{ $meeting->remarks ?? '—' }}
+                                        <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:180px;">
+                                            <x-admin-grid-text :text="$meeting->remarks ?? '—'" :lines="2" />
                                         </td>
                                         <td class="px-3 py-2.5 text-xs">
                                             @if ($hasMedia)

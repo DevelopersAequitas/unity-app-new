@@ -106,11 +106,15 @@
                                     {{ $ticket->contact_name }}
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs t2"><a href="mailto:{{ $ticket->email }}" class="no-underline hover:underline text-indigo-600">{{ $ticket->email }}</a></td>
-                            <td class="px-3 py-2.5 text-xs t2 max-w-[250px] truncate" title="{{ $ticket->subject }}">
-                                <a href="{{ route('admin.support-tickets.show', $ticket->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
-                                    {{ $ticket->subject }}
-                                </a>
+                            <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:240px;">
+                                <x-admin-grid-text :text="$ticket->email" :lines="1" />
+                            </td>
+                            <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:220px;">
+                                <x-admin-grid-text :lines="2">
+                                    <a href="{{ route('admin.support-tickets.show', $ticket->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        {{ $ticket->subject }}
+                                    </a>
+                                </x-admin-grid-text>
                             </td>
                             <td class="px-3 py-2.5 text-xs">
                                 <span class="{{ $statusBadge }}">{{ ucwords(str_replace('_', ' ', $ticket->status)) }}</span>

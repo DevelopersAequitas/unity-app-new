@@ -58,7 +58,7 @@
     <form method="GET" action="{{ route('admin.events.index') }}" class="surface-2 rounded-xl border bs p-3.5 space-y-3">
       <div class="flex flex-wrap items-center gap-2.5">
         <div class="flex-1 min-w-[200px]">
-          <input type="text" class="w-full px-3 py-2 text-xs rounded-lg border bs surface t1 focus-ring" name="search" value="{{ request('search') }}" placeholder="🔍 Search event title...">
+          <input type="text" class="w-full px-3 py-2 text-xs rounded-lg border bs surface t1 focus-ring" name="search" value="{{ request('search') }}" placeholder="Search event title...">
         </div>
         <div class="w-auto min-w-[130px]">
           <select class="w-full px-3 py-2 text-xs rounded-lg border bs surface t1 focus-ring" name="event_type">
@@ -121,19 +121,19 @@
             @forelse($events as $event)
               <tr class="hover:surface-2 transition border-b bs">
                 <td class="px-3 py-3 font-semibold text-slate-900 t1 sticky left-0 z-10 surface" style="min-width:200px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
-                  <div class="max-w-[280px] leading-snug line-clamp-2" title="{{ $event->title }}">
+                  <div class="max-w-[280px] leading-snug admin-grid-text-clamp" data-full-text="{{ $event->title }}">
                     <a href="{{ route('admin.events.show', $event->id) }}" class="text-indigo-600 hover:text-indigo-800 no-underline font-medium">
                       {{ $event->title }}
                     </a>
                   </div>
                 </td>
                 <td class="px-3 py-3 text-xs">
-                  <span class="chip px-2.5 py-1 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 rounded-full inline-block truncate max-w-[120px]" title="{{ str_replace('_', ' ', ucfirst($event->event_type)) }}">
+                  <span class="chip px-2.5 py-1 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 rounded-full inline-block admin-grid-text-clamp max-w-[120px]" data-full-text="{{ str_replace('_', ' ', ucfirst($event->event_type)) }}">
                     {{ str_replace('_', ' ', ucfirst($event->event_type)) }}
                   </span>
                 </td>
                 <td class="px-3 py-3 text-xs t2">
-                  <div class="max-w-[180px] truncate" title="{{ $event->circle?->name ?? 'Global' }}">
+                  <div class="max-w-[180px] admin-grid-text-clamp" data-full-text="{{ $event->circle?->name ?? 'Global' }}">
                     @if(!empty($event->circle?->id))
                       <a href="{{ route('admin.circles.show', $event->circle->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium no-underline">
                         {{ $event->circle->name }}

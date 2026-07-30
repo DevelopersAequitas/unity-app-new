@@ -289,31 +289,31 @@
                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Page count: {{ number_format(count($items)) }}</span>
                     </div>
                     <div class="overflow-x-auto relative">
-                        <table class="min-w-full border-collapse text-[13px]">
+                        <table class="min-w-[950px] w-full border-collapse text-[13px]">
                             <thead>
                                 <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">From</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Subject</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Description</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Region</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Category</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Media</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">From</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Subject</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Description</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:90px;">Region</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Business Category</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:80px;">Status</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:80px;">Media</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Created At</th>
                                 </tr>
-                                <tr class="surface-2 border-b bs filter-row">
-                                    <th class="px-2 py-1">
+                                <tr class="surface-2 border-b bs filter-row align-middle">
+                                    <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
                                         <input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     </th>
-                                    <th class="px-2 py-1"><input type="text" name="subject" value="{{ $filters['subject'] ?? '' }}" placeholder="Subject" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                    <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
-                                    <th class="px-2 py-1">
+                                    <th class="px-2 py-1" style="min-width:110px;"><input type="text" name="subject" value="{{ $filters['subject'] ?? '' }}" placeholder="Subject" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1" style="min-width:130px;"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                    <th class="px-2 py-1" style="min-width:90px;">
                                         <input type="text" name="region" value="{{ $filters['region'] ?? '' }}" placeholder="Region" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     </th>
-                                    <th class="px-2 py-1">
+                                    <th class="px-2 py-1" style="min-width:130px;">
                                         <input type="text" name="category" value="{{ $filters['category'] ?? '' }}" placeholder="Category" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     </th>
-                                    <th class="px-2 py-1">
+                                    <th class="px-2 py-1" style="min-width:80px;">
                                         <select name="status" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                             <option value="">Any</option>
                                             @foreach (($statuses ?? collect()) as $status)
@@ -321,14 +321,14 @@
                                             @endforeach
                                         </select>
                                     </th>
-                                    <th class="px-2 py-1">
+                                    <th class="px-2 py-1" style="min-width:80px;">
                                         <select name="has_media" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                             <option value="">Any</option>
                                             <option value="1" @selected(($filters['has_media'] ?? '') === '1')>Yes</option>
                                             <option value="0" @selected(($filters['has_media'] ?? '') === '0')>No</option>
                                         </select>
                                     </th>
-                                    <th class="px-2 py-1">
+                                    <th class="px-2 py-1" style="min-width:110px;">
                                         <div class="flex justify-end">
                                             <button type="button" onclick="clearAdminFilters(event, 'requirementsFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
                                         </div>
@@ -350,13 +350,13 @@
                                         $fromId = $requirement->actor_id ?? $requirement->user_id ?? null;
                                     @endphp
                                     <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-requirement="{{ $makeRequirementPayload($requirement) }}" onclick="openRequirementDetailModal(this, event)">
-                                        <td class="px-3 py-2.5">
+                                        <td class="px-3 py-2.5 align-middle sticky left-0 z-10 surface" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                             <div class="flex items-center gap-2">
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($fromName) }}">
                                                     {{ $getInitials($fromName) }}
                                                 </div>
                                                 <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">
+                                                    <div class="font-semibold t1 text-[12.5px] whitespace-nowrap">
                                                         @if(!empty($fromId))
                                                             <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $fromId }}', event);">
                                                                 {{ $fromName }}
@@ -366,39 +366,41 @@
                                                         @endif
                                                     </div>
                                                     <div class="t3 text-[10px]">
-                                                        @if($requirement->from_company) <span>{{ $requirement->from_company }}</span> @endif
-                                                        @if($requirement->from_city) &bull; <span>{{ $requirement->from_city }}</span> @endif
+                                                        @if($requirement->from_company) <x-admin-grid-text :text="$requirement->from_company" :lines="2" class="inline-block" /> @endif
+                                                        @if($requirement->from_city) &bull; <x-admin-grid-text :text="$requirement->from_city" :lines="1" class="inline-block" /> @endif
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px] max-w-[200px] truncate" title="{{ $requirement->subject }}">{{ $requirement->subject ?? '—' }}</td>
-                                        <td class="px-3 py-2.5 text-xs t3 max-w-[250px] truncate" title="{{ $requirement->description }}">{{ $requirement->description ?? '—' }}</td>
-                                        <td class="px-3 py-2.5 text-xs t2">{{ $regionLabel ?: '—' }}</td>
-                                        <td class="px-3 py-2.5 text-xs">
+                                        <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px] align-middle" style="min-width:110px;"><x-admin-grid-text :text="$requirement->subject ?? '—'" :lines="2" /></td>
+                                        <td class="px-3 py-2.5 text-xs t3 align-middle" style="min-width:130px;"><x-admin-grid-text :text="$requirement->description ?? '—'" :lines="2" /></td>
+                                        <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:90px;"><x-admin-grid-text :text="$regionLabel ?: '—'" :lines="2" /></td>
+                                        <td class="px-3 py-2.5 text-xs align-middle" style="min-width:130px;">
                                             @if($categoryLabel)
-                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $categoryLabel }}</span>
+                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 inline-block admin-grid-text-clamp" data-full-text="{{ $categoryLabel }}">{{ $categoryLabel }}</span>
                                             @else
                                                 <span class="t3">—</span>
                                             @endif
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs">
+                                        <td class="px-3 py-2.5 text-xs align-middle" style="min-width:80px;">
                                             @if($requirement->status === 'active')
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">{{ ucfirst($requirement->status ?? '—') }}</span>
                                             @else
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($requirement->status ?? '—') }}</span>
                                             @endif
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs">
-                                            @if ($mediaInfo['has'] && $mediaId)
+                                        <td class="px-3 py-2.5 text-xs align-middle" style="min-width:80px;">
+                                            @if($mediaInfo['has'] && $mediaId)
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
-                                                    Available ({{ $mediaInfo['count'] }})
+                                                    Available
                                                 </span>
+                                                <button type="button" class="text-indigo-600 font-semibold text-xs ms-1 bg-transparent border-0 cursor-pointer p-0" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-req-{{ $requirement->id }}" onclick="event.stopPropagation();">View</button>
+                                                <script type="application/json" id="media-json-req-{{ $requirement->id }}">{{ e(json_encode(is_string($requirement->media ?? null) ? json_decode($requirement->media ?? '[]', true) : ($requirement->media ?? []))) }}</script>
                                             @else
                                                 <span class="t3">No Media</span>
                                             @endif
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                        <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap align-middle" style="min-width:110px;">
                                             {{ $formatDateTime($requirement->created_at ?? null) }}
                                         </td>
                                     </tr>

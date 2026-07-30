@@ -11,7 +11,7 @@
             <p class="text-xs t3 m-0 mt-0.5">Manage community announcements, priority broadcasts, and notifications.</p>
         </div>
         <a href="{{ route('admin.circulars.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
-            ➕ Create Circular
+            <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i>Create Circular
         </a>
     </div>
 
@@ -89,8 +89,8 @@
                                 <span class="t3">-</span>
                             @endif
                         </td>
-                        <td class="px-3 py-2.5 font-semibold t1 text-[12.5px] whitespace-nowrap">{{ $circular->title }}</td>
-                        <td class="px-3 py-2.5 text-xs t2">{{ $circular->category }}</td>
+                        <td class="px-3 py-2.5 font-semibold t1 text-[12.5px]"><x-admin-grid-text :text="$circular->title" /></td>
+                        <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$circular->category" /></td>
                         <td class="px-3 py-2.5 text-xs">
                             <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $circular->priority }}</span>
                         </td>

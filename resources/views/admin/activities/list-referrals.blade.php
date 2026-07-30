@@ -104,11 +104,16 @@
                                                     {{ $toName }}
                                                 @endif
                                             </div>
-                                            <div class="t3 text-[10px]">{{ $referral->toUser->email ?? '-' }}</div>
+                                            @php $toCompany = $referral->toUser->company_name ?? $referral->toUser->company ?? null; @endphp
+                                            @if($toCompany)
+                                                <x-admin-grid-text :text="$toCompany" class="t3 text-[10px]" />
+                                            @else
+                                                <div class="t3 text-[10px]">{{ $referral->toUser->email ?? '-' }}</div>
+                                            @endif
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $referral->referral_of ?? '-' }}</td>
+                                <td class="px-3 py-2.5 text-xs font-semibold t1"><x-admin-grid-text :text="$referral->referral_of ?? '-'" /></td>
                                 <td class="px-3 py-2.5 text-xs">
                                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $referral->referral_type ?? '-' }}</span>
                                 </td>
@@ -117,19 +122,17 @@
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $referral->phone ?? '-' }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $referral->email ?? '-' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2 max-w-[160px] truncate" title="{{ $referral->address }}">{{ $referral->address ?? '-' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[160px]"><x-admin-grid-text :text="$referral->address ?? '-'" /></td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if($referral->hot_value)
                                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">
-                                            🔥 {{ $referral->hot_value }}
+                                            <i class="bi bi-fire admin-icon text-rose-500 me-1" aria-hidden="true"></i><span>{{ $referral->hot_value }}</span>
                                         </span>
                                     @else
                                         <span class="t3">-</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2 max-w-[160px] truncate" title="{{ $referral->remarks }}">
-                                    {{ $referral->remarks ?? '-' }}
-                                </td>
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[160px]"><x-admin-grid-text :text="$referral->remarks ?? '-'" /></td>
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                                     {{ $formatDateTime($referral->created_at ?? null) }}
                                 </td>

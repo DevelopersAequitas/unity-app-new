@@ -50,7 +50,7 @@
         <div class="d-flex align-items-center" style="gap: 32px;">
             <!-- Left Circular Icon -->
             <div class="d-none d-sm-flex align-items-center justify-content-center shadow-sm" style="width: 70px; height: 70px; min-width: 70px; min-height: 70px; background-color: #E6F8F5; border-radius: 50%; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.08) !important; font-size: 2.2rem;">
-                👋
+                <i class="bi bi-person-circle text-emerald-600 admin-icon" aria-hidden="true"></i>
             </div>
             <!-- Text Content -->
             <div class="flex-grow-1">

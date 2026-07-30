@@ -99,7 +99,12 @@
                                                     {{ $targetName }}
                                                 @endif
                                             </div>
-                                            <div class="t3 text-[10px]">{{ $meeting->peer->email ?? '-' }}</div>
+                                            @php $toCompany = $meeting->peer->company_name ?? $meeting->peer->company ?? null; @endphp
+                                            @if($toCompany)
+                                                <x-admin-grid-text :text="$toCompany" class="t3 text-[10px]" />
+                                            @else
+                                                <div class="t3 text-[10px]">{{ $meeting->peer->email ?? '-' }}</div>
+                                            @endif
                                         </div>
                                     </div>
                                 </td>
@@ -107,10 +112,10 @@
                                     {{ $meeting->meeting_date ? $formatDate($meeting->meeting_date) : '-' }}
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t2">
-                                    {{ $meeting->meeting_place ?? '-' }}
+                                    <x-admin-grid-text :text="$meeting->meeting_place ?? '-'" />
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2 max-w-[250px] truncate" title="{{ $meeting->remarks }}">
-                                    {{ $meeting->remarks ?? '-' }}
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[250px]">
+                                    <x-admin-grid-text :text="$meeting->remarks ?? '-'" />
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                                     {{ $formatDateTime($meeting->created_at ?? null) }}

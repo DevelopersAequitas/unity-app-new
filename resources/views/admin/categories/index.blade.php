@@ -12,8 +12,9 @@
             <p class="text-xs t3 m-0 mt-0.5">Manage community circle classification categories.</p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-            <a href="{{ route('admin.categories.export', request()->query()) }}" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
-                📥 Export
+        <div class="flex items-center gap-2">
+            <a href="{{ route('admin.categories.export', request()->query()) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline flex items-center gap-1.5">
+                <i class="bi bi-download" aria-hidden="true"></i> Export
             </a>
 
             <form action="{{ route('admin.categories.import') }}" method="POST" enctype="multipart/form-data" class="flex items-center gap-2">
@@ -22,8 +23,8 @@
                 <button type="submit" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring">Import</button>
             </form>
 
-            <a href="{{ route('admin.categories.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
-                ➕ Add Category
+            <a href="{{ route('admin.categories.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1.5">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> Add Category
             </a>
         </div>
     </div>
@@ -67,7 +68,7 @@
                     @forelse ($categories as $category)
                         <tr class="hover:surface-2 transition border-b bs">
                             <td class="px-3 py-2.5 font-mono text-xs t3">{{ $category->id }}</td>
-                            <td class="px-3 py-2.5 font-semibold t1 text-[12.5px]">{{ $category->name }}</td>
+                            <td class="px-3 py-2.5 font-semibold t1 text-[12.5px]"><x-admin-grid-text :text="$category->name" /></td>
                             <td class="px-3 py-2.5 text-right whitespace-nowrap">
                                 <div class="flex items-center justify-end gap-1.5">
                                     <a href="{{ route('admin.categories.view', $category) }}" class="px-2.5 py-1 rounded-lg border bs text-xs font-medium text-indigo-600 hover:text-indigo-700 surface-2 transition no-underline">View</a>

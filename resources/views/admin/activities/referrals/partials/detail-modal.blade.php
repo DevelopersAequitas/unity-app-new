@@ -6,7 +6,7 @@
                 <div class="flex items-center justify-between w-full pr-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-emerald-500/30 border border-emerald-400/30 flex items-center justify-center text-emerald-200 text-lg shadow-sm">
-                            👤
+                            <i class="bi bi-person-plus-fill admin-icon" aria-hidden="true"></i>
                         </div>
                         <div>
                             <h5 class="modal-title font-bold text-white text-lg m-0">Referral Details</h5>

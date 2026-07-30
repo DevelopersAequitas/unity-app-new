@@ -126,7 +126,7 @@
     <div class="p-3 rounded-lg surface-2 border bs">
       <div class="flex items-center justify-between">
         <span class="text-xs t3 font-semibold uppercase tracking-wider">Upcoming Birthdays</span>
-        <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-pink-100 text-pink-700">🎂 Birthdays</span>
+        <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-pink-100 text-pink-700 flex items-center gap-1"><i class="bi bi-cake2-fill" aria-hidden="true"></i>Birthdays</span>
       </div>
       <div class="text-2xl font-bold font-display t1 mt-1">{{ $birthdaysCount }}</div>
       <div class="text-[11px] t3 mt-0.5">Peers celebrating birthday</div>
@@ -135,7 +135,7 @@
     <div class="p-3 rounded-lg surface-2 border bs">
       <div class="flex items-center justify-between">
         <span class="text-xs t3 font-semibold uppercase tracking-wider">Upcoming Anniversaries</span>
-        <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700">💍 Anniversaries</span>
+        <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700 flex items-center gap-1"><i class="bi bi-heart-fill" aria-hidden="true"></i>Anniversaries</span>
       </div>
       <div class="text-2xl font-bold font-display t1 mt-1">{{ $anniversariesCount }}</div>
       <div class="text-[11px] t3 mt-0.5">Peers celebrating wedding anniversary</div>
@@ -196,17 +196,17 @@
   <!-- Section Tabs -->
   <div class="flex items-center gap-2 mb-4 border-b bs pb-3">
     <a href="{{ route('admin.users.upcoming-events', array_merge(request()->except('page'), ['tab' => 'birthdays'])) }}" class="tab-pill {{ $activeTab === 'birthdays' ? 'active' : '' }}">
-      🎂 Upcoming Birthdays ({{ $birthdaysCount }})
+      <i class="bi bi-cake2-fill me-1" aria-hidden="true"></i>Upcoming Birthdays ({{ $birthdaysCount }})
     </a>
     <a href="{{ route('admin.users.upcoming-events', array_merge(request()->except('page'), ['tab' => 'anniversaries'])) }}" class="tab-pill {{ $activeTab === 'anniversaries' ? 'active' : '' }}">
-      💍 Upcoming Anniversaries ({{ $anniversariesCount }})
+      <i class="bi bi-heart-fill me-1" aria-hidden="true"></i>Upcoming Anniversaries ({{ $anniversariesCount }})
     </a>
   </div>
 
   <!-- Content List / Grid -->
   @if($paginatedRecords->isEmpty())
     <div class="text-center py-12 surface rounded-lg border bs">
-      <div class="text-4xl mb-2">🎉</div>
+      <div class="text-4xl mb-2 text-indigo-500"><i class="bi bi-balloon-fill" aria-hidden="true"></i></div>
       <h3 class="text-base font-semibold t1 mb-1">No Upcoming {{ $activeTab === 'anniversaries' ? 'Anniversaries' : 'Birthdays' }} Found</h3>
       <p class="text-xs t3 max-w-sm mx-auto">There are no peer {{ $activeTab === 'anniversaries' ? 'anniversaries' : 'birthdays' }} occurring within the selected period ({{ $filters['period'] }} days) matching your filter criteria.</p>
     </div>
@@ -238,7 +238,7 @@
                     @endif
                     @if($item['city_name'])
                       <div class="text-[11px] t3 flex items-center gap-1 truncate mt-0.5" title="{{ $item['city_name'] }}">
-                        <span>📍</span> <span class="truncate">{{ $item['city_name'] }}</span>
+                        <i class="bi bi-geo-alt-fill admin-icon" aria-hidden="true"></i> <span class="truncate">{{ $item['city_name'] }}</span>
                       </div>
                     @endif
                   </div>
@@ -247,14 +247,14 @@
                 <!-- Badges Column -->
                 <div class="flex flex-col items-end gap-1.5 flex-none shrink-0">
                   @if($days === 0)
-                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-white animate-pulse">Today! 🎈</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-white animate-pulse">Today! <i class="bi bi-balloon-fill ms-0.5" aria-hidden="true"></i></span>
                   @elseif($days === 1)
                     <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white">Tomorrow</span>
                   @else
                     <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-700">In {{ $days }} days</span>
                   @endif
 
-                  <span class="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-pink-50 text-pink-700 border border-pink-200">🎂 Birthday</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-pink-50 text-pink-700 border border-pink-200"><i class="bi bi-cake2-fill me-1" aria-hidden="true"></i>Birthday</span>
                 </div>
               </div>
 
@@ -280,7 +280,7 @@
             <!-- Card Footer -->
             <div class="mt-auto pt-3 border-t bs flex justify-end items-center">
               <a href="{{ route('admin.users.show', $peer->id) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-medium t2 hover:t1 hover:surface-2 transition text-decoration-none flex items-center gap-1">
-                <span>View Peer</span> ➔
+                <span>View Peer</span> <i class="bi bi-arrow-right" aria-hidden="true"></i>
               </a>
             </div>
           </div>
@@ -313,7 +313,7 @@
                     @endif
                     @if($item['city_name'])
                       <div class="text-[11px] t3 flex items-center gap-1 truncate mt-0.5" title="{{ $item['city_name'] }}">
-                        <span>📍</span> <span class="truncate">{{ $item['city_name'] }}</span>
+                        <i class="bi bi-geo-alt-fill admin-icon" aria-hidden="true"></i> <span class="truncate">{{ $item['city_name'] }}</span>
                       </div>
                     @endif
                   </div>
@@ -322,14 +322,14 @@
                 <!-- Badges Column -->
                 <div class="flex flex-col items-end gap-1.5 flex-none shrink-0">
                   @if($days === 0)
-                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-white animate-pulse">Today! 💐</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-white animate-pulse">Today! <i class="bi bi-flower1 ms-0.5" aria-hidden="true"></i></span>
                   @elseif($days === 1)
                     <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white">Tomorrow</span>
                   @else
                     <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-700">In {{ $days }} days</span>
                   @endif
 
-                  <span class="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-50 text-amber-700 border border-amber-200">💍 Anniversary</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-50 text-amber-700 border border-amber-200"><i class="bi bi-heart-fill me-1" aria-hidden="true"></i>Anniversary</span>
                 </div>
               </div>
 
@@ -359,7 +359,7 @@
             <!-- Card Footer -->
             <div class="mt-auto pt-3 border-t bs flex justify-end items-center">
               <a href="{{ route('admin.users.show', $peer->id) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-medium t2 hover:t1 hover:surface-2 transition text-decoration-none flex items-center gap-1">
-                <span>View Peer</span> ➔
+                <span>View Peer</span> <i class="bi bi-arrow-right" aria-hidden="true"></i>
               </a>
             </div>
           </div>

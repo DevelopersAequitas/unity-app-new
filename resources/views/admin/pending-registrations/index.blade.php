@@ -90,11 +90,11 @@
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($registration->created_at ?? null) }}</td>
                                 <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] whitespace-nowrap">{{ $fullName }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $registration->email }}</td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$registration->email" /></td>
                                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $registration->phone ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $city }}</td>
-                                <td class="px-3 py-2.5 text-xs font-medium t1">{{ $company }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $designation }}</td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$city" /></td>
+                                <td class="px-3 py-2.5 text-xs font-medium t1"><x-admin-grid-text :text="$company" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$designation" /></td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if ($registration->status === 'inactive')
                                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Inactive</span>

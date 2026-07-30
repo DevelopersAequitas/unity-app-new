@@ -146,17 +146,19 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->peer_company ?? '—' }}</td>
-                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->peer_city ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$item->peer_company ?? '—'" /></td>
+                                    <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$item->peer_city ?? '—'" /></td>
                                     <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->peer_phone ?? '—' }}</td>
                                     <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px]">
-                                        @if(!empty($item->event_id))
-                                            <a href="{{ route('admin.events.show', $item->event_id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        <div class="admin-grid-text-clamp" data-full-text="{{ $item->event_name ?? '—' }}">
+                                            @if(!empty($item->event_id))
+                                                <a href="{{ route('admin.events.show', $item->event_id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                    {{ $item->event_name ?? '—' }}
+                                                </a>
+                                            @else
                                                 {{ $item->event_name ?? '—' }}
-                                            </a>
-                                        @else
-                                            {{ $item->event_name ?? '—' }}
-                                        @endif
+                                            @endif
+                                        </div>
                                     </td>
                                     <td class="px-3 py-2.5 text-xs">
                                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($item->event_type ?? '—') }}</span>
@@ -168,8 +170,8 @@
                                         {{ $item->visitor_full_name ?? '—' }}
                                     </td>
                                     <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->visitor_mobile ?? '—' }}</td>
-                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->visitor_business ?? '—' }}</td>
-                                    <td class="px-3 py-2.5 text-xs t2">{{ $item->visitor_city ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$item->visitor_business ?? '—'" /></td>
+                                    <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$item->visitor_city ?? '—'" /></td>
                                     <td class="px-3 py-2.5 text-xs">
                                         @if(strtolower((string)$item->status) === 'approved' || strtolower((string)$item->status) === 'attended')
                                             <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">{{ ucfirst($item->status ?? '—') }}</span>

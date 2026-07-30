@@ -91,13 +91,13 @@
                                     {{ $contactPost->phone ?: '-' }}
                                 </td>
                                 <td class="px-3 py-2.5 text-[12.5px]">
-                                    <span class="t1">{{ $contactPost->company ?: '-' }}</span>
+                                    <x-admin-grid-text :text="$contactPost->company ?: '-'" class="t1" />
                                 </td>
                                 <td class="px-3 py-2.5 text-[12.5px]">
-                                    <span class="t2">{{ $contactPost->job_title ?: '-' }}</span>
+                                    <x-admin-grid-text :text="$contactPost->job_title ?: '-'" class="t2" />
                                 </td>
                                 <td class="px-3 py-2.5 text-[12.5px]">
-                                    <span class="t2">{{ $contactPost->email ?: '-' }}</span>
+                                    <x-admin-grid-text :text="$contactPost->email ?: '-'" class="t2" />
                                 </td>
                                 <td class="px-3 py-2.5 text-center">
                                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">

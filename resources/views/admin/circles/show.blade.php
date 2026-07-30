@@ -115,287 +115,300 @@
     @endif
 
     <?php
-        $circleCategories = collect();
 
-        if (($categoryFeatureEnabled ?? false) && method_exists($circle, 'categories')) {
-            try {
-                $circleCategories = $circle->categories ?? collect();
-            } catch (\Throwable $e) {
-                $circleCategories = collect();
-            }
+use Carbon\Carbon;
+    use Illuminate\Pagination\LengthAwarePaginator;
+    use Illuminate\Pagination\Paginator;
+    use Illuminate\Support\Collection;
+
+            $circleCategories = collect();
+
+    if (($categoryFeatureEnabled ?? false) && method_exists($circle, 'categories')) {
+        try {
+            $circleCategories = $circle->categories ?? collect();
+        } catch (Throwable $e) {
+            $circleCategories = collect();
+        }
+    }
+
+    $circleStatus = data_get($circle, 'status') ?: 'active';
+    $circleType = data_get($circle, 'type') ?: 'public';
+    $circleSlug = data_get($circle, 'slug') ?: '—';
+    $circleCity = data_get($circle, 'city.name') ?: (data_get($circle, 'city_name') ?: '—');
+    $circleCountry = data_get($circle, 'city.country') ?: (data_get($circle, 'country') ?: '—');
+
+    $founderUser = $circle->circleFounder ?? $circle->founder ?? null;
+    $founderName = $founderUser
+        ? ($founderUser->display_name
+            ?: $founderUser->name
+            ?: trim((string) ($founderUser->first_name ?? '').' '.(string) ($founderUser->last_name ?? '')))
+        : null;
+    if (empty($founderName)) {
+        $founderName = data_get($circle, 'circleFounder.display_name')
+            ?: data_get($circle, 'circleFounder.name')
+            ?: data_get($circle, 'founder.display_name')
+            ?: data_get($circle, 'founder.name');
+    }
+    $founderName = trim((string) $founderName) !== '' ? trim((string) $founderName) : '—';
+    $circleFounder = $founderName;
+    $founderId = $founderUser->id ?? null;
+
+    $circleDescription = data_get($circle, 'description') ?: '—';
+    $circlePurpose = data_get($circle, 'purpose') ?: '—';
+    $circleAnnouncement = data_get($circle, 'announcement') ?: '—';
+
+    $industryTags = data_get($circle, 'industry_tags');
+    if (is_array($industryTags)) {
+        $industryTagsText = implode(', ', array_filter($industryTags));
+    } elseif (is_string($industryTags) && trim($industryTags) !== '') {
+        $industryTagsText = $industryTags;
+    } else {
+        $industryTagsText = '—';
+    }
+
+    $displayValue = static function ($value) {
+        if (is_string($value)) {
+            $value = trim($value);
         }
 
-        $circleStatus = data_get($circle, 'status') ?: 'active';
-        $circleType = data_get($circle, 'type') ?: 'public';
-        $circleSlug = data_get($circle, 'slug') ?: '—';
-        $circleCity = data_get($circle, 'city.name') ?: (data_get($circle, 'city_name') ?: '—');
-        $circleCountry = data_get($circle, 'city.country') ?: (data_get($circle, 'country') ?: '—');
-
-        $founderUser = $circle->circleFounder ?? $circle->founder ?? null;
-        $founderName = $founderUser
-            ? ($founderUser->display_name
-                ?: $founderUser->name
-                ?: trim((string) ($founderUser->first_name ?? '') . ' ' . (string) ($founderUser->last_name ?? '')))
-            : null;
-        if (empty($founderName)) {
-            $founderName = data_get($circle, 'circleFounder.display_name')
-                ?: data_get($circle, 'circleFounder.name')
-                ?: data_get($circle, 'founder.display_name')
-                ?: data_get($circle, 'founder.name');
-        }
-        $founderName = trim((string) $founderName) !== '' ? trim((string) $founderName) : '—';
-        $circleFounder = $founderName;
-        $founderId = $founderUser->id ?? null;
-
-        $circleDescription = data_get($circle, 'description') ?: '—';
-        $circlePurpose = data_get($circle, 'purpose') ?: '—';
-        $circleAnnouncement = data_get($circle, 'announcement') ?: '—';
-
-        $industryTags = data_get($circle, 'industry_tags');
-        if (is_array($industryTags)) {
-            $industryTagsText = implode(', ', array_filter($industryTags));
-        } elseif (is_string($industryTags) && trim($industryTags) !== '') {
-            $industryTagsText = $industryTags;
-        } else {
-            $industryTagsText = '—';
+        if (! filled($value)) {
+            return '<span class="t3">—</span>';
         }
 
-        $displayValue = static function ($value) {
-            if (is_string($value)) {
-                $value = trim($value);
-            }
-
-            if (! filled($value)) {
-                return '<span class="t3">—</span>';
-            }
-
-            if (str_contains((string) $value, '<a ')) {
-                return '<span class="font-semibold t1">' . $value . '</span>';
-            }
-
-            return '<span class="font-semibold t1">' . e($value) . '</span>';
-        };
-        $formatUser = static function ($user) {
-            if (! $user) {
-                return null;
-            }
-
-            if (is_array($user)) {
-                $id = data_get($user, 'id');
-                $name = data_get($user, 'display_name') ?: data_get($user, 'name') ?: trim((string) data_get($user, 'first_name', '') . ' ' . (string) data_get($user, 'last_name', ''));
-                return ['id' => $id ? (string) $id : null, 'name' => $name ?: '—'];
-            }
-
-            if (is_string($user) || is_numeric($user)) {
-                $uStr = trim((string) $user);
-                return $uStr !== '' ? ['id' => null, 'name' => $uStr] : null;
-            }
-
-            $name = data_get($user, 'display_name')
-                ?: data_get($user, 'name')
-                ?: trim((string) data_get($user, 'first_name', '') . ' ' . (string) data_get($user, 'last_name', ''));
-
-            $name = trim((string) $name);
-            $email = trim((string) data_get($user, 'email', ''));
-
-            $text = $name !== '' && $email !== '' ? $name . ' (' . $email . ')' : ($name !== '' ? $name : ($email !== '' ? $email : null));
-
-            $userId = data_get($user, 'id');
-            if (! $text && ! $userId) {
-                return null;
-            }
-
-            return [
-                'id' => $userId ? (string) $userId : null,
-                'name' => $text ?: (string) $userId,
-            ];
-        };
-
-        $calendar = is_array($circle->calendar ?? null) ? $circle->calendar : [];
-
-        $meetingMode = data_get($circle, 'meeting_mode');
-        if (! $meetingMode) {
-            $meetingMode = data_get($calendar, 'settings.meeting_mode');
-        }
-        $meetingMode = $meetingMode ? ucfirst(strtolower((string) $meetingMode)) : null;
-
-        $meetingFrequency = data_get($circle, 'meeting_frequency');
-        if (! $meetingFrequency) {
-            $meetingFrequency = data_get($calendar, 'settings.meeting_frequency');
-        }
-        $meetingFrequency = $meetingFrequency ? ucfirst(strtolower((string) $meetingFrequency)) : null;
-
-        $launchDateRaw = data_get($circle, 'launch_date') ?: data_get($calendar, 'settings.launch_date');
-        $launchDate = '—';
-        if (! empty($launchDateRaw)) {
-            try {
-                $launchDate = \Illuminate\Support\Carbon::parse($launchDateRaw)->format('d M Y');
-            } catch (\Throwable $e) {
-                $launchDate = (string) $launchDateRaw;
-            }
+        if (str_contains((string) $value, '<a ')) {
+            return '<span class="font-semibold t1">'.$value.'</span>';
         }
 
-        $meetingRepeat = data_get($circle, 'meeting_repeat');
-        if (! is_array($meetingRepeat)) {
-            $meetingRepeat = data_get($calendar, 'settings.meeting_repeat');
-        }
-        $meetingRepeat = is_array($meetingRepeat) ? $meetingRepeat : null;
-
-        $coverFileId = data_get($circle, 'cover_file_id');
-        if (! $coverFileId) {
-            $coverFileId = data_get($calendar, 'cover.file_id');
+        return '<span class="font-semibold t1">'.e($value).'</span>';
+    };
+    $formatUser = static function ($user) {
+        if (! $user) {
+            return null;
         }
 
-        $peerFilters = is_array($peerFilters ?? null) ? $peerFilters : [
-            'peer_name' => request('peer_name', ''),
-            'peer_email' => request('peer_email', ''),
+        if (is_array($user)) {
+            $id = data_get($user, 'id');
+            $name = data_get($user, 'display_name') ?: data_get($user, 'name') ?: trim((string) data_get($user, 'first_name', '').' '.(string) data_get($user, 'last_name', ''));
+
+            return ['id' => $id ? (string) $id : null, 'name' => $name ?: '—'];
+        }
+
+        if (is_string($user) || is_numeric($user)) {
+            $uStr = trim((string) $user);
+
+            return $uStr !== '' ? ['id' => null, 'name' => $uStr] : null;
+        }
+
+        $name = data_get($user, 'display_name')
+            ?: data_get($user, 'name')
+            ?: trim((string) data_get($user, 'first_name', '').' '.(string) data_get($user, 'last_name', ''));
+
+        $name = trim((string) $name);
+        $email = trim((string) data_get($user, 'email', ''));
+
+        $text = $name !== '' && $email !== '' ? $name.' ('.$email.')' : ($name !== '' ? $name : ($email !== '' ? $email : null));
+
+        $userId = data_get($user, 'id');
+        if (! $text && ! $userId) {
+            return null;
+        }
+
+        return [
+            'id' => $userId ? (string) $userId : null,
+            'name' => $text ?: (string) $userId,
         ];
+    };
 
-        $peerNameFilter = trim((string) ($peerFilters['peer_name'] ?? ''));
-        $peerEmailFilter = trim((string) ($peerFilters['peer_email'] ?? ''));
+    $calendar = is_array($circle->calendar ?? null) ? $circle->calendar : [];
 
-        $membersSource = $peerMembers ?? ($circle->members ?? collect());
+    $meetingMode = data_get($circle, 'meeting_mode');
+    if (! $meetingMode) {
+        $meetingMode = data_get($calendar, 'settings.meeting_mode');
+    }
+    $meetingMode = $meetingMode ? ucfirst(strtolower((string) $meetingMode)) : null;
 
-        $isPaginator = $membersSource instanceof \Illuminate\Pagination\LengthAwarePaginator
-            || $membersSource instanceof \Illuminate\Contracts\Pagination\Paginator
-            || $membersSource instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator;
+    $meetingFrequency = data_get($circle, 'meeting_frequency');
+    if (! $meetingFrequency) {
+        $meetingFrequency = data_get($calendar, 'settings.meeting_frequency');
+    }
+    $meetingFrequency = $meetingFrequency ? ucfirst(strtolower((string) $meetingFrequency)) : null;
 
-        if ($isPaginator) {
-            $peerMembers = $membersSource;
-            $peerItems = collect($peerMembers->items());
-            $peerCurrentPage = method_exists($peerMembers, 'currentPage') ? $peerMembers->currentPage() : 1;
-            $peerHasPagination = true;
-        } else {
-            $peerItems = $membersSource instanceof \Illuminate\Support\Collection ? $membersSource : collect($membersSource);
+    $launchDateRaw = data_get($circle, 'launch_date') ?: data_get($calendar, 'settings.launch_date');
+    $launchDate = '—';
+    if (! empty($launchDateRaw)) {
+        try {
+            $launchDate = Illuminate\Support\Carbon::parse($launchDateRaw)->format('d M Y');
+        } catch (Throwable $e) {
+            $launchDate = (string) $launchDateRaw;
+        }
+    }
 
-            if ($peerNameFilter !== '' || $peerEmailFilter !== '') {
-                $peerItems = $peerItems->filter(function ($membership) use ($peerNameFilter, $peerEmailFilter) {
-                    $member = $membership->user ?? null;
+    $meetingRepeat = data_get($circle, 'meeting_repeat');
+    if (! is_array($meetingRepeat)) {
+        $meetingRepeat = data_get($calendar, 'settings.meeting_repeat');
+    }
+    $meetingRepeat = is_array($meetingRepeat) ? $meetingRepeat : null;
 
-                    $memberName = trim(
-                        (string) data_get($member, 'name',
-                            trim((string) data_get($member, 'first_name', '') . ' ' . (string) data_get($member, 'last_name', ''))
-                        )
-                    );
+    $coverFileId = data_get($circle, 'cover_file_id');
+    if (! $coverFileId) {
+        $coverFileId = data_get($calendar, 'cover.file_id');
+    }
 
-                    if ($memberName === '') {
-                        $memberName = trim((string) data_get($member, 'display_name', ''));
-                    }
+    $peerFilters = is_array($peerFilters ?? null) ? $peerFilters : [
+        'peer_name' => request('peer_name', ''),
+        'peer_email' => request('peer_email', ''),
+    ];
 
-                    $memberEmail = trim((string) data_get($member, 'email', ''));
+    $peerNameFilter = trim((string) ($peerFilters['peer_name'] ?? ''));
+    $peerEmailFilter = trim((string) ($peerFilters['peer_email'] ?? ''));
 
-                    $nameMatch = $peerNameFilter === '' || str_contains(mb_strtolower($memberName), mb_strtolower($peerNameFilter));
-                    $emailMatch = $peerEmailFilter === '' || str_contains(mb_strtolower($memberEmail), mb_strtolower($peerEmailFilter));
+    $membersSource = $peerMembers ?? ($circle->members ?? collect());
 
-                    return $nameMatch && $emailMatch;
-                })->values();
-            }
+    $isPaginator = $membersSource instanceof LengthAwarePaginator
+        || $membersSource instanceof Illuminate\Contracts\Pagination\Paginator
+        || $membersSource instanceof Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
-            $page = max((int) request('page', 1), 1);
-            $perPage = 10;
-            $total = $peerItems->count();
-            $itemsForPage = $peerItems->slice(($page - 1) * $perPage, $perPage)->values();
+    if ($isPaginator) {
+        $peerMembers = $membersSource;
+        $peerItems = collect($peerMembers->items());
+        $peerCurrentPage = method_exists($peerMembers, 'currentPage') ? $peerMembers->currentPage() : 1;
+        $peerHasPagination = true;
+    } else {
+        $peerItems = $membersSource instanceof Collection ? $membersSource : collect($membersSource);
 
-            $peerMembers = new \Illuminate\Pagination\LengthAwarePaginator(
-                $itemsForPage,
-                $total,
-                $perPage,
-                $page,
-                [
-                    'path' => \Illuminate\Pagination\Paginator::resolveCurrentPath(),
-                    'query' => request()->query(),
-                ]
-            );
+        if ($peerNameFilter !== '' || $peerEmailFilter !== '') {
+            $peerItems = $peerItems->filter(function ($membership) use ($peerNameFilter, $peerEmailFilter) {
+                $member = $membership->user ?? null;
 
-            $peerCurrentPage = $page;
-            $peerHasPagination = $total > $perPage;
-            $peerItems = collect($peerMembers->items());
+                $memberName = trim(
+                    (string) data_get($member, 'name',
+                        trim((string) data_get($member, 'first_name', '').' '.(string) data_get($member, 'last_name', ''))
+                    )
+                );
+
+                if ($memberName === '') {
+                    $memberName = trim((string) data_get($member, 'display_name', ''));
+                }
+
+                $memberEmail = trim((string) data_get($member, 'email', ''));
+
+                $nameMatch = $peerNameFilter === '' || str_contains(mb_strtolower($memberName), mb_strtolower($peerNameFilter));
+                $emailMatch = $peerEmailFilter === '' || str_contains(mb_strtolower($memberEmail), mb_strtolower($peerEmailFilter));
+
+                return $nameMatch && $emailMatch;
+            })->values();
         }
 
-        if ($isPaginator) {
-            $peerItems = collect($peerMembers->items());
+        $page = max((int) request('page', 1), 1);
+        $perPage = 10;
+        $total = $peerItems->count();
+        $itemsForPage = $peerItems->slice(($page - 1) * $perPage, $perPage)->values();
+
+        $peerMembers = new LengthAwarePaginator(
+            $itemsForPage,
+            $total,
+            $perPage,
+            $page,
+            [
+                'path' => Paginator::resolveCurrentPath(),
+                'query' => request()->query(),
+            ]
+        );
+
+        $peerCurrentPage = $page;
+        $peerHasPagination = $total > $perPage;
+        $peerItems = collect($peerMembers->items());
+    }
+
+    if ($isPaginator) {
+        $peerItems = collect($peerMembers->items());
+    }
+
+    $circleStage = $circleStage ?? data_get($circle, 'stage.name') ?? data_get($circle, 'circleStage.name') ?? data_get($circle, 'circle_stage') ?? null;
+
+    $safeStr = static function ($value, $default = '—') {
+        if ($value === null) {
+            return $default;
+        }
+        if (is_array($value)) {
+            $filtered = array_filter(array_map('trim', array_map('strval', array_filter($value, fn ($v) => is_scalar($v)))));
+
+            return ! empty($filtered) ? implode(', ', $filtered) : $default;
+        }
+        if (is_object($value)) {
+            $val = data_get($value, 'name') ?: data_get($value, 'display_name') ?: (string) $value;
+
+            return trim((string) $val) !== '' ? trim((string) $val) : $default;
+        }
+        $s = trim((string) $value);
+
+        return $s !== '' ? $s : $default;
+    };
+
+    $peersJsonData = collect($peerItems)->map(function ($membership) use ($circle, $safeStr) {
+        $m = $membership->user ?? null;
+
+        $memberName = $m ? trim((string) (($m->first_name ?? '').' '.($m->last_name ?? ''))) : '';
+        if ($memberName === '') {
+            $memberName = $safeStr(data_get($m, 'display_name') ?: data_get($m, 'name'));
         }
 
-        $circleStage = $circleStage ?? data_get($circle, 'stage.name') ?? data_get($circle, 'circleStage.name') ?? data_get($circle, 'circle_stage') ?? null;
+        $memberCompany = $safeStr(data_get($m, 'company_name') ?: data_get($m, 'business_name'));
+        $memberCity = $safeStr(data_get($m, 'city.name') ?: data_get($m, 'city_name') ?: data_get($m, 'city'));
+        $memberCountry = $safeStr(data_get($m, 'city.country') ?: data_get($m, 'country'), 'India');
+        $memberEmail = $safeStr(data_get($m, 'email'));
+        $memberMobile = $safeStr(data_get($m, 'mobile') ?: data_get($m, 'phone'));
+        $memberIndustry = $safeStr(data_get($m, 'industry') ?: data_get($m, 'industry_tags'));
+        $memberCode = $safeStr(data_get($m, 'user_code') ?: data_get($m, 'id'));
+        $status = ucfirst(strtolower((string) ($membership->status ?? data_get($m, 'status') ?? 'active')));
+        $role = ucwords(str_replace('_', ' ', (string) ($membership->role ?? 'member')));
 
-        $safeStr = static function($value, $default = '—') {
-            if ($value === null) return $default;
-            if (is_array($value)) {
-                $filtered = array_filter(array_map('trim', array_map('strval', array_filter($value, fn($v) => is_scalar($v)))));
-                return !empty($filtered) ? implode(', ', $filtered) : $default;
-            }
-            if (is_object($value)) {
-                $val = data_get($value, 'name') ?: data_get($value, 'display_name') ?: (string)$value;
-                return trim((string)$val) !== '' ? trim((string)$val) : $default;
-            }
-            $s = trim((string) $value);
-            return $s !== '' ? $s : $default;
-        };
+        $circleType = strtoupper((string) ($circle->type ?? 'PUBLIC'));
+        $circleStage = $safeStr($circle->circle_stage ?? data_get($circle, 'stage.name'));
+        $meetingMode = $safeStr(! empty($circle->meeting_mode) ? ucfirst(strtolower($circle->meeting_mode)) : null);
+        $meetingFreq = $safeStr(! empty($circle->meeting_frequency) ? ucfirst(strtolower($circle->meeting_frequency)) : null);
 
-        $peersJsonData = collect($peerItems)->map(function($membership) use ($circle, $safeStr) {
-            $m = $membership->user ?? null;
-            
-            $memberName = $m ? trim((string) (($m->first_name ?? '') . ' ' . ($m->last_name ?? ''))) : '';
-            if ($memberName === '') {
-                $memberName = $safeStr(data_get($m, 'display_name') ?: data_get($m, 'name'));
-            }
+        $joinedAt = optional($membership->joined_at ?? $membership->created_at ?? null)->format('d M Y') ?? '—';
+        $paymentStatus = ucfirst(strtolower((string) ($membership->payment_status ?? data_get($m, 'payment_status') ?? 'paid')));
+        $subscriptionStatus = ucfirst(strtolower((string) ($membership->subscription_status ?? 'active')));
+        $billingTerm = ucfirst(strtolower((string) ($membership->billing_term ?? 'annual')));
 
-            $memberCompany = $safeStr(data_get($m, 'company_name') ?: data_get($m, 'business_name'));
-            $memberCity = $safeStr(data_get($m, 'city.name') ?: data_get($m, 'city_name') ?: data_get($m, 'city'));
-            $memberCountry = $safeStr(data_get($m, 'city.country') ?: data_get($m, 'country'), 'India');
-            $memberEmail = $safeStr(data_get($m, 'email'));
-            $memberMobile = $safeStr(data_get($m, 'mobile') ?: data_get($m, 'phone'));
-            $memberIndustry = $safeStr(data_get($m, 'industry') ?: data_get($m, 'industry_tags'));
-            $memberCode = $safeStr(data_get($m, 'user_code') ?: data_get($m, 'id'));
-            $status = ucfirst(strtolower((string)($membership->status ?? data_get($m, 'status') ?? 'active')));
-            $role = ucwords(str_replace('_', ' ', (string)($membership->role ?? 'member')));
-            
-            $circleType = strtoupper((string)($circle->type ?? 'PUBLIC'));
-            $circleStage = $safeStr($circle->circle_stage ?? data_get($circle, 'stage.name'));
-            $meetingMode = $safeStr(!empty($circle->meeting_mode) ? ucfirst(strtolower($circle->meeting_mode)) : null);
-            $meetingFreq = $safeStr(!empty($circle->meeting_frequency) ? ucfirst(strtolower($circle->meeting_frequency)) : null);
+        $startsAtRaw = $membership->paid_starts_at ?? data_get($m, 'membership_starts_at');
+        $startsAt = $startsAtRaw ? Carbon::parse($startsAtRaw)->format('d M Y') : $joinedAt;
 
-            $joinedAt = optional($membership->joined_at ?? $membership->created_at ?? null)->format('d M Y') ?? '—';
-            $paymentStatus = ucfirst(strtolower((string)($membership->payment_status ?? data_get($m, 'payment_status') ?? 'paid')));
-            $subscriptionStatus = ucfirst(strtolower((string)($membership->subscription_status ?? 'active')));
-            $billingTerm = ucfirst(strtolower((string)($membership->billing_term ?? 'annual')));
-            
-            $startsAtRaw = $membership->paid_starts_at ?? data_get($m, 'membership_starts_at');
-            $startsAt = $startsAtRaw ? \Carbon\Carbon::parse($startsAtRaw)->format('d M Y') : $joinedAt;
+        $endsAtRaw = $membership->expires_at ?? $membership->paid_ends_at ?? data_get($m, 'membership_ends_at');
+        $endsAt = $endsAtRaw ? Carbon::parse($endsAtRaw)->format('d M Y') : '—';
 
-            $endsAtRaw = $membership->expires_at ?? $membership->paid_ends_at ?? data_get($m, 'membership_ends_at');
-            $endsAt = $endsAtRaw ? \Carbon\Carbon::parse($endsAtRaw)->format('d M Y') : '—';
+        $editUrl = $m && ! empty($m->id) ? route('admin.users.show', $m->id) : '#';
 
-            $editUrl = $m && !empty($m->id) ? route('admin.users.show', $m->id) : '#';
-
-            return [
-                'id' => (string) ($m ? $m->id : ''),
-                'name' => $memberName,
-                'email' => $memberEmail,
-                'mobile' => $memberMobile,
-                'company' => $memberCompany,
-                'industry' => $memberIndustry,
-                'city' => $memberCity,
-                'country' => $memberCountry,
-                'circle' => $circle->name ?? '—',
-                'circle_type' => $circleType,
-                'circle_stage' => $circleStage,
-                'meeting_mode' => $meetingMode,
-                'meeting_freq' => $meetingFreq,
-                'role' => $role,
-                'status' => $status,
-                'mid' => $memberCode,
-                'joined' => $joinedAt,
-                'payment_status' => $paymentStatus,
-                'subscription_status' => $subscriptionStatus,
-                'billing_term' => $billingTerm,
-                'starts_at' => $startsAt,
-                'ends_at' => $endsAt,
-                'edit_url' => $editUrl,
-                'avatar' => data_get($m, 'avatar_url'),
-                'color' => '#6366F1',
-            ];
-        })->values();
+        return [
+            'id' => (string) ($m ? $m->id : ''),
+            'name' => $memberName,
+            'email' => $memberEmail,
+            'mobile' => $memberMobile,
+            'company' => $memberCompany,
+            'industry' => $memberIndustry,
+            'city' => $memberCity,
+            'country' => $memberCountry,
+            'circle' => $circle->name ?? '—',
+            'circle_type' => $circleType,
+            'circle_stage' => $circleStage,
+            'meeting_mode' => $meetingMode,
+            'meeting_freq' => $meetingFreq,
+            'role' => $role,
+            'status' => $status,
+            'mid' => $memberCode,
+            'joined' => $joinedAt,
+            'payment_status' => $paymentStatus,
+            'subscription_status' => $subscriptionStatus,
+            'billing_term' => $billingTerm,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'edit_url' => $editUrl,
+            'avatar' => data_get($m, 'avatar_url'),
+            'color' => '#6366F1',
+        ];
+    })->values();
     ?>
 
     <!-- TOP GRID CARDS -->
@@ -439,7 +452,7 @@
         <div class="border bs rounded-xl p-4 surface flex flex-col justify-between">
             <div>
                 <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 mb-3 m-0 flex items-center gap-1.5">
-                    <span>🌐</span> Narrative & Tags
+                    <i class="bi bi-globe admin-icon me-1" aria-hidden="true"></i> Narrative & Tags
                 </h3>
                 <div class="space-y-2.5 text-xs border bs rounded-xl p-3.5 surface-2">
                     <div><span class="t3 block mb-0.5 font-medium">Description</span><p class="t1 leading-relaxed m-0">{{ $circleDescription }}</p></div>
@@ -468,7 +481,7 @@
     <!-- CIRCLE SETTINGS CARD -->
     <div class="border bs rounded-xl p-4 surface mb-4">
         <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 mb-3 m-0 flex items-center gap-1.5">
-            <span>⚙️</span> Circle Settings
+            <i class="bi bi-gear admin-icon me-1" aria-hidden="true"></i> Circle Settings
         </h3>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
             <div class="p-3 border bs rounded-xl surface-2">
@@ -608,7 +621,7 @@
 
         <div class="border bs rounded-xl p-4 surface">
             <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 mb-3 m-0 flex items-center gap-1.5">
-                <span>📅</span> Meeting Schedule
+                <i class="bi bi-calendar-event admin-icon me-1" aria-hidden="true"></i> Meeting Schedule
             </h3>
             @if (empty($meetingRows ?? []))
                 <div class="t3 text-xs p-3 border bs rounded-xl surface-2">—</div>
@@ -630,7 +643,7 @@
     <div class="border bs rounded-xl p-4 surface mb-2">
         <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
             <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 m-0 flex items-center gap-1.5">
-                <span>👥</span> Peers
+                <i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i> Peers
             </h3>
         </div>
 
@@ -655,7 +668,9 @@
             </div>
 
             <div class="md:col-span-3">
-                <button class="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring border-0 cursor-pointer">➕ Add Peer</button>
+                <button class="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring border-0 cursor-pointer">
+                    <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i> Add Peer
+                </button>
             </div>
         </form>
 
@@ -877,7 +892,7 @@
             <div class="space-y-5 text-[12.5px] pb-4">
                 <div>
                     <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-indigo-600 mb-2 flex items-center gap-1.5">
-                        <span>👤</span> MEMBER INFO GROUP
+                        <i class="bi bi-person-circle admin-icon me-1" aria-hidden="true"></i> MEMBER INFO GROUP
                     </div>
                     <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
                         <div class="flex justify-between gap-4"><span class="text-slate-400">Email</span><span class="text-slate-800 truncate max-w-[210px] text-right font-medium" title="${m.email}">${m.email}</span></div>
@@ -890,7 +905,7 @@
 
                 <div>
                     <div class="font-display font-semibold text-[11px] uppercase tracking-wider text-indigo-600 mb-2 flex items-center gap-1.5">
-                        <span>🌐</span> CIRCLE & REGION DETAILS
+                        <i class="bi bi-globe admin-icon me-1" aria-hidden="true"></i> CIRCLE & REGION DETAILS
                     </div>
                     <div class="space-y-2.5 border border-slate-200/80 rounded-xl p-3.5 bg-[#f8fafc]">
                         <div class="flex justify-between"><span class="text-slate-400">Circle</span><span class="text-slate-800 font-semibold">${m.circle} (${m.circle_type})</span></div>

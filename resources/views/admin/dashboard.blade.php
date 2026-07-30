@@ -6,7 +6,7 @@
 @php
     $hour = (int) now()->format('H');
     $greeting = $hour < 12 ? 'Good Morning' : ($hour < 17 ? 'Good Afternoon' : 'Good Evening');
-    $greetingEmoji = $hour < 12 ? '☀️' : ($hour < 17 ? '🌤️' : '🌙');
+    $greetingIcon = $hour < 12 ? 'bi-sun-fill' : ($hour < 17 ? 'bi-sun-fill' : 'bi-moon-fill');
 @endphp
 
 {{-- Simple Page Header --}}
