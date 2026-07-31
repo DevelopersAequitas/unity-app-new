@@ -6,12 +6,12 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class AppVersion extends Model
+class AppChangelog extends Model
 {
     use HasFactory;
     use HasUuids;
 
-    protected $table = 'app_versions';
+    protected $table = 'app_changelogs';
 
     public $incrementing = false;
 
@@ -19,15 +19,18 @@ class AppVersion extends Model
 
     protected $fillable = [
         'id',
+        'version',
         'platform',
-        'latest_version',
-        'min_version',
-        'update_type',
-        'is_active',
-        'release_notes',
+        'title',
+        'description',
+        'features',
+        'is_released',
+        'released_at',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
+        'features' => 'array',
+        'is_released' => 'boolean',
+        'released_at' => 'datetime',
     ];
 }

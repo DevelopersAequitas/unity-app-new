@@ -34,7 +34,7 @@
             </div>
             @if (Route::has('admin.campaigns.create'))
                 <a href="{{ route('admin.campaigns.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
-                    ➕ Create Campaign
+                    <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i>Create Campaign
                 </a>
             @endif
         </div>

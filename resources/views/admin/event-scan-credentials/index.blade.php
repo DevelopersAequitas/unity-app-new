@@ -12,7 +12,7 @@
             <p class="text-xs t3 m-0 mt-0.5">Manage scanner personnel access codes and event scanning credentials.</p>
         </div>
         <a href="{{ route('admin.event-scan-credentials.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
-            ➕ Create Credential
+            <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i>Create Credential
         </a>
     </div>
 

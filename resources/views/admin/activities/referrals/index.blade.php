@@ -308,8 +308,8 @@
                                         </td>
                                         {{-- From Company --}}
                                         <td class="px-3 py-2.5 text-xs t2">
-                                            <div>{{ $referral->from_company ?? '—' }}</div>
-                                            @if($referral->from_city)<div class="t3 text-[10px]">{{ $referral->from_city }}</div>@endif
+                                            <x-admin-grid-text :text="$referral->from_company ?? '—'" />
+                                            @if($referral->from_city)<x-admin-grid-text :text="$referral->from_city" class="t3 text-[10px]" />@endif
                                         </td>
                                         {{-- To peer --}}
                                         <td class="px-3 py-2.5">
@@ -330,12 +330,12 @@
                                         </td>
                                         {{-- To Company --}}
                                         <td class="px-3 py-2.5 text-xs t2">
-                                            <div>{{ $referral->to_company ?? '—' }}</div>
-                                            @if($referral->to_city)<div class="t3 text-[10px]">{{ $referral->to_city }}</div>@endif
+                                            <x-admin-grid-text :text="$referral->to_company ?? '—'" />
+                                            @if($referral->to_city)<x-admin-grid-text :text="$referral->to_city" class="t3 text-[10px]" />@endif
                                         </td>
                                         {{-- Referral Of --}}
-                                        <td class="px-3 py-2.5 text-xs font-semibold t1" title="{{ $referral->referral_of }}">
-                                            {{ $referral->referral_of ?? '—' }}
+                                        <td class="px-3 py-2.5 text-xs font-semibold t1">
+                                            <x-admin-grid-text :text="$referral->referral_of ?? '—'" />
                                         </td>
                                         {{-- Type --}}
                                         <td class="px-3 py-2.5 text-xs">
@@ -348,9 +348,11 @@
                                         {{-- Phone --}}
                                         <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $referral->phone ?? '—' }}</td>
                                         {{-- Email --}}
-                                        <td class="px-3 py-2.5 text-xs t2 max-w-[160px] truncate" title="{{ $referral->email }}">{{ $referral->email ?? '—' }}</td>
+                                        <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:200px;">
+                                            <x-admin-grid-text :text="$referral->email ?? '—'" :lines="1" />
+                                        </td>
                                         {{-- Hot Value --}}
-                                        <td class="px-3 py-2.5 text-xs text-center">
+                                        <td class="px-3 py-2.5 text-xs text-center align-middle">
                                             @if($referral->hot_value)
                                                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">{{ $referral->hot_value }}</span>
                                             @else
@@ -358,8 +360,8 @@
                                             @endif
                                         </td>
                                         {{-- Remarks --}}
-                                        <td class="px-3 py-2.5 text-xs t2 max-w-[150px] truncate" title="{{ $referral->remarks }}">
-                                            {{ $referral->remarks ?? '—' }}
+                                        <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:160px;">
+                                            <x-admin-grid-text :text="$referral->remarks ?? '—'" :lines="2" />
                                         </td>
                                         {{-- Media --}}
                                         <td class="px-3 py-2.5 text-xs">

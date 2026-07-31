@@ -126,12 +126,17 @@
                                                     {{ $toName }}
                                                 @endif
                                             </div>
-                                            <div class="t3 text-[10px]">{{ $testimonial->toUser->email ?? '-' }}</div>
+                                            @php $toCompany = $testimonial->toUser->company_name ?? $testimonial->toUser->company ?? null; @endphp
+                                            @if($toCompany)
+                                                <x-admin-grid-text :text="$toCompany" class="t3 text-[10px]" />
+                                            @else
+                                                <div class="t3 text-[10px]">{{ $testimonial->toUser->email ?? '-' }}</div>
+                                            @endif
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2 max-w-[320px] truncate" title="{{ $testimonial->content }}">
-                                    {{ $testimonial->content ?? '-' }}
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[320px]">
+                                    <x-admin-grid-text :text="$testimonial->content ?? '-'" />
                                 </td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if($attachmentUrl)

@@ -28,7 +28,7 @@
                 <p class="text-xs t3 m-0 mt-0.5">Manage system banner advertisements, popups, and placements.</p>
             </div>
             <a href="{{ route('admin.ads.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
-                ➕ Add Ad
+                <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i>Add Ad
             </a>
         </div>
 
@@ -87,7 +87,7 @@
                                         <img src="{{ $ad->image_url }}" alt="{{ $ad->title }}" class="w-10 h-10 rounded object-cover border bs">
                                     @else
                                         <div class="w-10 h-10 rounded bg-gray-100 flex items-center justify-center font-bold t3 border bs text-xs">
-                                            📢
+                                            <i class="bi bi-megaphone-fill admin-icon text-indigo-500" aria-hidden="true"></i>
                                         </div>
                                     @endif
                                 </td>

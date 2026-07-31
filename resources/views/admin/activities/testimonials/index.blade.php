@@ -337,8 +337,8 @@
                                                         @endif
                                                     </div>
                                                     <div class="t3 text-[10px]">
-                                                        @if($testimonial->from_company) <span>{{ $testimonial->from_company }}</span> @endif
-                                                        @if($testimonial->from_city) &bull; <span>{{ $testimonial->from_city }}</span> @endif
+                                                        @if($testimonial->from_company) <x-admin-grid-text :text="$testimonial->from_company" class="inline-block" /> @endif
+                                                        @if($testimonial->from_city) &bull; <x-admin-grid-text :text="$testimonial->from_city" class="inline-block" /> @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -359,14 +359,14 @@
                                                         @endif
                                                     </div>
                                                     <div class="t3 text-[10px]">
-                                                        @if($testimonial->to_company) <span>{{ $testimonial->to_company }}</span> @endif
-                                                        @if($testimonial->to_city) &bull; <span>{{ $testimonial->to_city }}</span> @endif
+                                                        @if($testimonial->to_company) <x-admin-grid-text :text="$testimonial->to_company" class="inline-block" /> @endif
+                                                        @if($testimonial->to_city) &bull; <x-admin-grid-text :text="$testimonial->to_city" class="inline-block" /> @endif
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs t2 max-w-xs truncate" title="{{ $testimonial->content ?? '' }}">
-                                            {{ \Illuminate\Support\Str::limit($testimonial->content ?? '—', 60) }}
+                                        <td class="px-3 py-2.5 text-xs t2 max-w-xs">
+                                            <x-admin-grid-text :text="$testimonial->content ?? '—'" />
                                         </td>
                                         <td class="px-3 py-2.5 text-xs">
                                             @if($mediaInfo['has'] && $mediaId)

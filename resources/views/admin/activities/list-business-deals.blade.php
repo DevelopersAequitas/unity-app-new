@@ -101,7 +101,12 @@
                                                     {{ $targetName }}
                                                 @endif
                                             </div>
-                                            <div class="t3 text-[10px]">{{ $deal->toUser->email ?? '-' }}</div>
+                                            @php $toCompany = $deal->toUser->company_name ?? $deal->toUser->company ?? null; @endphp
+                                            @if($toCompany)
+                                                <x-admin-grid-text :text="$toCompany" class="t3 text-[10px]" />
+                                            @else
+                                                <div class="t3 text-[10px]">{{ $deal->toUser->email ?? '-' }}</div>
+                                            @endif
                                         </div>
                                     </div>
                                 </td>
@@ -109,13 +114,13 @@
                                     {{ $deal->deal_date ? $formatDate($deal->deal_date) : '-' }}
                                 </td>
                                 <td class="px-3 py-2.5 text-xs">
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $deal->business_type ?? '-' }}</span>
+                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 admin-grid-text-clamp" data-full-text="{{ $deal->business_type }}">{{ $deal->business_type ?? '-' }}</span>
                                 </td>
                                 <td class="px-3 py-2.5 font-bold text-emerald-600 text-xs">
                                     ₹{{ $deal->deal_amount !== null ? number_format((float) $deal->deal_amount, 2) : '-' }}
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2 max-w-[250px] truncate" title="{{ $deal->comment }}">
-                                    {{ $deal->comment ?? '-' }}
+                                <td class="px-3 py-2.5 text-xs t2 max-w-[250px]">
+                                    <x-admin-grid-text :text="$deal->comment ?? '-'" />
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                                     {{ $formatDateTime($deal->created_at ?? null) }}

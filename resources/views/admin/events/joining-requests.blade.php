@@ -96,7 +96,7 @@
     <form method="GET" action="{{ route('admin.event-joining-requests.index') }}" class="surface-2 rounded-xl border bs p-3 mb-4 admin-filter-form">
         <div class="grid grid-cols-1 md:grid-cols-6 gap-2.5 items-center">
             <div class="md:col-span-2">
-                <input type="text" class="w-full px-3 py-1.5 text-xs rounded-lg border bs focus-ring" name="search" value="{{ request('search') }}" placeholder="🔍 Search member, email, company or event...">
+                <input type="text" class="w-full px-3 py-1.5 text-xs rounded-lg border bs focus-ring" name="search" value="{{ request('search') }}" placeholder="Search member, email, company or event...">
             </div>
             <div>
                 <select class="w-full px-3 py-1.5 text-xs rounded-lg border bs focus-ring js-no-searchable-select" name="status">

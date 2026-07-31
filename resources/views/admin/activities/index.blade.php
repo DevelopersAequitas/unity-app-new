@@ -69,7 +69,7 @@
         <!-- Top District Peers Card -->
         <div class="rounded-xl border bs surface overflow-hidden space-y-3">
             <div class="px-4 py-3 surface-2 border-b bs flex justify-between items-center">
-                <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider">🏆 Top 5 District Peers</span>
+                <span class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider inline-flex items-center gap-1.5"><i class="bi bi-trophy-fill admin-icon text-indigo-400" aria-hidden="true"></i>Top 5 District Peers</span>
                 <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Ranked by combined performance</span>
             </div>
             <div class="overflow-x-auto relative">
@@ -148,28 +148,28 @@
             </div>
 
             <div class="overflow-x-auto relative">
-                <table class="min-w-[1100px] w-full border-collapse text-[13px]">
+                <table class="min-w-[1550px] w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center sticky left-0 z-10" style="width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.08);">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center sticky left-0 z-10" style="width:40px; min-width:40px; max-width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.08);">
                                 <input type="checkbox" class="form-check-input" id="select-all-members">
                             </th>
                             <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-[40px] z-10" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Circle</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Testimonials</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Referrals</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Business Deals</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">P2P Meetings</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Requirements</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Leadership Requests</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Recommended Peers</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Registered Visitor</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:150px;">Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:100px;">Circle</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:100px;">Testimonials</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:90px;">Referrals</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:110px;">Business Deals</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:110px;">P2P Meetings</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:110px;">Requirements</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:110px;">Leadership Requests</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:110px;">Recommended Peers</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:110px;">Registered Visitor</th>
                         </tr>
                         <tr class="surface-2 border-b bs align-middle">
-                            <th class="px-3 py-2 sticky left-0 z-10 surface-2" style="width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.08);"></th>
-                            <th class="px-3 py-2 sticky left-[40px] z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
+                            <th class="px-3 py-2 sticky left-0 z-10 surface-2" style="width:40px; min-width:40px; max-width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.08);"></th>
+                            <th class="px-3 py-2 sticky left-[40px] z-10 surface-2" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
                                 <input
                                     type="text"
                                     name="q"
@@ -179,9 +179,9 @@
                                     value="{{ $filters['q'] ?? '' }}"
                                 >
                             </th>
-                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
-                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
-                            <th class="px-3 py-2">
+                            <th class="px-3 py-2" style="min-width:150px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2" style="min-width:110px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2" style="min-width:100px;">
                                 <select name="circle_id" form="activitiesFiltersForm" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal">
                                     <option value="any">All Circles</option>
                                     @foreach ($circles as $circle)
@@ -189,14 +189,14 @@
                                     @endforeach
                                 </select>
                             </th>
-                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
-                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
-                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
-                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
-                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
-                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
-                            <th class="px-3 py-2"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
-                            <th class="px-3 py-2">
+                            <th class="px-3 py-2" style="min-width:100px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2" style="min-width:90px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2" style="min-width:110px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2" style="min-width:110px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2" style="min-width:110px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2" style="min-width:110px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2" style="min-width:110px;"><input type="text" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t3 focus-ring outline-none font-normal" disabled placeholder="-"></th>
+                            <th class="px-3 py-2" style="min-width:110px;">
                                 <div class="flex gap-1.5 justify-end items-center">
                                     <a href="{{ route('admin.activities.index') }}" class="px-3 py-1 rounded-md border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition no-underline">Clear</a>
                                     <button type="button" class="px-3 py-1 rounded-md border bs text-xs font-semibold text-indigo-600 hover:text-indigo-700 surface-2 transition" data-bs-toggle="modal" data-bs-target="#activitiesExportModal">Export</button>
@@ -207,9 +207,9 @@
                     <tbody id="grid-body" class="divide-y divide-gray-200/50">
                         @forelse ($members as $member)
                             <tr class="hover:surface-2 transition border-b bs cursor-pointer" data-peer="{{ $makePeerPayload($member) }}" onclick="openActivityPeerModal(this, event)">
-                                <td class="px-3 py-2.5 text-center sticky left-0 z-10 surface" style="width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.06);"><input type="checkbox" class="form-check-input member-checkbox" value="{{ $member->id }}"></td>
-                                <td class="px-3 py-2.5 sticky left-[40px] z-10 surface" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
-                                    <div class="flex items-center gap-2">
+                                <td class="px-3 py-2.5 text-center sticky left-0 z-10 surface align-middle" style="width:40px; min-width:40px; max-width:40px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.06);"><input type="checkbox" class="form-check-input member-checkbox" value="{{ $member->id }}"></td>
+                                <td class="px-3 py-2.5 sticky left-[40px] z-10 surface align-middle" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                                    <div class="flex items-center gap-2 whitespace-nowrap">
                                         <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($member->peer_name) }}">
                                             {{ $getInitials($member->peer_name) }}
                                         </div>
@@ -220,88 +220,94 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $member->company_name ?: '-' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $member->city_name ?: '-' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">
+                                <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:150px;">
+                                    <x-admin-grid-text :text="$member->company_name ?: '-'" :lines="2" />
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:110px;">
+                                    <x-admin-grid-text :text="$member->city_name ?: '-'" :lines="1" />
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:100px;">
                                     @if($member->circle_name)
                                         @if(!empty($member->circle_id))
-                                            <a href="{{ route('admin.circles.show', $member->circle_id) }}" class="text-indigo-600 font-medium hover:underline no-underline" onclick="event.stopPropagation();">
-                                                {{ $member->circle_name }}
-                                            </a>
+                                            <x-admin-grid-text :lines="1">
+                                                <a href="{{ route('admin.circles.show', $member->circle_id) }}" class="text-indigo-600 font-medium hover:underline no-underline" onclick="event.stopPropagation();">
+                                                    {{ $member->circle_name }}
+                                                </a>
+                                            </x-admin-grid-text>
                                         @else
-                                            <span class="text-indigo-600 font-medium">{{ $member->circle_name }}</span>
+                                            <x-admin-grid-text :text="$member->circle_name" :lines="1" class="text-indigo-600 font-medium" />
                                         @endif
                                     @else
                                         -
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-center">
+                                <td class="px-3 py-2.5 text-center align-middle" style="min-width:100px;">
                                     @if ($member->testimonials_count > 0)
-                                        <a href="{{ route('admin.activities.testimonials', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 no-underline" target="_blank">
-                                            💬 {{ $member->testimonials_count }}
+                                        <a href="{{ route('admin.activities.testimonials', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 no-underline inline-flex items-center gap-1" target="_blank">
+                                            <i class="bi bi-chat-quote-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $member->testimonials_count }}</span>
                                         </a>
                                     @else
                                         <span class="t3 text-xs">0</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-center">
+                                <td class="px-3 py-2.5 text-center align-middle" style="min-width:90px;">
                                     @if ($member->referrals_count > 0)
-                                        <a href="{{ route('admin.activities.referrals', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 no-underline" target="_blank">
-                                            👤 {{ $member->referrals_count }}
+                                        <a href="{{ route('admin.activities.referrals', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 no-underline inline-flex items-center gap-1" target="_blank">
+                                            <i class="bi bi-person-plus-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $member->referrals_count }}</span>
                                         </a>
                                     @else
                                         <span class="t3 text-xs">0</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-center">
+                                <td class="px-3 py-2.5 text-center align-middle" style="min-width:110px;">
                                     @if ($member->business_deals_count > 0)
-                                        <a href="{{ route('admin.activities.business-deals', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200 no-underline" target="_blank">
-                                            💼 {{ $member->business_deals_count }}
+                                        <a href="{{ route('admin.activities.business-deals', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200 no-underline inline-flex items-center gap-1" target="_blank">
+                                            <i class="bi bi-briefcase-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $member->business_deals_count }}</span>
                                         </a>
                                     @else
                                         <span class="t3 text-xs">0</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-center">
+                                <td class="px-3 py-2.5 text-center align-middle" style="min-width:110px;">
                                     @if ($member->p2p_completed_count > 0)
-                                        <a href="{{ route('admin.activities.p2p-meetings', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200 no-underline" target="_blank">
-                                            🤝 {{ $member->p2p_completed_count }}
+                                        <a href="{{ route('admin.activities.p2p-meetings', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200 no-underline inline-flex items-center gap-1" target="_blank">
+                                            <i class="bi bi-people-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $member->p2p_completed_count }}</span>
                                         </a>
                                     @else
                                         <span class="t3 text-xs">0</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-center">
+                                <td class="px-3 py-2.5 text-center align-middle" style="min-width:110px;">
                                     @if ($member->requirements_count > 0)
-                                        <a href="{{ route('admin.activities.requirements', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200 no-underline" target="_blank">
-                                            📄 {{ $member->requirements_count }}
+                                        <a href="{{ route('admin.activities.requirements', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200 no-underline inline-flex items-center gap-1" target="_blank">
+                                            <i class="bi bi-file-earmark-text-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $member->requirements_count }}</span>
                                         </a>
                                     @else
                                         <span class="t3 text-xs">0</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-center">
+                                <td class="px-3 py-2.5 text-center align-middle" style="min-width:110px;">
                                     @if ($member->become_leader_count > 0)
-                                        <a href="{{ route('admin.activities.become-a-leader.show', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-800 border-gray-300 no-underline" target="_blank">
-                                            🏅 {{ $member->become_leader_count }}
+                                        <a href="{{ route('admin.activities.become-a-leader.show', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-800 border-gray-300 no-underline inline-flex items-center gap-1" target="_blank">
+                                            <i class="bi bi-award-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $member->become_leader_count }}</span>
                                         </a>
                                     @else
                                         <span class="t3 text-xs">0</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-center">
+                                <td class="px-3 py-2.5 text-center align-middle" style="min-width:110px;">
                                     @if ($member->recommend_peer_count > 0)
-                                        <a href="{{ route('admin.activities.recommend-peer.show', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-violet-50 text-violet-700 border-violet-200 no-underline" target="_blank">
-                                            👍 {{ $member->recommend_peer_count }}
+                                        <a href="{{ route('admin.activities.recommend-peer.show', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-violet-50 text-violet-700 border-violet-200 no-underline inline-flex items-center gap-1" target="_blank">
+                                            <i class="bi bi-hand-thumbs-up-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $member->recommend_peer_count }}</span>
                                         </a>
                                     @else
                                         <span class="t3 text-xs">0</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-center">
+                                <td class="px-3 py-2.5 text-center align-middle" style="min-width:110px;">
                                     @if ($member->register_visitor_count > 0)
-                                        <a href="{{ route('admin.activities.register-visitor.show', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 no-underline" target="_blank">
-                                            🪪 {{ $member->register_visitor_count }}
+                                        <a href="{{ route('admin.activities.register-visitor.show', $member->id) }}" class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 no-underline inline-flex items-center gap-1" target="_blank">
+                                            <i class="bi bi-person-vcard-fill admin-icon me-1" aria-hidden="true"></i><span>{{ $member->register_visitor_count }}</span>
                                         </a>
                                     @else
                                         <span class="t3 text-xs">0</span>

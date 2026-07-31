@@ -5,13 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class AppVersion extends Model
+class UserMobileVersion extends Model
 {
     use HasFactory;
     use HasUuids;
 
-    protected $table = 'app_versions';
+    protected $table = 'user_mobile_versions';
 
     public $incrementing = false;
 
@@ -19,15 +20,15 @@ class AppVersion extends Model
 
     protected $fillable = [
         'id',
+        'user_id',
         'platform',
-        'latest_version',
-        'min_version',
-        'update_type',
-        'is_active',
-        'release_notes',
+        'app_version',
+        'device_model',
+        'os_version',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

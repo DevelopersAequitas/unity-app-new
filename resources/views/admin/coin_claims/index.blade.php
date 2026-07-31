@@ -162,14 +162,17 @@
                                         <span class="t3">—</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $company }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $city }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $circleName }}</td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$company" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$city" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$circleName" /></td>
                                 <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $user->phone ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs font-medium t1">{{ data_get($registry->get($claim->activity_code), 'label', $claim->activity_code) }}</td>
-                                <td class="px-3 py-2.5 text-xs">
+                                <td class="px-3 py-2.5 text-xs font-medium t1"><x-admin-grid-text :text="data_get($registry->get($claim->activity_code), 'label', $claim->activity_code)" /></td>
+                                <td class="px-3 py-2.5 text-xs max-w-[280px]">
                                     @if ($keyFieldsRows !== [])
-                                        <div class="space-y-0.5 text-[11px]">
+                                        @php
+                                            $formattedKeyFieldsText = collect($keyFieldsRows)->map(fn($r) => $r['label'] . ': ' . $r['value'])->implode(' | ');
+                                        @endphp
+                                        <div class="space-y-0.5 text-[11px] admin-grid-text-clamp" data-full-text="{{ $formattedKeyFieldsText }}">
                                             @foreach ($keyFieldsRows as $row)
                                                 <div><span class="font-semibold t1">{{ $row['label'] }}:</span> <span class="t2">{{ $row['value'] }}</span></div>
                                             @endforeach

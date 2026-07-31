@@ -116,19 +116,21 @@
                                         @endif
                                     </div>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $company }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $city }}</td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$company" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$city" /></td>
                                 <td class="px-3 py-2.5 text-xs">
                                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $typeName }}</span>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] max-w-[150px] truncate" title="{{ $title }}">
-                                    @if(!empty($post->id))
-                                        <a href="{{ route('admin.collaborations.show', ['id' => $post->id] + request()->query()) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] max-w-[200px]">
+                                    <div class="admin-grid-text-clamp" data-full-text="{{ $title }}">
+                                        @if(!empty($post->id))
+                                            <a href="{{ route('admin.collaborations.show', ['id' => $post->id] + request()->query()) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                {{ $title }}
+                                            </a>
+                                        @else
                                             {{ $title }}
-                                        </a>
-                                    @else
-                                        {{ $title }}
-                                    @endif
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $scope }}</td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $preferredMode }}</td>

@@ -108,16 +108,16 @@
 
         <div class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
-                <table class="min-w-full border-collapse text-[13px]">
+                <table class="min-w-[900px] w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Subject</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Description</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Region</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Category</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Attachment</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:120px;">Subject</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:150px;">Description</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:100px;">Region</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:140px;">Business Category</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:100px;">Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:90px;">Attachment</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Created At</th>
                         </tr>
                     </thead>
                     <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -130,27 +130,27 @@
                                 $category = $categoryFilter['category'] ?? null;
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
-                                <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] max-w-[200px] truncate" title="{{ $requirement->subject }}">{{ $requirement->subject ?? '-' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2 max-w-[250px] truncate" title="{{ $requirement->description }}">{{ $requirement->description ?? '-' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $regionLabel ?? '-' }}</td>
-                                <td class="px-3 py-2.5 text-xs">
+                                <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] align-middle" style="min-width:120px;"><x-admin-grid-text :text="$requirement->subject ?? '-'" :lines="2" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:150px;"><x-admin-grid-text :text="$requirement->description ?? '-'" :lines="2" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:100px;"><x-admin-grid-text :text="$regionLabel ?? '-'" :lines="2" /></td>
+                                <td class="px-3 py-2.5 text-xs align-middle" style="min-width:140px;">
                                     @if($category)
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ $category }}</span>
+                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 inline-block admin-grid-text-clamp" data-full-text="{{ $category }}">{{ $category }}</span>
                                     @else
                                         <span class="t3">-</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs">
+                                <td class="px-3 py-2.5 text-xs align-middle" style="min-width:100px;">
                                     <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $requirement->status ?? 'active' }}</span>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs">
+                                <td class="px-3 py-2.5 text-xs align-middle" style="min-width:90px;">
                                     @if($attachmentUrl)
                                         <a href="{{ $attachmentUrl }}" target="_blank" class="text-indigo-600 font-semibold no-underline">View Attachment</a>
                                     @else
                                         <span class="t3">-</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap align-middle" style="min-width:130px;">
                                     {{ optional($requirement->created_at)->format('Y-m-d H:i') ?? '-' }}
                                 </td>
                             </tr>

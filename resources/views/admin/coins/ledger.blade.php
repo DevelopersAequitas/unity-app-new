@@ -143,9 +143,9 @@
                                         <span class="t3">—</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $creatorCompany }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $creatorCity }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $creatorCircle }}</td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$creatorCompany" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$creatorCity" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$creatorCircle" /></td>
                             </tr>
                         @empty
                             <tr>

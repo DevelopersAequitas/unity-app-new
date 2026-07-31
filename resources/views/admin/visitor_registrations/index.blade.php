@@ -223,16 +223,16 @@
                                         <span class="t3">—</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $memberCompany }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $memberCity }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $memberCircle }}</td>
-                                <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $registration->visitor_full_name ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $visitorEmail }}</td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$memberCompany" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$memberCity" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$memberCircle" /></td>
+                                <td class="px-3 py-2.5 text-xs font-semibold t1"><x-admin-grid-text :text="$registration->visitor_full_name ?? '—'" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$visitorEmail" /></td>
                                 <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_mobile ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_business ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_city ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $visitorCategory }}</td>
-                                <td class="px-3 py-2.5 text-xs t1 font-medium">{{ $eventName }}</td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$registration->visitor_business ?? '—'" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$registration->visitor_city ?? '—'" /></td>
+                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$visitorCategory" /></td>
+                                <td class="px-3 py-2.5 text-xs t1 font-medium"><x-admin-grid-text :text="$eventName" /></td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if($registration->status === 'approved')
                                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Approved</span>
@@ -245,9 +245,9 @@
                                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($registration->created_at ?? null) }}</td>
                                 <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
                                     <div class="flex justify-end gap-1.5 items-center">
-                                        <a href="{{ route('admin.visitor-registrations.export-single', $registration->id) }}" class="p-1 rounded border bs t2 hover:t1 hover:surface-2 transition no-underline" title="Export Single CSV">
-                                            📥
-                                        </a>
+                                         <a href="{{ route('admin.visitor-registrations.export-single', $registration->id) }}" class="p-1 rounded border bs t2 hover:t1 hover:surface-2 transition no-underline inline-flex items-center justify-center" title="Export Single CSV" aria-label="Export Single CSV">
+                                             <i class="bi bi-download" aria-hidden="true"></i>
+                                         </a>
                                         @if ($registration->status === 'pending')
                                             <form method="POST" action="{{ route('admin.visitor-registrations.approve', $registration->id) }}" class="inline">
                                                 @csrf

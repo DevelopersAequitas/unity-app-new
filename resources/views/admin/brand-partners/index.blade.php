@@ -23,7 +23,7 @@
                 <a href="{{ route('admin.brand-partners.offers') }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">Offers</a>
                 @if(auth('admin')->user() && in_array(auth('admin')->user()->roles->pluck('key')->first(), ['global_admin', 'marketing_team', 'content_team']))
                     <a href="{{ route('admin.brand-partners.create') }}" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1">
-                        ➕ Add Partner
+                        <i class="bi bi-plus-lg admin-icon me-1" aria-hidden="true"></i>Add Partner
                     </a>
                 @endif
             </div>
@@ -122,7 +122,7 @@
                                         @csrf
                                         @method('PATCH')
                                         <button type="submit" class="border-0 bg-transparent cursor-pointer">
-                                            {{ $partner->is_featured ? '⭐' : '☆' }}
+                                            <i class="bi {{ $partner->is_featured ? 'bi-star-fill text-amber-500' : 'bi-star text-slate-400' }} admin-icon" aria-hidden="true"></i>
                                         </button>
                                     </form>
                                 </td>
@@ -131,7 +131,7 @@
                                         @csrf
                                         @method('PATCH')
                                         <button type="submit" class="border-0 bg-transparent cursor-pointer">
-                                            {{ $partner->is_sponsored ? '🏆' : '⚪' }}
+                                            <i class="bi {{ $partner->is_sponsored ? 'bi-award-fill text-indigo-500' : 'bi-circle text-slate-400' }} admin-icon" aria-hidden="true"></i>
                                         </button>
                                     </form>
                                 </td>
