@@ -301,7 +301,6 @@ class MemberController extends BaseApiController
     {
         $selectColumns = [
             'id',
-            'peer_id',
             'first_name',
             'last_name',
             'display_name',
@@ -331,6 +330,10 @@ class MemberController extends BaseApiController
 
         if (Schema::hasColumn('users', 'contact_visibility')) {
             $selectColumns[] = 'contact_visibility';
+        }
+
+        if (Schema::hasColumn('users', 'is_verified')) {
+            $selectColumns[] = 'is_verified';
         }
 
         $selectColumns = array_values(array_unique(array_diff($selectColumns, ['life_impacted_count'])));
@@ -389,12 +392,8 @@ class MemberController extends BaseApiController
     {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
 
-        if ($request->has('per_page') || $request->has('page')) {
-            $perPage = (int) $request->input('per_page', 15);
-            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage);
-        } else {
-            $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
-        }
+        $perPage = max(1, (int) $request->input('per_page', 15));
+        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage);
 
         return LimitedUserResource::collection($users)->additional([
             'success' => true,

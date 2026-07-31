@@ -38,6 +38,15 @@ class LimitedUserResource extends JsonResource
             $isBookmark = in_array((string) $user->id, $bookmarks, true);
         }
 
+        $rawVerified = $user->is_verified ?? null;
+        if ($rawVerified !== null) {
+            $isVerified = (bool) $rawVerified;
+        } elseif (method_exists($user, 'isPaidMember')) {
+            $isVerified = (bool) $user->isPaidMember();
+        } else {
+            $isVerified = false;
+        }
+
         return [
             'id' => $user->id,
             'name' => $name !== '' ? trim((string) $name) : null,
@@ -51,6 +60,7 @@ class LimitedUserResource extends JsonResource
             'designation' => $user->designation,
             'level4_category' => $user->level4Category ? $user->level4Category->name : null,
             'is_bookmark' => $isBookmark,
+            'is_verified' => $isVerified,
         ];
     }
 }

@@ -20,6 +20,36 @@ class LimitedUserApiTest extends TestCase
     {
         parent::setUp();
 
+        Schema::create('users', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('public_profile_slug')->nullable();
+            $table->string('first_name')->nullable();
+            $table->string('last_name')->nullable();
+            $table->string('display_name')->nullable();
+            $table->string('company_name')->nullable();
+            $table->string('email')->nullable();
+            $table->string('phone')->nullable();
+            $table->string('password_hash')->nullable();
+            $table->string('membership_status')->nullable();
+            $table->integer('coins_balance')->nullable();
+            $table->integer('life_impacted_count')->nullable();
+            $table->timestamp('last_login_at')->nullable();
+            $table->uuid('profile_photo_file_id')->nullable();
+            $table->string('profile_photo_url')->nullable();
+            $table->uuid('city_id')->nullable();
+            $table->string('city')->nullable();
+            $table->string('designation')->nullable();
+            $table->unsignedBigInteger('business_category_id')->nullable();
+            $table->string('business_type')->nullable();
+            $table->string('status')->nullable();
+            $table->string('contact_visibility', 50)->nullable();
+            $table->string('profile_visibility', 50)->nullable();
+            $table->json('bookmarks')->nullable();
+            $table->boolean('is_verified')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
         Schema::create('peer_blocks', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->uuid('blocker_user_id');
@@ -32,6 +62,29 @@ class LimitedUserApiTest extends TestCase
             $table->id();
             $table->string('name');
             $table->timestamps();
+        });
+
+        Schema::create('connections', function (Blueprint $table): void {
+            $table->uuid('requester_id');
+            $table->uuid('addressee_id');
+            $table->boolean('is_approved')->default(false);
+            $table->timestamps();
+        });
+
+        Schema::create('circles', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->timestamps();
+        });
+
+        Schema::create('circle_members', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id');
+            $table->uuid('circle_id');
+            $table->string('status')->nullable();
+            $table->timestamp('left_at')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
         });
     }
 
@@ -90,6 +143,7 @@ class LimitedUserApiTest extends TestCase
                     'designation',
                     'level4_category',
                     'is_bookmark',
+                    'is_verified',
                 ],
             ],
         ]);
@@ -106,12 +160,57 @@ class LimitedUserApiTest extends TestCase
         $this->assertSame('Developer', $data[0]['designation']);
         $this->assertSame('Software Engineering', $data[0]['level4_category']);
         $this->assertFalse($data[0]['is_bookmark']);
+        $this->assertIsBool($data[0]['is_verified']);
 
         // Verify that other sensitive/large fields are NOT present in the limited response
         $this->assertArrayNotHasKey('email', $data[0]);
         $this->assertArrayNotHasKey('phone', $data[0]);
         $this->assertArrayNotHasKey('coins_balance', $data[0]);
         $this->assertArrayNotHasKey('industry_tags', $data[0]);
+    }
+
+    public function test_limited_users_endpoint_returns_is_verified_boolean_field(): void
+    {
+        $verifiedUser = User::factory()->create([
+            'status' => 'active',
+            'membership_status' => 'Only Unity Peer',
+            'is_verified' => true,
+        ]);
+
+        $unverifiedUser = User::factory()->create([
+            'status' => 'active',
+            'membership_status' => 'free_peer',
+            'is_verified' => false,
+        ]);
+
+        $nullVerifiedUser = User::factory()->create([
+            'status' => 'active',
+            'membership_status' => 'free_peer',
+            'is_verified' => null,
+        ]);
+
+        Sanctum::actingAs($verifiedUser);
+
+        $response = $this->getJson('/api/v1/members/limited');
+
+        $response->assertOk();
+        $data = collect($response->json('data'));
+
+        $vItem = $data->firstWhere('id', $verifiedUser->id);
+        $uItem = $data->firstWhere('id', $unverifiedUser->id);
+        $nItem = $data->firstWhere('id', $nullVerifiedUser->id);
+
+        $this->assertNotNull($vItem);
+        $this->assertNotNull($uItem);
+        $this->assertNotNull($nItem);
+
+        $this->assertTrue($vItem['is_verified']);
+        $this->assertFalse($uItem['is_verified']);
+        $this->assertFalse($nItem['is_verified']);
+
+        $this->assertIsBool($vItem['is_verified']);
+        $this->assertIsBool($uItem['is_verified']);
+        $this->assertIsBool($nItem['is_verified']);
     }
 
     public function test_limited_users_endpoint_returns_paginated_members(): void
@@ -131,10 +230,46 @@ class LimitedUserApiTest extends TestCase
         $response->assertOk();
         $this->assertCount(15, $response->json('data'));
         $response->assertJsonStructure([
-            'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+            'meta' => [
+                'current_page',
+                'last_page',
+                'per_page',
+                'total',
+                'from',
+                'to',
+            ],
             'links' => ['first', 'last', 'prev', 'next'],
         ]);
         $this->assertSame(21, $response->json('meta.total'));
+        $this->assertSame(1, $response->json('meta.current_page'));
+        $this->assertSame(15, $response->json('meta.per_page'));
+        $this->assertSame(2, $response->json('meta.last_page'));
+        $this->assertSame(1, $response->json('meta.from'));
+        $this->assertSame(15, $response->json('meta.to'));
+    }
+
+    public function test_limited_users_endpoint_supports_custom_page_and_per_page(): void
+    {
+        $activeUser = User::factory()->create([
+            'status' => 'active',
+        ]);
+
+        User::factory()->count(24)->create([
+            'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($activeUser);
+
+        $response = $this->getJson('/api/v1/members/limited?page=2&per_page=10');
+
+        $response->assertOk();
+        $this->assertCount(10, $response->json('data'));
+        $this->assertSame(2, $response->json('meta.current_page'));
+        $this->assertSame(10, $response->json('meta.per_page'));
+        $this->assertSame(25, $response->json('meta.total'));
+        $this->assertSame(3, $response->json('meta.last_page'));
+        $this->assertSame(11, $response->json('meta.from'));
+        $this->assertSame(20, $response->json('meta.to'));
     }
 
     public function test_members_endpoint_returns_all_members_without_pagination_with_all_fields(): void
