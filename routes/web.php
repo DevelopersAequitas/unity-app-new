@@ -149,6 +149,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/app-updates', [AppUpdatesController::class, 'index'])->name('app-updates.index');
         Route::post('/app-updates/save/{platform}', [AppUpdatesController::class, 'saveSettings'])->name('app-updates.save');
         Route::post('/app-updates/notify-selected', [AppUpdatesController::class, 'notifySelected'])->name('app-updates.notify-selected');
+        Route::post('/app-updates/releases', [AppUpdatesController::class, 'storeRelease'])->name('app-updates.releases.store');
         Route::get('/birthday-creative', [BirthdayCreativeController::class, 'index'])->name('birthday-creative.index');
         Route::post('/birthday-creative', [BirthdayCreativeController::class, 'update'])->name('birthday-creative.update');
         Route::get('/birthday-creative/preview/{userId}', [BirthdayCreativeController::class, 'preview'])->name('birthday-creative.preview');

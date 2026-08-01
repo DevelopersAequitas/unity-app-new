@@ -303,6 +303,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/posts/report-reasons', [PostReportReasonsController::class, 'index']);
     Route::get('/app/version', [AppVersionController::class, 'show']);
     Route::get('/app/changelogs', [AppChangelogController::class, 'index']);
+    Route::post('/app-releases', [AppChangelogController::class, 'store']);
     Route::post('/notifications/send-test', SendTestNotificationController::class);
     Route::get('/referrals/search', [ReferralController::class, 'search']);
     Route::get('/referrals/validate/{code}', [ReferralController::class, 'validateCode']);

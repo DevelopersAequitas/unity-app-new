@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Models\AppChangelog;
 use App\Models\UserMobileVersion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class UserMobileVersionController extends BaseApiController
 {
     /**
-     * Store or update the authenticated user's mobile app version details.
+     * Store or update the authenticated user's mobile app version details
+     * and include the latest released App Release / Changelog.
      */
     public function store(Request $request): JsonResponse
     {
@@ -25,11 +28,12 @@ class UserMobileVersionController extends BaseApiController
         ]);
 
         $userId = $request->user()->id;
+        $requestedPlatform = strtolower($validated['platform']);
 
         $userMobileVersion = UserMobileVersion::updateOrCreate(
             [
                 'user_id' => $userId,
-                'platform' => strtolower($validated['platform']),
+                'platform' => $requestedPlatform,
             ],
             [
                 'app_version' => $validated['app_version'],
@@ -38,6 +42,49 @@ class UserMobileVersionController extends BaseApiController
             ]
         );
 
-        return $this->success($userMobileVersion, 'User mobile version stored successfully.');
+        $latestReleaseQuery = AppChangelog::query()
+            ->where('is_released', true);
+
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $latestReleaseQuery->where(function ($q) use ($requestedPlatform): void {
+                $q->whereJsonContains('platform', ucfirst($requestedPlatform))
+                    ->orWhereJsonContains('platform', $requestedPlatform)
+                    ->orWhere('platform', 'like', "%{$requestedPlatform}%");
+            });
+        } else {
+            $latestReleaseQuery->whereRaw(
+                'EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements_text(app_changelogs.platform) AS platform_value
+                    WHERE LOWER(platform_value) = ?
+                )',
+                [$requestedPlatform]
+            );
+        }
+
+        $latestRelease = $latestReleaseQuery
+            ->orderByRaw(DB::connection()->getDriverName() === 'sqlite' ? 'released_at DESC' : 'released_at DESC NULLS LAST')
+            ->orderByDesc('created_at')
+            ->first();
+
+        $latestReleaseData = null;
+        if ($latestRelease) {
+            $latestReleaseData = [
+                'id' => $latestRelease->id,
+                'version' => $latestRelease->version,
+                'platform' => $latestRelease->platform,
+                'title' => $latestRelease->title,
+                'description' => $latestRelease->description,
+                'features' => $latestRelease->features ?? [],
+                'is_released' => (bool) $latestRelease->is_released,
+                'released_at' => $latestRelease->released_at ? $latestRelease->released_at->toIso8601String() : null,
+            ];
+        }
+
+        $responseData = array_merge($userMobileVersion->toArray(), [
+            'latest_release' => $latestReleaseData,
+        ]);
+
+        return $this->success($responseData, 'User mobile version stored successfully.');
     }
 }

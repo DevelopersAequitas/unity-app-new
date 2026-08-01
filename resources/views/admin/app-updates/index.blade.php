@@ -25,6 +25,116 @@
         </div>
     @endif
 
+    @if($errors->any())
+        <div class="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            <ul class="list-disc pl-4 space-y-0.5">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <!-- App Release / What's New Form Card -->
+    <div class="p-4 rounded-xl border bs bg-white shadow-sm space-y-4">
+        <form method="POST" action="{{ route('admin.app-updates.releases.store') }}">
+            @csrf
+            <div class="flex justify-between items-center pb-2 border-b">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🚀</span>
+                    <h3 class="font-semibold text-sm t1 m-0">Create App Release / What's New</h3>
+                </div>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" name="is_released" value="1" checked class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <span class="text-xs font-semibold t2">Is Released</span>
+                </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Version *</label>
+                    <input type="text" name="version" required placeholder="e.g. 2.8.4" value="{{ old('version') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    @error('version') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Platform *</label>
+                    <div class="flex items-center gap-4 py-1.5">
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs t1 font-medium">
+                            <input type="checkbox" name="platform[]" value="Android" checked class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            Android
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs t1 font-medium">
+                            <input type="checkbox" name="platform[]" value="iOS" checked class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            iOS
+                        </label>
+                    </div>
+                    @error('platform') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Released At (Optional)</label>
+                    <input type="datetime-local" name="released_at" value="{{ old('released_at') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                    @error('released_at') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Release Title *</label>
+                <input type="text" name="title" required placeholder="e.g. Performance & Security Update" value="{{ old('title') }}" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                @error('title') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+            </div>
+
+            <div class="mt-3">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Description</label>
+                <textarea name="description" rows="2" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Summary of this release...">{{ old('description') }}</textarea>
+                @error('description') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+            </div>
+
+            <div class="mt-3">
+                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Features (One per line)</label>
+                <textarea name="features" rows="3" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Enhanced login security&#10;Faster dashboard loading&#10;Bug fixes...">{{ old('features') }}</textarea>
+                @error('features') <span class="text-[10px] text-rose-500">{{ $message }}</span> @enderror
+            </div>
+
+            <div class="flex justify-end gap-2 mt-4">
+                <button type="submit" class="px-4 py-2 text-xs font-semibold rounded bg-indigo-600 hover:bg-indigo-500 text-white transition focus-ring">
+                    Publish Release
+                </button>
+            </div>
+        </form>
+
+        @if(isset($appReleases) && $appReleases->count() > 0)
+            <div class="pt-3 border-t">
+                <h4 class="font-semibold text-[11px] text-indigo-500 uppercase tracking-wider mb-2">Recent Releases</h4>
+                <div class="divide-y divide-gray-100 max-h-48 overflow-y-auto pr-1">
+                    @foreach($appReleases as $release)
+                        <div class="py-2 flex justify-between items-start gap-4">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-xs t1">v{{ $release->version }}</span>
+                                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 t2">
+                                        {{ is_array($release->platform) ? implode(', ', $release->platform) : $release->platform }}
+                                    </span>
+                                    @if($release->is_released)
+                                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">Released</span>
+                                    @else
+                                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700">Draft</span>
+                                    @endif
+                                </div>
+                                <div class="text-xs font-medium t1 mt-0.5">{{ $release->title }}</div>
+                                @if($release->description)
+                                    <div class="text-[11px] t3 mt-0.5">{{ \Illuminate\Support\Str::limit($release->description, 120) }}</div>
+                                @endif
+                            </div>
+                            <div class="text-right text-[10px] t3 whitespace-nowrap">
+                                {{ $release->released_at ? $release->released_at->format('M d, Y') : ($release->created_at ? $release->created_at->format('M d, Y') : '') }}
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+    </div>
+
     <!-- Config Grid (Android & iOS) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Android Config -->
