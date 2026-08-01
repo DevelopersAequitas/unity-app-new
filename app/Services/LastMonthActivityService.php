@@ -123,6 +123,50 @@ class LastMonthActivityService
             ];
         })->values()->all();
 
+        // 2b. Business Deals Given
+        $dealsGiven = BusinessDeal::query()
+            ->where(function ($q): void {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('from_user_id', $user->id)
+            ->where(function ($q) use ($startStr, $endStr, $startDate, $endDate): void {
+                $q->where(function ($q2) use ($startStr, $endStr): void {
+                    $q2->whereNotNull('deal_date')
+                        ->whereDate('deal_date', '>=', $startStr)
+                        ->whereDate('deal_date', '<=', $endStr);
+                })->orWhere(function ($q2) use ($startDate, $endDate): void {
+                    $q2->whereNull('deal_date')
+                        ->whereBetween('created_at', [$startDate, $endDate]);
+                });
+            })
+            ->with('toUser')
+            ->orderByDesc('deal_date')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $dealGivenItems = $dealsGiven->map(function (BusinessDeal $deal): array {
+            $toUser = $deal->toUser;
+            $peerName = $toUser
+                ? ($toUser->display_name ?? trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? '')))
+                : 'Unknown';
+
+            $actDate = $deal->deal_date
+                ? Carbon::parse($deal->deal_date)->format('Y-m-d')
+                : ($deal->created_at ? $deal->created_at->format('Y-m-d') : '');
+
+            return [
+                'id' => (string) $deal->id,
+                'activity_date' => $actDate,
+                'peer_id' => $deal->to_user_id,
+                'peer_name' => $peerName,
+                'amount' => (float) $deal->deal_amount,
+                'comment' => $deal->comment ?? '',
+                'deal_type' => $deal->business_type ?? '',
+            ];
+        })->values()->all();
+
         // 3. Referrals Given
         $referrals = Referral::query()
             ->where(function ($q): void {
@@ -310,6 +354,7 @@ class LastMonthActivityService
         // Build display texts
         $p2pNames = collect($p2pItems)->pluck('peer_name')->toArray();
         $dealNames = collect($dealItems)->pluck('peer_name')->toArray();
+        $dealGivenNames = collect($dealGivenItems)->pluck('peer_name')->toArray();
         $refTexts = collect($referralItems)->map(function (array $item): string {
             return $item['connected_with_name'] !== ''
                 ? "{$item['connected_with_name']} (to {$item['peer_name']})"
@@ -344,6 +389,11 @@ class LastMonthActivityService
                     'count' => count($dealItems),
                     'items' => $dealItems,
                     'display_text' => $this->buildDisplayText($dealNames),
+                ],
+                'business_deals_given' => [
+                    'count' => count($dealGivenItems),
+                    'items' => $dealGivenItems,
+                    'display_text' => $this->buildDisplayText($dealGivenNames),
                 ],
                 'referrals_given' => [
                     'count' => count($referralItems),
