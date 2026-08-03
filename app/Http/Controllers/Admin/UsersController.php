@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendFounderEngagementJob;
 use App\Jobs\SendWelcomeWhatsappJob;
 use App\Models\AdminUser;
 use App\Models\Circle;
@@ -351,6 +352,8 @@ class UsersController extends Controller
 
         if ($user && $user->exists) {
             SendWelcomeWhatsappJob::dispatch((string) $user->id);
+            SendFounderEngagementJob::dispatch((string) $user->id)
+                ->delay(now()->addHours(3));
         }
 
         return redirect()
@@ -1508,6 +1511,8 @@ class UsersController extends Controller
 
                     $createdUser = User::create($payload);
                     SendWelcomeWhatsappJob::dispatch((string) $createdUser->id);
+                    SendFounderEngagementJob::dispatch((string) $createdUser->id)
+                        ->delay(now()->addHours(3));
                     $results['created']++;
                 }
             } catch (Throwable $e) {
