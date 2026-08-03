@@ -26,7 +26,11 @@ class RoleHierarchyController extends Controller
 
     public function index(): View
     {
-        $roles = Role::query()->where('status', 'active')->orderBy('hierarchy_depth')->get();
+        $rolesQuery = Role::query()->where('status', 'active');
+        if (Schema::hasColumn('roles', 'hierarchy_depth')) {
+            $rolesQuery->orderBy('hierarchy_depth');
+        }
+        $roles = $rolesQuery->get();
 
         // Build parent-child relationships map
         $relations = DB::table('role_hierarchies')->get();
@@ -66,7 +70,11 @@ class RoleHierarchyController extends Controller
 
     public function fullMap(): View
     {
-        $roles = Role::query()->where('status', 'active')->orderBy('hierarchy_depth')->get();
+        $rolesQuery = Role::query()->where('status', 'active');
+        if (Schema::hasColumn('roles', 'hierarchy_depth')) {
+            $rolesQuery->orderBy('hierarchy_depth');
+        }
+        $roles = $rolesQuery->get();
 
         $relations = DB::table('role_hierarchies')->get();
         $parentToChildren = [];
@@ -619,7 +627,9 @@ class RoleHierarchyController extends Controller
                         ->where('role', $dbRole)
                         ->delete();
 
-                    DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                    if (Schema::hasTable('tbl_permission_cache')) {
+                        DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                    }
                 }
             }
 
@@ -815,7 +825,9 @@ class RoleHierarchyController extends Controller
                             ]);
                         }
 
-                        DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                        if (Schema::hasTable('tbl_permission_cache')) {
+                            DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                        }
                     }
                 }
             }

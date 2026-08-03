@@ -90,8 +90,8 @@ jobs:
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
-            php artisan queue:restart
-            php artisan reverb:restart
+            php artisan queue:restart || true
+            php artisan reverb:restart > /dev/null 2>&1 || true
             if [ -d "../public_html/css" ] && [ -w "../public_html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css ../public_html/css/; fi
             if [ -d "/var/www/html/css" ] && [ -w "/var/www/html/css" ]; then cp -f public/css/admin.css public/css/admin-grid.css /var/www/html/css/; fi
             php artisan storage:link --force || true
