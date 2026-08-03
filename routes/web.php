@@ -198,11 +198,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users/import', [UsersController::class, 'import'])->name('users.import.submit');
         Route::post('/users/export/csv', [UsersController::class, 'exportCsv'])->name('users.export.csv');
         Route::get('/users/upcoming-events', [UsersController::class, 'upcomingEvents'])->name('users.upcoming-events');
-        Route::get('/users/{user}', [UsersController::class, 'show'])->withTrashed()->name('users.show');
+        Route::get('/users/{user}', [UsersController::class, 'show'])->withTrashed()->whereUuid('user')->name('users.show');
         Route::post('/users/bulk-approve-membership', [UsersController::class, 'bulkApproveMembership'])->name('users.bulk-approve-membership');
-        Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->withTrashed()->name('users.approve-membership');
-        Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->withTrashed()->name('users.edit');
-        Route::put('/users/{user}', [UsersController::class, 'update'])->withTrashed()->name('users.update');
+        Route::post('/users/{user}/approve-membership', [UsersController::class, 'approveMembership'])->withTrashed()->whereUuid('user')->name('users.approve-membership');
+        Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->withTrashed()->whereUuid('user')->name('users.edit');
+        Route::match(['put', 'post'], '/users/{user}', [UsersController::class, 'update'])->withTrashed()->whereUuid('user')->name('users.update');
         Route::delete('/users/{user}', [UsersController::class, 'destroy'])
             ->withTrashed()
             ->whereUuid('user')
