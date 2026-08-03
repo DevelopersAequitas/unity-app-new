@@ -281,21 +281,18 @@
                                 <td colspan="8" class="p-0 border-0">
                                     <div class="collapse" id="{{ $detailsId }}">
                                         <div class="p-4 surface-2 border-t border-b bs">
-                                            <?php
-
-use Carbon\Carbon;
-
+                                             <?php
                                                 $detailFields = [
-                                                                                                ['label' => 'Director', 'value' => $circle->director?->display_name],
-                                                                                                ['label' => 'Circle Stage', 'value' => $circle->circle_stage],
-                                                                                                ['label' => 'Country', 'value' => $circle->country ?? $circle->city?->country],
-                                                                                                ['label' => 'Meeting Mode', 'value' => ! empty($circle->meeting_mode) ? ucfirst(strtolower($circle->meeting_mode)) : null],
-                                                                                                ['label' => 'Meeting Frequency', 'value' => ! empty($circle->meeting_frequency) ? ucfirst(strtolower($circle->meeting_frequency)) : null],
-                                                                                                ['label' => 'Launch Date', 'value' => ! empty($circle->launch_date) ? Carbon::parse($circle->launch_date)->format('d-m-Y') : null],
-                                                                                                ['label' => 'Industry Tags', 'value' => $industryTagsText !== '' ? $industryTagsText : null],
-                                                                                                ['label' => 'Peers Count', 'value' => ($circle->members_count ?? 0).' members', 'circle_id' => $circle->id],
-                                                                                                ['label' => 'Created At', 'value' => optional($circle->created_at)->format('d M Y') ?? null],
-                                                                                            ];
+                                                    ['label' => 'Director', 'value' => $circle->director?->display_name],
+                                                    ['label' => 'Circle Stage', 'value' => $circle->circle_stage],
+                                                    ['label' => 'Country', 'value' => $circle->country ?? $circle->city?->country],
+                                                    ['label' => 'Meeting Mode', 'value' => ! empty($circle->meeting_mode) ? ucfirst(strtolower($circle->meeting_mode)) : null],
+                                                    ['label' => 'Meeting Frequency', 'value' => ! empty($circle->meeting_frequency) ? ucfirst(strtolower($circle->meeting_frequency)) : null],
+                                                    ['label' => 'Launch Date', 'value' => ! empty($circle->launch_date) ? \Illuminate\Support\Carbon::parse($circle->launch_date)->format('d-m-Y') : null],
+                                                    ['label' => 'Industry Tags', 'value' => $industryTagsText !== '' ? $industryTagsText : null],
+                                                    ['label' => 'Peers Count', 'value' => ($circle->members_count ?? 0).' members', 'circle_id' => $circle->id],
+                                                    ['label' => 'Created At', 'value' => optional($circle->created_at)->format('d M Y') ?? null],
+                                                ];
 
                                             $chunks = array_chunk($detailFields, (int) ceil(count($detailFields) / 3));
                                             ?>
@@ -428,7 +425,7 @@ use Carbon\Carbon;
             'circle_stage' => $c->circle_stage ?? '—',
             'meeting_mode' => ! empty($c->meeting_mode) ? ucfirst(strtolower($c->meeting_mode)) : '—',
             'meeting_frequency' => ! empty($c->meeting_frequency) ? ucfirst(strtolower($c->meeting_frequency)) : '—',
-            'launch_date' => ! empty($c->launch_date) ? Carbon::parse($c->launch_date)->format('d M Y') : '—',
+            'launch_date' => ! empty($c->launch_date) ? \Illuminate\Support\Carbon::parse($c->launch_date)->format('d M Y') : '—',
             'industry_tags' => $industryTagsText !== '' ? $industryTagsText : '—',
             'created_at' => optional($c->created_at)->format('d M Y') ?? '—',
             'show_url' => route('admin.circles.show', $c),

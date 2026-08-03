@@ -241,11 +241,18 @@ class PostController extends BaseApiController
                 ? $activityCreativesByPostId->get((string) $row->id)
                 : null;
 
+            $authorId = (string) ($row->author_id ?? '');
+            $isVerified = $authorId !== '' ? (
+                in_array($authorId, $verifiedAuthorIds, true)
+                || (bool) ($author->is_verified ?? false)
+            ) : false;
+
             $item = [
                 'type' => (string) $row->source_type,
                 'id' => (string) $row->id,
                 'content_text' => (string) ($row->content_text ?? ''),
                 'post_type' => isset($row->post_type) ? (string) $row->post_type : null,
+                'is_verified' => $isVerified,
                 'media' => $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId),
                 'tags' => $this->decodeJsonColumn($row->tags),
                 'visibility' => (string) $row->visibility,

@@ -56,8 +56,8 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
                 'data.script.introduction_text',
                 'My name is Demo1 Demo1. I run Aequitas Information Technology Pvt Ltd in your category.'
             )
-            ->assertJsonPath('data.script.monthly_business_done_text', 'This month I did business worth ₹ 0.00 with Peers.')
-            ->assertJsonPath('data.script.business_deals_text', 'I recorded 0 business deal(s) this month totalling ₹ 0.00.');
+            ->assertJsonPath('data.script.monthly_business_done_text', 'In the last 30 days, I did business worth ₹ 0.00 with Peers.')
+            ->assertJsonPath('data.script.business_deals_text', 'I recorded 0 business deal(s) in the last 30 days totalling ₹ 0.00.');
 
         $qualifiedReferrals = collect($response->json('data.checklist_items'))
             ->firstWhere('key', 'qualified_referrals_given');
@@ -89,9 +89,13 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
             'company_name' => 'Old Co',
         ]);
 
+        // today = 2026-05-09 → 30-day window: 2026-04-10 to 2026-05-09
+        // referral on 2026-05-03 → within window (included)
+        // referral on 2026-05-08 → within window (included)
+        // referral on 2026-04-09 → outside window (excluded)
         $this->createReferral($user, $rahul, 'Vijay Traders', '2026-05-03');
         $this->createReferral($user, $jay, 'Patel Packaging', '2026-05-08');
-        $this->createReferral($user, $oldPeer, 'Old Lead', '2026-04-30');
+        $this->createReferral($user, $oldPeer, 'Old Lead', '2026-04-09');
 
         $response = $this->actingAs($user, 'sanctum')
             ->getJson('/api/v1/peer-monthly-impact-script');
@@ -135,21 +139,25 @@ class PeerMonthlyImpactScriptApiTest extends TestCase
         ]);
         $pendingPeer = $this->createUser(['display_name' => 'Pending Peer']);
 
+        // today = 2026-05-09 → 30-day window: 2026-04-10 to 2026-05-09
+        // deals on 2026-05-04 and 2026-05-07 → within window (included)
+        // pending deal on 2026-05-08 → excluded (wrong status)
+        // deal on 2026-04-09 → outside window (excluded)
         $this->createBusinessDeal($user, $rahul, 5000, '2026-05-04', 'completed');
         $this->createBusinessDeal($jay, $user, 2500, '2026-05-07', 'approved');
         $this->createBusinessDeal($user, $pendingPeer, 9000, '2026-05-08', 'pending');
-        $this->createBusinessDeal($user, $rahul, 1000, '2026-04-28', 'completed');
+        $this->createBusinessDeal($user, $rahul, 1000, '2026-04-09', 'completed');
 
         $response = $this->actingAs($user, 'sanctum')
             ->getJson('/api/v1/peer-monthly-impact-script');
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.business_deals_this_month.total_amount', 7500)
-            ->assertJsonPath('data.summary.total_business_done_with_peers_this_month', 7500)
-            ->assertJsonPath('data.period.total_business_done_with_peers_this_month', 7500);
+            ->assertJsonPath('data.business_deals_last_30_days.total_amount', 7500)
+            ->assertJsonPath('data.summary.total_business_done_with_peers_last_30_days', 7500)
+            ->assertJsonPath('data.period.total_business_done_with_peers_last_30_days', 7500);
 
-        $businessDeals = $response->json('data.business_deals_this_month');
+        $businessDeals = $response->json('data.business_deals_last_30_days');
 
         $this->assertCount(2, $businessDeals['peers']);
         $this->assertSame(count($businessDeals['peers']), $businessDeals['deals_count']);

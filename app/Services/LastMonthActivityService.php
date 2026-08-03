@@ -19,14 +19,19 @@ use Illuminate\Support\Facades\Schema;
 class LastMonthActivityService
 {
     /**
-     * Get consolidated activity data for the authenticated user and specified month/year.
+     * Get consolidated activity data for the authenticated user for the rolling 30-day period.
      *
      * @return array<string, mixed>
      */
-    public function getActivityData(User $user, int $month, int $year): array
+    public function getActivityData(User $user, ?string $timezone = null): array
     {
-        $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
-        $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+        $tz = $timezone ?? ($user->timezone ?? config('app.timezone'));
+        if (! $tz || ! is_string($tz) || ! in_array($tz, \DateTimeZone::listIdentifiers(), true)) {
+            $tz = (string) (config('app.timezone') ?: 'UTC');
+        }
+
+        $endDate = now($tz)->endOfDay();
+        $startDate = now($tz)->subDays(29)->startOfDay();
         $startStr = $startDate->format('Y-m-d');
         $endStr = $endDate->format('Y-m-d');
 
@@ -41,7 +46,16 @@ class LastMonthActivityService
                 $q->where('initiator_user_id', $user->id)
                     ->orWhere('peer_user_id', $user->id);
             })
-            ->whereBetween('meeting_date', [$startStr, $endStr])
+            ->where(function ($q) use ($startStr, $endStr, $startDate, $endDate): void {
+                $q->where(function ($q2) use ($startStr, $endStr): void {
+                    $q2->whereNotNull('meeting_date')
+                        ->whereDate('meeting_date', '>=', $startStr)
+                        ->whereDate('meeting_date', '<=', $endStr);
+                })->orWhere(function ($q2) use ($startDate, $endDate): void {
+                    $q2->whereNull('meeting_date')
+                        ->whereBetween('created_at', [$startDate, $endDate]);
+                });
+            })
             ->with(['initiator', 'peer'])
             ->orderByDesc('meeting_date')
             ->orderByDesc('created_at')
@@ -53,7 +67,13 @@ class LastMonthActivityService
                 ? ($otherPeer->display_name ?? trim(($otherPeer->first_name ?? '').' '.($otherPeer->last_name ?? '')))
                 : 'Unknown';
 
+            $actDate = $meeting->meeting_date
+                ? Carbon::parse($meeting->meeting_date)->format('Y-m-d')
+                : ($meeting->created_at ? $meeting->created_at->format('Y-m-d') : '');
+
             return [
+                'id' => (string) $meeting->id,
+                'activity_date' => $actDate,
                 'peer_id' => $otherPeer?->id,
                 'peer_name' => $peerName,
                 'meeting_date' => $meeting->meeting_date ? Carbon::parse($meeting->meeting_date)->format('Y-m-d') : '',
@@ -68,7 +88,16 @@ class LastMonthActivityService
             })
             ->whereNull('deleted_at')
             ->where('to_user_id', $user->id)
-            ->whereBetween('deal_date', [$startStr, $endStr])
+            ->where(function ($q) use ($startStr, $endStr, $startDate, $endDate): void {
+                $q->where(function ($q2) use ($startStr, $endStr): void {
+                    $q2->whereNotNull('deal_date')
+                        ->whereDate('deal_date', '>=', $startStr)
+                        ->whereDate('deal_date', '<=', $endStr);
+                })->orWhere(function ($q2) use ($startDate, $endDate): void {
+                    $q2->whereNull('deal_date')
+                        ->whereBetween('created_at', [$startDate, $endDate]);
+                });
+            })
             ->with('fromUser')
             ->orderByDesc('deal_date')
             ->orderByDesc('created_at')
@@ -80,11 +109,61 @@ class LastMonthActivityService
                 ? ($fromUser->display_name ?? trim(($fromUser->first_name ?? '').' '.($fromUser->last_name ?? '')))
                 : 'Unknown';
 
+            $actDate = $deal->deal_date
+                ? Carbon::parse($deal->deal_date)->format('Y-m-d')
+                : ($deal->created_at ? $deal->created_at->format('Y-m-d') : '');
+
             return [
+                'id' => (string) $deal->id,
+                'activity_date' => $actDate,
                 'peer_id' => $deal->from_user_id,
                 'peer_name' => $peerName,
                 'amount' => (float) $deal->deal_amount,
                 'deal_date' => $deal->deal_date ? Carbon::parse($deal->deal_date)->format('Y-m-d') : '',
+            ];
+        })->values()->all();
+
+        // 2b. Business Deals Given
+        $dealsGiven = BusinessDeal::query()
+            ->where(function ($q): void {
+                $q->where('is_deleted', false)
+                    ->orWhereNull('is_deleted');
+            })
+            ->whereNull('deleted_at')
+            ->where('from_user_id', $user->id)
+            ->where(function ($q) use ($startStr, $endStr, $startDate, $endDate): void {
+                $q->where(function ($q2) use ($startStr, $endStr): void {
+                    $q2->whereNotNull('deal_date')
+                        ->whereDate('deal_date', '>=', $startStr)
+                        ->whereDate('deal_date', '<=', $endStr);
+                })->orWhere(function ($q2) use ($startDate, $endDate): void {
+                    $q2->whereNull('deal_date')
+                        ->whereBetween('created_at', [$startDate, $endDate]);
+                });
+            })
+            ->with('toUser')
+            ->orderByDesc('deal_date')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $dealGivenItems = $dealsGiven->map(function (BusinessDeal $deal): array {
+            $toUser = $deal->toUser;
+            $peerName = $toUser
+                ? ($toUser->display_name ?? trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? '')))
+                : 'Unknown';
+
+            $actDate = $deal->deal_date
+                ? Carbon::parse($deal->deal_date)->format('Y-m-d')
+                : ($deal->created_at ? $deal->created_at->format('Y-m-d') : '');
+
+            return [
+                'id' => (string) $deal->id,
+                'activity_date' => $actDate,
+                'peer_id' => $deal->to_user_id,
+                'peer_name' => $peerName,
+                'amount' => (float) $deal->deal_amount,
+                'comment' => $deal->comment ?? '',
+                'deal_type' => $deal->business_type ?? '',
             ];
         })->values()->all();
 
@@ -96,7 +175,16 @@ class LastMonthActivityService
             })
             ->whereNull('deleted_at')
             ->where('from_user_id', $user->id)
-            ->whereBetween('referral_date', [$startStr, $endStr])
+            ->where(function ($q) use ($startStr, $endStr, $startDate, $endDate): void {
+                $q->where(function ($q2) use ($startStr, $endStr): void {
+                    $q2->whereNotNull('referral_date')
+                        ->whereDate('referral_date', '>=', $startStr)
+                        ->whereDate('referral_date', '<=', $endStr);
+                })->orWhere(function ($q2) use ($startDate, $endDate): void {
+                    $q2->whereNull('referral_date')
+                        ->whereBetween('created_at', [$startDate, $endDate]);
+                });
+            })
             ->with('toUser')
             ->orderByDesc('referral_date')
             ->orderByDesc('created_at')
@@ -108,7 +196,13 @@ class LastMonthActivityService
                 ? ($toUser->display_name ?? trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? '')))
                 : 'Unknown';
 
+            $actDate = $referral->referral_date
+                ? Carbon::parse($referral->referral_date)->format('Y-m-d')
+                : ($referral->created_at ? $referral->created_at->format('Y-m-d') : '');
+
             return [
+                'id' => (string) $referral->id,
+                'activity_date' => $actDate,
                 'peer_id' => $referral->to_user_id,
                 'peer_name' => $peerName,
                 'connected_with_name' => $referral->referral_of ?? '',
@@ -135,10 +229,14 @@ class LastMonthActivityService
                 ? ($toUser->display_name ?? trim(($toUser->first_name ?? '').' '.($toUser->last_name ?? '')))
                 : 'Unknown';
 
+            $actDate = $testimonial->created_at ? $testimonial->created_at->format('Y-m-d') : '';
+
             return [
+                'id' => (string) $testimonial->id,
+                'activity_date' => $actDate,
                 'peer_id' => $testimonial->to_user_id,
                 'peer_name' => $peerName,
-                'date' => $testimonial->created_at ? $testimonial->created_at->format('Y-m-d') : '',
+                'date' => $actDate,
             ];
         })->values()->all();
 
@@ -146,46 +244,72 @@ class LastMonthActivityService
         $visitors = VisitorRegistration::query()
             ->where('user_id', $user->id)
             ->where('status', '!=', 'rejected')
-            ->whereBetween('created_at', [$startDate, $endDate])
+            ->where(function ($q) use ($startStr, $endStr, $startDate, $endDate): void {
+                $q->where(function ($q2) use ($startStr, $endStr): void {
+                    $q2->whereNotNull('event_date')
+                        ->whereDate('event_date', '>=', $startStr)
+                        ->whereDate('event_date', '<=', $endStr);
+                })->orWhere(function ($q2) use ($startDate, $endDate): void {
+                    $q2->whereNull('event_date')
+                        ->whereBetween('created_at', [$startDate, $endDate]);
+                });
+            })
+            ->orderByDesc('event_date')
             ->orderByDesc('created_at')
             ->get();
 
         $visitorItems = $visitors->map(function (VisitorRegistration $visitor): array {
+            $visitDate = $visitor->event_date
+                ? $visitor->event_date->format('Y-m-d')
+                : ($visitor->created_at ? $visitor->created_at->format('Y-m-d') : '');
+
             return [
+                'id' => (string) $visitor->id,
+                'activity_date' => $visitDate,
                 'visitor_name' => $visitor->visitor_full_name,
                 'company_name' => $visitor->visitor_business,
-                'visit_date' => $visitor->event_date
-                    ? $visitor->event_date->format('Y-m-d')
-                    : ($visitor->created_at ? $visitor->created_at->format('Y-m-d') : ''),
+                'visit_date' => $visitDate,
             ];
         })->values()->all();
 
         // 6. Recommended Peers
-        $endExclusive = Carbon::createFromDate($year, $month, 1)->addMonth()->startOfMonth();
-
-        $recommendedPeers = DB::table('referraldata as rd')
+        $recommendedPeersQuery = DB::table('referraldata as rd')
             ->join('users as u', 'u.id', '=', 'rd.referred_user_id')
             ->where('rd.referrer_user_id', $user->id)
-            ->where('rd.created_at', '>=', $startDate)
-            ->where('rd.created_at', '<', $endExclusive)
-            ->select([
+            ->whereBetween('rd.created_at', [$startDate, $endDate]);
+
+        if (Schema::hasColumn('referraldata', 'id')) {
+            $recommendedPeersQuery->select([
+                'rd.id as id',
                 'u.display_name as friend_name',
                 'u.email',
                 'rd.created_at as invite_date',
-            ])
+            ]);
+        } else {
+            $recommendedPeersQuery->select([
+                'u.display_name as friend_name',
+                'u.email',
+                'rd.created_at as invite_date',
+            ]);
+        }
+
+        $recommendedPeersItems = $recommendedPeersQuery
             ->orderByDesc('rd.created_at')
             ->get()
             ->map(function (\stdClass $row): array {
+                $inviteDate = Carbon::parse($row->invite_date)->format('Y-m-d');
+
                 return [
+                    'id' => isset($row->id) ? (string) $row->id : '',
+                    'activity_date' => $inviteDate,
                     'friend_name' => $row->friend_name ?? '',
                     'email' => $row->email ?? '',
                     'status' => 'Joined',
-                    'invite_date' => Carbon::parse($row->invite_date)->format('Y-m-d'),
+                    'invite_date' => $inviteDate,
                 ];
             })
-            ->values();
-
-        $recommendedPeersItems = $recommendedPeers->all();
+            ->values()
+            ->all();
 
         // 7. Listed Requirements
         $requirements = Requirement::query()
@@ -196,10 +320,14 @@ class LastMonthActivityService
             ->get();
 
         $requirementItems = $requirements->map(function (Requirement $req): array {
+            $actDate = $req->created_at ? $req->created_at->format('Y-m-d') : '';
+
             return [
-                'requirement_id' => $req->id,
+                'id' => (string) $req->id,
+                'activity_date' => $actDate,
+                'requirement_id' => (string) $req->id,
                 'requirement_title' => $req->subject,
-                'created_at' => $req->created_at ? $req->created_at->format('Y-m-d') : '',
+                'created_at' => $actDate,
             ];
         })->values()->all();
 
@@ -215,7 +343,9 @@ class LastMonthActivityService
         }
 
         $successStoryItem = $story ? [
-            'story_id' => $story->id,
+            'id' => (string) $story->id,
+            'activity_date' => $story->created_at ? $story->created_at->format('Y-m-d') : '',
+            'story_id' => (string) $story->id,
             'title' => $story->title,
             'description' => $story->short_description ?? $story->story,
             'shared_date' => $story->created_at ? $story->created_at->format('Y-m-d') : '',
@@ -224,6 +354,7 @@ class LastMonthActivityService
         // Build display texts
         $p2pNames = collect($p2pItems)->pluck('peer_name')->toArray();
         $dealNames = collect($dealItems)->pluck('peer_name')->toArray();
+        $dealGivenNames = collect($dealGivenItems)->pluck('peer_name')->toArray();
         $refTexts = collect($referralItems)->map(function (array $item): string {
             return $item['connected_with_name'] !== ''
                 ? "{$item['connected_with_name']} (to {$item['peer_name']})"
@@ -244,8 +375,9 @@ class LastMonthActivityService
                     : null,
             ],
             'period' => [
-                'month' => Carbon::createFromDate($year, $month, 1)->format('F'),
-                'year' => $year,
+                'start_date' => $startStr,
+                'end_date' => $endStr,
+                'total_days' => 30,
             ],
             'activities' => [
                 'p2p_meetings' => [
@@ -257,6 +389,11 @@ class LastMonthActivityService
                     'count' => count($dealItems),
                     'items' => $dealItems,
                     'display_text' => $this->buildDisplayText($dealNames),
+                ],
+                'business_deals_given' => [
+                    'count' => count($dealGivenItems),
+                    'items' => $dealGivenItems,
+                    'display_text' => $this->buildDisplayText($dealGivenNames),
                 ],
                 'referrals_given' => [
                     'count' => count($referralItems),

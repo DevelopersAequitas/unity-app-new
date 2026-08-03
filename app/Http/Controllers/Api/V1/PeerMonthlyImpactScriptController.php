@@ -17,7 +17,7 @@ class PeerMonthlyImpactScriptController extends BaseApiController
     {
         try {
             return $this->success(
-                $this->service->buildForUser($request->user()),
+                $this->service->buildForUser($request->user(), $request),
                 'Peer monthly impact script fetched successfully.'
             )->setEncodingOptions(JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         } catch (Throwable $e) {

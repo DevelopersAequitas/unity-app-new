@@ -959,6 +959,14 @@ class CircleController extends Controller
         data_set($calendar, 'leadership.ded_user_id', $validated['ded_user_id'] ?? null);
         data_set($calendar, 'leadership.eed_user_id', $validated['eed_user_id'] ?? null);
 
+        data_set($calendar, 'leadership.business_growth_committee_chair_user_id', $validated['business_growth_committee_chair_user_id'] ?? null);
+        data_set($calendar, 'leadership.membership_growth_committee_chair_user_id', $validated['membership_growth_committee_chair_user_id'] ?? null);
+        data_set($calendar, 'leadership.events_impacts_committee_chair_user_id', $validated['events_impacts_committee_chair_user_id'] ?? null);
+
+        data_set($calendar, 'leadership.power_house_chair_1_user_id', $validated['power_house_chair_1_user_id'] ?? null);
+        data_set($calendar, 'leadership.power_house_chair_2_user_id', $validated['power_house_chair_2_user_id'] ?? null);
+        data_set($calendar, 'leadership.power_house_chair_3_user_id', $validated['power_house_chair_3_user_id'] ?? null);
+
         $coverFileId = trim((string) ($validated['cover_file_id'] ?? ''));
         data_set($calendar, 'cover.file_id', $coverFileId !== '' ? $coverFileId : null);
 

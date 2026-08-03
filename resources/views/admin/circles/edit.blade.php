@@ -289,6 +289,44 @@
                         </div>
                     </div>
 
+                    <!-- Committee Leadership -->
+                    <h6 class="fw-bold text-secondary mt-3 mb-2">Committee Leadership</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Business Growth Committee Chair</label>
+                            <select name="business_growth_committee_chair_user_id" class="form-select">
+                                <option value="">Select Business Growth Committee Chair</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected((string) old('business_growth_committee_chair_user_id', data_get($circle->calendar, 'leadership.business_growth_committee_chair_user_id') ?? data_get($circle->calendar, 'leadership_team.business_growth_committee_chair.id')) === (string) $user->id)>
+                                        {{ $user->adminNameCompanyCityLabel() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Membership Growth Committee Chair</label>
+                            <select name="membership_growth_committee_chair_user_id" class="form-select">
+                                <option value="">Select Membership Growth Committee Chair</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected((string) old('membership_growth_committee_chair_user_id', data_get($circle->calendar, 'leadership.membership_growth_committee_chair_user_id') ?? data_get($circle->calendar, 'leadership_team.membership_growth_committee_chair.id')) === (string) $user->id)>
+                                        {{ $user->adminNameCompanyCityLabel() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Events & Impacts Committee Chair</label>
+                            <select name="events_impacts_committee_chair_user_id" class="form-select">
+                                <option value="">Select Events & Impacts Committee Chair</option>
+                                @foreach ($allUsers as $user)
+                                    <option value="{{ $user->id }}" @selected((string) old('events_impacts_committee_chair_user_id', data_get($circle->calendar, 'leadership.events_impacts_committee_chair_user_id') ?? data_get($circle->calendar, 'leadership_team.events_impacts_committee_chair.id')) === (string) $user->id)>
+                                        {{ $user->adminNameCompanyCityLabel() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
                     <h5 class="form-section-title"><i class="bi bi-geo-alt text-primary me-2"></i>Geographic Location</h5>
                     <div class="row g-3">
                         <div class="col-md-4">

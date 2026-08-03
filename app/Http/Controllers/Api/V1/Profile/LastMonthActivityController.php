@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Api\V1\Profile;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Profile\LastMonthActivityRequest;
 use App\Services\LastMonthActivityService;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
@@ -28,23 +27,9 @@ class LastMonthActivityController extends BaseApiController
                 ], 401);
             }
 
-            // Default to previous calendar month
-            $prevMonthDate = Carbon::now()->subMonthNoOverflow();
-            $defaultMonth = $prevMonthDate->month;
-            $defaultYear = $prevMonthDate->year;
+            $timezone = $user->timezone ?? config('app.timezone');
 
-            $monthInput = $request->query('month');
-            $yearInput = $request->query('year');
-
-            $month = $monthInput !== null ? $request->parseMonth($monthInput) : $defaultMonth;
-            $year = $yearInput !== null ? (int) $yearInput : $defaultYear;
-
-            // In case request parsing fallback is needed (validation handles correctness)
-            if ($month === null) {
-                $month = $defaultMonth;
-            }
-
-            $data = $service->getActivityData($user, $month, $year);
+            $data = $service->getActivityData($user, is_string($timezone) ? $timezone : null);
 
             return $this->success($data, 'Last month activity data retrieved successfully');
         } catch (\Throwable $e) {

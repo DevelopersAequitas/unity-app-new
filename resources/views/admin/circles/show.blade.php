@@ -597,6 +597,132 @@ use Carbon\Carbon;
         </div>
     </div>
 
+    <?php
+        $circleApiData = (new \App\Http\Resources\CircleResource($circle))->toArray(request());
+        $leadershipTeamData = data_get($circleApiData, 'circle_leaders') ?: data_get($circleApiData, 'leadership_team', []);
+        $regionalLeadersData = array_filter(data_get($circleApiData, 'regional_leaders', []) ?: []);
+
+        $chairItem = data_get($leadershipTeamData, 'chair');
+        $bgChairItem = data_get($leadershipTeamData, 'business_growth_committee_chair');
+        $mgChairItem = data_get($leadershipTeamData, 'membership_growth_committee_chair');
+        $eiChairItem = data_get($leadershipTeamData, 'events_impacts_committee_chair');
+
+        $committeeChairsList = array_filter([
+            'Business Growth Committee' => $bgChairItem,
+            'Membership Growth Committee' => $mgChairItem,
+            'Events & Impacts Committee' => $eiChairItem,
+        ], fn ($item) => ! empty($item));
+
+        $hasLeadershipTeam = ! empty($chairItem) || ! empty($committeeChairsList);
+        $hasRegionalLeaders = ! empty($regionalLeadersData);
+    ?>
+
+    @if ($hasLeadershipTeam || $hasRegionalLeaders)
+        <!-- CIRCLE LEADERSHIP & REGIONAL LEADERSHIP -->
+        <div class="grid grid-cols-1 {{ $hasLeadershipTeam && $hasRegionalLeaders ? 'lg:grid-cols-2' : '' }} gap-4 mb-4">
+            @if ($hasLeadershipTeam)
+                <!-- Committee Leadership Section -->
+                <div class="space-y-4">
+                    @if (! empty($committeeChairsList) || ! empty($chairItem))
+                        <div class="border bs rounded-xl p-4 surface">
+                            <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 mb-3 m-0 flex items-center gap-1.5">
+                                <i class="bi bi-shield-check admin-icon me-1" aria-hidden="true"></i> Committee Leadership
+                            </h3>
+
+                            <!-- General Circle Chair (if assigned) -->
+                            @if ($chairItem)
+                                <div class="p-3 border bs rounded-xl surface-2 mb-3">
+                                    <span class="t3 block mb-1 font-medium text-xs">Circle Chair</span>
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                                            <i class="bi bi-person-badge"></i>
+                                        </div>
+                                        <div>
+                                            <div class="t1 font-semibold text-xs">
+                                                {{ data_get($chairItem, 'name') ?: data_get($chairItem, 'designation', 'Chair') }}
+                                            </div>
+                                            @if (data_get($chairItem, 'email'))
+                                                <div class="text-[11px] t3">{{ data_get($chairItem, 'email') }}</div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+
+                            <!-- Committee Headings & Chair Members -->
+                            <div class="space-y-2">
+                                @foreach ($committeeChairsList as $committeeTitle => $item)
+                                    <div class="p-3 border bs rounded-xl surface-2 text-xs flex justify-between items-center flex-wrap gap-2">
+                                        <div>
+                                            <span class="text-xs font-bold text-indigo-400 block mb-0.5">{{ $committeeTitle }}</span>
+                                            <div class="t1 font-semibold text-xs flex items-center gap-1.5">
+                                                <span>{{ data_get($item, 'name') ?: data_get($item, 'designation', 'Chair') }}</span>
+                                            </div>
+                                            @if (data_get($item, 'company_name'))
+                                                <span class="t3 text-[11px] block mt-0.5">{{ data_get($item, 'company_name') }}</span>
+                                            @endif
+                                        </div>
+                                        @if (data_get($item, 'email') || data_get($item, 'phone'))
+                                            <div class="text-right text-[11px]">
+                                                @if (data_get($item, 'email'))
+                                                    <div class="t2">{{ data_get($item, 'email') }}</div>
+                                                @endif
+                                                @if (data_get($item, 'phone'))
+                                                    <div class="t3">{{ data_get($item, 'phone') }}</div>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
+            @if ($hasRegionalLeaders)
+                <!-- Regional Leadership Section -->
+                <div class="border bs rounded-xl p-4 surface">
+                    <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-indigo-400 mb-3 m-0 flex items-center gap-1.5">
+                        <i class="bi bi-geo-alt admin-icon me-1" aria-hidden="true"></i> Regional Leadership
+                    </h3>
+
+                    <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
+                        @foreach ($regionalLeadersData as $leader)
+                            <div class="p-3 border bs rounded-xl surface-2 text-xs">
+                                <div class="flex justify-between items-start mb-1 flex-wrap gap-1">
+                                    <span class="t1 font-semibold">{{ data_get($leader, 'name') ?: data_get($leader, 'designation', 'Regional Leader') }}</span>
+                                    @if (data_get($leader, 'region'))
+                                        <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">
+                                            {{ data_get($leader, 'region') }}
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
+                                    @if (data_get($leader, 'designation') && data_get($leader, 'name'))
+                                        <div><span class="t3">Designation:</span> <span class="t2 font-medium">{{ data_get($leader, 'designation') }}</span></div>
+                                    @endif
+                                    @if (data_get($leader, 'chapter'))
+                                        <div><span class="t3">Chapter:</span> <span class="t2 font-medium">{{ data_get($leader, 'chapter') }}</span></div>
+                                    @endif
+                                    @if (data_get($leader, 'training_info'))
+                                        <div class="col-span-full"><span class="t3">Training:</span> <span class="t2 font-medium">{{ data_get($leader, 'training_info') }}</span></div>
+                                    @endif
+                                    @if (data_get($leader, 'email'))
+                                        <div><span class="t3">Email:</span> <span class="t2 font-medium">{{ data_get($leader, 'email') }}</span></div>
+                                    @endif
+                                    @if (data_get($leader, 'phone'))
+                                        <div><span class="t3">Phone:</span> <span class="t2 font-medium">{{ data_get($leader, 'phone') }}</span></div>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+        </div>
+    @endif
+
     <!-- RANKING & MEETING SCHEDULE -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <div class="border bs rounded-xl p-4 surface">
