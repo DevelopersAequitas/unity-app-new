@@ -1214,10 +1214,6 @@
                                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="event.preventDefault(); if(confirm('Are you sure you want to remove this introduced member?')) { document.getElementById('remove-introduced-peer-{{ $peer->id }}').submit(); }">
                                                     <i class="bi bi-trash"></i> Remove
                                                 </button>
-                                                <form id="remove-introduced-peer-{{ $peer->id }}" action="{{ route('admin.users.introduced-members.destroy', [$user->id, $peer->id]) }}" method="POST" class="d-none">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                </form>
                                             </td>
                                         @endif
                                     </tr>
@@ -1240,6 +1236,18 @@
         </form>
     </div>
 </div>
+
+@foreach ($introducedPeers as $peer)
+    <form
+        id="remove-introduced-peer-{{ $peer->id }}"
+        method="POST"
+        action="{{ route('admin.users.introduced-members.destroy', [$user->id, $peer->id]) }}"
+        class="d-none"
+    >
+        @csrf
+        @method('DELETE')
+    </form>
+@endforeach
 
 @foreach ($circleMemberships as $membership)
     <form
