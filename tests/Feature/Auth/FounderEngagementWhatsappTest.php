@@ -86,7 +86,8 @@ class FounderEngagementWhatsappTest extends TestCase
             return $request->url() === 'https://fleximsg.com/api/webhooks/7c8374a9-00d3-451a-93e2-8c9e915c5d76'
                 && $request->hasHeader('X-Webhook-Secret', 'PGU_eng_3hr_9fK2@Lm8#QvR7Xp1!Nc5Rw4ZdYt6HsA')
                 && $request['mobile'] === '919876543210'
-                && $request['first_name'] === 'Jay';
+                && $request['first_name'] === 'Jay'
+                && $request['media_url'] === 'https://peersunity.com/api/v1/files/019fd673-313b-7135-95dd-ca70e854f2ed';
         });
 
         $this->assertDatabaseHas('notification_delivery_logs', [
