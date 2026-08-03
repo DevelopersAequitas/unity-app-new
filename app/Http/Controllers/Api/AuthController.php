@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\MediaProcessingException;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
+use App\Jobs\SendFounderEngagementJob;
 use App\Jobs\SendWelcomeWhatsappJob;
 use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
@@ -155,6 +156,8 @@ class AuthController extends BaseApiController
         $this->sendRegistrationRequestReceivedEmail($persistedUser);
 
         SendWelcomeWhatsappJob::dispatch((string) $persistedUser->id);
+        SendFounderEngagementJob::dispatch((string) $persistedUser->id)
+            ->delay(now()->addHours(3));
 
         $token = $persistedUser->createToken('auth_token')->plainTextToken;
 

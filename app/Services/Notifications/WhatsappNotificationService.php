@@ -62,7 +62,10 @@ class WhatsappNotificationService
                 return false;
             }
 
-            $body = array_merge(['phone' => $normalizedPhone], $payload);
+            $body = array_merge([
+                'phone' => $normalizedPhone,
+                'mobile' => $normalizedPhone,
+            ], $payload);
 
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
