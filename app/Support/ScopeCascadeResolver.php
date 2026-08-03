@@ -22,7 +22,11 @@ class ScopeCascadeResolver
         }
 
         // Cache lookup
-        $cache = DB::table('tbl_permission_cache')->where('user_id', $adminUserId)->first();
+        $cache = null;
+        if (Schema::hasTable('tbl_permission_cache')) {
+            $cache = DB::table('tbl_permission_cache')->where('user_id', $adminUserId)->first();
+        }
+
         if ($cache && ! empty($cache->circle_ids)) {
             $decoded = is_string($cache->circle_ids) ? json_decode($cache->circle_ids, true) : $cache->circle_ids;
             if (is_array($decoded)) {
@@ -33,17 +37,19 @@ class ScopeCascadeResolver
         $circleIds = self::computeDataWindow($admin);
 
         // Update cache
-        $version = $cache ? ((int) $cache->version + 1) : 1;
+        if (Schema::hasTable('tbl_permission_cache')) {
+            $version = $cache ? ((int) $cache->version + 1) : 1;
 
-        DB::table('tbl_permission_cache')->updateOrInsert(
-            ['user_id' => $adminUserId],
-            [
-                'circle_ids' => json_encode($circleIds),
-                'computed_at' => now(),
-                'version' => (string) $version,
-                'updated_at' => now(),
-            ]
-        );
+            DB::table('tbl_permission_cache')->updateOrInsert(
+                ['user_id' => $adminUserId],
+                [
+                    'circle_ids' => json_encode($circleIds),
+                    'computed_at' => now(),
+                    'version' => (string) $version,
+                    'updated_at' => now(),
+                ]
+            );
+        }
 
         return $circleIds;
     }
