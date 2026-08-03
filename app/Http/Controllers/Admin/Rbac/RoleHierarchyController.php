@@ -619,7 +619,9 @@ class RoleHierarchyController extends Controller
                         ->where('role', $dbRole)
                         ->delete();
 
-                    DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                    if (Schema::hasTable('tbl_permission_cache')) {
+                        DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                    }
                 }
             }
 
@@ -815,7 +817,9 @@ class RoleHierarchyController extends Controller
                             ]);
                         }
 
-                        DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                        if (Schema::hasTable('tbl_permission_cache')) {
+                            DB::table('tbl_permission_cache')->where('user_id', $appUser->id)->delete();
+                        }
                     }
                 }
             }
