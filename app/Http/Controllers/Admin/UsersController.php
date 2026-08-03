@@ -983,69 +983,71 @@ class UsersController extends Controller
 
                     $this->upsertCircleMemberCategorySelection($memberRecord, $user->id, $validated);
 
-                    $circle = Circle::query()->whereKey($selectedCircleId)->firstOrFail();
+                    $circle = Circle::withTrashed()->whereKey($selectedCircleId)->first();
 
-                    $city = trim((string) ($validated['circle_city'] ?? ''));
-                    $country = trim((string) ($validated['circle_country'] ?? ''));
-                    $mode = trim((string) ($validated['circle_meeting_mode'] ?? ''));
-                    $frequency = trim((string) ($validated['circle_meeting_frequency'] ?? ''));
+                    if ($circle) {
+                        $city = trim((string) ($validated['circle_city'] ?? ''));
+                        $country = trim((string) ($validated['circle_country'] ?? ''));
+                        $mode = trim((string) ($validated['circle_meeting_mode'] ?? ''));
+                        $frequency = trim((string) ($validated['circle_meeting_frequency'] ?? ''));
 
-                    if ($city !== '') {
-                        if (Schema::hasColumn('circles', 'city_id')) {
-                            $cityRecord = City::query()
-                                ->whereRaw('LOWER(name) = ?', [mb_strtolower($city)])
-                                ->first();
+                        if ($city !== '') {
+                            if (Schema::hasColumn('circles', 'city_id')) {
+                                $cityRecord = City::query()
+                                    ->whereRaw('LOWER(name) = ?', [mb_strtolower($city)])
+                                    ->first();
 
-                            if (! $cityRecord) {
-                                $cityRecord = City::create([
-                                    'name' => $city,
-                                ]);
-                            }
+                                if (! $cityRecord) {
+                                    $cityRecord = City::create([
+                                        'name' => $city,
+                                    ]);
+                                }
 
-                            $circle->city_id = $cityRecord->id;
-                        } elseif (Schema::hasColumn('circles', 'city')) {
-                            $currentCity = $circle->getAttribute('city');
-                            $isJsonCity = false;
+                                $circle->city_id = $cityRecord->id;
+                            } elseif (Schema::hasColumn('circles', 'city')) {
+                                $currentCity = $circle->getAttribute('city');
+                                $isJsonCity = false;
 
-                            if (is_array($currentCity)) {
-                                $isJsonCity = true;
-                            } elseif (is_string($currentCity) && str_starts_with(trim($currentCity), '{')) {
-                                $isJsonCity = true;
-                            }
+                                if (is_array($currentCity)) {
+                                    $isJsonCity = true;
+                                } elseif (is_string($currentCity) && str_starts_with(trim($currentCity), '{')) {
+                                    $isJsonCity = true;
+                                }
 
-                            if ($isJsonCity) {
-                                $existing = is_array($currentCity)
-                                    ? $currentCity
-                                    : (json_decode((string) $currentCity, true) ?: []);
+                                if ($isJsonCity) {
+                                    $existing = is_array($currentCity)
+                                        ? $currentCity
+                                        : (json_decode((string) $currentCity, true) ?: []);
 
-                                $circle->city = Circle::normalizeCityPayload($city, $existing);
-                            } else {
-                                $circle->city = $city;
+                                    $circle->city = Circle::normalizeCityPayload($city, $existing);
+                                } else {
+                                    $circle->city = $city;
+                                }
                             }
                         }
+
+                        if (Schema::hasColumn('circles', 'country') && $country !== '') {
+                            $circle->country = $country;
+                        }
+
+                        if (Schema::hasColumn('circles', 'meeting_mode') && $mode !== '') {
+                            $circle->meeting_mode = $mode;
+                        }
+
+                        if (Schema::hasColumn('circles', 'meeting_frequency') && $frequency !== '') {
+                            $circle->meeting_frequency = $frequency;
+                        }
+
+                        $circle->save();
+
+                        Log::info('Circle settings save', [
+                            'circle_id' => $selectedCircleId,
+                            'circle_city' => $city,
+                            'circle_country' => $country,
+                            'circle_meeting_mode' => $mode,
+                            'circle_meeting_frequency' => $frequency,
+                        ]);
                     }
-
-                    if (Schema::hasColumn('circles', 'country') && $country !== '') {
-                        $circle->country = $country;
-                    }
-
-                    if (Schema::hasColumn('circles', 'meeting_mode') && $mode !== '') {
-                        $circle->meeting_mode = $mode;
-                    }
-
-                    if (Schema::hasColumn('circles', 'meeting_frequency') && $frequency !== '') {
-                        $circle->meeting_frequency = $frequency;
-                    }
-
-                    $circle->save();
-
-                    \Log::info('Circle settings save', [
-                        'circle_id' => $selectedCircleId,
-                        'circle_city' => $city,
-                        'circle_country' => $country,
-                        'circle_meeting_mode' => $mode,
-                        'circle_meeting_frequency' => $frequency,
-                    ]);
                 }
 
                 if ($isAddingAdditionalCircle) {

@@ -344,6 +344,10 @@ class CircleResource extends JsonResource
                 return null;
             }
 
+            $photoUrl = is_object($user) && method_exists($user, 'getAttribute')
+                ? $user->profile_photo_url
+                : (data_get($user, 'profile_photo_url') ?: (data_get($user, 'profile_photo_file_id') ? url('/api/v1/files/'.data_get($user, 'profile_photo_file_id')) : null));
+
             return [
                 'id' => data_get($user, 'id'),
                 'user_id' => data_get($user, 'id'),
@@ -352,7 +356,7 @@ class CircleResource extends JsonResource
                 'last_name' => data_get($user, 'last_name'),
                 'email' => data_get($user, 'email'),
                 'phone' => data_get($user, 'phone'),
-                'profile_photo_url' => data_get($user, 'profile_photo_url'),
+                'profile_photo_url' => $photoUrl,
                 'company_name' => data_get($user, 'company_name'),
                 'role' => $roleLabel,
                 'designation' => $roleLabel,

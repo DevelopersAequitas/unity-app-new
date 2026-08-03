@@ -113,15 +113,17 @@ class CircleController extends BaseApiController
     {
         $circle = Circle::with([
             'city:id,name,state,district,country,country_code',
-            'founder:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'founder:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'founder.cityRelation:id,name',
-            'director:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'director:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'director.cityRelation:id,name',
-            'industryDirector:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'industryDirector:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'industryDirector.cityRelation:id,name',
-            'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'ded:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'ded.cityRelation:id,name',
-            'members.user:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
+            'eed:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
+            'eed.cityRelation:id,name',
+            'members.user:id,first_name,last_name,display_name,profile_photo_url,profile_photo_file_id,email,phone,city,city_id,company_name',
             'categories' => function ($query) {
                 $query->select('circle_categories.*')
                     ->selectRaw('circle_categories.name as category_name')
