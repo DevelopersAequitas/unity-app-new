@@ -121,6 +121,7 @@ class CircleController extends BaseApiController
             'industryDirector.cityRelation:id,name',
             'ded:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
             'ded.cityRelation:id,name',
+            'members.user:id,first_name,last_name,display_name,profile_photo_url,email,phone,city,city_id,company_name',
             'categories' => function ($query) {
                 $query->select('circle_categories.*')
                     ->selectRaw('circle_categories.name as category_name')
