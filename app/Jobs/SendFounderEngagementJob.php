@@ -27,6 +27,9 @@ class SendFounderEngagementJob implements ShouldQueue
         public string $userId
     ) {
         $this->afterCommit = true;
+        if (config('queue.default') === 'sync') {
+            $this->connection = 'database';
+        }
     }
 
     /**
