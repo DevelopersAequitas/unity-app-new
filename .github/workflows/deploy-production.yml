@@ -21,6 +21,8 @@ jobs:
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_SSH_PORT }}
+          timeout: 60s
+          command_timeout: 10m
           script_stop: true
           script: |
             cd ${{ secrets.PROD_DEPLOY_PATH }}
