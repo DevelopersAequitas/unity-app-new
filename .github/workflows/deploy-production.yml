@@ -41,5 +41,5 @@ jobs:
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
-            php artisan queue:restart
-            php artisan reverb:restart
+            php artisan queue:restart || true
+            php artisan reverb:restart > /dev/null 2>&1 || true
