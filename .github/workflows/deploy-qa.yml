@@ -22,6 +22,8 @@ jobs:
           username: ${{ secrets.QA_SSH_USER }}
           key: ${{ secrets.QA_SSH_KEY }}
           port: ${{ secrets.QA_SSH_PORT }}
+          timeout: 60s
+          command_timeout: 10m
           script_stop: true
           script: |
             cd ${{ secrets.QA_DEPLOY_PATH }}
