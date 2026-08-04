@@ -135,6 +135,7 @@ class BusinessDealController extends BaseApiController
                 'deal_amount' => $request->input('deal_amount'),
                 'business_type' => $request->input('business_type'),
                 'comment' => $request->input('comment'),
+                'referral_id' => $request->input('referral_id'),
                 'is_deleted' => false,
             ]);
 

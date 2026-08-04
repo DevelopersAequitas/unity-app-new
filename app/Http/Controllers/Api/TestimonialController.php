@@ -129,6 +129,7 @@ class TestimonialController extends BaseApiController
                 'to_user_id' => $request->input('to_user_id'),
                 'content' => $request->input('content'),
                 'media' => $media,
+                'referral_id' => $request->input('referral_id'),
                 'is_deleted' => false,
             ]);
 

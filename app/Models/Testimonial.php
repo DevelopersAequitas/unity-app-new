@@ -27,6 +27,7 @@ class Testimonial extends Model
         'content',
         'media',
         'rating',
+        'referral_id',
     ];
 
     protected $casts = [
@@ -52,5 +53,10 @@ class Testimonial extends Model
     public function toUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'to_user_id');
+    }
+
+    public function referral(): BelongsTo
+    {
+        return $this->belongsTo(Referral::class, 'referral_id');
     }
 }
