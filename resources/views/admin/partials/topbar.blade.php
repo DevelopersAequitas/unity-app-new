@@ -150,14 +150,260 @@
         </div>
 
         {{-- Search --}}
-        <div class="search-box ms-auto" style="max-width: 280px;">
-            <form class="w-100">
-                <div class="input-group" style="border-radius: 999px; overflow: hidden;">
-                    <span class="input-group-text bg-transparent border-0" style="padding: 0 0 0 14px; background: rgba(241, 245, 249, 0.8) !important;"><i class="bi bi-search" style="font-size: 0.85rem; color: var(--text-light);"></i></span>
-                    <input type="text" class="form-control border-0" placeholder="Search..." style="background: rgba(241, 245, 249, 0.8); font-size: 0.85rem; padding: 9px 16px 9px 8px;">
+        <div class="search-box ms-auto position-relative" id="topbarSearchContainer">
+            <form class="w-100" action="{{ route('admin.users.index') }}" method="GET" id="topbarSearchForm" autocomplete="off">
+                <div class="topbar-search-wrapper d-flex align-items-center">
+                    <i class="bi bi-search search-icon" id="topbarSearchIcon"></i>
+                    <span class="spinner-border spinner-border-sm text-primary d-none search-spinner" id="topbarSearchSpinner" role="status" aria-hidden="true" style="width: 0.85rem; height: 0.85rem; border-width: 0.15em; margin-right: 8px;"></span>
+                    <input type="text" name="q" id="topbarSearchInput" class="topbar-search-input" placeholder="Search..." aria-label="Search" value="{{ request('q') }}" autocomplete="off">
+                    <button type="button" class="btn-clear-search border-0 bg-transparent text-muted p-0 ms-1 d-none" id="topbarSearchClear" aria-label="Clear search">
+                        <i class="bi bi-x-circle-fill" style="font-size: 0.85rem;"></i>
+                    </button>
                 </div>
             </form>
+
+            {{-- Live Suggestions Dropdown --}}
+            <div class="topbar-search-dropdown shadow-lg border position-absolute start-0 end-0 mt-1 d-none" id="topbarSearchDropdown" style="z-index: 1050; max-height: 380px; overflow-y: auto;">
+                <div class="topbar-search-results py-1" id="topbarSearchResults"></div>
+            </div>
         </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const searchInput = document.getElementById('topbarSearchInput');
+                const searchForm = document.getElementById('topbarSearchForm');
+                const dropdown = document.getElementById('topbarSearchDropdown');
+                const resultsContainer = document.getElementById('topbarSearchResults');
+                const searchIcon = document.getElementById('topbarSearchIcon');
+                const searchSpinner = document.getElementById('topbarSearchSpinner');
+                const searchClear = document.getElementById('topbarSearchClear');
+                const searchRouteUrl = "{{ route('admin.users.search') }}";
+                const indexRouteUrl = "{{ route('admin.users.index') }}";
+
+                if (!searchInput || !dropdown || !resultsContainer) return;
+
+                let debounceTimer = null;
+                let activeIndex = -1;
+
+                function showSpinner() {
+                    if (searchIcon) searchIcon.classList.add('d-none');
+                    if (searchSpinner) searchSpinner.classList.remove('d-none');
+                }
+
+                function hideSpinner() {
+                    if (searchSpinner) searchSpinner.classList.add('d-none');
+                    if (searchIcon) searchIcon.classList.remove('d-none');
+                }
+
+                function hideDropdown() {
+                    dropdown.classList.add('d-none');
+                    activeIndex = -1;
+                }
+
+                function updateClearButton() {
+                    if (searchClear) {
+                        if (searchInput.value.trim().length > 0) {
+                            searchClear.classList.remove('d-none');
+                        } else {
+                            searchClear.classList.add('d-none');
+                        }
+                    }
+                }
+
+                function renderResults(query, items) {
+                    activeIndex = -1;
+
+                    if (!items || items.length === 0) {
+                        resultsContainer.innerHTML = `
+                            <div class="px-3 py-3 text-center text-muted" style="font-size: 0.8rem;">
+                                <i class="bi bi-search-heart d-block fs-5 text-secondary mb-1"></i>
+                                No matching dashboard results for "<strong class="text-dark">${escapeHtml(query)}</strong>"
+                            </div>
+                        `;
+                        dropdown.classList.remove('d-none');
+                        return;
+                    }
+
+                    const grouped = {};
+                    items.forEach((item, index) => {
+                        const section = item.section || 'Members';
+                        if (!grouped[section]) {
+                            grouped[section] = {
+                                icon: item.section_icon || 'bi-bookmark-star-fill',
+                                items: []
+                            };
+                        }
+                        grouped[section].items.push({ item, originalIndex: index });
+                    });
+
+                    let html = '';
+                    let itemIndex = 0;
+
+                    for (const [sectionTitle, group] of Object.entries(grouped)) {
+                        html += `
+                            <div class="topbar-search-section-header">
+                                <i class="bi ${escapeHtml(group.icon)} me-1"></i> ${escapeHtml(sectionTitle)}
+                            </div>
+                        `;
+
+                        group.items.forEach(({ item }) => {
+                            const name = escapeHtml(item.name || 'Untitled');
+                            const initial = name.charAt(0).toUpperCase();
+                            const subtext = escapeHtml(item.subtext || '');
+                            const iconClass = item.section_icon || 'bi-people-fill';
+                            const currentIndex = itemIndex++;
+
+                            html += `
+                                <a href="${item.url || '#'}" class="topbar-search-item" data-index="${currentIndex}">
+                                    <div class="item-avatar type-${escapeHtml(item.type || 'member')}">
+                                        ${item.type === 'member' ? initial : `<i class="bi ${escapeHtml(iconClass)}"></i>`}
+                                    </div>
+                                    <div class="item-info">
+                                        <div class="item-name">${highlightMatch(name, query)}</div>
+                                        <div class="item-meta">${subtext}</div>
+                                    </div>
+                                    <span class="badge bg-light text-secondary border rounded-pill px-2 py-1 ms-auto" style="font-size: 0.65rem; font-weight: 500;">${escapeHtml(sectionTitle)}</span>
+                                </a>
+                            `;
+                        });
+                    }
+
+                    html += `
+                        <div class="topbar-search-footer" id="topbarSearchFooter">
+                            <span>View all member results for "<strong class="text-dark">${escapeHtml(query)}</strong>"</span>
+                            <i class="bi bi-arrow-right fs-7"></i>
+                        </div>
+                    `;
+
+                    resultsContainer.innerHTML = html;
+                    dropdown.classList.remove('d-none');
+
+                    const footer = document.getElementById('topbarSearchFooter');
+                    if (footer) {
+                        footer.addEventListener('click', function () {
+                            window.location.href = indexRouteUrl + '?q=' + encodeURIComponent(query);
+                        });
+                    }
+                }
+
+                function escapeHtml(str) {
+                    if (!str) return '';
+                    return str.replace(/[&<>"']/g, function (m) {
+                        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+                    });
+                }
+
+                function highlightMatch(text, query) {
+                    if (!query) return text;
+                    const q = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regex = new RegExp(`(${q})`, 'gi');
+                    return text.replace(regex, '<mark class="bg-primary-subtle text-primary p-0 fw-bold">$1</mark>');
+                }
+
+                function fetchSuggestions(query) {
+                    if (!query) {
+                        hideDropdown();
+                        hideSpinner();
+                        return;
+                    }
+
+                    showSpinner();
+                    fetch(`${searchRouteUrl}?q=${encodeURIComponent(query)}`, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        hideSpinner();
+                        renderResults(query, data);
+                    })
+                    .catch(err => {
+                        console.error('Search fetch error:', err);
+                        hideSpinner();
+                    });
+                }
+
+                searchInput.addEventListener('input', function () {
+                    const query = this.value.trim();
+                    updateClearButton();
+                    clearTimeout(debounceTimer);
+
+                    if (query.length < 1) {
+                        hideDropdown();
+                        hideSpinner();
+                        return;
+                    }
+
+                    debounceTimer = setTimeout(() => {
+                        fetchSuggestions(query);
+                    }, 200);
+                });
+
+                searchInput.addEventListener('focus', function () {
+                    const query = this.value.trim();
+                    updateClearButton();
+                    if (query.length >= 1) {
+                        if (resultsContainer.children.length > 0) {
+                            dropdown.classList.remove('d-none');
+                        } else {
+                            fetchSuggestions(query);
+                        }
+                    }
+                });
+
+                searchInput.addEventListener('keydown', function (e) {
+                    const items = resultsContainer.querySelectorAll('.topbar-search-item');
+
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        if (items.length === 0) return;
+                        activeIndex = (activeIndex + 1) % items.length;
+                        highlightActiveItem(items);
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        if (items.length === 0) return;
+                        activeIndex = (activeIndex - 1 + items.length) % items.length;
+                        highlightActiveItem(items);
+                    } else if (e.key === 'Enter') {
+                        if (activeIndex >= 0 && items[activeIndex]) {
+                            e.preventDefault();
+                            items[activeIndex].click();
+                        }
+                    } else if (e.key === 'Escape') {
+                        hideDropdown();
+                    }
+                });
+
+                function highlightActiveItem(items) {
+                    items.forEach((item, idx) => {
+                        if (idx === activeIndex) {
+                            item.classList.add('active');
+                            item.scrollIntoView({ block: 'nearest' });
+                        } else {
+                            item.classList.remove('active');
+                        }
+                    });
+                }
+
+                if (searchClear) {
+                    searchClear.addEventListener('click', function () {
+                        searchInput.value = '';
+                        updateClearButton();
+                        hideDropdown();
+                        searchInput.focus();
+                    });
+                }
+
+                document.addEventListener('click', function (e) {
+                    const container = document.getElementById('topbarSearchContainer');
+                    if (container && !container.contains(e.target)) {
+                        hideDropdown();
+                    }
+                });
+            });
+        </script>
 
         {{-- Right Actions --}}
         <div class="d-none d-md-flex align-items-center gap-2">

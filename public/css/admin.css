@@ -394,37 +394,233 @@ body {
     min-height: var(--topbar-height);
 }
 
-.admin-topbar .form-control {
-    background: rgba(241, 245, 249, 0.8);
-    border: 1px solid transparent;
-    border-radius: var(--radius-full);
-    padding: 9px 18px;
-    font-size: 0.875rem;
-    transition: all var(--duration-normal) var(--ease-smooth);
-    color: var(--text-primary);
+.admin-topbar .search-box {
+    width: 240px;
+    transition: width var(--duration-normal) var(--ease-smooth);
 }
 
-.admin-topbar .form-control::placeholder {
-    color: var(--text-light);
-}
-
-.admin-topbar .form-control:focus {
-    background: #fff;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px var(--primary-subtle), var(--shadow-sm);
+.admin-topbar .search-box:focus-within {
     width: 320px;
 }
 
+.admin-topbar .topbar-search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: rgba(241, 245, 249, 0.85);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 9999px;
+    padding: 0 14px;
+    height: 38px;
+    transition: all var(--duration-normal) var(--ease-smooth);
+}
+
+.admin-topbar .topbar-search-wrapper:focus-within {
+    background: #ffffff;
+    border-color: var(--primary, #6366f1);
+    box-shadow: 0 0 0 3px var(--primary-subtle, rgba(99, 102, 241, 0.15)), 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.admin-topbar .topbar-search-wrapper .search-icon {
+    font-size: 0.85rem;
+    color: var(--text-light, #94a3b8);
+    margin-right: 8px;
+    flex-shrink: 0;
+    line-height: 1;
+    transition: color var(--duration-fast) var(--ease-smooth);
+}
+
+.admin-topbar .topbar-search-wrapper:focus-within .search-icon {
+    color: var(--primary, #6366f1);
+}
+
+.admin-topbar .topbar-search-wrapper .topbar-search-input {
+    width: 100%;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+    padding: 0;
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-primary, #1e293b);
+    box-shadow: none !important;
+    line-height: normal;
+}
+
+.admin-topbar .topbar-search-wrapper .topbar-search-input::placeholder {
+    color: var(--text-light, #94a3b8);
+}
+
+/* Fallback & legacy support for input-group in topbar */
+.admin-topbar .input-group {
+    border-radius: 9999px !important;
+    background: rgba(241, 245, 249, 0.85);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    transition: all var(--duration-normal) var(--ease-smooth);
+    align-items: center;
+    flex-wrap: nowrap !important;
+    overflow: hidden;
+}
+
+.admin-topbar .input-group:focus-within {
+    background: #ffffff !important;
+    border-color: var(--primary, #6366f1) !important;
+    box-shadow: 0 0 0 3px var(--primary-subtle, rgba(99, 102, 241, 0.15)), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
 .admin-topbar .input-group-text {
-    border-radius: var(--radius-full) 0 0 var(--radius-full);
-    border: none;
-    background: rgba(241, 245, 249, 0.8);
+    border: none !important;
+    background: transparent !important;
     color: var(--text-light);
-    padding-left: 16px;
+    padding: 0 0 0 14px;
+    display: flex;
+    align-items: center;
 }
 
 .admin-topbar .input-group .form-control {
-    border-radius: 0 var(--radius-full) var(--radius-full) 0;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    padding: 8px 16px 8px 8px;
+    font-size: 0.85rem;
+    width: 100% !important;
+}
+
+.admin-topbar .input-group .form-control:focus {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+}
+
+/* Topbar Live Search Suggestions Dropdown */
+.topbar-search-dropdown {
+    top: calc(100% + 6px);
+    min-width: 320px;
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 12px 28px -4px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.06);
+    border-radius: 12px !important;
+    overflow: hidden;
+}
+
+.topbar-search-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    color: var(--text-primary, #1e293b);
+    text-decoration: none !important;
+    transition: background-color 0.15s ease-in-out;
+    border-bottom: 1px solid rgba(241, 245, 249, 0.9);
+    cursor: pointer;
+}
+
+.topbar-search-item:last-child {
+    border-bottom: none;
+}
+
+.topbar-search-item:hover,
+.topbar-search-item.active {
+    background-color: rgba(241, 245, 249, 0.95);
+    text-decoration: none !important;
+}
+
+.topbar-search-item .item-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #e0e7ff;
+    color: #4f46e5;
+    font-weight: 600;
+    font-size: 0.78rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.topbar-search-item .item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.topbar-search-item .item-name {
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: #0f172a;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.topbar-search-item .item-meta {
+    font-size: 0.72rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.topbar-search-footer {
+    padding: 9px 14px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #4f46e5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.topbar-search-footer:hover {
+    background: #f1f5f9;
+}
+
+.topbar-search-section-header {
+    padding: 6px 14px 4px 14px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    background: #f8fafc;
+    border-bottom: 1px solid #f1f5f9;
+    border-top: 1px solid #f1f5f9;
+}
+
+.topbar-search-section-header:first-child {
+    border-top: none;
+}
+
+.topbar-search-item .item-avatar.type-member {
+    background: #e0e7ff;
+    color: #4f46e5;
+}
+
+.topbar-search-item .item-avatar.type-circle {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.topbar-search-item .item-avatar.type-event {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.topbar-search-item .item-avatar.type-brand {
+    background: #f3e8ff;
+    color: #9333ea;
+}
+
+.topbar-search-item .item-avatar.type-campaign {
+    background: #ffe4e6;
+    color: #e11d48;
 }
 
 /* Topbar Buttons */
