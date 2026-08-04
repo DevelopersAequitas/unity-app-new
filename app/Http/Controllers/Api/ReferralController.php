@@ -8,6 +8,7 @@ use App\Http\Requests\Api\GenerateReferralCodeRequest;
 use App\Http\Resources\Api\V1\ActivityReferralResource;
 use App\Http\Resources\ReferralMemberResource;
 use App\Models\Referral;
+use App\Models\ReferralStatus;
 use App\Models\User;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
@@ -63,7 +64,7 @@ class ReferralController extends BaseApiController
         $perPage = max(1, min((int) $request->query('per_page', 15), 100));
 
         $givenPaginator = Referral::query()
-            ->with(['givenByUser', 'receivedByUser'])
+            ->with(['givenByUser', 'receivedByUser', 'status'])
             ->where(function ($query) {
                 $query->where('is_deleted', false)
                     ->orWhereNull('is_deleted');
@@ -74,7 +75,7 @@ class ReferralController extends BaseApiController
             ->paginate($perPage, ['*'], 'given_page');
 
         $receivedPaginator = Referral::query()
-            ->with(['givenByUser', 'receivedByUser'])
+            ->with(['givenByUser', 'receivedByUser', 'status'])
             ->where(function ($query) {
                 $query->where('is_deleted', false)
                     ->orWhereNull('is_deleted');
@@ -129,7 +130,7 @@ class ReferralController extends BaseApiController
         $perPage = max(1, min((int) $request->query('per_page', 15), 100));
 
         $givenPaginator = Referral::query()
-            ->with(['givenByUser', 'receivedByUser'])
+            ->with(['givenByUser', 'receivedByUser', 'status'])
             ->where(function ($query) {
                 $query->where('is_deleted', false)
                     ->orWhereNull('is_deleted');
@@ -140,7 +141,7 @@ class ReferralController extends BaseApiController
             ->paginate($perPage, ['*'], 'given_page');
 
         $receivedPaginator = Referral::query()
-            ->with(['givenByUser', 'receivedByUser'])
+            ->with(['givenByUser', 'receivedByUser', 'status'])
             ->where(function ($query) {
                 $query->where('is_deleted', false)
                     ->orWhereNull('is_deleted');
@@ -490,5 +491,67 @@ class ReferralController extends BaseApiController
         }
 
         return $this->success($referral);
+    }
+
+    public function statuses()
+    {
+        $statuses = ReferralStatus::orderBy('id')->get(['id', 'name']);
+        return $this->success($statuses, 'Referral statuses fetched successfully.');
+    }
+
+    public function updateStatus(Request $request, string $id, NotifyUserService $notifyUserService)
+    {
+        $referral = Referral::where('id', $id)
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $referral) {
+            return $this->error('Referral not found', 404);
+        }
+
+        $request->validate([
+            'status_id' => 'required|exists:referral_status,id',
+        ]);
+
+        $statusId = $request->input('status_id');
+        $referral->status_id = $statusId;
+        $referral->save();
+
+        // Load status and users for notification context
+        $referral->load(['status', 'fromUser', 'toUser']);
+        $statusName = $referral->status ? $referral->status->name : 'Pending';
+
+        $authUser = $request->user();
+
+        // Determine who to notify
+        $recipient = null;
+        if ($authUser->id === $referral->from_user_id) {
+            $recipient = $referral->toUser;
+        } elseif ($authUser->id === $referral->to_user_id) {
+            $recipient = $referral->fromUser;
+        }
+
+        if ($recipient) {
+            $updaterName = $authUser->display_name ?? trim(($authUser->first_name ?? '').' '.($authUser->last_name ?? ''));
+            if (empty($updaterName)) {
+                $updaterName = 'A member';
+            }
+            
+            $notifyUserService->notifyUser(
+                $recipient,
+                $authUser,
+                'activity_referral_status_updated',
+                [
+                    'activity_type' => 'referral',
+                    'activity_id' => (string) $referral->id,
+                    'title' => 'Referral Status Updated',
+                    'body' => "{$updaterName} updated the status of the referral to \"{$statusName}\".",
+                ],
+                $referral
+            );
+        }
+
+        return $this->success($referral, 'Referral status updated successfully.');
     }
 }

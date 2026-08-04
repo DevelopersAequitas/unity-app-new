@@ -857,6 +857,8 @@ Route::prefix('v1')->group(function () {
             Route::get('requirements/{id}', [ActivitiesRequirementController::class, 'show']);
 
             Route::get('referrals', [ReferralHistoryController::class, 'index']);
+            Route::get('referrals/statuses', [ReferralController::class, 'statuses']);
+            Route::patch('referrals/{id}/status', [ReferralController::class, 'updateStatus'])->whereUuid('id');
             Route::post('referrals', [ReferralController::class, 'store']);
             Route::get('referrals/{id}', [ReferralController::class, 'show']);
 
