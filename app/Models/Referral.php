@@ -32,6 +32,7 @@ class Referral extends Model
         'address',
         'hot_value',
         'remarks',
+        'status_id',
     ];
 
     protected $casts = [
@@ -45,6 +46,11 @@ class Referral extends Model
                 $model->id = (string) Str::uuid();
             }
         });
+    }
+
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(ReferralStatus::class, 'status_id');
     }
 
     public function fromUser(): BelongsTo
