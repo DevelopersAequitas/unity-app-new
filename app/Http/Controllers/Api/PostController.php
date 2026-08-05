@@ -617,7 +617,7 @@ class PostController extends BaseApiController
             return $this->error('You are not authorized to edit this post.', 403);
         }
 
-        if (! empty($post->source_type) || ! empty($post->post_type) || ! empty($post->template_id)) {
+        if (! empty($post->source_type) || (! empty($post->post_type) && $post->post_type !== 'standard') || ! empty($post->template_id)) {
             return $this->error('Generated template posts cannot be edited.', 403);
         }
 

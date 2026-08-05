@@ -175,7 +175,7 @@ class UserMobileVersionAndChangelogApiTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonFragment([
                 'version' => '1.1.0',
-                'platform' => 'android',
+                'platform' => ['android'],
             ]);
     }
 }
