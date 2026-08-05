@@ -123,4 +123,16 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | OTP Expiration Window
+    |--------------------------------------------------------------------------
+    |
+    | Define the number of minutes before an OTP code (email or WhatsApp)
+    | expires.
+    |
+    */
+
+    'otp_expire_minutes' => (int) env('OTP_EXPIRATION_MINUTES', 10),
+
 ];

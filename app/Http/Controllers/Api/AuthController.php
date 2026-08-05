@@ -1039,7 +1039,7 @@ class AuthController extends BaseApiController
             'email' => $user->email,
             'purpose' => 'login_otp',
             'code' => Hash::make($otp),
-            'expires_at' => now()->addMinutes(5),
+            'expires_at' => now()->addMinutes((int) config('auth.otp_expire_minutes', 10)),
             'used_at' => null,
         ]);
 
@@ -1074,7 +1074,11 @@ class AuthController extends BaseApiController
                 ],
             ], $exception);
 
-            throw $exception;
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send OTP email due to a mail server issue. Please try again later or request OTP via WhatsApp.',
+                'data' => null,
+            ], 503);
         }
 
         return response()->json([
@@ -1225,7 +1229,7 @@ class AuthController extends BaseApiController
             'email' => $user->email,
             'purpose' => 'password_reset',
             'code' => Hash::make($otp),
-            'expires_at' => now()->addMinutes(5),
+            'expires_at' => now()->addMinutes((int) config('auth.otp_expire_minutes', 10)),
             'used_at' => null,
         ]);
 
@@ -1260,7 +1264,11 @@ class AuthController extends BaseApiController
                 ],
             ], $exception);
 
-            throw $exception;
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send password reset OTP email due to a mail server issue. Please try again later.',
+                'data' => null,
+            ], 503);
         }
 
         return response()->json([
