@@ -610,7 +610,7 @@ class PostController extends BaseApiController
             ->first();
 
         if (! $post) {
-            return $this->error('Post not found', 404);
+            return $this->error('This post is managed by the system and cannot be modified.', 404);
         }
 
         if ($post->user_id !== $user->id) {
