@@ -496,6 +496,7 @@ class ReferralController extends BaseApiController
     public function statuses()
     {
         $statuses = ReferralStatus::orderBy('id')->get(['id', 'name']);
+
         return $this->success($statuses, 'Referral statuses fetched successfully.');
     }
 
@@ -537,7 +538,7 @@ class ReferralController extends BaseApiController
             if (empty($updaterName)) {
                 $updaterName = 'A member';
             }
-            
+
             $notifyUserService->notifyUser(
                 $recipient,
                 $authUser,

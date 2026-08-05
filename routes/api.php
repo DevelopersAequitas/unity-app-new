@@ -450,7 +450,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/members/{member_id}/introduced-peers', [ProfileController::class, 'memberIntroducedPeers'])
             ->whereUuid('member_id');
         Route::get('members/names', [MemberController::class, 'names']);
-        Route::get('members/limited', [MemberController::class, 'limitedPaginated']);
+        Route::get('members/limited', [MemberController::class, 'limitedList']);
 
         Route::get('/members/profile/{slug}', [MemberController::class, 'publicProfileBySlug']);
         Route::get('/members/public/{slug}', [MemberController::class, 'publicProfileBySlug']);

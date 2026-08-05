@@ -213,7 +213,7 @@ class LimitedUserApiTest extends TestCase
         $this->assertIsBool($nItem['is_verified']);
     }
 
-    public function test_limited_users_endpoint_returns_paginated_members(): void
+    public function test_limited_users_endpoint_returns_all_members_without_pagination(): void
     {
         $activeUser = User::factory()->create([
             'status' => 'active',
@@ -228,48 +228,8 @@ class LimitedUserApiTest extends TestCase
         $response = $this->getJson('/api/v1/members/limited');
 
         $response->assertOk();
-        $this->assertCount(15, $response->json('data'));
-        $response->assertJsonStructure([
-            'meta' => [
-                'current_page',
-                'last_page',
-                'per_page',
-                'total',
-                'from',
-                'to',
-            ],
-            'links' => ['first', 'last', 'prev', 'next'],
-        ]);
-        $this->assertSame(21, $response->json('meta.total'));
-        $this->assertSame(1, $response->json('meta.current_page'));
-        $this->assertSame(15, $response->json('meta.per_page'));
-        $this->assertSame(2, $response->json('meta.last_page'));
-        $this->assertSame(1, $response->json('meta.from'));
-        $this->assertSame(15, $response->json('meta.to'));
-    }
-
-    public function test_limited_users_endpoint_supports_custom_page_and_per_page(): void
-    {
-        $activeUser = User::factory()->create([
-            'status' => 'active',
-        ]);
-
-        User::factory()->count(24)->create([
-            'status' => 'active',
-        ]);
-
-        Sanctum::actingAs($activeUser);
-
-        $response = $this->getJson('/api/v1/members/limited?page=2&per_page=10');
-
-        $response->assertOk();
-        $this->assertCount(10, $response->json('data'));
-        $this->assertSame(2, $response->json('meta.current_page'));
-        $this->assertSame(10, $response->json('meta.per_page'));
-        $this->assertSame(25, $response->json('meta.total'));
-        $this->assertSame(3, $response->json('meta.last_page'));
-        $this->assertSame(11, $response->json('meta.from'));
-        $this->assertSame(20, $response->json('meta.to'));
+        $this->assertCount(21, $response->json('data'));
+        $response->assertJsonMissing(['meta', 'links']);
     }
 
     public function test_members_endpoint_returns_all_members_without_pagination_with_all_fields(): void
