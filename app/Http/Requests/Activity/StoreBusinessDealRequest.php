@@ -19,6 +19,7 @@ class StoreBusinessDealRequest extends FormRequest
             'deal_amount' => ['required', 'numeric', 'min:0'],
             'business_type' => ['required', 'in:new,repeat'],
             'comment' => ['nullable', 'string'],
+            'referral_id' => ['nullable', 'uuid', 'exists:referrals,id'],
         ];
     }
 }

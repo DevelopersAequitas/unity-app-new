@@ -28,6 +28,7 @@ class BusinessDeal extends Model
         'deal_amount',
         'business_type',
         'comment',
+        'referral_id',
     ];
 
     protected $casts = [
@@ -51,5 +52,10 @@ class BusinessDeal extends Model
     public function toUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'to_user_id');
+    }
+
+    public function referral(): BelongsTo
+    {
+        return $this->belongsTo(Referral::class, 'referral_id');
     }
 }

@@ -75,36 +75,74 @@
     </form>
 @endif
 
+<script>
+window.switchTab = function(tabId) {
+    const tabEl = typeof tabId === 'string' ? document.getElementById(tabId) : tabId;
+    if (!tabEl) return;
+    
+    const allTabs = document.querySelectorAll('#editPeerTabs .nav-link');
+    allTabs.forEach(function(t) {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+    });
+    
+    const allPanes = document.querySelectorAll('#editPeerTabsContent > .tab-pane');
+    allPanes.forEach(function(p) {
+        p.classList.remove('show', 'active');
+        p.style.setProperty('display', 'none', 'important');
+    });
+    
+    tabEl.classList.add('active');
+    tabEl.setAttribute('aria-selected', 'true');
+    
+    const targetSelector = tabEl.getAttribute('data-bs-target');
+    if (targetSelector) {
+        const targetPane = document.querySelector(targetSelector);
+        if (targetPane) {
+            targetPane.classList.add('show', 'active');
+            targetPane.style.setProperty('display', 'block', 'important');
+        }
+    }
+
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+        try {
+            const bsTab = bootstrap.Tab.getOrCreateInstance(tabEl);
+            bsTab.show();
+        } catch (e) {}
+    }
+};
+</script>
+
 <div class="card-activities-wrapper mb-4">
     <div class="card-body p-0">
         <ul class="nav nav-pills nav-fill bg-light border-bottom p-2 gap-1" id="editPeerTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active py-2 px-3 fw-semibold" id="personal-tab" data-bs-toggle="pill" data-bs-target="#personal-section" type="button" role="tab" aria-controls="personal-section" aria-selected="true">
+                <button class="nav-link active py-2 px-3 fw-semibold" id="personal-tab" onclick="switchTab('personal-tab')" data-bs-toggle="pill" data-bs-target="#personal-section" type="button" role="tab" aria-controls="personal-section" aria-selected="true">
                     <i class="bi bi-person me-1"></i>1. Personal Profile
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link py-2 px-3 fw-semibold" id="business-tab" data-bs-toggle="pill" data-bs-target="#business-section" type="button" role="tab" aria-controls="business-section" aria-selected="false">
+                <button class="nav-link py-2 px-3 fw-semibold" id="business-tab" onclick="switchTab('business-tab')" data-bs-toggle="pill" data-bs-target="#business-section" type="button" role="tab" aria-controls="business-section" aria-selected="false">
                     <i class="bi bi-briefcase me-1"></i>2. Business Details
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link py-2 px-3 fw-semibold" id="membership-tab" data-bs-toggle="pill" data-bs-target="#membership-section" type="button" role="tab" aria-controls="membership-section" aria-selected="false">
+                <button class="nav-link py-2 px-3 fw-semibold" id="membership-tab" onclick="switchTab('membership-tab')" data-bs-toggle="pill" data-bs-target="#membership-section" type="button" role="tab" aria-controls="membership-section" aria-selected="false">
                     <i class="bi bi-award me-1"></i>3. Membership & Coins
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link py-2 px-3 fw-semibold" id="circles-tab" data-bs-toggle="pill" data-bs-target="#circles-section" type="button" role="tab" aria-controls="circles-section" aria-selected="false">
+                <button class="nav-link py-2 px-3 fw-semibold" id="circles-tab" onclick="switchTab('circles-tab')" data-bs-toggle="pill" data-bs-target="#circles-section" type="button" role="tab" aria-controls="circles-section" aria-selected="false">
                     <i class="bi bi-circle me-1"></i>4. Circles & Admin
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link py-2 px-3 fw-semibold" id="stories-tab" data-bs-toggle="pill" data-bs-target="#stories-section" type="button" role="tab" aria-controls="stories-section" aria-selected="false">
+                <button class="nav-link py-2 px-3 fw-semibold" id="stories-tab" onclick="switchTab('stories-tab')" data-bs-toggle="pill" data-bs-target="#stories-section" type="button" role="tab" aria-controls="stories-section" aria-selected="false">
                     <i class="bi bi-journal-text me-1"></i>5. Story Submissions ({{ $storySubmissionsCount }})
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link py-2 px-3 fw-semibold" id="introduced-tab" data-bs-toggle="pill" data-bs-target="#introduced-section" type="button" role="tab" aria-controls="introduced-section" aria-selected="false">
+                <button class="nav-link py-2 px-3 fw-semibold" id="introduced-tab" onclick="switchTab('introduced-tab')" data-bs-toggle="pill" data-bs-target="#introduced-section" type="button" role="tab" aria-controls="introduced-section" aria-selected="false">
                     <i class="bi bi-people me-1"></i>6. Introduced Members ({{ $introducedPeersCount }})
                 </button>
             </li>
@@ -1385,14 +1423,45 @@
 <script>
 function switchTab(tabId) {
     const tabEl = document.getElementById(tabId);
-    if (tabEl) {
-        const tab = new bootstrap.Tab(tabEl);
-        tab.show();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!tabEl) return;
+    
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+        try {
+            const bsTab = bootstrap.Tab.getOrCreateInstance(tabEl);
+            bsTab.show();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        } catch (e) {}
     }
+
+    const targetSelector = tabEl.getAttribute('data-bs-target');
+    if (targetSelector) {
+        document.querySelectorAll('#editPeerTabs .nav-link').forEach(t => {
+            t.classList.remove('active');
+            t.setAttribute('aria-selected', 'false');
+        });
+        document.querySelectorAll('#editPeerTabsContent > .tab-pane').forEach(p => {
+            p.classList.remove('show', 'active');
+        });
+        
+        tabEl.classList.add('active');
+        tabEl.setAttribute('aria-selected', 'true');
+        const targetPane = document.querySelector(targetSelector);
+        if (targetPane) {
+            targetPane.classList.add('show', 'active');
+        }
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('#editPeerTabs .nav-link').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            switchTab(this.id);
+        });
+    });
+
     if (window.location.hash) {
         const hash = window.location.hash.substring(1);
         if (hash === 'introduced-section' || hash === 'introduced-tab') {
@@ -1813,7 +1882,17 @@ document.addEventListener('DOMContentLoaded', function () {
 @if($isReadOnly ?? false)
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('input, select, textarea, button').forEach(function(el) {
+        document.querySelectorAll('#editPeerTabs .nav-link').forEach(function(tabBtn) {
+            tabBtn.disabled = false;
+            tabBtn.removeAttribute('disabled');
+            tabBtn.style.pointerEvents = 'auto';
+            tabBtn.style.cursor = 'pointer';
+        });
+
+        document.querySelectorAll('#userEditForm input, #userEditForm select, #userEditForm textarea, #userEditForm button').forEach(function(el) {
+            if (el.classList.contains('nav-link') || el.getAttribute('role') === 'tab' || el.hasAttribute('data-bs-toggle') || el.closest('#editPeerTabs')) {
+                return;
+            }
             if (el.tagName === 'BUTTON' && (el.type === 'submit' || el.innerText.includes('Remove') || el.innerText.includes('Delete') || el.innerText.includes('Save') || el.innerText.includes('Update') || el.innerText.includes('Send') || el.classList.contains('btn-danger') || el.classList.contains('btn-success'))) {
                 el.style.display = 'none';
             } else if (el.tagName !== 'A' && !el.classList.contains('btn-close') && !el.classList.contains('btn-outline-secondary')) {

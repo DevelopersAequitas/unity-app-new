@@ -366,12 +366,15 @@ class AdminAccess
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin) {
             // 1. Try to find the highest priority role assigned via admin_user_roles
-            $role = DB::table('roles')
+            $query = DB::table('roles')
                 ->join('admin_user_roles', 'admin_user_roles.role_id', '=', 'roles.id')
-                ->where('admin_user_roles.user_id', $admin->id)
-                ->orderBy('roles.hierarchy_depth', 'asc')
-                ->select('roles.name', 'roles.key')
-                ->first();
+                ->where('admin_user_roles.user_id', $admin->id);
+
+            if (Schema::hasColumn('roles', 'hierarchy_depth')) {
+                $query->orderBy('roles.hierarchy_depth', 'asc');
+            }
+
+            $role = $query->select('roles.name', 'roles.key')->first();
 
             if ($role) {
                 return $role->name;

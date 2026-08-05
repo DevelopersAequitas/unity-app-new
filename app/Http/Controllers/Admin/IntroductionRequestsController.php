@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\UserMilestoneSyncService;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,12 +28,16 @@ class IntroductionRequestsController extends Controller
     public function index(Request $request): View
     {
         $admin = Auth::guard('admin')->user();
-        abort_unless($admin !== null && AdminAccess::isGlobalAdmin($admin), 403);
+        if (! $admin) {
+            abort(401);
+        }
 
         $query = IntroductionRequest::query()
             ->with(['requester', 'introducer', 'reviewer'])
             ->where('status', 'pending')
             ->latest('created_at');
+
+        AdminCircleScope::applyToActivityQuery($query, $admin, 'introduction_requests.requester_id', 'introduction_requests.introducer_id');
 
         $search = trim((string) $request->query('search', ''));
         if ($search !== '') {
@@ -58,12 +63,18 @@ class IntroductionRequestsController extends Controller
     public function approve(Request $request, string $id): RedirectResponse
     {
         $admin = Auth::guard('admin')->user();
-        abort_unless($admin !== null && AdminAccess::isGlobalAdmin($admin), 403);
+        if (! $admin) {
+            abort(401);
+        }
 
         try {
             DB::transaction(function () use ($id, $admin): void {
                 /** @var IntroductionRequest $introRequest */
                 $introRequest = IntroductionRequest::query()->lockForUpdate()->findOrFail($id);
+
+                if (! AdminAccess::isGlobalAdmin($admin) && ! AdminCircleScope::userInScope($admin, (string) $introRequest->requester_id) && ! AdminCircleScope::userInScope($admin, (string) $introRequest->introducer_id)) {
+                    abort(403);
+                }
 
                 if ($introRequest->status !== 'pending') {
                     throw ValidationException::withMessages([
@@ -127,7 +138,9 @@ class IntroductionRequestsController extends Controller
     public function reject(Request $request, string $id): RedirectResponse
     {
         $admin = Auth::guard('admin')->user();
-        abort_unless($admin !== null && AdminAccess::isGlobalAdmin($admin), 403);
+        if (! $admin) {
+            abort(401);
+        }
 
         $request->validate([
             'admin_note' => ['nullable', 'string', 'max:1000'],
@@ -137,6 +150,10 @@ class IntroductionRequestsController extends Controller
             DB::transaction(function () use ($id, $admin, $request): void {
                 /** @var IntroductionRequest $introRequest */
                 $introRequest = IntroductionRequest::query()->lockForUpdate()->findOrFail($id);
+
+                if (! AdminAccess::isGlobalAdmin($admin) && ! AdminCircleScope::userInScope($admin, (string) $introRequest->requester_id) && ! AdminCircleScope::userInScope($admin, (string) $introRequest->introducer_id)) {
+                    abort(403);
+                }
 
                 if ($introRequest->status !== 'pending') {
                     throw ValidationException::withMessages([

@@ -26,7 +26,11 @@ class RoleHierarchyController extends Controller
 
     public function index(): View
     {
-        $roles = Role::query()->where('status', 'active')->orderBy('hierarchy_depth')->get();
+        $rolesQuery = Role::query()->where('status', 'active');
+        if (Schema::hasColumn('roles', 'hierarchy_depth')) {
+            $rolesQuery->orderBy('hierarchy_depth');
+        }
+        $roles = $rolesQuery->get();
 
         // Build parent-child relationships map
         $relations = DB::table('role_hierarchies')->get();
@@ -66,7 +70,11 @@ class RoleHierarchyController extends Controller
 
     public function fullMap(): View
     {
-        $roles = Role::query()->where('status', 'active')->orderBy('hierarchy_depth')->get();
+        $rolesQuery = Role::query()->where('status', 'active');
+        if (Schema::hasColumn('roles', 'hierarchy_depth')) {
+            $rolesQuery->orderBy('hierarchy_depth');
+        }
+        $roles = $rolesQuery->get();
 
         $relations = DB::table('role_hierarchies')->get();
         $parentToChildren = [];

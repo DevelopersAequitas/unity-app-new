@@ -15,7 +15,7 @@ class ActivityReferralResource extends JsonResource
             // Compatibility fields
             'title' => $this->referral_of,
             'description' => $this->remarks,
-            'status' => $this->status ?? null,
+            'status' => $this->status ? $this->status->name : 'Pending',
             'source_module' => $this->source_module ?? 'referral',
 
             // Raw database fields
