@@ -385,19 +385,24 @@ class MemberController extends BaseApiController
         return UserResource::collection($users)->additional([
             'success' => true,
             'message' => 'Members fetched successfully.',
+            'total_users' => $users->count(),
+            'total_user' => $users->count(),
+            'total' => $users->count(),
         ]);
     }
 
-    public function limitedPaginated(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
+    public function limitedList(Request $request, PeerBlockService $peerBlockService, ProfileVisibilityService $profileVisibilityService)
     {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
 
-        $perPage = max(1, (int) $request->input('per_page', 15));
-        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->paginate($perPage);
+        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
 
         return LimitedUserResource::collection($users)->additional([
             'success' => true,
             'message' => 'Limited user data fetched successfully.',
+            'total_users' => $users->count(),
+            'total_user' => $users->count(),
+            'total' => $users->count(),
         ]);
     }
 
