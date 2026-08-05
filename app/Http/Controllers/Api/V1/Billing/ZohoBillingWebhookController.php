@@ -42,22 +42,32 @@ class ZohoBillingWebhookController extends Controller
 
         $payload = $request->all();
 
-        try {
-            $eventPaymentResult = $this->zohoPaymentWebhookService->handle($request);
-            if (($eventPaymentResult['registration_found'] ?? false) === true) {
-                return response()->json([
-                    'success' => true,
-                    'message' => $eventPaymentResult['message'] ?? 'Event registration payment webhook processed',
-                    'data' => [
-                        'registration_id' => $eventPaymentResult['registration_id'] ?? null,
-                        'webhook_event_id' => $eventPaymentResult['webhook_event_id'] ?? null,
-                    ],
+        $isPureSubscriptionWebhook = (
+            (data_get($payload, 'subscription') !== null || data_get($payload, 'data.subscription') !== null)
+            && data_get($payload, 'metadata.registration_id') === null
+            && data_get($payload, 'data.metadata.registration_id') === null
+            && data_get($payload, 'custom_fields.registration_id') === null
+            && data_get($payload, 'data.custom_fields.registration_id') === null
+        );
+
+        if (! $isPureSubscriptionWebhook) {
+            try {
+                $eventPaymentResult = $this->zohoPaymentWebhookService->handle($request);
+                if (($eventPaymentResult['registration_found'] ?? false) === true) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => $eventPaymentResult['message'] ?? 'Event registration payment webhook processed',
+                        'data' => [
+                            'registration_id' => $eventPaymentResult['registration_id'] ?? null,
+                            'webhook_event_id' => $eventPaymentResult['webhook_event_id'] ?? null,
+                        ],
+                    ]);
+                }
+            } catch (Throwable $throwable) {
+                Log::warning('zoho_billing_webhook_event_registration_payment_probe_failed', [
+                    'error' => $throwable->getMessage(),
                 ]);
             }
-        } catch (Throwable $throwable) {
-            Log::warning('zoho_billing_webhook_event_registration_payment_probe_failed', [
-                'error' => $throwable->getMessage(),
-            ]);
         }
 
         $subscriptionId = data_get($payload, 'subscription.subscription_id')
@@ -235,12 +245,12 @@ class ZohoBillingWebhookController extends Controller
             $subscription = $this->findPendingCircleSubscription($identifiers);
 
             if (! $subscription) {
-                Log::warning('webhook received but no match found', [
+                Log::info('circle webhook received for non-circle payment, ignored cleanly', [
                     'payload_type' => $payloadType,
                     'identifiers' => $identifiers,
                 ]);
 
-                return response()->json(['success' => true, 'message' => 'No matching circle subscription']);
+                return response()->json(['success' => true, 'message' => 'Ignored non-circle membership payment']);
             }
 
             Log::info('pending circle subscription matched', [
