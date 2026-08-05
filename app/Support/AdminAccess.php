@@ -419,6 +419,68 @@ class AdminAccess
             return false;
         }
 
+        $roleIds = DB::table('admin_user_roles')
+            ->where('user_id', $admin->id)
+            ->pluck('role_id')
+            ->filter()
+            ->all();
+
+        if (! empty($roleIds)) {
+            $hasModuleAccessRules = DB::table('role_module_access')
+                ->whereIn('role_id', $roleIds)
+                ->exists();
+
+            if ($hasModuleAccessRules) {
+                $normalizedLabel = strtolower(trim($sectionLabel));
+
+                $moduleSlug = match ($normalizedLabel) {
+                    'dashboard' => 'dashboard',
+                    'members', 'peers', 'all members', 'member introducers', 'sponsored member milestone awards', 'login history' => 'members',
+                    'activities', 'activity summary', 'testimonials', 'requirements', 'referrals', 'p2p meetings', 'business deals', 'connections', 'leadership requests', 'recommended peers', 'collaborations', 'registered visitor' => 'activities',
+                    'circles', 'circle categories', 'circle join requests' => 'circles',
+                    'events', 'events management', 'event gallery' => 'events',
+                    'coins', 'coin claims' => 'coins',
+                    'life impact', 'life-impact', 'impact option', 'pending impacts' => 'life-impact',
+                    'notifications & email', 'notifications', 'email logs', 'campaigns', 'daily notifications' => 'notifications',
+                    'pending requests', 'pending-requests' => 'pending-requests',
+                    'referral report', 'referral-report' => 'referral-report',
+                    'content & posts', 'posts & timeline', 'posts', 'content', 'circulars', 'post reports' => 'content',
+                    'lead submissions', 'leads' => 'leads',
+                    'industries' => 'industries',
+                    'settings', 'app configuration', 'app updates manager', 'birthday creative', 'anniversary creative', 'tutorials', 'unity contacts', 'support tickets', 'categories' => 'settings',
+                    'role management', 'dynamic rbac', 'role-management' => 'role-management',
+                    'brand partners', 'brand-partners', 'ads' => 'brand-partners',
+                    default => null,
+                };
+
+                $module = null;
+                if ($moduleSlug !== null) {
+                    $module = DB::table('admin_modules')
+                        ->where('slug', $moduleSlug)
+                        ->first();
+                }
+
+                if (! $module) {
+                    $module = DB::table('admin_modules')
+                        ->whereRaw('LOWER(name) = ?', [$normalizedLabel])
+                        ->first();
+                }
+
+                if ($module) {
+                    $accessRecords = DB::table('role_module_access')
+                        ->whereIn('role_id', $roleIds)
+                        ->where('module_id', $module->id)
+                        ->get();
+
+                    if ($accessRecords->isNotEmpty()) {
+                        return $accessRecords->contains(function ($row): bool {
+                            return (bool) $row->is_visible;
+                        });
+                    }
+                }
+            }
+        }
+
         if (self::isSuper($admin)) {
             return true;
         }

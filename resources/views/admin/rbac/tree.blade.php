@@ -413,12 +413,6 @@
                         <!-- Dynamic Permissions & Sidebar Sections Checklist -->
                         <div class="mb-3" id="permissions_container" style="display: none;">
                             <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
-                                <label for="assign_permission_type" class="form-label fw-bold fs-7 mb-2 d-block">Permission Level</label>
-                                <select id="assign_permission_type" name="permission_type" class="form-select rounded-3 mb-3">
-                                    <option value="edit">Edit (Full Access)</option>
-                                    <option value="view">Only View (Read-only)</option>
-                                </select>
-
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <label class="form-label fw-bold fs-7 mb-0">Dashboard Sections</label>
                                     <div class="form-check">
@@ -927,12 +921,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             <!-- Dynamic Permissions & Sidebar Sections Checklist -->
                             <div class="mb-3" id="quick_permissions_container" style="display:none;">
                                 <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
-                                    <label for="quick_permission_type" class="form-label fw-bold fs-8 mb-2 d-block">Permission Level</label>
-                                    <select id="quick_permission_type" name="permission_type" class="form-select rounded-3 select-sm mb-3">
-                                        <option value="edit">Edit (Full Access)</option>
-                                        <option value="view">Only View (Read-only)</option>
-                                    </select>
-
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <label class="form-label fw-bold fs-8 mb-0">Dashboard Sections</label>
                                         <div class="form-check">
@@ -1087,11 +1075,6 @@ function startEditAssignment(userId, userName, scopeId, permissionType, allowedS
         }
     }
 
-    const permTypeSelect = document.getElementById('quick_permission_type');
-    if (permTypeSelect) {
-        permTypeSelect.value = permissionType;
-    }
-
     document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
         cb.checked = false;
     });
@@ -1132,11 +1115,6 @@ function cancelEditAssignment() {
         $('#quick_scope_id').val('').trigger('change');
     } else {
         document.getElementById('quick_scope_id').value = '';
-    }
-
-    const permTypeSelect = document.getElementById('quick_permission_type');
-    if (permTypeSelect) {
-        permTypeSelect.value = 'edit';
     }
 
     document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
@@ -1183,7 +1161,6 @@ function fetchAssignments() {
                                     <div class="text-muted small text-truncate">${assign.email}</div>
                                     <div class="d-flex flex-wrap gap-1 mt-1">
                                         <span class="badge bg-light text-secondary border fs-9 text-wrap text-start">${assign.scope_name}</span>
-                                        <span class="badge bg-light text-info border fs-9">${assign.permission_type === 'view' ? 'Only View' : 'Edit Access'}</span>
                                     </div>
                                 </div>
                                 <div class="flex-shrink-0">
@@ -1230,6 +1207,10 @@ function fetchAssignments() {
 
                 setupModalScopeSelect();
             }
+        })
+        .catch(err => {
+            console.error('Error loading assignments:', err);
+            listContainer.innerHTML = '<div class="text-center py-4 text-danger fs-8">Failed to load assigned peers.</div>';
         });
 }
 

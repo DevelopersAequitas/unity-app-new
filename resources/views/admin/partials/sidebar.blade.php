@@ -523,31 +523,42 @@
 
 
             @if ($isGlobalAdmin)
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
                         <i class="bi bi-sliders me-2"></i>App Configuration
                     </a>
                 </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Updates Manager'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}">
                         <i class="bi bi-arrow-up-circle me-2"></i>App Updates Manager
                     </a>
                 </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Birthday Creative'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.birthday-creative.*') ? 'active' : '' }}" href="{{ route('admin.birthday-creative.index') }}">
                         <i class="bi bi-gift me-2"></i>Birthday Creative
                     </a>
                 </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Anniversary Creative'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.anniversary-creatives.*') ? 'active' : '' }}" href="{{ route('admin.anniversary-creatives.index') }}">
                         <i class="bi bi-images me-2"></i>Anniversary Creative
                     </a>
                 </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Tutorials'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}">
                         <i class="bi bi-play-btn me-2"></i>Tutorials
                     </a>
                 </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dynamic RBAC') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Role Management'))
                 {{-- Dynamic RBAC & Role Management Menu --}}
                 <li class="nav-item menu-parent {{ request()->routeIs('admin.rbac.*') ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="#rbacSubmenu" role="button" aria-expanded="{{ request()->routeIs('admin.rbac.*') ? 'true' : 'false' }}" aria-controls="rbacSubmenu">
@@ -583,6 +594,7 @@
                         </ul>
                     </div>
                 </li>
+                @endif
             @endif
 
 
@@ -626,16 +638,15 @@
             const sidebar = document.querySelector('.admin-sidebar');
             const menuParents = document.querySelectorAll('.admin-sidebar .menu-parent');
 
-            // ── Preserve & Restore Sidebar Scroll Position ──────────────
+            // Preserve & Restore Sidebar Scroll Position
             if (sidebar) {
                 const savedScroll = sessionStorage.getItem('sidebar_scroll_top');
                 if (savedScroll !== null) {
                     sidebar.scrollTop = parseInt(savedScroll, 10);
-                } else {
-                    const activeLink = sidebar.querySelector('.nav-link.active');
-                    if (activeLink) {
-                        activeLink.scrollIntoView({ block: 'center', inline: 'nearest' });
-                    }
+                }
+                const activeLink = sidebar.querySelector('.nav-link.active');
+                if (activeLink) {
+                    activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest' });
                 }
 
                 sidebar.addEventListener('scroll', () => {

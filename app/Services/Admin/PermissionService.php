@@ -123,9 +123,29 @@ class PermissionService
                 return collect();
             }
 
+            $hasModuleAccess = RoleModuleAccess::query()
+                ->whereIn('role_id', $roleIds)
+                ->exists();
+
             if ($this->hasGlobalScope($admin, $roleIds)) {
+                if (! $hasModuleAccess) {
+                    return AdminModule::query()
+                        ->active()
+                        ->orderBy('sort_order')
+                        ->with(['pages' => fn ($q) => $q->active()->orderBy('sort_order')])
+                        ->get();
+                }
+
+                $visibleModuleIds = RoleModuleAccess::query()
+                    ->whereIn('role_id', $roleIds)
+                    ->where('is_visible', true)
+                    ->pluck('module_id')
+                    ->unique()
+                    ->all();
+
                 return AdminModule::query()
                     ->active()
+                    ->whereIn('id', $visibleModuleIds)
                     ->orderBy('sort_order')
                     ->with(['pages' => fn ($q) => $q->active()->orderBy('sort_order')])
                     ->get();

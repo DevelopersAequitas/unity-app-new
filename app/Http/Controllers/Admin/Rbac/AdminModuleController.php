@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin\Rbac;
 use App\Http\Controllers\Controller;
 use App\Models\AdminModule;
 use App\Models\AdminPage;
+use App\Services\Admin\PermissionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -65,6 +66,8 @@ class AdminModuleController extends Controller
             }
         }
 
+        app(PermissionService::class)->clearAllCaches();
+
         return redirect()->route('admin.rbac.modules.index')
             ->with('success', 'Module created successfully.');
     }
@@ -92,6 +95,8 @@ class AdminModuleController extends Controller
 
         $module->update($validated);
 
+        app(PermissionService::class)->clearAllCaches();
+
         return redirect()->route('admin.rbac.modules.index')
             ->with('success', 'Module updated successfully.');
     }
@@ -100,6 +105,8 @@ class AdminModuleController extends Controller
     {
         $module = AdminModule::query()->findOrFail($id);
         $module->delete();
+
+        app(PermissionService::class)->clearAllCaches();
 
         return redirect()->route('admin.rbac.modules.index')
             ->with('success', 'Module deleted successfully.');
@@ -118,10 +125,6 @@ class AdminModuleController extends Controller
                 ->update(['sort_order' => $position]);
         }
 
-        return redirect()->route('admin.rbac.modules.index')
-            ->with('success', 'Module order updated.');
-    }
-}
         app(PermissionService::class)->clearAllCaches();
 
         return redirect()->route('admin.rbac.modules.index')

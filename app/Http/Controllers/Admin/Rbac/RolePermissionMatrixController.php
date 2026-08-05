@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminModule;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\RoleModuleAccess;
 use App\Models\RolePagePermission;
 use App\Services\Admin\PermissionService;
 use Illuminate\Http\RedirectResponse;
@@ -31,11 +32,28 @@ class RolePermissionMatrixController extends Controller
         $selectedRoleId = $request->get('role_id', $roles->first()?->id);
         $selectedRole = $roles->firstWhere('id', $selectedRoleId);
 
-        $modules = AdminModule::query()
+        $modulesQuery = AdminModule::query()
             ->active()
             ->orderBy('sort_order')
-            ->with(['pages' => fn ($q) => $q->active()->orderBy('sort_order')])
-            ->get();
+            ->with(['pages' => fn ($q) => $q->active()->orderBy('sort_order')]);
+
+        if ($selectedRole) {
+            $hasAccessRules = RoleModuleAccess::query()
+                ->where('role_id', $selectedRole->id)
+                ->exists();
+
+            if ($hasAccessRules) {
+                $visibleModuleIds = RoleModuleAccess::query()
+                    ->where('role_id', $selectedRole->id)
+                    ->where('is_visible', true)
+                    ->pluck('module_id')
+                    ->all();
+
+                $modulesQuery->whereIn('id', $visibleModuleIds);
+            }
+        }
+
+        $modules = $modulesQuery->get();
 
         $permissions = Permission::query()->orderBy('sort_order')->get();
 
