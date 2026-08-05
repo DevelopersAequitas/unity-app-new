@@ -4,11 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppVersion;
-use App\Models\UserMobileVersion;
 use App\Models\User;
+use App\Models\UserMobileVersion;
 use App\Services\Notifications\NotificationService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class AppUpdatesController extends Controller
@@ -18,9 +17,9 @@ class AppUpdatesController extends Controller
      */
     public function index(Request $request)
     {
-        $androidConfig = AppVersion::where('platform', 'android')->first() 
+        $androidConfig = AppVersion::where('platform', 'android')->first()
             ?? new AppVersion(['platform' => 'android', 'latest_version' => '1.0.0', 'min_version' => '1.0.0', 'update_type' => 'optional', 'is_active' => false]);
-            
+
         $iosConfig = AppVersion::where('platform', 'ios')->first()
             ?? new AppVersion(['platform' => 'ios', 'latest_version' => '1.0.0', 'min_version' => '1.0.0', 'update_type' => 'optional', 'is_active' => false]);
 
@@ -35,13 +34,13 @@ class AppUpdatesController extends Controller
         if ($search) {
             $query->whereHas('user', function ($q) use ($search) {
                 $q->where('display_name', 'like', "%{$search}%")
-                  ->orWhere('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
             })->orWhere('platform', 'like', "%{$search}%")
-              ->orWhere('app_version', 'like', "%{$search}%")
-              ->orWhere('device_model', 'like', "%{$search}%")
-              ->orWhere('os_version', 'like', "%{$search}%");
+                ->orWhere('app_version', 'like', "%{$search}%")
+                ->orWhere('device_model', 'like', "%{$search}%")
+                ->orWhere('os_version', 'like', "%{$search}%");
         }
 
         $userVersions = $query->latest()->paginate(25);
@@ -49,15 +48,15 @@ class AppUpdatesController extends Controller
         // Map status for each user record
         $userVersions->getCollection()->transform(function ($record) use ($androidConfig, $iosConfig) {
             $config = strtolower($record->platform) === 'ios' ? $iosConfig : $androidConfig;
-            
+
             $record->status_text = 'Up to Date';
             $record->status_class = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-            
+
             if ($config && $config->is_active) {
                 if (version_compare($record->app_version, $config->latest_version, '<')) {
                     $isForce = in_array(strtolower((string) $config->update_type), ['force', 'forced', 'mandatory'], true)
                         || version_compare($record->app_version, $config->min_version, '<');
-                    
+
                     if ($isForce) {
                         $record->status_text = 'Forced Update Required';
                         $record->status_class = 'bg-rose-50 text-rose-700 border-rose-200';
@@ -88,7 +87,7 @@ class AppUpdatesController extends Controller
         ]);
 
         $config = AppVersion::firstOrNew(['platform' => $platform]);
-        
+
         $oldLatestVersion = $config->latest_version;
         $versionChanged = $oldLatestVersion !== $request->input('latest_version');
 
@@ -104,7 +103,7 @@ class AppUpdatesController extends Controller
             $this->notifyAllOutdatedUsers($platform, $config);
         }
 
-        return redirect()->route('admin.app-updates.index')->with('success', ucfirst($platform) . ' configuration updated successfully.');
+        return redirect()->route('admin.app-updates.index')->with('success', ucfirst($platform).' configuration updated successfully.');
     }
 
     /**
@@ -113,7 +112,7 @@ class AppUpdatesController extends Controller
     public function notifySelected(Request $request)
     {
         $userIds = $request->input('user_ids', []);
-        
+
         if (empty($userIds)) {
             return response()->json(['success' => false, 'message' => 'No users selected.']);
         }
@@ -132,19 +131,19 @@ class AppUpdatesController extends Controller
         foreach ($users as $user) {
             // Find latest mobile version record for this user
             $userVersion = UserMobileVersion::where('user_id', $user->id)->first();
-            if (!$userVersion) {
+            if (! $userVersion) {
                 continue;
             }
 
             $config = strtolower($userVersion->platform) === 'ios' ? $iosConfig : $androidConfig;
-            if (!$config || !$config->is_active) {
+            if (! $config || ! $config->is_active) {
                 continue;
             }
 
             if (version_compare($userVersion->app_version, $config->latest_version, '<')) {
                 $isForce = in_array(strtolower((string) $config->update_type), ['force', 'forced', 'mandatory'], true)
                     || version_compare($userVersion->app_version, $config->min_version, '<');
-                
+
                 $title = $isForce ? 'Important App Update Required' : 'New Version Available 🚀';
                 $body = $isForce
                     ? 'Please update Peers Global Unity to continue using the latest features safely.'
@@ -170,8 +169,8 @@ class AppUpdatesController extends Controller
         }
 
         return response()->json([
-            'success' => true, 
-            'message' => "Successfully sent update reminder to {$sentCount} outdated users."
+            'success' => true,
+            'message' => "Successfully sent update reminder to {$sentCount} outdated users.",
         ]);
     }
 
@@ -186,11 +185,11 @@ class AppUpdatesController extends Controller
         $outdatedRecords = UserMobileVersion::with('user')
             ->where('platform', $platform)
             ->get()
-            ->filter(fn($rec) => version_compare($rec->app_version, $config->latest_version, '<'));
+            ->filter(fn ($rec) => version_compare($rec->app_version, $config->latest_version, '<'));
 
         $notificationService = app(NotificationService::class);
         $isForce = in_array(strtolower((string) $config->update_type), ['force', 'forced', 'mandatory'], true);
-        
+
         $title = $isForce ? 'Important App Update Required' : 'New Version Available 🚀';
         $body = $isForce
             ? 'Please update Peers Global Unity to continue using the latest features safely.'
@@ -215,7 +214,7 @@ class AppUpdatesController extends Controller
                     ]);
                 } catch (\Exception $e) {
                     Log::error("Failed sending instant update notification to user ID: {$record->user_id}", [
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }

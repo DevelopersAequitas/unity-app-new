@@ -10,6 +10,7 @@ use App\Models\Post;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
 use App\Services\Media\BirthdayCreativeImageService;
+use App\Services\Rbac\RbacService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,22 +25,44 @@ use Illuminate\View\View;
 
 class PostModerationController extends Controller
 {
-    private function ensureGlobalAdmin(): void
+    private function ensureGlobalAdmin(string $permission = 'delete'): void
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isGlobalAdmin($admin)) {
+        if (! $admin) {
             abort(403);
         }
+
+        if (AdminAccess::isGlobalAdmin($admin)) {
+            return;
+        }
+
+        $routeName = request()->route()?->getName();
+        if ($routeName && app(RbacService::class)->can($admin, $routeName, $permission)) {
+            return;
+        }
+
+        abort(403);
     }
 
-    private function ensureGlobalAdminOrIndustryDirector(): void
+    private function ensureGlobalAdminOrIndustryDirector(string $permission = 'view'): void
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isGlobalAdmin($admin) && ! app(IndustryScopeService::class)->isIndustryDirector($admin)) {
+        if (! $admin) {
             abort(403);
         }
+
+        if (AdminAccess::isGlobalAdmin($admin) || app(IndustryScopeService::class)->isIndustryDirector($admin)) {
+            return;
+        }
+
+        $routeName = request()->route()?->getName();
+        if ($routeName && app(RbacService::class)->can($admin, $routeName, $permission)) {
+            return;
+        }
+
+        abort(403);
     }
 
     public function index(Request $request): View

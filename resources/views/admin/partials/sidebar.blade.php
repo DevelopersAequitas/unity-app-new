@@ -25,57 +25,25 @@
             : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard']);
 
 
-    $navItems = $isIndustryDirector
-        ? [
-            ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-            ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-            ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-        ]
-        : (($isCircleScoped || $isDed)
-            ? [
-                ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-                ...($isDed ? [
-                    ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
-                    ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.ded.dashboard.industries']
-                ] : []),
-                ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-                ...(! $isDed && ! $isCircleCommittee ? [
-                    ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
-                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
-                ] : []),
-                ...($isGlobalAdmin ? [
-                    ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
-                    ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
-                    ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
-                    ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
-                    ['icon' => 'bi-diagram-3', 'label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy', 'active_routes' => ['admin.rbac.*']],
-                ] : []),
-            ]
-            : [
-                ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-                ['icon' => 'bi-person-check', 'label' => 'Member Introducers', 'route' => 'admin.member-introducers.index'],
-                ['icon' => 'bi-trophy', 'label' => 'Sponsored Member Milestone Awards', 'route' => 'admin.sponsored-milestones.index', 'active_routes' => ['admin.sponsored-milestones.*']],
-                ['icon' => 'bi-person-lines-fill', 'label' => 'Unity Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
-                ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
-                ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
-                ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
-                ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
-                ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
-                ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
-                ...(! $isCircleCommittee ? [
-                    ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
-                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
-                ] : []),
-                ...($isGlobalAdmin ? [
-                    ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
-                    ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
-                    ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
-                    ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
-                    ['icon' => 'bi-diagram-3', 'label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy', 'active_routes' => ['admin.rbac.*']],
-                ] : []),
-            ]);
+    $navItems = [
+        ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
+        ['icon' => 'bi-person-check', 'label' => 'Member Introducers', 'route' => 'admin.member-introducers.index'],
+        ['icon' => 'bi-trophy', 'label' => 'Sponsored Member Milestone Awards', 'route' => 'admin.sponsored-milestones.index', 'active_routes' => ['admin.sponsored-milestones.*']],
+        ['icon' => 'bi-person-lines-fill', 'label' => 'Unity Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
+        ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => $isDed ? 'admin.ded.dashboard.industries' : 'admin.execution.industries'],
+        ['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index'],
+        ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
+        ['icon' => 'bi-megaphone', 'label' => 'Circulars', 'route' => 'admin.circulars.index'],
+        ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
+        ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+        ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+        ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+        ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index'],
+        ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
+        ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
+        ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
+        ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
+    ];
 
     $fullActivityMenu = [
         ['label' => 'Summary', 'route' => 'admin.activities.index', 'active_routes' => ['admin.activities.index']],
@@ -104,7 +72,7 @@
         : null;
     $activityExpanded = $activityActive;
 
-    $postsMenu = ($isGlobalAdmin) ? [
+    $postsMenu = ($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline')) ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
         ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
     ] : [];
@@ -206,7 +174,7 @@
         }
         return $item;
     }, array_values(array_filter($navItems, fn ($item) => in_array(($item['label'] ?? null), ['Email Logs', 'Support Tickets'], true))));
-    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets', 'Role Hierarchy'], true)));
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     
     $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
@@ -247,35 +215,81 @@
     ];
     $dedAnalyticsActive = request()->routeIs('admin.ded.dashboard.health.*');
 
+    $rbacMenu = [
+        ['label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy'],
+        ['label' => 'Sidebar Modules', 'route' => 'admin.rbac.modules.index'],
+        ['label' => 'Admin Pages', 'route' => 'admin.rbac.pages.index'],
+        ['label' => 'Permissions', 'route' => 'admin.rbac.permissions.index'],
+        ['label' => 'Page Groups', 'route' => 'admin.rbac.page-groups.index'],
+        ['label' => 'Permission Matrix', 'route' => 'admin.rbac.matrix.index'],
+        ['label' => 'Module Access', 'route' => 'admin.rbac.module-access.index'],
+        ['label' => 'Page Group Access', 'route' => 'admin.rbac.page-group-access.index'],
+        ['label' => 'Data Scope', 'route' => 'admin.rbac.data-scope.index'],
+        ['label' => 'Workflow Rules', 'route' => 'admin.rbac.workflow-rules.index'],
+    ];
+    $rbacActive = request()->routeIs('admin.rbac.*');
+
     // Filter allowed sidebar sections
-    if ($dashboardItem && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dashboard')) {
+    $canViewRoute = function (string $routeName) use ($adminUser, $isGlobalAdmin): bool {
+        if ($isGlobalAdmin || ! $adminUser) {
+            return true;
+        }
+        return app(\App\Services\Rbac\RbacService::class)->can($adminUser, $routeName, 'view');
+    };
+
+    if ($dashboardItem && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dashboard')) {
         $dashboardItem = null;
     }
-    if ($activityMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities')) {
+    if ($activityMenu && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities')) {
         $activityMenu = [];
     }
-    if ($referralReportItem && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Referral Report')) {
+    if ($referralReportItem && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Referral Report')) {
         $referralReportItem = null;
     }
-    if ($postsMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline')) {
+    if ($postsMenu && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline')) {
         $postsMenu = [];
     }
-    if ($leadsMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads')) {
+    if ($leadsMenu && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads')) {
         $leadsMenu = [];
     }
 
-    $navItems = array_values(array_filter($navItems, function ($item) use ($adminUser) {
+    if ($postsMenu) {
+        $postsMenu = array_values(array_filter($postsMenu, fn ($item) => $canViewRoute($item['route'])));
+    }
+    if ($activityMenu) {
+        $activityMenu = array_values(array_filter($activityMenu, fn ($item) => $canViewRoute($item['route'])));
+    }
+    if ($pendingRequestsMenu) {
+        $pendingRequestsMenu = array_values(array_filter($pendingRequestsMenu, fn ($item) => $canViewRoute($item['route'])));
+    }
+    if ($eventsManagementMenu) {
+        $eventsManagementMenu = array_values(array_filter($eventsManagementMenu, fn ($item) => $canViewRoute($item['route'])));
+    }
+    if ($brandPartnersMenu) {
+        $brandPartnersMenu = array_values(array_filter($brandPartnersMenu, fn ($item) => $canViewRoute($item['route'])));
+    }
+    if ($adsMenu) {
+        $adsMenu = array_values(array_filter($adsMenu, fn ($item) => $canViewRoute($item['route'])));
+    }
+
+    $navItems = array_values(array_filter($navItems, function ($item) use ($adminUser, $canViewRoute) {
         $label = $item['label'] ?? null;
-        if ($label && !\App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+        if ($label && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
             return false;
+        }
+        if (isset($item['route']) && $item['route'] !== '#') {
+            return $canViewRoute($item['route']);
         }
         return true;
     }));
 
-    $bottomNavItems = array_values(array_filter($bottomNavItems, function ($item) use ($adminUser) {
+    $bottomNavItems = array_values(array_filter($bottomNavItems, function ($item) use ($adminUser, $canViewRoute) {
         $label = $item['label'] ?? null;
-        if ($label && !\App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+        if ($label && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
             return false;
+        }
+        if (isset($item['route']) && $item['route'] !== '#') {
+            return $canViewRoute($item['route']);
         }
         return true;
     }));
@@ -302,6 +316,28 @@
                     <a class="nav-link {{ request()->routeIs($dashboardItem['route']) ? 'active' : '' }}" href="{{ route($dashboardItem['route']) }}">
                         <i class="bi {{ $dashboardItem['icon'] }} me-2"></i>{{ $dashboardItem['label'] }}
                     </a>
+                </li>
+            @endif
+
+            @if ($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'RBAC'))
+                <li class="nav-item menu-parent {{ $rbacActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $rbacActive ? 'active' : '' }}" href="#rbacSubmenu" role="button" aria-expanded="{{ $rbacActive ? 'true' : 'false' }}" aria-controls="rbacSubmenu">
+                        <span><i class="bi bi-diagram-3 me-2"></i>RBAC & Role Hierarchy</span>
+                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    </a>
+                    <div class="collapse {{ $rbacActive ? 'show' : '' }}" id="rbacSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            @foreach ($rbacMenu as $item)
+                                @if (Route::has($item['route']))
+                                    <li class="nav-item">
+                                        <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                            {{ $item['label'] }}
+                                        </a>
+                                    </li>
+                                @endif
+                            @endforeach
+                        </ul>
+                    </div>
                 </li>
             @endif
 
@@ -373,7 +409,7 @@
             </li>
             @endif
 
-            @if ($isDed)
+            @if ($isDed && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Analytics'))
                 <li class="nav-item menu-parent {{ $dedAnalyticsActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $dedAnalyticsActive ? 'active' : '' }}" href="#dedAnalyticsSubmenu" role="button" aria-expanded="{{ $dedAnalyticsActive ? 'true' : 'false' }}" aria-controls="dedAnalyticsSubmenu">
                         <span><i class="bi bi-graph-up-arrow me-2"></i>Analytics</span>
@@ -402,7 +438,7 @@
                 </li>
             @endforeach
 
-            @if (($isGlobalAdmin || $isIndustryDirector) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
@@ -420,7 +456,7 @@
                 </li>
             @endif
 
-            @if (($isGlobalAdmin || $hasBrandPartnersRole) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
                 <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
                         <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
@@ -442,7 +478,7 @@
                 </li>
             @endif
 
-            @if (($isGlobalAdmin || $hasAdsRole) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
                 <li class="nav-item menu-parent {{ $adsActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $adsActive ? 'active' : '' }}" href="#adsSubmenu" role="button" aria-expanded="{{ $adsActive ? 'true' : 'false' }}" aria-controls="adsSubmenu">
                         <span><i class="bi bi-megaphone me-2"></i>Ads</span>
@@ -524,7 +560,7 @@
 
 
 
-            @if ($isGlobalAdmin)
+            @if ($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
                         <i class="bi bi-sliders me-2"></i>App Configuration
@@ -553,7 +589,7 @@
             @endif
 
 
-            @if (! $isDed && ! $isCircleCommittee && $leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
+            @if ($leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
                 <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
                     <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
@@ -672,6 +708,17 @@
                     }
                 });
             });
+
+            // Preserve & restore sidebar scroll position + scroll active item into view
+            const sidebarContainer = document.querySelector('.admin-sidebar nav') || document.querySelector('.admin-sidebar');
+            if (sidebarContainer) {
+                const activeLink = sidebarContainer.querySelector('.nav-link.active');
+                if (activeLink) {
+                    setTimeout(() => {
+                        activeLink.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+                    }, 50);
+                }
+            }
         });
     </script>
 @endpush

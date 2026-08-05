@@ -24,9 +24,10 @@ class SendAppUpdateReminderNotifications extends Command
         $androidConfig = AppVersion::where('platform', 'android')->where('is_active', true)->first();
         $iosConfig = AppVersion::where('platform', 'ios')->where('is_active', true)->first();
 
-        if (!$androidConfig && !$iosConfig) {
+        if (! $androidConfig && ! $iosConfig) {
             Log::warning('App update reminder skipped because no active app version configuration was found.');
             $this->warn('No active configurations found.');
+
             return self::SUCCESS;
         }
 
@@ -41,12 +42,12 @@ class SendAppUpdateReminderNotifications extends Command
         $skippedCount = 0;
 
         foreach ($userVersions as $record) {
-            if (!$record->user) {
+            if (! $record->user) {
                 continue;
             }
 
             $config = strtolower($record->platform) === 'ios' ? $iosConfig : $androidConfig;
-            if (!$config || !$config->is_active) {
+            if (! $config || ! $config->is_active) {
                 continue;
             }
 

@@ -133,3 +133,5 @@ class ScopeCascadeResolver
         return $circles->unique()->values()->all();
     }
 }
+    }
+}

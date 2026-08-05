@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -39,6 +42,37 @@ class Role extends Model
     public function children(): BelongsToMany
     {
         return $this->belongsToMany(Role::class, 'role_hierarchies', 'parent_role_id', 'child_role_id');
+    }
+
+    public function moduleAccess(): HasMany
+    {
+        return $this->hasMany(RoleModuleAccess::class, 'role_id');
+    }
+
+    public function visibleModules(): BelongsToMany
+    {
+        return $this->belongsToMany(AdminModule::class, 'role_module_access', 'role_id', 'module_id')
+            ->wherePivot('is_visible', true);
+    }
+
+    public function pagePermissions(): HasMany
+    {
+        return $this->hasMany(RolePagePermission::class, 'role_id');
+    }
+
+    public function pageGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(PageGroup::class, 'role_page_groups', 'role_id', 'group_id');
+    }
+
+    public function dataScopes(): HasMany
+    {
+        return $this->hasMany(RoleDataScope::class, 'role_id');
+    }
+
+    public function workflowApprovalRules(): HasMany
+    {
+        return $this->hasMany(WorkflowApprovalRule::class, 'approver_role_id');
     }
 
     public function allDescendants(): Collection
@@ -109,13 +143,14 @@ class Role extends Model
             $depth = 1 + max($depths);
         }
 
-        if ($this->hierarchy_depth !== $depth) {
-            $this->hierarchy_depth = $depth;
+        $oldDepth = $this->hierarchy_depth;
+        $this->hierarchy_depth = $depth;
+        if ($oldDepth !== $depth) {
             $this->save();
+        }
 
-            foreach ($this->children as $child) {
-                $child->recomputeDepth($visited);
-            }
+        foreach ($this->children as $child) {
+            $child->recomputeDepth($visited);
         }
 
         unset($visited[$this->id]);

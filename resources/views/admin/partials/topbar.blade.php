@@ -163,45 +163,83 @@
         <div class="d-none d-md-flex align-items-center gap-2">
             {{-- Quick Actions --}}
             @if ($requiresCircleDropdown)
+                <style>
+                    .topbar-circle-select2-container {
+                        width: 180px !important;
+                        min-width: 180px !important;
+                        max-width: 200px !important;
+                    }
+                    .topbar-circle-select2-dropdown {
+                        width: 220px !important;
+                        min-width: 180px !important;
+                        max-width: 250px !important;
+                        box-shadow: 0 8px 20px rgba(0,0,0,0.12) !important;
+                        border-radius: 8px !important;
+                    }
+                </style>
                 <div class="d-flex align-items-center gap-2 me-2">
                     <label for="topbar_circle_id" class="text-muted fw-semibold mb-0 text-nowrap fs-7">Circle Context:</label>
-                    <select id="topbar_circle_id" class="form-select form-select-sm rounded-3 py-1.5 px-3 border shadow-sm" style="min-width: 180px; max-width: 250px; background-color: #f8f9fa;">
-                        <option value="All" @selected($selectedCircleId === 'All')>All My Circles</option>
+                    <select id="topbar_circle_id" class="form-select form-select-sm rounded-3 py-1.5 px-3 border shadow-sm" style="min-width: 180px; max-width: 250px; background-color: #f8f9fa;" onchange="topbarSwitchContext(this.value)">
+                        <option value="All" @selected($selectedCircleId === 'All' || $selectedCircleId === '')>All My Circles</option>
                         @foreach ($joinedCircles as $c)
-                            <option value="{{ $c->id }}" @selected($c->id === $selectedCircleId)>
+                            <option value="{{ $c->id }}" @selected((string) $c->id === (string) $selectedCircleId)>
                                 {{ $c->name }}
                             </option>
                         @endforeach
                     </select>
                 </div>
                 <script>
+                    function topbarSwitchContext(val) {
+                        if (!val) return;
+
+                        const csrfEl = document.querySelector('meta[name="csrf-token"]');
+                        const csrfToken = csrfEl ? csrfEl.getAttribute('content') : '';
+
+                        fetch("{{ route('admin.switch-context') }}", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: JSON.stringify({ circle_id: val })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data && data.success) {
+                                const url = new URL(window.location.href);
+                                url.searchParams.set('circle_id', val === 'All' ? 'all' : val);
+                                window.location.href = url.toString();
+                            } else {
+                                console.warn('Context switch response:', data);
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Context switch error:', err);
+                        });
+                    }
+
                     document.addEventListener('DOMContentLoaded', function () {
-                        const selectEl = document.getElementById('topbar_circle_id');
-                        if (selectEl) {
-                            selectEl.addEventListener('change', function () {
-                                const val = selectEl.value;
-                                fetch("{{ route('admin.switch-context') }}", {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                                        'X-Requested-With': 'XMLHttpRequest'
-                                    },
-                                    body: JSON.stringify({ circle_id: val })
-                                })
-                                .then(response => response.json())
-                                .then(data => {
-                                    if (data.success) {
-                                        window.location.reload();
-                                    } else {
-                                        alert(data.message || 'Failed to switch circle context.');
-                                    }
-                                })
-                                .catch(err => {
-                                    console.error(err);
-                                    alert('An unexpected error occurred.');
+                        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+                            const $selectEl = window.jQuery('#topbar_circle_id');
+                            if ($selectEl.length) {
+                                if ($selectEl.hasClass('select2-hidden-accessible')) {
+                                    $selectEl.select2('destroy');
+                                }
+                                $selectEl.select2({
+                                    width: '180px',
+                                    dropdownAutoWidth: false,
+                                    containerCssClass: 'topbar-circle-select2-container',
+                                    dropdownCssClass: 'topbar-circle-select2-dropdown',
+                                    minimumResultsForSearch: Infinity
                                 });
-                            });
+
+                                $selectEl.off('change.topbar_switch select2:select.topbar_switch')
+                                    .on('select2:select.topbar_switch change.topbar_switch', function (e) {
+                                        const selectedVal = (e && e.params && e.params.data) ? e.params.data.id : window.jQuery(this).val();
+                                        topbarSwitchContext(selectedVal);
+                                    });
+                            }
                         }
                     });
                 </script>

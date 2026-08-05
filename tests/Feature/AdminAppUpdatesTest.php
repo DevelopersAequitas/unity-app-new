@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\AdminUser;
-use App\Models\Role;
 use App\Models\AppVersion;
-use App\Models\UserMobileVersion;
+use App\Models\Role;
 use App\Models\User;
+use App\Models\UserMobileVersion;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
@@ -238,7 +238,7 @@ class AdminAppUpdatesTest extends TestCase
 
         $response = $this->post('/admin/app-updates/save/android', $payload);
         $response->assertRedirect();
-        
+
         $this->assertDatabaseHas('app_versions', [
             'platform' => 'android',
             'latest_version' => '1.9.0',

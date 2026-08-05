@@ -281,48 +281,78 @@
                                 <td colspan="8" class="p-0 border-0">
                                     <div class="collapse" id="{{ $detailsId }}">
                                         <div class="p-4 surface-2 border-t border-b bs">
-                                            <?php
-
-use Carbon\Carbon;
-
-                                                $detailFields = [
-                                                                                                ['label' => 'Director', 'value' => $circle->director?->display_name],
-                                                                                                ['label' => 'Circle Stage', 'value' => $circle->circle_stage],
-                                                                                                ['label' => 'Country', 'value' => $circle->country ?? $circle->city?->country],
-                                                                                                ['label' => 'Meeting Mode', 'value' => ! empty($circle->meeting_mode) ? ucfirst(strtolower($circle->meeting_mode)) : null],
-                                                                                                ['label' => 'Meeting Frequency', 'value' => ! empty($circle->meeting_frequency) ? ucfirst(strtolower($circle->meeting_frequency)) : null],
-                                                                                                ['label' => 'Launch Date', 'value' => ! empty($circle->launch_date) ? Carbon::parse($circle->launch_date)->format('d-m-Y') : null],
-                                                                                                ['label' => 'Industry Tags', 'value' => $industryTagsText !== '' ? $industryTagsText : null],
-                                                                                                ['label' => 'Peers Count', 'value' => ($circle->members_count ?? 0).' members', 'circle_id' => $circle->id],
-                                                                                                ['label' => 'Created At', 'value' => optional($circle->created_at)->format('d M Y') ?? null],
-                                                                                            ];
-
-                                            $chunks = array_chunk($detailFields, (int) ceil(count($detailFields) / 3));
-                                            ?>
                                             <div class="row g-3">
-                                                @foreach ($chunks as $chunk)
-                                                    <div class="col-md-4">
-                                                        <table class="table table-sm mb-0 bg-transparent border-0">
-                                                            @foreach ($chunk as $field)
-                                                                @if ($field['value'] !== null)
-                                                                    <tr>
-                                                                        <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">{{ $field['label'] }}</th>
-                                                                        <td class="text-break border-0 bg-transparent py-1 text-xs t1">
-                                                                            @if (($field['label'] ?? null) === 'Peers Count' && ! empty($field['circle_id']))
-                                                                                <div class="flex items-center gap-2">
-                                                                                    <span>{{ $field['value'] }}</span>
-                                                                                    <a href="{{ route('admin.users.index', ['circle_id' => $field['circle_id']]) }}" class="px-2 py-0.5 rounded border bs text-[11px] text-indigo-600 font-medium no-underline">View Members</a>
-                                                                                </div>
-                                                                            @else
-                                                                                {{ $field['value'] }}
-                                                                            @endif
-                                                                        </td>
-                                                                    </tr>
-                                                                @endif
-                                                            @endforeach
-                                                        </table>
-                                                    </div>
-                                                @endforeach
+                                                <div class="col-md-4">
+                                                    <table class="table table-sm mb-0 bg-transparent border-0">
+                                                        @if ($circle->director?->display_name)
+                                                            <tr>
+                                                                <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">Director</th>
+                                                                <td class="text-break border-0 bg-transparent py-1 text-xs t1">{{ $circle->director->display_name }}</td>
+                                                            </tr>
+                                                        @endif
+                                                        @if ($circle->circle_stage)
+                                                            <tr>
+                                                                <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">Circle Stage</th>
+                                                                <td class="text-break border-0 bg-transparent py-1 text-xs t1">{{ $circle->circle_stage }}</td>
+                                                            </tr>
+                                                        @endif
+                                                        @if ($circle->country ?? $circle->city?->country)
+                                                            <tr>
+                                                                <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">Country</th>
+                                                                <td class="text-break border-0 bg-transparent py-1 text-xs t1">{{ $circle->country ?? $circle->city?->country }}</td>
+                                                            </tr>
+                                                        @endif
+                                                    </table>
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <table class="table table-sm mb-0 bg-transparent border-0">
+                                                        @if (! empty($circle->meeting_mode))
+                                                            <tr>
+                                                                <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">Meeting Mode</th>
+                                                                <td class="text-break border-0 bg-transparent py-1 text-xs t1">{{ ucfirst(strtolower($circle->meeting_mode)) }}</td>
+                                                            </tr>
+                                                        @endif
+                                                        @if (! empty($circle->meeting_frequency))
+                                                            <tr>
+                                                                <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">Meeting Frequency</th>
+                                                                <td class="text-break border-0 bg-transparent py-1 text-xs t1">{{ ucfirst(strtolower($circle->meeting_frequency)) }}</td>
+                                                            </tr>
+                                                        @endif
+                                                        @if (! empty($circle->launch_date))
+                                                            <tr>
+                                                                <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">Launch Date</th>
+                                                                <td class="text-break border-0 bg-transparent py-1 text-xs t1">{{ \Carbon\Carbon::parse($circle->launch_date)->format('d-m-Y') }}</td>
+                                                            </tr>
+                                                        @endif
+                                                    </table>
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <table class="table table-sm mb-0 bg-transparent border-0">
+                                                        @if ($industryTagsText !== '')
+                                                            <tr>
+                                                                <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">Industry Tags</th>
+                                                                <td class="text-break border-0 bg-transparent py-1 text-xs t1">{{ $industryTagsText }}</td>
+                                                            </tr>
+                                                        @endif
+                                                        <tr>
+                                                            <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">Peers Count</th>
+                                                            <td class="text-break border-0 bg-transparent py-1 text-xs t1">
+                                                                <div class="flex items-center gap-2">
+                                                                    <span>{{ ($circle->members_count ?? 0) }} members</span>
+                                                                    <a href="{{ route('admin.users.index', ['circle_id' => $circle->id]) }}" class="px-2 py-0.5 rounded border bs text-[11px] text-indigo-600 font-medium no-underline">View Members</a>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                        @if ($circle->created_at)
+                                                            <tr>
+                                                                <th class="w-50 t3 border-0 bg-transparent py-1 text-xs font-medium">Created At</th>
+                                                                <td class="text-break border-0 bg-transparent py-1 text-xs t1">{{ $circle->created_at->format('d M Y') }}</td>
+                                                            </tr>
+                                                        @endif
+                                                    </table>
+                                                </div>
                                             </div>
                                             <div class="flex justify-between items-center mt-3 pt-2 border-t bs">
                                                 <span class="t3 text-xs">Created At: {{ optional($circle->created_at)->format('d-m-Y') ?? '-' }}</span>

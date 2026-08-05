@@ -424,26 +424,98 @@ class AdminAccess
             ->where('user_id', $admin->id)
             ->get();
 
-        if ($assignments->isEmpty()) {
-            return true;
-        }
+        if ($assignments->isNotEmpty()) {
+            $hasAnyRestrictions = false;
+            $allowed = [];
 
-        $hasAnyRestrictions = false;
-        $allowed = [];
+            foreach ($assignments as $assign) {
+                if (! empty($assign->allowed_sections)) {
+                    $hasAnyRestrictions = true;
+                    $sections = json_decode((string) $assign->allowed_sections, true) ?: [];
+                    $allowed = array_merge($allowed, $sections);
+                }
+            }
 
-        foreach ($assignments as $assign) {
-            if (! empty($assign->allowed_sections)) {
-                $hasAnyRestrictions = true;
-                $sections = json_decode((string) $assign->allowed_sections, true) ?: [];
-                $allowed = array_merge($allowed, $sections);
+            if ($hasAnyRestrictions && ! in_array($sectionLabel, $allowed, true)) {
+                return false;
             }
         }
 
-        if (! $hasAnyRestrictions) {
-            return true;
+        $roleIds = DB::table('admin_user_roles')
+            ->where('user_id', $admin->id)
+            ->pluck('role_id');
+
+        if ($roleIds->isNotEmpty()) {
+            $hasModuleAccessRecords = DB::table('role_module_access')
+                ->whereIn('role_id', $roleIds)
+                ->exists();
+
+            if ($hasModuleAccessRecords) {
+                $cleanLabel = strtolower(trim($sectionLabel));
+                $targetSlugs = match ($cleanLabel) {
+                    'dashboard', 'ded dashboard', 'ded-dashboard' => ['ded_dashboard', 'dashboard'],
+                    'rbac & role hierarchy', 'rbac', 'role hierarchy' => ['rbac'],
+                    'members' => ['members'],
+                    'member introducers' => ['member_introducers'],
+                    'sponsored member milestone awards', 'sponsored milestone awards', 'sponsored milestones' => ['sponsored_milestones'],
+                    'unity contacts', 'contacts' => ['unity_contacts'],
+                    'industries' => ['industries'],
+                    'login history' => ['login_history'],
+                    'circles' => ['circles'],
+                    'circle categories' => ['circle_categories'],
+                    'circulars' => ['circulars'],
+                    'coins' => ['coins'],
+                    'life impact' => ['life_impact'],
+                    'notifications & email', 'notifications', 'campaigns' => ['notifications_email', 'notifications', 'campaigns'],
+                    'impact option' => ['impact_option'],
+                    'app configuration', 'app config' => ['app_config', 'settings'],
+                    'app updates manager', 'app updates' => ['app_updates'],
+                    'birthday creative' => ['birthday_creative'],
+                    'anniversary creative' => ['anniversary_creative'],
+                    'tutorials' => ['tutorials'],
+                    'leads' => ['leads'],
+                    'email logs' => ['email_logs'],
+                    'activities' => ['activities'],
+                    'referral report', 'reports' => ['referral_report', 'reports'],
+                    'posts & timeline', 'posts' => ['posts_timeline'],
+                    'analytics' => ['analytics'],
+                    'events' => ['events'],
+                    'events management' => ['events_management'],
+                    'support tickets' => ['support_tickets'],
+                    'brand partners' => ['brand_partners'],
+                    'ads' => ['ads'],
+                    'settings' => ['settings', 'app_config'],
+                    'peers' => ['peers', 'members'],
+                    'membership' => ['membership'],
+                    default => [
+                        strtolower(str_replace([' ', '&', '-'], ['_', 'and', '_'], $sectionLabel)),
+                        strtolower(str_replace([' ', '&', '-'], ['_', '', ''], $sectionLabel)),
+                    ],
+                };
+
+                $modules = DB::table('admin_modules')
+                    ->where('is_active', true)
+                    ->where(function ($q) use ($sectionLabel, $targetSlugs): void {
+                        $q->whereIn('slug', $targetSlugs)
+                            ->orWhereRaw('LOWER(name) = ?', [strtolower($sectionLabel)]);
+                    })
+                    ->pluck('id');
+
+                if ($modules->isNotEmpty()) {
+                    $isVisible = DB::table('role_module_access')
+                        ->whereIn('role_id', $roleIds)
+                        ->whereIn('module_id', $modules)
+                        ->where('is_visible', true)
+                        ->exists();
+
+                    if (! $isVisible) {
+                        return false;
+                    }
+                }
+            }
         }
 
-        return in_array($sectionLabel, $allowed, true);
+        return true;
     }
 
     public static function isEditAllowed(?AdminUser $admin): bool

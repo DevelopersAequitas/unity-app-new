@@ -177,15 +177,20 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $selectedCircleId = trim((string) $request->query('circle_id', ''));
-        if ($selectedCircleId === 'all') {
-            $selectedCircleId = '';
-        }
+        $selectedCircleId = $this->resolveSelectedCircleId($request);
 
         $selectedCircle = null;
         if ($selectedCircleId !== '') {
-            $selectedCircle = $districtCircles->firstWhere('id', $selectedCircleId);
-            abort_unless($selectedCircle !== null, 403);
+            $selectedCircle = $districtCircles->first(function ($c) use ($selectedCircleId) {
+                return (string) $c->id === (string) $selectedCircleId;
+            });
+            if (! $selectedCircle) {
+                $selectedCircle = Circle::find($selectedCircleId);
+            }
+            if (! $selectedCircle) {
+                $selectedCircleId = '';
+                session(['activeScopeId' => 'All']);
+            }
         }
 
         $aggregation = app(DashboardAggregationService::class);
@@ -232,8 +237,10 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $selectedCircleId = $this->resolveSelectedCircleId($request);
+
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $selectedCircleId ?: null,
             'industry_id' => $request->query('industry_id'),
             'status' => $request->query('status'),
             'date_from' => $request->query('date_from'),
@@ -276,8 +283,10 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $selectedCircleId = $this->resolveSelectedCircleId($request);
+
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $selectedCircleId ?: null,
             'industry_id' => $request->query('industry_id'),
             'status' => $request->query('status'),
             'date_from' => $request->query('date_from'),
@@ -318,8 +327,10 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $selectedCircleId = $this->resolveSelectedCircleId($request);
+
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $selectedCircleId ?: null,
             'industry_id' => $request->query('industry_id'),
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -359,8 +370,10 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $selectedCircleId = $this->resolveSelectedCircleId($request);
+
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $selectedCircleId ?: null,
             'industry_id' => $request->query('industry_id'),
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -400,8 +413,10 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $selectedCircleId = $this->resolveSelectedCircleId($request);
+
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $selectedCircleId ?: null,
             'industry_id' => $request->query('industry_id'),
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -441,8 +456,10 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $selectedCircleId = $this->resolveSelectedCircleId($request);
+
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $selectedCircleId ?: null,
             'industry_id' => $request->query('industry_id'),
             'status' => $request->query('status'),
             'date_from' => $request->query('date_from'),
@@ -477,8 +494,10 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $selectedCircleId = $this->resolveSelectedCircleId($request);
+
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $selectedCircleId ?: null,
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
         ];
@@ -495,6 +514,23 @@ class DashboardController extends Controller
             'filters' => $filters,
             'districtName' => $districtName,
         ]);
+    }
+
+    private function resolveSelectedCircleId(Request $request): string
+    {
+        if ($request->has('circle_id')) {
+            $selectedCircleId = trim((string) $request->query('circle_id', ''));
+            if ($selectedCircleId === 'all') {
+                $selectedCircleId = '';
+            }
+            session(['activeScopeId' => $selectedCircleId ?: 'All']);
+
+            return $selectedCircleId;
+        }
+
+        $sessionScope = (string) session('activeScopeId', '');
+
+        return ($sessionScope !== '' && $sessionScope !== 'All' && $sessionScope !== 'all') ? $sessionScope : '';
     }
 
     private function scopedTableCount($admin, string $table, string $userColumn, bool $hasIsDeleted = false, ?string $peerColumn = null, ?string $circleId = null): int
@@ -610,7 +646,12 @@ class DashboardController extends Controller
 
     private function applyDedCircleScope($query, $admin): void
     {
-        AdminCircleScope::applyToCirclesQuery($query, $admin);
+        $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
+        if (empty($allowedCircleIds)) {
+            $query->whereRaw('1=0');
+        } else {
+            $query->whereIn('circles.id', $allowedCircleIds);
+        }
     }
 
     private function safeCountTable(string $table): int

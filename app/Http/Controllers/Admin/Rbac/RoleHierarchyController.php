@@ -38,10 +38,13 @@ class RoleHierarchyController extends Controller
             $childToParents[$rel->child_role_id][] = $rel->parent_role_id;
         }
 
-        // Find root nodes (roles that have no parents)
+        // Find root nodes (roles that have no active parents in $roles)
+        $activeRoleIds = $roles->pluck('id')->all();
         $roots = [];
         foreach ($roles as $role) {
-            if (empty($childToParents[$role->id])) {
+            $parents = $childToParents[$role->id] ?? [];
+            $activeParents = array_intersect($parents, $activeRoleIds);
+            if (empty($activeParents)) {
                 $roots[] = $role;
             }
         }
@@ -77,9 +80,12 @@ class RoleHierarchyController extends Controller
             $childToParents[$rel->child_role_id][] = $rel->parent_role_id;
         }
 
+        $activeRoleIds = $roles->pluck('id')->all();
         $roots = [];
         foreach ($roles as $role) {
-            if (empty($childToParents[$role->id])) {
+            $parents = $childToParents[$role->id] ?? [];
+            $activeParents = array_intersect($parents, $activeRoleIds);
+            if (empty($activeParents)) {
                 $roots[] = $role;
             }
         }

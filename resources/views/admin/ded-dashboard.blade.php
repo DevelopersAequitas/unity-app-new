@@ -109,7 +109,7 @@
         <form method="GET" action="{{ route('admin.ded.dashboard') }}" class="row g-2 align-items-end">
             <div class="col-md-6 col-xl-4">
                 <label for="dedDashboardCircleFilter" class="form-label small text-muted mb-1 fw-bold">Circle Scope Filter</label>
-                <select id="dedDashboardCircleFilter" name="circle_id" class="form-select">
+                <select id="dedDashboardCircleFilter" name="circle_id" class="form-select" onchange="this.form.submit()">
                     <option value="all" @selected(($selectedCircleId ?? '') === '')>District-Wide Overview</option>
                     @foreach (($districtCircles ?? collect()) as $circle)
                         <option value="{{ $circle->id }}" @selected(($selectedCircleId ?? '') === $circle->id)>
@@ -123,7 +123,7 @@
             </div>
             @if (($selectedCircleId ?? '') !== '')
                 <div class="col-md-auto">
-                    <a href="{{ route('admin.ded.dashboard') }}" class="btn btn-outline-secondary">Clear</a>
+                    <a href="{{ route('admin.ded.dashboard', ['circle_id' => 'all']) }}" class="btn btn-outline-secondary">Clear</a>
                 </div>
                 <div class="col-md-auto text-success small fw-medium">
                     <i class="bi bi-info-circle-fill"></i> Scoped to circle: {{ $selectedCircle?->name ?? 'selected circle' }}.
@@ -419,3 +419,29 @@
     </div>
 @endif
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            const $dashFilter = window.jQuery('#dedDashboardCircleFilter');
+            if ($dashFilter.length) {
+                if (!$dashFilter.hasClass('select2-hidden-accessible')) {
+                    $dashFilter.select2({
+                        width: '100%',
+                        minimumResultsForSearch: 0
+                    });
+                }
+
+                $dashFilter.off('change.dash_filter select2:select.dash_filter')
+                    .on('change.dash_filter select2:select.dash_filter', function () {
+                        const form = this.form || window.jQuery(this).closest('form')[0];
+                        if (form) {
+                            form.submit();
+                        }
+                    });
+            }
+        }
+    });
+</script>
+@endpush

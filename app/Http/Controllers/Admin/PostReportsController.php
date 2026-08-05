@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\Post;
 use App\Models\PostReport;
+use App\Services\Rbac\RbacService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,13 +15,24 @@ use Illuminate\View\View;
 
 class PostReportsController extends Controller
 {
-    private function ensureGlobalAdmin(): void
+    private function ensureGlobalAdmin(string $permission = 'view'): void
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isGlobalAdmin($admin)) {
+        if (! $admin) {
             abort(403);
         }
+
+        if (AdminAccess::isGlobalAdmin($admin)) {
+            return;
+        }
+
+        $routeName = request()->route()?->getName();
+        if ($routeName && app(RbacService::class)->can($admin, $routeName, $permission)) {
+            return;
+        }
+
+        abort(403);
     }
 
     public function index(Request $request): View

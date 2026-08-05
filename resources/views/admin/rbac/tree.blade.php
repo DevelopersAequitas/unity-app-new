@@ -259,6 +259,30 @@
     .node-edit-btn:hover { background: #4f46e5; }
     .node-delete-btn { background: #ef4444; color: white; }
     .node-delete-btn:hover { background: #dc2626; }
+
+    /* Hierarchy map scrollable container */
+    .card-body[style*="overflow: auto"] {
+        scrollbar-width: thin;
+        scrollbar-color: var(--neu-shadow-d) transparent;
+    }
+    .card-body[style*="overflow: auto"]::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .card-body[style*="overflow: auto"]::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .card-body[style*="overflow: auto"]::-webkit-scrollbar-thumb {
+        background: var(--neu-shadow-d);
+        border-radius: 4px;
+    }
+
+    /* Hierarchy tree root element */
+    .hierarchy-tree {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+    }
 </style>
 @endpush
 
@@ -287,47 +311,11 @@
         </div>
     @endif
 
-    <div class="row">
-        <!-- Hierarchy Visualizer -->
-        <div class="col-lg-8 mb-4">
+    {{-- ===== Top Row: Relocate Settings + Assign Role to Peer ===== --}}
+    <div class="row mb-4">
+        {{-- Relocate Settings --}}
+        <div class="col-lg-4 mb-4 mb-lg-0">
             <div class="card glass-card h-100">
-                <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
-                    <h5 class="card-title fw-bold mb-0">Hierarchy Map</h5>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="text-muted fs-7">Relocate nodes using Relocate Settings</span>
-                        <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
-                           class="btn btn-sm btn-light border d-flex align-items-center gap-1"
-                           style="font-size:0.78rem;white-space:nowrap;"
-                           title="Open full-screen map in new tab">
-                            <i class="bi bi-box-arrow-up-right"></i> Full Map
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body px-4 pb-4 overflow-auto" style="min-height: 500px;">
-                    <div class="hierarchy-tree d-flex justify-content-center">
-                        @if(empty($roots))
-                            <div class="text-center text-muted my-5">
-                                <i class="bi bi-diagram-3 fs-1 d-block mb-3"></i>
-                                No active role mappings found. Create a root role first.
-                            </div>
-                        @else
-                            @php
-                                $GLOBALS['rendered_subtrees'] = [];
-                            @endphp
-                            <ul>
-                                @foreach($roots as $root)
-                                    @include('admin.rbac.tree_node', ['role' => $root])
-                                @endforeach
-                            </ul>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Relocator & Configuration Detail -->
-        <div class="col-lg-4 mb-4">
-            <div class="card glass-card">
                 <div class="card-header bg-transparent border-0 pt-4 px-4">
                     <h5 class="card-title fw-bold mb-0">Relocate Settings</h5>
                 </div>
@@ -362,118 +350,169 @@
                     <div id="relocateMessage" class="mt-3 text-center fs-7" style="display: none;"></div>
                 </div>
             </div>
+        </div>
 
-            <!-- Assign Role to Peer Card -->
-            <div class="card glass-card mt-4">
+        {{-- Assign Role to Peer --}}
+        <div class="col-lg-8">
+            <div class="card glass-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4">
                     <h5 class="card-title fw-bold mb-0">Assign Role to Peer</h5>
                 </div>
                 <div class="card-body p-4">
                     <form action="{{ route('admin.rbac.roles.assign') }}" method="POST" id="assignRoleForm">
                         @csrf
-                        <div class="mb-3">
-                            <label for="assign_user_id" class="form-label fw-semibold fs-7">Select Peer (Admin)</label>
-                            <select id="assign_user_id" name="admin_user_id" class="form-select rounded-3" required>
-                                <option value="">-- Choose Peer --</option>
-                                @foreach($peers as $p)
-                                    <option value="{{ $p->id }}">{{ $p->name }} ({{ $p->email }})</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="assign_role_id" class="form-label fw-semibold fs-7">Select Role</label>
-                            <select id="assign_role_id" name="role_id" class="form-select rounded-3" required onchange="onAssignRoleChange()">
-                                <option value="">-- Choose Role --</option>
-                                @foreach($roles as $r)
-                                    <option value="{{ $r->id }}" data-key="{{ $r->key }}">{{ $r->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <!-- Dynamic Scope Selectors -->
-                        <div id="scope_container" style="display: none;">
-                            <!-- District Selector (for DED) -->
-                            <div class="mb-3 scope-selector" id="district_selector" style="display: none;">
-                                <label for="assign_district_id" class="form-label fw-semibold fs-7">Select District</label>
-                                <select id="assign_district_id" name="scope_id" class="form-select rounded-3">
-                                    <option value="">-- Choose District --</option>
-                                    @foreach($districts as $d)
-                                        <option value="{{ $d->id }}">{{ $d->name }}</option>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="assign_user_id" class="form-label fw-semibold fs-7">Select Peer (Admin)</label>
+                                <select id="assign_user_id" name="admin_user_id" class="form-select rounded-3" required>
+                                    <option value="">-- Choose Peer --</option>
+                                    @foreach($peers as $p)
+                                        <option value="{{ $p->id }}">{{ $p->name }} ({{ $p->email }})</option>
                                     @endforeach
                                 </select>
                             </div>
 
-                            <!-- Industry Selector (for ID/IED) -->
-                            <div class="mb-3 scope-selector" id="industry_selector" style="display: none;">
-                                <label for="assign_industry_id" class="form-label fw-semibold fs-7">Select Industry</label>
-                                <select id="assign_industry_id" name="scope_id" class="form-select rounded-3">
-                                    <option value="">-- Choose Industry --</option>
-                                    @foreach($industries as $i)
-                                        <option value="{{ $i->id }}">{{ $i->name }}</option>
+                            <div class="col-md-6">
+                                <label for="assign_role_id" class="form-label fw-semibold fs-7">Select Role</label>
+                                <select id="assign_role_id" name="role_id" class="form-select rounded-3" required onchange="onAssignRoleChange()">
+                                    <option value="">-- Choose Role --</option>
+                                    @foreach($roles as $r)
+                                        <option value="{{ $r->id }}" data-key="{{ $r->key }}">{{ $r->name }}</option>
                                     @endforeach
                                 </select>
                             </div>
 
-                            <!-- Circle Selector (for CD/CF/Chair/Vice Chair/Secretary) -->
-                            <div class="mb-3 scope-selector" id="circle_selector" style="display: none;">
-                                <label for="assign_circle_id" class="form-label fw-semibold fs-7">Select Circle</label>
-                                <select id="assign_circle_id" name="scope_id" class="form-select rounded-3">
-                                    <option value="">-- Choose Circle --</option>
-                                    @foreach($circles as $c)
-                                        <option value="{{ $c->id }}">{{ $c->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Dynamic Permissions & Sidebar Sections Checklist -->
-                        <div class="mb-3" id="permissions_container" style="display: none;">
-                            <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
-                                <label for="assign_permission_type" class="form-label fw-bold fs-7 mb-2 d-block">Permission Level</label>
-                                <select id="assign_permission_type" name="permission_type" class="form-select rounded-3 mb-3">
-                                    <option value="edit">Edit (Full Access)</option>
-                                    <option value="view">Only View (Read-only)</option>
-                                </select>
-
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <label class="form-label fw-bold fs-7 mb-0">Dashboard Sections</label>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="assign_select_all_sections" checked>
-                                        <label class="form-check-label fs-8 fw-semibold" for="assign_select_all_sections">Select All</label>
-                                    </div>
+                            {{-- Dynamic Scope Selectors --}}
+                            <div id="scope_container" class="col-12" style="display: none;">
+                                {{-- District Selector (for DED) --}}
+                                <div class="mb-3 scope-selector" id="district_selector" style="display: none;">
+                                    <label for="assign_district_id" class="form-label fw-semibold fs-7">Select District</label>
+                                    <select id="assign_district_id" name="scope_id" class="form-select rounded-3">
+                                        <option value="">-- Choose District --</option>
+                                        @foreach($districts as $d)
+                                            <option value="{{ $d->id }}">{{ $d->name }}</option>
+                                        @endforeach
+                                    </select>
                                 </div>
 
-                                <div class="border rounded-3 p-2 bg-white" style="max-height: 200px; overflow-y: auto;">
-                                    @php
-                                        $sections = [
-                                            'Dashboard', 'Activities', 'Referral Report', 'Posts & Timeline', 
-                                            'Pending Requests', 'Support Tickets', 'Events Management', 
-                                            'Brand Partners', 'Peers', 'Unity Contacts', 'Leadership', 
-                                            'Industries', 'Circles', 'Circulars', 'Coins', 'Life Impact', 'Leads'
-                                        ];
-                                    @endphp
-                                    <div class="row g-1">
-                                        @foreach($sections as $sec)
-                                            <div class="col-12">
-                                                <div class="form-check py-1">
-                                                    <input class="form-check-input section-checkbox" type="checkbox" name="allowed_sections[]" value="{{ $sec }}" id="sec_{{ Str::slug($sec, '_') }}" checked>
-                                                    <label class="form-check-label fs-8 text-dark" for="sec_{{ Str::slug($sec, '_') }}">
-                                                        {{ $sec }}
-                                                    </label>
+                                {{-- Industry Selector (for ID/IED) --}}
+                                <div class="mb-3 scope-selector" id="industry_selector" style="display: none;">
+                                    <label for="assign_industry_id" class="form-label fw-semibold fs-7">Select Industry</label>
+                                    <select id="assign_industry_id" name="scope_id" class="form-select rounded-3">
+                                        <option value="">-- Choose Industry --</option>
+                                        @foreach($industries as $i)
+                                            <option value="{{ $i->id }}">{{ $i->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                {{-- Circle Selector (for CD/CF/Chair/Vice Chair/Secretary) --}}
+                                <div class="mb-3 scope-selector" id="circle_selector" style="display: none;">
+                                    <label for="assign_circle_id" class="form-label fw-semibold fs-7">Select Circle</label>
+                                    <select id="assign_circle_id" name="scope_id" class="form-select rounded-3">
+                                        <option value="">-- Choose Circle --</option>
+                                        @foreach($circles as $c)
+                                            <option value="{{ $c->id }}">{{ $c->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+
+                            {{-- Dynamic Permissions & Sidebar Sections Checklist --}}
+                            <div class="col-12" id="permissions_container" style="display: none;">
+                                <div class="border rounded-3 p-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label for="assign_permission_type" class="form-label fw-bold fs-7 mb-2 d-block">Permission Level</label>
+                                            <select id="assign_permission_type" name="permission_type" class="form-select rounded-3">
+                                                <option value="edit">Edit (Full Access)</option>
+                                                <option value="view">Only View (Read-only)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <label class="form-label fw-bold fs-7 mb-0">Dashboard Sections</label>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="assign_select_all_sections" checked>
+                                                    <label class="form-check-label fs-8 fw-semibold" for="assign_select_all_sections">Select All</label>
                                                 </div>
                                             </div>
-                                        @endforeach
+                                            <div class="border rounded-3 p-2 bg-white" style="max-height: 160px; overflow-y: auto;">
+                                                @php
+                                                    $sections = [
+                                                        'Dashboard', 'Activities', 'Referral Report', 'Posts & Timeline',
+                                                        'Pending Requests', 'Support Tickets', 'Events Management',
+                                                        'Brand Partners', 'Peers', 'Unity Contacts', 'Leadership',
+                                                        'Industries', 'Circles', 'Circulars', 'Coins', 'Life Impact', 'Leads'
+                                                    ];
+                                                @endphp
+                                                <div class="row g-1">
+                                                    @foreach($sections as $sec)
+                                                        <div class="col-6">
+                                                            <div class="form-check py-1">
+                                                                <input class="form-check-input section-checkbox" type="checkbox" name="allowed_sections[]" value="{{ $sec }}" id="sec_{{ Str::slug($sec, '_') }}" checked>
+                                                                <label class="form-check-label fs-8 text-dark" for="sec_{{ Str::slug($sec, '_') }}">
+                                                                    {{ $sec }}
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                            <small class="text-muted fs-8 mt-1 d-block">Uncheck sections to hide them from their sidebar.</small>
+                                        </div>
                                     </div>
                                 </div>
-                                <small class="text-muted fs-8 mt-1 d-block">Uncheck sections to hide them from their sidebar.</small>
+                            </div>
+
+                            <div class="col-12 mt-2">
+                                <button type="submit" class="btn btn-success w-100 rounded-3 py-2">
+                                    <i class="bi bi-person-check me-1"></i> Assign Role &amp; Scope
+                                </button>
                             </div>
                         </div>
-
-                        <button type="submit" class="btn btn-success w-100 rounded-3 py-2 mt-2">
-                            <i class="bi bi-person-check me-1"></i> Assign Role & Scope
-                        </button>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- ===== Bottom: Hierarchy Map (Full Width) ===== --}}
+    <div class="row">
+        <div class="col-12">
+            <div class="card glass-card">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title fw-bold mb-0">Hierarchy Map</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted fs-7">Click any node to manage its peer assignments</span>
+                        <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
+                           class="btn btn-sm btn-light border d-flex align-items-center gap-1"
+                           style="font-size:0.78rem;white-space:nowrap;"
+                           title="Open full-screen map in new tab">
+                            <i class="bi bi-box-arrow-up-right"></i> Full Map
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body px-3 pb-4" style="min-height: 500px; overflow: auto;">
+                    <div style="min-width: max-content; display: flex; justify-content: center; padding: 16px 24px;">
+                        <div class="hierarchy-tree">
+                            @if(empty($roots))
+                                <div class="text-center text-muted my-5">
+                                    <i class="bi bi-diagram-3 fs-1 d-block mb-3"></i>
+                                    No active role mappings found. Create a root role first.
+                                </div>
+                            @else
+                                @php
+                                    $GLOBALS['rendered_subtrees'] = [];
+                                @endphp
+                                <ul>
+                                    @foreach($roots as $root)
+                                        @include('admin.rbac.tree_node', ['role' => $root])
+                                    @endforeach
+                                </ul>
+                            @endif
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -902,14 +941,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </select>
                             </div>
 
-                            <!-- Dynamic Permissions & Sidebar Sections Checklist -->
+                            {{-- Dashboard Sections Checklist --}}
                             <div class="mb-3" id="quick_permissions_container" style="display:none;">
                                 <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
-                                    <label for="quick_permission_type" class="form-label fw-bold fs-8 mb-2 d-block">Permission Level</label>
-                                    <select id="quick_permission_type" name="permission_type" class="form-select rounded-3 select-sm mb-3">
-                                        <option value="edit">Edit (Full Access)</option>
-                                        <option value="view">Only View (Read-only)</option>
-                                    </select>
+                                    {{-- Hidden permission_type default --}}
+                                    <input type="hidden" id="quick_permission_type" name="permission_type" value="edit">
 
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <label class="form-label fw-bold fs-8 mb-0">Dashboard Sections</label>
@@ -1013,12 +1049,6 @@ function openAssignmentsModal(roleId, roleName, roleKey, scopeRule) {
     document.getElementById('roleAssignmentsModalSubtext').textContent = 'Key: ' + roleKey + ' • Rule: ' + scopeRule;
     document.getElementById('quick_assign_role_id').value = roleId;
 
-    // Reset quick permissions fields
-    const quickPermissionsContainer = document.getElementById('quick_permissions_container');
-    if (quickPermissionsContainer) {
-        quickPermissionsContainer.style.display = 'block';
-    }
-    
     cancelEditAssignment();
 
     fetchAssignments();
@@ -1136,78 +1166,89 @@ function fetchAssignments() {
     peersSelect.innerHTML = '<option value="">-- Choose Peer --</option>';
 
     fetch(`/admin/rbac/roles/${currentOpenRoleId}/assignments`)
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                throw new Error('Server error: ' + res.status);
+            }
+            return res.json();
+        })
         .then(data => {
-            if (data.success) {
-                countBadge.textContent = data.assignments.length;
+            if (!data.success) {
+                throw new Error(data.message || 'Failed to load assignments.');
+            }
 
-                if (data.assignments.length === 0) {
-                    listContainer.innerHTML = '<div class="text-center py-4 text-muted fs-8">No peers assigned to this role yet.</div>';
-                } else {
-                    let html = '<div class="list-group list-group-flush border rounded-3">';
-                    data.assignments.forEach(assign => {
-                        const sectionsJson = JSON.stringify(assign.allowed_sections).replace(/"/g, '&quot;');
-                        const safeName = assign.name.replace(/'/g, "\\'");
-                        html += `
-                            <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 peer-assignment-card" 
-                                 style="cursor: pointer;"
-                                 data-user-id="${assign.user_id}"
-                                 data-name="${safeName}"
-                                 data-scope-id="${assign.scope_id || ''}"
-                                 data-permission-type="${assign.permission_type}"
-                                 data-allowed-sections="${sectionsJson}">
-                                <div class="flex-grow-1 pe-3" style="min-width: 0;">
-                                    <div class="fw-bold fs-7 text-truncate text-primary">${assign.name}</div>
-                                    <div class="text-muted small text-truncate">${assign.email}</div>
-                                    <div class="d-flex flex-wrap gap-1 mt-1">
-                                        <span class="badge bg-light text-secondary border fs-9 text-wrap text-start">${assign.scope_name}</span>
-                                        <span class="badge bg-light text-info border fs-9">${assign.permission_type === 'view' ? 'Only View' : 'Edit Access'}</span>
-                                    </div>
-                                </div>
-                                <div class="flex-shrink-0">
-                                    <button type="button" class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1 rounded-3 px-2 py-1" 
-                                        title="Revoke Role" onclick="event.stopPropagation(); removePeerAssignment('${assign.user_id}', '${safeName}')">
-                                        <i class="bi bi-trash3-fill fs-8"></i>
-                                        <span class="fs-8 fw-semibold">Remove</span>
-                                    </button>
+            countBadge.textContent = data.assignments.length;
+
+            if (data.assignments.length === 0) {
+                listContainer.innerHTML = '<div class="text-center py-4 text-muted fs-8">No peers assigned to this role yet.</div>';
+            } else {
+                let html = '<div class="list-group list-group-flush border rounded-3">';
+                data.assignments.forEach(assign => {
+                    const sectionsJson = JSON.stringify(assign.allowed_sections).replace(/"/g, '&quot;');
+                    const safeName = assign.name.replace(/'/g, "\\'");
+                    html += `
+                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 peer-assignment-card" 
+                             style="cursor: pointer;"
+                             data-user-id="${assign.user_id}"
+                             data-name="${safeName}"
+                             data-scope-id="${assign.scope_id || ''}"
+                             data-permission-type="${assign.permission_type}"
+                             data-allowed-sections="${sectionsJson}">
+                            <div class="flex-grow-1 pe-3" style="min-width: 0;">
+                                <div class="fw-bold fs-7 text-truncate text-primary">${assign.name}</div>
+                                <div class="text-muted small text-truncate">${assign.email}</div>
+                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                    <span class="badge bg-light text-secondary border fs-9 text-wrap text-start">${assign.scope_name}</span>
                                 </div>
                             </div>
-                        `;
-                    });
-                    html += '</div>';
-                    listContainer.innerHTML = html;
-                    
-                    // Bind click event to peer cards
-                    $(listContainer).off('click', '.peer-assignment-card').on('click', '.peer-assignment-card', function(e) {
-                        if ($(e.target).closest('.btn-outline-danger').length) {
-                            return;
-                        }
-                        const userId = $(this).attr('data-user-id');
-                        const name = $(this).attr('data-name');
-                        const scopeId = $(this).attr('data-scope-id');
-                        const permissionType = $(this).attr('data-permission-type');
-                        const allowedSections = JSON.parse($(this).attr('data-allowed-sections') || '[]');
-                        startEditAssignment(userId, name, scopeId, permissionType, allowedSections);
-                    });
-                }
+                            <div class="flex-shrink-0">
+                                <button type="button" class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1 rounded-3 px-2 py-1" 
+                                    title="Revoke Role" onclick="event.stopPropagation(); removePeerAssignment('${assign.user_id}', '${safeName}')">
+                                    <i class="bi bi-trash3-fill fs-8"></i>
+                                    <span class="fs-8 fw-semibold">Remove</span>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                listContainer.innerHTML = html;
 
-                if (data.available_peers.length === 0) {
-                    peersSelect.innerHTML = '<option value="">All peers assigned</option>';
-                } else {
-                    data.available_peers.forEach(peer => {
-                        const opt = document.createElement('option');
-                        opt.value = peer.id;
-                        opt.textContent = peer.name + ' (' + peer.email + ')';
-                        peersSelect.appendChild(opt);
-                    });
-                }
-
-                if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
-                    $(peersSelect).trigger('change');
-                }
-
-                setupModalScopeSelect();
+                // Bind click event to peer cards
+                $(listContainer).off('click', '.peer-assignment-card').on('click', '.peer-assignment-card', function(e) {
+                    if ($(e.target).closest('.btn-outline-danger').length) {
+                        return;
+                    }
+                    const userId = $(this).attr('data-user-id');
+                    const name = $(this).attr('data-name');
+                    const scopeId = $(this).attr('data-scope-id');
+                    const permissionType = $(this).attr('data-permission-type');
+                    const allowedSections = JSON.parse($(this).attr('data-allowed-sections') || '[]');
+                    startEditAssignment(userId, name, scopeId, permissionType, allowedSections);
+                });
             }
+
+            if (data.available_peers.length === 0) {
+                peersSelect.innerHTML = '<option value="">All peers assigned</option>';
+            } else {
+                data.available_peers.forEach(peer => {
+                    const opt = document.createElement('option');
+                    opt.value = peer.id;
+                    opt.textContent = peer.name + ' (' + peer.email + ')';
+                    peersSelect.appendChild(opt);
+                });
+            }
+
+            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+                $(peersSelect).trigger('change');
+            }
+
+            setupModalScopeSelect();
+        })
+        .catch(err => {
+            console.error('fetchAssignments error:', err);
+            listContainer.innerHTML = '<div class="text-center py-4 text-danger fs-8"><i class="bi bi-exclamation-circle me-1"></i> Failed to load peers. Please try again.</div>';
+            countBadge.textContent = '!';
         });
 }
 

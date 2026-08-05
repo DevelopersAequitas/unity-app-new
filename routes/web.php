@@ -60,7 +60,16 @@ use App\Http\Controllers\Admin\NotificationAdminController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
+use App\Http\Controllers\Admin\Rbac\AdminModuleController;
+use App\Http\Controllers\Admin\Rbac\AdminPageController;
+use App\Http\Controllers\Admin\Rbac\PageGroupController;
+use App\Http\Controllers\Admin\Rbac\PermissionController;
+use App\Http\Controllers\Admin\Rbac\RoleDataScopeController;
 use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
+use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
+use App\Http\Controllers\Admin\Rbac\RolePageGroupController;
+use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
+use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
@@ -118,6 +127,49 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/rbac/roles/{id}/assignments', [RoleHierarchyController::class, 'getAssignments'])->name('rbac.roles.assignments')->whereUuid('id');
         Route::post('/rbac/roles/{id}/assignments', [RoleHierarchyController::class, 'assignPeer'])->name('rbac.roles.assign-peer')->whereUuid('id');
         Route::delete('/rbac/roles/{id}/assignments/{userId}', [RoleHierarchyController::class, 'removeAssignment'])->name('rbac.roles.remove-assignment')->whereUuid('id')->whereUuid('userId');
+
+        // ── Dynamic RBAC Management ─────────────────────────────────────────────
+        // Modules (sidebar menus)
+        Route::prefix('rbac')->name('rbac.')->group(function (): void {
+            Route::resource('modules', AdminModuleController::class)
+                ->whereUuid('module');
+
+            Route::resource('pages', AdminPageController::class)
+                ->whereUuid('page');
+
+            Route::resource('permissions', PermissionController::class)
+                ->whereUuid('permission');
+
+            Route::resource('page-groups', PageGroupController::class)
+                ->parameters(['page-groups' => 'pageGroup'])
+                ->whereUuid('pageGroup');
+
+            // Role Permission Matrix
+            Route::get('matrix', [RolePermissionMatrixController::class, 'index'])->name('matrix.index');
+            Route::post('matrix/save', [RolePermissionMatrixController::class, 'save'])->name('matrix.save');
+
+            // Module Visibility per Role
+            Route::get('module-access', [RoleModuleAccessController::class, 'index'])->name('module-access.index');
+            Route::post('module-access/save', [RoleModuleAccessController::class, 'save'])->name('module-access.save');
+
+            // Page Group Access per Role
+            Route::get('page-group-access', [RolePageGroupController::class, 'index'])->name('page-group-access.index');
+            Route::post('page-group-access/save', [RolePageGroupController::class, 'save'])->name('page-group-access.save');
+
+            // Data Scope per Role
+            Route::get('data-scope', [RoleDataScopeController::class, 'index'])->name('data-scope.index');
+            Route::post('data-scope', [RoleDataScopeController::class, 'store'])->name('data-scope.store');
+            Route::delete('data-scope/{roleDataScope}', [RoleDataScopeController::class, 'destroy'])
+                ->name('data-scope.destroy')
+                ->whereUuid('roleDataScope');
+
+            // Workflow Approval Rules
+            Route::resource('workflow-rules', WorkflowApprovalRuleController::class)
+                ->parameters(['workflow-rules' => 'workflowApprovalRule'])
+                ->whereUuid('workflowApprovalRule');
+        });
+        // ── End Dynamic RBAC Management ──────────────────────────────────────────
+
         Route::post('/switch-context', [ContextSwitcherController::class, 'switchContext'])->name('switch-context');
         Route::post('/profile/remove-current-role', [RoleHierarchyController::class, 'removeCurrentRole'])->name('profile.remove-current-role');
 
