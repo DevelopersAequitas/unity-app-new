@@ -385,6 +385,9 @@ class MemberController extends BaseApiController
         return UserResource::collection($users)->additional([
             'success' => true,
             'message' => 'Members fetched successfully.',
+            'total_users' => $users->count(),
+            'total_user' => $users->count(),
+            'total' => $users->count(),
         ]);
     }
 
@@ -397,6 +400,9 @@ class MemberController extends BaseApiController
         return LimitedUserResource::collection($users)->additional([
             'success' => true,
             'message' => 'Limited user data fetched successfully.',
+            'total_users' => $users->count(),
+            'total_user' => $users->count(),
+            'total' => $users->count(),
         ]);
     }
 

@@ -229,6 +229,7 @@ class LimitedUserApiTest extends TestCase
 
         $response->assertOk();
         $this->assertCount(21, $response->json('data'));
+        $this->assertSame(21, $response->json('total_users'));
         $response->assertJsonMissing(['meta', 'links']);
     }
 
