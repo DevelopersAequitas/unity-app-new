@@ -49,7 +49,6 @@
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
-                    ['icon' => 'bi-diagram-3', 'label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy', 'active_routes' => ['admin.rbac.*']],
                 ] : []),
             ]
             : [
@@ -73,7 +72,6 @@
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
-                    ['icon' => 'bi-diagram-3', 'label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy', 'active_routes' => ['admin.rbac.*']],
                 ] : []),
             ]);
 
@@ -550,6 +548,41 @@
                         <i class="bi bi-play-btn me-2"></i>Tutorials
                     </a>
                 </li>
+                {{-- Dynamic RBAC & Role Management Menu --}}
+                <li class="nav-item menu-parent {{ request()->routeIs('admin.rbac.*') ? 'open' : '' }}">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="#rbacSubmenu" role="button" aria-expanded="{{ request()->routeIs('admin.rbac.*') ? 'true' : 'false' }}" aria-controls="rbacSubmenu">
+                        <span><i class="bi bi-shield-lock me-2"></i>Dynamic RBAC</span>
+                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    </a>
+                    <div class="collapse {{ request()->routeIs('admin.rbac.*') ? 'show' : '' }}" id="rbacSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.permission-matrix.*') ? 'active' : '' }}" href="{{ route('admin.rbac.permission-matrix.index') }}">Permission Matrix</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.module-access.*') ? 'active' : '' }}" href="{{ route('admin.rbac.module-access.index') }}">Module Access</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.modules.*') ? 'active' : '' }}" href="{{ route('admin.rbac.modules.index') }}">Admin Modules</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.pages.*') ? 'active' : '' }}" href="{{ route('admin.rbac.pages.index') }}">Admin Pages</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.page-groups.*') ? 'active' : '' }}" href="{{ route('admin.rbac.page-groups.index') }}">Page Groups</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.data-scope.*') ? 'active' : '' }}" href="{{ route('admin.rbac.data-scope.index') }}">Data Scope</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.workflow-rules.*') ? 'active' : '' }}" href="{{ route('admin.rbac.workflow-rules.index') }}">Workflow Rules</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.hierarchy') ? 'active' : '' }}" href="{{ route('admin.rbac.hierarchy') }}">Role Hierarchy</a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
             @endif
 
 
@@ -590,7 +623,31 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.querySelector('.admin-sidebar');
             const menuParents = document.querySelectorAll('.admin-sidebar .menu-parent');
+
+            // ── Preserve & Restore Sidebar Scroll Position ──────────────
+            if (sidebar) {
+                const savedScroll = sessionStorage.getItem('sidebar_scroll_top');
+                if (savedScroll !== null) {
+                    sidebar.scrollTop = parseInt(savedScroll, 10);
+                } else {
+                    const activeLink = sidebar.querySelector('.nav-link.active');
+                    if (activeLink) {
+                        activeLink.scrollIntoView({ block: 'center', inline: 'nearest' });
+                    }
+                }
+
+                sidebar.addEventListener('scroll', () => {
+                    sessionStorage.setItem('sidebar_scroll_top', sidebar.scrollTop);
+                }, { passive: true });
+
+                sidebar.querySelectorAll('a').forEach((link) => {
+                    link.addEventListener('click', () => {
+                        sessionStorage.setItem('sidebar_scroll_top', sidebar.scrollTop);
+                    });
+                });
+            }
 
             menuParents.forEach((parentItem) => {
                 const submenu = parentItem.querySelector('.collapse');

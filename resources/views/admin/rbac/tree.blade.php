@@ -85,14 +85,30 @@
         padding: 12px !important;
     }
 
-    /* Tree Styling */
+    /* Tree Styling & Scrollable Canvas Container */
+    .hierarchy-container {
+        width: 100%;
+        max-height: 75vh;
+        min-height: 520px;
+        overflow: auto;
+        scrollbar-width: thin;
+        position: relative;
+    }
+    .hierarchy-tree {
+        display: flex;
+        justify-content: center;
+        width: max-content;
+        min-width: 100%;
+        padding: 40px 60px 80px 60px;
+    }
     .hierarchy-tree ul {
-        padding-top: 15px; 
+        padding-top: 20px; 
         position: relative;
         transition: all 0.5s;
         list-style-type: none;
         display: flex;
         justify-content: center;
+        margin: 0 auto;
     }
     .hierarchy-tree li {
         display: flex;
@@ -270,7 +286,8 @@
             <h1 class="h3 mb-1 fw-bold" style="font-family: 'Outfit', sans-serif;">Role Hierarchy & Profiles</h1>
             <p class="text-muted small mb-0">Manage dynamic role hierarchies, clone profiles and coordinate scopes cascade mappings.</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center">
+            @include('admin.rbac.partials.header_nav')
             <button class="btn btn-light border d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#cloneProfileModal">
                 <i class="bi bi-copy"></i> Clone Profile
             </button>
@@ -287,49 +304,13 @@
         </div>
     @endif
 
-    <div class="row">
-        <!-- Hierarchy Visualizer -->
-        <div class="col-lg-8 mb-4">
+    <!-- Top Row: Relocate Settings & Role Assignment -->
+    <div class="row mb-4">
+        <!-- Relocate Settings -->
+        <div class="col-md-6 mb-3 mb-md-0">
             <div class="card glass-card h-100">
-                <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
-                    <h5 class="card-title fw-bold mb-0">Hierarchy Map</h5>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="text-muted fs-7">Relocate nodes using Relocate Settings</span>
-                        <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
-                           class="btn btn-sm btn-light border d-flex align-items-center gap-1"
-                           style="font-size:0.78rem;white-space:nowrap;"
-                           title="Open full-screen map in new tab">
-                            <i class="bi bi-box-arrow-up-right"></i> Full Map
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body px-4 pb-4 overflow-auto" style="min-height: 500px;">
-                    <div class="hierarchy-tree d-flex justify-content-center">
-                        @if(empty($roots))
-                            <div class="text-center text-muted my-5">
-                                <i class="bi bi-diagram-3 fs-1 d-block mb-3"></i>
-                                No active role mappings found. Create a root role first.
-                            </div>
-                        @else
-                            @php
-                                $GLOBALS['rendered_subtrees'] = [];
-                            @endphp
-                            <ul>
-                                @foreach($roots as $root)
-                                    @include('admin.rbac.tree_node', ['role' => $root])
-                                @endforeach
-                            </ul>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Relocator & Configuration Detail -->
-        <div class="col-lg-4 mb-4">
-            <div class="card glass-card">
                 <div class="card-header bg-transparent border-0 pt-4 px-4">
-                    <h5 class="card-title fw-bold mb-0">Relocate Settings</h5>
+                    <h5 class="card-title fw-bold mb-0"><i class="bi bi-arrows-move me-2"></i>Relocate Settings</h5>
                 </div>
                 <div class="card-body p-4">
                     <form id="relocateForm">
@@ -346,7 +327,7 @@
 
                         <div class="mb-3">
                             <label for="relocate_parents" class="form-label fw-semibold fs-7">Choose Parents (Reports to)</label>
-                            <select id="relocate_parents" name="parent_role_ids[]" class="form-select rounded-3" multiple style="min-height: 150px;">
+                            <select id="relocate_parents" name="parent_role_ids[]" class="form-select rounded-3" multiple style="min-height: 120px;">
                                 @foreach($roles as $r)
                                     <option value="{{ $r->id }}">{{ $r->name }}</option>
                                 @endforeach
@@ -362,11 +343,13 @@
                     <div id="relocateMessage" class="mt-3 text-center fs-7" style="display: none;"></div>
                 </div>
             </div>
+        </div>
 
-            <!-- Assign Role to Peer Card -->
-            <div class="card glass-card mt-4">
+        <!-- Assign Role to Peer Card -->
+        <div class="col-md-6">
+            <div class="card glass-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4">
-                    <h5 class="card-title fw-bold mb-0">Assign Role to Peer</h5>
+                    <h5 class="card-title fw-bold mb-0"><i class="bi bi-person-check me-2"></i>Assign Role to Peer</h5>
                 </div>
                 <div class="card-body p-4">
                     <form action="{{ route('admin.rbac.roles.assign') }}" method="POST" id="assignRoleForm">
@@ -474,6 +457,45 @@
                             <i class="bi bi-person-check me-1"></i> Assign Role & Scope
                         </button>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Row: Hierarchy Map (Full Width) -->
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card glass-card">
+                <div class="card-header bg-transparent border-bottom pt-4 pb-3 px-4 d-flex justify-content-between align-items-center" style="border-color: rgba(0,0,0,0.08) !important;">
+                    <h5 class="card-title fw-bold mb-0"><i class="bi bi-diagram-3 me-2"></i>Hierarchy Map</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted fs-7">Relocate nodes using Relocate Settings above</span>
+                        <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
+                           class="btn btn-sm btn-light border d-flex align-items-center gap-1"
+                           style="font-size:0.78rem;white-space:nowrap;"
+                           title="Open full-screen map in new tab">
+                            <i class="bi bi-box-arrow-up-right"></i> Full Map
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0 hierarchy-container">
+                    <div class="hierarchy-tree">
+                        @if(empty($roots))
+                            <div class="text-center text-muted my-5">
+                                <i class="bi bi-diagram-3 fs-1 d-block mb-3"></i>
+                                No active role mappings found. Create a root role first.
+                            </div>
+                        @else
+                            @php
+                                $GLOBALS['rendered_subtrees'] = [];
+                            @endphp
+                            <ul>
+                                @foreach($roots as $root)
+                                    @include('admin.rbac.tree_node', ['role' => $root])
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>

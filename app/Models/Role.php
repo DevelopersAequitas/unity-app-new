@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -30,6 +31,31 @@ class Role extends Model
         'status',
         'is_assignable',
     ];
+
+    // ── Dynamic RBAC Relationships ──────────────────────────────
+
+    public function roleModuleAccess(): HasMany
+    {
+        return $this->hasMany(RoleModuleAccess::class, 'role_id');
+    }
+
+    public function rolePagePermissions(): HasMany
+    {
+        return $this->hasMany(RolePagePermission::class, 'role_id');
+    }
+
+    public function pageGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(PageGroup::class, 'role_page_groups', 'role_id', 'page_group_id')
+            ->withTimestamps();
+    }
+
+    public function roleDataScopes(): HasMany
+    {
+        return $this->hasMany(RoleDataScope::class, 'role_id');
+    }
+
+    // ── Existing Relationships ──────────────────────────────────
 
     public function parents(): BelongsToMany
     {
