@@ -170,8 +170,8 @@
                   {{ $event->recurrence_type ?? 'none' }}
                 </td>
                 <td class="px-3 py-3 text-center">
-                  <a href="{{ route('admin.events.total-registered', ['event_id' => $event->id]) }}" class="font-bold text-indigo-600 hover:text-indigo-800 no-underline text-xs inline-block px-2 py-0.5 rounded bg-indigo-50/70" title="View registered list for this event">
-                    {{ $event->registered_count ?? 0 }}
+                  <a href="{{ route('admin.events.show', $event->id) }}" class="font-bold text-indigo-600 hover:text-indigo-800 no-underline text-xs inline-block px-2 py-0.5 rounded bg-indigo-50/70" title="View occurrences for this event">
+                    {{ $event->occurrences_count ?? 0 }}
                   </a>
                 </td>
                 <td class="px-3 py-3 text-center">

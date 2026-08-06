@@ -48,7 +48,11 @@
                 <td>{{ optional($occurrence->occurrence_date)->format('d M Y') }}</td>
                 <td>{{ optional($occurrence->start_at)->format('d M Y h:i A') }}</td>
                 <td>{{ optional($occurrence->end_at)->format('d M Y h:i A') }}</td>
-                <td>{{ $occurrence->registered_count ?? 0 }}</td>
+                <td>
+                    <a href="{{ route('admin.events.total-registered', ['event_id' => $event->id, 'occurrence_id' => $occurrence->id]) }}" class="font-bold text-indigo-600 hover:text-indigo-800 no-underline">
+                        {{ $occurrence->registered_count ?? 0 }}
+                    </a>
+                </td>
                 <td>{{ $occurrence->checked_in_count ?? 0 }}</td>
                 <td>
                     <div class="d-flex align-items-center gap-2">
@@ -130,7 +134,7 @@
 
     <div class="card mt-3" id="registrations-section">
         <div class="card-header">Registrations</div>
-        <div class="table-responsive"><table class="table table-striped align-middle mb-0"><thead><tr><th>Attendee</th><th>Type</th><th>Gateway</th><th>Payment</th><th>Payment ref</th><th>Amount</th><th>Invoice</th><th class="text-center">QR</th><th>Check-in</th></tr></thead><tbody>
+        <div class="table-responsive"><table class="table table-striped align-middle mb-0"><thead><tr><th>Attendee</th><th>Date</th><th>Type</th><th>Gateway</th><th>Payment</th><th>Payment ref</th><th>Amount</th><th>Invoice</th><th class="text-center">QR</th><th>Check-in</th></tr></thead><tbody>
         @forelse($event->registrations as $registration)
             @php
                 $attendeeName = $registration->user ? ($registration->user->display_name ?? trim(($registration->user->first_name ?? '').' '.($registration->user->last_name ?? ''))) : $registration->visitor_name;
@@ -150,6 +154,7 @@
             @endphp
             <tr>
                 <td>{{ $attendeeName ?: '—' }}<br><small class="text-muted">{{ $attendeeEmail ?: '—' }}</small></td>
+                <td>{{ optional($registration->occurrence?->start_at)->format('d M Y') ?: '—' }}</td>
                 <td>{{ $registration->registration_type ?: ($registration->user_id ? 'member' : 'visitor') }}</td>
                 <td>{{ $gatewayLabel }}</td>
                 <td><span class="badge bg-{{ $paymentBadge }}">{{ $paymentLabel }}</span></td>
@@ -181,7 +186,11 @@
                     $qrUrl = $qrAvailable ? app(\App\Services\Events\EventRegistrationQrService::class)->qrCodeUrl($registration) : null;
                 @endphp
                 <td class="text-center">
-                    <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }} mb-1 d-inline-block">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
+                    @if($registration->qr_status === 'expired')
+                        <span class="badge bg-danger mb-1 d-inline-block">Expired</span>
+                    @else
+                        <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }} mb-1 d-inline-block">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
+                    @endif
                     @if($inlineSvg)
                         <div class="d-block mt-1">
                             <button type="button" class="btn p-0 border-0 bg-transparent" data-bs-toggle="modal" data-bs-target="#qrModal_{{ $registration->id }}" title="Click to view full size QR Code">
