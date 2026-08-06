@@ -207,7 +207,7 @@
                             <label class="form-label fw-semibold">Status *</label>
                             <select name="status" class="form-select js-no-searchable-select" required>
                                 @foreach($statuses as $item)
-                                    <option value="{{ $item }}" @selected(old('status', $circular->status ?? 'draft')===$item)>
+                                    <option value="{{ $item }}" @selected(old('status', $circular->status ?? 'published')===$item)>
                                         {{ ucfirst($item) }}
                                     </option>
                                 @endforeach

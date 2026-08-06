@@ -969,6 +969,7 @@ class EventController extends BaseApiController
                 'payment_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
                 'checkout_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
                 'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_path ? $qr->url($registration->qr_code_path) : $registration->qr_code_url),
+                'qr_status' => $registration->qr_status,
                 'attendee_type' => $registration->user_id ? 'member' : 'visitor',
             ])->values(),
         ], 'My registrations fetched successfully.');
@@ -1309,6 +1310,7 @@ class EventController extends BaseApiController
             'currency' => $registration->currency ?? 'INR',
             'payment_url' => $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_hosted_page_url ?? null,
             'qr_code_url' => $qrUrl,
+            'qr_status' => $registration->qr_status,
             'zoho_invoice_id' => $registration->zoho_invoice_id,
             'zoho_invoice_number' => $registration->zoho_invoice_number,
             'zoho_invoice_status' => $registration->zoho_invoice_status,

@@ -225,6 +225,10 @@ class ZohoPaymentWebhookService
             : (string) (data_get($payload, 'payment_link.payment_link_id') ?? data_get($payload, 'payment_link_id') ?? data_get($payload, 'data.payment_link_id') ?? data_get($payload, 'data.payment_link.payment_link_id') ?? data_get($payload, 'payment_link.id') ?? '');
         $subscriptionIds = data_get($invoice, 'subscription_ids', []);
         $subscriptionId = is_array($subscriptionIds) ? ($subscriptionIds[0] ?? null) : $subscriptionIds;
+        $subscriptionId ??= data_get($payload, 'subscription.subscription_id')
+            ?? data_get($payload, 'data.subscription.subscription_id')
+            ?? data_get($payload, 'subscription_id')
+            ?? data_get($payload, 'data.subscription_id');
 
         return [
             'event_type' => data_get($payload, 'event') ?? data_get($payload, 'event_type') ?? data_get($payload, 'type') ?? data_get($payload, 'event_name') ?? 'customer_payment',

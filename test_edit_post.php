@@ -4,6 +4,7 @@ require_once __DIR__.'/vendor/autoload.php';
 
 use App\Http\Controllers\Api\PostController;
 use App\Models\User;
+use App\Services\Notifications\NotificationDispatchService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Http\Request;
 
@@ -17,7 +18,7 @@ echo "==================================================\n";
 
 // 1. Find a user
 $user = User::where('status', 'active')->first() ?: User::first();
-if (!$user) {
+if (! $user) {
     echo "❌ No user found in database to test.\n";
     exit(1);
 }
@@ -38,11 +39,11 @@ $request = Request::create("/api/v1/posts/{$fakePostId}", 'PUT', $payload);
 $request->setUserResolver(fn () => $user);
 
 try {
-    $response = $postController->update($request, $fakePostId, app(\App\Services\Notifications\NotificationDispatchService::class));
-    
-    echo "Response Status: " . $response->getStatusCode() . "\n";
+    $response = $postController->update($request, $fakePostId, app(NotificationDispatchService::class));
+
+    echo 'Response Status: '.$response->getStatusCode()."\n";
     echo "Response Content:\n";
-    echo json_encode(json_decode($response->getContent()), JSON_PRETTY_PRINT) . "\n\n";
-} catch (\Exception $e) {
-    echo "❌ Exception occurred: " . $e->getMessage() . "\n";
+    echo json_encode(json_decode($response->getContent()), JSON_PRETTY_PRINT)."\n\n";
+} catch (Exception $e) {
+    echo '❌ Exception occurred: '.$e->getMessage()."\n";
 }
