@@ -120,21 +120,39 @@ class ZohoBillingWebhookController extends Controller
             $invoice = [];
 
             if ($subscriptionId) {
-                $subscriptionResp = $this->zohoBillingService->getSubscription($subscriptionId);
-                $subscription = $subscriptionResp['subscription'] ?? $subscriptionResp;
+                try {
+                    $subscriptionResp = $this->zohoBillingService->getSubscription($subscriptionId);
+                    $subscription = $subscriptionResp['subscription'] ?? $subscriptionResp;
+                } catch (Throwable $t) {
+                    Log::warning('Zoho API getSubscription failed during webhook, falling back to payload', ['error' => $t->getMessage()]);
+                    $subscription = data_get($payload, 'subscription') ?? data_get($payload, 'data.subscription') ?? [];
+                }
+            } else {
+                $subscription = data_get($payload, 'subscription') ?? data_get($payload, 'data.subscription') ?? [];
             }
 
             if ($invoiceId) {
-                $invoiceResp = $this->zohoBillingService->getInvoice($invoiceId);
-                $invoice = $invoiceResp['invoice'] ?? $invoiceResp;
+                try {
+                    $invoiceResp = $this->zohoBillingService->getInvoice($invoiceId);
+                    $invoice = $invoiceResp['invoice'] ?? $invoiceResp;
+                } catch (Throwable $t) {
+                    Log::warning('Zoho API getInvoice failed during webhook, falling back to payload', ['error' => $t->getMessage()]);
+                    $invoice = data_get($payload, 'invoice') ?? data_get($payload, 'data.invoice') ?? [];
+                }
             } elseif ($subscriptionId) {
-                $invoiceList = $this->zohoBillingService->listInvoicesBySubscription($subscriptionId);
-                $invoice = ($invoiceList['invoices'][0] ?? []);
+                try {
+                    $invoiceList = $this->zohoBillingService->listInvoicesBySubscription($subscriptionId);
+                    $invoice = ($invoiceList['invoices'][0] ?? []);
+                } catch (Throwable $t) {
+                    $invoice = data_get($payload, 'invoice') ?? data_get($payload, 'data.invoice') ?? [];
+                }
+            } else {
+                $invoice = data_get($payload, 'invoice') ?? data_get($payload, 'data.invoice') ?? [];
             }
 
             $syncedUser = $this->membershipSyncService->syncUserMembershipFromZoho($user, [
-                'subscription' => $subscription,
-                'invoice' => $invoice,
+                'subscription' => $subscription ?: (data_get($payload, 'subscription') ?? data_get($payload, 'data.subscription') ?? []),
+                'invoice' => $invoice ?: (data_get($payload, 'invoice') ?? data_get($payload, 'data.invoice') ?? []),
             ]);
 
             $this->membershipWelcomeEmailService->sendIfEligible($syncedUser);
