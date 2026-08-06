@@ -7,14 +7,14 @@ namespace Tests\Feature\Admin;
 use App\Models\AdminUser;
 use App\Models\Role;
 use App\Support\AdminAccess;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class RoleHierarchyPermissionsTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private AdminUser $admin;
 
@@ -23,6 +23,8 @@ class RoleHierarchyPermissionsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->withoutMiddleware();
 
         // Ensure global_admin role exists
         Role::firstOrCreate(

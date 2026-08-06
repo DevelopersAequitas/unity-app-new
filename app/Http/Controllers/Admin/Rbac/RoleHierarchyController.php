@@ -633,6 +633,8 @@ class RoleHierarchyController extends Controller
                 }
             }
 
+            AdminAccess::clearAdminUserCache($userId);
+
             $admin = auth('admin')->user();
             if ($admin) {
                 $this->audit->log(
@@ -704,13 +706,14 @@ class RoleHierarchyController extends Controller
                 if ($scopeId) {
                     $district = DB::table('districts')->where('id', $scopeId)->first();
                     $state = $district ? DB::table('states')->where('id', $district->state_id)->first() : null;
+                    $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
 
                     DB::table('admin_ded_districts')->where('admin_user_id', $adminUserId)->delete();
 
                     DB::table('admin_ded_districts')->insert([
                         'id' => (string) Str::uuid(),
                         'admin_user_id' => $adminUserId,
-                        'user_id' => $adminUserId,
+                        'user_id' => $appUser?->id,
                         'district_id' => $scopeId,
                         'district_name' => $district->name ?? '',
                         'state_id' => $district->state_id ?? null,
@@ -718,6 +721,16 @@ class RoleHierarchyController extends Controller
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
+
+                    if ($appUser) {
+                        DB::table('circle_members')
+                            ->where('user_id', $appUser->id)
+                            ->whereNull('deleted_at')
+                            ->update([
+                                'role' => 'ded',
+                                'updated_at' => now(),
+                            ]);
+                    }
                 }
             } elseif ($isId) {
                 if ($scopeId) {
@@ -831,6 +844,8 @@ class RoleHierarchyController extends Controller
                     }
                 }
             }
+
+            AdminAccess::clearAdminUserCache($adminUserId);
 
             $admin = auth('admin')->user();
             if ($admin) {

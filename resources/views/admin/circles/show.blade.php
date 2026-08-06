@@ -891,12 +891,6 @@ use Carbon\Carbon;
 
                                         <button class="px-2.5 py-1 rounded-lg border bs text-xs font-medium text-indigo-600 hover:text-indigo-700 surface-2 transition cursor-pointer" onclick="event.stopPropagation()">Update</button>
                                     </form>
-
-                                    @if (!empty($membership->roleRef))
-                                        <div class="t3 text-[11px] mt-1">
-                                            {{ $membership->roleRef->name ?? '—' }} ({{ $membership->roleRef->key ?? '—' }})
-                                        </div>
-                                    @endif
                                 </td>
 
                                 <td class="px-3 py-2.5">

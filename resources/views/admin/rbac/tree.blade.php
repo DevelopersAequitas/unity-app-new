@@ -410,42 +410,6 @@
                             </div>
                         </div>
 
-                        <!-- Dynamic Permissions & Sidebar Sections Checklist -->
-                        <div class="mb-3" id="permissions_container" style="display: none;">
-                            <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <label class="form-label fw-bold fs-7 mb-0">Dashboard Sections</label>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="assign_select_all_sections" checked>
-                                        <label class="form-check-label fs-8 fw-semibold" for="assign_select_all_sections">Select All</label>
-                                    </div>
-                                </div>
-
-                                <div class="border rounded-3 p-2 bg-white" style="max-height: 200px; overflow-y: auto;">
-                                    @php
-                                        $sections = [
-                                            'Dashboard', 'Activities', 'Referral Report', 'Posts & Timeline', 
-                                            'Pending Requests', 'Support Tickets', 'Events Management', 
-                                            'Brand Partners', 'Peers', 'Unity Contacts', 'Leadership', 
-                                            'Industries', 'Circles', 'Circulars', 'Coins', 'Life Impact', 'Leads'
-                                        ];
-                                    @endphp
-                                    <div class="row g-1">
-                                        @foreach($sections as $sec)
-                                            <div class="col-12">
-                                                <div class="form-check py-1">
-                                                    <input class="form-check-input section-checkbox" type="checkbox" name="allowed_sections[]" value="{{ $sec }}" id="sec_{{ Str::slug($sec, '_') }}" checked>
-                                                    <label class="form-check-label fs-8 text-dark" for="sec_{{ Str::slug($sec, '_') }}">
-                                                        {{ $sec }}
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                </div>
-                                <small class="text-muted fs-8 mt-1 d-block">Uncheck sections to hide them from their sidebar.</small>
-                            </div>
-                        </div>
 
                         <button type="submit" class="btn btn-success w-100 rounded-3 py-2 mt-2">
                             <i class="bi bi-person-check me-1"></i> Assign Role & Scope
@@ -918,33 +882,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </select>
                             </div>
 
-                            <!-- Dynamic Permissions & Sidebar Sections Checklist -->
-                            <div class="mb-3" id="quick_permissions_container" style="display:none;">
-                                <div class="border rounded-3 p-3 bg-light-soft mb-3 shadow-sm" style="background-color: rgba(0,0,0,0.025);">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <label class="form-label fw-bold fs-8 mb-0">Dashboard Sections</label>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="quick_select_all_sections" checked>
-                                            <label class="form-check-label fs-9 fw-semibold" for="quick_select_all_sections">Select All</label>
-                                        </div>
-                                    </div>
-
-                                    <div class="border rounded-3 p-2 bg-white" style="max-height: 150px; overflow-y: auto;">
-                                        <div class="row g-1">
-                                            @foreach($sections as $sec)
-                                                <div class="col-12">
-                                                    <div class="form-check py-1">
-                                                        <input class="form-check-input quick-section-checkbox" type="checkbox" name="allowed_sections[]" value="{{ $sec }}" id="quick_sec_{{ Str::slug($sec, '_') }}" checked>
-                                                        <label class="form-check-label fs-9 text-dark" for="quick_sec_{{ Str::slug($sec, '_') }}">
-                                                            {{ $sec }}
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
 
                             <div id="quickAssignButtons" class="mt-2">
                                 <button type="submit" id="quickAssignSubmitBtn" class="btn btn-success btn-sm w-100 rounded-3 py-2">
@@ -992,26 +929,6 @@ document.addEventListener('DOMContentLoaded', function() {
             width: '100%'
         });
     }
-
-    // Select All logic for assignRoleForm
-    const selectAllCheckbox = document.getElementById('assign_select_all_sections');
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
-            document.querySelectorAll('.section-checkbox').forEach(cb => {
-                cb.checked = selectAllCheckbox.checked;
-            });
-        });
-    }
-
-    // Select All logic for quickAssignForm
-    const quickSelectAllCheckbox = document.getElementById('quick_select_all_sections');
-    if (quickSelectAllCheckbox) {
-        quickSelectAllCheckbox.addEventListener('change', function() {
-            document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
-                cb.checked = quickSelectAllCheckbox.checked;
-            });
-        });
-    }
 });
 
 function openAssignmentsModal(roleId, roleName, roleKey, scopeRule) {
@@ -1022,12 +939,6 @@ function openAssignmentsModal(roleId, roleName, roleKey, scopeRule) {
     document.getElementById('roleAssignmentsModalLabel').textContent = roleName + ' Assignments';
     document.getElementById('roleAssignmentsModalSubtext').textContent = 'Key: ' + roleKey + ' • Rule: ' + scopeRule;
     document.getElementById('quick_assign_role_id').value = roleId;
-
-    // Reset quick permissions fields
-    const quickPermissionsContainer = document.getElementById('quick_permissions_container');
-    if (quickPermissionsContainer) {
-        quickPermissionsContainer.style.display = 'block';
-    }
     
     cancelEditAssignment();
 
@@ -1075,25 +986,6 @@ function startEditAssignment(userId, userName, scopeId, permissionType, allowedS
         }
     }
 
-    document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
-        cb.checked = false;
-    });
-
-    if (Array.isArray(allowedSections)) {
-        allowedSections.forEach(sec => {
-            const cb = document.querySelector(`.quick-section-checkbox[value="${sec}"]`);
-            if (cb) {
-                cb.checked = true;
-            }
-        });
-    }
-
-    const totalCbs = document.querySelectorAll('.quick-section-checkbox').length;
-    const checkedCbs = document.querySelectorAll('.quick-section-checkbox:checked').length;
-    const selectAllCb = document.getElementById('quick_select_all_sections');
-    if (selectAllCb) {
-        selectAllCb.checked = (totalCbs === checkedCbs && totalCbs > 0);
-    }
 }
 
 function cancelEditAssignment() {
@@ -1115,15 +1007,6 @@ function cancelEditAssignment() {
         $('#quick_scope_id').val('').trigger('change');
     } else {
         document.getElementById('quick_scope_id').value = '';
-    }
-
-    document.querySelectorAll('.quick-section-checkbox').forEach(cb => {
-        cb.checked = true;
-    });
-
-    const selectAllCb = document.getElementById('quick_select_all_sections');
-    if (selectAllCb) {
-        selectAllCb.checked = true;
     }
 }
 

@@ -831,6 +831,9 @@ window.switchTab = function(tabId) {
                                 $currentIndustryId = old('industry_id', $selectedIndustryId);
                             @endphp
                             @if ($hasAssignedAdminRole)
+                                <form id="removeAdminRoleForm" action="{{ route('admin.users.roles.remove', $user->id) }}" method="POST" class="d-none">
+                                    @csrf
+                                </form>
                                 <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
                                     <div>
                                         <strong>Currently assigned role:</strong>

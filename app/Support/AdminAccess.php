@@ -532,4 +532,27 @@ class AdminAccess
 
         return in_array('edit', $assignments, true);
     }
+
+    public static function clearAdminUserCache(?string $adminUserId): void
+    {
+        if (! $adminUserId) {
+            return;
+        }
+
+        Cache::forget('admin-access:roles:'.$adminUserId);
+        Cache::forget('admin-access:ded-location:'.$adminUserId);
+        Cache::forget('admin-access:allowed-users:'.$adminUserId);
+        Cache::forget('admin-access:primary-role:'.$adminUserId);
+        Cache::forget('admin-access:primary-role-label:'.$adminUserId);
+        Cache::forget('admin-access:user:'.$adminUserId);
+        Cache::forget('ded-circle-ids:'.$adminUserId);
+
+        if (Schema::hasTable('tbl_permission_cache')) {
+            DB::table('tbl_permission_cache')->where('user_id', $adminUserId)->delete();
+        }
+
+        if (class_exists(ScopeCascadeResolver::class)) {
+            ScopeCascadeResolver::invalidateCache($adminUserId);
+        }
+    }
 }
