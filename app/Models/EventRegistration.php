@@ -184,6 +184,7 @@ class EventRegistration extends Model
                 return 'expired';
             }
         }
+
         return $this->attributes['qr_status'] ?? 'generated';
     }
 }

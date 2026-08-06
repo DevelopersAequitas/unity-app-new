@@ -3,7 +3,6 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\AdminUser;
-use Exception;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;

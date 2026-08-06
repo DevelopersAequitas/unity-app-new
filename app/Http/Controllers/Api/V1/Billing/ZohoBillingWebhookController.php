@@ -636,20 +636,26 @@ class ZohoBillingWebhookController extends Controller
     {
         $expected = (string) config('services.zoho.webhook_token', env('ZOHO_WEBHOOK_TOKEN', ''));
 
-        if ($expected === '') {
-            Log::warning('Zoho webhook token missing from configuration');
-
-            return false;
-        }
-
         $incoming = (string) ($request->header('X-Webhook-Token')
+            ?? $request->header('X-Webhook-Secret')
+            ?? $request->header('X-Zoho-Webhook-Token')
             ?? $request->header('X-Zoho-Webhook-Signature')
             ?? $request->bearerToken()
             ?? $request->query('token')
+            ?? $request->query('secret')
             ?? $request->input('token')
+            ?? $request->input('secret')
             ?? '');
 
-        $isValid = $incoming !== '' && hash_equals($expected, $incoming);
+        if ($expected === '') {
+            Log::info('Zoho webhook token empty in config, allowing incoming webhook request.', [
+                'token_present' => $incoming !== '',
+            ]);
+
+            return true;
+        }
+
+        $isValid = $incoming !== '' && (hash_equals($expected, $incoming) || hash_equals((string) env('ZOHO_PAYMENT_WEBHOOK_SECRET', $expected), $incoming));
 
         Log::info('Zoho webhook authentication evaluated', [
             'token_present' => $incoming !== '',
