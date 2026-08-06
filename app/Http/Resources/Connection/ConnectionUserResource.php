@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Resources\Connection;
 
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -21,6 +23,8 @@ class ConnectionUserResource extends JsonResource
                 ?? null,
             'membership_status' => $this->membership_status,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
+            'category' => $this->level4Category?->name ?? null,
+            'designation' => $this->designation ?? null,
         ];
     }
 }
