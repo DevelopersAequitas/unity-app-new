@@ -28,12 +28,24 @@
         <div class="alert alert-success mb-4">{{ session('success') }}</div>
     @endif
 
+    @php
+        $hasAdvancedFilters = !empty($filters['country'])
+            || !empty($filters['meeting_mode'])
+            || !empty($filters['meeting_frequency'])
+            || !empty($filters['launch_date'])
+            || !empty($filters['director'])
+            || !empty($filters['circle_stage'])
+            || !empty($filters['industry_director'])
+            || !empty($filters['ded'])
+            || !empty($filters['industry_tags']);
+    @endphp
+
     <form id="circleFiltersForm" method="GET" action="{{ route('admin.circles.index') }}">
         <div class="border bs rounded-xl p-3.5 mb-4 surface-2">
             <div class="flex justify-between items-center flex-wrap gap-2">
                 <div>
-                    <button class="chip !py-1 text-xs" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFiltersCollapse" aria-expanded="false" aria-controls="advancedFiltersCollapse">
-                        <i class="bi bi-funnel"></i>Advanced Filters
+                    <button id="btnAdvancedFilters" class="chip !py-1 text-xs {{ $hasAdvancedFilters ? 'chip-active' : '' }}" type="button" onclick="toggleAdvancedFilters(event)" aria-expanded="{{ $hasAdvancedFilters ? 'true' : 'false' }}">
+                        <i class="bi bi-funnel me-1"></i>Advanced Filters
                     </button>
                 </div>
                 <div class="text-xs t3">
@@ -45,7 +57,7 @@
                 </div>
             </div>
 
-            <div class="collapse mt-3" id="advancedFiltersCollapse">
+            <div class="mt-3" id="advancedFiltersCollapse" style="{{ $hasAdvancedFilters ? 'display: block;' : 'display: none;' }}">
                 <div class="p-3 surface rounded-lg border bs">
                     <div class="row g-3">
                         <div class="col-md-4">
@@ -591,7 +603,49 @@
         document.getElementById('circle-drawer-scrim').classList.add('hidden');
     }
 
+    function toggleAdvancedFilters(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const container = document.getElementById('advancedFiltersCollapse');
+        const btn = document.getElementById('btnAdvancedFilters');
+        if (!container) return;
+
+        const isHidden = container.style.display === 'none' || getComputedStyle(container).display === 'none';
+
+        if (isHidden) {
+            container.style.display = 'block';
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'true');
+                btn.classList.add('chip-active');
+            }
+            sessionStorage.setItem('circles_adv_filters_open', 'true');
+        } else {
+            container.style.display = 'none';
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('chip-active');
+            }
+            sessionStorage.setItem('circles_adv_filters_open', 'false');
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
+        const storedState = sessionStorage.getItem('circles_adv_filters_open');
+        const hasActiveFilters = @json($hasAdvancedFilters);
+        if (storedState === 'true' || hasActiveFilters) {
+            const container = document.getElementById('advancedFiltersCollapse');
+            const btn = document.getElementById('btnAdvancedFilters');
+            if (container) {
+                container.style.display = 'block';
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'true');
+                btn.classList.add('chip-active');
+            }
+        }
+
         const form = document.getElementById('circleFiltersForm');
 
         if (form) {
