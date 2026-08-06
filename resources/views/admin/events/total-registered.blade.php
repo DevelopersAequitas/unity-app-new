@@ -126,6 +126,7 @@
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:220px;">Circle</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Payment</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Check-in Status</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:130px;">QR</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:140px;">Registered At</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="min-width:110px;">Actions</th>
             </tr>
@@ -203,6 +204,88 @@
                     </span>
                   @endif
                 </td>
+                <td class="px-3 py-2.5 text-center align-middle" style="min-width:130px;">
+                  @php
+                    $hasQr = !empty($row->qr_code_url) || !empty($row->qr_code_path) || !empty($row->qr_code_svg);
+                    $paymentStatus = strtolower((string) ($row->payment_status ?? ''));
+                    $qrAvailable = $hasQr && (! $row->payment_required || in_array($paymentStatus, ['paid', 'success', 'completed'], true));
+                    $inlineSvg = $qrAvailable ? ($row->qr_code_svg ?: (function() use ($row) {
+                        try {
+                            $token = $row->qr_token ?: app(\App\Services\Events\EventQrService::class)->generateToken();
+                            $payload = app(\App\Services\Events\EventQrService::class)->payload($token);
+                            $reflection = new \ReflectionClass(app(\App\Services\Events\EventQrService::class));
+                            $method = $reflection->getMethod('makeSvg');
+                            $method->setAccessible(true);
+                            return $method->invoke(app(\App\Services\Events\EventQrService::class), $payload);
+                        } catch (\Throwable $e) {
+                            return null;
+                        }
+                    })()) : null;
+                    $qrUrl = $qrAvailable ? app(\App\Services\Events\EventRegistrationQrService::class)->qrCodeUrl($row) : null;
+                  @endphp
+
+                  @if($row->qr_status === 'expired')
+                      <span class="badge bg-danger mb-1 d-inline-block">Expired</span>
+                  @else
+                      <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }} mb-1 d-inline-block">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
+                  @endif
+
+                  @if($inlineSvg)
+                      <div class="d-block mt-1">
+                          <button type="button" class="btn p-0 border-0 bg-transparent" data-bs-toggle="modal" data-bs-target="#qrModal_{{ $row->id }}" title="Click to view full size QR Code">
+                              <div style="background: #ffffff; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;">
+                                  <div style="width: 54px; height: 54px; display: flex; align-items: center; justify-content: center;">
+                                      {!! $inlineSvg !!}
+                                  </div>
+                              </div>
+                          </button>
+                          @if($qrUrl)
+                              <div class="mt-1">
+                                  <a href="{{ $qrUrl }}" download="QR_{{ $row->id }}.png" target="_blank" class="btn btn-xs btn-outline-primary" style="font-size: 10px; padding: 1px 5px;">Download</a>
+                              </div>
+                          @endif
+
+                          <!-- High-Res QR Code Modal -->
+                          <div class="modal fade" id="qrModal_{{ $row->id }}" tabindex="-1" aria-hidden="true">
+                              <div class="modal-dialog modal-dialog-centered modal-sm">
+                                  <div class="modal-content text-center" style="border-radius: 12px; overflow: hidden;">
+                                      <div class="modal-header bg-dark text-white py-2">
+                                          <h6 class="modal-title mb-0 fs-6">QR Code Pass</h6>
+                                          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                      </div>
+                                      <div class="modal-body p-4 bg-light">
+                                          <div style="background: #ffffff; padding: 16px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                                              <div style="width: 220px; height: 220px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                                  {!! $inlineSvg !!}
+                                              </div>
+                                          </div>
+                                          @if($qrUrl)
+                                              <div class="mt-2">
+                                                  <a href="{{ $qrUrl }}" download="QR_{{ $row->id }}.png" target="_blank" class="btn btn-sm btn-primary">Download QR Pass</a>
+                                              </div>
+                                          @endif
+                                          <div class="mt-3 text-muted small fw-semibold">
+                                              {{ $name }}
+                                          </div>
+                                          <div class="text-muted" style="font-size: 11px;">
+                                              Registration ID: {{ $row->id }}
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  @elseif($qrUrl)
+                      <div class="mt-1">
+                          <a href="{{ $qrUrl }}" target="_blank" rel="noopener" title="Click to open QR Code image">
+                              <img src="{{ $qrUrl }}" alt="QR Code" style="width: 54px; height: 54px; object-fit: contain; border: 1px solid #dee2e6; border-radius: 4px; padding: 2px; background: #fff;" />
+                          </a>
+                          <div class="mt-1">
+                              <a href="{{ $qrUrl }}" download="QR_{{ $row->id }}.png" target="_blank" class="btn btn-xs btn-outline-primary" style="font-size: 10px; padding: 1px 5px;">Download</a>
+                          </div>
+                      </div>
+                  @endif
+                </td>
                 <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap align-middle" style="min-width:140px;">
                   {{ optional($row->created_at)->format('d M Y, h:i A') ?? '-' }}
                 </td>
@@ -214,7 +297,7 @@
               </tr>
             @empty
               <tr>
-                <td colspan="9" class="px-4 py-8 text-center t3 text-xs">
+                <td colspan="10" class="px-4 py-8 text-center t3 text-xs">
                   No registration records found.
                 </td>
               </tr>

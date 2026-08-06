@@ -200,6 +200,11 @@
                                     </div>
                                 </div>
                             </button>
+                            @if($qrUrl)
+                                <div class="mt-1">
+                                    <a href="{{ $qrUrl }}" download="QR_{{ $registration->id }}.png" target="_blank" class="btn btn-xs btn-outline-primary" style="font-size: 10px; padding: 1px 5px;">Download</a>
+                                </div>
+                            @endif
 
                             <!-- High-Res QR Code Modal -->
                             <div class="modal fade" id="qrModal_{{ $registration->id }}" tabindex="-1" aria-hidden="true">
@@ -215,6 +220,11 @@
                                                     {!! $inlineSvg !!}
                                                 </div>
                                             </div>
+                                            @if($qrUrl)
+                                                <div class="mt-2">
+                                                    <a href="{{ $qrUrl }}" download="QR_{{ $registration->id }}.png" target="_blank" class="btn btn-sm btn-primary">Download QR Pass</a>
+                                                </div>
+                                            @endif
                                             <div class="mt-3 text-muted small fw-semibold">
                                                 {{ $attendeeName }}
                                             </div>
@@ -231,6 +241,9 @@
                             <a href="{{ $qrUrl }}" target="_blank" rel="noopener" title="Click to open QR Code image">
                                 <img src="{{ $qrUrl }}" alt="QR Code" style="width: 54px; height: 54px; object-fit: contain; border: 1px solid #dee2e6; border-radius: 4px; padding: 2px; background: #fff;" />
                             </a>
+                            <div class="mt-1">
+                                <a href="{{ $qrUrl }}" download="QR_{{ $registration->id }}.png" target="_blank" class="btn btn-xs btn-outline-primary" style="font-size: 10px; padding: 1px 5px;">Download</a>
+                            </div>
                         </div>
                     @endif
                 </td>
