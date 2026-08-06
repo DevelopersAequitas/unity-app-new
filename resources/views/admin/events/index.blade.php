@@ -111,7 +111,7 @@
               <th class="th-cell px-3 py-3 text-left" style="width: 90px;">Mode</th>
               <th class="th-cell px-3 py-3 text-left" style="width: 145px;">Start Date</th>
               <th class="th-cell px-3 py-3 text-left" style="width: 100px;">Recurrence</th>
-              <th class="th-cell px-3 py-3 text-center" style="width: 90px;">Registered</th>
+              <th class="th-cell px-3 py-3 text-center" style="width: 100px;">total_Recurrence</th>
               <th class="th-cell px-3 py-3 text-center" style="width: 90px;">Checked-in</th>
               <th class="th-cell px-3 py-3 text-left" style="width: 110px;">Status</th>
               <th class="th-cell px-3 py-3 text-right" style="width: 280px;">Actions</th>
