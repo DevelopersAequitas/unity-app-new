@@ -125,9 +125,13 @@ class AdminAuthControllerTest extends TestCase
 
     public function test_send_otp_mail_failure_handled_gracefully(): void
     {
-        Mail::shouldReceive('raw')
+        Mail::shouldReceive('to')
             ->once()
-            ->andThrow(new Exception('Recipient address rejected: User unknown in virtual alias table'));
+            ->with('admin@example.com')
+            ->andReturnSelf();
+        Mail::shouldReceive('send')
+            ->once()
+            ->andThrow(new \Exception('Recipient address rejected: User unknown in virtual alias table'));
 
         $admin = AdminUser::create([
             'id' => (string) Str::uuid(),
