@@ -116,19 +116,19 @@
     <!-- Table Section -->
     <div class="surface rounded-xl border bs overflow-hidden">
       <div class="overflow-x-auto relative">
-        <table class="min-w-[1380px] w-full border-collapse text-[13px]">
+        <table class="min-w-[1100px] w-full border-collapse text-[13px]">
           <thead>
             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Registrant</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Phone</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:250px;">Email</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:240px;">Event</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:220px;">Circle</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Payment</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Check-in Status</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="min-width:130px;">QR</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:140px;">Registered At</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="min-width:110px;">Actions</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Registrant</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:100px;">Phone</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:160px;">Event</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:160px;">Circle</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:90px;">Payment</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:120px;">Check-in Status</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="width:100px;">QR</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:130px;">Registered At</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="width:100px;">Actions</th>
             </tr>
           </thead>
           <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -142,7 +142,7 @@
                 $isCheckedIn = strtolower((string) ($row->checkin_status ?? '')) === 'checked_in' || !empty($row->checked_in_at);
               @endphp
               <tr class="hover:surface-2 transition border-b bs">
-                <td class="px-3 py-2.5 font-semibold text-slate-900 t1 whitespace-nowrap sticky left-0 z-10 surface align-middle" style="min-width:180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                <td class="px-3 py-2.5 font-semibold text-slate-900 t1 whitespace-nowrap sticky left-0 z-10 surface align-middle" style="width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                   <div class="inline-flex items-center gap-1.5 flex-wrap">
                     @if($isMember && !empty($row->user_id))
                       <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $row->user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
@@ -156,18 +156,18 @@
                     </span>
                   </div>
                 </td>
-                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap align-middle" style="min-width:110px;">{{ $phone }}</td>
-                <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:250px;">
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap align-middle" style="width:100px;">{{ $phone }}</td>
+                <td class="px-3 py-2.5 text-xs t2 align-middle">
                   <x-admin-grid-text :text="$email" :lines="1" />
                 </td>
-                <td class="px-3 py-2.5 text-xs align-middle" style="min-width:240px;">
+                <td class="px-3 py-2.5 text-xs align-middle">
                   <x-admin-grid-text :lines="2">
                     <a href="{{ route('admin.events.show', $row->event_id) }}" class="text-indigo-600 hover:text-indigo-800 font-medium no-underline">
                       {{ $row->event?->title ?? 'Event #'.$row->event_id }}
                     </a>
                   </x-admin-grid-text>
                 </td>
-                <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:220px;">
+                <td class="px-3 py-2.5 text-xs t2 align-middle">
                   <x-admin-grid-text :lines="2">
                     @if(!empty($row->event?->circle?->id))
                       <a href="{{ route('admin.circles.show', $row->event->circle->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium no-underline">
@@ -178,7 +178,7 @@
                     @endif
                   </x-admin-grid-text>
                 </td>
-                <td class="px-3 py-2.5 text-xs whitespace-nowrap align-middle" style="min-width:110px;">
+                <td class="px-3 py-2.5 text-xs whitespace-nowrap align-middle">
                   @if(in_array($pStatus, ['paid', 'completed', 'success'], true))
                     <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
                       Paid
@@ -193,7 +193,7 @@
                     </span>
                   @endif
                 </td>
-                <td class="px-3 py-2.5 text-xs whitespace-nowrap align-middle" style="min-width:130px;">
+                <td class="px-3 py-2.5 text-xs whitespace-nowrap align-middle">
                   @if($isCheckedIn)
                     <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
                       Checked In
@@ -204,7 +204,7 @@
                     </span>
                   @endif
                 </td>
-                <td class="px-3 py-2.5 text-center align-middle" style="min-width:130px;">
+                <td class="px-3 py-2.5 text-center align-middle">
                   @php
                     $hasQr = !empty($row->qr_code_url) || !empty($row->qr_code_path) || !empty($row->qr_code_svg);
                     $paymentStatus = strtolower((string) ($row->payment_status ?? ''));
