@@ -73,7 +73,9 @@ use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\ShareController;
+use App\Services\Events\EventCheckinService;
 use App\Support\AdminAccess;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -88,6 +90,35 @@ Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
 Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+
+Route::get('/api/v1/events/checkin/qr/{token}', function (Request $request, string $token) {
+    $service = app(EventCheckinService::class);
+    $registration = $service->registrationForToken($token);
+
+    if (! $registration) {
+        return response()->json([
+            'success' => false,
+            'message' => 'This QR Code is not valid or has expired.',
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'QR Code is valid.',
+        'data' => [
+            'registration_id' => $registration->id,
+            'event_id' => $registration->event_id,
+            'occurrence_id' => $registration->occurrence_id,
+            'user_id' => $registration->user_id,
+            'checkin_status' => $registration->checkin_status,
+            'status' => $registration->status,
+            'payment_status' => $registration->payment_status,
+        ],
+    ]);
+});
+Route::get('/events/checkin/qr/{token}', function (Request $request, string $token) {
+    return redirect('/api/v1/events/checkin/qr/'.$token);
+});
 
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')

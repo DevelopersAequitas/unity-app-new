@@ -7,6 +7,7 @@ use App\Models\EventRegistration;
 use App\Models\ScanAppUser;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
@@ -24,46 +25,187 @@ class EventCheckinService
         return $this->scanRegistration($qrToken, null, false, $expectedEventId, 'scan_app');
     }
 
+    public function extractToken(string $rawToken): string
+    {
+        $token = trim($rawToken);
+        $token = trim($token, " \t\n\r\0\x0B\"'/");
+
+        $path = parse_url($token, PHP_URL_PATH) ?: $token;
+
+        $checkinMarker = '/api/v1/events/checkin/qr/';
+        if (($pos = strpos($path, $checkinMarker)) !== false) {
+            $token = substr($path, $pos + strlen($checkinMarker));
+
+            return trim(urldecode($token), " \t\n\r\0\x0B\"'/");
+        }
+
+        $qrcodesMarker = '/api/v1/event-qrcodes/';
+        if (($pos = strpos($path, $qrcodesMarker)) !== false) {
+            $filename = basename($path);
+            $token = pathinfo($filename, PATHINFO_FILENAME);
+
+            return trim(urldecode($token), " \t\n\r\0\x0B\"'/");
+        }
+
+        if (str_ends_with(strtolower($token), '.png') || str_ends_with(strtolower($token), '.svg')) {
+            $token = pathinfo($token, PATHINFO_FILENAME);
+        }
+
+        return trim(urldecode($token), " \t\n\r\0\x0B\"'/");
+    }
+
     public function registrationForToken(string $qrToken): ?EventRegistration
     {
-        return EventRegistration::query()
-            ->where('qr_token', $qrToken)
-            ->first(['id', 'event_id', 'occurrence_id', 'user_id', 'checkin_status']);
+        $cleanToken = $this->extractToken($qrToken);
+
+        Log::info('event_qr_lookup_start', [
+            'raw_scanned_token' => $qrToken,
+            'extracted_token' => $cleanToken,
+        ]);
+
+        $registration = EventRegistration::query()
+            ->where(function ($q) use ($cleanToken, $qrToken): void {
+                $q->where('qr_token', $cleanToken)
+                    ->orWhere('id', $cleanToken)
+                    ->orWhere('qr_token', $qrToken);
+
+                if (! empty($cleanToken)) {
+                    $q->orWhere('qr_code_url', 'LIKE', '%'.$cleanToken.'%')
+                        ->orWhere('qr_code_path', 'LIKE', '%'.$cleanToken.'%');
+                }
+            })
+            ->first(['id', 'event_id', 'occurrence_id', 'user_id', 'checkin_status', 'status', 'payment_status', 'payment_required', 'qr_code_path', 'qr_code_url']);
+
+        Log::info('event_qr_lookup_result', [
+            'raw_scanned_token' => $qrToken,
+            'extracted_token' => $cleanToken,
+            'found_registration_id' => (string) ($registration?->id ?? ''),
+            'found_event_id' => (string) ($registration?->event_id ?? ''),
+            'found_user_id' => (string) ($registration?->user_id ?? ''),
+            'found_checkin_status' => (string) ($registration?->checkin_status ?? ''),
+            'found_payment_status' => (string) ($registration?->payment_status ?? ''),
+            'is_found' => (bool) $registration,
+        ]);
+
+        return $registration;
     }
 
     private function scanRegistration(string $qrToken, ?User $scanner = null, bool $force = false, ?string $expectedEventId = null, string $attendanceSource = 'qr_scan'): EventRegistration
     {
-        return DB::transaction(function () use ($qrToken, $scanner, $force, $expectedEventId, $attendanceSource): EventRegistration {
+        $cleanToken = $this->extractToken($qrToken);
+
+        return DB::transaction(function () use ($cleanToken, $qrToken, $scanner, $force, $expectedEventId, $attendanceSource): EventRegistration {
             $registration = EventRegistration::query()
                 ->with(['event.circle', 'occurrence', 'user'])
-                ->where('qr_token', $qrToken)
+                ->where(function ($q) use ($cleanToken, $qrToken): void {
+                    $q->where('qr_token', $cleanToken)
+                        ->orWhere('id', $cleanToken)
+                        ->orWhere('qr_token', $qrToken);
+
+                    if (! empty($cleanToken)) {
+                        $q->orWhere('qr_code_url', 'LIKE', '%'.$cleanToken.'%')
+                            ->orWhere('qr_code_path', 'LIKE', '%'.$cleanToken.'%');
+                    }
+                })
                 ->lockForUpdate()
                 ->first();
 
             if (! $registration) {
+                Log::warning('event_qr_validation_failed', [
+                    'scanned_token' => $qrToken,
+                    'extracted_token' => $cleanToken,
+                    'validation_failure_reason' => 'QR token not found in event_registrations database table.',
+                ]);
+
                 throw ValidationException::withMessages(['qr_token' => 'QR token not found.']);
             }
+
             if ($expectedEventId !== null && (string) $registration->event_id !== (string) $expectedEventId) {
+                Log::warning('event_qr_validation_failed', [
+                    'scanned_token' => $qrToken,
+                    'extracted_token' => $cleanToken,
+                    'registration_id' => (string) $registration->id,
+                    'registration_event_id' => (string) $registration->event_id,
+                    'expected_event_id' => (string) $expectedEventId,
+                    'validation_failure_reason' => 'QR code does not belong to this event.',
+                ]);
+
                 throw ValidationException::withMessages(['event' => 'QR code does not belong to this event.']);
             }
+
             if ($registration->status === 'cancelled') {
+                Log::warning('event_qr_validation_failed', [
+                    'scanned_token' => $qrToken,
+                    'extracted_token' => $cleanToken,
+                    'registration_id' => (string) $registration->id,
+                    'validation_failure_reason' => 'Registration is cancelled.',
+                ]);
+
                 throw ValidationException::withMessages(['registration' => 'Registration is cancelled.']);
             }
+
             if ($registration->status === 'pending_payment' || (($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid')) {
+                Log::warning('event_qr_validation_failed', [
+                    'scanned_token' => $qrToken,
+                    'extracted_token' => $cleanToken,
+                    'registration_id' => (string) $registration->id,
+                    'validation_failure_reason' => 'Payment is required before QR check-in.',
+                ]);
+
                 throw ValidationException::withMessages(['registration' => 'Payment is required before QR check-in.']);
             }
+
             if (empty($registration->qr_code_path) && empty($registration->qr_code_url)) {
+                Log::warning('event_qr_validation_failed', [
+                    'scanned_token' => $qrToken,
+                    'extracted_token' => $cleanToken,
+                    'registration_id' => (string) $registration->id,
+                    'validation_failure_reason' => 'QR code has not been generated for this registration.',
+                ]);
+
                 throw ValidationException::withMessages(['registration' => 'QR code has not been generated for this registration.']);
             }
+
             if (! $registration->occurrence) {
+                Log::warning('event_qr_validation_failed', [
+                    'scanned_token' => $qrToken,
+                    'extracted_token' => $cleanToken,
+                    'registration_id' => (string) $registration->id,
+                    'validation_failure_reason' => 'Event occurrence not found.',
+                ]);
+
                 throw ValidationException::withMessages(['occurrence' => 'Event occurrence not found.']);
             }
+
             if (! $registration->event || ! $registration->event->qr_checkin_enabled) {
+                Log::warning('event_qr_validation_failed', [
+                    'scanned_token' => $qrToken,
+                    'extracted_token' => $cleanToken,
+                    'registration_id' => (string) $registration->id,
+                    'validation_failure_reason' => 'QR check-in is not enabled for this event.',
+                ]);
+
                 throw ValidationException::withMessages(['event' => 'QR check-in is not enabled for this event.']);
             }
+
             if ($registration->checkin_status === 'checked_in' && ! ($force && $scanner && $this->events->isAdmin($scanner))) {
+                Log::warning('event_qr_validation_failed', [
+                    'scanned_token' => $qrToken,
+                    'extracted_token' => $cleanToken,
+                    'registration_id' => (string) $registration->id,
+                    'validation_failure_reason' => 'Attendance already marked.',
+                ]);
+
                 throw ValidationException::withMessages(['registration' => 'Attendance already marked.']);
             }
+
+            Log::info('event_qr_validation_passed', [
+                'scanned_token' => $qrToken,
+                'extracted_token' => $cleanToken,
+                'registration_id' => (string) $registration->id,
+                'user_id' => (string) ($registration->user_id ?? ''),
+                'event_id' => (string) $registration->event_id,
+            ]);
 
             $updates = [
                 'status' => 'attended',

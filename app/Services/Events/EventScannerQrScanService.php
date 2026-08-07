@@ -90,24 +90,7 @@ class EventScannerQrScanService
 
     private function extractQrToken(string $qrToken): string
     {
-        $value = trim($qrToken);
-        $path = parse_url($value, PHP_URL_PATH);
-
-        if (! is_string($path) || $path === '') {
-            return $value;
-        }
-
-        $marker = '/api/v1/events/checkin/qr/';
-        $position = strpos($path, $marker);
-
-        if ($position === false) {
-            return $value;
-        }
-
-        $token = substr($path, $position + strlen($marker));
-        $token = trim($token, '/');
-
-        return $token !== '' ? urldecode($token) : $value;
+        return $this->checkins->extractToken($qrToken);
     }
 
     private function result(bool $success, string $message, int $status, ?array $data = null, ?array $errors = null): array
