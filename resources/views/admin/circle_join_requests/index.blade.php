@@ -80,7 +80,6 @@
             <table class="min-w-[1100px] w-full border-collapse text-[13px]">
                 <thead>
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
@@ -104,7 +103,6 @@
                             $peerCircle = $peerCircles !== '' ? $peerCircles : '—';
                         @endphp
                         <tr class="hover:surface-2 transition border-b bs">
-                            <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ optional($row->requested_at)->format('d M Y H:i') }}</td>
                             <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                 @if ($peer)
                                     <div class="flex items-center gap-2">
