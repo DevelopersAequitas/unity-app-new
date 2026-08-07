@@ -94,7 +94,21 @@ class EventQrCodeController extends Controller
                 ]);
             }
 
-            $pngContent = $qrService->makePng($payload);
+            $pngContent = null;
+            try {
+                $pngContent = $qrService->makePng($payload);
+            } catch (Throwable $pngException) {
+                Log::error('make_png_failed_trying_imagick_fallback', ['error' => $pngException->getMessage()]);
+                $svgContent = is_file($svgPath) ? file_get_contents($svgPath) : ($registration?->qr_code_svg ?? null);
+                if (! empty($svgContent) && (extension_loaded('imagick') || class_exists('\Imagick'))) {
+                    $imagick = new \Imagick;
+                    $imagick->readImageBlob($svgContent);
+                    $imagick->setImageFormat('png');
+                    $pngContent = $imagick->getImageBlob();
+                } else {
+                    throw $pngException;
+                }
+            }
 
             if (! is_dir($dir)) {
                 @mkdir($dir, 0755, true);
