@@ -74,7 +74,7 @@
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div class="flex items-center gap-3">
                 <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Visitor Registrations</h2>
-                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total: {{ number_format($registrations->total()) }}</span>
+                <span id="grid-total" class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total: {{ number_format($registrations->total()) }}</span>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
                 <button type="button" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer" data-bs-toggle="modal" data-bs-target="#importVisitorModal">
