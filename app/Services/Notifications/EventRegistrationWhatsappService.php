@@ -89,6 +89,13 @@ class EventRegistrationWhatsappService
                 'event_time' => $eventTime,
                 'venue' => $venue,
                 'qr_code_url' => $qrCodeUrl,
+                'digital_entry_pass_url' => 'https://peersglobal.com/',
+                'digital_entry_pass_message' => 'You can access your digital entry pass here: https://peersglobal.com/',
+                'entry_pass_url' => 'https://peersglobal.com/',
+                'entry_pass_message' => 'You can access your digital entry pass here: https://peersglobal.com/',
+                'pass_url' => 'https://peersglobal.com/',
+                'website_url' => 'https://peersglobal.com/',
+                'link' => 'https://peersglobal.com/',
                 'payment_status' => (string) ($registration->payment_status ?: 'paid'),
 
                 'event_id' => (string) $registration->event_id,
