@@ -17,7 +17,7 @@
         ];
     @endphp
 
-    
+
     @section('content')
     <div class="container-fluid">
         <div class="d-flex align-items-center justify-content-between mb-3">
@@ -53,7 +53,7 @@
                 <br>
                 <span class="small text-muted">Circle Category ID: <span class="user-select-all">{{ $record->circleCategory?->id ?? '—' }}</span></span>
                 <span class="small text-muted ms-3">Circle Category Name: {{ $record->circleCategory?->name ?? '—' }}</span>
-            </p>
+         </p>
             <p>Reason: {{ $record->reason_for_joining }}</p>
             <p>Status: <span class="badge text-bg-secondary">{{ $statusLabels[$record->status] ?? $record->status }}</span></p>
             <p>
