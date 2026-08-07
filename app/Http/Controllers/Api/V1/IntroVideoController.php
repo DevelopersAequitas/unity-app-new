@@ -1,9 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\File;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -70,15 +71,30 @@ class IntroVideoController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $perPage = (int) $request->input('per_page', 10);
+        $query = User::query()
+            ->whereNotNull('profile_video_id')
+            ->latest();
+
+        if ($request->boolean('all', false) || $request->input('per_page') === 'all') {
+            $users = $query->get();
+            $data = $users->map(fn (User $user): array => $this->formatResponse($user))->values()->all();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Intro videos fetched successfully',
+                'data' => $data,
+            ]);
+        }
+
+        $perPage = (int) $request->input('per_page', 50);
         $perPage = max(1, min($perPage, 100));
 
-        $users = User::paginate($perPage);
-        $data = collect($users->items())->map(fn ($user) => $this->formatResponse($user))->values()->all();
+        $users = $query->paginate($perPage);
+        $data = collect($users->items())->map(fn (User $user): array => $this->formatResponse($user))->values()->all();
 
         return response()->json([
             'success' => true,
-            'message' => 'All users fetched successfully',
+            'message' => 'Intro videos fetched successfully',
             'data' => $data,
             'meta' => [
                 'current_page' => $users->currentPage(),
@@ -92,24 +108,24 @@ class IntroVideoController extends Controller
     /**
      * Format the response with the user's intro video details.
      */
-    private function formatResponse($user): array
+    private function formatResponse(User $user): array
     {
-        $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id;
         $introVideoId = $user->profile_video_id;
+
+        $displayName = $user->display_name;
+        if (blank($displayName)) {
+            $displayName = trim(($user->first_name ?? '').' '.($user->last_name ?? ''));
+        }
 
         return [
             'user_id' => $user->id,
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
-            'display_name' => $user->display_name,
+            'display_name' => $displayName,
             'email' => $user->email,
-            'profile_photo_url' => $profilePhotoId
-                ? url('/api/v1/files/'.$profilePhotoId)
-                : null,
+            'profile_photo_url' => $user->profile_photo_url,
             'intro_video_id' => $introVideoId,
-            'intro_video_url' => $introVideoId
-                ? url('/api/v1/files/'.$introVideoId)
-                : null,
+            'intro_video_url' => $user->profile_video_url,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ];

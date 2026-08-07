@@ -6,11 +6,13 @@ use App\Http\Requests\Api\CircleJoinRequests\ListMyCircleJoinRequests;
 use App\Http\Requests\Api\CircleJoinRequests\StoreCircleJoinRequest;
 use App\Models\Circle;
 use App\Models\CircleJoinRequest;
+use App\Models\CustomCategoryRequest;
 use App\Services\Circles\CircleJoinRequestNotificationService;
 use App\Services\Circles\CircleJoinRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class CircleJoinRequestController extends BaseApiController
@@ -54,6 +56,17 @@ class CircleJoinRequestController extends BaseApiController
                 $categoryId = DB::table('circle_category_mappings')
                     ->where('circle_id', $circle->id)
                     ->value('category_id');
+            }
+
+            $otherCategoryName = trim((string) ($request->validated('other_category_name') ?? $request->validated('custom_category_name') ?? ''));
+
+            if ($otherCategoryName !== '' && $categoryId && Schema::hasTable('custom_category_requests')) {
+                CustomCategoryRequest::query()->create([
+                    'user_id' => (string) $request->user()->id,
+                    'level1_category_id' => (int) $categoryId,
+                    'category_name' => $otherCategoryName,
+                    'status' => 'pending',
+                ]);
             }
 
             $record = $this->service->submitRequest(
@@ -192,6 +205,35 @@ class CircleJoinRequestController extends BaseApiController
 
         if ($request->relationLoaded('level4Category') && $request->level4Category) {
             $payload['level4_category'] = ['id' => $request->level4Category->id, 'name' => $request->level4Category->name];
+        }
+
+        $userId = $request->user_id ?? ($payload['user_id'] ?? null);
+        $level1CatId = $payload['level1_category_id'] ?? ($request->level1_category_id ?? null);
+        $otherCategoryReq = null;
+
+        if (blank($payload['level4_category_id']) && $userId && $level1CatId && Schema::hasTable('custom_category_requests')) {
+            $otherCategoryReq = CustomCategoryRequest::query()
+                ->where('user_id', (string) $userId)
+                ->where('level1_category_id', (int) $level1CatId)
+                ->latest()
+                ->first();
+        }
+
+        $otherName = $otherCategoryReq?->category_name ?? null;
+
+        if ($otherName !== null && $otherName !== '') {
+            $payload['is_other_category'] = true;
+            $payload['other_category_name'] = $otherName;
+            $payload['custom_category_name'] = $otherName;
+            $payload['level4_category'] = [
+                'id' => 'other',
+                'name' => $otherName,
+                'is_other' => true,
+            ];
+        } else {
+            $payload['is_other_category'] = false;
+            $payload['other_category_name'] = null;
+            $payload['custom_category_name'] = null;
         }
 
         if ($request->relationLoaded('circle') && $request->circle) {

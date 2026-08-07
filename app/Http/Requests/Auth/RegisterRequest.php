@@ -16,18 +16,27 @@ class RegisterRequest extends FormRequest
             $incomingReferralCode = $this->input('referralCode');
         }
 
+        $rawLevel4 = $this->input('level_4_category_id', $this->input('level4_category_id', $this->input('category_id')));
+        $rawBusinessSub = $this->input('business_category_id', $this->input('business_category_sub_id'));
+
+        $isOtherCategory = $this->boolean('is_other_category')
+            || strtolower((string) $rawLevel4) === 'other'
+            || strtolower((string) $rawBusinessSub) === 'other';
+
         $level1 = $this->nullableInput('level_1_category_id', $this->input('level1_category_id'));
-        $level2 = $this->nullableInput('level_2_category_id', $this->input('level2_category_id'));
-        $level3 = $this->nullableInput('level_3_category_id', $this->input('level3_category_id'));
-        $level4 = $this->nullableInput('level_4_category_id', $this->input('level4_category_id', $this->input('category_id')));
+        $level2 = (is_numeric($this->input('level_2_category_id')) || is_numeric($this->input('level2_category_id'))) ? $this->nullableInput('level_2_category_id', $this->input('level2_category_id')) : null;
+        $level3 = (is_numeric($this->input('level_3_category_id')) || is_numeric($this->input('level3_category_id'))) ? $this->nullableInput('level_3_category_id', $this->input('level3_category_id')) : null;
+        $level4 = (is_numeric($rawLevel4) && (int) $rawLevel4 > 0) ? (int) $rawLevel4 : null;
 
         $mainBusinessCategoryId = $this->nullableInput(
             'main_business_category_id',
             $this->nullableInput('business_category_main_id', $level1)
         );
-        $businessCategoryId = $this->filled('business_category_id')
-            ? $this->nullableInput('business_category_id')
-            : $this->nullableInput('business_category_sub_id', $level4);
+        $businessCategoryId = (is_numeric($rawBusinessSub) && (int) $rawBusinessSub > 0)
+            ? (int) $rawBusinessSub
+            : $level4;
+
+        $otherCategoryName = $this->nullableInput('other_category_name', $this->nullableInput('custom_category_name'));
 
         $companyName = $this->nullableInput('company_name', $this->nullableInput('business_name'));
         $designation = $this->nullableInput('designation', $this->nullableInput('position'));
@@ -45,6 +54,9 @@ class RegisterRequest extends FormRequest
             'level4_category_id' => $level4,
             'main_business_category_id' => $mainBusinessCategoryId,
             'business_category_id' => $businessCategoryId,
+            'is_other_category' => $isOtherCategory,
+            'other_category_name' => $otherCategoryName,
+            'custom_category_name' => $otherCategoryName,
             'company_name' => $companyName,
             'designation' => $designation,
             'referred_by_user_id' => $referredByUserId,
@@ -128,6 +140,9 @@ class RegisterRequest extends FormRequest
             'sustainability_areas' => ['nullable', 'array'],
             'greenpreneur_goals' => ['nullable', 'array'],
             'interests' => ['nullable', 'array'],
+            'is_other_category' => ['nullable', 'boolean'],
+            'other_category_name' => ['nullable', 'string', 'max:255'],
+            'custom_category_name' => ['nullable', 'string', 'max:255'],
             'community_directory_listing' => ['sometimes', 'required', 'in:Yes,No'],
             'anniversary_date' => ['nullable', 'date'],
         ];
