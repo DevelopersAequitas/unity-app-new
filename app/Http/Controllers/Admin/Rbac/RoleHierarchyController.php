@@ -684,6 +684,27 @@ class RoleHierarchyController extends Controller
         }
 
         DB::transaction(function () use ($adminUserId, $role, $scopeId, $adminUser, $request) {
+            $roleKey = str_replace(' ', '_', strtolower($role->key));
+
+            // Detach conflicting roles (e.g. detach global_admin when assigning a scoped role like DED)
+            if ($roleKey !== 'global_admin' && $roleKey !== 'global_founder') {
+                $superRoleIds = DB::table('roles')->whereIn('key', ['global_admin', 'global_founder'])->pluck('id')->all();
+                if (! empty($superRoleIds)) {
+                    DB::table('admin_user_roles')
+                        ->where('user_id', $adminUserId)
+                        ->whereIn('role_id', $superRoleIds)
+                        ->delete();
+                }
+            } else {
+                $scopedRoleIds = DB::table('roles')->whereNotIn('key', ['global_admin', 'global_founder'])->pluck('id')->all();
+                if (! empty($scopedRoleIds)) {
+                    DB::table('admin_user_roles')
+                        ->where('user_id', $adminUserId)
+                        ->whereIn('role_id', $scopedRoleIds)
+                        ->delete();
+                }
+            }
+
             $existingUserRole = DB::table('admin_user_roles')
                 ->where('user_id', $adminUserId)
                 ->where('role_id', $role->id)
@@ -711,8 +732,6 @@ class RoleHierarchyController extends Controller
                         'updated_at' => now(),
                     ]);
             }
-
-            $roleKey = str_replace(' ', '_', strtolower($role->key));
 
             $isDed = $roleKey === 'ded' || str_contains($roleKey, 'ded') || str_contains($roleKey, 'district');
             $isId = $roleKey === 'id' || $roleKey === 'ied' || str_contains($roleKey, 'industry');

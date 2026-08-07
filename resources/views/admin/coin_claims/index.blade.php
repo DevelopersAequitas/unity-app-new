@@ -194,13 +194,17 @@
                                     <div class="flex justify-end gap-1.5 items-center">
                                         <a href="{{ route('admin.coin-claims.show', $claim->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">Details</a>
                                         @if ($claim->status === 'pending')
-                                            <form method="POST" action="{{ route('admin.coin-claims.approve', $claim->id) }}" class="inline">@csrf
-                                                <button class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" onclick="return confirm('Approve this claim?')">Approve</button>
-                                            </form>
-                                            <form method="POST" action="{{ route('admin.coin-claims.reject', $claim->id) }}" class="inline">@csrf
-                                                <input type="hidden" name="admin_notes" value="Rejected by admin">
-                                                <button class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Reject this claim?')">Reject</button>
-                                            </form>
+                                            @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.coin-claims.index', 'approve'))
+                                                <form method="POST" action="{{ route('admin.coin-claims.approve', $claim->id) }}" class="inline">@csrf
+                                                    <button class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" onclick="return confirm('Approve this claim?')">Approve</button>
+                                                </form>
+                                            @endif
+                                            @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.coin-claims.index', 'reject') || app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.coin-claims.index', 'approve'))
+                                                <form method="POST" action="{{ route('admin.coin-claims.reject', $claim->id) }}" class="inline">@csrf
+                                                    <input type="hidden" name="admin_notes" value="Rejected by admin">
+                                                    <button class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Reject this claim?')">Reject</button>
+                                                </form>
+                                            @endif
                                         @endif
                                     </div>
                                 </td>

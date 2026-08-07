@@ -90,22 +90,49 @@ Accept: application/json
       "icon": "bi-speedometer2",
       "sort_order": 1,
       "is_active": true,
+      "is_allowed": true,
       "pages": [
         {
-          "id": "9cb443a0-1111-2222-3333-444455556666",
-          "module_id": "9cb443a0-1234-4567-89ab-cdef01234567",
-          "name": "Main Dashboard",
-          "route_name": "admin.dashboard",
-          "slug": "main-dashboard",
-          "sort_order": 1
+          "id": "0145abe9-2efc-4882-9dce-e29620c445b2",
+          "module_id": "22e2747a-cb26-4b2c-b226-49bf6196ebf9",
+          "name": "DED Dashboard",
+          "route_name": "admin.ded.dashboard",
+          "slug": "ded-dashboard",
+          "icon": null,
+          "sort_order": 3,
+          "is_active": true,
+          "is_allowed": true,
+          "permissions": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false,
+            "reject": false,
+            "export": true,
+            "import": false,
+            "print": false,
+            "restore": false
+          }
         }
       ]
     }
   ],
+  "allowed_modules": [
+    {
+      "id": "22e2747a-cb26-4b2c-b226-49bf6196ebf9",
+      "name": "Dashboard",
+      "slug": "dashboard",
+      "icon": "bi-speedometer2"
+    }
+  ],
   "data_scope": {
-    "is_global": true,
-    "circle_ids": [],
-    "district_id": null,
+    "scope_type": "district",
+    "is_global": false,
+    "scope_ids": ["d9cf253e-8b72-478a-a6be-8ccaeb362bbd"],
+    "circle_ids": ["d9cf253e-8b72-478a-a6be-8ccaeb362bbd"],
+    "district_id": "8f3b2a1c-...",
+    "state_id": "1a2b3c4d-...",
     "industry_ids": []
   }
 }

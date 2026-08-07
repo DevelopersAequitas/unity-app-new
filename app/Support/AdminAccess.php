@@ -7,6 +7,7 @@ use App\Models\AdminUser;
 use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Admin\PermissionService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -410,7 +411,15 @@ class AdminAccess
             return false;
         }
 
-        return in_array('global_admin', self::adminRoleKeys($admin), true);
+        if (self::isSuper($admin) || self::isGlobalAdmin($admin)) {
+            return true;
+        }
+
+        $permService = app(PermissionService::class);
+
+        return $permService->can($admin, 'admin.users.index', 'edit')
+            || $permService->can($admin, 'admin.users.edit', 'edit')
+            || self::isEditAllowed($admin);
     }
 
     public static function isSectionAllowed(?AdminUser $admin, string $sectionLabel): bool

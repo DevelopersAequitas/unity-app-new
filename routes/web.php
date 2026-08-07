@@ -112,7 +112,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/login/send-otp', [AdminAuthController::class, 'requestOtp'])->name('login.send-otp');
     Route::post('/login/verify', [AdminAuthController::class, 'verifyOtp'])->name('login.verify');
 
-    Route::middleware(['admin.auth', 'admin.role', 'admin.circle'])->group(function () {
+    Route::middleware(['admin.auth', 'admin.role', 'admin.circle', 'admin.permission'])->group(function () {
         // RBAC Hierarchy & Profile management
         Route::get('/rbac/hierarchy', [RoleHierarchyController::class, 'index'])->name('rbac.hierarchy');
         Route::get('/rbac/hierarchy/map', [RoleHierarchyController::class, 'fullMap'])->name('rbac.hierarchy.fullmap');

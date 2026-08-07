@@ -836,14 +836,14 @@ window.switchTab = function(tabId) {
                                 </form>
                                 <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
                                     <div>
-                                        <strong>Currently assigned role:</strong>
+                                        <strong>Currently assigned role(s):</strong>
                                         <span>{{ $assignedAdminRoleNames }}</span>
                                     </div>
                                     <button type="submit"
                                             form="removeAdminRoleForm"
                                             class="btn btn-sm btn-outline-danger"
-                                            onclick="return confirm('Remove the current admin role from this user?');">
-                                        Remove Role
+                                            onclick="return confirm('Remove all assigned admin roles from this user?');">
+                                        Remove All Roles
                                     </button>
                                 </div>
                             @endif
@@ -857,8 +857,7 @@ window.switchTab = function(tabId) {
                                                    value="{{ $role->id }}"
                                                    id="role-{{ $role->id }}"
                                                    data-role-key="{{ $role->key }}"
-                                                   @checked(in_array($role->id, $currentRoleIds))
-                                                   @disabled($hasAssignedAdminRole)>
+                                                   @checked(in_array($role->id, $currentRoleIds))>
                                             <label class="form-check-label" for="role-{{ $role->id }}">
                                                 <strong class="text-dark">{{ $role->name }}</strong>
                                                 <div class="small text-muted">{{ $role->description }}</div>
@@ -883,7 +882,6 @@ window.switchTab = function(tabId) {
                                         id="dedStateId"
                                         name="ded_state_id"
                                         class="form-select @error('ded_state_id') is-invalid @enderror js-no-searchable-select"
-                                        @disabled($hasAssignedAdminRole)
                                     >
                                         <option value="">Select state</option>
                                         @foreach ($states as $state)
@@ -903,7 +901,6 @@ window.switchTab = function(tabId) {
                                         id="dedDistrictId"
                                         name="ded_district_id"
                                         class="form-select @error('ded_district_id') is-invalid @enderror js-no-searchable-select"
-                                        @disabled($hasAssignedAdminRole)
                                     >
                                         <option value="">Select district</option>
                                         @foreach ($assignedDedDistricts as $district)
@@ -929,12 +926,6 @@ window.switchTab = function(tabId) {
                                     <div class="form-text">Only districts currently used by users, circles, or DED assignments are shown for the selected state.</div>
                                 </div>
                             </div>
-
-                            @if ($hasAssignedAdminRole)
-                                <div class="form-text text-muted">
-                                    Remove the existing admin role to assign a new one.
-                                </div>
-                            @endif
                             
                             <div id="industry-director-industry-group" class="row g-3 mt-2 d-none">
                                 <div class="col-md-6">
@@ -1508,7 +1499,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const dedDistrictNameInput = document.getElementById('dedDistrictName');
     const dedStateNameInput = document.getElementById('dedStateName');
     const selectedDedDistrictName = @json((string) old('ded_district_name', $assignedDedDistrictName));
-    const dedRoleFieldsLocked = @json((bool) $hasAssignedAdminRole);
+    const dedRoleFieldsLocked = false;
     const districtUrlTemplate = @json(route('admin.location.states.districts', ['state' => '__STATE__']));
 
     function setDistrictOptions(districts, selectedName = '') {

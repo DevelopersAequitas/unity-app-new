@@ -48,6 +48,7 @@ class RbacUserPermissionController extends Controller
             ->select('roles.id', 'roles.key', 'roles.name', 'roles.role_type', 'roles.scope_rule')
             ->get();
 
+        $userTree = $this->permissionService->userPermissionTree($adminUser);
         $visibleModules = $this->permissionService->visibleModules($adminUser);
         $dataScope = $this->permissionService->dataScope($adminUser);
 
@@ -60,7 +61,8 @@ class RbacUserPermissionController extends Controller
                 'email' => $adminUser->email,
             ],
             'roles' => $roles,
-            'modules' => $visibleModules,
+            'modules' => $userTree,
+            'allowed_modules' => $visibleModules,
             'data_scope' => [
                 'scope_type' => $dataScope->scopeType,
                 'is_global' => $dataScope->isGlobal,

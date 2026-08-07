@@ -702,7 +702,7 @@ class UsersController extends Controller
             'circle_country' => ['nullable', 'string', 'max:150'],
             'circle_meeting_mode' => ['nullable', 'string', 'max:50'],
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
-            'role_ids' => ['array', 'max:1'],
+            'role_ids' => ['nullable', 'array'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
             'ded_state_id' => ['nullable', 'string', 'max:150'],
             'ded_state_name' => ['nullable', 'string', 'max:150'],
@@ -714,8 +714,6 @@ class UsersController extends Controller
             'sustainability_areas' => ['nullable', 'array'],
             'greenpreneur_goals' => ['nullable', 'array'],
             'community_directory_listing' => ['required', 'in:Yes,No'],
-        ], [
-            'role_ids.max' => 'You can not assign multiple roles.',
         ]);
 
         $dedRoleId = Role::query()->where('key', 'ded')->value('id');
@@ -1357,21 +1355,39 @@ class UsersController extends Controller
             return back()->withErrors(['roles' => 'Admin user record not found for this user.']);
         }
 
-        DB::transaction(function () use ($adminUser): void {
-            DB::table('admin_user_roles')
-                ->where('user_id', $adminUser->id)
-                ->delete();
+        $roleId = $request->input('role_id') ?: $request->query('role_id');
 
-            if ($this->industryDirectorAssignmentsTableExists()) {
-                DB::table('industry_director_assignments')
-                    ->where('admin_user_id', $adminUser->id)
-                    ->delete();
+        DB::transaction(function () use ($adminUser, $roleId): void {
+            $query = DB::table('admin_user_roles')
+                ->where('user_id', $adminUser->id);
+
+            if ($roleId) {
+                $query->where('role_id', $roleId);
+            }
+
+            $query->delete();
+
+            if ($roleId) {
+                $roleKey = Role::query()->where('id', $roleId)->value('key');
+                $roleKeyNormalized = strtolower(trim((string) $roleKey));
+
+                if (($roleKeyNormalized === 'ded' || str_contains($roleKeyNormalized, 'ded')) && Schema::hasTable('admin_ded_districts')) {
+                    DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+                }
+                if (($roleKeyNormalized === 'industry_director' || $roleKeyNormalized === 'id') && $this->industryDirectorAssignmentsTableExists()) {
+                    DB::table('industry_director_assignments')->where('admin_user_id', $adminUser->id)->delete();
+                }
+            } else {
+                if ($this->industryDirectorAssignmentsTableExists()) {
+                    DB::table('industry_director_assignments')
+                        ->where('admin_user_id', $adminUser->id)
+                        ->delete();
+                }
+                if (Schema::hasTable('admin_ded_districts')) {
+                    DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+                }
             }
         });
-
-        if (Schema::hasTable('admin_ded_districts')) {
-            DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
-        }
 
         AdminAccess::clearAdminUserCache($adminUser->id);
 

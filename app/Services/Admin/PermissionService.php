@@ -46,6 +46,35 @@ class PermissionService
             return true; // Fallback: no dynamic data means no restrictions yet
         }
 
+        // Check CRUD sub-routes mapping to main section permissions
+        if (str_contains($routeName, '.edit') || str_contains($routeName, '.update')) {
+            $parentIndex = preg_replace('/\.(edit|update)$/', '.index', $routeName);
+            if ($this->can($admin, $parentIndex, 'edit') || $this->can($admin, $routeName, 'edit')) {
+                return true;
+            }
+        }
+
+        if (str_contains($routeName, '.create') || str_contains($routeName, '.store')) {
+            $parentIndex = preg_replace('/\.(create|store)$/', '.index', $routeName);
+            if ($this->can($admin, $parentIndex, 'create') || $this->can($admin, $routeName, 'create')) {
+                return true;
+            }
+        }
+
+        if (str_contains($routeName, '.show')) {
+            $parentIndex = preg_replace('/\.show$/', '.index', $routeName);
+            if ($this->can($admin, $parentIndex, 'view') || $this->can($admin, $routeName, 'view')) {
+                return true;
+            }
+        }
+
+        if (str_contains($routeName, '.destroy') || str_contains($routeName, '.delete')) {
+            $parentIndex = preg_replace('/\.(destroy|delete)$/', '.index', $routeName);
+            if ($this->can($admin, $parentIndex, 'delete') || $this->can($admin, $routeName, 'delete')) {
+                return true;
+            }
+        }
+
         // Find the page by route_name
         $page = $this->pageByRoute($routeName);
 
@@ -66,7 +95,30 @@ class PermissionService
         // Check via role_page_groups (group-based)
         $accessiblePageIds = $this->accessiblePageIdsViaGroups($roleIds);
 
-        return in_array($page->id, $accessiblePageIds, true);
+        if (in_array($page->id, $accessiblePageIds, true)) {
+            return true;
+        }
+
+        // If parent module is marked visible and has no page-level restriction defined, allow route access
+        $isModuleVisible = RoleModuleAccess::query()
+            ->whereIn('role_id', $roleIds)
+            ->where('module_id', $page->module_id)
+            ->where('is_visible', true)
+            ->exists();
+
+        if ($isModuleVisible) {
+            $hasModulePagePermissions = RolePagePermission::query()
+                ->join('admin_pages', 'admin_pages.id', '=', 'role_page_permissions.page_id')
+                ->whereIn('role_page_permissions.role_id', $roleIds)
+                ->where('admin_pages.module_id', $page->module_id)
+                ->exists();
+
+            if (! $hasModulePagePermissions) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -91,6 +143,13 @@ class PermissionService
         $page = $this->pageByRoute($routeName);
 
         if (! $page) {
+            $parentIndex = preg_replace('/\.(edit|update|create|store|show|destroy)$/', '.index', $routeName);
+            if ($parentIndex !== $routeName) {
+                $page = $this->pageByRoute($parentIndex);
+            }
+        }
+
+        if (! $page) {
             return true;
         }
 
@@ -100,11 +159,30 @@ class PermissionService
             return false;
         }
 
-        return RolePagePermission::query()
+        $hasDirect = RolePagePermission::query()
             ->whereIn('role_id', $roleIds)
             ->where('page_id', $page->id)
             ->where('permission_id', $permissionId)
             ->exists();
+
+        if ($hasDirect) {
+            return true;
+        }
+
+        // Fallback check on parent index page
+        $indexRoute = preg_replace('/\.(edit|update|create|store|show|destroy)$/', '.index', $routeName);
+        if ($indexRoute !== $routeName) {
+            $indexPage = $this->pageByRoute($indexRoute);
+            if ($indexPage) {
+                return RolePagePermission::query()
+                    ->whereIn('role_id', $roleIds)
+                    ->where('page_id', $indexPage->id)
+                    ->where('permission_id', $permissionId)
+                    ->exists();
+            }
+        }
+
+        return false;
     }
 
     // ── Sidebar / Modules ───────────────────────────────────────
@@ -176,20 +254,132 @@ class PermissionService
             $groupPageIds = $this->accessiblePageIdsViaGroups($roleIds);
             $allAccessiblePageIds = array_unique(array_merge($directPageIds, $groupPageIds));
 
+            $modulesWithPagePermissions = DB::table('role_page_permissions')
+                ->join('admin_pages', 'admin_pages.id', '=', 'role_page_permissions.page_id')
+                ->whereIn('role_page_permissions.role_id', $roleIds)
+                ->pluck('admin_pages.module_id')
+                ->unique()
+                ->all();
+
             return AdminModule::query()
                 ->active()
                 ->whereIn('id', $visibleModuleIds)
                 ->orderBy('sort_order')
-                ->with(['pages' => function ($q) use ($allAccessiblePageIds): void {
+                ->with(['pages' => function ($q) use ($allAccessiblePageIds, $modulesWithPagePermissions): void {
                     $q->active()
-                        ->whereIn('id', $allAccessiblePageIds)
+                        ->where(function ($sub) use ($allAccessiblePageIds, $modulesWithPagePermissions): void {
+                            if (! empty($allAccessiblePageIds)) {
+                                $sub->whereIn('id', $allAccessiblePageIds);
+                            }
+                            if (! empty($modulesWithPagePermissions)) {
+                                $sub->orWhereNotIn('module_id', $modulesWithPagePermissions);
+                            } else {
+                                $sub->orWhereRaw('1=1');
+                            }
+                        })
                         ->orderBy('sort_order');
                 }])
                 ->get();
         });
     }
 
-    // ── Data Scope ──────────────────────────────────────────────
+    /**
+     * Build full module and page tree for an admin user with boolean permission flags (is_allowed, view, edit, etc.).
+     */
+    public function userPermissionTree(AdminUser $admin): array
+    {
+        $cacheKey = 'perm:tree:'.$admin->id;
+
+        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($admin): array {
+            $roleIds = $this->adminRoleIds($admin);
+            $isGlobal = $this->hasGlobalScope($admin, $roleIds);
+
+            // Visible module IDs
+            $visibleModuleIds = [];
+            if ($roleIds !== []) {
+                $visibleModuleIds = RoleModuleAccess::query()
+                    ->whereIn('role_id', $roleIds)
+                    ->where('is_visible', true)
+                    ->pluck('module_id')
+                    ->unique()
+                    ->all();
+            }
+
+            // Permissions map per page: [page_id => [perm_key => bool]]
+            $permissionsMap = [];
+            if ($roleIds !== []) {
+                $rows = DB::table('role_page_permissions')
+                    ->join('permissions', 'permissions.id', '=', 'role_page_permissions.permission_id')
+                    ->whereIn('role_page_permissions.role_id', $roleIds)
+                    ->select('role_page_permissions.page_id', 'permissions.key as perm_key')
+                    ->get();
+
+                foreach ($rows as $row) {
+                    $permissionsMap[$row->page_id][$row->perm_key] = true;
+                }
+            }
+
+            $accessibleGroupPageIds = $roleIds !== [] ? $this->accessiblePageIdsViaGroups($roleIds) : [];
+            $allActionKeys = ['view', 'create', 'edit', 'delete', 'approve', 'reject', 'export', 'import', 'print', 'restore'];
+
+            $allModules = AdminModule::query()
+                ->active()
+                ->orderBy('sort_order')
+                ->with(['pages' => fn ($q) => $q->active()->orderBy('sort_order')])
+                ->get();
+
+            $result = [];
+
+            foreach ($allModules as $module) {
+                $moduleAllowed = $isGlobal || in_array($module->id, $visibleModuleIds, true);
+
+                $pagesList = [];
+                foreach ($module->pages as $page) {
+                    $hasDirectPerms = isset($permissionsMap[$page->id]);
+                    $inGroup = in_array($page->id, $accessibleGroupPageIds, true);
+
+                    $pageAllowed = $isGlobal || $inGroup || ($hasDirectPerms && ($permissionsMap[$page->id]['view'] ?? false));
+
+                    $actions = [];
+                    foreach ($allActionKeys as $actionKey) {
+                        if ($isGlobal) {
+                            $actions[$actionKey] = true;
+                        } elseif ($inGroup && $actionKey === 'view') {
+                            $actions[$actionKey] = true;
+                        } else {
+                            $actions[$actionKey] = (bool) ($permissionsMap[$page->id][$actionKey] ?? false);
+                        }
+                    }
+
+                    $pagesList[] = [
+                        'id' => $page->id,
+                        'module_id' => $page->module_id,
+                        'name' => $page->name,
+                        'route_name' => $page->route_name,
+                        'slug' => $page->slug,
+                        'icon' => $page->icon,
+                        'sort_order' => $page->sort_order,
+                        'is_active' => (bool) $page->is_active,
+                        'is_allowed' => $pageAllowed,
+                        'permissions' => $actions,
+                    ];
+                }
+
+                $result[] = [
+                    'id' => $module->id,
+                    'name' => $module->name,
+                    'slug' => $module->slug,
+                    'icon' => $module->icon,
+                    'sort_order' => $module->sort_order,
+                    'is_active' => (bool) $module->is_active,
+                    'is_allowed' => $moduleAllowed,
+                    'pages' => $pagesList,
+                ];
+            }
+
+            return $result;
+        });
+    }
 
     /**
      * Resolve the data scope for an admin user.
@@ -265,6 +455,7 @@ class PermissionService
     {
         Cache::forget('perm:roles:'.$adminUserId);
         Cache::forget('perm:modules:'.$adminUserId);
+        Cache::forget('perm:tree:'.$adminUserId);
         Cache::forget('perm:scope:'.$adminUserId);
         Cache::forget('perm:global:'.$adminUserId);
     }
