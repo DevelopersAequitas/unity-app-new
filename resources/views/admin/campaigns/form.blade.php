@@ -6,7 +6,7 @@
     @include('admin.campaigns.partials.flash')
     @php
         $filters = old('filters', $campaign->filters ?: []);
-        $campaignType = old('campaign_type', $campaign->campaign_type ?: 'email_only');
+        $campaignType = old('campaign_type', $campaign->campaign_type ?? '');
         $audienceType = old('audience_type', $campaign->audience_type ?: 'all_members');
         $showEmailFields = in_array($campaignType, ['email_only', 'email_and_notification'], true);
         $showNotificationFields = in_array($campaignType, ['notification_only', 'email_and_notification'], true);
@@ -73,21 +73,12 @@
                             <label class="form-label">Campaign Title</label>
                             <input type="text" name="title" class="form-control" value="{{ old('title', $campaign->title) }}" placeholder="e.g. June Monthly Newsletter" required>
                             <div class="form-text">A friendly name to identify this campaign in the list.</div>
-                            <label class="form-label" for="campaignSenderEmail">Sender Email</label>
-                            <select name="sender_email" id="campaignSenderEmail" class="form-select" required>
-                                @foreach ($senderEmails as $senderEmail)
-                                    <option value="{{ $senderEmail }}" @selected($selectedSenderEmail === $senderEmail)>{{ $senderEmail }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="campaignSubject">Subject</label>
-                            <input type="text" id="campaignSubject" name="subject" class="form-control" value="{{ old('subject', $campaign->subject ?? '') }}" @required($showEmailFields)>
                         </div>
                         
                         <div class="mb-3">
                             <label class="form-label">Campaign Type</label>
                             <select name="campaign_type" id="campaignType" class="form-select" required>
+                                <option value="" @selected(empty($campaignType))>-- Select Campaign Type --</option>
                                 <option value="email_only" @selected($campaignType === 'email_only')>Email Only</option>
                                 <option value="notification_only" @selected($campaignType === 'notification_only')>Notification Only</option>
                                 <option value="email_and_notification" @selected($campaignType === 'email_and_notification')>Email + Notification</option>
@@ -95,79 +86,92 @@
                             <div class="form-text">Choose how recipients will be reached.</div>
                         </div>
 
-                        <!-- Email specific fields -->
-                        <div id="emailFields" class="email-fields {{ $showEmailFields ? '' : 'd-none' }} border-top pt-3 mt-3">
-                            <div class="mb-3">
-                                <label class="form-label" for="campaignSubject">Subject</label>
-                                <input type="text" id="campaignSubject" name="subject" class="form-control" value="{{ old('subject', $campaign->subject ?? '') }}" placeholder="e.g. Check out our latest updates!" @required($showEmailFields)>
+                        <!-- Revealed after Campaign Type is selected -->
+                        <div id="campaignFormDetailsRest" class="{{ !empty($campaignType) ? '' : 'd-none' }}">
+                            <div class="mb-3 border-top pt-3 mt-3" id="senderEmailWrapper">
+                                <label class="form-label" for="campaignSenderEmail">Sender Email</label>
+                                <select name="sender_email" id="campaignSenderEmail" class="form-select">
+                                    @foreach ($senderEmails as $senderEmail)
+                                        <option value="{{ $senderEmail }}" @selected($selectedSenderEmail === $senderEmail)>{{ $senderEmail }}</option>
+                                    @endforeach
+                                </select>
                             </div>
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <label class="form-label mb-0" for="campaignEmailBody">Email Body</label>
-                                    <button type="button" class="btn btn-sm btn-outline-primary select-pamphlet-btn fw-semibold" data-target="email">
-                                        <i class="bi bi-image me-1"></i>Select Pamphlet
-                                    </button>
+
+                            <!-- Email specific fields -->
+                            <div id="emailFields" class="email-fields {{ $showEmailFields ? '' : 'd-none' }} border-top pt-3 mt-3">
+                                <div class="mb-3">
+                                    <label class="form-label" for="campaignSubject">Subject</label>
+                                    <input type="text" id="campaignSubject" name="subject" class="form-control" value="{{ old('subject', $campaign->subject ?? '') }}" placeholder="e.g. Check out our latest updates!" @required($showEmailFields)>
                                 </div>
-                                <textarea id="campaignEmailBody" name="email_body" rows="10" class="form-control" placeholder="HTML content is supported" @required($showEmailFields)>{{ old('email_body', $campaign->email_body ?? '') }}</textarea>
-                            </div>
-                            
-                            <!-- Template Selector -->
-                            <div class="mb-4">
-                                <label class="form-label d-block mb-3">Choose Email Layout Template</label>
-                                <div class="row g-3">
-                                    @foreach($emailTemplates as $tpl)
-                                        <div class="col-md-4 col-sm-6">
-                                            <div class="campaign-email-template-card card h-100 {{ $selectedEmailTemplateId == $tpl['id'] ? 'selected' : '' }}" data-template-id="{{ $tpl['id'] }}" tabindex="0">
-                                                <div class="card-body p-3 d-flex flex-column justify-content-between">
-                                                    <div>
-                                                        <div class="campaign-template-thumb campaign-template-thumb-{{ str_replace('-', '_', $tpl['slug']) }} mb-2">
-                                                            <span></span><span></span><span></span>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label mb-0" for="campaignEmailBody">Email Body</label>
+                                        <button type="button" class="btn btn-sm btn-outline-primary select-pamphlet-btn fw-semibold" data-target="email">
+                                            <i class="bi bi-image me-1"></i>Select Pamphlet
+                                        </button>
+                                    </div>
+                                    <textarea id="campaignEmailBody" name="email_body" rows="10" class="form-control" placeholder="HTML content is supported" @required($showEmailFields)>{{ old('email_body', $campaign->email_body ?? '') }}</textarea>
+                                </div>
+                                
+                                <!-- Template Selector -->
+                                <div class="mb-4">
+                                    <label class="form-label d-block mb-3">Choose Email Layout Template</label>
+                                    <div class="row g-3">
+                                        @foreach($emailTemplates as $tpl)
+                                            <div class="col-md-4 col-sm-6">
+                                                <div class="campaign-email-template-card card h-100 {{ $selectedEmailTemplateId == $tpl['id'] ? 'selected' : '' }}" data-template-id="{{ $tpl['id'] }}" tabindex="0">
+                                                    <div class="card-body p-3 d-flex flex-column justify-content-between">
+                                                        <div>
+                                                            <div class="campaign-template-thumb campaign-template-thumb-{{ str_replace('-', '_', $tpl['slug']) }} mb-2">
+                                                                <span></span><span></span><span></span>
+                                                            </div>
+                                                            <h6 class="fw-bold mb-1 small">{{ $tpl['name'] }}</h6>
+                                                            <p class="text-muted mb-3" style="font-size: 10px; line-height: 1.2;">{{ $tpl['description'] ?? 'Layout template' }}</p>
                                                         </div>
-                                                        <h6 class="fw-bold mb-1 small">{{ $tpl['name'] }}</h6>
-                                                        <p class="text-muted mb-3" style="font-size: 10px; line-height: 1.2;">{{ $tpl['description'] ?? 'Layout template' }}</p>
+                                                        <button type="button" class="btn btn-xs w-100 template-select-label {{ $selectedEmailTemplateId == $tpl['id'] ? 'btn-primary' : 'btn-outline-primary' }}" style="font-size: 11px;">
+                                                            {{ $selectedEmailTemplateId == $tpl['id'] ? 'Selected' : 'Select Template' }}
+                                                        </button>
                                                     </div>
-                                                    <button type="button" class="btn btn-xs w-100 template-select-label {{ $selectedEmailTemplateId == $tpl['id'] ? 'btn-primary' : 'btn-outline-primary' }}" style="font-size: 11px;">
-                                                        {{ $selectedEmailTemplateId == $tpl['id'] ? 'Selected' : 'Select Template' }}
-                                                    </button>
                                                 </div>
                                             </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Live Email Template Preview</label>
-                                <div class="campaign-email-preview-shell shadow-sm">
-                                    <div class="campaign-email-preview-header d-flex justify-content-between align-items-center px-3">
-                                        <span>Peers Global Wrapper Preview</span>
-                                        <span class="badge bg-light text-dark font-monospace" style="font-size: 10px;">Responsive HTML</span>
+                                        @endforeach
                                     </div>
-                                    <div id="emailTemplatePreview" class="campaign-email-preview-body"></div>
                                 </div>
-                            </div>
-                        </div>
 
-                        <!-- Notification specific fields -->
-                        <div id="notificationFields" class="notification-fields {{ $showNotificationFields ? '' : 'd-none' }} border-top pt-3 mt-3">
-                            <div class="mb-3">
-                                <label class="form-label" for="campaignNotificationTitle">Notification Title</label>
-                                <input type="text" id="campaignNotificationTitle" name="notification_title" class="form-control" value="{{ old('notification_title', $campaign->notification_title ?? '') }}" placeholder="e.g. New Announcement!" @required($showNotificationFields)>
-                            </div>
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <label class="form-label mb-0" for="campaignNotificationMessage">Notification Message</label>
-                                    <button type="button" class="btn btn-sm btn-outline-primary select-pamphlet-btn fw-semibold" data-target="notification">
-                                        <i class="bi bi-image me-1"></i>Select Pamphlet
-                                    </button>
+                                <div class="mb-3">
+                                    <label class="form-label">Live Email Template Preview</label>
+                                    <div class="campaign-email-preview-shell shadow-sm">
+                                        <div class="campaign-email-preview-header d-flex justify-content-between align-items-center px-3">
+                                            <span>Peers Global Wrapper Preview</span>
+                                            <span class="badge bg-light text-dark font-monospace" style="font-size: 10px;">Responsive HTML</span>
+                                        </div>
+                                        <div id="emailTemplatePreview" class="campaign-email-preview-body"></div>
+                                    </div>
                                 </div>
-                                <textarea id="campaignNotificationMessage" name="notification_message" rows="4" class="form-control" placeholder="Type notification content here..." @required($showNotificationFields)>{{ old('notification_message', $campaign->notification_message ?? '') }}</textarea>
+                            </div>
+
+                            <!-- Notification specific fields -->
+                            <div id="notificationFields" class="notification-fields {{ $showNotificationFields ? '' : 'd-none' }} border-top pt-3 mt-3">
+                                <div class="mb-3">
+                                    <label class="form-label" for="campaignNotificationTitle">Notification Title</label>
+                                    <input type="text" id="campaignNotificationTitle" name="notification_title" class="form-control" value="{{ old('notification_title', $campaign->notification_title ?? '') }}" placeholder="e.g. New Announcement!" @required($showNotificationFields)>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label mb-0" for="campaignNotificationMessage">Notification Message</label>
+                                        <button type="button" class="btn btn-sm btn-outline-primary select-pamphlet-btn fw-semibold" data-target="notification">
+                                            <i class="bi bi-image me-1"></i>Select Pamphlet
+                                        </button>
+                                    </div>
+                                    <textarea id="campaignNotificationMessage" name="notification_message" rows="4" class="form-control" placeholder="Type notification content here..." @required($showNotificationFields)>{{ old('notification_message', $campaign->notification_message ?? '') }}</textarea>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Card 3: Campaign Schedule -->
+                <div id="campaignFormRest" class="{{ !empty($campaignType) ? '' : 'd-none' }}">
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
                         <div class="d-flex align-items-center mb-1">
@@ -510,6 +514,7 @@
                             </div>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
 
@@ -858,8 +863,23 @@
 
     function syncTypeFields() {
         const type = campaignType.value;
+        const detailsRest = document.getElementById('campaignFormDetailsRest');
+        const formRest = document.getElementById('campaignFormRest');
+        const senderWrapper = document.getElementById('senderEmailWrapper');
+
+        if (!type) {
+            if (detailsRest) detailsRest.classList.add('d-none');
+            if (formRest) formRest.classList.add('d-none');
+            return;
+        }
+
+        if (detailsRest) detailsRest.classList.remove('d-none');
+        if (formRest) formRest.classList.remove('d-none');
+
         const emailVisible = type === 'email_only' || type === 'email_and_notification';
         const notificationVisible = type === 'notification_only' || type === 'email_and_notification';
+
+        if (senderWrapper) senderWrapper.classList.toggle('d-none', !emailVisible);
 
         setSectionVisibility(document.getElementById('emailFields'), emailVisible, ['subject', 'email_body']);
         setSectionVisibility(document.getElementById('notificationFields'), notificationVisible, ['notification_title', 'notification_message']);
