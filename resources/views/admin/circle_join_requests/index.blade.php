@@ -44,7 +44,7 @@
 
     <!-- Filter Card -->
     <div class="p-3 rounded-lg border bs surface-2">
-        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-2.5 items-end">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2.5 items-end">
             <div>
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Search</label>
                 <input type="text" name="search" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer/email/phone" value="{{ $filters['search'] ?? '' }}">
@@ -60,14 +60,6 @@
             <div>
                 <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Status</label>
                 <select name="status" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring"><option value="">All Statuses</option>@foreach(array_keys($statusLabels) as $status)<option value="{{ $status }}" @selected(($filters['status'] ?? '')===$status)>{{ $statusLabels[$status] }}</option>@endforeach</select>
-            </div>
-            <div>
-                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">From</label>
-                <input type="date" name="date_from" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['date_from'] ?? '' }}">
-            </div>
-            <div>
-                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">To</label>
-                <input type="date" name="date_to" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" value="{{ $filters['date_to'] ?? '' }}">
             </div>
             <div class="flex justify-end">
                 <a href="{{ route('admin.circle-joining-requests.index') }}" class="px-3 py-1.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition text-center no-underline">Clear</a>
