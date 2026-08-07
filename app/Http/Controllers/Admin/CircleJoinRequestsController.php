@@ -138,16 +138,22 @@ class CircleJoinRequestsController extends Controller
 
         $selectedCategoryIds = $this->resolveSelectedCategoryIds($record);
 
+        $level1 = $selectedCategoryIds['level1_category_id'] ? CircleCategory::query()->find($selectedCategoryIds['level1_category_id']) : $record->circleCategory;
+        $level2 = $selectedCategoryIds['level2_category_id'] ? CircleCategoryLevel2::query()->find($selectedCategoryIds['level2_category_id']) : null;
+        $level3 = $selectedCategoryIds['level3_category_id'] ? CircleCategoryLevel3::query()->find($selectedCategoryIds['level3_category_id']) : null;
+        $level4 = $selectedCategoryIds['level4_category_id'] ? CircleCategoryLevel4::query()->find($selectedCategoryIds['level4_category_id']) : null;
+
         return view('admin.circle_join_requests.show', [
             'record' => $record,
             'canApproveCd' => $this->canApproveCd($admin, $actor, $record),
             'canApproveId' => $this->canApproveId($admin, $actor, $record),
             'canApproveDed' => $this->canApproveDed($admin, $actor, $record),
             'categoryPath' => [
-                'level1' => $selectedCategoryIds['level1_category_id'] ? CircleCategory::query()->find($selectedCategoryIds['level1_category_id']) : null,
-                'level2' => $selectedCategoryIds['level2_category_id'] ? CircleCategoryLevel2::query()->find($selectedCategoryIds['level2_category_id']) : null,
-                'level3' => $selectedCategoryIds['level3_category_id'] ? CircleCategoryLevel3::query()->find($selectedCategoryIds['level3_category_id']) : null,
-                'level4' => $selectedCategoryIds['level4_category_id'] ? CircleCategoryLevel4::query()->find($selectedCategoryIds['level4_category_id']) : null,
+                'level1' => $level1,
+                'level2' => $level2,
+                'level3' => $level3,
+                'level4' => $level4,
+                'subCategory' => $level4 ?? ($level3 ?? $level2),
             ],
         ]);
     }
@@ -368,26 +374,66 @@ class CircleJoinRequestsController extends Controller
     private function resolveSelectedCategoryIds(CircleJoinRequest $record): array
     {
         $notes = $record->notes;
-        $notesSelection = is_array($notes) ? ($notes['category_selection'] ?? []) : [];
+        if (is_string($notes)) {
+            $decoded = json_decode($notes, true);
+            $notes = is_array($decoded) ? $decoded : [];
+        }
+        if (! is_array($notes)) {
+            $notes = [];
+        }
+
+        $notesSelection = $notes['category_selection'] ?? ($notes['category_selection_ids'] ?? $notes);
+        if (! is_array($notesSelection)) {
+            $notesSelection = [];
+        }
 
         $resolve = static function (string $key) use ($record, $notesSelection): ?int {
             $value = $record->getAttribute($key);
-            if ($value !== null) {
+            if ($value !== null && $value !== '') {
                 return (int) $value;
             }
 
-            if (is_array($notesSelection) && array_key_exists($key, $notesSelection) && $notesSelection[$key] !== null) {
+            if (array_key_exists($key, $notesSelection) && $notesSelection[$key] !== null && $notesSelection[$key] !== '') {
                 return (int) $notesSelection[$key];
             }
 
             return null;
         };
 
+        $l1 = $resolve('level1_category_id');
+        $l2 = $resolve('level2_category_id');
+        $l3 = $resolve('level3_category_id');
+        $l4 = $resolve('level4_category_id');
+
+        if ($l4) {
+            $l4Model = CircleCategoryLevel4::query()->find($l4);
+            if ($l4Model) {
+                $l3 = $l3 ?: ($l4Model->level3_id ?? $l4Model->level3_category_id ?? null);
+                $l2 = $l2 ?: ($l4Model->level2_id ?? $l4Model->level2_category_id ?? null);
+                $l1 = $l1 ?: ($l4Model->circle_category_id ?? $l4Model->level1_category_id ?? null);
+            }
+        }
+
+        if ($l3) {
+            $l3Model = CircleCategoryLevel3::query()->find($l3);
+            if ($l3Model) {
+                $l2 = $l2 ?: ($l3Model->level2_id ?? $l3Model->level2_category_id ?? null);
+                $l1 = $l1 ?: ($l3Model->circle_category_id ?? $l3Model->level1_category_id ?? null);
+            }
+        }
+
+        if ($l2) {
+            $l2Model = CircleCategoryLevel2::query()->find($l2);
+            if ($l2Model) {
+                $l1 = $l1 ?: ($l2Model->circle_category_id ?? $l2Model->level1_category_id ?? null);
+            }
+        }
+
         return [
-            'level1_category_id' => $resolve('level1_category_id'),
-            'level2_category_id' => $resolve('level2_category_id'),
-            'level3_category_id' => $resolve('level3_category_id'),
-            'level4_category_id' => $resolve('level4_category_id'),
+            'level1_category_id' => $l1 ? (int) $l1 : null,
+            'level2_category_id' => $l2 ? (int) $l2 : null,
+            'level3_category_id' => $l3 ? (int) $l3 : null,
+            'level4_category_id' => $l4 ? (int) $l4 : null,
         ];
     }
 

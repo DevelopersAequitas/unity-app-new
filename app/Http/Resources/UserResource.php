@@ -226,6 +226,11 @@ class UserResource extends JsonResource
 
     private function resolveProfileVideoUrl(): ?string
     {
+        $profileVideoId = $this->profile_video_id;
+        if (! blank($profileVideoId)) {
+            return url('/api/v1/files/'.$profileVideoId);
+        }
+
         $media = $this->media;
 
         if (is_string($media) && $media !== '') {
@@ -233,25 +238,21 @@ class UserResource extends JsonResource
             $media = is_array($decoded) ? $decoded : [];
         }
 
-        if (! is_array($media) || $media === []) {
-            return null;
+        if (is_array($media) && $media !== []) {
+            $firstMedia = array_values($media)[0] ?? null;
+
+            if (is_array($firstMedia)) {
+                if (! blank($firstMedia['url'] ?? null)) {
+                    return (string) $firstMedia['url'];
+                }
+
+                if (! blank($firstMedia['id'] ?? null)) {
+                    return url('/api/v1/files/'.$firstMedia['id']);
+                }
+            }
         }
 
-        $firstMedia = array_values($media)[0] ?? null;
-
-        if (! is_array($firstMedia)) {
-            return null;
-        }
-
-        if (! blank($firstMedia['url'] ?? null)) {
-            return (string) $firstMedia['url'];
-        }
-
-        if (! blank($firstMedia['id'] ?? null)) {
-            return url('/api/v1/files/'.$firstMedia['id']);
-        }
-
-        return null;
+        return $this->profile_video_url;
     }
 
     /**
