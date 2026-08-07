@@ -17,6 +17,7 @@
         ];
     @endphp
 
+    
     @section('content')
     <div class="container-fluid">
         <div class="d-flex align-items-center justify-content-between mb-3">
