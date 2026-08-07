@@ -141,13 +141,31 @@ class EventService
         $this->applyOccurrenceStatusFilter($query, $status, $timezone);
         $totalAfterStatusFilters = (clone $query)->count();
 
-        if (! $this->statusFilterControlsDateWindow($status) && ($filters['upcoming'] ?? null) === 'true') {
-            $query->where('start_at', '>=', Carbon::now($timezone)->startOfDay());
+        if (! $this->statusFilterControlsDateWindow($status)) {
+            if (isset($filters['from_date']) || isset($filters['to_date'])) {
+                $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
+                    ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
+            } else {
+                $query->where('start_at', '>=', Carbon::now($timezone)->startOfDay());
+            }
         }
 
-        $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
-            ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
         $totalAfterDateFilters = (clone $query)->count();
+
+        if (! ($filters['all_occurrences'] ?? false)) {
+            $earliestOccurrenceIds = (clone $query)
+                ->orderBy('start_at', 'asc')
+                ->get(['id', 'event_id', 'start_at'])
+                ->groupBy('event_id')
+                ->map(fn ($occurrences) => $occurrences->first()->id)
+                ->values();
+
+            if ($earliestOccurrenceIds->isNotEmpty()) {
+                $query->whereIn('id', $earliestOccurrenceIds);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
 
         if (app()->environment(['local', 'staging'])) {
             Log::info('Events API user', [

@@ -205,8 +205,27 @@ class EventRegistrationQrService
 
     private function hasUsableQr(EventRegistration $registration): bool
     {
-        return ! empty($registration->qr_token)
-            && (! empty($registration->qr_code_url) || ! empty($registration->qr_code_svg) || ! empty($registration->qr_code_path));
+        if (empty($registration->qr_token)) {
+            return false;
+        }
+
+        $path = (string) $registration->qr_code_path;
+        $url = (string) $registration->qr_code_url;
+        $svg = (string) $registration->qr_code_svg;
+
+        if ($path === '' && $url === '' && $svg === '') {
+            return false;
+        }
+
+        if ($path !== '' && str_ends_with(strtolower($path), '.svg')) {
+            return false;
+        }
+
+        if ($url !== '' && str_ends_with(strtolower($url), '.svg')) {
+            return false;
+        }
+
+        return true;
     }
 
     private function uniqueToken(): string

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -115,6 +116,7 @@ class EventRegistration extends Model
         'payment_required' => 'boolean',
         'zoho_invoice_synced_at' => 'datetime',
         'razorpay_paid_at' => 'datetime',
+        'whatsapp_sent_at' => 'datetime',
     ];
 
     public function coupon(): BelongsTo
@@ -191,7 +193,7 @@ class EventRegistration extends Model
         $occurrence = $this->occurrence;
         if ($occurrence) {
             $endTime = $occurrence->end_at ?? $occurrence->start_at;
-            if ($endTime && \Carbon\Carbon::parse($endTime)->isPast()) {
+            if ($endTime && Carbon::parse($endTime)->isPast()) {
                 return 'expired';
             }
         }

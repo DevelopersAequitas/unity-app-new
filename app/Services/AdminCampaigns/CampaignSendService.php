@@ -8,6 +8,7 @@ use App\Mail\AdminCampaignMailable;
 use App\Models\AdminCampaign;
 use App\Models\AdminCampaignRecipient;
 use App\Models\Notification;
+use App\Models\Notifications\AppNotification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Facades\DB;
@@ -133,6 +134,47 @@ class CampaignSendService
                             'user_id' => (string) $user->id,
                             'notification_id' => (string) $notification->id,
                         ]);
+                    }
+
+                    // Store campaign notification in AppNotification history
+                    try {
+                        $appNotificationExists = AppNotification::where('user_id', $user->id)
+                            ->where('campaign_id', $campaign->id)
+                            ->exists();
+                        if (! $appNotificationExists) {
+                            $title = $this->notificationTitle($campaign);
+                            $message = $this->notificationMessage($campaign);
+                            $pushData = [
+                                'type' => 'admin_campaign',
+                                'notification_type' => 'admin_campaign',
+                                'notification_id' => (string) $notification->id,
+                                'campaign_id' => (string) $campaign->id,
+                                'campaign_title' => (string) $campaign->title,
+                                'pamphlet_id' => $campaign->pamphlet_id ? (string) $campaign->pamphlet_id : null,
+                                'pamphlet_image_url' => $this->pamphletImageUrl($campaign),
+                            ];
+
+                            AppNotification::create([
+                                'id' => (string) $notification->id,
+                                'user_id' => $user->id,
+                                'campaign_id' => $campaign->id,
+                                'type' => 'admin_campaign',
+                                'category' => 'admin_campaign',
+                                'title' => $title,
+                                'message' => $message,
+                                'body' => $message,
+                                'channel' => 'push',
+                                'priority' => 'high',
+                                'reference_type' => 'admin_campaign',
+                                'reference_id' => $campaign->id,
+                                'screen' => 'home',
+                                'data' => $pushData,
+                                'status' => 'sent',
+                                'sent_at' => now(),
+                            ]);
+                        }
+                    } catch (Throwable $dbEx) {
+                        Log::warning('Failed to log AdminCampaign to AppNotification: '.$dbEx->getMessage());
                     }
 
                     $notificationSent = true;

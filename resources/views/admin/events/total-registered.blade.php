@@ -116,13 +116,14 @@
     <!-- Table Section -->
     <div class="surface rounded-xl border bs overflow-hidden">
       <div class="overflow-x-auto relative">
-        <table class="min-w-[1400px] w-full border-collapse text-[13px]">
+        <table class="min-w-[1500px] w-full border-collapse text-[13px]">
           <thead>
             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Registrant</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:100px;">Phone</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:180px;">Email</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:160px;">Event</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:130px;">Event Date</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:160px;">Circle</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:90px;">Payment</th>
               <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:120px;">Check-in Status</th>
@@ -168,6 +169,9 @@
                       {{ $row->event?->title ?? 'Event #'.$row->event_id }}
                     </a>
                   </x-admin-grid-text>
+                </td>
+                <td class="px-3 py-2.5 text-xs t2 align-middle">
+                  {{ optional($row->occurrence?->start_at)->format('d M Y') ?: '—' }}
                 </td>
                 <td class="px-3 py-2.5 text-xs t2 align-middle">
                   <x-admin-grid-text :lines="2">

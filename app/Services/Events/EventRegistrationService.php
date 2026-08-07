@@ -8,6 +8,7 @@ use App\Models\Event;
 use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\User;
+use App\Services\Notifications\EventRegistrationWhatsappService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -644,7 +645,8 @@ class EventRegistrationService
     private function notifySafely(EventRegistration $registration): void
     {
         try {
-            Log::info('Event registration notification queued placeholder.', ['event_registration_id' => $registration->id]);
+            Log::info('Event registration notification queued.', ['event_registration_id' => $registration->id]);
+            app(EventRegistrationWhatsappService::class)->sendNotification($registration);
         } catch (\Throwable $exception) {
             Log::error('Event registration notification failed.', ['event_registration_id' => $registration->id, 'error' => $exception->getMessage()]);
         }

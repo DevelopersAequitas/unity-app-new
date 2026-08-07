@@ -29,6 +29,8 @@ class EventVisitorQrMail extends Mailable
 
     public ?string $qrCodeUrl;
 
+    public string $digitalEntryPassUrl;
+
     public function __construct(
         public EventRegistration $registration
     ) {
@@ -51,6 +53,7 @@ class EventVisitorQrMail extends Mailable
 
         $this->eventLocation = (string) ($event?->location ?? $event?->venue ?? 'As communicated by organizer');
         $this->qrCodeUrl = app(EventRegistrationQrService::class)->qrCodeUrl($registration);
+        $this->digitalEntryPassUrl = 'https://peersglobal.com/';
     }
 
     public function build(): self

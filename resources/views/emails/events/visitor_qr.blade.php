@@ -31,6 +31,9 @@
         <p style="margin-top: 16px; margin-bottom: 0; font-size: 14px; color: #a5b4fc; font-weight: 600;">
             📲 Your official QR Code Entry Pass is attached below.
         </p>
+        <p style="margin-top: 6px; margin-bottom: 0; font-size: 14px; color: #ffffff;">
+            You can access your digital entry pass here: <a href="https://peersglobal.com/" style="color: #6366f1; text-decoration: underline;">https://peersglobal.com/</a>
+        </p>
         <p style="margin-top: 4px; margin-bottom: 0; font-size: 13px; color: #94a3b8;">
             Please open the attached QR pass image at the check-in counter for instant entry.
         </p>

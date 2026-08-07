@@ -516,6 +516,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/joined-circles', [CircleController::class, 'joinedCircles']);
 
         Route::get('/circles/{circleId}/category-tree', [CircleCategoryUsageController::class, 'circleCategoryTree']);
+        Route::get('/circles/{circleId}/open-categories', [CircleCategoryUsageController::class, 'circleOpenCategories']);
+        Route::get('/circles/{circleId}/closed-categories', [CircleCategoryUsageController::class, 'circleClosedCategories']);
         Route::get('/members/{memberId}/selected-categories', [CircleCategoryUsageController::class, 'memberSelectedCategories']);
         Route::get('/members/{memberId}/available-categories', [CircleCategoryUsageController::class, 'memberAvailableCategories']);
 

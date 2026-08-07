@@ -33,17 +33,11 @@ class EventQrService
 
     public function generateAndStore(EventRegistration $registration): array
     {
-        $hasGd = extension_loaded('gd');
         $payload = $this->payload($registration->qr_token);
 
         try {
-            if ($hasGd) {
-                $imageContent = $this->makePng($payload);
-                $ext = 'png';
-            } else {
-                $imageContent = $this->makeSvg($payload);
-                $ext = 'svg';
-            }
+            $imageContent = $this->makePng($payload);
+            $ext = 'png';
         } catch (Throwable $exception) {
             Log::error('event_qr_generation_failed', [
                 'event_registration_id' => (string) $registration->id,
@@ -87,6 +81,7 @@ class EventQrService
         }
 
         $path = ltrim($path, '/');
+        $path = preg_replace('/\.svg$/i', '.png', $path) ?? $path;
         $segments = explode('/', $path);
 
         if (count($segments) === 3 && $segments[0] === 'event-qrcodes') {
@@ -96,7 +91,7 @@ class EventQrService
         return rtrim((string) config('app.url'), '/').'/api/v1/event-qrcodes/'.basename(dirname($path)).'/'.basename($path);
     }
 
-    private function makePng(string $payload): string
+    public function makePng(string $payload): string
     {
         $writer = new PngWriter;
         $qrCode = new QrCode(
@@ -113,7 +108,7 @@ class EventQrService
         return $writer->write($qrCode)->getString();
     }
 
-    private function makeSvg(string $payload): string
+    public function makeSvg(string $payload): string
     {
         $writer = new SvgWriter;
         $qrCode = new QrCode(

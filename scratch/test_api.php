@@ -2,11 +2,13 @@
 
 use App\Models\EventRegistration;
 use App\Models\User;
+use App\Services\Events\EventQrService;
+use Illuminate\Contracts\Console\Kernel;
 
 require __DIR__.'/../vendor/autoload.php';
 $app = require_once __DIR__.'/../bootstrap/app.php';
 
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 $user = User::query()->first();
@@ -30,7 +32,7 @@ if ($registration) {
     echo 'Dynamic QR Status: '.$registration->qr_status."\n";
 
     // Test API response structure
-    $qr = app(\App\Services\Events\EventQrService::class);
+    $qr = app(EventQrService::class);
     $response = [
         'registration_id' => $registration->id,
         'qr_status' => $registration->qr_status,

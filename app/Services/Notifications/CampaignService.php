@@ -36,6 +36,9 @@ class CampaignService
             $xVal = '1';
             $postPreview = 'Check out the latest updates';
 
+            $eventBannerUrl = null;
+            $eventId = null;
+
             // Resolve dynamic placeholders based on campaign code
             if ($campaign->code === 'requirement_lead' || $campaign->code === 'pending_requirement_reminder') {
                 $latestRequirement = Requirement::where('status', 'active')
@@ -103,6 +106,22 @@ class CampaignService
                 if ($latestEvent) {
                     $eventTitle = $latestEvent->title;
                     $eventDate = $latestEvent->start_at->format('d M Y');
+                    $eventId = $latestEvent->id;
+
+                    $bannerUrl = $latestEvent->banner_url;
+                    if (is_string($bannerUrl) && trim($bannerUrl) !== '') {
+                        $bannerUrl = trim($bannerUrl);
+                        if (! str_starts_with($bannerUrl, 'http://') && ! str_starts_with($bannerUrl, 'https://')) {
+                            if (str_starts_with($bannerUrl, '/')) {
+                                $bannerUrl = url($bannerUrl);
+                            } else {
+                                $bannerUrl = url('/api/v1/files/'.$bannerUrl);
+                            }
+                        }
+                    } else {
+                        $bannerUrl = null;
+                    }
+                    $eventBannerUrl = $bannerUrl;
                 }
             } elseif ($campaign->code === 'unclaimed_coins') {
                 $xVal = (string) max(10, (int) ($user->coin_balance ?? 0));
@@ -123,7 +142,20 @@ class CampaignService
             ];
             $title = $this->notifications->renderTemplate($campaign->title_template, $placeholders);
             $body = $this->notifications->renderTemplate($campaign->body_template, $placeholders);
-            $n = $this->notifications->sendToUser($user, $campaign->code, $title, $body, ['screen' => $campaign->tap_screen, 'campaign_id' => $campaign->id], ['campaign' => $campaign, 'channel' => $campaign->channel, 'priority' => $campaign->priority, 'screen' => $campaign->tap_screen, 'dedupe_key' => $campaign->code.':'.$user->id.':'.now()->toDateString()]);
+
+            $payloadData = ['screen' => $campaign->tap_screen, 'campaign_id' => $campaign->id];
+            if ($eventBannerUrl !== null) {
+                $payloadData['event_banner'] = $eventBannerUrl;
+                $payloadData['image_url'] = $eventBannerUrl;
+                $payloadData['banner_url'] = $eventBannerUrl;
+            }
+            if ($eventId !== null) {
+                $payloadData['event_id'] = (string) $eventId;
+                $payloadData['reference_type'] = 'event';
+                $payloadData['reference_id'] = (string) $eventId;
+            }
+
+            $n = $this->notifications->sendToUser($user, $campaign->code, $title, $body, $payloadData, ['campaign' => $campaign, 'channel' => $campaign->channel, 'priority' => $campaign->priority, 'screen' => $campaign->tap_screen, 'dedupe_key' => $campaign->code.':'.$user->id.':'.now()->toDateString()]);
             $n ? $sent++ : $skipped++;
         }
         $run->update(['status' => 'finished', 'audience_count' => $users->count(), 'sent_count' => $sent, 'skipped_count' => $skipped, 'finished_at' => now()]);

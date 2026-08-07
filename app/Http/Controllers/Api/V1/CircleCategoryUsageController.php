@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
@@ -150,6 +152,240 @@ class CircleCategoryUsageController extends Controller
         ]);
     }
 
+    public function circleOpenCategories(Request $request, string $circleId): JsonResponse
+    {
+        $circle = Circle::query()->select(['id', 'name'])->where('id', $circleId)->first();
+
+        if (! $circle) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Circle not found.',
+                'data' => null,
+            ], 404);
+        }
+
+        $mainCategoryId = $this->resolveCircleMainCategoryId($circle->id);
+
+        if (! $mainCategoryId) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Open categories fetched successfully.',
+                'data' => [
+                    'circle' => [
+                        'id' => $circle->id,
+                        'name' => $circle->name,
+                    ],
+                    'level1_category' => null,
+                    'open_categories' => [],
+                ],
+            ]);
+        }
+
+        $mainCategory = CircleCategory::query()
+            ->select(['id', 'name', 'slug', 'circle_key'])
+            ->where('id', $mainCategoryId)
+            ->first();
+
+        $closedMap = $this->getClosedLevel4CategoriesMap($circle->id);
+        $closedLevel4Ids = array_keys($closedMap);
+
+        $level2 = CircleCategoryLevel2::query()
+            ->where('circle_category_id', $mainCategoryId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name']);
+
+        $level2Ids = $level2->pluck('id')->values();
+
+        $level3 = $level2Ids->isEmpty()
+            ? collect()
+            : CircleCategoryLevel3::query()
+                ->whereIn('level2_id', $level2Ids)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(['id', 'name', 'level2_id']);
+
+        $level3Ids = $level3->pluck('id')->values();
+
+        $level4Query = CircleCategoryLevel4::query()
+            ->whereIn('level3_id', $level3Ids)
+            ->orderBy('sort_order')
+            ->orderBy('id');
+
+        if ($closedLevel4Ids !== []) {
+            $level4Query->whereNotIn('id', $closedLevel4Ids);
+        }
+
+        $level4 = $level3Ids->isEmpty()
+            ? collect()
+            : $level4Query->get(['id', 'name', 'level3_id']);
+
+        $level4ByLevel3 = [];
+        foreach ($level4 as $row) {
+            $parentId = (int) ($row->level3_id ?? 0);
+            if ($parentId <= 0) {
+                continue;
+            }
+
+            $level4ByLevel3[$parentId][] = [
+                'id' => $row->id,
+                'name' => $row->name,
+                'level' => 4,
+                'is_closed' => false,
+            ];
+        }
+
+        $level3ByLevel2 = [];
+        foreach ($level3 as $row) {
+            $parentId = (int) ($row->level2_id ?? 0);
+            if ($parentId <= 0) {
+                continue;
+            }
+
+            $level3ByLevel2[$parentId][] = [
+                'id' => $row->id,
+                'name' => $row->name,
+                'level' => 3,
+                'children' => $level4ByLevel3[$row->id] ?? [],
+            ];
+        }
+
+        $openCategories = [];
+        foreach ($level2 as $row) {
+            $openCategories[] = [
+                'id' => $row->id,
+                'name' => $row->name,
+                'level' => 2,
+                'children' => $level3ByLevel2[$row->id] ?? [],
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Open categories fetched successfully.',
+            'data' => [
+                'circle' => [
+                    'id' => $circle->id,
+                    'name' => $circle->name,
+                ],
+                'level1_category' => $mainCategory ? [
+                    'id' => $mainCategory->id,
+                    'name' => $mainCategory->name,
+                    'slug' => $mainCategory->slug,
+                    'circle_key' => $mainCategory->circle_key,
+                ] : null,
+                'open_categories' => $openCategories,
+            ],
+        ]);
+    }
+
+    public function circleClosedCategories(Request $request, string $circleId): JsonResponse
+    {
+        $circle = Circle::query()->select(['id', 'name'])->where('id', $circleId)->first();
+
+        if (! $circle) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Circle not found.',
+                'data' => null,
+            ], 404);
+        }
+
+        $mainCategoryId = $this->resolveCircleMainCategoryId($circle->id);
+
+        if (! $mainCategoryId) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Closed categories fetched successfully.',
+                'data' => [
+                    'circle' => [
+                        'id' => $circle->id,
+                        'name' => $circle->name,
+                    ],
+                    'level1_category' => null,
+                    'closed_categories' => [],
+                ],
+            ]);
+        }
+
+        $mainCategory = CircleCategory::query()
+            ->select(['id', 'name', 'slug', 'circle_key'])
+            ->where('id', $mainCategoryId)
+            ->first();
+
+        $closedMap = $this->getClosedLevel4CategoriesMap($circle->id);
+        $closedLevel4Ids = array_keys($closedMap);
+
+        if ($closedLevel4Ids === []) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Closed categories fetched successfully.',
+                'data' => [
+                    'circle' => [
+                        'id' => $circle->id,
+                        'name' => $circle->name,
+                    ],
+                    'level1_category' => $mainCategory ? [
+                        'id' => $mainCategory->id,
+                        'name' => $mainCategory->name,
+                        'slug' => $mainCategory->slug,
+                        'circle_key' => $mainCategory->circle_key,
+                    ] : null,
+                    'closed_categories' => [],
+                ],
+            ]);
+        }
+
+        $closedLevel4Records = CircleCategoryLevel4::query()
+            ->whereIn('id', $closedLevel4Ids)
+            ->with(['level3Category.level2Category'])
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        $closedCategories = $closedLevel4Records->map(function (CircleCategoryLevel4 $row) use ($closedMap): array {
+            $occ = $closedMap[$row->id] ?? [];
+
+            return [
+                'id' => $row->id,
+                'name' => $row->name,
+                'level' => 4,
+                'is_closed' => true,
+                'parent_level3' => $row->level3Category ? [
+                    'id' => $row->level3Category->id,
+                    'name' => $row->level3Category->name,
+                ] : null,
+                'parent_level2' => $row->level3Category?->level2Category ? [
+                    'id' => $row->level3Category->level2Category->id,
+                    'name' => $row->level3Category->level2Category->name,
+                ] : null,
+                'occupied_by' => [
+                    'user_id' => $occ['user_id'] ?? null,
+                    'user_name' => $occ['user_name'] ?? null,
+                    'company_name' => $occ['company_name'] ?? null,
+                ],
+            ];
+        })->values()->all();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Closed categories fetched successfully.',
+            'data' => [
+                'circle' => [
+                    'id' => $circle->id,
+                    'name' => $circle->name,
+                ],
+                'level1_category' => $mainCategory ? [
+                    'id' => $mainCategory->id,
+                    'name' => $mainCategory->name,
+                    'slug' => $mainCategory->slug,
+                    'circle_key' => $mainCategory->circle_key,
+                ] : null,
+                'closed_categories' => $closedCategories,
+            ],
+        ]);
+    }
+
     public function memberSelectedCategories(string $memberId): JsonResponse
     {
         $member = User::query()->select(['id'])->where('id', $memberId)->first();
@@ -263,14 +499,8 @@ class CircleCategoryUsageController extends Controller
             ->where('id', $mainCategoryId)
             ->first();
 
-        $selectedLevel4Id = 0;
-        if (Schema::hasTable('joined_circle_categories')) {
-            $selectedLevel4Id = (int) (JoinedCircleCategory::query()
-                ->where('user_id', $member->id)
-                ->where('circle_id', $circle->id)
-                ->latest('updated_at')
-                ->value('level4_category_id') ?? 0);
-        }
+        $closedMap = $this->getClosedLevel4CategoriesMap($circle->id);
+        $closedLevel4Ids = array_keys($closedMap);
 
         $level2 = CircleCategoryLevel2::query()
             ->where('circle_category_id', $mainCategoryId)
@@ -295,8 +525,8 @@ class CircleCategoryUsageController extends Controller
             ->orderBy('sort_order')
             ->orderBy('id');
 
-        if ($selectedLevel4Id > 0) {
-            $level4Query->where('id', '!=', $selectedLevel4Id);
+        if ($closedLevel4Ids !== []) {
+            $level4Query->whereNotIn('id', $closedLevel4Ids);
         }
 
         $level4 = $level3Ids->isEmpty()
@@ -356,6 +586,81 @@ class CircleCategoryUsageController extends Controller
                 'available_categories' => $availableCategories,
             ],
         ]);
+    }
+
+    /**
+     * Get array of closed (occupied) level4 category details for a given circle.
+     *
+     * @return array<int, array{level4_category_id: int, user_id: string|null, user_name: string|null, company_name: string|null}>
+     */
+    private function getClosedLevel4CategoriesMap(string $circleId): array
+    {
+        $closedMap = [];
+
+        if (Schema::hasTable('joined_circle_categories')) {
+            $rows = JoinedCircleCategory::query()
+                ->where('circle_id', $circleId)
+                ->whereNotNull('level4_category_id')
+                ->where('level4_category_id', '>', 0)
+                ->with(['user:id,first_name,last_name,display_name,company_name'])
+                ->get();
+
+            foreach ($rows as $row) {
+                $l4Id = (int) $row->level4_category_id;
+                if ($l4Id > 0 && ! isset($closedMap[$l4Id])) {
+                    $u = $row->user;
+                    $userName = trim(($u?->display_name ?? '').' '.($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+                    if ($userName === '') {
+                        $userName = trim(($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+                    }
+
+                    $closedMap[$l4Id] = [
+                        'level4_category_id' => $l4Id,
+                        'user_id' => $row->user_id ? (string) $row->user_id : null,
+                        'user_name' => $userName !== '' ? $userName : null,
+                        'company_name' => $u?->company_name ?? null,
+                    ];
+                }
+            }
+        }
+
+        if (Schema::hasTable('circle_members') && Schema::hasColumn('circle_members', 'level_4_category_id')) {
+            $members = DB::table('circle_members')
+                ->where('circle_id', $circleId)
+                ->whereNull('deleted_at')
+                ->whereNotNull('level_4_category_id')
+                ->where('level_4_category_id', '>', 0)
+                ->get(['id', 'user_id', 'level_4_category_id']);
+
+            $userIds = $members->pluck('user_id')->filter()->unique()->values()->all();
+            $users = [];
+            if ($userIds !== []) {
+                $users = User::query()
+                    ->whereIn('id', $userIds)
+                    ->get(['id', 'first_name', 'last_name', 'display_name', 'company_name'])
+                    ->keyBy(fn ($u) => (string) $u->id);
+            }
+
+            foreach ($members as $m) {
+                $l4Id = (int) $m->level_4_category_id;
+                if ($l4Id > 0 && ! isset($closedMap[$l4Id])) {
+                    $u = $m->user_id ? ($users[(string) $m->user_id] ?? null) : null;
+                    $userName = trim(($u?->display_name ?? '').' '.($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+                    if ($userName === '') {
+                        $userName = trim(($u?->first_name ?? '').' '.($u?->last_name ?? ''));
+                    }
+
+                    $closedMap[$l4Id] = [
+                        'level4_category_id' => $l4Id,
+                        'user_id' => $m->user_id ? (string) $m->user_id : null,
+                        'user_name' => $userName !== '' ? $userName : null,
+                        'company_name' => $u?->company_name ?? null,
+                    ];
+                }
+            }
+        }
+
+        return $closedMap;
     }
 
     private function resolveCircleMainCategoryId(string $circleId): ?int

@@ -48,7 +48,7 @@
     @endif
 
     <div class="border bs rounded-xl p-3.5 mb-4 surface-2">
-        <form method="GET" class="flex items-center gap-2">
+        <form method="GET" action="{{ route('admin.categories.index') }}" class="flex items-center gap-2">
             <input type="text" name="q" value="{{ $search }}" class="px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring max-w-sm w-full" placeholder="Search category name">
             <button class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition">Search</button>
         </form>
