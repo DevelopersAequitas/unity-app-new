@@ -27,6 +27,7 @@ use App\Models\EventRsvp;
 use App\Models\ScanAppUser;
 use App\Models\User;
 use App\Services\Events\EventCheckinService;
+use App\Services\Events\EventCouponService;
 use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventPaymentSyncService;
 use App\Services\Events\EventQrService;
@@ -41,6 +42,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class EventController extends BaseApiController
 {
@@ -55,6 +57,7 @@ class EventController extends BaseApiController
         private readonly EventRazorpayPaymentService $razorpayPayments,
         private readonly EventRazorpayPaymentFinalizer $paymentFinalizer,
         private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
+        private readonly EventCouponService $coupons,
     ) {}
 
     public function index(Request $request)
@@ -255,6 +258,33 @@ class EventController extends BaseApiController
         $occurrence = EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
         $eventCircleId = $event->circle_id;
         $allowedCircleIds = $this->registrationAllowedCircleIds($event);
+
+        $coupon = null;
+        $couponData = [];
+        $couponCodeInput = $request->input('coupon_code');
+        if ($couponCodeInput !== null && trim((string) $couponCodeInput) !== '') {
+            try {
+                $coupon = $this->coupons->validateCoupon((string) $couponCodeInput, $event, $occurrence);
+                $originalPrice = $this->payments->amount($event);
+                $discountCalculation = $this->coupons->calculateDiscount($coupon, $originalPrice);
+                $finalAmount = $discountCalculation['final_price'];
+                $discountAmount = $discountCalculation['discount_amount'];
+
+                $couponData = [
+                    'coupon_id' => $coupon->id,
+                    'coupon_code' => $coupon->code,
+                    'original_amount' => $originalPrice,
+                    'discount_amount' => $discountAmount,
+                    'amount' => $finalAmount,
+                ];
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid or expired coupon code',
+                ], 422);
+            }
+        }
+
         Log::info('member_event_registration_start', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
         Log::info('member_event_circle_check_start', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId]);
 
@@ -276,6 +306,31 @@ class EventController extends BaseApiController
 
         if (! $membership) {
             Log::info('cross_circle_registration_attempt', $eligibilityContext);
+
+            if ($coupon) {
+                $registration = $this->registrations->registerCrossCircleMemberDirect(
+                    $event,
+                    $occurrence,
+                    $user,
+                    $request->input('source', 'app'),
+                    $couponData
+                );
+                $this->coupons->applyCoupon($coupon);
+
+                if (($couponData['amount'] ?? 0) > 0) {
+                    $registration = $this->payments->attachCheckout($registration);
+                } else {
+                    $registration = $this->registrationQr->ensureQrGenerated($registration);
+                }
+
+                $payload = $this->payments->responsePayload($registration);
+
+                return $this->success(
+                    $payload,
+                    ($payload['requires_payment'] ?? false) ? 'Payment required. Please complete payment.' : 'Event registration successful.',
+                    201
+                );
+            }
 
             if ($this->isDirectPaidCrossCircleEvent($event)) {
                 Log::info('multi_circle_event_direct_cross_circle_registration_start', $eligibilityContext);
@@ -317,7 +372,8 @@ class EventController extends BaseApiController
                     $occurrence,
                     $user,
                     (string) $approvedRequest->id,
-                    $request->input('source', 'app')
+                    $request->input('source', 'app'),
+                    $couponData
                 );
                 $approvedRequest->forceFill(['registration_id' => $registration->id])->save();
                 Log::info('cross_circle_registration_after_approval_payment_link_created', $eligibilityContext + ['request_id' => $approvedRequest->id, 'request_status' => $approvedRequest->status, 'registration_id' => (string) $registration->id]);
@@ -374,6 +430,31 @@ class EventController extends BaseApiController
             Log::info('member_event_registration_existing_found', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'event_circle_id' => $eventCircleId, 'registration_id' => (string) $existing->id]);
         }
 
+        if ($coupon) {
+            $registration = $this->registrations->registerCrossCircleMemberDirect(
+                $event,
+                $occurrence,
+                $user,
+                $request->input('source', 'app'),
+                $couponData
+            );
+            $this->coupons->applyCoupon($coupon);
+
+            if (($couponData['amount'] ?? 0) > 0) {
+                $registration = $this->payments->attachCheckout($registration);
+            } else {
+                $registration = $this->registrationQr->ensureQrGenerated($registration);
+            }
+
+            $payload = $this->payments->responsePayload($registration);
+
+            return $this->success(
+                $payload,
+                ($payload['requires_payment'] ?? false) ? 'Payment required. Please complete payment.' : 'Event registration successful.',
+                201
+            );
+        }
+
         $registration = $this->registrations->registerMemberDirectNoPayment(
             $event,
             $occurrence,
@@ -395,20 +476,110 @@ class EventController extends BaseApiController
         $occurrence = EventOccurrence::query()->where('event_id', $event->id)->findOrFail($occurrenceId);
         $eventCircleId = $event->circle_id;
         $allowedCircleIds = $this->registrationAllowedCircleIds($event);
+
+        $coupon = null;
+        $couponCodeInput = $request->input('coupon_code');
+        if ($couponCodeInput !== null && trim((string) $couponCodeInput) !== '') {
+            try {
+                $coupon = $this->coupons->validateCoupon((string) $couponCodeInput, $event, $occurrence);
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid or expired coupon code',
+                ], 422);
+            }
+        }
+
         $sameCircle = CircleMember::query()->whereIn('circle_id', $allowedCircleIds ?: array_filter([$eventCircleId]))->where('user_id', $user->id)->whereNull('deleted_at')->whereIn('status', CircleMember::activeStatuses())->exists();
-        if ($sameCircle) {
+        if ($sameCircle && ! $coupon) {
             return $this->success([], 'You are already a member of this circle. You can register directly.');
         }
+
         $existingReg = EventRegistration::query()->where('occurrence_id', $occurrence->id)->where('user_id', $user->id)->where('status', '!=', 'cancelled')->whereNull('deleted_at')->first();
         if ($existingReg) {
-            return $this->success(['registration_id' => $existingReg->id], 'You are already registered for this event.');
+            $existingReg = $this->registrationQr->ensureQrGenerated($existingReg);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'You are already registered for this event.',
+                'data' => [
+                    'user_registration' => [
+                        'status' => 'approved',
+                        'registration_id' => (string) $existingReg->id,
+                        'qr_code_data' => $existingReg->qr_code_url ?? $existingReg->qr_token,
+                    ],
+                    'registration_id' => $existingReg->id,
+                ],
+            ], 200);
         }
+
+        if ($coupon) {
+            $originalPrice = $this->payments->amount($event);
+            $discountCalculation = $this->coupons->calculateDiscount($coupon, $originalPrice);
+            $finalAmount = $discountCalculation['final_price'];
+            $discountAmount = $discountCalculation['discount_amount'];
+
+            $req = EventRegistrationRequest::query()->create([
+                'event_id' => $event->id,
+                'occurrence_id' => $occurrence->id,
+                'user_id' => $user->id,
+                'event_circle_id' => $eventCircleId,
+                'status' => 'approved',
+                'request_reason' => $request->input('request_reason'),
+                'approved_by_user_id' => $user->id,
+                'approved_at' => now(),
+                'coupon_id' => $coupon->id,
+                'coupon_code' => $coupon->code,
+            ]);
+
+            $couponData = [
+                'coupon_id' => $coupon->id,
+                'coupon_code' => $coupon->code,
+                'original_amount' => $originalPrice,
+                'discount_amount' => $discountAmount,
+                'amount' => $finalAmount,
+            ];
+
+            $registration = $this->registrations->registerApprovedCrossCircleMember(
+                $event,
+                $occurrence,
+                $user,
+                (string) $req->id,
+                $request->input('source', 'app'),
+                $couponData
+            );
+
+            $req->forceFill(['registration_id' => $registration->id])->save();
+            $this->coupons->applyCoupon($coupon);
+
+            if ($finalAmount > 0) {
+                $registration = $this->payments->attachCheckout($registration);
+            } else {
+                $registration = $this->registrationQr->ensureQrGenerated($registration);
+            }
+
+            $responsePayload = $this->payments->responsePayload($registration);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Registration successful',
+                'data' => array_merge($responsePayload, [
+                    'user_registration' => [
+                        'status' => 'approved',
+                        'registration_id' => (string) $registration->id,
+                        'qr_code_data' => $registration->qr_code_url ?? $registration->qr_token,
+                    ],
+                ]),
+            ], 200);
+        }
+
         $existing = EventRegistrationRequest::query()->where('event_id', $event->id)->where('occurrence_id', $occurrence->id)->where('user_id', $user->id)->whereIn('status', ['pending', 'approved'])->latest('created_at')->first();
         if ($existing) {
             Log::info('cross_circle_registration_request_existing', ['user_id' => $user->id, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'request_id' => $existing->id, 'status' => $existing->status]);
 
             return $this->success(['request_id' => $existing->id, 'status' => $existing->status, 'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'user_id' => $user->id], $existing->status === 'approved' ? 'Your request is approved. You can register now.' : 'Your registration request is pending admin approval.');
         }
+
         $req = EventRegistrationRequest::query()->create([
             'event_id' => $event->id, 'occurrence_id' => $occurrence->id, 'user_id' => $user->id, 'event_circle_id' => $eventCircleId, 'status' => 'pending', 'request_reason' => $request->input('request_reason'),
         ]);

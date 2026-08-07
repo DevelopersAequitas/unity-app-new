@@ -111,6 +111,38 @@ class EventQrCodeImageMimeTest extends TestCase
         $this->assertStringNotContainsString('<svg', $body);
     }
 
+    public function test_qr_code_payload_consistency_between_admin_svg_and_api_png(): void
+    {
+        $event = Event::query()->create([
+            'id' => (string) Str::uuid(),
+            'title' => 'Consistency Test Event',
+            'qr_checkin_enabled' => true,
+        ]);
+
+        $registration = EventRegistration::query()->create([
+            'id' => (string) Str::uuid(),
+            'event_id' => $event->id,
+            'status' => 'registered',
+            'payment_status' => 'not_required',
+        ]);
+
+        $registration = app(EventRegistrationQrService::class)->ensureQrGenerated($registration);
+
+        $this->assertNotNull($registration->qr_token);
+        $this->assertNotEmpty($registration->qr_token);
+        $this->assertNotNull($registration->qr_code_svg);
+        $this->assertStringContainsString('<svg', $registration->qr_code_svg);
+        $this->assertStringContainsString('</svg>', $registration->qr_code_svg);
+
+        $qrUrl = $registration->qr_code_url;
+        $this->assertNotNull($qrUrl);
+
+        $path = parse_url($qrUrl, PHP_URL_PATH);
+        $response = $this->get($path);
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'image/png');
+    }
+
     private function setUpInMemoryDatabase(): void
     {
         Schema::dropIfExists('event_registrations');
