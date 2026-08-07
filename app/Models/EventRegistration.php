@@ -92,6 +92,8 @@ class EventRegistration extends Model
         'razorpay_order_id',
         'visitor_registration_form_url',
         'qr_status',
+        'whatsapp_status',
+        'whatsapp_sent_at',
     ];
 
     protected $casts = [
@@ -110,6 +112,7 @@ class EventRegistration extends Model
         'payment_required' => 'boolean',
         'zoho_invoice_synced_at' => 'datetime',
         'razorpay_paid_at' => 'datetime',
+        'whatsapp_sent_at' => 'datetime',
     ];
 
     public function event(): BelongsTo
