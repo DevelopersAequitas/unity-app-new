@@ -8,23 +8,32 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminPage;
 use App\Models\PageGroup;
 use App\Models\PageGroupItem;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class PageGroupController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View|JsonResponse
     {
         $groups = PageGroup::query()
+            ->with(['pages' => fn ($q) => $q->with('module')])
             ->withCount('pages')
             ->orderBy('name')
             ->get();
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'groups' => $groups,
+            ]);
+        }
+
         return view('admin.rbac.page-groups.index', compact('groups'));
     }
 
-    public function create(): View
+    public function create(Request $request): View|JsonResponse
     {
         $pages = AdminPage::query()
             ->with('module')
@@ -33,10 +42,17 @@ class PageGroupController extends Controller
             ->get()
             ->groupBy('module.name');
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'pages' => $pages,
+            ]);
+        }
+
         return view('admin.rbac.page-groups.form', ['group' => null, 'pages' => $pages]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100',
@@ -67,11 +83,19 @@ class PageGroupController extends Controller
             }
         }
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Page group created successfully.',
+                'group' => $group->load('pages'),
+            ], 201);
+        }
+
         return redirect()->route('admin.rbac.page-groups.index')
             ->with('success', 'Page group created successfully.');
     }
 
-    public function edit(string $id): View
+    public function edit(Request $request, string $id): View|JsonResponse
     {
         $group = PageGroup::query()->with('pages')->findOrFail($id);
 
@@ -84,10 +108,19 @@ class PageGroupController extends Controller
 
         $selectedPageIds = $group->pages->pluck('id')->all();
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'group' => $group,
+                'pages' => $pages,
+                'selectedPageIds' => $selectedPageIds,
+            ]);
+        }
+
         return view('admin.rbac.page-groups.form', compact('group', 'pages', 'selectedPageIds'));
     }
 
-    public function update(Request $request, string $id): RedirectResponse
+    public function update(Request $request, string $id): RedirectResponse|JsonResponse
     {
         $group = PageGroup::query()->findOrFail($id);
 
@@ -123,13 +156,28 @@ class PageGroupController extends Controller
             }
         }
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Page group updated successfully.',
+                'group' => $group->fresh('pages'),
+            ]);
+        }
+
         return redirect()->route('admin.rbac.page-groups.index')
             ->with('success', 'Page group updated successfully.');
     }
 
-    public function destroy(string $id): RedirectResponse
+    public function destroy(Request $request, string $id): RedirectResponse|JsonResponse
     {
         PageGroup::query()->findOrFail($id)->delete();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Page group deleted successfully.',
+            ]);
+        }
 
         return redirect()->route('admin.rbac.page-groups.index')
             ->with('success', 'Page group deleted successfully.');

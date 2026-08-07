@@ -8,13 +8,14 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminModule;
 use App\Models\Role;
 use App\Models\WorkflowApprovalRule;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class WorkflowApprovalRuleController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View|JsonResponse
     {
         $rules = WorkflowApprovalRule::query()
             ->with(['module', 'approverRole'])
@@ -26,10 +27,19 @@ class WorkflowApprovalRuleController extends Controller
         $modules = AdminModule::query()->active()->orderBy('sort_order')->get();
         $roles = Role::query()->where('status', 'active')->orderBy('name')->get();
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'rules' => $rules,
+                'modules' => $modules,
+                'roles' => $roles,
+            ]);
+        }
+
         return view('admin.rbac.workflow-rules.index', compact('rules', 'modules', 'roles'));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'module_id' => 'required|uuid|exists:admin_modules,id',
@@ -42,13 +52,21 @@ class WorkflowApprovalRuleController extends Controller
 
         $validated['is_active'] = $request->boolean('is_active', true);
 
-        WorkflowApprovalRule::query()->create($validated);
+        $rule = WorkflowApprovalRule::query()->create($validated);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Workflow rule created successfully.',
+                'rule' => $rule->load(['module', 'approverRole']),
+            ], 201);
+        }
 
         return redirect()->route('admin.rbac.workflow-rules.index')
             ->with('success', 'Workflow rule created successfully.');
     }
 
-    public function update(Request $request, string $id): RedirectResponse
+    public function update(Request $request, string $id): RedirectResponse|JsonResponse
     {
         $rule = WorkflowApprovalRule::query()->findOrFail($id);
 
@@ -65,13 +83,28 @@ class WorkflowApprovalRuleController extends Controller
 
         $rule->update($validated);
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Workflow rule updated successfully.',
+                'rule' => $rule->fresh(['module', 'approverRole']),
+            ]);
+        }
+
         return redirect()->route('admin.rbac.workflow-rules.index')
             ->with('success', 'Workflow rule updated successfully.');
     }
 
-    public function destroy(string $id): RedirectResponse
+    public function destroy(Request $request, string $id): RedirectResponse|JsonResponse
     {
         WorkflowApprovalRule::query()->findOrFail($id)->delete();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Workflow rule deleted successfully.',
+            ]);
+        }
 
         return redirect()->route('admin.rbac.workflow-rules.index')
             ->with('success', 'Workflow rule deleted successfully.');

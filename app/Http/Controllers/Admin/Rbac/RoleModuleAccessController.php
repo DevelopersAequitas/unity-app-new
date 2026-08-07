@@ -9,6 +9,7 @@ use App\Models\AdminModule;
 use App\Models\Role;
 use App\Models\RoleModuleAccess;
 use App\Services\Admin\PermissionService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -19,7 +20,7 @@ class RoleModuleAccessController extends Controller
         private readonly PermissionService $permissionService,
     ) {}
 
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $roles = Role::query()
             ->where('status', 'active')
@@ -43,6 +44,16 @@ class RoleModuleAccessController extends Controller
             }
         }
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'roles' => $roles,
+                'selectedRole' => $selectedRole,
+                'modules' => $modules,
+                'currentAccess' => $currentAccess,
+            ]);
+        }
+
         return view('admin.rbac.module-access', compact(
             'roles',
             'selectedRole',
@@ -51,7 +62,7 @@ class RoleModuleAccessController extends Controller
         ));
     }
 
-    public function update(Request $request): RedirectResponse
+    public function update(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'role_id' => 'required|uuid|exists:roles,id',
@@ -72,6 +83,14 @@ class RoleModuleAccessController extends Controller
         }
 
         $this->permissionService->invalidateCacheForRole($roleId);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Module access updated successfully.',
+                'role_id' => $roleId,
+            ]);
+        }
 
         return redirect()->route('admin.rbac.module-access.index', ['role_id' => $roleId])
             ->with('success', 'Module access updated successfully.');

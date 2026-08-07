@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\RoleModuleAccess;
 use App\Models\RolePagePermission;
 use App\Services\Admin\PermissionService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -21,7 +22,7 @@ class RolePermissionMatrixController extends Controller
         private readonly PermissionService $permissionService,
     ) {}
 
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $roles = Role::query()
             ->where('status', 'active')
@@ -69,6 +70,17 @@ class RolePermissionMatrixController extends Controller
             }
         }
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'roles' => $roles,
+                'selectedRole' => $selectedRole,
+                'modules' => $modules,
+                'permissions' => $permissions,
+                'currentPermissions' => $currentPermissions,
+            ]);
+        }
+
         return view('admin.rbac.permission-matrix', compact(
             'roles',
             'selectedRole',
@@ -78,7 +90,7 @@ class RolePermissionMatrixController extends Controller
         ));
     }
 
-    public function update(Request $request): RedirectResponse
+    public function update(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'role_id' => 'required|uuid|exists:roles,id',
@@ -107,6 +119,14 @@ class RolePermissionMatrixController extends Controller
 
         // Invalidate caches
         $this->permissionService->invalidateCacheForRole($roleId);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Permission matrix updated successfully.',
+                'role_id' => $roleId,
+            ]);
+        }
 
         return redirect()->route('admin.rbac.permission-matrix.index', ['role_id' => $roleId])
             ->with('success', 'Permission matrix updated successfully.');

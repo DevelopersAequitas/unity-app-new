@@ -223,7 +223,28 @@ class DynamicRbacSeeder extends Seeder
             $pages = AdminPage::query()
                 ->whereIn('module_id', $accessibleModuleIds)
                 ->where('is_active', true)
-                ->get();
+                ->get()
+                ->reject(function ($page) use ($roleKey) {
+                    if (in_array($roleKey, ['global_admin', 'global_founder'], true)) {
+                        return false;
+                    }
+
+                    if ($page->slug === 'main-dashboard') {
+                        return true;
+                    }
+
+                    $allowedDashboardSlug = match ($roleKey) {
+                        'ded' => 'ded-dashboard',
+                        'industry_director' => 'id-dashboard',
+                        default => 'circle-dashboard',
+                    };
+
+                    if (in_array($page->slug, ['main-dashboard', 'circle-dashboard', 'ded-dashboard', 'id-dashboard'], true)) {
+                        return $page->slug !== $allowedDashboardSlug;
+                    }
+
+                    return false;
+                });
 
             foreach ($pages as $page) {
                 foreach ($permKeys as $permKey) {

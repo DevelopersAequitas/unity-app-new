@@ -6,6 +6,8 @@ namespace App\Services\Admin;
 
 class DataScopeResult
 {
+    public readonly array $industryIds;
+
     public function __construct(
         public readonly string $scopeType,
         public readonly array $scopeIds,
@@ -13,7 +15,19 @@ class DataScopeResult
         public readonly bool $isGlobal,
         public readonly ?string $districtId = null,
         public readonly ?string $stateId = null,
-    ) {}
+        ?array $industryIds = null,
+    ) {
+        $this->industryIds = $industryIds ?? ($scopeType === 'industry' ? $scopeIds : []);
+    }
+
+    public function __get(string $name): mixed
+    {
+        if ($name === 'industryIds') {
+            return $this->industryIds;
+        }
+
+        return null;
+    }
 
     public static function global(): self
     {
@@ -54,6 +68,7 @@ class DataScopeResult
             scopeIds: $industryIds,
             circleIds: $circleIds,
             isGlobal: false,
+            industryIds: $industryIds,
         );
     }
 }

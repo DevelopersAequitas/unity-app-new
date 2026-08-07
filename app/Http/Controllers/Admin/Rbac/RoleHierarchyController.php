@@ -24,7 +24,7 @@ class RoleHierarchyController extends Controller
 {
     public function __construct(private readonly AdminAuditService $audit) {}
 
-    public function index(): View
+    public function index(Request $request): View|JsonResponse
     {
         $rolesQuery = Role::query()->where('status', 'active');
         if (Schema::hasColumn('roles', 'hierarchy_depth')) {
@@ -55,6 +55,20 @@ class RoleHierarchyController extends Controller
         $districts = DB::table('districts')->orderBy('name')->get();
         $industries = DB::table('industries')->orderBy('name')->get();
         $circles = DB::table('circles')->orderBy('name')->get();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'roles' => $roles,
+                'roots' => $roots,
+                'parentToChildren' => $parentToChildren,
+                'childToParents' => $childToParents,
+                'peers' => $peers,
+                'districts' => $districts,
+                'industries' => $industries,
+                'circles' => $circles,
+            ]);
+        }
 
         return view('admin.rbac.tree', [
             'roles' => $roles,
@@ -154,6 +168,13 @@ class RoleHierarchyController extends Controller
                 );
             }
         });
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Role created successfully.',
+            ], 201);
+        }
 
         return redirect()->route('admin.rbac.hierarchy')->with('success', 'Role created successfully.');
     }
