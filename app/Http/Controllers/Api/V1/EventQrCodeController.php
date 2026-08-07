@@ -36,6 +36,7 @@ class EventQrCodeController extends Controller
             if ($header !== false && str_starts_with($header, "\x89PNG")) {
                 return response()->file($pngPath, ['Content-Type' => 'image/png']);
             }
+            @unlink($pngPath);
         }
 
         // 3. Try looking up registration
@@ -64,7 +65,14 @@ class EventQrCodeController extends Controller
                 if (! empty($registration->qr_code_path)) {
                     $genPath = storage_path('app/public/'.$registration->qr_code_path);
                     if (is_file($genPath)) {
-                        return response()->file($genPath, ['Content-Type' => 'image/png']);
+                        $genHeader = file_get_contents($genPath, false, null, 0, 8);
+                        if ($genHeader !== false && str_starts_with($genHeader, "\x89PNG")) {
+                            if ($genPath !== $pngPath && ! is_file($pngPath)) {
+                                @copy($genPath, $pngPath);
+                            }
+
+                            return response()->file($genPath, ['Content-Type' => 'image/png']);
+                        }
                     }
                 }
             } catch (Throwable $e) {
@@ -75,7 +83,7 @@ class EventQrCodeController extends Controller
         // 5. Guaranteed Fail-Safe Stream: Generate and return PNG directly
         try {
             $qrService = app(EventQrService::class);
-            $payload = $qrService->payload($token);
+            $payload = $qrService->payload($token ?: $base);
 
             if ($isExplicitSvg) {
                 $svgContent = $qrService->makeSvg($payload);
@@ -87,6 +95,11 @@ class EventQrCodeController extends Controller
             }
 
             $pngContent = $qrService->makePng($payload);
+
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            @file_put_contents($pngPath, $pngContent);
 
             return response($pngContent, 200, [
                 'Content-Type' => 'image/png',
