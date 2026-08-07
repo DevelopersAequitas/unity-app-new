@@ -57,7 +57,7 @@
                 </div>
             </div>
 
-            <div class="mt-3" id="advancedFiltersCollapse" style="{{ $hasAdvancedFilters ? 'display: block;' : 'display: none;' }}">
+            <div class="mt-3 {{ $hasAdvancedFilters ? '' : 'hidden' }}" id="advancedFiltersCollapse" style="{{ $hasAdvancedFilters ? 'display: block;' : 'display: none;' }}">
                 <div class="p-3 surface rounded-lg border bs">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
@@ -612,32 +612,32 @@
         const btn = document.getElementById('btnAdvancedFilters');
         if (!container) return;
 
-        const isHidden = container.style.display === 'none' || getComputedStyle(container).display === 'none';
+        const isHidden = container.classList.contains('hidden') || container.style.display === 'none' || getComputedStyle(container).display === 'none';
 
         if (isHidden) {
+            container.classList.remove('hidden');
             container.style.display = 'block';
             if (btn) {
                 btn.setAttribute('aria-expanded', 'true');
                 btn.classList.add('chip-active');
             }
-            sessionStorage.setItem('circles_adv_filters_open', 'true');
         } else {
+            container.classList.add('hidden');
             container.style.display = 'none';
             if (btn) {
                 btn.setAttribute('aria-expanded', 'false');
                 btn.classList.remove('chip-active');
             }
-            sessionStorage.setItem('circles_adv_filters_open', 'false');
         }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        const storedState = sessionStorage.getItem('circles_adv_filters_open');
         const hasActiveFilters = @json($hasAdvancedFilters);
-        if (storedState === 'true' || hasActiveFilters) {
+        if (hasActiveFilters) {
             const container = document.getElementById('advancedFiltersCollapse');
             const btn = document.getElementById('btnAdvancedFilters');
             if (container) {
+                container.classList.remove('hidden');
                 container.style.display = 'block';
             }
             if (btn) {
