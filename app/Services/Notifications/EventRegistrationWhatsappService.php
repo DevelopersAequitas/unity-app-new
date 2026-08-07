@@ -7,6 +7,7 @@ namespace App\Services\Notifications;
 use App\Models\EventRegistration;
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
+use App\Services\Events\EventRegistrationQrService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
@@ -46,6 +47,7 @@ class EventRegistrationWhatsappService
 
             $phoneData = $this->resolvePhone($registration);
             $phone = $phoneData['phone'];
+            $rawPhone = $phoneData['raw_phone'];
             $phoneSource = $phoneData['source'];
 
             if ($phone === '') {
@@ -67,8 +69,28 @@ class EventRegistrationWhatsappService
                 $recipientName = 'Valued Guest';
             }
 
+            $event = $registration->event;
+            $occurrence = $registration->occurrence;
+
+            $startAt = $occurrence?->start_at ?? $event?->start_at;
+            $endAt = $occurrence?->end_at ?? $event?->end_at;
+
+            $eventDate = $startAt ? $startAt->format('F d, Y (l)') : 'TBA';
+            $eventTime = $startAt ? ($startAt->format('h:i A').($endAt ? ' - '.$endAt->format('h:i A') : '')) : 'TBA';
+            $venue = (string) ($event?->location_text ?: $event?->location ?: $event?->venue ?: 'As communicated by organizer');
+
+            $qrCodeUrl = (string) (app(EventRegistrationQrService::class)->qrCodeUrl($registration) ?: $registration->qr_code_url ?: '');
+
             $payload = [
+                'participant_name' => $recipientName,
                 'registration_id' => (string) $registration->id,
+                'event_name' => (string) ($event?->title ?? 'Event Registration'),
+                'event_date' => $eventDate,
+                'event_time' => $eventTime,
+                'venue' => $venue,
+                'qr_code_url' => $qrCodeUrl,
+                'payment_status' => (string) ($registration->payment_status ?: 'paid'),
+
                 'event_id' => (string) $registration->event_id,
                 'occurrence_id' => (string) ($registration->occurrence_id ?? ''),
                 'user_id' => (string) ($registration->user_id ?? ''),
@@ -76,13 +98,17 @@ class EventRegistrationWhatsappService
                 'recipient_name' => $recipientName,
                 'visitor_name' => (string) ($registration->visitor_name ?? ''),
                 'visitor_phone' => (string) ($registration->visitor_phone ?? ''),
+                'phone' => $phone,
+                'normalized_phone' => $phone,
+                'raw_phone' => $rawPhone,
                 'phone_source' => $phoneSource,
-                'qr_code_url' => (string) ($registration->qr_code_url ?? ''),
             ];
 
             Log::info('Dispatching event registration WhatsApp notification.', [
                 'registration_id' => (string) $registration->id,
                 'phone' => $phone,
+                'normalized_phone' => $phone,
+                'raw_phone' => $rawPhone,
                 'phone_source' => $phoneSource,
                 'template_key' => self::TEMPLATE_KEY,
             ]);
@@ -97,6 +123,7 @@ class EventRegistrationWhatsappService
                 Log::info('Event registration WhatsApp notification delivered successfully.', [
                     'registration_id' => (string) $registration->id,
                     'phone' => $phone,
+                    'normalized_phone' => $phone,
                 ]);
 
                 return true;
@@ -108,6 +135,7 @@ class EventRegistrationWhatsappService
             Log::error('Event registration WhatsApp notification failed to send.', [
                 'registration_id' => (string) $registration->id,
                 'phone' => $phone,
+                'normalized_phone' => $phone,
             ]);
 
             return false;
@@ -124,35 +152,78 @@ class EventRegistrationWhatsappService
     }
 
     /**
-     * Resolve phone number following priority rules:
+     * Resolve phone number following priority rules and apply normalization:
      * Priority 1 (Case 1 & 3): visitor_phone if available and non-empty.
      * Priority 2 (Case 2): user->phone if user_id exists.
      */
     public function resolvePhone(EventRegistration $registration): array
     {
-        $visitorPhone = trim((string) ($registration->visitor_phone ?? ''));
-        if ($visitorPhone !== '') {
+        $rawVisitorPhone = trim((string) ($registration->visitor_phone ?? ''));
+        if ($rawVisitorPhone !== '') {
+            $normalized = static::normalizePhone($rawVisitorPhone);
+
             return [
-                'phone' => $visitorPhone,
+                'raw_phone' => $rawVisitorPhone,
+                'phone' => $normalized,
                 'source' => 'visitor_phone',
             ];
         }
 
         if (! empty($registration->user_id)) {
             $user = $registration->user ?? User::query()->find($registration->user_id);
-            $userPhone = trim((string) ($user?->phone ?? ''));
-            if ($userPhone !== '') {
+            $rawUserPhone = trim((string) ($user?->phone ?? ''));
+            if ($rawUserPhone !== '') {
+                $normalized = static::normalizePhone($rawUserPhone);
+
                 return [
-                    'phone' => $userPhone,
+                    'raw_phone' => $rawUserPhone,
+                    'phone' => $normalized,
                     'source' => 'user_phone',
                 ];
             }
         }
 
         return [
+            'raw_phone' => '',
             'phone' => '',
             'source' => 'none',
         ];
+    }
+
+    /**
+     * Normalize phone number to standard international format (e.g. 919904978744).
+     *
+     * Rules:
+     * 1. Remove leading "+" if present.
+     * 2. If 10 digits, prepend default country code "91".
+     * 3. If > 10 digits starting with country code, use as-is.
+     */
+    public static function normalizePhone(?string $phone): string
+    {
+        if ($phone === null || $phone === '') {
+            return '';
+        }
+
+        $trimmed = trim($phone);
+        if (str_starts_with($trimmed, '+')) {
+            $trimmed = substr($trimmed, 1);
+        }
+
+        $digits = preg_replace('/\D+/', '', $trimmed) ?? '';
+
+        if (strlen($digits) === 10) {
+            return '91'.$digits;
+        }
+
+        if (strlen($digits) === 12 && str_starts_with($digits, '91')) {
+            return $digits;
+        }
+
+        if (strlen($digits) > 10) {
+            return '91'.substr($digits, -10);
+        }
+
+        return $digits;
     }
 
     /**
