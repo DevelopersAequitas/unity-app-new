@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -180,7 +181,7 @@ class EventRegistration extends Model
         $occurrence = $this->occurrence;
         if ($occurrence) {
             $endTime = $occurrence->end_at ?? $occurrence->start_at;
-            if ($endTime && \Carbon\Carbon::parse($endTime)->isPast()) {
+            if ($endTime && Carbon::parse($endTime)->isPast()) {
                 return 'expired';
             }
         }

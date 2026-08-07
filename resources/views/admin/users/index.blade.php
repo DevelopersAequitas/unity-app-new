@@ -274,9 +274,6 @@
         <div id="export-menu" class="hidden absolute right-0 mt-2 w-44 rounded-xl border bs surface shadow-2xl py-1.5 z-40 fade-in">
           <button onclick="exportData('csv')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-file-earmark-text admin-icon w-4" aria-hidden="true"></i>Export as CSV</button>
           <button onclick="exportData('xlsx')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-file-earmark-excel admin-icon w-4" aria-hidden="true"></i>Export as Excel</button>
-          <button onclick="exportData('pdf')" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-file-earmark-pdf admin-icon w-4" aria-hidden="true"></i>Export as PDF</button>
-          <div class="my-1 border-t bs"></div>
-          <button onclick="window.print(); toggleExportMenu();" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-printer admin-icon w-4" aria-hidden="true"></i>Print view</button>
         </div>
       </div>
       <a href="{{ route('admin.users.create') }}" class="px-3 py-1.5 rounded-lg bg-accent hover:bg-opacity-95 text-white text-[12px] font-semibold transition focus-ring no-underline flex items-center gap-1">

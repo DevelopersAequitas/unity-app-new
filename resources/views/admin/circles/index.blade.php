@@ -59,8 +59,8 @@
 
             <div class="mt-3" id="advancedFiltersCollapse" style="{{ $hasAdvancedFilters ? 'display: block;' : 'display: none;' }}">
                 <div class="p-3 surface rounded-lg border bs">
-                    <div class="row g-3">
-                        <div class="col-md-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Country</label>
                             <select name="country" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                                 <option value="">All Countries</option>
@@ -69,7 +69,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Meeting Mode</label>
                             <select name="meeting_mode" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                                 <option value="">All Modes</option>
@@ -78,7 +78,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Meeting Frequency</label>
                             <select name="meeting_frequency" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                                 <option value="">All Frequencies</option>
@@ -87,15 +87,15 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Launch Date</label>
                             <input type="date" name="launch_date" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['launch_date'] }}">
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Director</label>
                             <input type="text" name="director" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['director'] }}" placeholder="Director">
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Circle Stage</label>
                             <select id="circleStageFilter" name="circle_stage" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                                 <option value="">All Stages</option>
@@ -104,15 +104,15 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Industry Director</label>
                             <input type="text" name="industry_director" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['industry_director'] }}" placeholder="Industry Director">
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">DED</label>
                             <input type="text" name="ded" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['ded'] }}" placeholder="DED">
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Industry Tags</label>
                             <input type="text" name="industry_tags" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['industry_tags'] }}" placeholder="Industry Tags">
                         </div>
