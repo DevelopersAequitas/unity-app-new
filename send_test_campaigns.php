@@ -123,7 +123,8 @@ foreach ($campaignCodes as $code) {
                 ->count();
         }
         $xVal = (string) min(10, max(3, $connectionCount));
-    } elseif (in_array($campaign->code, ['upcoming_event_reminder', 'event_starting_now', 'post_event_feedback'], true)) {
+        $eventBannerUrl = null;
+        $eventId = null;
         $latestEvent = Event::where('start_at', '>=', now())
             ->orderBy('start_at', 'asc')
             ->first();
@@ -133,6 +134,22 @@ foreach ($campaignCodes as $code) {
         if ($latestEvent) {
             $eventTitle = $latestEvent->title;
             $eventDate = $latestEvent->start_at->format('d M Y');
+            $eventId = $latestEvent->id;
+
+            $bannerUrl = $latestEvent->banner_url;
+            if (is_string($bannerUrl) && trim($bannerUrl) !== '') {
+                $bannerUrl = trim($bannerUrl);
+                if (! str_starts_with($bannerUrl, 'http://') && ! str_starts_with($bannerUrl, 'https://')) {
+                    if (str_starts_with($bannerUrl, '/')) {
+                        $bannerUrl = url($bannerUrl);
+                    } else {
+                        $bannerUrl = url('/api/v1/files/'.$bannerUrl);
+                    }
+                }
+            } else {
+                $bannerUrl = null;
+            }
+            $eventBannerUrl = $bannerUrl;
         }
     } elseif ($campaign->code === 'unclaimed_coins') {
         $xVal = (string) max(10, (int) ($user->coin_balance ?? 0));
@@ -158,13 +175,25 @@ foreach ($campaignCodes as $code) {
     echo "  -> Title: {$title}\n";
     echo "  -> Body: {$body}\n";
 
+    $payloadData = ['screen' => $campaign->tap_screen, 'campaign_id' => $campaign->id];
+    if (isset($eventBannerUrl) && $eventBannerUrl !== null) {
+        $payloadData['event_banner'] = $eventBannerUrl;
+        $payloadData['image_url'] = $eventBannerUrl;
+        $payloadData['banner_url'] = $eventBannerUrl;
+    }
+    if (isset($eventId) && $eventId !== null) {
+        $payloadData['event_id'] = (string) $eventId;
+        $payloadData['reference_type'] = 'event';
+        $payloadData['reference_id'] = (string) $eventId;
+    }
+
     // Send it directly to the user
     app(NotificationService::class)->sendToUser(
         $user,
         $campaign->code,
         $title,
         $body,
-        ['screen' => $campaign->tap_screen, 'campaign_id' => $campaign->id],
+        $payloadData,
         [
             'campaign' => $campaign,
             'channel' => 'push',
