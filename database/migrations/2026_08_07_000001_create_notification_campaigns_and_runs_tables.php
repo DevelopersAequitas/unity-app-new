@@ -10,7 +10,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('notification_campaigns')) {
+        if (! Schema::hasTable('notification_campaigns')) {
             Schema::create('notification_campaigns', function (Blueprint $table): void {
                 $table->uuid('id')->primary();
                 $table->string('code')->unique();
@@ -37,7 +37,7 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('notification_campaign_runs')) {
+        if (! Schema::hasTable('notification_campaign_runs')) {
             Schema::create('notification_campaign_runs', function (Blueprint $table): void {
                 $table->uuid('id')->primary();
                 $table->uuid('campaign_id');

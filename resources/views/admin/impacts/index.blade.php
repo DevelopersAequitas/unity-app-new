@@ -88,7 +88,7 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200/50">
                         @forelse($impactActionItems as $actionItem)
-                            <tr class="hover:surface-2 transition border-b bs impact-action-row" data-action-index="{{ $loop->index }}">
+                            <tr class="hover:surface-2 transition border-b bs impact-action-row" data-action-index="{{ $loop->index }}" data-action-id="{{ $actionItem->id }}">
                                 <td class="px-3 py-2.5 font-semibold t1 text-[12.5px] whitespace-nowrap">{{ $actionItem->name }}</td>
                                 <td class="px-3 py-2.5 font-semibold text-indigo-600 text-xs">{{ max(1, (int) ($actionItem->impact_score ?? 1)) }}</td>
                                 <td class="px-3 py-2.5 text-xs">
@@ -99,7 +99,7 @@
                                 <td class="px-3 py-2.5 text-right whitespace-nowrap">
                                     @if(!empty($actionItem->id))
                                         <div class="flex items-center justify-end gap-1.5">
-                                            <button class="px-2.5 py-1 rounded-lg border bs text-xs font-medium t2 hover:t1 surface-2 transition" type="button" data-bs-toggle="collapse" data-bs-target="#editImpactAction{{ $actionItem->id }}">Edit</button>
+                                            <button class="px-2.5 py-1 rounded-lg border bs text-xs font-medium t2 hover:t1 surface-2 transition edit-impact-action-btn" type="button" data-target="editImpactAction{{ $actionItem->id }}">Edit</button>
                                             <form method="POST" action="{{ route('admin.impacts.actions.destroy', $actionItem->id) }}" class="inline" onsubmit="return confirm('Delete this impact action?');">
                                                 @csrf
                                                 @method('DELETE')
@@ -110,7 +110,7 @@
                                 </td>
                             </tr>
                             @if(!empty($actionItem->id))
-                                <tr class="collapse" id="editImpactAction{{ $actionItem->id }}">
+                                <tr class="hidden edit-impact-action-row" id="editImpactAction{{ $actionItem->id }}">
                                     <td colspan="4" class="p-3 surface-2 border-b bs">
                                         <form method="POST" action="{{ route('admin.impacts.actions.update', $actionItem->id) }}" class="row g-2 align-items-end">
                                             @csrf
@@ -130,8 +130,9 @@
                                                     <option value="0" @selected(! $actionItem->is_active)>Inactive</option>
                                                 </select>
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-md-3 flex items-center gap-2">
                                                 <button type="submit" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition focus-ring">Save</button>
+                                                <button type="button" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 surface-2 transition edit-impact-action-cancel-btn" data-target="editImpactAction{{ $actionItem->id }}">Cancel</button>
                                             </div>
                                         </form>
                                     </td>
@@ -306,6 +307,19 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // Handle Edit / Cancel button toggle
+            document.querySelectorAll('.edit-impact-action-btn, .edit-impact-action-cancel-btn').forEach(btn => {
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('data-target');
+                    const targetRow = document.getElementById(targetId);
+                    if (targetRow) {
+                        targetRow.classList.toggle('hidden');
+                    }
+                });
+            });
+
+            // Handle View More button logic
             const rows = Array.from(document.querySelectorAll('.impact-action-row'));
             const button = document.getElementById('impactActionsViewMoreBtn');
 
@@ -317,7 +331,15 @@
 
             const render = () => {
                 rows.forEach((row, index) => {
-                    row.style.display = index < visibleLimit ? '' : 'none';
+                    const isVisible = index < visibleLimit;
+                    row.style.display = isVisible ? '' : 'none';
+                    const actionId = row.getAttribute('data-action-id');
+                    if (actionId) {
+                        const editRow = document.getElementById('editImpactAction' + actionId);
+                        if (editRow && !isVisible) {
+                            editRow.classList.add('hidden');
+                        }
+                    }
                 });
 
                 if (visibleLimit >= rows.length) {

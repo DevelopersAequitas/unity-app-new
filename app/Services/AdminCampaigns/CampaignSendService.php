@@ -174,7 +174,7 @@ class CampaignSendService
                             ]);
                         }
                     } catch (Throwable $dbEx) {
-                        Log::warning('Failed to log AdminCampaign to AppNotification: ' . $dbEx->getMessage());
+                        Log::warning('Failed to log AdminCampaign to AppNotification: '.$dbEx->getMessage());
                     }
 
                     $notificationSent = true;
