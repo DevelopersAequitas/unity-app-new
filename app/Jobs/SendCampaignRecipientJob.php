@@ -178,7 +178,7 @@ class SendCampaignRecipientJob implements ShouldQueue
                         ]);
                     }
                 } catch (Throwable $dbEx) {
-                    Log::warning('Failed to log AdminCampaign to AppNotification in queued job: ' . $dbEx->getMessage());
+                    Log::warning('Failed to log AdminCampaign to AppNotification in queued job: '.$dbEx->getMessage());
                 }
 
                 // Call FCM service synchronously
