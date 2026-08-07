@@ -87,10 +87,33 @@ class PublicEventRegistrationFormController extends Controller
         }
 
         try {
+            $data = $request->validated();
+
+            if (! empty($data['coupon_code'])) {
+                try {
+                    $couponService = app(\App\Services\Events\EventCouponService::class);
+                    $coupon = $couponService->validateCoupon((string) $data['coupon_code'], $event, $occurrence);
+                    $originalPrice = $this->payments->amount($event);
+                    $discountCalculation = $couponService->calculateDiscount($coupon, $originalPrice);
+
+                    $data['coupon_id'] = $coupon->id;
+                    $data['coupon_code'] = $coupon->code;
+                    $data['original_amount'] = $originalPrice;
+                    $data['discount_amount'] = $discountCalculation['discount_amount'];
+                    $data['amount'] = $discountCalculation['final_price'];
+
+                    $couponService->applyCoupon($coupon);
+                } catch (\Illuminate\Validation\ValidationException $e) {
+                    return back()
+                        ->withInput()
+                        ->withErrors(['coupon_code' => 'Invalid or expired coupon code']);
+                }
+            }
+
             $registration = $this->registrations->registerVisitor(
                 $event,
                 $occurrence,
-                $request->validated(),
+                $data,
                 'web_form'
             );
         } catch (\Throwable $exception) {
