@@ -120,9 +120,9 @@
                             <td class="px-3 py-2.5 text-xs t2">{{ $peerCompany }}</td>
                             <td class="px-3 py-2.5 text-xs t2">{{ $peerCity }}</td>
                             <td class="px-3 py-2.5 text-xs t2">{{ $peerCircle }}</td>
-                            <td class="px-3 py-2.5 text-xs t2">
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[180px]">
                                 @if($row->circleCategory)
-                                    <div class="font-semibold t1 text-[12px]">Category: {{ $row->circleCategory->name }}</div>
+                                    <div class="font-semibold t1 text-[12px] truncate" title="Category: {{ $row->circleCategory->name }}">Category: {{ $row->circleCategory->name }}</div>
                                     <div class="t3 text-[10px] mt-0.5">ID: {{ $row->circleCategory->id }}</div>
                                 @else
                                     <div class="t3">—</div>
