@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Models\AdminCampaign;
 use App\Models\EmailLog;
+use App\Models\EventRegistration;
+use App\Observers\EventRegistrationObserver;
 use App\Policies\AdminCampaignPolicy;
 use App\Policies\SponsorshipMilestonePolicy;
 use App\Support\SqliteMigrator;
@@ -96,6 +98,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Paginator::useBootstrapFive();
+        EventRegistration::observe(EventRegistrationObserver::class);
         Gate::policy(AdminCampaign::class, AdminCampaignPolicy::class);
         Gate::define('view-sponsored-milestones', [SponsorshipMilestonePolicy::class, 'viewAny']);
         Gate::define('view-member-sponsored-milestones', [SponsorshipMilestonePolicy::class, 'view']);
