@@ -27,22 +27,10 @@ class AppChangelogController extends BaseApiController
         if ($platform && in_array(strtolower($platform), ['android', 'ios'], true)) {
             $platLower = strtolower($platform);
 
-            if (DB::connection()->getDriverName() === 'sqlite') {
-                $query->where(function ($q) use ($platLower): void {
-                    $q->whereJsonContains('platform', ucfirst($platLower))
-                        ->orWhereJsonContains('platform', $platLower)
-                        ->orWhere('platform', 'like', "%{$platLower}%");
-                });
-            } else {
-                $query->whereRaw(
-                    'EXISTS (
-                        SELECT 1
-                        FROM jsonb_array_elements_text(app_changelogs.platform) AS platform_value
-                        WHERE LOWER(platform_value) = ?
-                    )',
-                    [$platLower]
-                );
-            }
+            $query->where(function ($q) use ($platLower): void {
+                $q->where('platform', 'like', "%{$platLower}%")
+                    ->orWhere('platform', 'like', '%all%');
+            });
         }
 
         $changelogs = $query

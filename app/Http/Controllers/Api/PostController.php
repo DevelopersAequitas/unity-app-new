@@ -596,6 +596,106 @@ class PostController extends BaseApiController
         ]);
     }
 
+    public function update(Request $request, string $id, NotificationDispatchService $notifications)
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $post = Post::where('id', $id)
+            ->where('is_deleted', false)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $post) {
+            return $this->error('This post is managed by the system and cannot be modified.', 404);
+        }
+
+        if ($post->user_id !== $user->id) {
+            return $this->error('You are not authorized to edit this post.', 403);
+        }
+
+        if (! empty($post->source_type) || (! empty($post->post_type) && $post->post_type !== 'standard') || ! empty($post->template_id)) {
+            return $this->error('Generated template posts cannot be edited.', 403);
+        }
+
+        $data = $request->validate([
+            'content_text' => ['nullable', 'string', 'max:5000'],
+            'media' => ['nullable', 'array'],
+            'media.*.id' => ['required_with:media', 'uuid', 'exists:files,id'],
+            'media.*.type' => ['required_with:media', 'string', 'max:50'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:100'],
+            'visibility' => ['sometimes', 'required', 'in:public,connections,members,circle,private'],
+            'circle_id' => ['nullable', 'uuid'],
+        ]);
+
+        if (array_key_exists('content_text', $data)) {
+            $post->content_text = $data['content_text'];
+        }
+
+        if (array_key_exists('circle_id', $data)) {
+            $post->circle_id = $data['circle_id'];
+        }
+
+        if (array_key_exists('visibility', $data)) {
+            $post->visibility = $data['visibility'];
+        }
+
+        if (array_key_exists('tags', $data)) {
+            $post->tags = $data['tags'] ?? [];
+        }
+
+        if (array_key_exists('media', $data)) {
+            $mediaItems = [];
+            if (! empty($data['media'])) {
+                $fileIds = collect($data['media'])->pluck('id')->all();
+                $files = File::whereIn('id', $fileIds)->get()->keyBy('id');
+
+                foreach ($data['media'] as $item) {
+                    $file = $files->get($item['id']);
+                    if (! $file) {
+                        continue;
+                    }
+
+                    $mediaItems[] = [
+                        'id' => $file->id,
+                        'type' => $item['type'],
+                        'url' => url("/api/v1/files/{$file->id}"),
+                    ];
+                }
+            }
+            $post->media = $mediaItems;
+        }
+
+        $post->save();
+
+        if (array_key_exists('content_text', $data)) {
+            $this->dispatchMentionNotifications($notifications, $post, $user, $post->content_text, null);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Post updated successfully',
+            'data' => [
+                'id' => $post->id,
+                'user_id' => $post->user_id,
+                'circle_id' => $post->circle_id,
+                'content_text' => $post->content_text,
+                'media' => $post->media ?? [],
+                'tags' => $post->tags ?? [],
+                'visibility' => $post->visibility,
+                'moderation_status' => $post->moderation_status,
+                'sponsored' => $post->sponsored,
+                'is_deleted' => $post->is_deleted,
+                'created_at' => $post->created_at,
+                'updated_at' => $post->updated_at,
+            ],
+        ]);
+    }
+
     public function show(Request $request, string $id)
     {
         $post = Post::with(['user', 'circle'])

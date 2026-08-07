@@ -80,7 +80,6 @@
             <table class="min-w-[1100px] w-full border-collapse text-[13px]">
                 <thead>
                     <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
                         <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
@@ -104,7 +103,6 @@
                             $peerCircle = $peerCircles !== '' ? $peerCircles : '—';
                         @endphp
                         <tr class="hover:surface-2 transition border-b bs">
-                            <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ optional($row->requested_at)->format('d M Y H:i') }}</td>
                             <td class="px-3 py-2.5 text-xs sticky left-0 z-10 surface" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                 @if ($peer)
                                     <div class="flex items-center gap-2">
@@ -122,15 +120,21 @@
                             <td class="px-3 py-2.5 text-xs t2">{{ $peerCompany }}</td>
                             <td class="px-3 py-2.5 text-xs t2">{{ $peerCity }}</td>
                             <td class="px-3 py-2.5 text-xs t2">{{ $peerCircle }}</td>
-                            <td class="px-3 py-2.5 text-xs t2">
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[180px]">
                                 @if($row->circleCategory)
-                                    <div class="font-semibold t1 text-[12px]">Category: {{ $row->circleCategory->name }}</div>
+                                    <div class="font-semibold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer text-[12px] truncate" 
+                                         onclick="openCategoryModal('Category Details', 'Category: {{ addslashes($row->circleCategory->name) }}\nID: {{ $row->circleCategory->id }}')" 
+                                         title="Click to view full category: {{ $row->circleCategory->name }}">
+                                        Category: {{ $row->circleCategory->name }}
+                                    </div>
                                     <div class="t3 text-[10px] mt-0.5">ID: {{ $row->circleCategory->id }}</div>
                                 @else
                                     <div class="t3">—</div>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs t2 max-w-[200px] truncate" title="{{ $row->reason_for_joining }}">
+                            <td class="px-3 py-2.5 text-xs t2 max-w-[200px] truncate cursor-pointer hover:text-indigo-600 transition" 
+                                onclick="openCategoryModal('Reason for Joining', '{{ addslashes($row->reason_for_joining ?? '—') }}')"
+                                title="Click to view full reason: {{ $row->reason_for_joining }}">
                                 {{ \Illuminate\Support\Str::limit((string)$row->reason_for_joining, 50) }}
                             </td>
                             <td class="px-3 py-2.5 text-xs">
@@ -196,6 +200,31 @@
         </div>
     </div>
 </div>
+
+<!-- Category / Detail Modal -->
+<div id="categoryDetailModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 relative border border-gray-200">
+        <button type="button" onclick="closeCategoryModal()" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-lg font-bold w-7 h-7 rounded-full flex items-center justify-center hover:bg-gray-100 transition">&times;</button>
+        <h3 id="categoryModalTitle" class="font-display font-semibold text-sm text-indigo-600 uppercase tracking-wider mb-3">Category Details</h3>
+        <div id="categoryModalBody" class="text-xs text-gray-800 leading-relaxed whitespace-pre-wrap break-words p-3 bg-gray-50 rounded-lg border border-gray-200/80"></div>
+        <div class="flex justify-end mt-4">
+            <button type="button" onclick="closeCategoryModal()" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openCategoryModal(title, text) {
+        document.getElementById('categoryModalTitle').textContent = title;
+        document.getElementById('categoryModalBody').textContent = text;
+        document.getElementById('categoryDetailModal').classList.remove('hidden');
+    }
+
+    function closeCategoryModal() {
+        document.getElementById('categoryDetailModal').classList.add('hidden');
+    }
+</script>
+
 @include('admin.circle_join_requests.partials.ded_approval_modal')
 @endsection
 

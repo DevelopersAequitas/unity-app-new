@@ -43,6 +43,7 @@ class EventManagementController extends Controller
     {
         $query = Event::query()
             ->with(['circle', 'circles'])
+            ->withCount(['occurrences'])
             ->withCount(['registrations as registered_count' => fn ($q) => $q->where('status', '!=', 'cancelled')])
             ->withCount(['registrations as checked_in_count' => fn ($q) => $q->where('checkin_status', 'checked_in')])
             ->when($request->event_type, fn ($q, $v) => $q->where('event_type', $v))
@@ -127,6 +128,7 @@ class EventManagementController extends Controller
             ->with(['event.circle', 'occurrence', 'user'])
             ->where('status', '!=', 'cancelled')
             ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
+            ->when($request->occurrence_id, fn ($q, $v) => $q->where('occurrence_id', $v))
             ->when($request->circle_id, fn ($q, $v) => $q->whereHas('event', fn ($eq) => $eq->where('circle_id', $v)))
             ->when($request->payment_status, function ($q, $v): void {
                 if ($v === 'paid') {

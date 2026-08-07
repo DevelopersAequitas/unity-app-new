@@ -71,7 +71,7 @@ class WhatsAppOtpAuthService
             'email' => $user->email ?? $mobile,
             'purpose' => 'whatsapp_otp',
             'code' => Hash::make($otp),
-            'expires_at' => now()->addMinutes(5),
+            'expires_at' => now()->addMinutes((int) config('auth.otp_expire_minutes', 10)),
             'used_at' => null,
         ]);
 

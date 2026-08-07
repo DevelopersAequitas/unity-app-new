@@ -225,6 +225,10 @@ class ZohoPaymentWebhookService
             : (string) (data_get($payload, 'payment_link.payment_link_id') ?? data_get($payload, 'payment_link_id') ?? data_get($payload, 'data.payment_link_id') ?? data_get($payload, 'data.payment_link.payment_link_id') ?? data_get($payload, 'payment_link.id') ?? '');
         $subscriptionIds = data_get($invoice, 'subscription_ids', []);
         $subscriptionId = is_array($subscriptionIds) ? ($subscriptionIds[0] ?? null) : $subscriptionIds;
+        $subscriptionId ??= data_get($payload, 'subscription.subscription_id')
+            ?? data_get($payload, 'data.subscription.subscription_id')
+            ?? data_get($payload, 'subscription_id')
+            ?? data_get($payload, 'data.subscription_id');
 
         return [
             'event_type' => data_get($payload, 'event') ?? data_get($payload, 'event_type') ?? data_get($payload, 'type') ?? data_get($payload, 'event_name') ?? 'customer_payment',
@@ -276,6 +280,12 @@ class ZohoPaymentWebhookService
             'invoice_url' => data_get($payload, 'invoice.invoice_url') ?? data_get($payload, 'data.invoice.invoice_url') ?? data_get($payload, 'invoice_url'),
             'invoice_pdf_url' => data_get($payload, 'invoice.invoice_pdf_url') ?? data_get($payload, 'data.invoice.invoice_pdf_url') ?? data_get($payload, 'invoice_pdf_url'),
             'invoice_status' => data_get($payload, 'invoice.status') ?? data_get($payload, 'data.invoice.status') ?? data_get($payload, 'invoice_status'),
+            'plan_code' => data_get($payload, 'subscription.plan.plan_code')
+                ?? data_get($payload, 'data.subscription.plan.plan_code')
+                ?? data_get($payload, 'subscription.plan_code')
+                ?? data_get($payload, 'data.subscription.plan_code')
+                ?? data_get($payload, 'plan_code')
+                ?? data_get($payload, 'data.plan_code'),
             'parsed_registration_id' => $parsed['registration_id'] ?? null,
             'parsed_payment_link_id' => $parsed['payment_link_id'] ?? null,
             'parsed_original_payment_id' => $parsed['original_payment_id'] ?? null,
@@ -800,13 +810,16 @@ class ZohoPaymentWebhookService
     {
         $paymentStatus = strtolower((string) ($info['payment_status'] ?? ''));
         $status = strtolower((string) ($info['status'] ?? ''));
+        $invoiceStatus = strtolower((string) ($info['invoice_status'] ?? ''));
         $amountApplied = (float) ($info['amount_applied'] ?? 0);
         $balanceAmount = (float) ($info['balance_amount'] ?? 0);
 
         return in_array($paymentStatus, ['paid', 'success', 'succeeded', 'completed', 'payment_success', 'captured'], true)
-            || in_array($status, ['paid', 'success', 'succeeded', 'completed', 'payment_success', 'captured'], true)
+            || in_array($status, ['paid', 'success', 'succeeded', 'completed', 'payment_success', 'captured', 'live', 'active'], true)
+            || in_array($invoiceStatus, ['paid', 'success', 'completed'], true)
             || ($amountApplied > 0 && abs($balanceAmount) < 0.00001)
-            || ! empty($info['payment_id']);
+            || ! empty($info['payment_id'])
+            || ! empty($info['subscription_id']);
     }
 
     private function applySubscriptionPayment(?Model $record, User $user, array $payload, array $info): void
@@ -823,7 +836,7 @@ class ZohoPaymentWebhookService
             'payment_id' => $record instanceof Payment ? $record->id : null,
             'zoho_customer_id' => $info['customer_id'] ?: $user->zoho_customer_id,
             'zoho_subscription_id' => $info['subscription_id'] ?: $user->zoho_subscription_id,
-            'zoho_plan_code' => $user->zoho_plan_code ?: ($info['plan_code'] ?? 'unity_peer'),
+            'zoho_plan_code' => $info['plan_code'] ?: ($user->zoho_plan_code ?: 'unity_peer'),
             'zoho_invoice_id' => $info['invoice_id'] ?: $user->zoho_last_invoice_id,
             'zoho_payment_id' => $info['payment_id'] ?? null,
             'membership_starts_at' => $startsAt,

@@ -105,13 +105,13 @@
         <table class="w-full min-w-[1100px] border-collapse text-[13px] align-middle">
           <thead>
             <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-              <th class="th-cell px-3 py-3 text-left sticky left-0 z-10 surface-2" style="min-width: 200px; max-width: 280px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Title</th>
+              <th class="th-cell px-3 py-3 text-left sticky left-0 z-10 surface-2" style="min-width: 200px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Title</th>
               <th class="th-cell px-3 py-3 text-left" style="width: 130px;">Type</th>
               <th class="th-cell px-3 py-3 text-left" style="min-width: 140px; max-width: 180px;">Circle</th>
               <th class="th-cell px-3 py-3 text-left" style="width: 90px;">Mode</th>
               <th class="th-cell px-3 py-3 text-left" style="width: 145px;">Start Date</th>
               <th class="th-cell px-3 py-3 text-left" style="width: 100px;">Recurrence</th>
-              <th class="th-cell px-3 py-3 text-center" style="width: 90px;">Registered</th>
+              <th class="th-cell px-3 py-3 text-center" style="width: 100px;">total_Recurrence</th>
               <th class="th-cell px-3 py-3 text-center" style="width: 90px;">Checked-in</th>
               <th class="th-cell px-3 py-3 text-left" style="width: 110px;">Status</th>
               <th class="th-cell px-3 py-3 text-right" style="width: 280px;">Actions</th>
@@ -121,7 +121,7 @@
             @forelse($events as $event)
               <tr class="hover:surface-2 transition border-b bs">
                 <td class="px-3 py-3 font-semibold text-slate-900 t1 sticky left-0 z-10 surface" style="min-width:200px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
-                  <div class="max-w-[280px] leading-snug admin-grid-text-clamp" data-full-text="{{ $event->title }}">
+                  <div class="leading-snug admin-grid-text-clamp" data-full-text="{{ $event->title }}">
                     <a href="{{ route('admin.events.show', $event->id) }}" class="text-indigo-600 hover:text-indigo-800 no-underline font-medium">
                       {{ $event->title }}
                     </a>
@@ -170,8 +170,8 @@
                   {{ $event->recurrence_type ?? 'none' }}
                 </td>
                 <td class="px-3 py-3 text-center">
-                  <a href="{{ route('admin.events.total-registered', ['event_id' => $event->id]) }}" class="font-bold text-indigo-600 hover:text-indigo-800 no-underline text-xs inline-block px-2 py-0.5 rounded bg-indigo-50/70" title="View registered list for this event">
-                    {{ $event->registered_count ?? 0 }}
+                  <a href="{{ route('admin.events.show', $event->id) }}" class="font-bold text-indigo-600 hover:text-indigo-800 no-underline text-xs inline-block px-2 py-0.5 rounded bg-indigo-50/70" title="View occurrences for this event">
+                    {{ $event->occurrences_count ?? 0 }}
                   </a>
                 </td>
                 <td class="px-3 py-3 text-center">

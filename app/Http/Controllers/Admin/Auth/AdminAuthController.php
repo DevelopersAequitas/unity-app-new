@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AdminLoginOtpMail;
 use App\Models\AdminLoginOtp;
 use App\Models\AdminUser;
 use App\Models\CircleMember;
@@ -193,9 +194,9 @@ class AdminAuthController extends Controller
         $body = "Your admin login OTP is {$otp}. It expires in 5 minutes.";
 
         try {
-            Mail::raw($body, static function ($message) use ($email, $subject): void {
-                $message->to($email)->subject($subject);
-            });
+            $name = $adminUser->name ?: 'Admin';
+            $mailable = new AdminLoginOtpMail($otp, $name, $subject);
+            Mail::to($email)->send($mailable);
 
             app(EmailLogService::class)->logSent([
                 'to_email' => $email,

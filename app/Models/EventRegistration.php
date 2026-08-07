@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -90,6 +91,7 @@ class EventRegistration extends Model
         'razorpay_payment_id',
         'razorpay_order_id',
         'visitor_registration_form_url',
+        'qr_status',
     ];
 
     protected $casts = [
@@ -172,5 +174,18 @@ class EventRegistration extends Model
             'name' => $category->name,
             'slug' => $category->slug ?? null,
         ];
+    }
+
+    public function getQrStatusAttribute(): string
+    {
+        $occurrence = $this->occurrence;
+        if ($occurrence) {
+            $endTime = $occurrence->end_at ?? $occurrence->start_at;
+            if ($endTime && Carbon::parse($endTime)->isPast()) {
+                return 'expired';
+            }
+        }
+
+        return $this->attributes['qr_status'] ?? 'generated';
     }
 }
