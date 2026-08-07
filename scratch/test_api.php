@@ -3,20 +3,20 @@
 use App\Models\EventRegistration;
 use App\Models\User;
 
-require __DIR__ . '/../vendor/autoload.php';
-$app = require_once __DIR__ . '/../bootstrap/app.php';
+require __DIR__.'/../vendor/autoload.php';
+$app = require_once __DIR__.'/../bootstrap/app.php';
 
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
 $user = User::query()->first();
-if (!$user) {
+if (! $user) {
     echo "No user found in database.\n";
     exit;
 }
 
 $registration = EventRegistration::query()->with('occurrence')->where('user_id', $user->id)->first();
-if (!$registration) {
+if (! $registration) {
     // Let's find any registration and temporarily assign it
     $registration = EventRegistration::query()->with('occurrence')->first();
     if ($registration) {
@@ -26,9 +26,9 @@ if (!$registration) {
 }
 
 if ($registration) {
-    echo "Registration ID: " . $registration->id . "\n";
-    echo "Dynamic QR Status: " . $registration->qr_status . "\n";
-    
+    echo 'Registration ID: '.$registration->id."\n";
+    echo 'Dynamic QR Status: '.$registration->qr_status."\n";
+
     // Test API response structure
     $qr = app(\App\Services\Events\EventQrService::class);
     $response = [

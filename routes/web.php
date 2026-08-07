@@ -44,6 +44,7 @@ use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailLogController;
+use App\Http\Controllers\Admin\EventCouponWebController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
@@ -342,8 +343,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/events/{id}', [EventManagementController::class, 'update'])->name('events.update');
         Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
         Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->name('events.occurrences.add-visitor');
-        Route::get('/events/{id}/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
+        Route::get('/events/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
+
+        Route::resource('/event-coupons', EventCouponWebController::class)->except(['create', 'edit']);
 
         Route::get('/event-gallery', [EventGalleryController::class, 'index'])->name('event-gallery.index');
         Route::post('/event-gallery/events', [EventGalleryController::class, 'storeEvent'])->name('event-gallery.events.store');

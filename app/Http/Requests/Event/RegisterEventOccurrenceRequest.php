@@ -13,6 +13,9 @@ class RegisterEventOccurrenceRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['source' => ['sometimes', 'string', 'in:app,admin,scanner,zoho_form']];
+        return [
+            'source' => ['sometimes', 'string', 'in:app,admin,scanner,zoho_form'],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
+        ];
     }
 }

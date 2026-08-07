@@ -33,11 +33,12 @@ class EventPaymentService
 
     public function applyInitialPaymentState(EventRegistration $registration, Event $event, string $registrationType): EventRegistration
     {
-        $paymentRequired = $this->paymentRequired($event);
+        $amount = $registration->amount !== null ? (float) $registration->amount : $this->amount($event);
+        $paymentRequired = $this->paymentRequired($event) && $amount > 0;
         $updates = [
             'payment_required' => $paymentRequired,
             'payment_status' => $paymentRequired ? 'pending' : 'not_required',
-            'amount' => $paymentRequired ? $this->amount($event) : 0,
+            'amount' => $amount,
             'currency' => $this->currency($event),
             'registration_type' => $registrationType,
         ];
@@ -45,6 +46,8 @@ class EventPaymentService
         if ($paymentRequired) {
             $updates['status'] = 'pending_payment';
             $updates['checkin_status'] = 'pending';
+        } else {
+            $updates['status'] = 'registered';
         }
 
         $registration->forceFill($this->filterRegistrationColumns($updates))->save();

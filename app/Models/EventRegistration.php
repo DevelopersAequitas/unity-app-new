@@ -91,6 +91,10 @@ class EventRegistration extends Model
         'razorpay_order_id',
         'visitor_registration_form_url',
         'qr_status',
+        'coupon_id',
+        'coupon_code',
+        'original_amount',
+        'discount_amount',
     ];
 
     protected $casts = [
@@ -106,10 +110,17 @@ class EventRegistration extends Model
         'payment_completed_at' => 'datetime',
         'amount' => 'decimal:2',
         'payment_amount' => 'decimal:2',
+        'original_amount' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'payment_required' => 'boolean',
         'zoho_invoice_synced_at' => 'datetime',
         'razorpay_paid_at' => 'datetime',
     ];
+
+    public function coupon(): BelongsTo
+    {
+        return $this->belongsTo(EventCoupon::class, 'coupon_id');
+    }
 
     public function event(): BelongsTo
     {
