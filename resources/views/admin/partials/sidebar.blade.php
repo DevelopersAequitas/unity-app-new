@@ -38,9 +38,11 @@
         : (($isCircleScoped || $isDed)
             ? [
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-                ...($isDed ? [
+                ...($isDed || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circles') ? [
                     ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
-                    ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.ded.dashboard.industries']
+                ] : []),
+                ...($isDed || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Industries') ? [
+                    ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => $isDed ? 'admin.ded.dashboard.industries' : 'admin.execution.industries'],
                 ] : []),
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
@@ -49,9 +51,9 @@
                 ] : []),
                 ...(! $isDed && ! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
-                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index'],
                 ] : []),
-                ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') ? [
+                ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events') ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
@@ -255,36 +257,59 @@
     ];
     $dedAnalyticsActive = request()->routeIs('admin.ded.dashboard.health.*');
 
-    // Filter allowed sidebar sections
-    if ($dashboardItem && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dashboard')) {
+    // Filter allowed sidebar sections and sub-items
+    if ($dashboardItem && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dashboard')) {
         $dashboardItem = null;
     }
-    if ($activityMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities')) {
+    if (! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities')) {
         $activityMenu = [];
     }
-    if ($referralReportItem && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Referral Report')) {
+    if ($referralReportItem && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Referral Report')) {
         $referralReportItem = null;
     }
-    if ($postsMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline')) {
+    if (! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline') && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Content & Posts') && ! $isGlobalAdmin) {
         $postsMenu = [];
     }
-    if ($leadsMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads')) {
+    if (! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads') && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Lead Submissions')) {
         $leadsMenu = [];
+    }
+
+    if ($activityMenu) {
+        $activityMenu = array_values(array_filter($activityMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities');
+        }));
+    }
+    if ($postsMenu) {
+        $postsMenu = array_values(array_filter($postsMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Content & Posts');
+        }));
+    }
+    if ($pendingRequestsMenu) {
+        $pendingRequestsMenu = array_values(array_filter($pendingRequestsMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Pending Requests');
+        }));
+    }
+    if ($eventsManagementMenu) {
+        $eventsManagementMenu = array_values(array_filter($eventsManagementMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events');
+        }));
     }
 
     $navItems = array_values(array_filter($navItems, function ($item) use ($adminUser) {
         $label = $item['label'] ?? null;
-        if ($label && !\App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+        if ($label && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
             return false;
         }
+
         return true;
     }));
 
     $bottomNavItems = array_values(array_filter($bottomNavItems, function ($item) use ($adminUser) {
         $label = $item['label'] ?? null;
-        if ($label && !\App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+        if ($label && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
             return false;
         }
+
         return true;
     }));
 @endphp
@@ -646,7 +671,6 @@
             const sidebar = document.querySelector('.admin-sidebar');
             const menuParents = document.querySelectorAll('.admin-sidebar .menu-parent');
 
-            // Preserve & Restore Sidebar Scroll Position
             if (sidebar) {
                 const savedScroll = sessionStorage.getItem('sidebar_scroll_top');
                 if (savedScroll !== null) {
@@ -672,15 +696,17 @@
                 const submenu = parentItem.querySelector('.collapse');
                 if (!submenu) return;
 
-                const toggle = parentItem.querySelector('a[role="button"]') || parentItem.querySelector(`a[href="#${submenu.id}"]`);
+                const toggle = parentItem.querySelector('a[role="button"]') || parentItem.querySelector(`a[href="#${submenu.id}"]`) || parentItem.querySelector('a');
                 if (!toggle) return;
 
                 // Sync initial state on load
-                if (submenu.classList.contains('show')) {
+                if (submenu.classList.contains('show') || parentItem.classList.contains('open')) {
                     parentItem.classList.add('open');
+                    submenu.classList.add('show');
                     toggle.setAttribute('aria-expanded', 'true');
                 } else {
                     parentItem.classList.remove('open');
+                    submenu.classList.remove('show');
                     toggle.setAttribute('aria-expanded', 'false');
                 }
 
@@ -688,63 +714,29 @@
                     e.preventDefault();
                     e.stopPropagation();
 
-                    const isCurrentlyOpen = submenu.classList.contains('show') || parentItem.classList.contains('open');
+                    const isOpen = parentItem.classList.contains('open') || submenu.classList.contains('show');
 
-                    // Close all other open submenus first (accordion behavior)
+                    // Close other submenus for accordion behavior
                     menuParents.forEach((otherParent) => {
-                        const otherSubmenu = otherParent.querySelector('.collapse');
-                        if (otherSubmenu && otherSubmenu !== submenu) {
-                            otherSubmenu.classList.remove('show');
+                        if (otherParent !== parentItem) {
                             otherParent.classList.remove('open');
-                            const otherToggle = otherParent.querySelector('a[role="button"]') || otherParent.querySelector(`a[href="#${otherSubmenu.id}"]`);
-                            if (otherToggle) otherToggle.setAttribute('aria-expanded', 'false');
-
-                            if (typeof bootstrap !== 'undefined' && bootstrap && bootstrap.Collapse) {
-                                try {
-                                    const bsCollapse = bootstrap.Collapse.getInstance(otherSubmenu);
-                                    if (bsCollapse) {
-                                        bsCollapse.hide();
-                                    }
-                                } catch (err) {
-                                    // ignore fallback
-                                }
+                            const otherSub = otherParent.querySelector('.collapse');
+                            if (otherSub) {
+                                otherSub.classList.remove('show');
                             }
+                            const otherTog = otherParent.querySelector('a[role="button"]') || otherParent.querySelector('a');
+                            if (otherTog) otherTog.setAttribute('aria-expanded', 'false');
                         }
                     });
 
-                    // Toggle current submenu
-                    if (isCurrentlyOpen) {
-                        submenu.classList.remove('show');
+                    if (isOpen) {
                         parentItem.classList.remove('open');
+                        submenu.classList.remove('show');
                         toggle.setAttribute('aria-expanded', 'false');
-
-                        if (typeof bootstrap !== 'undefined' && bootstrap && bootstrap.Collapse) {
-                            try {
-                                const bsCollapse = bootstrap.Collapse.getInstance(submenu);
-                                if (bsCollapse) {
-                                    bsCollapse.hide();
-                                }
-                            } catch (err) {
-                                // ignore fallback
-                            }
-                        }
                     } else {
-                        submenu.classList.add('show');
                         parentItem.classList.add('open');
+                        submenu.classList.add('show');
                         toggle.setAttribute('aria-expanded', 'true');
-
-                        if (typeof bootstrap !== 'undefined' && bootstrap && bootstrap.Collapse) {
-                            try {
-                                let bsCollapse = bootstrap.Collapse.getInstance(submenu);
-                                if (bsCollapse) {
-                                    bsCollapse.show();
-                                } else {
-                                    new bootstrap.Collapse(submenu, { toggle: false }).show();
-                                }
-                            } catch (err) {
-                                // ignore fallback
-                            }
-                        }
                     }
                 });
             });
@@ -754,8 +746,13 @@
 
 @push('styles')
     <style>
+        .admin-sidebar .menu-parent.open > .collapse,
         .admin-sidebar .collapse.show {
+            display: block !important;
             visibility: visible !important;
+            opacity: 1 !important;
+            height: auto !important;
+            overflow: visible !important;
         }
     </style>
 @endpush

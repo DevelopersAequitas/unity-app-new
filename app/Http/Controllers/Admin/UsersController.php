@@ -2262,9 +2262,9 @@ class UsersController extends Controller
                         ->whereNull('circle_members.deleted_at');
 
                     if ($role === 'leadership_team') {
-                        $q->whereIn('circle_members.role', ['chair', 'vice_chair', 'secretary', 'committee_leader']);
+                        $q->whereIn(DB::raw('circle_members.role::text'), ['chair', 'vice_chair', 'secretary', 'committee_leader']);
                     } else {
-                        $q->where('circle_members.role', $role);
+                        $q->where(DB::raw('circle_members.role::text'), $role);
                     }
 
                     if ($isDed && is_array($dedCircleIds)) {

@@ -492,11 +492,11 @@ class RoleHierarchyController extends Controller
                     $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($assign->email)])->first();
                     if ($appUser) {
                         $colName = 'circle_director_user_id';
-                        $dbRole = 'director';
+                        $dbRole = 'circle_director';
 
                         if (str_contains($roleKey, 'founder') || str_contains($roleKey, 'cf')) {
                             $colName = 'circle_founder_user_id';
-                            $dbRole = 'founder';
+                            $dbRole = 'circle_founder';
                         } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
                             $colName = 'vice_chair_user_id';
                             $dbRole = 'vice_chair';
@@ -513,10 +513,17 @@ class RoleHierarchyController extends Controller
                             ->first();
 
                         if (! $circle) {
+                            $rolesToMatch = [$dbRole];
+                            if ($dbRole === 'circle_director') {
+                                $rolesToMatch[] = 'director';
+                            } elseif ($dbRole === 'circle_founder') {
+                                $rolesToMatch[] = 'founder';
+                            }
+
                             $circle = DB::table('circles')
                                 ->join('circle_members', 'circles.id', '=', 'circle_members.circle_id')
                                 ->where('circle_members.user_id', $appUser->id)
-                                ->where('circle_members.role', $dbRole)
+                                ->whereIn(DB::raw('circle_members.role::text'), $rolesToMatch)
                                 ->whereNull('circle_members.deleted_at')
                                 ->select('circles.*')
                                 ->first();
@@ -620,11 +627,11 @@ class RoleHierarchyController extends Controller
                 $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
                 if ($appUser) {
                     $colName = 'circle_director_user_id';
-                    $dbRole = 'director';
+                    $dbRole = 'circle_director';
 
                     if (str_contains($roleKey, 'founder') || str_contains($roleKey, 'cf')) {
                         $colName = 'circle_founder_user_id';
-                        $dbRole = 'founder';
+                        $dbRole = 'circle_founder';
                     } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
                         $colName = 'vice_chair_user_id';
                         $dbRole = 'vice_chair';
@@ -643,9 +650,16 @@ class RoleHierarchyController extends Controller
                         ]);
                     }
 
+                    $rolesToDelete = [$dbRole];
+                    if ($dbRole === 'circle_director') {
+                        $rolesToDelete[] = 'director';
+                    } elseif ($dbRole === 'circle_founder') {
+                        $rolesToDelete[] = 'founder';
+                    }
+
                     DB::table('circle_members')
                         ->where('user_id', $appUser->id)
-                        ->where('role', $dbRole)
+                        ->whereIn(DB::raw('circle_members.role::text'), $rolesToDelete)
                         ->delete();
 
                     if (Schema::hasTable('tbl_permission_cache')) {
@@ -819,11 +833,11 @@ class RoleHierarchyController extends Controller
 
                     if ($appUser) {
                         $colName = 'circle_director_user_id';
-                        $dbRole = 'director';
+                        $dbRole = 'circle_director';
 
                         if (str_contains($roleKey, 'founder') || str_contains($roleKey, 'cf')) {
                             $colName = 'circle_founder_user_id';
-                            $dbRole = 'founder';
+                            $dbRole = 'circle_founder';
                         } elseif (str_contains($roleKey, 'vice_chair') || str_contains($roleKey, 'vice')) {
                             $colName = 'vice_chair_user_id';
                             $dbRole = 'vice_chair';
@@ -847,9 +861,16 @@ class RoleHierarchyController extends Controller
                             ]);
                         }
 
+                        $rolesToDelete = [$dbRole];
+                        if ($dbRole === 'circle_director') {
+                            $rolesToDelete[] = 'director';
+                        } elseif ($dbRole === 'circle_founder') {
+                            $rolesToDelete[] = 'founder';
+                        }
+
                         DB::table('circle_members')
                             ->where('user_id', $appUser->id)
-                            ->where('role', $dbRole)
+                            ->whereIn(DB::raw('circle_members.role::text'), $rolesToDelete)
                             ->delete();
 
                         $existingMember = DB::table('circle_members')
