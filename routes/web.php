@@ -376,6 +376,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->name('events.occurrences.add-visitor');
         Route::get('/events/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
+        Route::post('/events/registrations/{id}/send-whatsapp-qr', [EventManagementController::class, 'sendWhatsappQr'])->whereUuid('id')->name('events.registrations.send-whatsapp-qr');
 
         Route::resource('/event-coupons', EventCouponWebController::class)->except(['create', 'edit']);
 

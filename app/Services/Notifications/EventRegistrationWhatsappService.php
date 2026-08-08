@@ -23,7 +23,7 @@ class EventRegistrationWhatsappService
     /**
      * Trigger WhatsApp notification for an event registration safely.
      */
-    public function sendNotification(EventRegistration $registration): bool
+    public function sendNotification(EventRegistration $registration, bool $force = false): bool
     {
         try {
             $registration = $registration->fresh(['user', 'event', 'occurrence']) ?? $registration;
@@ -37,7 +37,7 @@ class EventRegistrationWhatsappService
                 return false;
             }
 
-            if ($this->isAlreadySent($registration)) {
+            if (! $force && $this->isAlreadySent($registration)) {
                 Log::info('Event registration WhatsApp skipped: Already sent for this registration.', [
                     'registration_id' => (string) $registration->id,
                 ]);
@@ -81,6 +81,8 @@ class EventRegistrationWhatsappService
 
             $qrCodeUrl = (string) (app(EventRegistrationQrService::class)->qrCodeUrl($registration) ?: $registration->qr_code_url ?: '');
 
+            $messageText = 'Your event QR code is attached. Please show this QR code at the event check-in.';
+
             $payload = [
                 'participant_name' => $recipientName,
                 'registration_id' => (string) $registration->id,
@@ -89,6 +91,8 @@ class EventRegistrationWhatsappService
                 'event_time' => $eventTime,
                 'venue' => $venue,
                 'qr_code_url' => $qrCodeUrl,
+                'message' => $messageText,
+                'caption' => $messageText,
                 'digital_entry_pass_url' => 'https://peersglobal.com/',
                 'digital_entry_pass_message' => 'You can access your digital entry pass here: https://peersglobal.com/',
                 'entry_pass_url' => 'https://peersglobal.com/',

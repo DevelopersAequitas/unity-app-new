@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -16,6 +18,7 @@ use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
+use App\Services\Notifications\EventRegistrationWhatsappService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
@@ -679,6 +682,22 @@ class EventManagementController extends Controller
         }
 
         return $data;
+    }
+
+    public function sendWhatsappQr(string $id, EventRegistrationWhatsappService $whatsappService): RedirectResponse
+    {
+        $registration = EventRegistration::query()->findOrFail($id);
+
+        // Ensure existing QR code is generated if missing
+        app(EventRegistrationQrService::class)->ensureQrGenerated($registration);
+
+        $success = $whatsappService->sendNotification($registration, force: true);
+
+        if ($success) {
+            return back()->with('success', 'WhatsApp QR pass sent successfully.');
+        }
+
+        return back()->with('error', 'Failed to send WhatsApp message. Please check recipient phone number and WhatsApp configuration.');
     }
 
     private function cleanAgenda(array $rows): array
