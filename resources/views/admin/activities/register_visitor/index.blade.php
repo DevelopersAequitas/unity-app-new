@@ -81,43 +81,43 @@
             <!-- Table Card -->
             <div class="rounded-xl border bs surface overflow-hidden">
                 <div class="overflow-x-auto relative">
-                    <table class="min-w-[1300px] w-full border-collapse text-[13px]">
+                    <table class="min-w-full w-full border-collapse text-[13px] align-middle">
                         <thead>
-                            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Company</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Peer Phone</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Name</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Type</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Date</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor Name</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Mobile</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">City</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Coins Awarded</th>
-                                <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 130px;">Submitted At</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width: 170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Peer Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 130px;">Company</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 100px;">City</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 120px;">Peer Phone</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 160px;">Event Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 110px;">Event Type</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 110px;">Event Date</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 140px;">Visitor Name</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 115px;">Mobile</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 140px;">Business</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 100px;">City</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 110px;">Status</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap" style="min-width: 110px;">Coins Awarded</th>
+                                <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-right whitespace-nowrap" style="min-width: 120px;">Actions</th>
                             </tr>
-                            <tr class="surface-2 border-b bs filter-row">
-                                <th class="px-2 py-1 text-center t3">—</th>
-                                <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);"><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
-                                <th class="px-2 py-1"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
-                                <th class="px-2 py-1"><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Phone" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="text" name="event_name" value="{{ $filters['event_name'] ?? '' }}" placeholder="Event Name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="text" name="event_type" value="{{ $filters['event_type'] ?? '' }}" placeholder="Type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="date" name="event_date" value="{{ $filters['event_date'] ?? '' }}" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="text" name="visitor_name" value="{{ $filters['visitor_name'] ?? '' }}" placeholder="Visitor" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="text" name="visitor_mobile" value="{{ $filters['visitor_mobile'] ?? '' }}" placeholder="Mobile" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="text" name="visitor_business" value="{{ $filters['visitor_business'] ?? '' }}" placeholder="Business" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="text" name="visitor_city" value="{{ $filters['visitor_city'] ?? '' }}" placeholder="City" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="text" name="status" value="{{ $filters['status'] ?? '' }}" placeholder="Status" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1"><input type="number" name="coins_awarded" value="{{ $filters['coins_awarded'] ?? '' }}" placeholder="Coins" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
-                                <th class="px-2 py-1">
+                            <tr class="surface-2 border-b bs filter-row whitespace-nowrap">
+                                <th class="px-2 py-1.5 text-center t3 whitespace-nowrap">—</th>
+                                <th class="px-2 py-1.5 sticky left-0 z-10 surface-2 whitespace-nowrap" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);"><input type="text" name="peer_name" value="{{ $filters['peer_name'] ?? '' }}" placeholder="Peer Name" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" name="peer_phone" value="{{ $filters['peer_phone'] ?? '' }}" placeholder="Phone" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" name="event_name" value="{{ $filters['event_name'] ?? '' }}" placeholder="Event Name" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" name="event_type" value="{{ $filters['event_type'] ?? '' }}" placeholder="Type" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="date" name="event_date" value="{{ $filters['event_date'] ?? '' }}" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" name="visitor_name" value="{{ $filters['visitor_name'] ?? '' }}" placeholder="Visitor" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" name="visitor_mobile" value="{{ $filters['visitor_mobile'] ?? '' }}" placeholder="Mobile" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" name="visitor_business" value="{{ $filters['visitor_business'] ?? '' }}" placeholder="Business" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" name="visitor_city" value="{{ $filters['visitor_city'] ?? '' }}" placeholder="City" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="text" name="status" value="{{ $filters['status'] ?? '' }}" placeholder="Status" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap"><input type="number" name="coins_awarded" value="{{ $filters['coins_awarded'] ?? '' }}" placeholder="Coins" class="px-2 py-1 text-xs rounded-lg border bs surface t1 w-full outline-none focus-ring"></th>
+                                <th class="px-2 py-1.5 whitespace-nowrap">
                                     <div class="flex justify-end">
-                                        <button type="button" onclick="clearAdminFilters(event, 'adminactivitiesregister-visitorindexFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
+                                        <button type="button" onclick="clearAdminFilters(event, 'adminactivitiesregister-visitorindexFiltersForm')" class="px-2.5 py-1 text-xs font-semibold rounded-lg border bs t2 hover:t1 hover:surface-2 transition">Clear</button>
                                     </div>
                                 </th>
                             </tr>
@@ -127,75 +127,101 @@
                                 @php
                                     $peerName = $item->peer_name ?? '—';
                                     $visitorSearch = $item->visitor_mobile ? ['search' => $item->visitor_mobile] : [];
+                                    $evType = strtolower((string)($item->event_type ?? ''));
+                                    $st = strtolower((string)($item->status ?? ''));
                                 @endphp
-                                <tr class="hover:surface-2 transition border-b bs">
-                                    <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($item->created_at ?? null) }}</td>
-                                    <td class="px-3 py-2.5 sticky left-0 z-10 surface" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
-                                        <div class="flex items-center gap-2">
+                                <tr class="hover:surface-2 transition border-b bs whitespace-nowrap">
+                                    <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-mono">{{ $formatDateTime($item->created_at ?? null) }}</td>
+                                    <td class="px-3 py-2.5 sticky left-0 z-10 surface whitespace-nowrap" style="min-width:170px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                                        <div class="flex items-center gap-2 whitespace-nowrap">
                                             <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($peerName) }}">
                                                 {{ $getInitials($peerName) }}
                                             </div>
-                                            <div class="font-semibold t1 text-[12.5px]">
+                                            <div class="font-semibold t1 text-[12.5px] whitespace-nowrap">
                                                 @if(!empty($item->user_id ?? $item->actor_id))
-                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->actor_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->actor_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline whitespace-nowrap">
                                                         {{ $peerName }}
                                                     </a>
                                                 @else
-                                                    {{ $peerName }}
+                                                    <span class="whitespace-nowrap">{{ $peerName }}</span>
                                                 @endif
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$item->peer_company ?? '—'" /></td>
-                                    <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$item->peer_city ?? '—'" /></td>
-                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->peer_phone ?? '—' }}</td>
-                                    <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px]">
-                                        <div class="admin-grid-text-clamp" data-full-text="{{ $item->event_name ?? '—' }}">
-                                            @if(!empty($item->event_id))
-                                                <a href="{{ route('admin.events.show', $item->event_id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
-                                                    {{ $item->event_name ?? '—' }}
-                                                </a>
-                                            @else
+                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->peer_company ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->peer_city ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap font-mono">{{ $item->peer_phone ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs font-semibold t1 whitespace-nowrap">
+                                        @if(!empty($item->event_id))
+                                            <a href="{{ route('admin.events.show', $item->event_id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline whitespace-nowrap">
                                                 {{ $item->event_name ?? '—' }}
-                                            @endif
-                                        </div>
+                                            </a>
+                                        @else
+                                            <span class="whitespace-nowrap">{{ $item->event_name ?? '—' }}</span>
+                                        @endif
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs">
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($item->event_type ?? '—') }}</span>
+                                    <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                        @if(in_array($evType, ['physical', 'offline'], true))
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ ucfirst($item->event_type ?? 'Physical') }}
+                                            </span>
+                                        @elseif(in_array($evType, ['virtual', 'online'], true))
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>{{ ucfirst($item->event_type ?? 'Virtual') }}
+                                            </span>
+                                        @elseif(in_array($evType, ['hybrid'], true))
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>{{ ucfirst($item->event_type ?? 'Hybrid') }}
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>{{ ucfirst($item->event_type ?? '—') }}
+                                            </span>
+                                        @endif
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                    <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-mono">
                                         {{ $item->event_date ? $formatDate($item->event_date) : '—' }}
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px]">
+                                    <td class="px-3 py-2.5 text-xs font-semibold t1 whitespace-nowrap">
                                         {{ $item->visitor_full_name ?? '—' }}
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->visitor_mobile ?? '—' }}</td>
-                                    <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$item->visitor_business ?? '—'" /></td>
-                                    <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$item->visitor_city ?? '—'" /></td>
-                                    <td class="px-3 py-2.5 text-xs">
-                                        @if(strtolower((string)$item->status) === 'approved' || strtolower((string)$item->status) === 'attended')
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">{{ ucfirst($item->status ?? '—') }}</span>
+                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap font-mono">{{ $item->visitor_mobile ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->visitor_business ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->visitor_city ?? '—' }}</td>
+                                    <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                        @if($st === 'approved' || $st === 'attended')
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ ucfirst($item->status ?? 'Approved') }}
+                                            </span>
+                                        @elseif($st === 'rejected' || $st === 'cancelled')
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{{ ucfirst($item->status ?? 'Rejected') }}
+                                            </span>
                                         @else
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">{{ ucfirst($item->status ?? '—') }}</span>
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ ucfirst($item->status ?? 'Pending') }}
+                                            </span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs">
+                                    <td class="px-3 py-2.5 text-center whitespace-nowrap">
                                         @if($item->coins_awarded)
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">Yes</span>
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>Yes
+                                            </span>
                                         @else
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">No</span>
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>No
+                                            </span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
+                                    <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap" style="min-width:120px;">
                                         @if ($item->visitor_mobile)
-                                            <a class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline" href="{{ route('admin.visitor-registrations.index', $visitorSearch) }}">
+                                            <a class="inline-flex items-center justify-center px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap" href="{{ route('admin.visitor-registrations.index', $visitorSearch) }}">
                                                 Open Approval
                                             </a>
                                         @else
-                                            <span class="t3">—</span>
+                                            <span class="t3 whitespace-nowrap">—</span>
                                         @endif
-                                    </td>
-                                </tr>
                             @empty
                                 <tr>
                                     <td colspan="15" class="text-center py-8 text-xs t3">No registered visitors found.</td>

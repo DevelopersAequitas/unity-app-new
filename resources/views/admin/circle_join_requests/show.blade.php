@@ -183,7 +183,7 @@
                                 <span class="font-semibold text-xs text-indigo-600">{{ $categoryPath['subCategory']->name }}</span>
                             </div>
                         @endif
-                    </div>
+                    </div>      
 
                     @if(($categoryPath['level1'] ?? null) || ($categoryPath['level2'] ?? null) || ($categoryPath['level3'] ?? null) || ($categoryPath['level4'] ?? null))
                         <div class="pt-3 border-t bs">

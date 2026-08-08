@@ -116,22 +116,22 @@
     <!-- Table Section -->
     <div class="surface rounded-xl border bs overflow-hidden">
       <div class="overflow-x-auto relative">
-        <table class="min-w-[1500px] w-full border-collapse text-[13px]">
+        <table class="min-w-full w-full border-collapse text-[13px] align-middle">
           <thead>
-            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Registrant</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:100px;">Phone</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:180px;">Email</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:160px;">Event</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:130px;">Event Date</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:160px;">Circle</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:90px;">Payment</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:120px;">Check-in Status</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="width:100px;">QR Status</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="width:90px;">QR Code</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-center" style="width:100px;">QR Download</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="width:130px;">Registered At</th>
-              <th class="th-cell surface-2 border-b bs px-3 py-2 text-right" style="width:100px;">Actions</th>
+            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left sticky left-0 z-10 whitespace-nowrap" style="min-width: 180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Registrant</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 110px;">Phone</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 180px;">Email</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 160px;">Event</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 120px;">Event Date</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 160px;">Circle</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 100px;">Payment</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 135px;">Check-in Status</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap" style="min-width: 110px;">QR Status</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap" style="min-width: 90px;">QR Code</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap" style="min-width: 110px;">QR Download</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap" style="min-width: 160px;">Registered At</th>
+              <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-right whitespace-nowrap" style="min-width: 120px;">Actions</th>
             </tr>
           </thead>
           <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -144,69 +144,63 @@
                 $pStatus = strtolower((string) ($row->payment_status ?? ''));
                 $isCheckedIn = strtolower((string) ($row->checkin_status ?? '')) === 'checked_in' || !empty($row->checked_in_at);
               @endphp
-              <tr class="hover:surface-2 transition border-b bs">
-                <td class="px-3 py-2.5 font-semibold text-slate-900 t1 whitespace-nowrap sticky left-0 z-10 surface align-middle" style="width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
-                  <div class="inline-flex items-center gap-1.5 flex-wrap">
+              <tr class="hover:surface-2 transition border-b bs whitespace-nowrap">
+                <td class="px-3 py-2.5 font-semibold text-slate-900 t1 whitespace-nowrap sticky left-0 z-10 surface align-middle" style="min-width: 180px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                  <div class="inline-flex items-center gap-2 whitespace-nowrap">
                     @if($isMember && !empty($row->user_id))
-                      <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $row->user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                      <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $row->user_id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline whitespace-nowrap">
                         {{ $name }}
                       </a>
                     @else
-                      <span>{{ $name }}</span>
+                      <span class="whitespace-nowrap">{{ $name }}</span>
                     @endif
-                    <span class="chip px-2 py-0.5 text-[10px] font-semibold inline-flex items-center align-middle {{ $isMember ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-purple-50 text-purple-700 border-purple-200' }}">
+                    <span class="px-2 py-0.5 text-[10px] font-semibold rounded-md border inline-flex items-center whitespace-nowrap {{ $isMember ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-purple-50 text-purple-700 border-purple-200' }}">
                       {{ $isMember ? 'Member' : 'Visitor' }}
                     </span>
                   </div>
                 </td>
-                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap align-middle" style="width:100px;">{{ $phone }}</td>
-                <td class="px-3 py-2.5 text-xs t2 align-middle">
-                  <x-admin-grid-text :text="$email" :lines="1" />
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap align-middle">{{ $phone }}</td>
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap align-middle">{{ $email }}</td>
+                <td class="px-3 py-2.5 text-xs whitespace-nowrap align-middle">
+                  <a href="{{ route('admin.events.show', $row->event_id) }}" class="text-indigo-600 hover:text-indigo-800 font-medium no-underline whitespace-nowrap">
+                    {{ $row->event?->title ?? 'Event #'.$row->event_id }}
+                  </a>
                 </td>
-                <td class="px-3 py-2.5 text-xs align-middle">
-                  <x-admin-grid-text :lines="2">
-                    <a href="{{ route('admin.events.show', $row->event_id) }}" class="text-indigo-600 hover:text-indigo-800 font-medium no-underline">
-                      {{ $row->event?->title ?? 'Event #'.$row->event_id }}
-                    </a>
-                  </x-admin-grid-text>
-                </td>
-                <td class="px-3 py-2.5 text-xs t2 align-middle">
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap font-mono align-middle">
                   {{ optional($row->occurrence?->start_at)->format('d M Y') ?: '—' }}
                 </td>
-                <td class="px-3 py-2.5 text-xs t2 align-middle">
-                  <x-admin-grid-text :lines="2">
-                    @if(!empty($row->event?->circle?->id))
-                      <a href="{{ route('admin.circles.show', $row->event->circle->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium no-underline">
-                        {{ $row->event->circle->name }}
-                      </a>
-                    @else
-                      {{ $row->event?->circle?->name ?? '-' }}
-                    @endif
-                  </x-admin-grid-text>
+                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap align-middle">
+                  @if(!empty($row->event?->circle?->id))
+                    <a href="{{ route('admin.circles.show', $row->event->circle->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium no-underline whitespace-nowrap">
+                      {{ $row->event->circle->name }}
+                    </a>
+                  @else
+                    <span class="text-slate-400 whitespace-nowrap">{{ $row->event?->circle?->name ?? '-' }}</span>
+                  @endif
                 </td>
                 <td class="px-3 py-2.5 text-xs whitespace-nowrap align-middle">
                   @if(in_array($pStatus, ['paid', 'completed', 'success'], true))
-                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
-                      Paid
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Paid
                     </span>
                   @elseif($pStatus === 'free' || !(bool)($row->payment_required ?? false))
-                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">
-                      Free
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Free
                     </span>
                   @else
-                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">
-                      {{ ucfirst($pStatus ?: 'Pending') }}
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ ucfirst($pStatus ?: 'Pending') }}
                     </span>
                   @endif
                 </td>
                 <td class="px-3 py-2.5 text-xs whitespace-nowrap align-middle">
                   @if($isCheckedIn)
-                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
-                      Checked In
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Checked In
                     </span>
                   @else
-                    <span class="chip inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border-gray-200">
-                      Not Checked In
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Not Checked In
                     </span>
                   @endif
                 </td>
@@ -229,11 +223,19 @@
                   $qrUrl = $qrAvailable ? app(\App\Services\Events\EventRegistrationQrService::class)->qrCodeUrl($row) : null;
                 @endphp
                 <!-- QR Status -->
-                <td class="px-3 py-2.5 text-center align-middle">
+                <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap">
                   @if($row->qr_status === 'expired')
-                      <span class="badge bg-danger d-inline-block">Expired</span>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Expired
+                    </span>
+                  @elseif($qrAvailable)
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Generated
+                    </span>
                   @else
-                      <span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }} d-inline-block">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Pending
+                    </span>
                   @endif
                 </td>
                 <!-- QR Code Thumbnail -->
@@ -285,18 +287,18 @@
                   @endif
                 </td>
                 <!-- QR Download Option -->
-                <td class="px-3 py-2.5 text-center align-middle">
+                <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap">
                   @if($qrUrl)
-                      <a href="{{ $qrUrl }}" download="QR_{{ $row->id }}.png" target="_blank" class="btn btn-xs btn-outline-primary" style="font-size: 11px; padding: 3px 8px;">Download</a>
+                      <a href="{{ $qrUrl }}" download="QR_{{ $row->id }}.png" target="_blank" class="inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Download</a>
                   @else
                       —
                   @endif
                 </td>
-                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap align-middle">
+                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap align-middle font-mono">
                   {{ optional($row->created_at)->format('d M Y, h:i A') ?? '-' }}
                 </td>
-                <td class="px-3 py-2.5 text-right text-xs whitespace-nowrap align-middle" style="min-width:110px;">
-                  <a href="{{ route('admin.events.show', $row->event_id) }}#registrations-section" class="inline-flex items-center justify-center px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold no-underline hover:bg-indigo-100 transition whitespace-nowrap">
+                <td class="px-3 py-2.5 text-right text-xs whitespace-nowrap align-middle" style="min-width:120px;">
+                  <a href="{{ route('admin.events.show', $row->event_id) }}#registrations-section" class="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold no-underline hover:bg-indigo-100 transition whitespace-nowrap">
                     View Details
                   </a>
                 </td>
