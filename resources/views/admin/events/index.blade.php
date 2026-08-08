@@ -104,61 +104,70 @@
       <div class="overflow-x-auto relative w-full">
         <table class="w-full min-w-[1100px] border-collapse text-[13px] align-middle">
           <thead>
-            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-              <th class="th-cell px-3 py-3 text-left sticky left-0 z-10 surface-2" style="min-width: 200px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Title</th>
-              <th class="th-cell px-3 py-3 text-left" style="width: 130px;">Type</th>
-              <th class="th-cell px-3 py-3 text-left" style="min-width: 140px; max-width: 180px;">Circle</th>
-              <th class="th-cell px-3 py-3 text-left" style="width: 90px;">Mode</th>
-              <th class="th-cell px-3 py-3 text-left" style="width: 145px;">Start Date</th>
-              <th class="th-cell px-3 py-3 text-left" style="width: 100px;">Recurrence</th>
-              <th class="th-cell px-3 py-3 text-center" style="width: 100px;">total_Recurrence</th>
-              <th class="th-cell px-3 py-3 text-center" style="width: 90px;">Checked-in</th>
-              <th class="th-cell px-3 py-3 text-left" style="width: 110px;">Status</th>
-              <th class="th-cell px-3 py-3 text-right" style="width: 280px;">Actions</th>
+            <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
+              <th class="th-cell px-3 py-3 text-left sticky left-0 z-10 surface-2 whitespace-nowrap" style="min-width: 200px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">Title</th>
+              <th class="th-cell px-3 py-3 text-left whitespace-nowrap" style="min-width: 130px;">Type</th>
+              <th class="th-cell px-3 py-3 text-left whitespace-nowrap" style="min-width: 160px;">Circle</th>
+              <th class="th-cell px-3 py-3 text-left whitespace-nowrap" style="min-width: 90px;">Mode</th>
+              <th class="th-cell px-3 py-3 text-left whitespace-nowrap" style="min-width: 155px;">Start Date</th>
+              <th class="th-cell px-3 py-3 text-left whitespace-nowrap" style="min-width: 110px;">Recurrence</th>
+              <th class="th-cell px-3 py-3 text-center whitespace-nowrap" style="min-width: 120px;">Total Recurrence</th>
+              <th class="th-cell px-3 py-3 text-center whitespace-nowrap" style="min-width: 95px;">Checked-in</th>
+              <th class="th-cell px-3 py-3 text-left whitespace-nowrap" style="min-width: 110px;">Status</th>
+              <th class="th-cell px-3 py-3 text-right whitespace-nowrap" style="min-width: 280px;">Actions</th>
             </tr>
           </thead>
           <tbody id="grid-body" class="divide-y divide-gray-200/50">
             @forelse($events as $event)
-              <tr class="hover:surface-2 transition border-b bs">
-                <td class="px-3 py-3 font-semibold text-slate-900 t1 sticky left-0 z-10 surface" style="min-width:200px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
-                  <div class="leading-snug admin-grid-text-clamp" data-full-text="{{ $event->title }}">
-                    <a href="{{ route('admin.events.show', $event->id) }}" class="text-indigo-600 hover:text-indigo-800 no-underline font-medium">
-                      {{ $event->title }}
-                    </a>
-                  </div>
+              <tr class="hover:surface-2 transition border-b bs whitespace-nowrap">
+                <td class="px-3 py-3 font-semibold text-slate-900 t1 sticky left-0 z-10 surface whitespace-nowrap" style="min-width:200px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
+                  <a href="{{ route('admin.events.show', $event->id) }}" class="text-indigo-600 hover:text-indigo-800 no-underline font-medium whitespace-nowrap">
+                    {{ $event->title }}
+                  </a>
                 </td>
-                <td class="px-3 py-3 text-xs">
-                  <span class="chip px-2.5 py-1 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 rounded-full inline-block admin-grid-text-clamp max-w-[120px]" data-full-text="{{ str_replace('_', ' ', ucfirst($event->event_type)) }}">
-                    {{ str_replace('_', ' ', ucfirst($event->event_type)) }}
+                <td class="px-3 py-3 text-xs whitespace-nowrap">
+                  @php
+                    $typeMap = [
+                      'circle_meeting' => 'Circle Meeting',
+                      'global_event' => 'Global Event',
+                      'state_event' => 'State Event',
+                      'public_event' => 'City/Public Event',
+                      'meeting' => 'Meeting',
+                      'physical' => 'Physical',
+                      'virtual' => 'Virtual',
+                    ];
+                    $rawType = (string) ($event->event_type ?? '');
+                    $typeLabel = $typeMap[$rawType] ?? ucwords(str_replace(['_', '-'], ' ', $rawType));
+                  @endphp
+                  <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 rounded-full whitespace-nowrap inline-flex items-center">
+                    {{ $typeLabel ?: '—' }}
                   </span>
                 </td>
-                <td class="px-3 py-3 text-xs t2">
-                  <div class="max-w-[180px] admin-grid-text-clamp" data-full-text="{{ $event->circle?->name ?? 'Global' }}">
-                    @if(!empty($event->circle?->id))
-                      <a href="{{ route('admin.circles.show', $event->circle->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium no-underline">
-                        {{ $event->circle->name }}
-                      </a>
-                    @else
-                      <span class="text-slate-400">{{ $event->circle?->name ?? '-' }}</span>
-                    @endif
-                  </div>
+                <td class="px-3 py-3 text-xs t2 whitespace-nowrap">
+                  @if(!empty($event->circle?->id))
+                    <a href="{{ route('admin.circles.show', $event->circle->id) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium no-underline whitespace-nowrap">
+                      {{ $event->circle->name }}
+                    </a>
+                  @else
+                    <span class="text-slate-400 whitespace-nowrap">{{ $event->circle?->name ?? '-' }}</span>
+                  @endif
                 </td>
-                <td class="px-3 py-3 text-xs">
+                <td class="px-3 py-3 text-xs whitespace-nowrap">
                   @php $modeVal = strtolower((string) ($event->mode ?? 'offline')); @endphp
                   @if($modeVal === 'offline')
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 rounded-full">
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 rounded-full whitespace-nowrap">
                       Offline
                     </span>
                   @elseif($modeVal === 'online')
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 rounded-full">
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200 rounded-full whitespace-nowrap">
                       Online
                     </span>
                   @elseif($modeVal === 'hybrid')
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border-purple-200 rounded-full">
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border-purple-200 rounded-full whitespace-nowrap">
                       Hybrid
                     </span>
                   @else
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-50 text-gray-700 border-gray-200 rounded-full">
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-50 text-gray-700 border-gray-200 rounded-full whitespace-nowrap">
                       {{ ucfirst($modeVal) }}
                     </span>
                   @endif
@@ -166,41 +175,41 @@
                 <td class="px-3 py-3 text-xs t3 whitespace-nowrap font-mono">
                   {{ optional($event->start_at)->format('d M Y, h:i A') ?? '-' }}
                 </td>
-                <td class="px-3 py-3 text-xs font-mono t2 capitalize">
+                <td class="px-3 py-3 text-xs font-mono t2 capitalize whitespace-nowrap">
                   {{ $event->recurrence_type ?? 'none' }}
                 </td>
-                <td class="px-3 py-3 text-center">
+                <td class="px-3 py-3 text-center whitespace-nowrap">
                   <a href="{{ route('admin.events.show', $event->id) }}" class="font-bold text-indigo-600 hover:text-indigo-800 no-underline text-xs inline-block px-2 py-0.5 rounded bg-indigo-50/70" title="View occurrences for this event">
                     {{ $event->occurrences_count ?? 0 }}
                   </a>
                 </td>
-                <td class="px-3 py-3 text-center">
+                <td class="px-3 py-3 text-center whitespace-nowrap">
                   <a href="{{ route('admin.events.total-attendance', ['event_id' => $event->id]) }}" class="font-bold text-emerald-600 hover:text-emerald-800 no-underline text-xs inline-block px-2 py-0.5 rounded bg-emerald-50/70" title="View attendance list for this event">
                     {{ $event->checked_in_count ?? 0 }}
                   </a>
                 </td>
-                <td class="px-3 py-3 text-xs">
+                <td class="px-3 py-3 text-xs whitespace-nowrap">
                   @php $status = $event->computed_status; @endphp
                   @if($status === 'completed')
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border-gray-200 rounded-full">Completed</span>
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border-gray-200 rounded-full whitespace-nowrap">Completed</span>
                   @elseif($status === 'cancelled')
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-600 border-rose-200 rounded-full">Cancelled</span>
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-600 border-rose-200 rounded-full whitespace-nowrap">Cancelled</span>
                   @else
-                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-600 border-emerald-200 rounded-full inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Scheduled</span>
+                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-600 border-emerald-200 rounded-full inline-flex items-center gap-1 whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Scheduled</span>
                   @endif
                 </td>
                 <td class="px-3 py-3 text-right whitespace-nowrap">
                   <div class="flex items-center justify-end gap-1.5">
-                    <a href="{{ route('admin.events.show', $event->id) }}" class="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-[11px] font-semibold no-underline transition">
+                    <a href="{{ route('admin.events.show', $event->id) }}" class="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-[11px] font-semibold no-underline transition whitespace-nowrap">
                       View
                     </a>
-                    <a href="{{ route('admin.events.edit', $event->id) }}" class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 text-[11px] font-semibold no-underline transition">
+                    <a href="{{ route('admin.events.edit', $event->id) }}" class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 text-[11px] font-semibold no-underline transition whitespace-nowrap">
                       Edit
                     </a>
-                    <a href="{{ route('admin.events.total-registered', ['event_id' => $event->id]) }}" class="px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 text-[11px] font-semibold no-underline transition">
+                    <a href="{{ route('admin.events.total-registered', ['event_id' => $event->id]) }}" class="px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 text-[11px] font-semibold no-underline transition whitespace-nowrap">
                       Registrations
                     </a>
-                    <a href="{{ route('admin.events.total-attendance', ['event_id' => $event->id]) }}" class="px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[11px] font-semibold no-underline transition">
+                    <a href="{{ route('admin.events.total-attendance', ['event_id' => $event->id]) }}" class="px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[11px] font-semibold no-underline transition whitespace-nowrap">
                       Attendance
                     </a>
                   </div>
