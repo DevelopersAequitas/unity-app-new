@@ -50,7 +50,8 @@
                 <input type="text" name="search" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring" placeholder="Peer/email/phone" value="{{ $filters['search'] ?? '' }}">
             </div>
             <div>
-                <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Circle</label>
+              
+            <label class="block text-[11px] uppercase tracking-wider font-semibold t3 mb-1">Circle</label>
                 <select name="circle_id" class="px-2.5 py-1.5 text-xs rounded border bs surface t1 w-full outline-none focus-ring"><option value="">All Circles</option>@foreach($circles as $circle)<option value="{{ $circle->id }}" @selected(($filters['circle_id'] ?? '')===$circle->id)>{{ $circle->name }}</option>@endforeach</select>
             </div>
             <div>
@@ -144,7 +145,23 @@
                                 @endif
                             </td>
                             <td class="px-3 py-2.5 text-xs whitespace-nowrap">
-                                <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-gray-100 text-gray-700 border border-gray-200">{{ $statusLabels[$row->status] ?? $row->status }}</span>
+                                @php
+                                    $st = strtolower((string)$row->status);
+                                @endphp
+                                @if(str_contains($st, 'approved') || $st === 'circle_member')
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ $statusLabels[$row->status] ?? ucfirst(str_replace('_', ' ', $row->status)) }}
+                                    </span>
+                                @elseif(str_contains($st, 'rejected'))
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{{ $statusLabels[$row->status] ?? ucfirst(str_replace('_', ' ', $row->status)) }}
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ $statusLabels[$row->status] ?? ucfirst(str_replace('_', ' ', $row->status)) }}
+                                    </span>
+                                @endif
+
                                 @if($row->status === 'rejected_by_cd' && $row->cd_rejection_reason)
                                     <div class="t3 text-[10px] text-rose-600 mt-0.5 cursor-pointer hover:underline" 
                                          onclick="openCategoryModal('Rejection Reason (CD)', '{{ addslashes($row->cd_rejection_reason) }}')"
@@ -164,41 +181,53 @@
                             <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                 @php($dedApprovalStatus = $row->effectiveDedApprovalStatus())
                                 @if($dedApprovalStatus === 'approved')
-                                    <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">Approved</span>
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved
+                                    </span>
                                     <div class="t3 text-[10px] text-emerald-600 mt-0.5">Approved{{ $row->dedApprovedBy ? ' by ' . $row->dedApprovedBy->adminDisplayName() : ' by DED' }}</div>
                                 @elseif($dedApprovalStatus === 'rejected')
-                                    <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">Rejected</span>
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Rejected
+                                    </span>
                                 @else
-                                    <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">Pending</span>
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Pending
+                                    </span>
                                 @endif
                             </td>
                             <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                 @php($paymentStatus = $row->paymentStatusLabel())
                                 @if($paymentStatus === 'Paid')
-                                    <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">Paid</span>
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Paid
+                                    </span>
                                 @elseif($paymentStatus === 'Unpaid')
-                                    <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">Unpaid</span>
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Unpaid
+                                    </span>
                                 @else
-                                    <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap bg-gray-100 text-gray-700 border border-gray-200">{{ $paymentStatus }}</span>
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>{{ $paymentStatus }}
+                                    </span>
                                 @endif
                             </td>
                             <td class="px-3 py-2.5 text-xs text-center whitespace-nowrap">
-                                <div class="flex justify-center gap-1.5 items-center">
-                                    <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md border bs t2 hover:t1 hover:surface-2 transition no-underline">Review</a>
+                                <div class="flex justify-center gap-1.5 items-center whitespace-nowrap">
+                                    <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Review</a>
 
                                     @if($row->can_approve_cd)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring">Approve</button></form>
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2.5 py-1 text-xs font-semibold rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring">Reject</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-cd', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
 
                                     @if($row->can_approve_id)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring">Approve</button></form>
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2.5 py-1 text-xs font-semibold rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring">Reject</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
 
                                     @if($row->can_approve_ded)
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring">Approve</button></form>
-                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button class="px-2.5 py-1 text-xs font-semibold rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring">Reject</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="inline">@csrf<button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap">Approve</button></form>
+                                        <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap">Reject</button></form>
                                     @endif
                                 </div>
                             </td>
