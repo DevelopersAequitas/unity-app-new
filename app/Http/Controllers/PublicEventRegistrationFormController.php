@@ -8,6 +8,7 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\Event;
 use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
+use App\Services\Events\EventCouponService;
 use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventPaymentSyncService;
 use App\Services\Events\EventRegistrationQrService;
@@ -17,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PublicEventRegistrationFormController extends Controller
@@ -91,7 +93,7 @@ class PublicEventRegistrationFormController extends Controller
 
             if (! empty($data['coupon_code'])) {
                 try {
-                    $couponService = app(\App\Services\Events\EventCouponService::class);
+                    $couponService = app(EventCouponService::class);
                     $coupon = $couponService->validateCoupon((string) $data['coupon_code'], $event, $occurrence);
                     $originalPrice = $this->payments->amount($event);
                     $discountCalculation = $couponService->calculateDiscount($coupon, $originalPrice);
@@ -103,7 +105,7 @@ class PublicEventRegistrationFormController extends Controller
                     $data['amount'] = $discountCalculation['final_price'];
 
                     $couponService->applyCoupon($coupon);
-                } catch (\Illuminate\Validation\ValidationException $e) {
+                } catch (ValidationException $e) {
                     return back()
                         ->withInput()
                         ->withErrors(['coupon_code' => 'Invalid or expired coupon code']);

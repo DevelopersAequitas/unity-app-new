@@ -882,15 +882,37 @@
             toggle('.recurrence-common', type !== 'none');
             toggle('.recurrence-fields', false);
             intervalUnit.textContent = type === 'daily' ? 'day(s)' : type === 'weekly' ? 'week(s)' : 'month(s)';
-            if (type === 'weekly') toggle('.weekly-fields', true);
+            
+            const dayOfWeekEl = document.getElementById('dayOfWeek');
+            const monthlyDayOfWeekEl = document.getElementById('monthlyDayOfWeek');
+            const dayOfMonthEl = document.getElementById('dayOfMonth');
+            const weekOfMonthEl = document.getElementById('weekOfMonth');
+
+            if (dayOfWeekEl) dayOfWeekEl.disabled = true;
+            if (monthlyDayOfWeekEl) monthlyDayOfWeekEl.disabled = true;
+            if (dayOfMonthEl) dayOfMonthEl.disabled = true;
+            if (weekOfMonthEl) weekOfMonthEl.disabled = true;
+
+            if (type === 'weekly') {
+                toggle('.weekly-fields', true);
+                if (dayOfWeekEl) dayOfWeekEl.disabled = false;
+            }
             if (type === 'monthly') {
                 toggle('.monthly-fields', true);
                 const fixed = document.getElementById('monthlyFixed').checked;
                 toggle('.monthly-fixed-fields', fixed);
                 toggle('.monthly-weekday-fields', !fixed);
-                document.getElementById('monthlyDayOfWeek').disabled = fixed;
-                document.getElementById('dayOfWeek').disabled = fixed;
-                if (!fixed) document.getElementById('dayOfWeek').value = document.getElementById('monthlyDayOfWeek').value;
+
+                if (fixed) {
+                    if (dayOfMonthEl) dayOfMonthEl.disabled = false;
+                } else {
+                    if (monthlyDayOfWeekEl) monthlyDayOfWeekEl.disabled = false;
+                    if (dayOfWeekEl) dayOfWeekEl.disabled = false;
+                    if (weekOfMonthEl) weekOfMonthEl.disabled = false;
+                    if (monthlyDayOfWeekEl && dayOfWeekEl) {
+                        dayOfWeekEl.value = monthlyDayOfWeekEl.value;
+                    }
+                }
             }
 
             updatePreview();
