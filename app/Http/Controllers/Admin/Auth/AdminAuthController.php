@@ -68,6 +68,7 @@ class AdminAuthController extends Controller
                 ->whereRaw('LOWER(email) = ?', [$email])
                 ->first();
 
+            $isNewAdmin = false;
             if (! $adminUser) {
                 $user = User::query()
                     ->whereRaw('LOWER(email) = ?', [$email])
@@ -78,21 +79,24 @@ class AdminAuthController extends Controller
                     'name' => $user ? $this->resolveAdminName($user) : ucfirst(explode('@', $email)[0]),
                     'email' => $email,
                 ]);
+                $isNewAdmin = true;
             }
 
-            $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
-            if ($globalAdminRoleId) {
-                $hasRole = DB::table('admin_user_roles')
-                    ->where('user_id', $adminUser->id)
-                    ->where('role_id', $globalAdminRoleId)
-                    ->exists();
+            if ($isNewAdmin) {
+                $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
+                if ($globalAdminRoleId) {
+                    $hasRole = DB::table('admin_user_roles')
+                        ->where('user_id', $adminUser->id)
+                        ->where('role_id', $globalAdminRoleId)
+                        ->exists();
 
-                if (! $hasRole) {
-                    DB::table('admin_user_roles')->insert([
-                        'user_id' => $adminUser->id,
-                        'role_id' => $globalAdminRoleId,
-                    ]);
-                    Cache::forget('admin-access:roles:'.$adminUser->id);
+                    if (! $hasRole) {
+                        DB::table('admin_user_roles')->insert([
+                            'user_id' => $adminUser->id,
+                            'role_id' => $globalAdminRoleId,
+                        ]);
+                        Cache::forget('admin-access:roles:'.$adminUser->id);
+                    }
                 }
             }
 
@@ -111,6 +115,7 @@ class AdminAuthController extends Controller
                 ->whereRaw('LOWER(email) = ?', [$email])
                 ->first();
 
+            $isNewAdmin = false;
             if (! $adminUser) {
                 $user = User::query()
                     ->whereRaw('LOWER(email) = ?', [$email])
@@ -121,21 +126,24 @@ class AdminAuthController extends Controller
                     'name' => $user ? $this->resolveAdminName($user) : ucfirst(explode('@', $email)[0]),
                     'email' => $email,
                 ]);
+                $isNewAdmin = true;
             }
 
-            $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
-            if ($globalAdminRoleId && $email !== 'missurvashi300@gmail.com') {
-                $hasRole = DB::table('admin_user_roles')
-                    ->where('user_id', $adminUser->id)
-                    ->where('role_id', $globalAdminRoleId)
-                    ->exists();
+            if ($isNewAdmin && $email !== 'missurvashi300@gmail.com') {
+                $globalAdminRoleId = DB::table('roles')->where('key', 'global_admin')->value('id');
+                if ($globalAdminRoleId) {
+                    $hasRole = DB::table('admin_user_roles')
+                        ->where('user_id', $adminUser->id)
+                        ->where('role_id', $globalAdminRoleId)
+                        ->exists();
 
-                if (! $hasRole) {
-                    DB::table('admin_user_roles')->insert([
-                        'user_id' => $adminUser->id,
-                        'role_id' => $globalAdminRoleId,
-                    ]);
-                    Cache::forget('admin-access:roles:'.$adminUser->id);
+                    if (! $hasRole) {
+                        DB::table('admin_user_roles')->insert([
+                            'user_id' => $adminUser->id,
+                            'role_id' => $globalAdminRoleId,
+                        ]);
+                        Cache::forget('admin-access:roles:'.$adminUser->id);
+                    }
                 }
             }
 
