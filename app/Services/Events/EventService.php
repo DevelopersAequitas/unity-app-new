@@ -857,6 +857,34 @@ class EventService
             $data['member_registration_enabled'] = $data['member_registration_enabled'] ?? true;
         }
 
+        $recurrenceType = $data['recurrence_type'] ?? null;
+        if ($recurrenceType === 'none') {
+            $data['recurrence_interval'] = null;
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_week'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+            $data['recurrence_ends_at'] = null;
+        } elseif ($recurrenceType === 'weekly') {
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+        } elseif ($recurrenceType === 'monthly') {
+            $data['recurrence_month'] = null;
+            if (! empty($data['monthly_pattern']) && $data['monthly_pattern'] === 'fixed') {
+                $data['recurrence_week_of_month'] = null;
+                $data['recurrence_day_of_week'] = null;
+                if (empty($data['recurrence_day_of_month']) && ! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                }
+            } elseif (! empty($data['monthly_pattern']) && $data['monthly_pattern'] === 'weekday') {
+                $data['recurrence_day_of_month'] = null;
+            } elseif (! empty($data['recurrence_day_of_month'])) {
+                $data['recurrence_week_of_month'] = null;
+                $data['recurrence_day_of_week'] = null;
+            }
+        }
+
         if (array_key_exists('event_type', $data)) {
             $data['event_type'] = $this->normalizeEventType($data['event_type']);
         }
@@ -864,7 +892,7 @@ class EventService
             $data['circle_id'] = $data['circle_ids'][0];
         }
 
-        unset($data['circle_ids']);
+        unset($data['circle_ids'], $data['monthly_pattern']);
 
         return $data;
     }

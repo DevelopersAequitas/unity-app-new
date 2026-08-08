@@ -21,6 +21,7 @@ use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -522,6 +523,7 @@ class EventManagementController extends Controller
             'recurrence_day_of_month' => ['nullable', 'integer', 'min:1', 'max:31'],
             'recurrence_month' => ['nullable', 'integer', 'min:1', 'max:12'],
             'recurrence_ends_at' => ['nullable', 'date'],
+            'monthly_pattern' => ['nullable', 'string', 'in:fixed,weekday'],
             'registration_limit' => ['nullable', 'integer', 'min:1'],
             'is_paid' => ['nullable', 'boolean'],
             'ticket_price' => ['nullable', 'numeric', 'min:0'],
@@ -561,6 +563,32 @@ class EventManagementController extends Controller
         }
         $data['agenda'] = $this->cleanAgenda($data['agenda'] ?? []);
         $data['speakers'] = $this->cleanSpeakers($data['speakers'] ?? []);
+
+        $recurrenceType = $data['recurrence_type'] ?? 'none';
+        if ($recurrenceType === 'none') {
+            $data['recurrence_interval'] = null;
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_week'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+            $data['recurrence_ends_at'] = null;
+        } elseif ($recurrenceType === 'weekly') {
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+        } elseif ($recurrenceType === 'monthly') {
+            $data['recurrence_month'] = null;
+            $monthlyPattern = $request->input('monthly_pattern', 'fixed');
+            if ($monthlyPattern === 'fixed') {
+                $data['recurrence_week_of_month'] = null;
+                $data['recurrence_day_of_week'] = null;
+                if (empty($data['recurrence_day_of_month']) && ! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                }
+            } else {
+                $data['recurrence_day_of_month'] = null;
+            }
+        }
 
         if ($request->hasFile('banner')) {
             $data['banner_url'] = $this->storeBanner($request);
