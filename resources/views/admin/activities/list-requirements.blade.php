@@ -133,16 +133,27 @@
                                 <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12.5px] align-middle" style="min-width:120px;"><x-admin-grid-text :text="$requirement->subject ?? '-'" :lines="2" /></td>
                                 <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:150px;"><x-admin-grid-text :text="$requirement->description ?? '-'" :lines="2" /></td>
                                 <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:100px;"><x-admin-grid-text :text="$regionLabel ?? '-'" :lines="2" /></td>
-                                <td class="px-3 py-2.5 text-xs align-middle" style="min-width:140px;">
-                                    @if($category)
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 inline-block admin-grid-text-clamp" data-full-text="{{ $category }}">{{ $category }}</span>
-                                    @else
-                                        <span class="t3">-</span>
-                                    @endif
-                                </td>
-                                <td class="px-3 py-2.5 text-xs align-middle" style="min-width:100px;">
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">{{ $requirement->status ?? 'active' }}</span>
-                                </td>
+                                 <td class="px-3 py-2.5 text-xs font-medium t1 align-middle whitespace-nowrap" style="min-width:140px;">
+                                     <x-admin-grid-text :text="$category ?: '-'" :lines="2" />
+                                 </td>
+                                 <td class="px-3 py-2.5 text-xs align-middle whitespace-nowrap" style="min-width:100px;">
+                                     @php
+                                         $st = strtolower((string)($requirement->status ?? ''));
+                                     @endphp
+                                     @if($st === 'open' || $st === 'active')
+                                         <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ ucfirst($requirement->status ?? 'Active') }}
+                                         </span>
+                                     @elseif($st === 'completed' || $st === 'closed')
+                                         <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-sky-50 text-sky-700 border border-sky-200">
+                                             <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>{{ ucfirst($requirement->status ?? 'Completed') }}
+                                         </span>
+                                     @else
+                                         <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-200">
+                                             <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>{{ ucfirst($requirement->status ?? '-') }}
+                                         </span>
+                                     @endif
+                                 </td>
                                 <td class="px-3 py-2.5 text-xs align-middle" style="min-width:90px;">
                                     @if($attachmentUrl)
                                         <a href="{{ $attachmentUrl }}" target="_blank" class="text-indigo-600 font-semibold no-underline">View Attachment</a>

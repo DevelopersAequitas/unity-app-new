@@ -375,18 +375,29 @@
                                         <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px] align-middle" style="min-width:110px;"><x-admin-grid-text :text="$requirement->subject ?? '—'" :lines="2" /></td>
                                         <td class="px-3 py-2.5 text-xs t3 align-middle" style="min-width:130px;"><x-admin-grid-text :text="$requirement->description ?? '—'" :lines="2" /></td>
                                         <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:90px;"><x-admin-grid-text :text="$regionLabel ?: '—'" :lines="2" /></td>
-                                        <td class="px-3 py-2.5 text-xs align-middle" style="min-width:130px;">
-                                            @if($categoryLabel)
-                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 inline-block admin-grid-text-clamp" data-full-text="{{ $categoryLabel }}">{{ $categoryLabel }}</span>
-                                            @else
-                                                <span class="t3">—</span>
-                                            @endif
+                                        <td class="px-3 py-2.5 text-xs font-medium t1 align-middle whitespace-nowrap" style="min-width:130px;">
+                                            <x-admin-grid-text :text="$categoryLabel ?: '—'" :lines="2" />
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs align-middle" style="min-width:80px;">
-                                            @if($requirement->status === 'active')
-                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">{{ ucfirst($requirement->status ?? '—') }}</span>
+                                        <td class="px-3 py-2.5 text-xs align-middle whitespace-nowrap" style="min-width:80px;">
+                                            @php
+                                                $st = strtolower((string)($requirement->status ?? ''));
+                                            @endphp
+                                            @if($st === 'open' || $st === 'active')
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ ucfirst($requirement->status ?? 'Open') }}
+                                                </span>
+                                            @elseif($st === 'completed' || $st === 'closed')
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-sky-50 text-sky-700 border border-sky-200">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>{{ ucfirst($requirement->status ?? 'Completed') }}
+                                                </span>
+                                            @elseif($st === 'rejected' || $st === 'cancelled')
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{{ ucfirst($requirement->status ?? 'Rejected') }}
+                                                </span>
                                             @else
-                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($requirement->status ?? '—') }}</span>
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-200">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>{{ ucfirst($requirement->status ?: '—') }}
+                                                </span>
                                             @endif
                                         </td>
                                         <td class="px-3 py-2.5 text-xs align-middle" style="min-width:80px;">
