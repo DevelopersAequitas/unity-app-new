@@ -285,6 +285,7 @@ class EventCouponTest extends TestCase
         Schema::dropIfExists('circle_members');
         Schema::dropIfExists('circles');
         Schema::dropIfExists('users');
+        Schema::dropIfExists('event_circles');
 
         Schema::create('users', function (Blueprint $table): void {
             $table->uuid('id')->primary();
@@ -306,6 +307,13 @@ class EventCouponTest extends TestCase
             $table->string('status')->default('active');
             $table->timestamps();
             $table->softDeletes();
+        });
+
+        Schema::create('event_circles', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('event_id');
+            $table->uuid('circle_id');
+            $table->timestamps();
         });
 
         Schema::create('circle_members', function (Blueprint $table): void {
