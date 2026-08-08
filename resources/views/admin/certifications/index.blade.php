@@ -78,20 +78,20 @@
 
         <div class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
-                <table class="min-w-full border-collapse text-[13px]">
+                <table class="min-w-full border-collapse text-[13px] align-middle">
                     <thead>
-                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Type</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Name</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Name</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Email</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Contact No</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">Score</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-center">%</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Level</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted Date</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Type</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Business Name</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Email</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Contact No</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap">Score</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap">%</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Level</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Submitted Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -101,40 +101,56 @@
                                     ? ((is_string($item->certificate_download_url) && str_contains($item->certificate_download_url, '/admin/certificates/') && str_contains($item->certificate_download_url, '/view')) ? $item->certificate_download_url : url('/admin/certificates/' . $item->id . '/view'))
                                     : null;
                             @endphp
-                            <tr class="hover:surface-2 transition border-b bs">
-                                <td class="px-3 py-2.5 text-xs font-semibold t1">{{ $formatLabel($item->certification_type) }}</td>
-                                <td class="px-3 py-2.5 text-xs font-medium t1">
+                            <tr class="hover:surface-2 transition border-b bs whitespace-nowrap">
+                                <td class="px-3 py-2.5 text-xs font-semibold t1 whitespace-nowrap">{{ $formatLabel($item->certification_type) }}</td>
+                                <td class="px-3 py-2.5 text-xs font-medium t1 whitespace-nowrap">
                                     @if(!empty($item->user_id ?? $item->user?->id))
-                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->user?->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
+                                        <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $item->user_id ?? $item->user?->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline whitespace-nowrap">
                                             {{ $item->full_name }}
                                         </a>
                                     @else
                                         {{ $item->full_name }}
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $item->business_name ?: '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $item->email }}</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $item->contact_no ?: '—' }}</td>
-                                <td class="px-3 py-2.5 text-center text-xs font-medium t1">{{ $item->total_score }}</td>
-                                <td class="px-3 py-2.5 text-center text-xs font-medium t1">{{ $item->percentage }}%</td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $item->certification_level ?: '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    <span class="{{ $statusBadgeClass($item->status) }}">{{ $formatLabel($item->status) }}</span>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->business_name ?: '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->email }}</td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap font-mono">{{ $item->contact_no ?: '—' }}</td>
+                                <td class="px-3 py-2.5 text-center text-xs font-medium t1 whitespace-nowrap">{{ $item->total_score }}</td>
+                                <td class="px-3 py-2.5 text-center text-xs font-medium t1 whitespace-nowrap">{{ $item->percentage }}%</td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $item->certification_level ?: '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @if(strtolower((string)$item->status) === 'approved')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved
+                                        </span>
+                                    @elseif(strtolower((string)$item->status) === 'rejected')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Rejected
+                                        </span>
+                                    @elseif(strtolower((string)$item->status) === 'new')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-sky-50 text-sky-700 border border-sky-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>New
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-200">
+                                            {{ $formatLabel($item->status) }}
+                                        </span>
+                                    @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDate($item->created_at) }}</td>
-                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
-                                    <div class="flex justify-end gap-1.5 items-center">
-                                        <button type="button" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition" data-bs-toggle="modal" data-bs-target="#viewCertification{{ $item->id }}">View</button>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-mono">{{ $formatDate($item->created_at) }}</td>
+                                <td class="px-3 py-2.5 text-xs text-center whitespace-nowrap">
+                                    <div class="flex justify-center gap-1.5 items-center whitespace-nowrap">
+                                        <button type="button" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap" data-bs-toggle="modal" data-bs-target="#viewCertification{{ $item->id }}">View</button>
                                         @if ($item->status === \App\Models\CertificationSubmission::STATUS_NEW)
-                                            <button type="button" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" data-bs-toggle="modal" data-bs-target="#approveCertification{{ $item->id }}">Approve</button>
-                                            <button type="button" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" data-bs-toggle="modal" data-bs-target="#rejectCertification{{ $item->id }}">Reject</button>
+                                            <button type="button" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap" data-bs-toggle="modal" data-bs-target="#approveCertification{{ $item->id }}">Approve</button>
+                                            <button type="button" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap" data-bs-toggle="modal" data-bs-target="#rejectCertification{{ $item->id }}">Reject</button>
                                         @endif
                                         @if ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED && $downloadUrl)
-                                            <a href="{{ $downloadUrl }}" target="_blank" rel="noopener" class="px-2 py-0.5 text-xs font-semibold rounded border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition no-underline">Open Certificate</a>
+                                            <a href="{{ $downloadUrl }}" target="_blank" rel="noopener" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Open Certificate</a>
                                         @elseif ($item->status === \App\Models\CertificationSubmission::STATUS_APPROVED)
                                             <form method="POST" action="{{ route('admin.certifications.approve', $item->id) }}" class="inline">
                                                 @csrf
-                                                <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-amber-200 text-amber-700 hover:bg-amber-50 transition">Refresh Link</button>
+                                                <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition whitespace-nowrap">Refresh Link</button>
                                             </form>
                                         @endif
                                     </div>
@@ -142,7 +158,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="text-center py-8 text-xs t3">No certification submissions found.</td>
+                                <td colspan="11" class="text-center py-8 text-xs t3 whitespace-nowrap">No certification submissions found.</td>
                             </tr>
                         @endforelse
                     </tbody>
