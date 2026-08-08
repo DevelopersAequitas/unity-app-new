@@ -759,6 +759,17 @@
                 }
             }
 
+            if (sd) {
+                const dayParts = sd.split('-');
+                if (dayParts.length === 3) {
+                    const dayNum = parseInt(dayParts[2], 10);
+                    const dayOfMonthEl = document.getElementById('dayOfMonth');
+                    if (dayOfMonthEl && !isNaN(dayNum) && dayNum >= 1 && dayNum <= 31) {
+                        dayOfMonthEl.value = String(dayNum);
+                    }
+                }
+            }
+
             if (sd && st) {
                 document.getElementById('startAtHidden').value = `${sd}T${st}`;
                 const startDateObj = new Date(`${sd}T${st}`);

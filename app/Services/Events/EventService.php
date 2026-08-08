@@ -874,14 +874,17 @@ class EventService
             if (! empty($data['monthly_pattern']) && $data['monthly_pattern'] === 'fixed') {
                 $data['recurrence_week_of_month'] = null;
                 $data['recurrence_day_of_week'] = null;
-                if (empty($data['recurrence_day_of_month']) && ! empty($data['start_at'])) {
+                if (! empty($data['start_at'])) {
                     $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
                 }
             } elseif (! empty($data['monthly_pattern']) && $data['monthly_pattern'] === 'weekday') {
                 $data['recurrence_day_of_month'] = null;
-            } elseif (! empty($data['recurrence_day_of_month'])) {
+            } else {
                 $data['recurrence_week_of_month'] = null;
                 $data['recurrence_day_of_week'] = null;
+                if (! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                }
             }
         }
 

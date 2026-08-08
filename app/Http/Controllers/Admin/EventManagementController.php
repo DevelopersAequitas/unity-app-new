@@ -582,7 +582,7 @@ class EventManagementController extends Controller
             if ($monthlyPattern === 'fixed') {
                 $data['recurrence_week_of_month'] = null;
                 $data['recurrence_day_of_week'] = null;
-                if (empty($data['recurrence_day_of_month']) && ! empty($data['start_at'])) {
+                if (! empty($data['start_at'])) {
                     $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
                 }
             } else {
