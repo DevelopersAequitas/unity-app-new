@@ -377,6 +377,9 @@
                 dedEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
             }
 
+
+
+            
             // Payment
             const payEl = document.getElementById('modalRowPayment');
             payEl.textContent = data.payment || 'Unpaid';
