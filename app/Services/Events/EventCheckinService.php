@@ -6,9 +6,11 @@ use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\ScanAppUser;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class EventCheckinService
@@ -63,18 +65,10 @@ class EventCheckinService
             'extracted_token' => $cleanToken,
         ]);
 
-        $registration = EventRegistration::query()
-            ->where(function ($q) use ($cleanToken, $qrToken): void {
-                $q->where('qr_token', $cleanToken)
-                    ->orWhere('id', $cleanToken)
-                    ->orWhere('qr_token', $qrToken);
+        $query = EventRegistration::query();
+        $this->applyQrLookupQuery($query, $cleanToken, $qrToken);
 
-                if (! empty($cleanToken)) {
-                    $q->orWhere('qr_code_url', 'LIKE', '%'.$cleanToken.'%')
-                        ->orWhere('qr_code_path', 'LIKE', '%'.$cleanToken.'%');
-                }
-            })
-            ->first(['id', 'event_id', 'occurrence_id', 'user_id', 'checkin_status', 'status', 'payment_status', 'payment_required', 'qr_code_path', 'qr_code_url']);
+        $registration = $query->first(['id', 'event_id', 'occurrence_id', 'user_id', 'checkin_status', 'status', 'payment_status', 'payment_required', 'qr_code_path', 'qr_code_url']);
 
         Log::info('event_qr_lookup_result', [
             'raw_scanned_token' => $qrToken,
@@ -95,20 +89,10 @@ class EventCheckinService
         $cleanToken = $this->extractToken($qrToken);
 
         return DB::transaction(function () use ($cleanToken, $qrToken, $scanner, $force, $expectedEventId, $attendanceSource): EventRegistration {
-            $registration = EventRegistration::query()
-                ->with(['event.circle', 'occurrence', 'user'])
-                ->where(function ($q) use ($cleanToken, $qrToken): void {
-                    $q->where('qr_token', $cleanToken)
-                        ->orWhere('id', $cleanToken)
-                        ->orWhere('qr_token', $qrToken);
+            $query = EventRegistration::query()->with(['event.circle', 'occurrence', 'user']);
+            $this->applyQrLookupQuery($query, $cleanToken, $qrToken);
 
-                    if (! empty($cleanToken)) {
-                        $q->orWhere('qr_code_url', 'LIKE', '%'.$cleanToken.'%')
-                            ->orWhere('qr_code_path', 'LIKE', '%'.$cleanToken.'%');
-                    }
-                })
-                ->lockForUpdate()
-                ->first();
+            $registration = $query->lockForUpdate()->first();
 
             if (! $registration) {
                 Log::warning('event_qr_validation_failed', [
@@ -252,6 +236,36 @@ class EventCheckinService
             }
 
             return $registration->fresh(['event.circle', 'occurrence', 'user', 'checkedInBy']);
+        });
+    }
+
+    private function applyQrLookupQuery(Builder $query, string $cleanToken, string $qrToken): Builder
+    {
+        $isCleanTokenUuid = ! empty($cleanToken) && Str::isUuid($cleanToken);
+        $isQrTokenUuid = ! empty($qrToken) && Str::isUuid($qrToken);
+
+        return $query->where(function (Builder $q) use ($cleanToken, $qrToken, $isCleanTokenUuid, $isQrTokenUuid): void {
+            $q->where('qr_token', $cleanToken);
+
+            if ($isCleanTokenUuid) {
+                $q->orWhere('id', $cleanToken);
+            }
+
+            $q->orWhere('qr_token', $qrToken);
+
+            if ($isQrTokenUuid && $qrToken !== $cleanToken) {
+                $q->orWhere('id', $qrToken);
+            }
+
+            if (! empty($cleanToken)) {
+                $q->orWhere('qr_code_url', 'LIKE', '%'.$cleanToken.'%')
+                    ->orWhere('qr_code_path', 'LIKE', '%'.$cleanToken.'%');
+            }
+
+            if (! empty($qrToken) && $qrToken !== $cleanToken) {
+                $q->orWhere('qr_code_url', 'LIKE', '%'.$qrToken.'%')
+                    ->orWhere('qr_code_path', 'LIKE', '%'.$qrToken.'%');
+            }
         });
     }
 }
