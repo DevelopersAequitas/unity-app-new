@@ -55,44 +55,74 @@
 
         <div class="rounded-xl border bs surface overflow-hidden">
             <div class="overflow-x-auto relative">
-                <table class="min-w-full border-collapse text-[13px]">
+                <table class="min-w-full w-full border-collapse text-[13px] align-middle">
                     <thead>
-                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Submitted At</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Event Details</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Visitor Details</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Coins Awarded</th>
+                        <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Submitted At</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Event Details</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Visitor Details</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Status</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap">Coins Awarded</th>
                         </tr>
                     </thead>
                     <tbody id="grid-body" class="divide-y divide-gray-200/50">
                         @forelse ($items as $item)
-                            <tr class="hover:surface-2 transition border-b bs">
-                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($item->created_at ?? null) }}</td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    <div class="font-semibold t1 text-[12px]">{{ $item->event_name ?? '—' }}</div>
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 mt-0.5">{{ ucfirst($item->event_type ?? '—') }}</span>
-                                    @if($item->event_date)
-                                        <div class="t3 text-[10px] mt-0.5">{{ $formatDate($item->event_date) }}</div>
-                                    @endif
+                            @php
+                                $evType = strtolower((string)($item->event_type ?? ''));
+                                $st = strtolower((string)($item->status ?? ''));
+                            @endphp
+                            <tr class="hover:surface-2 transition border-b bs whitespace-nowrap">
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-mono">{{ $formatDateTime($item->created_at ?? null) }}</td>
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    <div class="font-semibold t1 text-[12px] whitespace-nowrap">{{ $item->event_name ?? '—' }}</div>
+                                    <div class="flex items-center gap-2 mt-1 whitespace-nowrap">
+                                        @if(in_array($evType, ['physical', 'offline'], true))
+                                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ ucfirst($item->event_type ?? 'Physical') }}
+                                            </span>
+                                        @elseif(in_array($evType, ['virtual', 'online'], true))
+                                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>{{ ucfirst($item->event_type ?? 'Virtual') }}
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>{{ ucfirst($item->event_type ?? '—') }}
+                                            </span>
+                                        @endif
+                                        @if($item->event_date)
+                                            <span class="t3 text-[11px] font-mono whitespace-nowrap">{{ $formatDate($item->event_date) }}</span>
+                                        @endif
+                                    </div>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2">
-                                    <div class="font-semibold t1 text-[12px]">{{ $item->visitor_full_name ?? '—' }}</div>
-                                    <div class="t3 text-[10px]">{{ $item->visitor_mobile ?? '—' }}</div>
-                                    <div class="t3 text-[10px]">{{ $item->visitor_business ?? '—' }} ({{ $item->visitor_city ?? '—' }})</div>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">
+                                    <div class="font-semibold t1 text-[12px] whitespace-nowrap">{{ $item->visitor_full_name ?? '—' }}</div>
+                                    <div class="t3 text-[11px] font-mono whitespace-nowrap">{{ $item->visitor_mobile ?? '—' }}</div>
+                                    <div class="t3 text-[11px] whitespace-nowrap">{{ $item->visitor_business ?? '—' }} ({{ $item->visitor_city ?? '—' }})</div>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    @if(strtolower((string)$item->status) === 'approved' || strtolower((string)$item->status) === 'attended')
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">{{ ucfirst($item->status ?? '—') }}</span>
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @if($st === 'approved' || $st === 'attended')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ ucfirst($item->status ?? 'Approved') }}
+                                        </span>
+                                    @elseif($st === 'rejected' || $st === 'cancelled')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>{{ ucfirst($item->status ?? 'Rejected') }}
+                                        </span>
                                     @else
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">{{ ucfirst($item->status ?? '—') }}</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ ucfirst($item->status ?? 'Pending') }}
+                                        </span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs">
+                                <td class="px-3 py-2.5 text-center whitespace-nowrap">
                                     @if($item->coins_awarded)
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">Yes</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>Yes
+                                        </span>
                                     @else
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">No</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>No
+                                        </span>
                                     @endif
                                 </td>
                             </tr>
