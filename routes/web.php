@@ -44,6 +44,7 @@ use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailLogController;
+use App\Http\Controllers\Admin\EventCouponWebController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
@@ -72,7 +73,9 @@ use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\ShareController;
+use App\Services\Events\EventCheckinService;
 use App\Support\AdminAccess;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -87,6 +90,35 @@ Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
 Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+
+Route::get('/api/v1/events/checkin/qr/{token}', function (Request $request, string $token) {
+    $service = app(EventCheckinService::class);
+    $registration = $service->registrationForToken($token);
+
+    if (! $registration) {
+        return response()->json([
+            'success' => false,
+            'message' => 'This QR Code is not valid or has expired.',
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'QR Code is valid.',
+        'data' => [
+            'registration_id' => $registration->id,
+            'event_id' => $registration->event_id,
+            'occurrence_id' => $registration->occurrence_id,
+            'user_id' => $registration->user_id,
+            'checkin_status' => $registration->checkin_status,
+            'status' => $registration->status,
+            'payment_status' => $registration->payment_status,
+        ],
+    ]);
+});
+Route::get('/events/checkin/qr/{token}', function (Request $request, string $token) {
+    return redirect('/api/v1/events/checkin/qr/'.$token);
+});
 
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
@@ -342,8 +374,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/events/{id}', [EventManagementController::class, 'update'])->name('events.update');
         Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
         Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->name('events.occurrences.add-visitor');
-        Route::get('/events/{id}/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
+        Route::get('/events/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
+
+        Route::resource('/event-coupons', EventCouponWebController::class)->except(['create', 'edit']);
 
         Route::get('/event-gallery', [EventGalleryController::class, 'index'])->name('event-gallery.index');
         Route::post('/event-gallery/events', [EventGalleryController::class, 'storeEvent'])->name('event-gallery.events.store');

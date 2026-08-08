@@ -46,6 +46,7 @@
                 ] : []),
                 ...($isGlobalAdmin ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
@@ -70,6 +71,7 @@
                 ] : []),
                 ...($isGlobalAdmin ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],

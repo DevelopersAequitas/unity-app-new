@@ -205,21 +205,14 @@
                   @endif
                 </td>
                 @php
-                  $hasQr = !empty($row->qr_code_url) || !empty($row->qr_code_path) || !empty($row->qr_code_svg);
                   $paymentStatus = strtolower((string) ($row->payment_status ?? ''));
-                  $qrAvailable = $hasQr && (! $row->payment_required || in_array($paymentStatus, ['paid', 'success', 'completed'], true));
-                  $inlineSvg = $qrAvailable ? ($row->qr_code_svg ?: (function() use ($row) {
-                      try {
-                          $token = $row->qr_token ?: app(\App\Services\Events\EventQrService::class)->generateToken();
-                          $payload = app(\App\Services\Events\EventQrService::class)->payload($token);
-                          $reflection = new \ReflectionClass(app(\App\Services\Events\EventQrService::class));
-                          $method = $reflection->getMethod('makeSvg');
-                          $method->setAccessible(true);
-                          return $method->invoke(app(\App\Services\Events\EventQrService::class), $payload);
-                      } catch (\Throwable $e) {
-                          return null;
-                      }
-                  })()) : null;
+                  $isEligible = (! $row->payment_required || in_array($paymentStatus, ['paid', 'success', 'completed'], true));
+                  if ($isEligible && (empty($row->qr_code_svg) || empty($row->qr_token) || ! str_contains((string) $row->qr_code_svg, (string) $row->qr_token))) {
+                      $row = app(\App\Services\Events\EventRegistrationQrService::class)->ensureQrGenerated($row);
+                  }
+                  $hasQr = !empty($row->qr_code_url) || !empty($row->qr_code_path) || !empty($row->qr_code_svg);
+                  $qrAvailable = $hasQr && $isEligible;
+                  $inlineSvg = $qrAvailable ? $row->qr_code_svg : null;
                   $qrUrl = $qrAvailable ? app(\App\Services\Events\EventRegistrationQrService::class)->qrCodeUrl($row) : null;
                 @endphp
                 <!-- QR Status -->

@@ -88,8 +88,6 @@ class UserResource extends JsonResource
             ] : null,
             'city' => $resolvedCity ? new CityResource($resolvedCity) : null,
             'city_of_residence' => $this->city_of_residence,
-            'membership_status' => strtolower(trim(str_replace(' ', '_', (string) $membershipStatus))),
-            'membership_expiry' => $this->membership_ends_at,
             'membership_status_label' => match (strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)))) {
                 'free_trial_peer' => 'Free Trial Peer',
                 'free_peer' => 'Free Peer',

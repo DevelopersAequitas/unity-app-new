@@ -33,6 +33,11 @@ class EventQrService
 
     public function generateAndStore(EventRegistration $registration): array
     {
+        if (empty($registration->qr_token)) {
+            $registration->forceFill(['qr_token' => $this->generateToken()])->save();
+            $registration->refresh();
+        }
+
         $payload = $this->payload($registration->qr_token);
 
         try {
