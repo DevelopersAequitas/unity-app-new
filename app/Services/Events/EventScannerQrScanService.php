@@ -15,9 +15,27 @@ class EventScannerQrScanService
 
     public function scan(ScanAppUser $scanner, string $qrToken, ?array $deviceInfo = null, ?string $expectedEventId = null): array
     {
+        $rawScannedToken = $qrToken;
         $qrToken = $this->extractQrToken($qrToken);
+        $extractedToken = $qrToken;
+
+        Log::info('scanner_qr_scan_flow_start', [
+            'raw_scanned_value' => $rawScannedToken,
+            'extracted_token' => $extractedToken,
+            'scanner_id' => $scanner->id,
+            'scanner_event_id' => $scanner->event_id,
+            'scanner_assigned_event_ids' => $scanner->assigned_event_ids,
+            'expected_event_id' => $expectedEventId,
+        ]);
 
         if (! $scanner->is_active) {
+            Log::warning('scanner_qr_scan_failed_inactive', [
+                'raw_scanned_value' => $rawScannedToken,
+                'extracted_token' => $extractedToken,
+                'scanner_id' => $scanner->id,
+                'reason' => 'Scanner account is inactive.',
+            ]);
+
             $this->writeScanLog($expectedEventId ?? $scanner->event_id, null, $scanner->id, $qrToken, 'inactive_scanner', 'Scanner account is inactive.', $deviceInfo, [
                 'scanner_event_id' => $scanner->event_id,
                 'expected_event_id' => $expectedEventId,
@@ -28,6 +46,14 @@ class EventScannerQrScanService
 
         if ($expectedEventId !== null && ! $scanner->canScanEvent((string) $expectedEventId)) {
             $message = 'Scanner is not assigned to this event.';
+            Log::warning('scanner_qr_scan_failed_wrong_event_route', [
+                'raw_scanned_value' => $rawScannedToken,
+                'extracted_token' => $extractedToken,
+                'scanner_id' => $scanner->id,
+                'expected_event_id' => $expectedEventId,
+                'reason' => $message,
+            ]);
+
             $this->writeScanLog($expectedEventId, null, $scanner->id, $qrToken, 'wrong_event', $message, $deviceInfo, [
                 'scanner_event_id' => $scanner->event_id,
                 'expected_event_id' => $expectedEventId,
@@ -36,8 +62,15 @@ class EventScannerQrScanService
             return $this->result(false, $message, 403);
         }
 
-        $registrationForToken = $this->checkins->registrationForToken($qrToken);
+        $registrationForToken = $this->checkins->registrationForToken($rawScannedToken);
         if (! $registrationForToken) {
+            Log::warning('scanner_qr_scan_failed_registration_not_found', [
+                'raw_scanned_value' => $rawScannedToken,
+                'extracted_token' => $extractedToken,
+                'scanner_id' => $scanner->id,
+                'reason' => 'QR token not found.',
+            ]);
+
             $this->writeScanLog($expectedEventId ?? $scanner->event_id, null, $scanner->id, $qrToken, 'invalid_qr', 'QR token not found.', $deviceInfo, [
                 'scanner_event_id' => $scanner->event_id,
                 'expected_event_id' => $expectedEventId,
@@ -48,20 +81,49 @@ class EventScannerQrScanService
 
         if ($expectedEventId !== null && (string) $registrationForToken->event_id !== (string) $expectedEventId) {
             $message = 'QR code does not belong to this event.';
+            Log::warning('scanner_qr_scan_failed_mismatched_event', [
+                'raw_scanned_value' => $rawScannedToken,
+                'extracted_token' => $extractedToken,
+                'matched_registration_id' => (string) $registrationForToken->id,
+                'matched_event_id' => (string) $registrationForToken->event_id,
+                'expected_event_id' => (string) $expectedEventId,
+                'reason' => $message,
+            ]);
+
             $this->writeScanLog($registrationForToken->event_id, $registrationForToken->user_id, $scanner->id, $qrToken, 'wrong_event', $message, $deviceInfo, $this->scanMeta($registrationForToken, $scanner, $expectedEventId));
 
             return $this->result(false, $message, 422, null, ['scan_status' => 'wrong_event']);
         }
 
-        if ((string) ($scanner->event_id ?? '') !== (string) $registrationForToken->event_id) {
+        if (! $scanner->canScanEvent((string) $registrationForToken->event_id)) {
             $message = 'You are not allowed to scan QR for this event.';
+            Log::warning('scanner_qr_scan_failed_scanner_unauthorized_for_event', [
+                'raw_scanned_value' => $rawScannedToken,
+                'extracted_token' => $extractedToken,
+                'matched_registration_id' => (string) $registrationForToken->id,
+                'matched_event_id' => (string) $registrationForToken->event_id,
+                'scanner_id' => $scanner->id,
+                'scanner_event_id' => $scanner->event_id,
+                'scanner_assigned_event_ids' => $scanner->assigned_event_ids,
+                'reason' => $message,
+            ]);
+
             $this->writeScanLog($registrationForToken->event_id, $registrationForToken->user_id, $scanner->id, $qrToken, 'wrong_event', $message, $deviceInfo, $this->scanMeta($registrationForToken, $scanner, $expectedEventId));
 
             return $this->result(false, $message, 403);
         }
 
         try {
-            $registration = $this->checkins->scanForScannerApp($qrToken, $scanner, $registrationForToken->event_id);
+            $registration = $this->checkins->scanForScannerApp($rawScannedToken, $scanner, $registrationForToken->event_id);
+
+            Log::info('scanner_qr_scan_success', [
+                'raw_scanned_value' => $rawScannedToken,
+                'extracted_token' => $extractedToken,
+                'matched_registration_id' => (string) $registration->id,
+                'matched_qr_token' => (string) ($registration->qr_token ?? ''),
+                'event_id' => (string) $registration->event_id,
+                'occurrence_id' => (string) $registration->occurrence_id,
+            ]);
 
             $this->writeScanLog($registration->event_id, $registration->user_id, $scanner->id, $qrToken, 'success', 'Attendance marked successfully.', $deviceInfo, $this->scanMeta($registration, $scanner, $expectedEventId));
 
@@ -70,14 +132,29 @@ class EventScannerQrScanService
             $message = $this->validationMessage($exception);
             $scanStatus = $this->scanStatusForValidationMessage($message);
 
+            Log::warning('scanner_qr_scan_validation_exception', [
+                'raw_scanned_value' => $rawScannedToken,
+                'extracted_token' => $extractedToken,
+                'matched_registration_id' => (string) $registrationForToken->id,
+                'matched_qr_token' => (string) ($registrationForToken->qr_token ?? ''),
+                'event_id' => (string) $registrationForToken->event_id,
+                'occurrence_id' => (string) $registrationForToken->occurrence_id,
+                'exact_failure_reason' => $message,
+                'scan_status' => $scanStatus,
+            ]);
+
             $this->writeScanLog($registrationForToken->event_id, $registrationForToken->user_id, $scanner->id, $qrToken, $scanStatus, $message, $deviceInfo, $this->scanMeta($registrationForToken, $scanner, $expectedEventId));
 
             return $this->result(false, $message, 422, null, ['scan_status' => $scanStatus]);
         } catch (Throwable $exception) {
-            Log::error('scanner_qr_scan_failed', [
+            Log::error('scanner_qr_scan_failed_exception', [
                 'error' => $exception->getMessage(),
+                'raw_scanned_value' => $qrToken,
+                'extracted_token' => $extractedToken,
+                'matched_registration_id' => (string) $registrationForToken->id,
                 'event_id' => $registrationForToken->event_id,
                 'scanner_id' => $scanner->id,
+                'exception_class' => $exception::class,
             ]);
 
             $this->writeScanLog($registrationForToken->event_id, $registrationForToken->user_id, $scanner->id, $qrToken, 'failed', 'Unable to scan QR. Please try again.', $deviceInfo, $this->scanMeta($registrationForToken, $scanner, $expectedEventId) + [

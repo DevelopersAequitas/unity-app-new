@@ -32,28 +32,53 @@ class EventCheckinService
         $token = trim($rawToken);
         $token = trim($token, " \t\n\r\0\x0B\"'/");
 
+        if (str_contains($token, '%')) {
+            $token = urldecode($token);
+            $token = trim($token, " \t\n\r\0\x0B\"'/");
+        }
+
         $path = parse_url($token, PHP_URL_PATH) ?: $token;
 
-        $checkinMarker = '/api/v1/events/checkin/qr/';
-        if (($pos = strpos($path, $checkinMarker)) !== false) {
-            $token = substr($path, $pos + strlen($checkinMarker));
+        $checkinMarkers = [
+            '/api/v1/events/checkin/qr/',
+            '/events/checkin/qr/',
+            'events/checkin/qr/',
+        ];
 
-            return trim(urldecode($token), " \t\n\r\0\x0B\"'/");
+        foreach ($checkinMarkers as $marker) {
+            if (($pos = strpos($path, $marker)) !== false) {
+                $extracted = substr($path, $pos + strlen($marker));
+                $extracted = trim(urldecode($extracted), " \t\n\r\0\x0B\"'/");
+
+                if (! empty($extracted)) {
+                    return $extracted;
+                }
+            }
         }
 
-        $qrcodesMarker = '/api/v1/event-qrcodes/';
-        if (($pos = strpos($path, $qrcodesMarker)) !== false) {
-            $filename = basename($path);
-            $token = pathinfo($filename, PATHINFO_FILENAME);
+        $qrcodeMarkers = [
+            '/api/v1/event-qrcodes/',
+            '/event-qrcodes/',
+            'event-qrcodes/',
+        ];
 
-            return trim(urldecode($token), " \t\n\r\0\x0B\"'/");
+        foreach ($qrcodeMarkers as $marker) {
+            if (($pos = strpos($path, $marker)) !== false) {
+                $filename = basename($path);
+                $extracted = pathinfo($filename, PATHINFO_FILENAME);
+                $extracted = trim(urldecode($extracted), " \t\n\r\0\x0B\"'/");
+
+                if (! empty($extracted)) {
+                    return $extracted;
+                }
+            }
         }
 
-        if (str_ends_with(strtolower($token), '.png') || str_ends_with(strtolower($token), '.svg')) {
-            $token = pathinfo($token, PATHINFO_FILENAME);
+        if (str_ends_with(strtolower($path), '.png') || str_ends_with(strtolower($path), '.svg')) {
+            $path = pathinfo($path, PATHINFO_FILENAME);
         }
 
-        return trim(urldecode($token), " \t\n\r\0\x0B\"'/");
+        return trim(urldecode($path), " \t\n\r\0\x0B\"'/");
     }
 
     public function registrationForToken(string $qrToken): ?EventRegistration
@@ -68,13 +93,15 @@ class EventCheckinService
         $query = EventRegistration::query();
         $this->applyQrLookupQuery($query, $cleanToken, $qrToken);
 
-        $registration = $query->first(['id', 'event_id', 'occurrence_id', 'user_id', 'checkin_status', 'status', 'payment_status', 'payment_required', 'qr_code_path', 'qr_code_url']);
+        $registration = $query->first(['id', 'event_id', 'occurrence_id', 'user_id', 'checkin_status', 'status', 'payment_status', 'payment_required', 'qr_code_path', 'qr_code_url', 'qr_token']);
 
         Log::info('event_qr_lookup_result', [
             'raw_scanned_token' => $qrToken,
             'extracted_token' => $cleanToken,
             'found_registration_id' => (string) ($registration?->id ?? ''),
+            'found_qr_token' => (string) ($registration?->qr_token ?? ''),
             'found_event_id' => (string) ($registration?->event_id ?? ''),
+            'found_occurrence_id' => (string) ($registration?->occurrence_id ?? ''),
             'found_user_id' => (string) ($registration?->user_id ?? ''),
             'found_checkin_status' => (string) ($registration?->checkin_status ?? ''),
             'found_payment_status' => (string) ($registration?->payment_status ?? ''),
@@ -109,7 +136,9 @@ class EventCheckinService
                     'scanned_token' => $qrToken,
                     'extracted_token' => $cleanToken,
                     'registration_id' => (string) $registration->id,
+                    'matched_qr_token' => (string) ($registration->qr_token ?? ''),
                     'registration_event_id' => (string) $registration->event_id,
+                    'occurrence_id' => (string) $registration->occurrence_id,
                     'expected_event_id' => (string) $expectedEventId,
                     'validation_failure_reason' => 'QR code does not belong to this event.',
                 ]);
@@ -122,6 +151,9 @@ class EventCheckinService
                     'scanned_token' => $qrToken,
                     'extracted_token' => $cleanToken,
                     'registration_id' => (string) $registration->id,
+                    'matched_qr_token' => (string) ($registration->qr_token ?? ''),
+                    'event_id' => (string) $registration->event_id,
+                    'occurrence_id' => (string) $registration->occurrence_id,
                     'validation_failure_reason' => 'Registration is cancelled.',
                 ]);
 
@@ -133,6 +165,9 @@ class EventCheckinService
                     'scanned_token' => $qrToken,
                     'extracted_token' => $cleanToken,
                     'registration_id' => (string) $registration->id,
+                    'matched_qr_token' => (string) ($registration->qr_token ?? ''),
+                    'event_id' => (string) $registration->event_id,
+                    'occurrence_id' => (string) $registration->occurrence_id,
                     'validation_failure_reason' => 'Payment is required before QR check-in.',
                 ]);
 
@@ -140,10 +175,17 @@ class EventCheckinService
             }
 
             if (empty($registration->qr_code_path) && empty($registration->qr_code_url)) {
+                $registration = app(EventRegistrationQrService::class)->ensureQrGenerated($registration);
+            }
+
+            if (empty($registration->qr_code_path) && empty($registration->qr_code_url) && empty($registration->qr_code_svg) && empty($registration->qr_token)) {
                 Log::warning('event_qr_validation_failed', [
                     'scanned_token' => $qrToken,
                     'extracted_token' => $cleanToken,
                     'registration_id' => (string) $registration->id,
+                    'matched_qr_token' => (string) ($registration->qr_token ?? ''),
+                    'event_id' => (string) $registration->event_id,
+                    'occurrence_id' => (string) $registration->occurrence_id,
                     'validation_failure_reason' => 'QR code has not been generated for this registration.',
                 ]);
 
@@ -155,6 +197,9 @@ class EventCheckinService
                     'scanned_token' => $qrToken,
                     'extracted_token' => $cleanToken,
                     'registration_id' => (string) $registration->id,
+                    'matched_qr_token' => (string) ($registration->qr_token ?? ''),
+                    'event_id' => (string) $registration->event_id,
+                    'occurrence_id' => (string) $registration->occurrence_id,
                     'validation_failure_reason' => 'Event occurrence not found.',
                 ]);
 
@@ -166,6 +211,9 @@ class EventCheckinService
                     'scanned_token' => $qrToken,
                     'extracted_token' => $cleanToken,
                     'registration_id' => (string) $registration->id,
+                    'matched_qr_token' => (string) ($registration->qr_token ?? ''),
+                    'event_id' => (string) $registration->event_id,
+                    'occurrence_id' => (string) $registration->occurrence_id,
                     'validation_failure_reason' => 'QR check-in is not enabled for this event.',
                 ]);
 
@@ -177,6 +225,9 @@ class EventCheckinService
                     'scanned_token' => $qrToken,
                     'extracted_token' => $cleanToken,
                     'registration_id' => (string) $registration->id,
+                    'matched_qr_token' => (string) ($registration->qr_token ?? ''),
+                    'event_id' => (string) $registration->event_id,
+                    'occurrence_id' => (string) $registration->occurrence_id,
                     'validation_failure_reason' => 'Attendance already marked.',
                 ]);
 
@@ -187,8 +238,10 @@ class EventCheckinService
                 'scanned_token' => $qrToken,
                 'extracted_token' => $cleanToken,
                 'registration_id' => (string) $registration->id,
+                'matched_qr_token' => (string) ($registration->qr_token ?? ''),
                 'user_id' => (string) ($registration->user_id ?? ''),
                 'event_id' => (string) $registration->event_id,
+                'occurrence_id' => (string) $registration->occurrence_id,
             ]);
 
             $updates = [
