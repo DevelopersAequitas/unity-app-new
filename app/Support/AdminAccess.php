@@ -8,6 +8,7 @@ use App\Models\CircleMember;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Admin\PermissionService;
+use App\Services\IndustryDirector\IndustryScopeService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -288,6 +289,10 @@ class AdminAccess
             return [];
         }
 
+        if (self::isIndustryScoped($admin)) {
+            return app(IndustryScopeService::class)->circleIdsForAdmin($admin);
+        }
+
         return ScopeCascadeResolver::resolveDataWindow($admin->id);
     }
 
@@ -418,8 +423,7 @@ class AdminAccess
         $permService = app(PermissionService::class);
 
         return $permService->can($admin, 'admin.users.index', 'edit')
-            || $permService->can($admin, 'admin.users.edit', 'edit')
-            || self::isEditAllowed($admin);
+            || $permService->can($admin, 'admin.users.edit', 'edit');
     }
 
     public static function isSectionAllowed(?AdminUser $admin, string $sectionLabel): bool

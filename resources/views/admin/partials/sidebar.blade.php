@@ -28,8 +28,12 @@
     $navItems = $isIndustryDirector
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
+            ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
+            ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+            ['icon' => 'bi-sliders', 'label' => 'App Configuration', 'route' => 'admin.app-config.index'],
         ]
         : (($isCircleScoped || $isDed)
             ? [
@@ -164,7 +168,7 @@
         request()->routeIs('admin.account-deletion.*') ||
         request()->routeIs('admin.introduction-requests.*');
 
-    $leadsMenu = ($isIndustryDirector || $isCircleCommittee) ? [] : $leadsMenu;
+    $leadsMenu = (! $isCircleCommittee && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Lead Submissions') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))) ? $leadsMenu : [];
 
     $campaignsMenu = [
         ['label' => 'Campaign Dashboard', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.index', 'admin.campaigns.show', 'admin.campaigns.edit']],
@@ -211,7 +215,7 @@
         return $item;
     }, array_values(array_filter($navItems, fn ($item) => in_array(($item['label'] ?? null), ['Email Logs', 'Support Tickets'], true))));
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
-    $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
+    $campaignsMenu = \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? $campaignsMenu : [];
     
     $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
     $brandPartnersMenu = [
@@ -528,14 +532,13 @@
 
 
 
-            @if ($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Role Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dynamic RBAC'))
-                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration'))
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
-                        <i class="bi bi-sliders me-2"></i>App Configuration
-                    </a>
-                </li>
-                @endif
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings'))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
+                    <i class="bi bi-sliders me-2"></i>App Configuration
+                </a>
+            </li>
+            @endif
                 @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Updates Manager'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}">
@@ -601,7 +604,6 @@
                     </div>
                 </li>
                 @endif
-            @endif
 
 
             @if ($leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))

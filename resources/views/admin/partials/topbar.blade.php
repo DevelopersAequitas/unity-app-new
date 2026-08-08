@@ -124,7 +124,7 @@
     $requiresCircleDropdown = false;
     $selectedCircleId = session('activeScopeId', 'All');
 
-    if ($admin && ! $isSuper) {
+    if ($admin && ! $isSuper && ! $isIndustryDirector) {
         $allowedCircleIds = \App\Support\AdminAccess::allowedCircleIds($admin);
         if (count($allowedCircleIds) > 1) {
             $requiresCircleDropdown = true;

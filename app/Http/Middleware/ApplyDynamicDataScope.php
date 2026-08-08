@@ -73,7 +73,8 @@ class ApplyDynamicDataScope
 
     private function applyIndustryScope(Request $request, DataScopeResult $scope): void
     {
-        $request->attributes->set('is_circle_scoped', true);
+        $request->attributes->set('is_circle_scoped', false);
+        $request->attributes->set('is_industry_scoped', true);
         $request->attributes->set('is_ded_scoped', false);
     }
 

@@ -264,9 +264,12 @@
       <p class="text-xs t3 m-0 mt-0.5">Manage directory details, status controls, and user details</p>
     </div>
     <div class="flex items-center gap-2">
+      @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.index', 'import') || app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.import', 'import'))
       <a href="{{ route('admin.users.import') }}" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring no-underline flex items-center gap-1.5">
         <i class="bi bi-download" aria-hidden="true"></i> Import
       </a>
+      @endif
+      @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.index', 'export') || app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.export.csv', 'export'))
       <div class="relative">
         <button type="button" onclick="toggleExportMenu()" class="px-3 py-1.5 rounded-lg border bs text-[12px] t2 hover:t1 hover:surface-2 transition font-medium focus-ring flex items-center gap-1.5">
           <i class="bi bi-upload" aria-hidden="true"></i> Export <svg class="w-2.5 h-2.5 ml-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -279,9 +282,12 @@
           <button onclick="window.print(); toggleExportMenu();" class="w-full text-left px-3 py-2 text-[12.5px] t2 hover:surface-3 hover:t1 flex items-center gap-2 border-none bg-transparent cursor-pointer"><i class="bi bi-printer admin-icon w-4" aria-hidden="true"></i>Print view</button>
         </div>
       </div>
+      @endif
+      @if (app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.index', 'create') || app(\App\Services\Admin\PermissionService::class)->can(Auth::guard('admin')->user(), 'admin.users.create', 'create'))
       <a href="{{ route('admin.users.create') }}" class="px-3 py-1.5 rounded-lg bg-accent hover:bg-opacity-95 text-white text-[12px] font-semibold transition focus-ring no-underline flex items-center gap-1">
         <i class="bi bi-plus-lg me-1" aria-hidden="true"></i> Add Peer
       </a>
+      @endif
     </div>
   </div>
 

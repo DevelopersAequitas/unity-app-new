@@ -49,30 +49,38 @@ class PermissionService
         // Check CRUD sub-routes mapping to main section permissions
         if (str_contains($routeName, '.edit') || str_contains($routeName, '.update')) {
             $parentIndex = preg_replace('/\.(edit|update)$/', '.index', $routeName);
-            if ($this->can($admin, $parentIndex, 'edit') || $this->can($admin, $routeName, 'edit')) {
-                return true;
-            }
+
+            return $this->can($admin, $parentIndex, 'edit') || $this->can($admin, $routeName, 'edit');
         }
 
         if (str_contains($routeName, '.create') || str_contains($routeName, '.store')) {
             $parentIndex = preg_replace('/\.(create|store)$/', '.index', $routeName);
-            if ($this->can($admin, $parentIndex, 'create') || $this->can($admin, $routeName, 'create')) {
-                return true;
-            }
+
+            return $this->can($admin, $parentIndex, 'create') || $this->can($admin, $routeName, 'create');
+        }
+
+        if (str_contains($routeName, '.import')) {
+            $parentIndex = preg_replace('/\.import.*$/', '.index', $routeName);
+
+            return $this->can($admin, $parentIndex, 'import') || $this->can($admin, $routeName, 'import');
+        }
+
+        if (str_contains($routeName, '.export')) {
+            $parentIndex = preg_replace('/\.export.*$/', '.index', $routeName);
+
+            return $this->can($admin, $parentIndex, 'export') || $this->can($admin, $routeName, 'export');
         }
 
         if (str_contains($routeName, '.show')) {
             $parentIndex = preg_replace('/\.show$/', '.index', $routeName);
-            if ($this->can($admin, $parentIndex, 'view') || $this->can($admin, $routeName, 'view')) {
-                return true;
-            }
+
+            return $this->can($admin, $parentIndex, 'view') || $this->can($admin, $routeName, 'view');
         }
 
         if (str_contains($routeName, '.destroy') || str_contains($routeName, '.delete')) {
             $parentIndex = preg_replace('/\.(destroy|delete)$/', '.index', $routeName);
-            if ($this->can($admin, $parentIndex, 'delete') || $this->can($admin, $routeName, 'delete')) {
-                return true;
-            }
+
+            return $this->can($admin, $parentIndex, 'delete') || $this->can($admin, $routeName, 'delete');
         }
 
         // Find the page by route_name

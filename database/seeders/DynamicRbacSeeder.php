@@ -320,7 +320,7 @@ class DynamicRbacSeeder extends Seeder
                 ],
             ],
             [
-                'name' => 'Members',
+                'name' => 'Peers',
                 'slug' => 'members',
                 'icon' => 'bi-people',
                 'sort_order' => 2,

@@ -30,7 +30,8 @@ class AdminCircleScope
         if (AdminAccess::isIndustryScoped($admin)) {
             $allowedCircleIds = AdminAccess::allowedCircleIds($admin);
             $request->attributes->set('allowed_circle_ids', $allowedCircleIds);
-            $request->attributes->set('is_circle_scoped', true);
+            $request->attributes->set('is_circle_scoped', false);
+            $request->attributes->set('is_industry_scoped', true);
             $request->attributes->set('is_ded_scoped', false);
 
             $routeName = $request->route()?->getName() ?? '';
