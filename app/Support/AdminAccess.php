@@ -432,6 +432,10 @@ class AdminAccess
             return false;
         }
 
+        if (self::isSuper($admin)) {
+            return true;
+        }
+
         $roleIds = DB::table('admin_user_roles')
             ->where('user_id', $admin->id)
             ->pluck('role_id')
@@ -491,11 +495,9 @@ class AdminAccess
                         });
                     }
                 }
-            }
-        }
 
-        if (self::isSuper($admin)) {
-            return true;
+                return false;
+            }
         }
 
         $assignments = DB::table('admin_user_roles')

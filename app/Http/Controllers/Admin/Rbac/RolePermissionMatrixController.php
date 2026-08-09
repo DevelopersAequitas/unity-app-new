@@ -58,15 +58,17 @@ class RolePermissionMatrixController extends Controller
 
         $permissions = Permission::query()->orderBy('sort_order')->get();
 
-        // Get current assignments for selected role
+        // Get current page assignments for selected role
         $currentPermissions = [];
         if ($selectedRole) {
-            $assignments = RolePagePermission::query()
+            $assignedPageIds = RolePagePermission::query()
                 ->where('role_id', $selectedRole->id)
-                ->get();
+                ->pluck('page_id')
+                ->unique()
+                ->all();
 
-            foreach ($assignments as $assignment) {
-                $currentPermissions[$assignment->page_id][$assignment->permission_id] = true;
+            foreach ($assignedPageIds as $pageId) {
+                $currentPermissions[$pageId] = true;
             }
         }
 
@@ -94,25 +96,46 @@ class RolePermissionMatrixController extends Controller
     {
         $validated = $request->validate([
             'role_id' => 'required|uuid|exists:roles,id',
+            'pages' => 'nullable|array',
             'permissions' => 'nullable|array',
-            'permissions.*.*' => 'boolean',
         ]);
 
         $roleId = $validated['role_id'];
-        $permissionMatrix = $validated['permissions'] ?? [];
 
         // Delete all existing permissions for this role
         RolePagePermission::query()->where('role_id', $roleId)->delete();
 
-        // Insert new permissions from the checkbox matrix
-        foreach ($permissionMatrix as $pageId => $permIds) {
-            foreach ($permIds as $permId => $enabled) {
-                if ($enabled) {
-                    RolePagePermission::query()->create([
-                        'role_id' => $roleId,
-                        'page_id' => $pageId,
-                        'permission_id' => $permId,
-                    ]);
+        $viewPermission = Permission::query()->where('key', 'view')->first();
+
+        // 1. Single-checkbox page access form submission
+        if ($request->has('pages')) {
+            $pages = $request->input('pages', []);
+            foreach ($pages as $pageId => $enabled) {
+                if ((bool) $enabled) {
+                    if ($viewPermission) {
+                        RolePagePermission::query()->create([
+                            'role_id' => $roleId,
+                            'page_id' => $pageId,
+                            'permission_id' => $viewPermission->id,
+                        ]);
+                    }
+                }
+            }
+        }
+        // 2. Backward compatible 2D array form submission
+        elseif ($request->has('permissions')) {
+            $permissionMatrix = $request->input('permissions', []);
+            foreach ($permissionMatrix as $pageId => $permIds) {
+                if (is_array($permIds)) {
+                    foreach ($permIds as $permId => $enabled) {
+                        if ((bool) $enabled) {
+                            RolePagePermission::query()->create([
+                                'role_id' => $roleId,
+                                'page_id' => $pageId,
+                                'permission_id' => $permId,
+                            ]);
+                        }
+                    }
                 }
             }
         }

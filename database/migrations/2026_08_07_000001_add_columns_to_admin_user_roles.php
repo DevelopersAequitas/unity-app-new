@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('admin_user_roles')) {
+            return;
+        }
+
         Schema::table('admin_user_roles', function (Blueprint $table): void {
             if (! Schema::hasColumn('admin_user_roles', 'allowed_sections')) {
                 $table->json('allowed_sections')->nullable()->after('role_id');

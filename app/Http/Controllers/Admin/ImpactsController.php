@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\Impacts\StoreImpactRequest;
 use App\Http\Requests\Impacts\ReviewImpactRequest;
 use App\Models\Impact;
 use App\Models\User;
+use App\Services\Admin\PermissionService;
 use App\Services\Impacts\ImpactActionService;
 use App\Services\Impacts\ImpactService;
 use App\Support\AdminAccess;
@@ -450,7 +451,15 @@ class ImpactsController extends Controller
 
     private function ensureGlobalAdmin(): void
     {
-        if (! AdminAccess::isGlobalAdmin(Auth::guard('admin')->user())) {
+        $admin = Auth::guard('admin')->user();
+
+        if (! $admin) {
+            abort(403);
+        }
+
+        $routeName = request()->route()?->getName() ?? 'admin.impacts.index';
+
+        if (! app(PermissionService::class)->canAccessRoute($admin, $routeName)) {
             abort(403);
         }
     }

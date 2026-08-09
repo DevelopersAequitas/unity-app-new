@@ -326,15 +326,9 @@ class DynamicRbacSeeder extends Seeder
                 'sort_order' => 2,
                 'pages' => [
                     ['name' => 'All Members', 'route_name' => 'admin.users.index', 'slug' => 'all-members', 'sort_order' => 1],
-                    ['name' => 'View Member', 'route_name' => 'admin.users.show', 'slug' => 'view-member', 'sort_order' => 2],
-                    ['name' => 'Create Member', 'route_name' => 'admin.users.create', 'slug' => 'create-member', 'sort_order' => 3],
-                    ['name' => 'Edit Member', 'route_name' => 'admin.users.edit', 'slug' => 'edit-member', 'sort_order' => 4],
-                    ['name' => 'Import Members', 'route_name' => 'admin.users.import', 'slug' => 'import-members', 'sort_order' => 5],
-                    ['name' => 'Export Members', 'route_name' => 'admin.users.export.csv', 'slug' => 'export-members', 'sort_order' => 6],
-                    ['name' => 'Member Search', 'route_name' => 'admin.users.search', 'slug' => 'member-search', 'sort_order' => 7],
-                    ['name' => 'Member Introducers', 'route_name' => 'admin.member-introducers.index', 'slug' => 'member-introducers', 'sort_order' => 8],
-                    ['name' => 'Sponsored Milestones', 'route_name' => 'admin.sponsored-milestones.index', 'slug' => 'sponsored-milestones', 'sort_order' => 9],
-                    ['name' => 'Login History', 'route_name' => 'admin.login-history.index', 'slug' => 'login-history', 'sort_order' => 10],
+                    ['name' => 'Member Introducers', 'route_name' => 'admin.member-introducers.index', 'slug' => 'member-introducers', 'sort_order' => 2],
+                    ['name' => 'Sponsored Milestones', 'route_name' => 'admin.sponsored-milestones.index', 'slug' => 'sponsored-milestones', 'sort_order' => 3],
+                    ['name' => 'Login History', 'route_name' => 'admin.login-history.index', 'slug' => 'login-history', 'sort_order' => 4],
                 ],
             ],
             [
@@ -364,10 +358,7 @@ class DynamicRbacSeeder extends Seeder
                 'sort_order' => 4,
                 'pages' => [
                     ['name' => 'All Circles', 'route_name' => 'admin.circles.index', 'slug' => 'all-circles', 'sort_order' => 1],
-                    ['name' => 'Create Circle', 'route_name' => 'admin.circles.create', 'slug' => 'create-circle', 'sort_order' => 2],
-                    ['name' => 'View Circle', 'route_name' => 'admin.circles.show', 'slug' => 'view-circle', 'sort_order' => 3],
-                    ['name' => 'Edit Circle', 'route_name' => 'admin.circles.edit', 'slug' => 'edit-circle', 'sort_order' => 4],
-                    ['name' => 'Circle Join Requests', 'route_name' => 'admin.circle-joining-requests.index', 'slug' => 'circle-join-requests', 'sort_order' => 5],
+                    ['name' => 'Circle Join Requests', 'route_name' => 'admin.circle-joining-requests.index', 'slug' => 'circle-join-requests', 'sort_order' => 2],
                 ],
             ],
             [
@@ -377,12 +368,11 @@ class DynamicRbacSeeder extends Seeder
                 'sort_order' => 5,
                 'pages' => [
                     ['name' => 'All Events', 'route_name' => 'admin.events.index', 'slug' => 'all-events', 'sort_order' => 1],
-                    ['name' => 'Create Event', 'route_name' => 'admin.events.create', 'slug' => 'create-event', 'sort_order' => 2],
-                    ['name' => 'Total Attendance', 'route_name' => 'admin.events.total-attendance', 'slug' => 'total-attendance', 'sort_order' => 3],
-                    ['name' => 'Total Registered', 'route_name' => 'admin.events.total-registered', 'slug' => 'total-registered', 'sort_order' => 4],
-                    ['name' => 'Event Joining Requests', 'route_name' => 'admin.event-joining-requests.index', 'slug' => 'event-joining-requests', 'sort_order' => 5],
-                    ['name' => 'Event Scan Credentials', 'route_name' => 'admin.event-scan-credentials.index', 'slug' => 'event-scan-credentials', 'sort_order' => 6],
-                    ['name' => 'Event Gallery', 'route_name' => 'admin.event-gallery.index', 'slug' => 'event-gallery', 'sort_order' => 7],
+                    ['name' => 'Total Attendance', 'route_name' => 'admin.events.total-attendance', 'slug' => 'total-attendance', 'sort_order' => 2],
+                    ['name' => 'Total Registered', 'route_name' => 'admin.events.total-registered', 'slug' => 'total-registered', 'sort_order' => 3],
+                    ['name' => 'Event Joining Requests', 'route_name' => 'admin.event-joining-requests.index', 'slug' => 'event-joining-requests', 'sort_order' => 4],
+                    ['name' => 'Event Scan Credentials', 'route_name' => 'admin.event-scan-credentials.index', 'slug' => 'event-scan-credentials', 'sort_order' => 5],
+                    ['name' => 'Event Gallery', 'route_name' => 'admin.event-gallery.index', 'slug' => 'event-gallery', 'sort_order' => 6],
                 ],
             ],
             [
@@ -392,9 +382,7 @@ class DynamicRbacSeeder extends Seeder
                 'sort_order' => 6,
                 'pages' => [
                     ['name' => 'Coins Overview', 'route_name' => 'admin.coins.index', 'slug' => 'coins-overview', 'sort_order' => 1],
-                    ['name' => 'Award Coins', 'route_name' => 'admin.coins.create', 'slug' => 'award-coins', 'sort_order' => 2],
-                    ['name' => 'Coin Claims', 'route_name' => 'admin.coin-claims.index', 'slug' => 'coin-claims', 'sort_order' => 3],
-                    ['name' => 'Export Coins', 'route_name' => 'admin.coins.export', 'slug' => 'export-coins', 'sort_order' => 4],
+                    ['name' => 'Coin Claims', 'route_name' => 'admin.coin-claims.index', 'slug' => 'coin-claims', 'sort_order' => 2],
                 ],
             ],
             [
@@ -404,9 +392,8 @@ class DynamicRbacSeeder extends Seeder
                 'sort_order' => 7,
                 'pages' => [
                     ['name' => 'Life Impact Overview', 'route_name' => 'admin.life-impact.index', 'slug' => 'life-impact-overview', 'sort_order' => 1],
-                    ['name' => 'Export Life Impact', 'route_name' => 'admin.life-impact.export', 'slug' => 'export-life-impact', 'sort_order' => 2],
-                    ['name' => 'Pending Impacts', 'route_name' => 'admin.impacts.pending', 'slug' => 'pending-impacts', 'sort_order' => 3],
-                    ['name' => 'Impact Options', 'route_name' => 'admin.impacts.index', 'slug' => 'impact-options', 'sort_order' => 4],
+                    ['name' => 'Pending Impacts', 'route_name' => 'admin.impacts.pending', 'slug' => 'pending-impacts', 'sort_order' => 2],
+                    ['name' => 'Impact Options', 'route_name' => 'admin.impacts.index', 'slug' => 'impact-options', 'sort_order' => 3],
                 ],
             ],
             [
@@ -416,13 +403,12 @@ class DynamicRbacSeeder extends Seeder
                 'sort_order' => 8,
                 'pages' => [
                     ['name' => 'Campaign Dashboard', 'route_name' => 'admin.campaigns.index', 'slug' => 'campaign-dashboard', 'sort_order' => 1],
-                    ['name' => 'Create Campaign', 'route_name' => 'admin.campaigns.create', 'slug' => 'create-campaign', 'sort_order' => 2],
-                    ['name' => 'Email Templates', 'route_name' => 'admin.campaign-email-templates.index', 'slug' => 'email-templates', 'sort_order' => 3],
-                    ['name' => 'Pamphlets', 'route_name' => 'admin.campaign-pamphlets.index', 'slug' => 'pamphlets', 'sort_order' => 4],
-                    ['name' => 'Email Logs', 'route_name' => 'admin.email-logs.index', 'slug' => 'email-logs', 'sort_order' => 5],
-                    ['name' => 'Daily Notifications', 'route_name' => 'admin.daily-notifications.index', 'slug' => 'daily-notifications', 'sort_order' => 6],
-                    ['name' => 'Notification Dashboard', 'route_name' => 'admin.notifications.dashboard', 'slug' => 'notification-dashboard', 'sort_order' => 7],
-                    ['name' => 'Push Tokens', 'route_name' => 'admin.notifications.push-tokens', 'slug' => 'push-tokens', 'sort_order' => 8],
+                    ['name' => 'Email Templates', 'route_name' => 'admin.campaign-email-templates.index', 'slug' => 'email-templates', 'sort_order' => 2],
+                    ['name' => 'Pamphlets', 'route_name' => 'admin.campaign-pamphlets.index', 'slug' => 'pamphlets', 'sort_order' => 3],
+                    ['name' => 'Email Logs', 'route_name' => 'admin.email-logs.index', 'slug' => 'email-logs', 'sort_order' => 4],
+                    ['name' => 'Daily Notifications', 'route_name' => 'admin.daily-notifications.index', 'slug' => 'daily-notifications', 'sort_order' => 5],
+                    ['name' => 'Notification Dashboard', 'route_name' => 'admin.notifications.dashboard', 'slug' => 'notification-dashboard', 'sort_order' => 6],
+                    ['name' => 'Push Tokens', 'route_name' => 'admin.notifications.push-tokens', 'slug' => 'push-tokens', 'sort_order' => 7],
                 ],
             ],
             [
@@ -445,7 +431,6 @@ class DynamicRbacSeeder extends Seeder
                 'sort_order' => 10,
                 'pages' => [
                     ['name' => 'Referral Report', 'route_name' => 'admin.referral-report.index', 'slug' => 'referral-report-index', 'sort_order' => 1],
-                    ['name' => 'Export Referral Report', 'route_name' => 'admin.referral-report.export', 'slug' => 'referral-report-export', 'sort_order' => 2],
                 ],
             ],
             [
