@@ -35,18 +35,34 @@ class EventRegistrationQrService
         $mailShouldBeSent = $wasQrMissing;
 
         if (! $wasQrMissing) {
-            $updates = [];
-            if (! empty($registration->qr_code_path)) {
-                $expectedUrl = $this->qr->url($registration->qr_code_path);
-                if ($registration->qr_code_url !== $expectedUrl) {
-                    $updates['qr_code_url'] = $expectedUrl;
+            $expectedPath = $registration->qr_code_path ?: ('event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.png');
+            $expectedUrl = $this->qr->url($expectedPath);
+            $appUrlBase = rtrim((string) config('app.url'), '/');
+
+            $needsUrlCorrection = $registration->qr_code_url !== $expectedUrl || $registration->qr_code_path !== $expectedPath;
+            $needsSvgCorrection = Schema::hasColumn('event_registrations', 'qr_code_svg')
+                && ! empty($registration->qr_code_svg)
+                && ! str_contains((string) $registration->qr_code_svg, $appUrlBase);
+
+            if ($needsUrlCorrection || $needsSvgCorrection) {
+                Log::info('event_registration_qr_correcting_stale_url_and_payload', [
+                    'registration_id' => (string) $registration->id,
+                    'old_qr_code_url' => $registration->qr_code_url,
+                    'expected_qr_code_url' => $expectedUrl,
+                ]);
+
+                try {
+                    $this->qr->generateAndStore($registration);
+                    $registration = $registration->fresh() ?? $registration;
+                } catch (Throwable $exception) {
+                    Log::error('event_registration_qr_correction_failed', [
+                        'registration_id' => (string) $registration->id,
+                        'exception' => $exception::class,
+                        'message' => $exception->getMessage(),
+                    ]);
                 }
-            }
-            if (empty($registration->qr_generated_at)) {
-                $updates['qr_generated_at'] = now();
-            }
-            if (! empty($updates)) {
-                $registration->forceFill($this->filter($updates))->save();
+            } elseif (empty($registration->qr_generated_at)) {
+                $registration->forceFill($this->filter(['qr_generated_at' => now()]))->save();
                 $registration->refresh();
             }
 
@@ -186,8 +202,19 @@ class EventRegistrationQrService
 
     public function qrCodeUrl(EventRegistration $registration): ?string
     {
-        if (! empty($registration->qr_code_path)) {
-            return $this->qr->url($registration->qr_code_path);
+        $path = $registration->qr_code_path ?: ($registration->event_id && $registration->id ? 'event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.png' : null);
+
+        if (! empty($path)) {
+            return $this->qr->url($path);
+        }
+
+        if (! empty($registration->qr_code_url)) {
+            $parsedPath = parse_url((string) $registration->qr_code_url, PHP_URL_PATH);
+            if ($parsedPath && str_contains($parsedPath, 'event-qrcodes/')) {
+                $relativePath = substr($parsedPath, strpos($parsedPath, 'event-qrcodes/'));
+
+                return $this->qr->url($relativePath);
+            }
         }
 
         return $registration->qr_code_url ?: null;
