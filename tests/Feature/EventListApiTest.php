@@ -193,13 +193,18 @@ class EventListApiTest extends TestCase
 
         Sanctum::actingAs($user);
 
-        // When June events exist, only June events should be returned.
+        // When June events exist:
+        // - June Event (which has a June occurrence) should return its June occurrence.
+        // - July Event (which has no June occurrence) should fall back to its July occurrence.
+        // Thus, we expect both to be returned (count = 2).
         $this->getJson('/api/v1/events/all-with-live-status')
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonCount(1, 'data')
+            ->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.event_id', $juneEventId)
-            ->assertJsonPath('data.0.title', 'June Event');
+            ->assertJsonPath('data.0.title', 'June Event')
+            ->assertJsonPath('data.1.event_id', $julyEventId)
+            ->assertJsonPath('data.1.title', 'July Event');
 
         // Now set test now to late June (2026-06-25) where June Event is past.
         Carbon::setTestNow(Carbon::parse('2026-06-25 15:00:00'));
@@ -284,6 +289,52 @@ class EventListApiTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.event_id', $julyEventId)
             ->assertJsonPath('data.0.title', 'July Event Active');
+    }
+
+    public function test_all_with_live_status_filters_per_event(): void
+    {
+        $user = $this->unityUser();
+        $circle = $this->circle('Test');
+
+        DB::table('circle_members')->insert([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circle->id,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $juneEventId = (string) Str::uuid();
+        $julyEventId = (string) Str::uuid();
+
+        // Event 1 (June Event): has occurrences in both June and July
+        $this->insertEvent($juneEventId, $circle->id, 'Realty One Meet', 'circle_meeting', 'scheduled', '2026-06-27 10:00:00');
+        $this->insertOccurrence((string) Str::uuid(), $juneEventId, 'scheduled', '2026-06-27 10:00:00');
+        $this->insertOccurrence((string) Str::uuid(), $juneEventId, 'scheduled', '2026-07-25 10:00:00');
+
+        // Event 2 (July Event): has occurrence only in July
+        $this->insertEvent($julyEventId, $circle->id, 'MSME One Meet', 'circle_meeting', 'scheduled', '2026-07-01 10:00:00');
+        $this->insertOccurrence((string) Str::uuid(), $julyEventId, 'scheduled', '2026-07-01 10:00:00');
+
+        Sanctum::actingAs($user);
+
+        // When June events exist:
+        // - Event 1 has a June occurrence, so it shows ONLY its June occurrence (2026-06-27).
+        // - Event 2 has no June occurrence, so it falls back to its July occurrence (2026-07-01).
+        // The API should return BOTH occurrences:
+        // 1. Realty One Meet on June 27
+        // 2. MSME One Meet on July 1
+        $this->getJson('/api/v1/events/all-with-live-status')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.event_id', $juneEventId)
+            ->assertJsonPath('data.0.title', 'Realty One Meet')
+            ->assertJsonPath('data.0.start_datetime', '2026-06-27 10:00:00')
+            ->assertJsonPath('data.1.event_id', $julyEventId)
+            ->assertJsonPath('data.1.title', 'MSME One Meet')
+            ->assertJsonPath('data.1.start_datetime', '2026-07-01 10:00:00');
     }
 
     private function unityUser(): User
