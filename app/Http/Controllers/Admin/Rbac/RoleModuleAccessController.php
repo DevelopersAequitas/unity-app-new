@@ -24,6 +24,7 @@ class RoleModuleAccessController extends Controller
     {
         $roles = Role::query()
             ->where('status', 'active')
+            ->whereNotIn('key', ['global_admin', 'global_founder'])
             ->orderBy('hierarchy_depth')
             ->orderBy('name')
             ->get();

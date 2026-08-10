@@ -24,19 +24,19 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Page Name</label>
-                    <input type="text" name="name" class="form-control" value="{{ old('name', $page?->name) }}" required>
+                    <input type="text" name="name" id="name" class="form-control" value="{{ old('name', $page?->name) }}" required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Route Name</label>
-                    <input type="text" name="route_name" class="form-control" value="{{ old('route_name', $page?->route_name) }}" required placeholder="admin.users.index">
+                    <input type="text" name="route_name" id="routeName" class="form-control" value="{{ old('route_name', $page?->route_name) }}" required placeholder="admin.users.index">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Slug</label>
-                    <input type="text" name="slug" class="form-control" value="{{ old('slug', $page?->slug) }}" required>
+                    <input type="text" name="slug" id="slug" class="form-control" value="{{ old('slug', $page?->slug) }}" required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Page URL</label>
-                    <input type="text" name="page_url" class="form-control" value="{{ old('page_url', $page?->page_url) }}" placeholder="/admin/users">
+                    <input type="text" name="page_url" id="pageUrl" class="form-control" value="{{ old('page_url', $page?->page_url) }}" placeholder="/admin/users">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Sort Order</label>
@@ -66,3 +66,52 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const nameInput = document.getElementById('name');
+    const slugInput = document.getElementById('slug');
+    const routeNameInput = document.getElementById('routeName');
+    const pageUrlInput = document.getElementById('pageUrl');
+
+    if (nameInput) {
+        [slugInput, routeNameInput, pageUrlInput].forEach(el => {
+            if (!el) return;
+            if (el.value.trim() !== '') {
+                el.dataset.edited = 'true';
+            }
+            el.addEventListener('input', function() {
+                if (el.value.trim() !== '') {
+                    el.dataset.edited = 'true';
+                } else {
+                    delete el.dataset.edited;
+                }
+            });
+        });
+
+        nameInput.addEventListener('input', function() {
+            const rawVal = nameInput.value.trim();
+            const slug = rawVal
+                .toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-');
+
+            if (slugInput && (!slugInput.dataset.edited || slugInput.value.trim() === '')) {
+                slugInput.value = slug;
+            }
+
+            if (routeNameInput && (!routeNameInput.dataset.edited || routeNameInput.value.trim() === '')) {
+                const routeSlug = slug ? slug.replace(/-/g, '_') : '';
+                routeNameInput.value = slug ? `admin.${routeSlug}.index` : '';
+            }
+
+            if (pageUrlInput && (!pageUrlInput.dataset.edited || pageUrlInput.value.trim() === '')) {
+                pageUrlInput.value = slug ? `/admin/${slug}` : '';
+            }
+        });
+    }
+});
+</script>
+@endpush

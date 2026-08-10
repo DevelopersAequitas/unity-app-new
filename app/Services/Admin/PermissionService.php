@@ -558,6 +558,15 @@ class PermissionService
     // ── Cache Management ────────────────────────────────────────
 
     /**
+     * Clear all permission and scope caches globally.
+     */
+    public function clearAllCaches(): void
+    {
+        Cache::flush();
+        ScopeCascadeResolver::invalidateAllCaches();
+    }
+
+    /**
      * Invalidate all permission caches for an admin user.
      */
     public function invalidateCache(string $adminUserId): void

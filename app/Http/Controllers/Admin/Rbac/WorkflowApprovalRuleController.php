@@ -25,7 +25,11 @@ class WorkflowApprovalRuleController extends Controller
             ->paginate(50);
 
         $modules = AdminModule::query()->active()->orderBy('sort_order')->get();
-        $roles = Role::query()->where('status', 'active')->orderBy('name')->get();
+        $roles = Role::query()
+            ->where('status', 'active')
+            ->whereNotIn('key', ['global_admin', 'global_founder'])
+            ->orderBy('name')
+            ->get();
 
         if ($request->wantsJson()) {
             return response()->json([

@@ -16,11 +16,11 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Name</label>
-                    <input type="text" name="name" class="form-control" value="{{ old('name', $module?->name) }}" required>
+                    <input type="text" name="name" id="name" class="form-control" value="{{ old('name', $module?->name) }}" required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Slug</label>
-                    <input type="text" name="slug" class="form-control" value="{{ old('slug', $module?->slug) }}" required>
+                    <input type="text" name="slug" id="slug" class="form-control" value="{{ old('slug', $module?->slug) }}" required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Sort Order</label>
@@ -48,3 +48,37 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const nameInput = document.getElementById('name');
+    const slugInput = document.getElementById('slug');
+
+    if (nameInput && slugInput) {
+        if (slugInput.value.trim() !== '') {
+            slugInput.dataset.edited = 'true';
+        }
+
+        nameInput.addEventListener('input', function() {
+            if (!slugInput.dataset.edited || slugInput.value.trim() === '') {
+                slugInput.value = nameInput.value
+                    .toLowerCase()
+                    .trim()
+                    .replace(/[^a-z0-9\s-]/g, '')
+                    .replace(/\s+/g, '-')
+                    .replace(/-+/g, '-');
+            }
+        });
+
+        slugInput.addEventListener('input', function() {
+            if (slugInput.value.trim() !== '') {
+                slugInput.dataset.edited = 'true';
+            } else {
+                delete slugInput.dataset.edited;
+            }
+        });
+    }
+});
+</script>
+@endpush

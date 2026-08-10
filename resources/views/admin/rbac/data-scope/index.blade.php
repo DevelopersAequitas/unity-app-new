@@ -18,25 +18,28 @@
         <form method="POST" action="{{ route('admin.rbac.data-scope.store') }}">
             @csrf
             <div class="row g-3">
-                <div class="col-md-3">
-                    <label class="form-label">Role (or leave empty for user-specific)</label>
-                    <select name="role_id" class="form-select">
+                <div class="col-md-4">
+                    <label class="form-label">Role</label>
+                    <select name="role_id" class="form-select" id="roleSelect" onchange="autoSelectScopeType()" required>
                         <option value="">— Select Role —</option>
                         @foreach($roles as $role)
-                            <option value="{{ $role->id }}">{{ $role->name }}</option>
+                            @php
+                                $key = strtolower($role->key ?? '');
+                                $name = strtolower($role->name ?? '');
+                                $defaultScope = 'circle';
+                                if (str_contains($key, 'global') || str_contains($name, 'global')) {
+                                    $defaultScope = 'global';
+                                } elseif ($key === 'ded' || str_contains($key, 'district') || str_contains($name, 'district') || $name === 'ded') {
+                                    $defaultScope = 'district';
+                                } elseif ($key === 'industry_director' || $key === 'id' || $name === 'id' || str_contains($key, 'industry') || str_contains($name, 'industry')) {
+                                    $defaultScope = 'industry';
+                                }
+                            @endphp
+                            <option value="{{ $role->id }}" data-scope-type="{{ $defaultScope }}">{{ $role->name }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Admin User (optional)</label>
-                    <select name="admin_user_id" class="form-select">
-                        <option value="">— Select User —</option>
-                        @foreach($adminUsers as $user)
-                            <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->email }})</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-2">
                     <label class="form-label">Scope Type</label>
                     <select name="scope_type" class="form-select" id="scopeType" onchange="toggleScopeEntity()">
                         <option value="global">Global</option>
@@ -45,17 +48,17 @@
                         <option value="industry">Industry</option>
                     </select>
                 </div>
-                <div class="col-md-3" id="scopeEntityCol">
+                <div class="col-md-4" id="scopeEntityCol">
                     <label class="form-label">Scope Entity</label>
                     <select name="scope_id" class="form-select" id="scopeEntity">
                         <option value="">— Select —</option>
                     </select>
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i></button>
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i></button>
                 </div>
             </div>
-            @if($errors->any())
+            @if(isset($errors) && $errors->any())
                 <div class="alert alert-danger mt-2">@foreach($errors->all() as $e)<div>{{ $e }}</div>@endforeach</div>
             @endif
         </form>
@@ -69,7 +72,6 @@
             <thead class="table-light">
                 <tr>
                     <th>Role</th>
-                    <th>Admin User</th>
                     <th>Scope Type</th>
                     <th>Scope ID</th>
                     <th>Created</th>
@@ -80,7 +82,6 @@
                 @forelse($scopes as $scope)
                 <tr>
                     <td>{{ $scope->role?->name ?? '—' }}</td>
-                    <td>{{ $scope->adminUser?->name ?? '—' }}</td>
                     <td><span class="badge bg-info">{{ $scope->scope_type }}</span></td>
                     <td><code>{{ $scope->scope_id ?? 'ALL' }}</code></td>
                     <td>{{ $scope->created_at->format('M d, Y') }}</td>
@@ -92,7 +93,7 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="6" class="text-center py-4 text-muted">No data scope assignments.</td></tr>
+                <tr><td colspan="5" class="text-center py-4 text-muted">No data scope assignments.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -108,6 +109,26 @@
 const circles = @json($circles);
 const industries = @json($industries);
 const districts = @json($districts);
+
+function autoSelectScopeType() {
+    const roleSelect = document.getElementById('roleSelect');
+    if (!roleSelect || roleSelect.selectedIndex < 0) return;
+
+    const selectedOption = roleSelect.options[roleSelect.selectedIndex];
+    if (!selectedOption || !selectedOption.value) return;
+
+    const scopeType = selectedOption.getAttribute('data-scope-type');
+    if (scopeType) {
+        const scopeTypeSelect = document.getElementById('scopeType');
+        if (scopeTypeSelect) {
+            scopeTypeSelect.value = scopeType;
+            if (window.jQuery && jQuery(scopeTypeSelect).data('select2')) {
+                jQuery(scopeTypeSelect).trigger('change.select2');
+            }
+            toggleScopeEntity();
+        }
+    }
+}
 
 function toggleScopeEntity() {
     const type = document.getElementById('scopeType').value;
@@ -131,6 +152,11 @@ function toggleScopeEntity() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', toggleScopeEntity);
+document.addEventListener('DOMContentLoaded', function() {
+    toggleScopeEntity();
+    if (window.jQuery) {
+        jQuery('#roleSelect').on('change', autoSelectScopeType);
+    }
+});
 </script>
 @endpush

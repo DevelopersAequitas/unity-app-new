@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Rbac;
 
 use App\Http\Controllers\Controller;
-use App\Models\AdminUser;
 use App\Models\Circle;
 use App\Models\District;
 use App\Models\Industry;
@@ -27,12 +26,15 @@ class RoleDataScopeController extends Controller
     public function index(Request $request): View|JsonResponse
     {
         $scopes = RoleDataScope::query()
-            ->with(['role', 'adminUser'])
+            ->with(['role'])
             ->orderBy('created_at', 'desc')
             ->paginate(50);
 
-        $roles = Role::query()->where('status', 'active')->orderBy('name')->get();
-        $adminUsers = AdminUser::query()->orderBy('name')->get();
+        $roles = Role::query()
+            ->where('status', 'active')
+            ->whereNotIn('key', ['global_admin', 'global_founder'])
+            ->orderBy('name')
+            ->get();
 
         $circles = Circle::query()->orderBy('name')->limit(200)->get(['id', 'name']);
         $industries = Industry::query()->orderBy('name')->get(['id', 'name']);
@@ -45,7 +47,6 @@ class RoleDataScopeController extends Controller
                 'success' => true,
                 'scopes' => $scopes,
                 'roles' => $roles,
-                'adminUsers' => $adminUsers,
                 'circles' => $circles,
                 'industries' => $industries,
                 'districts' => $districts,
@@ -55,7 +56,6 @@ class RoleDataScopeController extends Controller
         return view('admin.rbac.data-scope.index', compact(
             'scopes',
             'roles',
-            'adminUsers',
             'circles',
             'industries',
             'districts',
@@ -65,29 +65,15 @@ class RoleDataScopeController extends Controller
     public function store(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
-            'role_id' => 'nullable|uuid|exists:roles,id',
-            'admin_user_id' => 'nullable|uuid|exists:admin_users,id',
+            'role_id' => 'required|uuid|exists:roles,id',
             'scope_type' => 'required|string|in:global,circle,district,industry',
             'scope_id' => 'nullable|uuid',
         ]);
 
-        if (empty($validated['role_id']) && empty($validated['admin_user_id'])) {
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Either Role or Admin User is required.',
-                ], 422);
-            }
-
-            return back()->withErrors(['role_id' => 'Either Role or Admin User is required.']);
-        }
-
         $scope = RoleDataScope::query()->create($validated);
 
         // Invalidate cache
-        if (! empty($validated['admin_user_id'])) {
-            $this->permissionService->invalidateCache($validated['admin_user_id']);
-        } elseif (! empty($validated['role_id'])) {
+        if (! empty($validated['role_id'])) {
             $this->permissionService->invalidateCacheForRole($validated['role_id']);
         }
 
@@ -95,7 +81,7 @@ class RoleDataScopeController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Data scope created successfully.',
-                'scope' => $scope->load(['role', 'adminUser']),
+                'scope' => $scope->load(['role']),
             ], 201);
         }
 
@@ -107,9 +93,7 @@ class RoleDataScopeController extends Controller
     {
         $scope = RoleDataScope::query()->findOrFail($id);
 
-        if ($scope->admin_user_id) {
-            $this->permissionService->invalidateCache($scope->admin_user_id);
-        } elseif ($scope->role_id) {
+        if ($scope->role_id) {
             $this->permissionService->invalidateCacheForRole($scope->role_id);
         }
 
