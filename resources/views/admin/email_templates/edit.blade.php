@@ -109,7 +109,7 @@
                                         <label for="html_content" class="form-label fw-bold text-dark small mb-0">Raw HTML / Blade Code</label>
                                         <span class="badge bg-danger rounded-pill px-2 py-1" style="font-size: 10px;">Advanced Mode</span>
                                     </div>
-                                    <textarea name="html_content" id="html_content" class="form-control rounded-3 font-monospace bg-dark text-white p-3" rows="18" style="font-size: 13px; line-height: 1.5; tab-size: 4;">{{ old('html_content', $fullHtml) }}</textarea>
+                                    <textarea name="html_content" id="html_content" class="form-control rounded-3 font-monospace bg-white text-dark p-3 border" rows="18" style="font-size: 13px; line-height: 1.5; tab-size: 4; border-color: #dee2e6 !important;">{{ old('html_content', $fullHtml) }}</textarea>
                                 </div>
 
                                 <div class="d-flex justify-content-end">
