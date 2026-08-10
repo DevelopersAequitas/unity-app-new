@@ -257,7 +257,7 @@ class EventRegistrationQrService
             return false;
         }
 
-        if ($svg !== '' && (! str_contains($svg, $registration->qr_token) || str_contains($svg, '/api/v1/events/checkin/qr/"') || str_contains($svg, "/api/v1/events/checkin/qr/'"))) {
+        if ($svg !== '' && (str_contains($svg, '/api/v1/events/checkin/qr/"') || str_contains($svg, "/api/v1/events/checkin/qr/'"))) {
             return false;
         }
 
