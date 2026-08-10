@@ -154,7 +154,7 @@ class EventPaymentService
             'form_url' => $formUrl,
             'qr_code_url' => $requiresPayment
                 ? null
-                : ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url),
+                : app(EventRegistrationQrService::class)->qrCodeUrl($registration),
             'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
             'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
             'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,

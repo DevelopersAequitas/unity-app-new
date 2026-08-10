@@ -109,7 +109,7 @@ class EventOccurrenceListResource extends JsonResource
                 'payment_status' => $registration?->payment_status,
                 'razorpay_order_id' => $registration?->razorpay_order_id,
                 'checkout_url' => $registration?->payment_url ?? $registration?->zoho_checkout_url ?? $registration?->zoho_payment_link_url ?? $registration?->zoho_hosted_page_url ?? null,
-                'qr_code_url' => $registration ? ((($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid') ? null : ($registration->qr_code_path ? $qr->url($registration->qr_code_path) : $registration->qr_code_url)) : null,
+                'qr_code_url' => $registration ? ((($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid') ? null : app(EventRegistrationQrService::class)->qrCodeUrl($registration)) : null,
             ],
         ];
     }
