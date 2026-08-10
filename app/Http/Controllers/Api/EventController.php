@@ -118,7 +118,7 @@ class EventController extends BaseApiController
                 ->whereNotNull('end_at')
                 ->where(function ($query): void {
                     $query->whereNull('status')
-                        ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive']);
+                        ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive', 'completed', 'complete']);
                 })
                 ->whereHas('event', function ($query): void {
                     if (Schema::hasColumn('events', 'is_active')) {
@@ -128,7 +128,7 @@ class EventController extends BaseApiController
                     if (Schema::hasColumn('events', 'status')) {
                         $query->where(function ($statusQuery): void {
                             $statusQuery->whereNull('status')
-                                ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive']);
+                                ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive', 'completed', 'complete']);
                         });
                     }
                 })
@@ -138,6 +138,21 @@ class EventController extends BaseApiController
                     $event = $occurrence->event;
                     $startAt = $this->localEventDateTime($occurrence->start_at, $timezone);
                     $endAt = $this->localEventDateTime($occurrence->end_at, $timezone);
+
+                    $occurrenceStatus = strtolower((string) ($occurrence->status ?? ''));
+                    $eventStatusStr = strtolower((string) ($event->status ?? ''));
+                    $computedEventStatus = strtolower((string) ($event->computed_status ?? ''));
+
+                    $excludedStatuses = ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive', 'completed', 'complete'];
+                    if (in_array($occurrenceStatus, $excludedStatuses, true)) {
+                        return null;
+                    }
+                    if (in_array($eventStatusStr, $excludedStatuses, true)) {
+                        return null;
+                    }
+                    if (in_array($computedEventStatus, $excludedStatuses, true)) {
+                        return null;
+                    }
 
                     if (! $startAt || ! $endAt || $endAt->lt($now)) {
                         return null;
@@ -166,6 +181,8 @@ class EventController extends BaseApiController
                     return [
                         '_sort_status' => $isLiveEvent ? 0 : 1,
                         '_sort_start_at' => $startAt->getTimestamp(),
+                        '_start_year' => $startAt->year,
+                        '_start_month' => $startAt->month,
                         'event_id' => $event->id,
                         'occurrence_id' => $occurrence->id,
                         'title' => $event->title,
@@ -185,14 +202,38 @@ class EventController extends BaseApiController
                 ->sortBy([
                     ['_sort_status', 'asc'],
                     ['_sort_start_at', 'asc'],
-                ])
-                ->map(fn (array $event): array => collect($event)->except(['_sort_status', '_sort_start_at'])->all())
+                ]);
+
+            $currentYear = $now->year;
+            $currentMonth = $now->month;
+
+            $currentMonthOccurrences = $occurrences->filter(function (array $occ) use ($currentYear, $currentMonth): bool {
+                return ($occ['_start_year'] === $currentYear && $occ['_start_month'] === $currentMonth) || $occ['is_live_event'];
+            });
+
+            if ($currentMonthOccurrences->isNotEmpty()) {
+                $filteredOccurrences = $currentMonthOccurrences;
+            } else {
+                if ($occurrences->isNotEmpty()) {
+                    $firstOccur = $occurrences->first();
+                    $targetYear = $firstOccur['_start_year'];
+                    $targetMonth = $firstOccur['_start_month'];
+                    $filteredOccurrences = $occurrences->filter(function (array $occ) use ($targetYear, $targetMonth): bool {
+                        return $occ['_start_year'] === $targetYear && $occ['_start_month'] === $targetMonth;
+                    });
+                } else {
+                    $filteredOccurrences = collect();
+                }
+            }
+
+            $finalOccurrences = $filteredOccurrences
+                ->map(fn (array $event): array => collect($event)->except(['_sort_status', '_sort_start_at', '_start_year', '_start_month'])->all())
                 ->values();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Events fetched successfully.',
-                'data' => $occurrences,
+                'data' => $finalOccurrences,
             ]);
         } catch (\Throwable $e) {
             Log::error('events_all_with_live_status_failed', [

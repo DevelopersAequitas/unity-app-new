@@ -7,6 +7,17 @@
 @section('content')
 <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4 max-w-full min-w-0">
 
+    @if(session('success'))
+      <div class="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium flex items-center justify-between mb-4">
+        <span><i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}</span>
+      </div>
+    @endif
+    @if(session('error'))
+      <div class="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs font-medium flex items-center justify-between mb-4">
+        <span><i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}</span>
+      </div>
+    @endif
+
     <!-- Top Action Row -->
     <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
       <div>
@@ -192,6 +203,13 @@
                       <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ ucfirst($pStatus ?: 'Pending') }}
                     </span>
                   @endif
+                  @if(!empty($row->coupon_code))
+                    <div class="mt-1 flex items-center gap-1">
+                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-mono font-medium bg-purple-50 text-purple-700 border border-purple-200" title="Coupon Code: {{ $row->coupon_code }} @if($row->discount_amount)(Saved ₹{{ number_format((float)$row->discount_amount, 2) }})@endif">
+                        <i class="bi bi-ticket-perforated"></i> {{ $row->coupon_code }}
+                      </span>
+                    </div>
+                  @endif
                 </td>
                 <td class="px-3 py-2.5 text-xs whitespace-nowrap align-middle">
                   @if($isCheckedIn)
@@ -257,8 +275,16 @@
                                           </div>
                                       </div>
                                       @if($qrUrl)
-                                          <div class="mt-2">
-                                              <a href="{{ $qrUrl }}" download="QR_{{ $row->id }}.png" target="_blank" class="btn btn-sm btn-primary">Download QR Pass</a>
+                                          <div class="mt-3 flex items-center justify-center gap-2">
+                                              <a href="{{ $qrUrl }}" download="QR_{{ $row->id }}.png" target="_blank" class="btn btn-sm btn-primary">
+                                                  <i class="bi bi-download me-1"></i> Download QR Pass
+                                              </a>
+                                              <form method="POST" action="{{ route('admin.events.registrations.send-whatsapp-qr', $row->id) }}" class="d-inline m-0">
+                                                  @csrf
+                                                  <button type="submit" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" onclick="return confirm('Send QR code via WhatsApp to {{ $phone }}?');" title="Send QR code via WhatsApp">
+                                                      <i class="bi bi-whatsapp"></i> Send via WhatsApp
+                                                  </button>
+                                              </form>
                                           </div>
                                       @endif
                                       <div class="mt-3 text-muted small fw-semibold">
@@ -282,7 +308,17 @@
                 <!-- QR Download Option -->
                 <td class="px-3 py-2.5 text-center align-middle whitespace-nowrap">
                   @if($qrUrl)
-                      <a href="{{ $qrUrl }}" download="QR_{{ $row->id }}.png" target="_blank" class="inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap">Download</a>
+                      <div class="inline-flex items-center gap-1.5">
+                          <a href="{{ $qrUrl }}" download="QR_{{ $row->id }}.png" target="_blank" class="inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline whitespace-nowrap" title="Download QR Pass">
+                              <i class="bi bi-download me-1"></i> Download
+                          </a>
+                          <form method="POST" action="{{ route('admin.events.registrations.send-whatsapp-qr', $row->id) }}" class="inline-block m-0">
+                              @csrf
+                              <button type="submit" class="inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap" onclick="return confirm('Send QR code via WhatsApp to {{ $phone }}?');" title="Send QR code via WhatsApp">
+                                  <i class="bi bi-whatsapp me-1 text-emerald-600"></i> Send via WhatsApp
+                              </button>
+                          </form>
+                      </div>
                   @else
                       —
                   @endif

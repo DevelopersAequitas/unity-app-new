@@ -85,15 +85,7 @@ class SupportTicketController extends Controller
 
         if ($validated['status'] === 'resolved' && $previousStatus !== 'resolved') {
             $ticket->resolved_at = now();
-
-            try {
-                Mail::to($ticket->email)->send(new SupportTicketResolvedMail($ticket));
-            } catch (\Throwable $e) {
-                Log::error('Failed to send support ticket resolution email.', [
-                    'ticket_id' => $ticket->id,
-                    'message' => $e->getMessage(),
-                ]);
-            }
+            $this->sendResolvedNotification($ticket);
         } elseif ($validated['status'] !== 'resolved') {
             $ticket->resolved_at = null;
         }

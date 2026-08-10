@@ -766,19 +766,22 @@ class AuthController extends BaseApiController
             return;
         }
 
-        try {
-            Mail::to($user->email)->send(new WelcomePeerMail($user));
+        $mailable = new WelcomePeerMail($user);
 
-            EmailLog::query()->create([
+        try {
+            Mail::to($user->email)->send($mailable);
+
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'welcome_peer',
+                'source_module' => 'Auth',
+                'related_type' => User::class,
+                'related_id' => (string) $user->id,
                 'payload' => [
                     'flow' => 'registration',
-                    'mailable_class' => WelcomePeerMail::class,
                 ],
-                'status' => 'sent',
-                'sent_at' => now(),
-                'created_at' => now(),
             ]);
         } catch (\Throwable $e) {
             Log::error('Welcome peer mail failed', [
@@ -788,18 +791,18 @@ class AuthController extends BaseApiController
             ]);
 
             try {
-                EmailLog::query()->create([
+                app(EmailLogService::class)->logMailableFailed($mailable, [
+                    'user_id' => (string) ($user->id ?? ''),
                     'to_email' => (string) ($user->email ?? ''),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'welcome_peer',
+                    'source_module' => 'Auth',
+                    'related_type' => User::class,
+                    'related_id' => (string) ($user->id ?? ''),
                     'payload' => [
                         'flow' => 'registration',
-                        'mailable_class' => WelcomePeerMail::class,
-                        'error' => $e->getMessage(),
                     ],
-                    'status' => 'failed',
-                    'sent_at' => now(),
-                    'created_at' => now(),
-                ]);
+                ], $e);
             } catch (\Throwable) {
                 // Registration must not fail due to mail/log persistence errors.
             }

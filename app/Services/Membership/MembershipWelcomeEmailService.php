@@ -76,7 +76,12 @@ class MembershipWelcomeEmailService
         $mailable = new MembershipWelcomeMail($freshUser, $attachments, $this->resolveBannerUrl());
 
         try {
-            Mail::to($email)->send($mailable);
+            $mailer = config('membership_welcome.mailer');
+            if ($mailer) {
+                Mail::mailer($mailer)->to($email)->send($mailable);
+            } else {
+                Mail::to($email)->send($mailable);
+            }
             $freshUser->forceFill([
                 'welcome_membership_email_sent_at' => now(),
                 'welcome_membership_email_status' => 'sent',
