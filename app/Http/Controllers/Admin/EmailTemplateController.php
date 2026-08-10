@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class EmailTemplateController extends Controller
@@ -439,8 +438,8 @@ class EmailTemplateController extends Controller
 
         foreach (self::$catalog as $key => $tpl) {
             $dbTemplate = EmailTemplate::where('template_key', $key)->first();
-            
-            $filePath = resource_path('views/' . $tpl['file_path']);
+
+            $filePath = resource_path('views/'.$tpl['file_path']);
             $exists = File::exists($filePath);
             $lastModified = $exists ? date('Y-m-d H:i:s', File::lastModified($filePath)) : 'N/A';
 
@@ -459,14 +458,14 @@ class EmailTemplateController extends Controller
      */
     public function edit(string $key): View|RedirectResponse
     {
-        if (!isset(self::$catalog[$key])) {
+        if (! isset(self::$catalog[$key])) {
             return redirect()->route('admin.email-templates.index')->with('error', 'Template not found in catalog.');
         }
 
         $template = self::$catalog[$key];
-        $filePath = resource_path('views/' . $template['file_path']);
+        $filePath = resource_path('views/'.$template['file_path']);
 
-        if (!File::exists($filePath)) {
+        if (! File::exists($filePath)) {
             return redirect()->route('admin.email-templates.index')->with('error', 'Template file does not exist on disk.');
         }
 
@@ -476,7 +475,7 @@ class EmailTemplateController extends Controller
         $editableContent = strip_tags(str_replace(['<br />', '<br>', '<br/>'], "\n", $rawEditable));
 
         $dbTemplate = EmailTemplate::firstOrCreate([
-            'template_key' => $key
+            'template_key' => $key,
         ], [
             'name' => $template['name'],
             'file_path' => $template['file_path'],
@@ -491,14 +490,14 @@ class EmailTemplateController extends Controller
      */
     public function update(Request $request, string $key): RedirectResponse
     {
-        if (!isset(self::$catalog[$key])) {
+        if (! isset(self::$catalog[$key])) {
             return redirect()->route('admin.email-templates.index')->with('error', 'Template not found.');
         }
 
         $template = self::$catalog[$key];
-        $filePath = resource_path('views/' . $template['file_path']);
+        $filePath = resource_path('views/'.$template['file_path']);
 
-        if (!File::exists($filePath)) {
+        if (! File::exists($filePath)) {
             return redirect()->route('admin.email-templates.index')->with('error', 'Template file not found on disk.');
         }
 
@@ -514,16 +513,16 @@ class EmailTemplateController extends Controller
                 'simple_content' => 'required|string',
             ]);
             $newSimpleContent = $request->input('simple_content');
-            $paragraphs = preg_split('/\n/', str_replace("\r", "", $newSimpleContent));
+            $paragraphs = preg_split('/\n/', str_replace("\r", '', $newSimpleContent));
             $formattedHtml = '';
             foreach ($paragraphs as $para) {
                 $trimmed = trim($para);
                 if ($trimmed !== '') {
                     if (str_starts_with($trimmed, '•') || str_starts_with($trimmed, '-')) {
                         $bulletText = ltrim($trimmed, '•- ');
-                        $formattedHtml .= '<p style="margin: 0 0 8px 20px; font-size: 15px; line-height: 22px; color: #d9d9d9;">• ' . $bulletText . '</p>' . "\n";
+                        $formattedHtml .= '<p style="margin: 0 0 8px 20px; font-size: 15px; line-height: 22px; color: #d9d9d9;">• '.$bulletText.'</p>'."\n";
                     } else {
-                        $formattedHtml .= '<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">' . $para . '</p>' . "\n";
+                        $formattedHtml .= '<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">'.$para.'</p>'."\n";
                     }
                 }
             }
@@ -541,7 +540,7 @@ class EmailTemplateController extends Controller
 
             // Update database record
             $dbTemplate = EmailTemplate::updateOrCreate([
-                'template_key' => $key
+                'template_key' => $key,
             ], [
                 'name' => $template['name'],
                 'file_path' => $template['file_path'],
@@ -566,7 +565,7 @@ class EmailTemplateController extends Controller
                 'error' => $throwable->getMessage(),
             ]);
 
-            return back()->with('error', 'Failed to save template: ' . $throwable->getMessage());
+            return back()->with('error', 'Failed to save template: '.$throwable->getMessage());
         }
     }
 
@@ -575,7 +574,7 @@ class EmailTemplateController extends Controller
      */
     public function preview(string $key)
     {
-        if (!isset(self::$catalog[$key])) {
+        if (! isset(self::$catalog[$key])) {
             abort(404, 'Template not found.');
         }
 
@@ -586,7 +585,7 @@ class EmailTemplateController extends Controller
             // Render the blade template with dummy data
             return view($template['view_name'], $dummyData)->render();
         } catch (\Throwable $e) {
-            return response('Preview rendering failed: ' . $e->getMessage(), 500);
+            return response('Preview rendering failed: '.$e->getMessage(), 500);
         }
     }
 
@@ -598,6 +597,7 @@ class EmailTemplateController extends Controller
         if (preg_match('/<!-- EDITABLE_START -->(.*?)<!-- EDITABLE_END -->/s', $html, $matches)) {
             return trim($matches[1]);
         }
+
         return $html;
     }
 
@@ -607,8 +607,9 @@ class EmailTemplateController extends Controller
     private function setEditableContent(string $fullHtml, string $newContent): string
     {
         if (preg_match('/<!-- EDITABLE_START -->.*?<!-- EDITABLE_END -->/s', $fullHtml)) {
-            return preg_replace('/<!-- EDITABLE_START -->.*?<!-- EDITABLE_END -->/s', "<!-- EDITABLE_START -->\n" . $newContent . "\n<!-- EDITABLE_END -->", $fullHtml);
+            return preg_replace('/<!-- EDITABLE_START -->.*?<!-- EDITABLE_END -->/s', "<!-- EDITABLE_START -->\n".$newContent."\n<!-- EDITABLE_END -->", $fullHtml);
         }
+
         return $newContent;
     }
 
@@ -617,106 +618,170 @@ class EmailTemplateController extends Controller
      */
     private function getDummyDataForTemplate(string $key): array
     {
-        $user = new class {
+        $user = new class
+        {
             public string $name = 'John Doe';
+
             public string $first_name = 'John';
+
             public string $last_name = 'Doe';
+
             public string $display_name = 'John Doe';
+
             public string $email = 'john.doe@example.com';
+
             public string $phone = '+1234567890';
+
             public int $life_impacted_count = 12;
         };
 
-        $ticket = new class {
+        $ticket = new class
+        {
             public string $contact_name = 'John Doe';
+
             public string $ticket_number = 'SUP-20260810-0001';
+
             public string $subject = 'Cannot Load Wallet Balance';
+
             public string $description = 'I purchased 100 coins but my wallet balance is still showing 0. Please help.';
+
             public string $media_url = 'https://peersunity.com/images/screenshot.png';
+
             public string $admin_note = 'The transaction record was synced and wallet balance updated successfully.';
         };
 
-        $feedback = new class {
+        $feedback = new class
+        {
             public string $name = 'John Doe';
+
             public string $subject = 'General Feedback';
+
             public string $category = 'Mobile App Experience';
+
             public string $question = 'The new dark mode on the mobile dashboard looks absolutely stunning!';
         };
 
-        $story = new class {
+        $story = new class
+        {
             public string $title = 'How Collaboration Built My Business';
+
             public string $story_link = 'https://vyaparjagat.com/stories/collaboration-success';
+
             public string $rejected_reason = 'Story content is too short. Please add more details.';
+
             public $user;
-            public function __construct() {
-                $this->user = new class {
+
+            public function __construct()
+            {
+                $this->user = new class
+                {
                     public string $display_name = 'John Doe';
+
                     public string $first_name = 'John';
+
                     public string $last_name = 'Doe';
                 };
             }
         };
 
-        $claim = new class {
+        $claim = new class
+        {
             public string $activity_code = 'ACT-COIN-CLAIM-01';
+
             public int $coins_awarded = 150;
+
             public string $admin_notes = 'Approved for successful referral registration verification.';
+
             public $user;
-            public function __construct() {
-                $this->user = new class {
+
+            public function __construct()
+            {
+                $this->user = new class
+                {
                     public string $display_name = 'John Doe';
+
                     public string $first_name = 'John';
                 };
             }
         };
 
-        $meetingRequest = new class {
+        $meetingRequest = new class
+        {
             public $scheduled_at;
+
             public string $place = 'Conference Room 4 / Zoom Link';
-            public function __construct() {
+
+            public function __construct()
+            {
                 $this->scheduled_at = now()->addDays(2);
             }
         };
 
-        $rescheduleRequest = new class {
+        $rescheduleRequest = new class
+        {
             public $old_scheduled_at;
+
             public $new_scheduled_at;
+
             public string $old_place = 'Coffee Shop';
+
             public string $new_place = 'Main HQ Conference Room';
+
             public string $reason = 'Schedule conflict with client meeting';
-            public function __construct() {
+
+            public function __construct()
+            {
                 $this->old_scheduled_at = now()->addDays(2);
                 $this->new_scheduled_at = now()->addDays(3);
             }
         };
 
-        $circleJoinRequest = new class {
+        $circleJoinRequest = new class
+        {
             public $user;
+
             public $circle;
-            public function __construct() {
-                $this->user = new class {
+
+            public function __construct()
+            {
+                $this->user = new class
+                {
                     public string $display_name = 'John Doe';
+
                     public string $first_name = 'John';
+
                     public string $last_name = 'Doe';
                 };
-                $this->circle = new class {
+                $this->circle = new class
+                {
                     public string $name = 'Fintech Entrepreneurs Circle';
                 };
             }
         };
 
-        $impact = new class {
+        $impact = new class
+        {
             public string $action = 'Donated 50 laptops to rural schools';
+
             public $impact_date;
+
             public string $story_to_share = 'We visited the school and personally distributed the laptops to students.';
+
             public string $status = 'approved';
+
             public int $life_impacted = 50;
+
             public $user;
-            public function __construct() {
+
+            public function __construct()
+            {
                 $this->impact_date = now()->subDays(1);
-                $this->user = new class {
+                $this->user = new class
+                {
                     public string $display_name = 'John Doe';
+
                     public string $first_name = 'John';
+
                     public string $last_name = 'Doe';
                 };
             }
@@ -809,18 +874,29 @@ class EmailTemplateController extends Controller
                 ];
 
             case 'certification_approved':
-                $submission = new class {
+                $submission = new class
+                {
                     public string $certification_type = 'entrepreneur';
+
                     public string $full_name = 'John Doe';
+
                     public string $business_name = 'Acme Corp';
+
                     public string $certification_level = 'Gold';
+
                     public int $total_score = 95;
+
                     public int $percentage = 95;
+
                     public string $certificate_number = 'CERT-2026-001';
+
                     public $issued_at = null;
+
                     public string $admin_note = 'Great achievement!';
+
                     public string $certificate_download_url = '#';
                 };
+
                 return [
                     'submission' => $submission,
                     'logoUrl' => 'https://peersunity.com/images/peersglobal-logo.png',

@@ -3,13 +3,13 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\AdminUser;
-use App\Models\EmailTemplate;
 use App\Models\Role;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class EmailTemplateTest extends TestCase
@@ -21,11 +21,11 @@ class EmailTemplateTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->createTestSchemas();
 
         // Create admin user and assign super-admin/admin role
-        $roleId = (string) \Illuminate\Support\Str::uuid();
+        $roleId = (string) Str::uuid();
         DB::table('roles')->insert([
             'id' => $roleId,
             'name' => 'Super Admin',
@@ -35,13 +35,13 @@ class EmailTemplateTest extends TestCase
         ]);
 
         $this->admin = AdminUser::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'name' => 'Admin User',
-            'email' => 'admin_test_' . uniqid() . '@example.test',
+            'email' => 'admin_test_'.uniqid().'@example.test',
             'password' => bcrypt('password'),
             'status' => 'active',
         ]);
-        
+
         DB::table('admin_user_roles')->insert([
             'user_id' => $this->admin->id,
             'role_id' => $roleId,
@@ -94,7 +94,7 @@ class EmailTemplateTest extends TestCase
                 $table->timestamps();
             });
         }
-        
+
         if (! Schema::hasTable('users')) {
             Schema::create('users', function (Blueprint $table): void {
                 $table->uuid('id')->primary();

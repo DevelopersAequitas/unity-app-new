@@ -44,6 +44,7 @@ use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailLogController;
+use App\Http\Controllers\Admin\EmailTemplateController;
 use App\Http\Controllers\Admin\EventCouponWebController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\EventManagementController;
@@ -560,10 +561,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/support-tickets/{id}/send-email', [SupportTicketController::class, 'sendEmail'])->whereUuid('id')->name('support-tickets.send-email');
 
         // Email Templates Module
-        Route::get('/email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('email-templates.index');
-        Route::get('/email-templates/{key}/edit', [App\Http\Controllers\Admin\EmailTemplateController::class, 'edit'])->name('email-templates.edit');
-        Route::put('/email-templates/{key}', [App\Http\Controllers\Admin\EmailTemplateController::class, 'update'])->name('email-templates.update');
-        Route::get('/email-templates/{key}/preview', [App\Http\Controllers\Admin\EmailTemplateController::class, 'preview'])->name('email-templates.preview');
+        Route::get('/email-templates', [EmailTemplateController::class, 'index'])->name('email-templates.index');
+        Route::get('/email-templates/{key}/edit', [EmailTemplateController::class, 'edit'])->name('email-templates.edit');
+        Route::put('/email-templates/{key}', [EmailTemplateController::class, 'update'])->name('email-templates.update');
+        Route::get('/email-templates/{key}/preview', [EmailTemplateController::class, 'preview'])->name('email-templates.preview');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');
