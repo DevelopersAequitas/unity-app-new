@@ -207,26 +207,34 @@ class EventController extends BaseApiController
             $currentYear = $now->year;
             $currentMonth = $now->month;
 
-            $currentMonthOccurrences = $occurrences->filter(function (array $occ) use ($currentYear, $currentMonth): bool {
-                return ($occ['_start_year'] === $currentYear && $occ['_start_month'] === $currentMonth) || $occ['is_live_event'];
-            });
+            $groupedOccurrences = $occurrences->groupBy('event_id');
+            $filteredOccurrences = collect();
 
-            if ($currentMonthOccurrences->isNotEmpty()) {
-                $filteredOccurrences = $currentMonthOccurrences;
-            } else {
-                if ($occurrences->isNotEmpty()) {
-                    $firstOccur = $occurrences->first();
-                    $targetYear = $firstOccur['_start_year'];
-                    $targetMonth = $firstOccur['_start_month'];
-                    $filteredOccurrences = $occurrences->filter(function (array $occ) use ($targetYear, $targetMonth): bool {
-                        return $occ['_start_year'] === $targetYear && $occ['_start_month'] === $targetMonth;
-                    });
+            foreach ($groupedOccurrences as $group) {
+                $currentMonthGroup = $group->filter(function (array $occ) use ($currentYear, $currentMonth): bool {
+                    return ($occ['_start_year'] === $currentYear && $occ['_start_month'] === $currentMonth) || $occ['is_live_event'];
+                });
+
+                if ($currentMonthGroup->isNotEmpty()) {
+                    $filteredOccurrences = $filteredOccurrences->merge($currentMonthGroup);
                 } else {
-                    $filteredOccurrences = collect();
+                    if ($group->isNotEmpty()) {
+                        $firstOccur = $group->first();
+                        $targetYear = $firstOccur['_start_year'];
+                        $targetMonth = $firstOccur['_start_month'];
+                        $fallbackGroup = $group->filter(function (array $occ) use ($targetYear, $targetMonth): bool {
+                            return $occ['_start_year'] === $targetYear && $occ['_start_month'] === $targetMonth;
+                        });
+                        $filteredOccurrences = $filteredOccurrences->merge($fallbackGroup);
+                    }
                 }
             }
 
             $finalOccurrences = $filteredOccurrences
+                ->sortBy([
+                    ['_sort_status', 'asc'],
+                    ['_sort_start_at', 'asc'],
+                ])
                 ->map(fn (array $event): array => collect($event)->except(['_sort_status', '_sort_start_at', '_start_year', '_start_month'])->all())
                 ->values();
 
