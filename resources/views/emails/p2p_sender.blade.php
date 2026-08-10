@@ -12,9 +12,11 @@
 <td style="padding: 5px 10px 5px 10px; font-size: 16px; color: #333333;">
 Dear <strong>{{ $actorName ?? '' }}</strong>,<br /><br />
 Your meeting with <strong>{{ $otherName ?? '' }}</strong> on <strong>{{ $meetingDate ?? '' }}</strong> at <strong>{{ $meetingPlace ?? '' }}</strong> has been successfully logged on Unity.<br /><br />
+<!-- EDITABLE_START -->
 We believe every conversation opens doors to growth, trust, and new partnerships.<br /><br />
 Want to share your experience?<br />
 Add a testimonial or note from your dashboard<br /><br />
+<!-- EDITABLE_END -->
 With appreciation,<br />
 <strong>Peers Global Team</strong>
 </td>
