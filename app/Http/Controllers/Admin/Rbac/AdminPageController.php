@@ -87,8 +87,9 @@ class AdminPageController extends Controller
         $validated = $request->validate([
             'module_id' => 'required|uuid|exists:admin_modules,id',
             'name' => 'required|string|max:100',
-            'route_name' => 'required|string|max:255',
+            'route_name' => 'nullable|string|max:255',
             'slug' => 'required|string|max:100',
+            'page_url' => 'nullable|string|max:255',
             'icon' => 'nullable|string|max:50',
             'sort_order' => 'integer|min:0',
             'is_active' => 'boolean',
@@ -134,8 +135,9 @@ class AdminPageController extends Controller
         $validated = $request->validate([
             'module_id' => 'required|uuid|exists:admin_modules,id',
             'name' => 'required|string|max:100',
-            'route_name' => 'required|string|max:255',
+            'route_name' => 'nullable|string|max:255',
             'slug' => 'required|string|max:100',
+            'page_url' => 'nullable|string|max:255',
             'icon' => 'nullable|string|max:50',
             'sort_order' => 'integer|min:0',
             'is_active' => 'boolean',

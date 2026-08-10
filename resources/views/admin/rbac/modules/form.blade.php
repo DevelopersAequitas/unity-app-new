@@ -23,14 +23,10 @@
                     <input type="text" name="slug" class="form-control" value="{{ old('slug', $module?->slug) }}" required>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Icon (Bootstrap Icons class)</label>
-                    <input type="text" name="icon" class="form-control" value="{{ old('icon', $module?->icon) }}" placeholder="bi-speedometer2">
-                </div>
-                <div class="col-md-3">
                     <label class="form-label">Sort Order</label>
                     <input type="number" name="sort_order" class="form-control" value="{{ old('sort_order', $module?->sort_order ?? 0) }}" min="0">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <label class="form-label">Active</label>
                     <div class="form-check form-switch mt-2">
                         <input type="hidden" name="is_active" value="0">

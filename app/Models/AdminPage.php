@@ -29,6 +29,7 @@ class AdminPage extends Model
         'name',
         'route_name',
         'slug',
+        'page_url',
         'icon',
         'sort_order',
         'is_active',

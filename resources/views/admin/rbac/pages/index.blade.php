@@ -38,6 +38,7 @@
                     <th>Page Name</th>
                     <th>Module</th>
                     <th>Route Name</th>
+                    <th>Page URL</th>
                     <th class="text-center">Order</th>
                     <th class="text-center">Status</th>
                     <th class="text-end">Actions</th>
@@ -49,6 +50,7 @@
                     <td><strong>{{ $page->name }}</strong></td>
                     <td><span class="badge bg-info">{{ $page->module?->name }}</span></td>
                     <td><code>{{ $page->route_name }}</code></td>
+                    <td><code>{{ $page->page_url }}</code></td>
                     <td class="text-center">{{ $page->sort_order }}</td>
                     <td class="text-center">
                         <span class="badge {{ $page->is_active ? 'bg-success' : 'bg-danger' }}">{{ $page->is_active ? 'Active' : 'Inactive' }}</span>
@@ -62,7 +64,7 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="6" class="text-center py-4 text-muted">No pages found.</td></tr>
+                <tr><td colspan="7" class="text-center py-4 text-muted">No pages found.</td></tr>
                 @endforelse
             </tbody>
         </table>

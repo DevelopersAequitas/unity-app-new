@@ -34,15 +34,15 @@
                     <label class="form-label">Slug</label>
                     <input type="text" name="slug" class="form-control" value="{{ old('slug', $page?->slug) }}" required>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Icon</label>
-                    <input type="text" name="icon" class="form-control" value="{{ old('icon', $page?->icon) }}" placeholder="bi-people">
+                <div class="col-md-6">
+                    <label class="form-label">Page URL</label>
+                    <input type="text" name="page_url" class="form-control" value="{{ old('page_url', $page?->page_url) }}" placeholder="/admin/users">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Sort Order</label>
                     <input type="number" name="sort_order" class="form-control" value="{{ old('sort_order', $page?->sort_order ?? 0) }}" min="0">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Active</label>
                     <div class="form-check form-switch mt-2">
                         <input type="hidden" name="is_active" value="0">
