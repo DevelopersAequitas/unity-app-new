@@ -43,7 +43,7 @@
                 ...(! $isDed && ! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
                     ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
-                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => '#'],
+                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
                 ...($isGlobalAdmin ? [
@@ -70,7 +70,7 @@
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
                     ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
-                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => '#'],
+                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
                 ...($isGlobalAdmin ? [
