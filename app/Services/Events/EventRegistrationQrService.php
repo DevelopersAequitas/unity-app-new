@@ -36,8 +36,11 @@ class EventRegistrationQrService
 
         if (! $wasQrMissing) {
             $updates = [];
-            if (! empty($registration->qr_code_path) && empty($registration->qr_code_url)) {
-                $updates['qr_code_url'] = $this->qr->url($registration->qr_code_path);
+            if (! empty($registration->qr_code_path)) {
+                $expectedUrl = $this->qr->url($registration->qr_code_path);
+                if ($registration->qr_code_url !== $expectedUrl) {
+                    $updates['qr_code_url'] = $expectedUrl;
+                }
             }
             if (empty($registration->qr_generated_at)) {
                 $updates['qr_generated_at'] = now();
