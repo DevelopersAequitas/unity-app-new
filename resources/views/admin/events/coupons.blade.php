@@ -16,6 +16,9 @@
         <p class="text-xs t3 m-0 mt-0.5">Create and manage full, percentage-based, or fixed-amount discount coupon codes for events</p>
       </div>
       <div class="flex items-center gap-2">
+        <a href="{{ route('admin.events.index') }}" class="px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition focus-ring no-underline flex items-center gap-1.5 shadow-2xs">
+          <i class="bi bi-calendar-event text-slate-500"></i> All Events
+        </a>
         <button type="button" onclick="openCreateModal()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition focus-ring flex items-center gap-1.5 shadow-2xs cursor-pointer">
           <i class="bi bi-plus-lg"></i> Create Coupon Code
         </button>

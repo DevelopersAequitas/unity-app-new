@@ -16,6 +16,9 @@
         <p class="text-xs t3 m-0 mt-0.5">Manage directory details, event mode, attendee registrations, and scheduling</p>
       </div>
       <div class="flex items-center gap-2">
+        <a href="{{ route('admin.event-coupons.index') }}" class="px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition focus-ring no-underline flex items-center gap-1.5 shadow-2xs">
+          <i class="bi bi-ticket-perforated text-indigo-600"></i> Event Coupons
+        </a>
         <a href="{{ route('admin.events.create') }}" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition focus-ring no-underline flex items-center gap-1.5 shadow-2xs">
           <i class="bi bi-plus-lg"></i> Create Event
         </a>
