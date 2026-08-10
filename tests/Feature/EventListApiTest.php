@@ -214,6 +214,78 @@ class EventListApiTest extends TestCase
             ->assertJsonPath('data.0.title', 'July Event');
     }
 
+    public function test_all_with_live_status_excludes_completed_events(): void
+    {
+        $user = $this->unityUser();
+        $circle = $this->circle('Test');
+
+        DB::table('circle_members')->insert([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circle->id,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $juneEventId = (string) Str::uuid();
+        $julyEventId = (string) Str::uuid();
+
+        // June event with completed status (which should be filtered out)
+        $this->insertEvent($juneEventId, $circle->id, 'June Event Completed', 'circle_meeting', 'completed', '2026-06-15 10:00:00');
+        $this->insertOccurrence((string) Str::uuid(), $juneEventId, 'scheduled', '2026-06-15 10:00:00');
+
+        // July event (which is upcoming and active)
+        $this->insertEvent($julyEventId, $circle->id, 'July Event Active', 'circle_meeting', 'scheduled', '2026-07-05 10:00:00');
+        $this->insertOccurrence((string) Str::uuid(), $julyEventId, 'scheduled', '2026-07-05 10:00:00');
+
+        Sanctum::actingAs($user);
+
+        // June Event is completed, so only the active July event should be returned
+        $this->getJson('/api/v1/events/all-with-live-status')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.event_id', $julyEventId)
+            ->assertJsonPath('data.0.title', 'July Event Active');
+    }
+
+    public function test_all_with_live_status_excludes_completed_occurrences(): void
+    {
+        $user = $this->unityUser();
+        $circle = $this->circle('Test');
+
+        DB::table('circle_members')->insert([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circle->id,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $juneEventId = (string) Str::uuid();
+        $julyEventId = (string) Str::uuid();
+
+        // June event (scheduled event) but occurrence is marked completed
+        $this->insertEvent($juneEventId, $circle->id, 'June Event Occurrence Completed', 'circle_meeting', 'scheduled', '2026-06-15 10:00:00');
+        $this->insertOccurrence((string) Str::uuid(), $juneEventId, 'completed', '2026-06-15 10:00:00');
+
+        // July event (which is active)
+        $this->insertEvent($julyEventId, $circle->id, 'July Event Active', 'circle_meeting', 'scheduled', '2026-07-05 10:00:00');
+        $this->insertOccurrence((string) Str::uuid(), $julyEventId, 'scheduled', '2026-07-05 10:00:00');
+
+        Sanctum::actingAs($user);
+
+        // Occurrence is completed, so only July event should be returned
+        $this->getJson('/api/v1/events/all-with-live-status')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.event_id', $julyEventId)
+            ->assertJsonPath('data.0.title', 'July Event Active');
+    }
+
     private function unityUser(): User
     {
         return User::query()->create([

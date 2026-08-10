@@ -118,7 +118,7 @@ class EventController extends BaseApiController
                 ->whereNotNull('end_at')
                 ->where(function ($query): void {
                     $query->whereNull('status')
-                        ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive']);
+                        ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive', 'completed', 'complete']);
                 })
                 ->whereHas('event', function ($query): void {
                     if (Schema::hasColumn('events', 'is_active')) {
@@ -128,7 +128,7 @@ class EventController extends BaseApiController
                     if (Schema::hasColumn('events', 'status')) {
                         $query->where(function ($statusQuery): void {
                             $statusQuery->whereNull('status')
-                                ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive']);
+                                ->orWhereNotIn('status', ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive', 'completed', 'complete']);
                         });
                     }
                 })
@@ -138,6 +138,21 @@ class EventController extends BaseApiController
                     $event = $occurrence->event;
                     $startAt = $this->localEventDateTime($occurrence->start_at, $timezone);
                     $endAt = $this->localEventDateTime($occurrence->end_at, $timezone);
+
+                    $occurrenceStatus = strtolower((string) ($occurrence->status ?? ''));
+                    $eventStatusStr = strtolower((string) ($event->status ?? ''));
+                    $computedEventStatus = strtolower((string) ($event->computed_status ?? ''));
+
+                    $excludedStatuses = ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive', 'completed', 'complete'];
+                    if (in_array($occurrenceStatus, $excludedStatuses, true)) {
+                        return null;
+                    }
+                    if (in_array($eventStatusStr, $excludedStatuses, true)) {
+                        return null;
+                    }
+                    if (in_array($computedEventStatus, $excludedStatuses, true)) {
+                        return null;
+                    }
 
                     if (! $startAt || ! $endAt || $endAt->lt($now)) {
                         return null;
