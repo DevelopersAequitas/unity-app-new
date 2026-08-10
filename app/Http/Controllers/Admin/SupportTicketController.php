@@ -10,6 +10,7 @@ use App\Mail\SupportTicketResolvedMail;
 use App\Mail\SupportTicketResponseMail;
 use App\Models\SupportTicket;
 use App\Services\EmailLogs\EmailLogService;
+use App\Services\Notifications\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -21,7 +22,8 @@ use Illuminate\View\View;
 class SupportTicketController extends Controller
 {
     public function __construct(
-        protected EmailLogService $emailLogService
+        protected EmailLogService $emailLogService,
+        protected NotificationService $notificationService
     ) {}
 
     /**
@@ -102,71 +104,130 @@ class SupportTicketController extends Controller
     public function sendEmail(SendSupportTicketEmailRequest $request, string $id): RedirectResponse
     {
         $ticket = SupportTicket::query()->findOrFail($id);
+        $action = $request->input('action', 'send_email');
 
         $subject = (string) $request->input('subject');
         $message = (string) $request->input('message');
         $status = $request->input('status');
 
+        $notificationTitle = "Support Ticket Update";
+        $notificationBody = "Your support ticket #{$ticket->ticket_number} request has been accepted by our team. To see more details, please check your email.";
+
+        $emailSent = false;
+        $notificationSent = false;
+
         $attachmentsList = [];
         $attachedNames = [];
 
-        if ($request->hasFile('attachments')) {
-            /** @var array<UploadedFile> $files */
-            $files = (array) $request->file('attachments');
-            foreach ($files as $file) {
-                if ($file && $file->isValid()) {
-                    $originalName = $file->getClientOriginalName();
-                    $extension = $file->getClientOriginalExtension();
-                    $filename = time().'_'.Str::random(8).($extension ? '.'.$extension : '');
-                    $storedPath = $file->storeAs('ticket_attachments/'.$ticket->id, $filename, 'public');
+        // 1. Send Email if action is send_email or send_both
+        if ($action === 'send_email' || $action === 'send_both') {
+            if ($request->hasFile('attachments')) {
+                /** @var array<UploadedFile> $files */
+                $files = (array) $request->file('attachments');
+                foreach ($files as $file) {
+                    if ($file && $file->isValid()) {
+                        $originalName = $file->getClientOriginalName();
+                        $extension = $file->getClientOriginalExtension();
+                        $filename = time().'_'.Str::random(8).($extension ? '.'.$extension : '');
+                        $storedPath = $file->storeAs('ticket_attachments/'.$ticket->id, $filename, 'public');
 
-                    $fullPath = storage_path('app/public/'.$storedPath);
-                    $attachmentsList[] = [
-                        'path' => $fullPath,
-                        'name' => $originalName,
-                        'mime' => $file->getClientMimeType(),
-                    ];
-                    $attachedNames[] = $originalName;
+                        $fullPath = storage_path('app/public/'.$storedPath);
+                        $attachmentsList[] = [
+                            'path' => $fullPath,
+                            'name' => $originalName,
+                            'mime' => $file->getClientMimeType(),
+                        ];
+                        $attachedNames[] = $originalName;
+                    }
                 }
+            }
+
+            $mailable = new SupportTicketResponseMail($ticket, $subject, $message, $attachmentsList);
+
+            try {
+                Mail::to($ticket->email)->send($mailable);
+
+                $this->emailLogService->logMailableSent($mailable, [
+                    'to_email' => $ticket->email,
+                    'to_name' => $ticket->contact_name,
+                    'template_key' => 'support_ticket_response',
+                    'source_module' => 'support',
+                    'related_type' => 'support_ticket',
+                    'related_id' => $ticket->id,
+                ]);
+                $emailSent = true;
+            } catch (\Throwable $e) {
+                Log::error('Failed to send support ticket direct email response.', [
+                    'ticket_id' => $ticket->id,
+                    'message' => $e->getMessage(),
+                ]);
+
+                $this->emailLogService->logMailableFailed($mailable, [
+                    'to_email' => $ticket->email,
+                    'to_name' => $ticket->contact_name,
+                    'template_key' => 'support_ticket_response',
+                    'source_module' => 'support',
+                    'related_type' => 'support_ticket',
+                    'related_id' => $ticket->id,
+                ], $e);
+
+                return redirect()->route('admin.support-tickets.show', $id)
+                    ->with('error', 'Failed to send email response: '.$e->getMessage());
             }
         }
 
-        $mailable = new SupportTicketResponseMail($ticket, $subject, $message, $attachmentsList);
+        // 2. Send Push Notification if action is send_notification or send_both
+        if ($action === 'send_notification' || $action === 'send_both') {
+            if (!$ticket->user) {
+                return redirect()->route('admin.support-tickets.show', $id)
+                    ->with('error', 'Cannot send push notification: This ticket is not associated with a registered app account (Guest Submission).');
+            }
 
-        try {
-            Mail::to($ticket->email)->send($mailable);
+            try {
+                $this->notificationService->sendToUser(
+                    $ticket->user,
+                    'support_ticket_response',
+                    $notificationTitle,
+                    $notificationBody,
+                    [
+                        'ticket_id' => $ticket->id,
+                        'ticket_number' => $ticket->ticket_number,
+                        'screen' => 'support_tickets',
+                    ],
+                    [
+                        'channel' => 'push',
+                        'bypass_daily_limit' => true,
+                    ]
+                );
+                $notificationSent = true;
+            } catch (\Throwable $e) {
+                Log::error('Failed to send support ticket push notification.', [
+                    'ticket_id' => $ticket->id,
+                    'message' => $e->getMessage(),
+                ]);
 
-            $this->emailLogService->logMailableSent($mailable, [
-                'to_email' => $ticket->email,
-                'to_name' => $ticket->contact_name,
-                'template_key' => 'support_ticket_response',
-                'source_module' => 'support',
-                'related_type' => 'support_ticket',
-                'related_id' => $ticket->id,
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('Failed to send support ticket direct email response.', [
-                'ticket_id' => $ticket->id,
-                'message' => $e->getMessage(),
-            ]);
+                if ($emailSent) {
+                    return redirect()->route('admin.support-tickets.show', $id)
+                        ->with('warning', 'Email response sent successfully, but failed to send push notification: '.$e->getMessage());
+                }
 
-            $this->emailLogService->logMailableFailed($mailable, [
-                'to_email' => $ticket->email,
-                'to_name' => $ticket->contact_name,
-                'template_key' => 'support_ticket_response',
-                'source_module' => 'support',
-                'related_type' => 'support_ticket',
-                'related_id' => $ticket->id,
-            ], $e);
-
-            return redirect()->route('admin.support-tickets.show', $id)
-                ->with('error', 'Failed to send email response: '.$e->getMessage());
+                return redirect()->route('admin.support-tickets.show', $id)
+                    ->with('error', 'Failed to send push notification: '.$e->getMessage());
+            }
         }
 
-        // Record response note entry in admin_note log
+        // Record entry in admin_note log
         $timestamp = now()->format('Y-m-d H:i');
-        $attachmentLogStr = ! empty($attachedNames) ? "\nAttachments: ".implode(', ', $attachedNames) : '';
-        $noteEntry = "[Email Sent - {$timestamp}]{$attachmentLogStr}\nSubject: {$subject}\n\n{$message}";
+        if ($emailSent && $notificationSent) {
+            $attachmentLogStr = ! empty($attachedNames) ? "\nAttachments: ".implode(', ', $attachedNames) : '';
+            $noteEntry = "[Email & Push Notification Sent - {$timestamp}]{$attachmentLogStr}\nSubject: {$subject}\n\n{$message}\n\nNotification Body: {$notificationBody}";
+        } elseif ($emailSent) {
+            $attachmentLogStr = ! empty($attachedNames) ? "\nAttachments: ".implode(', ', $attachedNames) : '';
+            $noteEntry = "[Email Sent - {$timestamp}]{$attachmentLogStr}\nSubject: {$subject}\n\n{$message}";
+        } else {
+            $noteEntry = "[Push Notification Sent - {$timestamp}]\nTitle: {$notificationTitle}\nBody: {$notificationBody}";
+        }
+
         $ticket->admin_note = $ticket->admin_note ? $ticket->admin_note."\n\n".$noteEntry : $noteEntry;
 
         // Optionally update ticket status if specified
@@ -182,8 +243,16 @@ class SupportTicketController extends Controller
 
         $ticket->save();
 
-        return redirect()->route('admin.support-tickets.show', $id)
-            ->with('success', 'Email response sent successfully to '.$ticket->email.'.');
+        $successMessage = 'Response sent successfully.';
+        if ($emailSent && $notificationSent) {
+            $successMessage = 'Email response and push notification sent successfully.';
+        } elseif ($emailSent) {
+            $successMessage = 'Email response sent successfully to '.$ticket->email.'.';
+        } elseif ($notificationSent) {
+            $successMessage = 'Push notification sent successfully to customer app.';
+        }
+
+        return redirect()->route('admin.support-tickets.show', $id)->with('success', $successMessage);
     }
 
     /**
