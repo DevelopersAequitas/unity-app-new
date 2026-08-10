@@ -87,13 +87,18 @@ class EventQrService
             return null;
         }
 
-        $path = ltrim($path, '/');
+        $parsedPath = parse_url($path, PHP_URL_PATH) ?: $path;
+        $path = ltrim($parsedPath, '/');
+        if (str_contains($path, 'event-qrcodes/')) {
+            $path = substr($path, strpos($path, 'event-qrcodes/'));
+        }
+
         $path = preg_replace('/\.svg$/i', '.png', $path) ?? $path;
         $segments = explode('/', $path);
 
         $baseUrl = rtrim((string) config('app.url'), '/');
 
-        if (count($segments) === 3 && $segments[0] === 'event-qrcodes') {
+        if (count($segments) >= 3 && $segments[0] === 'event-qrcodes') {
             return $baseUrl.'/api/v1/event-qrcodes/'.$segments[1].'/'.$segments[2];
         }
 

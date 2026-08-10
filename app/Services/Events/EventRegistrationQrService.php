@@ -38,8 +38,10 @@ class EventRegistrationQrService
             $expectedPath = $registration->qr_code_path ?: ('event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.png');
             $expectedUrl = $this->qr->url($expectedPath);
             $appUrlBase = rtrim((string) config('app.url'), '/');
-
-            $needsUrlCorrection = $registration->qr_code_url !== $expectedUrl || $registration->qr_code_path !== $expectedPath;
+            $rawStoredUrl = (string) ($registration->getRawOriginal('qr_code_url') ?? '');
+            $needsUrlCorrection = ($rawStoredUrl !== '' && ! str_starts_with($rawStoredUrl, $appUrlBase))
+                || $registration->qr_code_url !== $expectedUrl
+                || $registration->qr_code_path !== $expectedPath;
             $needsSvgCorrection = Schema::hasColumn('event_registrations', 'qr_code_svg')
                 && ! empty($registration->qr_code_svg)
                 && ! str_contains((string) $registration->qr_code_svg, $appUrlBase);
