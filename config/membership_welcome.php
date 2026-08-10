@@ -20,4 +20,3 @@ return [
     'support_email' => env('MEMBERSHIP_SUPPORT_EMAIL', 'pravin@peersunity.com'),
     'mailer' => env('MEMBERSHIP_WELCOME_MAILER'),
 ];
-

@@ -631,4 +631,3 @@ Route::prefix('admin')->name('admin.')->group(function () {
         });
     });
 });
-
