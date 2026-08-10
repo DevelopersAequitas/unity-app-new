@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -21,6 +22,33 @@ class EventCouponTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Http::fake([
+            'https://accounts.zoho.*' => Http::response([
+                'access_token' => 'fake-token-123',
+                'expires_in' => 3600,
+            ]),
+            'https://*zoho*/*customers*' => Http::response([
+                'code' => 0,
+                'message' => 'success',
+                'customer' => ['customer_id' => 'cust_123'],
+                'customers' => [['customer_id' => 'cust_123']],
+            ]),
+            'https://*zoho*/*paymentlinks*' => Http::response([
+                'code' => 0,
+                'message' => 'success',
+                'payment_link' => ['payment_link_id' => 'pl_123', 'payment_link_url' => 'https://payments.zoho.in/fake-link'],
+            ]),
+            'https://*zoho*/*' => Http::response([
+                'code' => 0,
+                'message' => 'success',
+                'customer' => ['customer_id' => 'cust_123'],
+                'customers' => [['customer_id' => 'cust_123']],
+                'payment_link' => ['payment_link_id' => 'pl_123', 'payment_link_url' => 'https://payments.zoho.in/fake-link'],
+                'hostedpage' => ['url' => 'https://checkout.zoho.in/fake-checkout'],
+                'invoice' => ['invoice_id' => 'inv_123', 'invoice_number' => 'INV-001'],
+            ]),
+        ]);
 
         Carbon::setTestNow(Carbon::parse('2026-08-07 12:00:00'));
         $this->setUpDatabase();
@@ -140,7 +168,7 @@ class EventCouponTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Registration successful')
             ->assertJsonPath('data.user_registration.status', 'approved')
-            ->assertJsonPath('data.amount', '400')
+            ->assertJsonPath('data.amount', '400.00')
             ->assertJsonPath('data.payment_required', true);
 
         // Verify coupon used count was incremented
@@ -216,7 +244,7 @@ class EventCouponTest extends TestCase
 
         $response->assertStatus(201)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.amount', '400')
+            ->assertJsonPath('data.amount', '400.00')
             ->assertJsonPath('data.payment_required', true);
     }
 
@@ -228,6 +256,8 @@ class EventCouponTest extends TestCase
         $user->last_name = 'User';
         $user->email = 'user_'.Str::random(6).'@example.com';
         $user->password_hash = Hash::make('password');
+        $user->zoho_contact_id = 'zoho_cust_123';
+        $user->zoho_customer_id = 'zoho_cust_123';
         $user->save();
 
         return $user;
@@ -296,6 +326,8 @@ class EventCouponTest extends TestCase
             $table->string('phone')->nullable();
             $table->string('password_hash');
             $table->string('membership_status')->nullable();
+            $table->string('zoho_contact_id')->nullable();
+            $table->string('zoho_customer_id')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -390,6 +422,10 @@ class EventCouponTest extends TestCase
             $table->string('coupon_code', 50)->nullable();
             $table->decimal('original_amount', 12, 2)->nullable();
             $table->decimal('discount_amount', 12, 2)->nullable();
+            $table->string('zoho_customer_id')->nullable();
+            $table->string('zoho_payment_link_id')->nullable();
+            $table->string('zoho_payment_link_url')->nullable();
+            $table->string('payment_url')->nullable();
             $table->string('registration_type')->nullable();
             $table->string('visitor_registration_form_url')->nullable();
             $table->timestamps();

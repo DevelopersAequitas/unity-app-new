@@ -203,6 +203,13 @@
                       <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ ucfirst($pStatus ?: 'Pending') }}
                     </span>
                   @endif
+                  @if(!empty($row->coupon_code))
+                    <div class="mt-1 flex items-center gap-1">
+                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-mono font-medium bg-purple-50 text-purple-700 border border-purple-200" title="Coupon Code: {{ $row->coupon_code }} @if($row->discount_amount)(Saved ₹{{ number_format((float)$row->discount_amount, 2) }})@endif">
+                        <i class="bi bi-ticket-perforated"></i> {{ $row->coupon_code }}
+                      </span>
+                    </div>
+                  @endif
                 </td>
                 <td class="px-3 py-2.5 text-xs whitespace-nowrap align-middle">
                   @if($isCheckedIn)
