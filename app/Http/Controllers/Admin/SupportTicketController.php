@@ -110,7 +110,7 @@ class SupportTicketController extends Controller
         $message = (string) $request->input('message');
         $status = $request->input('status');
 
-        $notificationTitle = "Support Ticket Update";
+        $notificationTitle = 'Support Ticket Update';
         $notificationBody = "Your support ticket #{$ticket->ticket_number} request has been accepted by our team. To see more details, please check your email.";
 
         $emailSent = false;
@@ -178,7 +178,7 @@ class SupportTicketController extends Controller
 
         // 2. Send Push Notification if action is send_notification or send_both
         if ($action === 'send_notification' || $action === 'send_both') {
-            if (!$ticket->user) {
+            if (! $ticket->user) {
                 return redirect()->route('admin.support-tickets.show', $id)
                     ->with('error', 'Cannot send push notification: This ticket is not associated with a registered app account (Guest Submission).');
             }

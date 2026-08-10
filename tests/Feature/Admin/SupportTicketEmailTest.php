@@ -9,7 +9,6 @@ use App\Models\AdminUser;
 use App\Models\Role;
 use App\Models\SupportTicket;
 use App\Models\User;
-use App\Models\Notifications\AppNotification;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
@@ -371,8 +370,6 @@ class SupportTicketEmailTest extends TestCase
             'status' => 'open',
             'priority' => 'normal',
         ]);
-
-
 
         $response = $this->actingAs($this->admin, 'admin')
             ->post(route('admin.support-tickets.send-email', $ticket->id), [
