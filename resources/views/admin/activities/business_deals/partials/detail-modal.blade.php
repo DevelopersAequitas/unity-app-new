@@ -128,7 +128,14 @@
 
                 // Deal Details
                 document.getElementById('dealModalAmount').textContent = '₹ ' + (data.deal_amount ? Number(data.deal_amount).toLocaleString('en-IN') : '0');
-                document.getElementById('dealModalType').textContent = data.business_type || '—';
+                const bType = (data.business_type || '').toLowerCase();
+                let typeBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">' + (data.business_type || '—') + '</span>';
+                if (bType.includes('new')) {
+                    typeBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>' + (data.business_type || 'New') + '</span>';
+                } else if (bType.includes('repeat')) {
+                    typeBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>' + (data.business_type || 'Repeat') + '</span>';
+                }
+                document.getElementById('dealModalType').innerHTML = typeBadge;
                 document.getElementById('dealModalDate').textContent = data.deal_date || '—';
                 document.getElementById('dealModalComment').textContent = data.comment || 'No description comments provided.';
 

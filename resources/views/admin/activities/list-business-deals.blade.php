@@ -71,12 +71,14 @@
                 <table class="min-w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Target Peer</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Deal Date</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Business Type</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Amount</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Comment</th>
-                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:160px;">Target Peer</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:140px;">Company</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:100px;">City</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Deal Date</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:120px;">Business Type</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Amount</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:160px;">Comment</th>
+                            <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:120px;">Created At</th>
                         </tr>
                     </thead>
                     <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -84,6 +86,8 @@
                             @php
                                 $targetUser = $deal->toUser ?? null;
                                 $targetName = $targetUser ? ($targetUser->display_name ?: trim($targetUser->first_name . ' ' . $targetUser->last_name)) : ($deal->target_peer_name ?? '—');
+                                $toCompany = $deal->toUser->company_name ?? $deal->toUser->company ?? null;
+                                $toCity = $deal->toUser->city ?? null;
                             @endphp
                             <tr class="hover:surface-2 transition border-b bs">
                                 <td class="px-3 py-2.5">
@@ -91,44 +95,72 @@
                                         <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($targetName) }}">
                                             {{ $getInitials($targetName) }}
                                         </div>
-                                        <div>
-                                            <div class="font-semibold t1 text-[12.5px]">
-                                                @if(!empty($deal->toUser?->id))
-                                                    <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $deal->toUser->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
-                                                        {{ $targetName }}
-                                                    </a>
-                                                @else
+                                        <div class="font-semibold t1 text-[12.5px] whitespace-nowrap">
+                                            @if(!empty($deal->toUser?->id))
+                                                <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $deal->toUser->id }}', event);" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline">
                                                     {{ $targetName }}
-                                                @endif
-                                            </div>
-                                            @php $toCompany = $deal->toUser->company_name ?? $deal->toUser->company ?? null; @endphp
-                                            @if($toCompany)
-                                                <x-admin-grid-text :text="$toCompany" class="t3 text-[10px]" />
+                                                </a>
                                             @else
-                                                <div class="t3 text-[10px]">{{ $deal->toUser->email ?? '-' }}</div>
+                                                {{ $targetName }}
                                             @endif
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                <td class="px-3 py-2.5 text-xs text-slate-700 font-medium">
+                                    @if($toCompany)
+                                        <div class="flex items-center gap-1.5 text-slate-800 font-medium">
+                                            <i class="bi bi-building text-slate-400 text-[11px]"></i>
+                                            <span class="line-clamp-1" title="{{ $toCompany }}">{{ $toCompany }}</span>
+                                        </div>
+                                    @else
+                                        <span class="text-slate-400">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs">
+                                    @if($toCity)
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                            <i class="bi bi-geo-alt text-slate-400 text-[10px]"></i> {{ $toCity }}
+                                        </span>
+                                    @else
+                                        <span class="text-slate-400">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-medium text-slate-700">
                                     {{ $deal->deal_date ? $formatDate($deal->deal_date) : '-' }}
                                 </td>
                                 <td class="px-3 py-2.5 text-xs">
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 admin-grid-text-clamp" data-full-text="{{ $deal->business_type }}">{{ $deal->business_type ?? '-' }}</span>
+                                    @php
+                                        $bType = strtolower(trim((string)($deal->business_type ?? '')));
+                                    @endphp
+                                    @if($bType === 'new' || str_contains($bType, 'new'))
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ ucfirst($deal->business_type ?: 'New') }}
+                                        </span>
+                                    @elseif($bType === 'repeat' || str_contains($bType, 'repeat'))
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>{{ ucfirst($deal->business_type ?: 'Repeat') }}
+                                        </span>
+                                    @elseif(!empty($deal->business_type))
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>{{ ucfirst($deal->business_type) }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-slate-400">-</span>
+                                    @endif
                                 </td>
-                                <td class="px-3 py-2.5 font-bold text-emerald-600 text-xs">
+                                <td class="px-3 py-2.5 font-bold text-emerald-600 font-mono text-xs">
                                     ₹{{ $deal->deal_amount !== null ? number_format((float) $deal->deal_amount, 2) : '-' }}
                                 </td>
                                 <td class="px-3 py-2.5 text-xs t2 max-w-[250px]">
                                     <x-admin-grid-text :text="$deal->comment ?? '-'" />
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-mono text-[11px]">
                                     {{ $formatDateTime($deal->created_at ?? null) }}
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center py-8 text-xs t3">No business deals found.</td>
+                                <td colspan="8" class="text-center py-8 text-xs t3">No business deals found.</td>
                             </tr>
                         @endforelse
                     </tbody>

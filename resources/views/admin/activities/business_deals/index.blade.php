@@ -243,17 +243,25 @@
                         <table class="min-w-full border-collapse text-[13px]">
                             <thead>
                                 <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">From</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">To</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Deal Details</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Amount</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Comment</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Media</th>
-                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Created At</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:160px;">From</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:140px;">From Company</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:100px;">From City</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:160px;">To</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:140px;">To Company</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:100px;">To City</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:120px;">Deal Details</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Amount</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:160px;">Comment</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:90px;">Media</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:120px;">Created At</th>
                                 </tr>
                                 <tr class="surface-2 border-b bs filter-row">
                                     <th class="px-2 py-1"><input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" name="from_company" value="{{ $filters['from_company'] ?? '' }}" placeholder="From company" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" name="from_city" value="{{ $filters['from_city'] ?? '' }}" placeholder="From city" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1"><input type="text" name="to_user" value="{{ $filters['to_user'] ?? '' }}" placeholder="To name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" name="to_company" value="{{ $filters['to_company'] ?? '' }}" placeholder="To company" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
+                                    <th class="px-2 py-1"><input type="text" name="to_city" value="{{ $filters['to_city'] ?? '' }}" placeholder="To city" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1">
                                         <input type="date" name="deal_date" value="{{ $filters['deal_date'] ?? '' }}" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring mb-1" placeholder="Date">
                                         <input type="text" name="business_type" value="{{ $filters['business_type'] ?? '' }}" placeholder="Business type" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
@@ -303,75 +311,121 @@
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($fromName) }}">
                                                     {{ $getInitials($fromName) }}
                                                 </div>
-                                                <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">
-                                                        @if(!empty($fromId))
-                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $fromId }}', event);">
-                                                                {{ $fromName }}
-                                                            </a>
-                                                        @else
+                                                <div class="font-semibold t1 text-[12.5px] whitespace-nowrap">
+                                                    @if(!empty($fromId))
+                                                        <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $fromId }}', event);">
                                                             {{ $fromName }}
-                                                        @endif
-                                                    </div>
-                                                    <div class="t3 text-[10px]">
-                                                        @if($deal->from_company) <x-admin-grid-text :text="$deal->from_company" class="inline-block" /> @endif
-                                                        @if($deal->from_city) &bull; <x-admin-grid-text :text="$deal->from_city" class="inline-block" /> @endif
-                                                    </div>
+                                                        </a>
+                                                    @else
+                                                        {{ $fromName }}
+                                                    @endif
                                                 </div>
                                             </div>
+                                        </td>
+                                        <td class="px-3 py-2.5 text-xs text-slate-700 font-medium">
+                                            @if(!empty($deal->from_company))
+                                                <div class="flex items-center gap-1.5 text-slate-800 font-medium">
+                                                    <i class="bi bi-building text-slate-400 text-[11px]"></i>
+                                                    <span class="line-clamp-1" title="{{ $deal->from_company }}">{{ $deal->from_company }}</span>
+                                                </div>
+                                            @else
+                                                <span class="text-slate-400">—</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-2.5 text-xs">
+                                            @if(!empty($deal->from_city))
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                                    <i class="bi bi-geo-alt text-slate-400 text-[10px]"></i> {{ $deal->from_city }}
+                                                </span>
+                                            @else
+                                                <span class="text-slate-400">—</span>
+                                            @endif
                                         </td>
                                         <td class="px-3 py-2.5">
                                             <div class="flex items-center gap-2">
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($toName) }}">
                                                     {{ $getInitials($toName) }}
                                                 </div>
-                                                <div>
-                                                    <div class="font-semibold t1 text-[12.5px]">
-                                                        @if(!empty($toId))
-                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $toId }}', event);">
-                                                                {{ $toName }}
-                                                            </a>
-                                                        @else
+                                                <div class="font-semibold t1 text-[12.5px] whitespace-nowrap">
+                                                    @if(!empty($toId))
+                                                        <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $toId }}', event);">
                                                             {{ $toName }}
-                                                        @endif
-                                                    </div>
-                                                    <div class="t3 text-[10px]">
-                                                        @if($deal->to_company) <x-admin-grid-text :text="$deal->to_company" class="inline-block" /> @endif
-                                                        @if($deal->to_city) &bull; <x-admin-grid-text :text="$deal->to_city" class="inline-block" /> @endif
-                                                    </div>
+                                                        </a>
+                                                    @else
+                                                        {{ $toName }}
+                                                    @endif
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs">
-                                            @if($deal->deal_date)
-                                                <div class="font-semibold t1 text-[11px]">{{ $formatDate($deal->deal_date) }}</div>
+                                        <td class="px-3 py-2.5 text-xs text-slate-700 font-medium">
+                                            @if(!empty($deal->to_company))
+                                                <div class="flex items-center gap-1.5 text-slate-800 font-medium">
+                                                    <i class="bi bi-building text-slate-400 text-[11px]"></i>
+                                                    <span class="line-clamp-1" title="{{ $deal->to_company }}">{{ $deal->to_company }}</span>
+                                                </div>
+                                            @else
+                                                <span class="text-slate-400">—</span>
                                             @endif
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200 mt-0.5 admin-grid-text-clamp" data-full-text="{{ $deal->business_type }}">{{ $deal->business_type ?? '—' }}</span>
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs font-bold text-emerald-600">
+                                        <td class="px-3 py-2.5 text-xs">
+                                            @if(!empty($deal->to_city))
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                                    <i class="bi bi-geo-alt text-slate-400 text-[10px]"></i> {{ $deal->to_city }}
+                                                </span>
+                                            @else
+                                                <span class="text-slate-400">—</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-2.5 text-xs">
+                                            @php
+                                                $bType = strtolower(trim((string)($deal->business_type ?? '')));
+                                            @endphp
+                                            @if($deal->deal_date)
+                                                <div class="flex items-center gap-1.5 text-slate-700 font-semibold text-[11px] mb-1">
+                                                    <i class="bi bi-calendar3 text-slate-400 text-[10px]"></i>
+                                                    <span>{{ $formatDate($deal->deal_date) }}</span>
+                                                </div>
+                                            @endif
+                                            @if($bType === 'new' || str_contains($bType, 'new'))
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{{ ucfirst($deal->business_type ?: 'New') }}
+                                                </span>
+                                            @elseif($bType === 'repeat' || str_contains($bType, 'repeat'))
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>{{ ucfirst($deal->business_type ?: 'Repeat') }}
+                                                </span>
+                                            @elseif(!empty($deal->business_type))
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>{{ ucfirst($deal->business_type) }}
+                                                </span>
+                                            @else
+                                                <span class="text-xs text-slate-400">—</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-2.5 text-xs font-bold text-emerald-600 font-mono text-[13px]">
                                             ₹{{ number_format($deal->deal_amount ?? 0, 2) }}
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:180px;">
+                                        <td class="px-3 py-2.5 text-xs t2 align-middle" style="min-width:160px;">
                                             <x-admin-grid-text :text="$deal->comment ?? '—'" :lines="2" />
                                         </td>
                                         <td class="px-3 py-2.5 text-xs">
                                             @if ($hasMedia)
-                                                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
-                                                    Available
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    <i class="bi bi-paperclip text-xs"></i> Media
                                                 </span>
-                                                <button type="button" class="text-indigo-600 font-semibold text-xs ms-1 bg-transparent border-0 cursor-pointer p-0" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $deal->id }}">View</button>
+                                                <button type="button" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs ms-1.5 bg-transparent border-0 cursor-pointer p-0 underline" data-bs-toggle="modal" data-bs-target="#mediaViewerModal" data-media-source="media-json-{{ $deal->id }}">View</button>
                                                 <script type="application/json" id="media-json-{{ $deal->id }}">{{ e(json_encode(is_string($deal->media_reference ?? null) ? json_decode($deal->media_reference ?? '[]', true) : ($deal->media_reference ?? []))) }}</script>
                                             @else
-                                                <span class="t3">No Media</span>
+                                                <span class="text-xs text-slate-400">No Media</span>
                                             @endif
                                         </td>
-                                        <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                                        <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-mono text-[11px]">
                                             {{ $formatDateTime($deal->created_at ?? null) }}
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="text-center py-8 text-xs t3">No business deals found.</td>
+                                        <td colspan="11" class="text-center py-8 text-xs t3">No business deals found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
