@@ -28,8 +28,8 @@
                             </p>
 
                             <p style="margin:0 0 20px 0;font-size:17px;line-height:1.6;color:#d9d9d9;">
-                                Congratulations! Your PeersGlobal membership has been approved and upgraded to
-                                <strong style="color:#ffffff;">Global Peer</strong>.
+                                <!-- EDITABLE_START -->Congratulations! Your PeersGlobal membership has been approved and upgraded to
+                                <strong style="color:#ffffff;">Global Peer</strong>.<!-- EDITABLE_END -->
                             </p>
 
                             <p style="margin:0 0 22px 0;font-size:17px;line-height:1.6;color:#d9d9d9;">

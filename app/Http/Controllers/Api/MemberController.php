@@ -395,7 +395,7 @@ class MemberController extends BaseApiController
     {
         $query = $this->buildLimitedUsersQuery($request, $peerBlockService, $profileVisibilityService);
 
-        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->limit(21)->get();
+        $users = $query->orderByDesc('life_impacted_count')->orderByDesc('created_at')->get();
 
         return LimitedUserResource::collection($users)->additional([
             'success' => true,

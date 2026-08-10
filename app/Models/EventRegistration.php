@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Events\EventQrService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -199,5 +200,21 @@ class EventRegistration extends Model
         }
 
         return $this->attributes['qr_status'] ?? 'generated';
+    }
+
+    public function getQrCodeUrlAttribute(?string $value): ?string
+    {
+        $rawUrl = $value ?? ($this->attributes['qr_code_url'] ?? null);
+        $path = $this->attributes['qr_code_path'] ?? null;
+
+        if (empty($rawUrl) && empty($path)) {
+            return null;
+        }
+
+        if (! empty($path)) {
+            return app(EventQrService::class)->url((string) $path);
+        }
+
+        return app(EventQrService::class)->url((string) $rawUrl);
     }
 }

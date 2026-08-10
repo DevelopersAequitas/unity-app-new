@@ -42,6 +42,8 @@
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
                 ...(! $isDed && ! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+                    ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
+                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => '#'],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
                 ...($isGlobalAdmin ? [
@@ -67,6 +69,8 @@
                 ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+                    ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
+                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => '#'],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
                 ...($isGlobalAdmin ? [
@@ -191,15 +195,20 @@
         ['label' => 'Events', 'route' => 'admin.events.index'],
         ['label' => 'Total Attendance', 'route' => 'admin.events.total-attendance'],
         ['label' => 'Total Registered', 'route' => 'admin.events.total-registered'],
+        ['label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
         ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
         ['label' => 'Event Scan Credentials', 'route' => 'admin.event-scan-credentials.index'],
         ['label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
     ];
 
-    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-scan-credentials.*') || request()->routeIs('admin.event-gallery.*') || request()->routeIs('admin.event-joining-requests.*');
+    $eventsManagementActive = request()->routeIs('admin.events.*')
+        || request()->routeIs('admin.event-scan-credentials.*')
+        || request()->routeIs('admin.event-gallery.*')
+        || request()->routeIs('admin.event-joining-requests.*')
+        || request()->routeIs('admin.event-coupons.*');
     $bottomNavItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) === 'Email Logs'));
     $bottomNavItems = (! $isCircleScoped && ! $isDed && ! $isIndustryDirector) ? [] : $bottomNavItems;
-    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Event Gallery'], true)));
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Coupons', 'Email Logs', 'Event Gallery'], true)));
     $bottomNavItems = array_map(function ($item) {
         if ($item['label'] === 'Email Logs') {
             $item['active_routes'] = ['admin.email-logs.*'];
@@ -208,7 +217,7 @@
         }
         return $item;
     }, array_values(array_filter($navItems, fn ($item) => in_array(($item['label'] ?? null), ['Email Logs', 'Support Tickets'], true))));
-    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Coupons', 'Email Logs', 'Support Tickets'], true)));
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     
     $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
@@ -414,7 +423,7 @@
                         <ul class="nav flex-column ms-3">
                             @foreach ($eventsManagementMenu as $eventItem)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
+                                    <a class="nav-link {{ (isset($eventItem['active_routes']) ? request()->routeIs(...$eventItem['active_routes']) : request()->routeIs($eventItem['route'])) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
                                 </li>
                             @endforeach
                         </ul>

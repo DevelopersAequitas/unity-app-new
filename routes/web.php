@@ -44,6 +44,7 @@ use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailLogController;
+use App\Http\Controllers\Admin\EmailTemplateController;
 use App\Http\Controllers\Admin\EventCouponWebController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\EventManagementController;
@@ -365,16 +366,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/events', [EventManagementController::class, 'index'])->name('events.index');
         Route::get('/events/total-attendance', [EventManagementController::class, 'totalAttendance'])->name('events.total-attendance');
         Route::get('/events/total-registered', [EventManagementController::class, 'totalRegistered'])->name('events.total-registered');
+        Route::get('/events/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
         Route::get('/event-joining-requests', [EventManagementController::class, 'joiningRequests'])->name('event-joining-requests.index');
         Route::post('/event-joining-requests/{id}/approve', [EventManagementController::class, 'approveJoiningRequest'])->whereUuid('id')->name('event-joining-requests.approve');
         Route::post('/event-joining-requests/{id}/reject', [EventManagementController::class, 'rejectJoiningRequest'])->whereUuid('id')->name('event-joining-requests.reject');
         Route::get('/events/create', [EventManagementController::class, 'create'])->name('events.create');
         Route::post('/events', [EventManagementController::class, 'store'])->name('events.store');
-        Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->name('events.edit');
-        Route::put('/events/{id}', [EventManagementController::class, 'update'])->name('events.update');
-        Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
-        Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->name('events.occurrences.add-visitor');
-        Route::get('/events/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
+        Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->whereUuid('id')->name('events.edit');
+        Route::put('/events/{id}', [EventManagementController::class, 'update'])->whereUuid('id')->name('events.update');
+        Route::get('/events/{id}', [EventManagementController::class, 'show'])->whereUuid('id')->name('events.show');
+        Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->whereUuid('id')->whereUuid('occurrence_id')->name('events.occurrences.add-visitor');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
         Route::post('/events/registrations/{id}/send-whatsapp-qr', [EventManagementController::class, 'sendWhatsappQr'])->whereUuid('id')->name('events.registrations.send-whatsapp-qr');
 
@@ -558,6 +559,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show'])->name('support-tickets.show');
         Route::put('/support-tickets/{id}', [SupportTicketController::class, 'update'])->name('support-tickets.update');
         Route::post('/support-tickets/{id}/send-email', [SupportTicketController::class, 'sendEmail'])->whereUuid('id')->name('support-tickets.send-email');
+
+        // Email Templates Module
+        Route::get('/email-templates', [EmailTemplateController::class, 'index'])->name('email-templates.index');
+        Route::get('/email-templates/{key}/edit', [EmailTemplateController::class, 'edit'])->name('email-templates.edit');
+        Route::put('/email-templates/{key}', [EmailTemplateController::class, 'update'])->name('email-templates.update');
+        Route::get('/email-templates/{key}/preview', [EmailTemplateController::class, 'preview'])->name('email-templates.preview');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');

@@ -16,6 +16,9 @@
         <p class="text-xs t3 m-0 mt-0.5">Create and manage full, percentage-based, or fixed-amount discount coupon codes for events</p>
       </div>
       <div class="flex items-center gap-2">
+        <a href="{{ route('admin.events.index') }}" class="px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition focus-ring no-underline flex items-center gap-1.5 shadow-2xs">
+          <i class="bi bi-calendar-event text-slate-500"></i> All Events
+        </a>
         <button type="button" onclick="openCreateModal()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition focus-ring flex items-center gap-1.5 shadow-2xs cursor-pointer">
           <i class="bi bi-plus-lg"></i> Create Coupon Code
         </button>
@@ -143,15 +146,11 @@
         <tbody class="divide-y divide-gray-200">
           @forelse($coupons as $coupon)
           <tr class="hover:bg-gray-50/80 transition">
-            <td class="px-4 py-3 font-mono font-bold text-indigo-700 text-xs">
-              <div class="inline-flex items-center gap-1.5">
-                <span class="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-md tracking-wider font-semibold select-all">
-                  {{ $coupon->code }}
-                </span>
-                <button type="button" onclick="copyCouponCode('{{ $coupon->code }}', this)" class="text-gray-400 hover:text-indigo-600 transition p-1" title="Copy code">
-                  <i class="bi bi-copy text-[11px]"></i>
-                </button>
-              </div>
+            <td class="px-4 py-3">
+              <button type="button" onclick="copyCouponCode('{{ $coupon->code }}', this)" class="group inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100/90 text-indigo-700 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-300 rounded-lg tracking-wider font-mono font-bold text-xs transition-all duration-150 shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer" title="Click to copy {{ $coupon->code }}">
+                <span>{{ $coupon->code }}</span>
+                <i class="bi bi-copy text-[10px] text-indigo-400 group-hover:text-indigo-600 transition"></i>
+              </button>
             </td>
             <td class="px-4 py-3">
               <div class="font-semibold text-gray-900">{{ $coupon->name ?? '—' }}</div>
@@ -229,17 +228,15 @@
               @endif
             </td>
             <td class="px-4 py-3 text-right">
-              <div class="flex items-center justify-end gap-1.5">
-                <button type="button" onclick='openEditModal(@json($coupon))' class="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Edit coupon">
-                  <i class="bi bi-pencil text-sm"></i>
+              <div class="flex items-center justify-end gap-2">
+                <button type="button" onclick='openEditModal(@json($coupon))' class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-600 hover:text-white border border-indigo-200/80 hover:border-indigo-600 shadow-2xs hover:shadow-xs active:scale-95 transition-all duration-150 cursor-pointer" title="Edit coupon">
+                  <i class="bi bi-pencil-square text-xs"></i>
+                  <span>Edit</span>
                 </button>
-                <form method="POST" action="{{ route('admin.event-coupons.destroy', $coupon->id) }}" onsubmit="return confirm('Are you sure you want to delete coupon code {{ $coupon->code }}?');" class="inline">
-                  @csrf
-                  @method('DELETE')
-                  <button type="submit" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete coupon">
-                    <i class="bi bi-trash text-sm"></i>
-                  </button>
-                </form>
+                <button type="button" onclick="confirmDeleteCoupon('{{ $coupon->id }}', '{{ $coupon->code }}')" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-rose-700 bg-rose-50/90 hover:bg-rose-600 hover:text-white border border-rose-200/80 hover:border-rose-600 shadow-2xs hover:shadow-xs active:scale-95 transition-all duration-150 cursor-pointer" title="Delete coupon">
+                  <i class="bi bi-trash3-fill text-xs"></i>
+                  <span>Delete</span>
+                </button>
               </div>
             </td>
           </tr>
@@ -522,11 +519,49 @@ function copyCouponCode(code, btn) {
 
 function showCopiedFeedback(btn) {
   const originalHtml = btn.innerHTML;
-  btn.innerHTML = '<i class="bi bi-check text-emerald-600 text-xs"></i>';
+  btn.innerHTML = '<span>Copied!</span> <i class="bi bi-check-lg text-emerald-600 text-xs"></i>';
+  btn.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-300');
   setTimeout(() => {
     btn.innerHTML = originalHtml;
-  }, 1500);
+    btn.classList.remove('bg-emerald-50', 'text-emerald-700', 'border-emerald-300');
+  }, 1400);
+}
+
+function confirmDeleteCoupon(couponId, couponCode) {
+  document.getElementById('deleteCouponCodeBadge').textContent = couponCode;
+  document.getElementById('deleteCouponForm').action = '/admin/event-coupons/' + couponId;
+  document.getElementById('deleteConfirmModal').classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteConfirmModal').classList.add('hidden');
 }
 </script>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteConfirmModal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-sm w-full p-6 space-y-4 text-center transform transition-all">
+    <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto text-xl shadow-xs">
+      <i class="bi bi-trash3-fill"></i>
+    </div>
+    <div>
+      <h4 class="text-sm font-bold text-gray-900">Delete Coupon Code</h4>
+      <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">
+        Are you sure you want to delete coupon <span id="deleteCouponCodeBadge" class="font-mono font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200"></span>?
+        This action will deactivate the coupon and prevent any future registrations with it.
+      </p>
+    </div>
+    <form id="deleteCouponForm" method="POST" action="" class="flex items-center justify-center gap-2 pt-2">
+      @csrf
+      @method('DELETE')
+      <button type="button" onclick="closeDeleteModal()" class="px-4 py-2 rounded-lg border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition cursor-pointer">
+        Cancel
+      </button>
+      <button type="submit" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs hover:shadow-sm active:scale-95 transition cursor-pointer flex items-center gap-1.5">
+        <i class="bi bi-trash3"></i> Yes, Delete
+      </button>
+    </form>
+  </div>
+</div>
 @endsection
 

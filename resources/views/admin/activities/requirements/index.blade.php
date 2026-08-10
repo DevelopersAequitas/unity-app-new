@@ -289,10 +289,12 @@
                         <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Page count: {{ number_format(count($items)) }}</span>
                     </div>
                     <div class="overflow-x-auto relative">
-                        <table class="min-w-[950px] w-full border-collapse text-[13px]">
+                        <table class="min-w-[1050px] w-full border-collapse text-[13px]">
                             <thead>
                                 <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left sticky left-0 z-10" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">From</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:140px;">Company</th>
+                                    <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:100px;">City</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:110px;">Subject</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:130px;">Description</th>
                                     <th class="th-cell surface-2 border-b bs px-3 py-2 text-left" style="min-width:90px;">Region</th>
@@ -304,6 +306,12 @@
                                 <tr class="surface-2 border-b bs filter-row align-middle">
                                     <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
                                         <input type="text" name="from_user" value="{{ $filters['from_user'] ?? '' }}" placeholder="From name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                    </th>
+                                    <th class="px-2 py-1" style="min-width:140px;">
+                                        <input type="text" name="from_company" value="{{ $filters['from_company'] ?? '' }}" placeholder="Company" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
+                                    </th>
+                                    <th class="px-2 py-1" style="min-width:100px;">
+                                        <input type="text" name="from_city" value="{{ $filters['from_city'] ?? '' }}" placeholder="City" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring">
                                     </th>
                                     <th class="px-2 py-1" style="min-width:110px;"><input type="text" name="subject" value="{{ $filters['subject'] ?? '' }}" placeholder="Subject" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring"></th>
                                     <th class="px-2 py-1" style="min-width:130px;"><input type="text" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" disabled placeholder="-"></th>
@@ -355,22 +363,35 @@
                                                 <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($fromName) }}">
                                                     {{ $getInitials($fromName) }}
                                                 </div>
-                                                <div>
-                                                    <div class="font-semibold t1 text-[12.5px] whitespace-nowrap">
-                                                        @if(!empty($fromId))
-                                                            <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $fromId }}', event);">
-                                                                {{ $fromName }}
-                                                            </a>
-                                                        @else
+                                                <div class="font-semibold t1 text-[12.5px] whitespace-nowrap">
+                                                    @if(!empty($fromId))
+                                                        <a href="#" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold no-underline" onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $fromId }}', event);">
                                                             {{ $fromName }}
-                                                        @endif
-                                                    </div>
-                                                    <div class="t3 text-[10px]">
-                                                        @if($requirement->from_company) <x-admin-grid-text :text="$requirement->from_company" :lines="2" class="inline-block" /> @endif
-                                                        @if($requirement->from_city) &bull; <x-admin-grid-text :text="$requirement->from_city" :lines="1" class="inline-block" /> @endif
-                                                    </div>
+                                                        </a>
+                                                    @else
+                                                        {{ $fromName }}
+                                                    @endif
                                                 </div>
                                             </div>
+                                        </td>
+                                        <td class="px-3 py-2.5 text-xs text-slate-700 font-medium align-middle" style="min-width:140px;">
+                                            @if($requirement->from_company)
+                                                <div class="flex items-center gap-1.5 text-slate-800 font-medium">
+                                                    <i class="bi bi-building text-slate-400 text-[11px]"></i>
+                                                    <span class="line-clamp-1" title="{{ $requirement->from_company }}">{{ $requirement->from_company }}</span>
+                                                </div>
+                                            @else
+                                                <span class="text-slate-400">—</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-2.5 text-xs align-middle" style="min-width:100px;">
+                                            @if($requirement->from_city)
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                                    <i class="bi bi-geo-alt text-slate-400 text-[10px]"></i> {{ $requirement->from_city }}
+                                                </span>
+                                            @else
+                                                <span class="text-slate-400">—</span>
+                                            @endif
                                         </td>
                                         <td class="px-3 py-2.5 text-xs font-semibold t1 text-[12px] align-middle" style="min-width:110px;"><x-admin-grid-text :text="$requirement->subject ?? '—'" :lines="2" /></td>
                                         <td class="px-3 py-2.5 text-xs t3 align-middle" style="min-width:130px;"><x-admin-grid-text :text="$requirement->description ?? '—'" :lines="2" /></td>
@@ -417,7 +438,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8" class="text-center py-8 text-xs t3">No requirements found.</td>
+                                        <td colspan="10" class="text-center py-8 text-xs t3">No requirements found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

@@ -21,19 +21,33 @@ class AppNotification extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'user_id', 'campaign_id', 'type', 'category', 'title', 'message', 'body', 'channel', 'priority',
+        'user_id', 'campaign_id', 'type', 'category', 'title', 'body', 'channel', 'priority',
         'reference_type', 'reference_id', 'screen', 'data', 'dedupe_key', 'status', 'sent_at',
-        'read_at', 'clicked_at', 'failed_at', 'failure_reason', 'payload',
+        'read_at', 'clicked_at', 'failed_at', 'failure_reason',
     ];
 
     protected $casts = [
         'data' => 'array',
-        'payload' => 'array',
         'sent_at' => 'datetime',
         'read_at' => 'datetime',
         'clicked_at' => 'datetime',
         'failed_at' => 'datetime',
     ];
+
+    public function getMessageAttribute(): ?string
+    {
+        return $this->body;
+    }
+
+    public function setMessageAttribute(?string $value): void
+    {
+        $this->attributes['body'] = $value;
+    }
+
+    public function setPayloadAttribute($value): void
+    {
+        $this->attributes['data'] = is_array($value) ? $value : json_decode((string) $value, true);
+    }
 
     public function dataPayload(): array
     {
@@ -55,6 +69,8 @@ class AppNotification extends Model
                 'membership_expiry', 'membership_expired', 'circle_membership_expiry_reminder', 'upcoming_membership_expired' => '/profile',
                 'trending_circle', 'circle_highlight', 'circle_details', 'join_circle' => '/join-circle',
                 'impact_submitted', 'impact_approved', 'impact_received', 'impact_rejected', 'life_impact' => '/life-impact',
+                'connection_request', 'connection_received' => '/connection-requests',
+                'connection_accepted', 'connection' => '/my-connections',
                 default => null,
             };
         }

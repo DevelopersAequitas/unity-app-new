@@ -82,8 +82,12 @@ class ActivitiesBusinessDealsController extends Controller
                     'ID',
                     'Created By Name',
                     'Created By Email',
+                    'Created By Company',
+                    'Created By City',
                     'Deal With Name',
                     'Deal With Email',
+                    'Deal With Company',
+                    'Deal With City',
                     'Deal Date',
                     'Deal Amount',
                     'Business Type',
@@ -106,10 +110,14 @@ class ActivitiesBusinessDealsController extends Controller
                         'actor.first_name as actor_first_name',
                         'actor.last_name as actor_last_name',
                         'actor.email as actor_email',
+                        'actor.company_name as from_company',
+                        'actor.city as from_city',
                         'peer.display_name as peer_display_name',
                         'peer.first_name as peer_first_name',
                         'peer.last_name as peer_last_name',
                         'peer.email as peer_email',
+                        'peer.company_name as to_company',
+                        'peer.city as to_city',
                         DB::raw($this->hasMediaSelectExpression().' as has_media'),
                         DB::raw($this->mediaReferenceSelectExpression().' as media_reference'),
                     ])
@@ -132,8 +140,12 @@ class ActivitiesBusinessDealsController extends Controller
                                 $row->id,
                                 $actorName,
                                 $row->actor_email ?? '',
+                                $row->from_company ?? '',
+                                $row->from_city ?? '',
                                 $peerName,
                                 $row->peer_email ?? '',
+                                $row->to_company ?? '',
+                                $row->to_city ?? '',
                                 $row->deal_date ?? '',
                                 $row->deal_amount ?? '',
                                 $row->business_type ?? '',
@@ -169,7 +181,11 @@ class ActivitiesBusinessDealsController extends Controller
             'to_at' => $this->parseDayBoundary($to, true),
             'circle_id' => (string) $request->query('circle_id', ''),
             'from_user' => trim((string) $request->query('from_user', '')),
+            'from_company' => trim((string) $request->query('from_company', '')),
+            'from_city' => trim((string) $request->query('from_city', '')),
             'to_user' => trim((string) $request->query('to_user', '')),
+            'to_company' => trim((string) $request->query('to_company', '')),
+            'to_city' => trim((string) $request->query('to_city', '')),
             'deal_date' => trim((string) $request->query('deal_date', '')),
             'deal_amount' => trim((string) $request->query('deal_amount', '')),
             'business_type' => trim((string) $request->query('business_type', '')),
@@ -225,6 +241,14 @@ class ActivitiesBusinessDealsController extends Controller
             });
         }
 
+        if ($filters['from_company'] !== '') {
+            $query->where('actor.company_name', 'ILIKE', '%'.$this->escapeLike($filters['from_company']).'%');
+        }
+
+        if ($filters['from_city'] !== '') {
+            $query->where('actor.city', 'ILIKE', '%'.$this->escapeLike($filters['from_city']).'%');
+        }
+
         if ($filters['to_user'] !== '') {
             $like = $this->escapeLike($filters['to_user']);
             $query->where(function ($inner) use ($like) {
@@ -232,6 +256,14 @@ class ActivitiesBusinessDealsController extends Controller
                     ->orWhere('peer.company_name', 'ILIKE', "%{$like}%")
                     ->orWhere('peer.city', 'ILIKE', "%{$like}%");
             });
+        }
+
+        if ($filters['to_company'] !== '') {
+            $query->where('peer.company_name', 'ILIKE', '%'.$this->escapeLike($filters['to_company']).'%');
+        }
+
+        if ($filters['to_city'] !== '') {
+            $query->where('peer.city', 'ILIKE', '%'.$this->escapeLike($filters['to_city']).'%');
         }
 
         if ($filters['deal_date'] !== '') {
