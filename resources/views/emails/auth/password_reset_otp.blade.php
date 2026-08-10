@@ -19,7 +19,7 @@
                         <td style="padding:28px;">
                             <p style="margin:0 0 12px; color:#0f172a; font-size:18px; font-weight:700;">Hi {{ $user->display_name ?? $user->first_name ?? 'there' }},</p>
                             <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:22px;">
-                                We received a request to reset your password. Use the one-time password (OTP) below to continue. For your security, please do not share this code with anyone.
+                                <!-- EDITABLE_START -->We received a request to reset your password. Use the one-time password (OTP) below to continue. For your security, please do not share this code with anyone.<!-- EDITABLE_END -->
                             </p>
                             <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:22px 0;">
                                 <tr>

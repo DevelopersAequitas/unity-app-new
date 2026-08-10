@@ -20,7 +20,9 @@ Dear <strong>{{ $ticket->contact_name }}</strong>,<br /><br />
 <strong>Original Subject:</strong> {{ $ticket->subject }}
 </span>
 <br /><br />
+<!-- EDITABLE_START -->
 If you have any further questions or require additional assistance, please feel free to reply to this email or contact support.<br /><br />
+<!-- EDITABLE_END -->
 Best regards,<br />
 <strong>Peers Global Support Team</strong>
 </td>

@@ -26,9 +26,33 @@ class EventQrService
         return hash_hmac('sha256', Str::random(80).'|'.Str::uuid(), config('app.key'));
     }
 
+    public function baseUrl(): string
+    {
+        if (app()->bound('request') && request()->hasHeader('Host')) {
+            $requestBase = rtrim(request()->schemeAndHttpHost(), '/');
+            if (! empty($requestBase) && ! str_contains($requestBase, 'localhost') && ! str_contains($requestBase, '127.0.0.1')) {
+                return $requestBase;
+            }
+        }
+
+        $configUrl = rtrim((string) config('app.url'), '/');
+
+        if (! app()->environment('production')) {
+            if (empty($configUrl)) {
+                return 'https://dev.peersunity.com';
+            }
+
+            if (str_contains($configUrl, 'peersunity.com') && ! str_contains($configUrl, 'dev.peersunity.com')) {
+                $configUrl = str_replace('peersunity.com', 'dev.peersunity.com', $configUrl);
+            }
+        }
+
+        return $configUrl ?: 'https://dev.peersunity.com';
+    }
+
     public function payload(string $qrToken): string
     {
-        $baseUrl = rtrim((string) config('app.url'), '/');
+        $baseUrl = $this->baseUrl();
 
         return $baseUrl.'/api/v1/events/checkin/qr/'.$qrToken;
     }
@@ -96,7 +120,7 @@ class EventQrService
         $path = preg_replace('/\.svg$/i', '.png', $path) ?? $path;
         $segments = explode('/', $path);
 
-        $baseUrl = rtrim((string) config('app.url'), '/');
+        $baseUrl = $this->baseUrl();
 
         if (count($segments) >= 3 && $segments[0] === 'event-qrcodes') {
             return $baseUrl.'/api/v1/event-qrcodes/'.$segments[1].'/'.$segments[2];

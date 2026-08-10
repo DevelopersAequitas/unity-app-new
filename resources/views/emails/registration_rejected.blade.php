@@ -1,18 +1,24 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Registration Request Update</title>
-</head>
-<body style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+@extends('emails.layouts.email')
+
+@section('title', 'Registration Request Update')
+
+@section('content')
 <p>Hello {{ $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: 'Peer' }},</p>
 
-<p>Thank you for your interest in joining Greenpreneur.</p>
+<!-- EDITABLE_START -->
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">Thank you for your interest in joining Greenpreneur.</p>
 
-<p>After careful review of your registration request, we regret to inform you that we are unable to approve your account at this time.</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">After careful review of your registration request, we regret to inform you that we are unable to approve your account at this time.</p>
 
-<p>If you believe this decision was made in error, or if you would like to provide additional information for reconsideration, please contact our support team.</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">If you believe this decision was made in error, or if you would like to provide additional information for reconsideration, please contact our support team.</p>
+<!-- EDITABLE_END -->
 
-<p>Warm regards,<br>Greenpreneur Team</p>
-</body>
-</html>
+<p style="margin: 24px 0 0 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">
+    Warm regards,<br>
+    <strong>Greenpreneur Team</strong>
+</p>
+@endsection
+
+@section('footer')
+<p style="margin:0;">Peers are partners in business and friends in life.</p>
+@endsection

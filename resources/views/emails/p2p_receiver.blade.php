@@ -12,9 +12,11 @@
 <td style="padding: 5px 10px 5px 10px; font-size: 16px; color: #333333;">
 Dear <strong>{{ $otherName ?? '' }}</strong>,<br /><br />
 You have a scheduled peer-to-peer meeting with <strong>{{ $actorName ?? '' }}</strong> on <strong>{{ $meetingDate ?? '' }}</strong> at <strong>{{ $meetingPlace ?? '' }}</strong>.<br /><br />
+<!-- EDITABLE_START -->
 We encourage you to make the most of this meeting — it's an opportunity to build trust, explore synergies, and grow together.<br /><br />
 After your meeting, feel free to share your experience!<br />
 Add a testimonial or note from your dashboard<br /><br />
+<!-- EDITABLE_END -->
 Wishing you a meaningful conversation,<br />
 <strong>Peers Global Team</strong>
 </td>
