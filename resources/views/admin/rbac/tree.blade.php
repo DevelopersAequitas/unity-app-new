@@ -88,8 +88,8 @@
     /* Tree Styling & Scrollable Canvas Container */
     .hierarchy-container {
         width: 100%;
-        max-height: 75vh;
-        min-height: 520px;
+        max-height: 70vh;
+        min-height: 350px;
         overflow: auto;
         scrollbar-width: thin;
         position: relative;
@@ -99,10 +99,10 @@
         justify-content: center;
         width: max-content;
         min-width: 100%;
-        padding: 40px 60px 80px 60px;
+        padding: 24px 30px 40px 30px;
     }
     .hierarchy-tree ul {
-        padding-top: 20px; 
+        padding-top: 16px; 
         position: relative;
         transition: all 0.5s;
         list-style-type: none;
@@ -117,7 +117,7 @@
         text-align: center;
         list-style-type: none;
         position: relative;
-        padding: 24px 8px 0;
+        padding: 16px 6px 0;
         transition: all 0.5s;
     }
     
@@ -129,7 +129,7 @@
         right: 50%;
         border-top: 2px solid var(--neu-connector);
         width: 50%; 
-        height: 24px;
+        height: 16px;
     }
     .hierarchy-tree li::after {
         right: auto; 
@@ -159,18 +159,18 @@
         left: 50%;
         border-left: 2px solid var(--neu-connector);
         width: 0; 
-        height: 24px;
+        height: 16px;
     }
 
     /* Neumorphic Node Boxes */
     .node-box {
         display: inline-block;
-        padding: 18px 24px;
-        min-width: 170px;
-        border-radius: 18px;
+        padding: 10px 16px;
+        min-width: 130px;
+        border-radius: 14px;
         background: var(--neu-bg);
         border: none;
-        box-shadow: 7px 7px 14px var(--neu-shadow-d), -7px -7px 14px var(--neu-shadow-l);
+        box-shadow: 4px 4px 10px var(--neu-shadow-d), -4px -4px 10px var(--neu-shadow-l);
         text-decoration: none;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
@@ -178,27 +178,27 @@
         color: var(--neu-ink);
     }
     .node-box:hover {
-        transform: translateY(-4px);
-        box-shadow: 9px 9px 18px var(--neu-shadow-d), -9px -9px 18px var(--neu-shadow-l), 0 0 0 2px var(--neu-accent) inset;
+        transform: translateY(-2px);
+        box-shadow: 6px 6px 14px var(--neu-shadow-d), -6px -6px 14px var(--neu-shadow-l), 0 0 0 2px var(--neu-accent) inset;
     }
     .node-box.node-root {
         background: linear-gradient(135deg, var(--neu-accent), #818cf8);
-        box-shadow: 6px 6px 16px var(--neu-shadow-d), -4px -4px 12px var(--neu-shadow-l);
+        box-shadow: 4px 4px 12px var(--neu-shadow-d), -3px -3px 8px var(--neu-shadow-l);
         color: #fff;
     }
 
     /* Node Icon */
     .node-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 12px;
-        margin: 0 auto 9px;
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        margin: 0 auto 5px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.1rem;
+        font-size: 0.9rem;
         background: var(--neu-bg);
-        box-shadow: inset 3px 3px 7px var(--neu-shadow-d), inset -3px -3px 7px var(--neu-shadow-l);
+        box-shadow: inset 2px 2px 5px var(--neu-shadow-d), inset -2px -2px 5px var(--neu-shadow-l);
         color: var(--neu-accent);
         transition: all 0.3s;
     }
@@ -213,13 +213,13 @@
 
     .node-title {
         font-family: 'Outfit', sans-serif;
-        font-weight: 800;
-        font-size: 0.95rem;
+        font-weight: 700;
+        font-size: 0.85rem;
     }
     .node-meta {
-        font-size: 0.72rem;
+        font-size: 0.68rem;
         color: var(--neu-sub);
-        margin-top: 2px;
+        margin-top: 1px;
     }
     .node-root .node-meta {
         color: #e0e7ff;
@@ -227,11 +227,11 @@
 
     .node-badge {
         display: inline-block;
-        margin-top: 9px;
-        font-size: 0.62rem;
+        margin-top: 5px;
+        font-size: 0.58rem;
         font-weight: 700;
-        padding: 4px 10px;
-        border-radius: 20px;
+        padding: 2px 8px;
+        border-radius: 12px;
         text-transform: uppercase;
     }
     .badge-system { background-color: #fee2e2; color: #ef4444; }
@@ -304,49 +304,10 @@
         </div>
     @endif
 
-    <!-- Top Row: Relocate Settings & Role Assignment -->
+    <!-- Top Row: Role Assignment -->
     <div class="row mb-4">
-        <!-- Relocate Settings -->
-        <div class="col-md-6 mb-3 mb-md-0">
-            <div class="card glass-card h-100">
-                <div class="card-header bg-transparent border-0 pt-4 px-4">
-                    <h5 class="card-title fw-bold mb-0"><i class="bi bi-arrows-move me-2"></i>Relocate Settings</h5>
-                </div>
-                <div class="card-body p-4">
-                    <form id="relocateForm">
-                        @csrf
-                        <div class="mb-3">
-                            <label for="relocate_role_id" class="form-label fw-semibold fs-7">Select Role to Move</label>
-                            <select id="relocate_role_id" name="role_id" class="form-select rounded-3" required>
-                                <option value="">-- Choose Role --</option>
-                                @foreach($roles as $r)
-                                    <option value="{{ $r->id }}">{{ $r->name }} (depth: {{ $r->hierarchy_depth }})</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="relocate_parents" class="form-label fw-semibold fs-7">Choose Parents (Reports to)</label>
-                            <select id="relocate_parents" name="parent_role_ids[]" class="form-select rounded-3" multiple style="min-height: 120px;">
-                                @foreach($roles as $r)
-                                    <option value="{{ $r->id }}">{{ $r->name }}</option>
-                                @endforeach
-                            </select>
-                            <small class="text-muted fs-8">Hold Ctrl/Cmd to select multiple parent nodes.</small>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary w-100 rounded-3 py-2">
-                            <i class="bi bi-arrows-move me-1"></i> Update Hierarchy
-                        </button>
-                    </form>
-
-                    <div id="relocateMessage" class="mt-3 text-center fs-7" style="display: none;"></div>
-                </div>
-            </div>
-        </div>
-
         <!-- Assign Role to Peer Card -->
-        <div class="col-md-6">
+        <div class="col-md-6 col-lg-5">
             <div class="card glass-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4">
                     <h5 class="card-title fw-bold mb-0"><i class="bi bi-person-check me-2"></i>Assign Role to Peer</h5>
@@ -427,7 +388,7 @@
                 <div class="card-header bg-transparent border-bottom pt-4 pb-3 px-4 d-flex justify-content-between align-items-center" style="border-color: rgba(0,0,0,0.08) !important;">
                     <h5 class="card-title fw-bold mb-0"><i class="bi bi-diagram-3 me-2"></i>Hierarchy Map</h5>
                     <div class="d-flex align-items-center gap-2">
-                        <span class="text-muted fs-7">Relocate nodes using Relocate Settings above</span>
+                        <span class="text-muted fs-7">Role hierarchy tree</span>
                         <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
                            class="btn btn-sm btn-light border d-flex align-items-center gap-1"
                            style="font-size:0.78rem;white-space:nowrap;"
@@ -476,24 +437,8 @@
                         <input type="text" id="role_name" name="name" class="form-control rounded-3" placeholder="e.g. Area Director" required>
                     </div>
                     <div class="mb-3">
-                        <label for="role_key" class="form-label fw-semibold fs-7">Unique Key</label>
-                        <input type="text" id="role_key" name="key" class="form-control rounded-3" placeholder="e.g. area_director" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="role_type" class="form-label fw-semibold fs-7">Role Type</label>
-                        <select id="role_type" name="role_type" class="form-select rounded-3" required>
-                            <option value="user">User (Chairs, Members)</option>
-                            <option value="admin">Admin (DED, ID, IED, CD, CF)</option>
-                            <option value="system">System (Super Admin)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="scope_rule" class="form-label fw-semibold fs-7">Scope Rule</label>
-                        <select id="scope_rule" name="scope_rule" class="form-select rounded-3" required>
-                            <option value="mandatory">Mandatory</option>
-                            <option value="optional">Optional</option>
-                            <option value="not_applicable">Not Applicable</option>
-                        </select>
+                        <label for="role_key" class="form-label fw-semibold fs-7">Unique Key <span class="text-muted fs-8">(auto-generated)</span></label>
+                        <input type="text" id="role_key" name="key" class="form-control rounded-3" placeholder="e.g. area_director" readonly style="background:#f0f2f7;cursor:not-allowed;" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold fs-7">Parent Roles (Optional)</label>
@@ -578,42 +523,19 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const relocateForm = document.getElementById('relocateForm');
-        const messageDiv = document.getElementById('relocateMessage');
+        // Auto-generate Unique Key from Role Name
+        const roleNameInput  = document.getElementById('role_name');
+        const roleKeyInput   = document.getElementById('role_key');
 
-        relocateForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-            messageDiv.style.display = 'none';
-            messageDiv.className = 'mt-3 text-center fs-7 text-muted';
-            messageDiv.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Relocating...';
-            messageDiv.style.display = 'block';
-
-            const formData = new FormData(relocateForm);
-            
-            fetch("{{ route('admin.rbac.roles.update-parent') }}", {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    messageDiv.className = 'mt-3 text-center fs-7 text-success';
-                    messageDiv.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + data.message;
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    messageDiv.className = 'mt-3 text-center fs-7 text-danger';
-                    messageDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + data.message;
-                }
-            })
-            .catch(error => {
-                messageDiv.className = 'mt-3 text-center fs-7 text-danger';
-                messageDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> An unexpected error occurred.';
-                console.error(error);
+        if (roleNameInput && roleKeyInput) {
+            roleNameInput.addEventListener('input', function () {
+                roleKeyInput.value = this.value
+                    .toLowerCase()
+                    .trim()
+                    .replace(/[^a-z0-9\s_]/g, '')   // keep alphanumeric, spaces, underscores
+                    .replace(/\s+/g, '_');            // spaces → underscores
             });
-        });
+        }
     });
 </script>
 @endpush
