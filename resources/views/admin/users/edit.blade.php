@@ -583,6 +583,14 @@ window.switchTab = function(tabId) {
                         </div>
                     </div>
 
+                    <!-- Welcome Email Card -->
+                    <div class="mt-4">
+                        @include('admin.users.partials.membership_welcome_email_card', [
+                            'showSendButton' => true,
+                            'cardClass' => 'border border-light shadow-none bg-light-subtle',
+                        ])
+                    </div>
+
                     <div class="d-flex justify-content-between mt-4 pt-3 border-top">
                         <button type="button" class="btn btn-outline-secondary" onclick="switchTab('business-tab')">
                             <i class="bi bi-arrow-left me-1"></i> Back
