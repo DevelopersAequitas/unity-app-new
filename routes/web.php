@@ -365,16 +365,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/events', [EventManagementController::class, 'index'])->name('events.index');
         Route::get('/events/total-attendance', [EventManagementController::class, 'totalAttendance'])->name('events.total-attendance');
         Route::get('/events/total-registered', [EventManagementController::class, 'totalRegistered'])->name('events.total-registered');
+        Route::get('/events/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
         Route::get('/event-joining-requests', [EventManagementController::class, 'joiningRequests'])->name('event-joining-requests.index');
         Route::post('/event-joining-requests/{id}/approve', [EventManagementController::class, 'approveJoiningRequest'])->whereUuid('id')->name('event-joining-requests.approve');
         Route::post('/event-joining-requests/{id}/reject', [EventManagementController::class, 'rejectJoiningRequest'])->whereUuid('id')->name('event-joining-requests.reject');
         Route::get('/events/create', [EventManagementController::class, 'create'])->name('events.create');
         Route::post('/events', [EventManagementController::class, 'store'])->name('events.store');
-        Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->name('events.edit');
-        Route::put('/events/{id}', [EventManagementController::class, 'update'])->name('events.update');
-        Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
-        Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->name('events.occurrences.add-visitor');
-        Route::get('/events/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
+        Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->whereUuid('id')->name('events.edit');
+        Route::put('/events/{id}', [EventManagementController::class, 'update'])->whereUuid('id')->name('events.update');
+        Route::get('/events/{id}', [EventManagementController::class, 'show'])->whereUuid('id')->name('events.show');
+        Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->whereUuid('id')->whereUuid('occurrence_id')->name('events.occurrences.add-visitor');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
         Route::post('/events/registrations/{id}/send-whatsapp-qr', [EventManagementController::class, 'sendWhatsappQr'])->whereUuid('id')->name('events.registrations.send-whatsapp-qr');
 

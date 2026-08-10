@@ -28,7 +28,9 @@ class EventQrService
 
     public function payload(string $qrToken): string
     {
-        return url('/api/v1/events/checkin/qr/'.$qrToken);
+        $baseUrl = rtrim((string) config('app.url'), '/');
+
+        return $baseUrl.'/api/v1/events/checkin/qr/'.$qrToken;
     }
 
     public function generateAndStore(EventRegistration $registration): array
@@ -54,7 +56,7 @@ class EventQrService
             throw QrGenerationException::gdMissing();
         }
 
-        $relativePath = 'event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.'.$ext;
+        $relativePath = ! empty($registration->qr_code_path) ? ltrim((string) $registration->qr_code_path, '/') : ('event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.'.$ext);
 
         Storage::disk('public')->put($relativePath, $imageContent);
 
@@ -85,15 +87,22 @@ class EventQrService
             return null;
         }
 
-        $path = ltrim($path, '/');
+        $parsedPath = parse_url($path, PHP_URL_PATH) ?: $path;
+        $path = ltrim($parsedPath, '/');
+        if (str_contains($path, 'event-qrcodes/')) {
+            $path = substr($path, strpos($path, 'event-qrcodes/'));
+        }
+
         $path = preg_replace('/\.svg$/i', '.png', $path) ?? $path;
         $segments = explode('/', $path);
 
-        if (count($segments) === 3 && $segments[0] === 'event-qrcodes') {
-            return rtrim((string) config('app.url'), '/').'/api/v1/event-qrcodes/'.$segments[1].'/'.$segments[2];
+        $baseUrl = rtrim((string) config('app.url'), '/');
+
+        if (count($segments) >= 3 && $segments[0] === 'event-qrcodes') {
+            return $baseUrl.'/api/v1/event-qrcodes/'.$segments[1].'/'.$segments[2];
         }
 
-        return rtrim((string) config('app.url'), '/').'/api/v1/event-qrcodes/'.basename(dirname($path)).'/'.basename($path);
+        return $baseUrl.'/api/v1/event-qrcodes/'.basename(dirname($path)).'/'.basename($path);
     }
 
     public function makePng(string $payload): string

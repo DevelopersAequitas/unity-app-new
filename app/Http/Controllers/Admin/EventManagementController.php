@@ -371,9 +371,14 @@ class EventManagementController extends Controller
         return view('admin.events.show', compact('event'));
     }
 
-    public function attendance(Request $request, string $id): View
+    public function attendance(Request $request, ?string $id = null): View
     {
-        $event = Event::query()->findOrFail($id);
+        $eventId = $id ?? $request->query('id') ?? $request->query('event_id');
+        if (! $eventId) {
+            abort(404, 'Event ID is required.');
+        }
+
+        $event = Event::query()->findOrFail($eventId);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
         $report = $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search']));
         $scanLogs = Schema::hasTable((new EventQrScanLog)->getTable())
