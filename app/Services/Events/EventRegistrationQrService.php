@@ -37,7 +37,7 @@ class EventRegistrationQrService
         if (! $wasQrMissing) {
             $expectedPath = $registration->qr_code_path ?: ('event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.png');
             $expectedUrl = $this->qr->url($expectedPath);
-            $appUrlBase = rtrim((string) config('app.url'), '/');
+            $appUrlBase = rtrim((string) $this->qr->baseUrl(), '/');
             $rawStoredUrl = (string) ($registration->getRawOriginal('qr_code_url') ?? '');
             $needsUrlCorrection = ($rawStoredUrl !== '' && ! str_starts_with($rawStoredUrl, $appUrlBase))
                 || $registration->qr_code_url !== $expectedUrl
