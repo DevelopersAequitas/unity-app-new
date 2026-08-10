@@ -145,7 +145,7 @@ class EmailTemplateTest extends TestCase
                 ->put(route('admin.email-templates.update', 'welcome_peer'), [
                     'mode' => 'simple',
                     'subject' => 'New Welcome Peer Subject',
-                    'simple_content' => '<p>This is a modified simple welcome message</p>',
+                    'simple_content' => ['This is a modified simple welcome message'],
                 ]);
 
             $response->assertRedirect(route('admin.email-templates.edit', 'welcome_peer'));

@@ -72,11 +72,16 @@
                                 </div>
 
                                 <div class="mb-4">
-                                    <label for="simple_content" class="form-label fw-bold text-dark small">Body Text (Static Content)</label>
-                                    <div class="alert alert-info py-2 px-3 mb-2 rounded-3" style="font-size: 12.5px;">
-                                        <i class="bi bi-info-circle me-1"></i> You are editing only the static message text of the email layout.
+                                    <label class="form-label fw-bold text-dark small">Body Text (Static Content)</label>
+                                    <div class="alert alert-info py-2 px-3 mb-3 rounded-3" style="font-size: 12.5px;">
+                                        <i class="bi bi-info-circle me-1"></i> You can edit each text section of this email layout below.
                                     </div>
-                                    <textarea name="simple_content" id="simple_content" class="form-control rounded-3 font-monospace" rows="14" style="font-size: 14px; line-height: 1.6;">{{ old('simple_content', $editableContent) }}</textarea>
+                                    @foreach($editableBlocks as $index => $block)
+                                        <div class="mb-3">
+                                            <span class="badge bg-primary rounded-pill mb-2" style="background-color: #240e5c !important;">Section {{ $index + 1 }}</span>
+                                            <textarea name="simple_content[]" class="form-control rounded-3 font-monospace" rows="6" style="font-size: 14px; line-height: 1.6;">{{ old('simple_content.' . $index, $block) }}</textarea>
+                                        </div>
+                                    @endforeach
                                 </div>
 
                                 <div class="d-flex justify-content-end">

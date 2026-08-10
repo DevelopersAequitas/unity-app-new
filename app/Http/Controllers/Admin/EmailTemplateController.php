@@ -470,9 +470,17 @@ class EmailTemplateController extends Controller
         }
 
         $fullHtml = File::get($filePath);
-        $rawEditable = $this->getEditableContent($fullHtml);
-        // Strip HTML tags for the simple editor so it is 100% clean plain text
-        $editableContent = strip_tags(str_replace(['<br />', '<br>', '<br/>'], "\n", $rawEditable));
+        
+        // Find all editable blocks
+        preg_match_all('/<!-- EDITABLE_START -->(.*?)<!-- EDITABLE_END -->/s', $fullHtml, $matches);
+        $editableBlocks = [];
+        if (!empty($matches[1])) {
+            foreach ($matches[1] as $match) {
+                $editableBlocks[] = strip_tags(str_replace(['<br />', '<br>', '<br/>'], "\n", trim($match)));
+            }
+        } else {
+            $editableBlocks[] = strip_tags(str_replace(['<br />', '<br>', '<br/>'], "\n", $fullHtml));
+        }
 
         $dbTemplate = EmailTemplate::firstOrCreate([
             'template_key' => $key,
@@ -482,7 +490,7 @@ class EmailTemplateController extends Controller
             'dynamic_params' => $template['dynamic_params'],
         ]);
 
-        return view('admin.email_templates.edit', compact('template', 'dbTemplate', 'fullHtml', 'editableContent'));
+        return view('admin.email_templates.edit', compact('template', 'dbTemplate', 'fullHtml', 'editableBlocks'));
     }
 
     /**
@@ -510,23 +518,35 @@ class EmailTemplateController extends Controller
 
         if ($request->input('mode') === 'simple') {
             $request->validate([
-                'simple_content' => 'required|string',
+                'simple_content' => 'required|array',
             ]);
+            
             $newSimpleContent = $request->input('simple_content');
-            $paragraphs = preg_split('/\n/', str_replace("\r", '', $newSimpleContent));
-            $formattedHtml = '';
-            foreach ($paragraphs as $para) {
-                $trimmed = trim($para);
-                if ($trimmed !== '') {
-                    if (str_starts_with($trimmed, '•') || str_starts_with($trimmed, '-')) {
-                        $bulletText = ltrim($trimmed, '•- ');
-                        $formattedHtml .= '<p style="margin: 0 0 8px 20px; font-size: 15px; line-height: 22px; color: #d9d9d9;">• '.$bulletText.'</p>'."\n";
-                    } else {
-                        $formattedHtml .= '<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">'.$para.'</p>'."\n";
+            $blockIndex = 0;
+            
+            $updatedHtml = preg_replace_callback(
+                '/<!-- EDITABLE_START -->.*?<!-- EDITABLE_END -->/s',
+                function($matches) use ($newSimpleContent, &$blockIndex) {
+                    $text = $newSimpleContent[$blockIndex] ?? '';
+                    $blockIndex++;
+                    
+                    $paragraphs = preg_split('/\n/', str_replace("\r", "", $text));
+                    $formattedHtml = '';
+                    foreach ($paragraphs as $para) {
+                        $trimmed = trim($para);
+                        if ($trimmed !== '') {
+                            if (str_starts_with($trimmed, '•') || str_starts_with($trimmed, '-')) {
+                                $bulletText = ltrim($trimmed, '•- ');
+                                $formattedHtml .= '<p style="margin: 0 0 8px 20px; font-size: 15px; line-height: 22px; color: #d9d9d9;">• '.$bulletText.'</p>'."\n";
+                            } else {
+                                $formattedHtml .= '<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">'.$para.'</p>'."\n";
+                            }
+                        }
                     }
-                }
-            }
-            $updatedHtml = $this->setEditableContent($fullHtml, trim($formattedHtml));
+                    return "<!-- EDITABLE_START -->\n" . trim($formattedHtml) . "\n<!-- EDITABLE_END -->";
+                },
+                $fullHtml
+            );
         } else {
             $request->validate([
                 'html_content' => 'required|string',

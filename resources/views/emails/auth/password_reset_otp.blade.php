@@ -28,9 +28,11 @@
                                     </td>
                                 </tr>
                             </table>
-                            <p style="margin:0 0 8px; color:#0f172a; font-size:15px; font-weight:600;">OTP valid for 5 minutes.</p>
+                            <p style="margin:0 0 8px; color:#0f172a; font-size:15px; font-weight:600;">
+                                <!-- EDITABLE_START -->OTP valid for 5 minutes.<!-- EDITABLE_END -->
+                            </p>
                             <p style="margin:0 0 16px; color:#475569; font-size:14px; line-height:21px;">
-                                If you did not request a password reset, please ignore this email or secure your account.
+                                <!-- EDITABLE_START -->If you did not request a password reset, please ignore this email or secure your account.<!-- EDITABLE_END -->
                             </p>
                             <p style="margin:0; color:#94a3b8; font-size:13px; line-height:20px;">
                                 Thank you,<br>
