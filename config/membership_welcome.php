@@ -18,4 +18,6 @@ return [
     'banner_file_id' => env('MEMBERSHIP_WELCOME_BANNER_FILE_ID'),
     'banner_url' => env('MEMBERSHIP_WELCOME_BANNER_URL'),
     'support_email' => env('MEMBERSHIP_SUPPORT_EMAIL', 'pravin@peersunity.com'),
+    'mailer' => env('MEMBERSHIP_WELCOME_MAILER'),
 ];
+
