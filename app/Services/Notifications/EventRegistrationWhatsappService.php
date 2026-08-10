@@ -95,7 +95,7 @@ class EventRegistrationWhatsappService
                 'caption' => $messageText,
                 'digital_entry_pass_url' => $qrCodeUrl,
                 'digital_entry_pass_message' => 'You can access your digital entry pass here: '.$qrCodeUrl,
-                'entry_pass_url' => $qrCodeUrl,
+                'entry_pass_url' => 'https://peersglobal.com/',
                 'entry_pass_message' => 'You can access your digital entry pass here: '.$qrCodeUrl,
                 'pass_url' => $qrCodeUrl,
                 'image' => $qrCodeUrl,
