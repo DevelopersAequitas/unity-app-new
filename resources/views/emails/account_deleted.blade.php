@@ -6,22 +6,24 @@
 @php
     $userName = $user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: 'User';
 @endphp
-    Dear <strong>{{ $userName }}</strong>,<br /><br />
+<!-- EDITABLE_START -->
+<p style="margin: 0 0 12px 0; font-size: 16px; font-weight: 700; color: #ffffff;">Dear {{ $userName }},</p>
 
-    This email is to notify you that your account with <strong>Peers Global Unity</strong> and all associated personal data have been successfully and permanently deleted from our systems, in accordance with your request and our data retention policies.<br /><br />
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">This email is to notify you that your account with Peers Global Unity and all associated personal data have been successfully and permanently deleted from our systems, in accordance with your request and our data retention policies.</p>
 
-    Please note that any active subscriptions have been cancelled, and you will no longer receive communications or notifications from us.<br /><br />
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">Please note that any active subscriptions have been cancelled, and you will no longer receive communications or notifications from us.</p>
 
-    If you have any questions or require further assistance, please contact our support team at <a href="mailto:{{ config('membership_welcome.support_email', 'support@peersunity.com') }}" style="color:#38bdf8; text-decoration:underline;">{{ config('membership_welcome.support_email', 'support@peersunity.com') }}</a>.<br /><br />
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">If you have any questions or require further assistance, please contact our support team at {{ config('membership_welcome.support_email', 'support@peersunity.com') }}.</p>
 
-    Thank you for having been part of the Peers Global Unity community.<br /><br />
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">Thank you for having been part of the Peers Global Unity community.</p>
 
-    Warm Regards,<br />
-    Peers Global Unity compliance Team
+<p style="margin: 24px 0 0 0; font-size: 15px; line-height: 22px; color: #d9d9d9;">
+    Warm Regards,<br>
+    <strong>Peers Global Unity Compliance Team</strong>
+</p>
+<!-- EDITABLE_END -->
 @endsection
 
 @section('footer')
-    <p style="margin:0; font-size:14px; font-weight:bold; color:#ffffff; text-align:center;">
-        Peers are partners in business and friends in life.
-    </p>
+<p style="margin:0;">Peers are partners in business and friends in life.</p>
 @endsection
