@@ -168,6 +168,52 @@ class EventListApiTest extends TestCase
             ->assertJsonPath('data.items.0.ticket_price', null);
     }
 
+    public function test_all_with_live_status_filters_by_month_and_falls_back(): void
+    {
+        $user = $this->unityUser();
+        $circle = $this->circle('Test');
+
+        DB::table('circle_members')->insert([
+            'id' => (string) Str::uuid(),
+            'circle_id' => $circle->id,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $juneEventId = (string) Str::uuid();
+        $julyEventId = (string) Str::uuid();
+
+        $this->insertEvent($juneEventId, $circle->id, 'June Event', 'circle_meeting', 'scheduled', '2026-06-15 10:00:00');
+        $this->insertOccurrence((string) Str::uuid(), $juneEventId, 'scheduled', '2026-06-15 10:00:00');
+
+        $this->insertEvent($julyEventId, $circle->id, 'July Event', 'circle_meeting', 'scheduled', '2026-07-05 10:00:00');
+        $this->insertOccurrence((string) Str::uuid(), $julyEventId, 'scheduled', '2026-07-05 10:00:00');
+
+        Sanctum::actingAs($user);
+
+        // When June events exist, only June events should be returned.
+        $this->getJson('/api/v1/events/all-with-live-status')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.event_id', $juneEventId)
+            ->assertJsonPath('data.0.title', 'June Event');
+
+        // Now set test now to late June (2026-06-25) where June Event is past.
+        Carbon::setTestNow(Carbon::parse('2026-06-25 15:00:00'));
+
+        // Since June Event is in the past, it's filtered out. Only July Event is upcoming.
+        // It should fallback to July Event.
+        $this->getJson('/api/v1/events/all-with-live-status')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.event_id', $julyEventId)
+            ->assertJsonPath('data.0.title', 'July Event');
+    }
+
     private function unityUser(): User
     {
         return User::query()->create([
