@@ -566,6 +566,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/email-templates/{key}', [EmailTemplateController::class, 'update'])->name('email-templates.update');
         Route::get('/email-templates/{key}/preview', [EmailTemplateController::class, 'preview'])->name('email-templates.preview');
 
+        // Notification Templates Module
+        Route::get('/notification-templates', [App\Http\Controllers\Admin\NotificationTemplateController::class, 'index'])->name('notification-templates.index');
+        Route::get('/notification-templates/{key}/edit', [App\Http\Controllers\Admin\NotificationTemplateController::class, 'edit'])->name('notification-templates.edit');
+        Route::put('/notification-templates/{key}', [App\Http\Controllers\Admin\NotificationTemplateController::class, 'update'])->name('notification-templates.update');
+        Route::get('/notification-templates/{key}/preview', [App\Http\Controllers\Admin\NotificationTemplateController::class, 'preview'])->name('notification-templates.preview');
+
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');
         Route::get('/execution/events', [AdminExecutionController::class, 'events'])->name('execution.events');

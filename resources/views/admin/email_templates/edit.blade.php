@@ -72,11 +72,16 @@
                                 </div>
 
                                 <div class="mb-4">
-                                    <label for="simple_content" class="form-label fw-bold text-dark small">Body Text (Static Content)</label>
-                                    <div class="alert alert-info py-2 px-3 mb-2 rounded-3" style="font-size: 12.5px;">
-                                        <i class="bi bi-info-circle me-1"></i> You are editing only the static message text of the email layout.
+                                    <label class="form-label fw-bold text-dark small">Body Text (Static Content)</label>
+                                    <div class="alert alert-info py-2 px-3 mb-3 rounded-3" style="font-size: 12.5px;">
+                                        <i class="bi bi-info-circle me-1"></i> You can edit each text section of this email layout below.
                                     </div>
-                                    <textarea name="simple_content" id="simple_content" class="form-control rounded-3 font-monospace" rows="14" style="font-size: 14px; line-height: 1.6;">{{ old('simple_content', $editableContent) }}</textarea>
+                                    @foreach($editableBlocks as $index => $block)
+                                        <div class="mb-3">
+                                            <span class="badge bg-primary rounded-pill mb-2" style="background-color: #240e5c !important;">Section {{ $index + 1 }}</span>
+                                            <textarea name="simple_content[]" class="form-control rounded-3 font-monospace" rows="6" style="font-size: 14px; line-height: 1.6;">{{ old('simple_content.' . $index, $block) }}</textarea>
+                                        </div>
+                                    @endforeach
                                 </div>
 
                                 <div class="d-flex justify-content-end">
@@ -104,7 +109,7 @@
                                         <label for="html_content" class="form-label fw-bold text-dark small mb-0">Raw HTML / Blade Code</label>
                                         <span class="badge bg-danger rounded-pill px-2 py-1" style="font-size: 10px;">Advanced Mode</span>
                                     </div>
-                                    <textarea name="html_content" id="html_content" class="form-control rounded-3 font-monospace bg-dark text-white p-3" rows="18" style="font-size: 13px; line-height: 1.5; tab-size: 4;">{{ old('html_content', $fullHtml) }}</textarea>
+                                    <textarea name="html_content" id="html_content" class="form-control rounded-3 font-monospace bg-white text-dark p-3 border" rows="18" style="font-size: 13px; line-height: 1.5; tab-size: 4; border-color: #dee2e6 !important;">{{ old('html_content', $fullHtml) }}</textarea>
                                 </div>
 
                                 <div class="d-flex justify-content-end">
