@@ -67,15 +67,21 @@ class MilestoneBadge extends Model
         }
 
         if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+            if (str_contains($value, '/api/v1/files/')) {
+                return $value;
+            }
+            if (str_contains($value, '/storage/')) {
+                $path = substr($value, strpos($value, '/storage/') + 9);
+
+                return url('/api/v1/files/'.ltrim($path, '/'));
+            }
+
             return $value;
         }
 
-        $cleanPath = ltrim($value, '/');
-        if (str_starts_with($cleanPath, 'storage/')) {
-            $cleanPath = substr($cleanPath, 8);
-        }
+        $cleanPath = ltrim(preg_replace('#^(storage/|public/)+#i', '', $value), '/');
 
-        return asset('storage/'.ltrim($cleanPath, '/'));
+        return url('/api/v1/files/'.ltrim($cleanPath, '/'));
     }
 
     public function userBadges(): HasMany
