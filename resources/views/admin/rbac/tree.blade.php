@@ -283,8 +283,10 @@
     <!-- Header -->
     <div class="d-flex align-items-center justify-content-between mb-4">
         <div>
-            <h1 class="h3 mb-1 fw-bold" style="font-family: 'Outfit', sans-serif;">Role Hierarchy & Profiles</h1>
-            <p class="text-muted small mb-0">Manage dynamic role hierarchies, clone profiles and coordinate scopes cascade mappings.</p>
+            <h1 class="h3 mb-1 fw-bold text-dark" style="font-family: 'Outfit', sans-serif;">
+                <i class="bi bi-diagram-3-fill text-primary me-2"></i>Role Hierarchy & Architecture
+            </h1>
+            <p class="text-muted small mb-0">Manage dynamic role hierarchies, clone profiles, assign peer scopes, and inspect permission inheritance.</p>
         </div>
         <div class="d-flex gap-2 align-items-center">
             @include('admin.rbac.partials.header_nav')
@@ -294,6 +296,109 @@
             <button class="btn btn-primary d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#createRoleModal">
                 <i class="bi bi-plus-circle"></i> Create New Role
             </button>
+        </div>
+    </div>
+
+    {{-- Interactive RBAC Explainer Card --}}
+    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #f8fafc;">
+        <div class="card-body p-4">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-3 bg-primary bg-opacity-25 rounded-3 text-primary border border-primary border-opacity-25">
+                        <i class="bi bi-lightbulb-fill fs-3"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-1 text-white">How Dynamic Role Hierarchy Works</h5>
+                        <p class="text-secondary small mb-0">Understand role inheritance, parent-child delegation, and data scoping in 3 simple rules.</p>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-light rounded-pill px-3" type="button" data-bs-toggle="collapse" data-bs-target="#rbacGuideCollapse" aria-expanded="false">
+                    <i class="bi bi-info-circle me-1"></i> Toggle Guide
+                </button>
+            </div>
+
+            <div class="collapse show" id="rbacGuideCollapse">
+                <div class="row g-3 pt-2">
+                    <div class="col-md-4">
+                        <div class="p-3 bg-white bg-opacity-10 rounded-3 h-100 border border-white border-opacity-10">
+                            <div class="d-flex align-items-center gap-2 mb-2 text-warning fw-semibold">
+                                <i class="bi bi-diagram-2"></i> 1. Permission Inheritance
+                            </div>
+                            <p class="small text-secondary mb-0">
+                                Child roles automatically inherit page permissions granted to their parent roles, allowing seamless cascade down the tree.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-white bg-opacity-10 rounded-3 h-100 border border-white border-opacity-10">
+                            <div class="d-flex align-items-center gap-2 mb-2 text-info fw-semibold">
+                                <i class="bi bi-people-fill"></i> 2. Peer Assignment
+                            </div>
+                            <p class="small text-secondary mb-0">
+                                Admin users (Peers) can be assigned to multiple roles across the hierarchy without conflicting credentials.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-white bg-opacity-10 rounded-3 h-100 border border-white border-opacity-10">
+                            <div class="d-flex align-items-center gap-2 mb-2 text-success fw-semibold">
+                                <i class="bi bi-funnel-fill"></i> 3. Dynamic Scope Rules
+                            </div>
+                            <p class="small text-secondary mb-0">
+                                Dynamic data scopes restrict visibility boundaries to specific Districts, Circles, or Industries automatically.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Stats Bar --}}
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white text-dark">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold">TOTAL ROLES</div>
+                        <div class="fs-4 fw-bold text-primary">{{ count($roles) }}</div>
+                    </div>
+                    <div class="p-2 bg-primary-subtle text-primary rounded-3"><i class="bi bi-shield-lock fs-4"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white text-dark">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold">ROOT ROLES</div>
+                        <div class="fs-4 fw-bold text-indigo">{{ count($roots) }}</div>
+                    </div>
+                    <div class="p-2 bg-indigo-subtle text-indigo rounded-3"><i class="bi bi-tree fs-4"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white text-dark">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold">ASSIGNED PEERS</div>
+                        <div class="fs-4 fw-bold text-success">{{ count($peers) }}</div>
+                    </div>
+                    <div class="p-2 bg-success-subtle text-success rounded-3"><i class="bi bi-person-lines-fill fs-4"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white text-dark">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small fw-semibold">ACTIVE SCOPES</div>
+                        <div class="fs-4 fw-bold text-warning">{{ count($districts) + count($circles) + count($industries) }}</div>
+                    </div>
+                    <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="bi bi-geo-alt fs-4"></i></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -385,10 +490,13 @@
     <div class="row">
         <div class="col-12 mb-4">
             <div class="card glass-card">
-                <div class="card-header bg-transparent border-bottom pt-4 pb-3 px-4 d-flex justify-content-between align-items-center" style="border-color: rgba(0,0,0,0.08) !important;">
-                    <h5 class="card-title fw-bold mb-0"><i class="bi bi-diagram-3 me-2"></i>Hierarchy Map</h5>
+                <div class="card-header bg-transparent border-bottom pt-4 pb-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2" style="border-color: rgba(0,0,0,0.08) !important;">
+                    <h5 class="card-title fw-bold mb-0"><i class="bi bi-diagram-3 me-2 text-primary"></i>Hierarchy Map</h5>
                     <div class="d-flex align-items-center gap-2">
-                        <span class="text-muted fs-7">Role hierarchy tree</span>
+                        <div class="input-group input-group-sm" style="max-width: 260px;">
+                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" id="roleTreeSearch" class="form-control border-start-0" placeholder="Filter role node..." onkeyup="filterRoleTree()">
+                        </div>
                         <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
                            class="btn btn-sm btn-light border d-flex align-items-center gap-1"
                            style="font-size:0.78rem;white-space:nowrap;"
@@ -1208,6 +1316,26 @@ function removePeerAssignment(userId, userName) {
             fetchAssignments();
         } else {
             alert(data.message || 'Failed to remove assignment.');
+        }
+    });
+}
+
+function filterRoleTree() {
+    const q = (document.getElementById('roleTreeSearch')?.value || '').toLowerCase().trim();
+    const nodes = document.querySelectorAll('.hierarchy-tree .node-box');
+    nodes.forEach(node => {
+        const text = node.innerText.toLowerCase();
+        if (!q || text.includes(q)) {
+            node.style.opacity = '1';
+            node.style.transform = 'scale(1)';
+            if (q) {
+                node.style.boxShadow = '0 0 0 3px #6366f1, 0 10px 20px rgba(99, 102, 241, 0.2)';
+            } else {
+                node.style.boxShadow = '';
+            }
+        } else {
+            node.style.opacity = '0.25';
+            node.style.boxShadow = '';
         }
     });
 }

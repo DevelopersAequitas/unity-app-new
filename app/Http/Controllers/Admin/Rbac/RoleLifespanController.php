@@ -6,7 +6,6 @@ namespace App\Http\Controllers\Admin\Rbac;
 
 use App\Http\Controllers\Controller;
 use App\Models\Role;
-use App\Support\AdminAccess;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,8 +29,8 @@ class RoleLifespanController extends Controller
         $adminUsersQuery = DB::table('admin_users');
         if ($search) {
             $adminUsersQuery->where(function ($q) use ($search) {
-                $q->where('name', 'like', '%' . $search . '%')
-                  ->orWhere('email', 'like', '%' . $search . '%');
+                $q->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%');
             });
         }
         $adminUsers = $adminUsersQuery->get();
@@ -93,8 +92,8 @@ class RoleLifespanController extends Controller
 
         if ($search) {
             $activeAssignmentsQuery->where(function ($q) use ($search) {
-                $q->where('admin_users.name', 'like', '%' . $search . '%')
-                  ->orWhere('admin_users.email', 'like', '%' . $search . '%');
+                $q->where('admin_users.name', 'like', '%'.$search.'%')
+                    ->orWhere('admin_users.email', 'like', '%'.$search.'%');
             });
         }
 
@@ -118,12 +117,15 @@ class RoleLifespanController extends Controller
             // Find who assigned it
             $assignedBy = 'System';
             $userLogs = $auditLogsByUser->get($active->user_id) ?? collect();
-            
+
             // Find the latest assign log for this role key
             $assignLog = $userLogs->filter(function ($log) use ($active) {
-                if ($log->action !== 'admin.rbac.role.assign') return false;
+                if ($log->action !== 'admin.rbac.role.assign') {
+                    return false;
+                }
                 $details = json_decode($log->details, true);
                 $roleKey = $details['new_values']['role_key'] ?? '';
+
                 return strtolower(str_replace(' ', '_', $roleKey)) === strtolower(str_replace(' ', '_', $active->role_key));
             })->last();
 
@@ -146,7 +148,7 @@ class RoleLifespanController extends Controller
 
             if ($isDed && isset($dedDistricts[$active->user_id])) {
                 foreach ($dedDistricts[$active->user_id] as $d) {
-                    $scopes[] = $d->district_name . ' (' . ($d->state_name ?? 'District') . ')';
+                    $scopes[] = $d->district_name.' ('.($d->state_name ?? 'District').')';
                 }
             } elseif ($isId && isset($idIndustries[$active->user_id])) {
                 foreach ($idIndustries[$active->user_id] as $i) {
@@ -154,7 +156,7 @@ class RoleLifespanController extends Controller
                 }
             } elseif ($isCircle && isset($circleMemberships[strtolower($active->user_email)])) {
                 foreach ($circleMemberships[strtolower($active->user_email)] as $c) {
-                    $scopes[] = $c->circle_name . ' (' . ucfirst(str_replace('_', ' ', $c->circle_role)) . ')';
+                    $scopes[] = $c->circle_name.' ('.ucfirst(str_replace('_', ' ', $c->circle_role)).')';
                 }
             }
 
@@ -178,9 +180,11 @@ class RoleLifespanController extends Controller
         foreach ($auditLogsByUser as $targetUserId => $logs) {
             $userEmail = $adminUserEmails[$targetUserId] ?? null;
             $userName = $adminUsersMap[$targetUserId] ?? null;
-            if (!$userName) continue;
+            if (! $userName) {
+                continue;
+            }
 
-            if ($search && !str_contains(strtolower($userName), strtolower($search)) && !str_contains(strtolower($userEmail ?? ''), strtolower($search))) {
+            if ($search && ! str_contains(strtolower($userName), strtolower($search)) && ! str_contains(strtolower($userEmail ?? ''), strtolower($search))) {
                 continue;
             }
 
@@ -200,7 +204,7 @@ class RoleLifespanController extends Controller
                     if (isset($openAssignments[$roleKey])) {
                         $start = $openAssignments[$roleKey]['assigned_at'];
                         $duration = $start->diffInDays($createdAt);
-                        
+
                         $historicalLifespans[] = [
                             'user_name' => $userName,
                             'user_email' => $userEmail,
@@ -210,7 +214,7 @@ class RoleLifespanController extends Controller
                             'removed_at' => $createdAt->toDayDateTimeString(),
                             'assigned_by' => $openAssignments[$roleKey]['assigned_by'],
                             'removed_by' => $actorName,
-                            'duration' => $duration . ' days',
+                            'duration' => $duration.' days',
                             'reason' => 'Superceded by update',
                         ];
                     }
@@ -247,7 +251,7 @@ class RoleLifespanController extends Controller
                             'removed_at' => $createdAt->toDayDateTimeString(),
                             'assigned_by' => $openAssignments[$roleKey]['assigned_by'],
                             'removed_by' => $actorName,
-                            'duration' => $duration > 0 ? ($duration . ' days') : 'Less than a day',
+                            'duration' => $duration > 0 ? ($duration.' days') : 'Less than a day',
                             'reason' => 'Removed by admin',
                         ];
 
@@ -278,7 +282,7 @@ class RoleLifespanController extends Controller
                             'removed_at' => $createdAt->toDayDateTimeString(),
                             'assigned_by' => $open['assigned_by'],
                             'removed_by' => $userName, // Self removed
-                            'duration' => $duration > 0 ? ($duration . ' days') : 'Less than a day',
+                            'duration' => $duration > 0 ? ($duration.' days') : 'Less than a day',
                             'reason' => 'Self-removed / fallback to User',
                         ];
                     }
@@ -327,7 +331,7 @@ class RoleLifespanController extends Controller
             $totalDays += $days;
             $completedCount++;
         }
-        $avgDurationText = $completedCount > 0 ? round($totalDays / $completedCount, 1) . ' Days' : 'N/A';
+        $avgDurationText = $completedCount > 0 ? round($totalDays / $completedCount, 1).' Days' : 'N/A';
 
         // Active breakdown list
         $breakdown = [];
