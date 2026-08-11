@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests\Api\V1\Profile;
 
 use App\Support\ContactVisibility;
@@ -101,7 +103,7 @@ class UpdateProfileRequest extends FormRequest
             'industries_of_interest.*' => ['string', 'max:150'],
             'collaboration_goals' => ['sometimes', 'nullable', 'array'],
             'collaboration_goals.*' => ['string', 'max:150'],
-            'preferred_meeting_format' => ['sometimes', 'nullable', Rule::in(['in_person', 'virtual', 'both'])],
+            'preferred_meeting_format' => ['sometimes', 'nullable', 'string', 'max:50'],
             'willing_to_mentor' => ['sometimes', 'nullable', 'boolean'],
             'open_to_cross_city_collaboration' => ['sometimes', 'nullable', 'boolean'],
             'open_to_speaking_at_events' => ['sometimes', 'nullable', 'boolean'],
