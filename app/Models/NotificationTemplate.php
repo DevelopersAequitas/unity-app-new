@@ -12,6 +12,7 @@ class NotificationTemplate extends Model
     protected $table = 'notification_templates';
 
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

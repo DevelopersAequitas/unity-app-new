@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Admin\DistrictSyncService;
+use App\Services\MilestoneBadgeService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -394,6 +395,10 @@ class User extends Authenticatable
         static::saved(function (self $user): void {
             if ($user->wasRecentlyCreated || $user->wasChanged(['city_id', 'city', 'business_city', 'state', 'business_state', 'district'])) {
                 app(DistrictSyncService::class)->syncFromUser($user);
+            }
+
+            if ($user->wasRecentlyCreated || $user->wasChanged(['coins_balance', 'life_impacted_count', 'members_introduced_count'])) {
+                app(MilestoneBadgeService::class)->calculateForUser($user);
             }
         });
     }
