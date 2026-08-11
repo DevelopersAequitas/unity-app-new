@@ -52,6 +52,7 @@ class RoleHierarchyController extends Controller
 
         // Fetch peers and scope entities for the assignment interface
         $peers = DB::table('admin_users')->orderBy('name')->get();
+        $peers = $this->enrichPeersWithScopes($peers);
         $districts = DB::table('districts')->orderBy('name')->get();
         $industries = DB::table('industries')->orderBy('name')->get();
         $circles = DB::table('circles')->orderBy('name')->get();

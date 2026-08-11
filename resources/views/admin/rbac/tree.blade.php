@@ -299,60 +299,6 @@
         </div>
     </div>
 
-    {{-- Interactive RBAC Explainer Card --}}
-    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #f8fafc;">
-        <div class="card-body p-4">
-            <div class="d-flex align-items-center justify-content-between mb-3">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="p-3 bg-primary bg-opacity-25 rounded-3 text-primary border border-primary border-opacity-25">
-                        <i class="bi bi-lightbulb-fill fs-3"></i>
-                    </div>
-                    <div>
-                        <h5 class="fw-bold mb-1 text-white">How Dynamic Role Hierarchy Works</h5>
-                        <p class="text-secondary small mb-0">Understand role inheritance, parent-child delegation, and data scoping in 3 simple rules.</p>
-                    </div>
-                </div>
-                <button class="btn btn-sm btn-outline-light rounded-pill px-3" type="button" data-bs-toggle="collapse" data-bs-target="#rbacGuideCollapse" aria-expanded="false">
-                    <i class="bi bi-info-circle me-1"></i> Toggle Guide
-                </button>
-            </div>
-
-            <div class="collapse show" id="rbacGuideCollapse">
-                <div class="row g-3 pt-2">
-                    <div class="col-md-4">
-                        <div class="p-3 bg-white bg-opacity-10 rounded-3 h-100 border border-white border-opacity-10">
-                            <div class="d-flex align-items-center gap-2 mb-2 text-warning fw-semibold">
-                                <i class="bi bi-diagram-2"></i> 1. Permission Inheritance
-                            </div>
-                            <p class="small text-secondary mb-0">
-                                Child roles automatically inherit page permissions granted to their parent roles, allowing seamless cascade down the tree.
-                            </p>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="p-3 bg-white bg-opacity-10 rounded-3 h-100 border border-white border-opacity-10">
-                            <div class="d-flex align-items-center gap-2 mb-2 text-info fw-semibold">
-                                <i class="bi bi-people-fill"></i> 2. Peer Assignment
-                            </div>
-                            <p class="small text-secondary mb-0">
-                                Admin users (Peers) can be assigned to multiple roles across the hierarchy without conflicting credentials.
-                            </p>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="p-3 bg-white bg-opacity-10 rounded-3 h-100 border border-white border-opacity-10">
-                            <div class="d-flex align-items-center gap-2 mb-2 text-success fw-semibold">
-                                <i class="bi bi-funnel-fill"></i> 3. Dynamic Scope Rules
-                            </div>
-                            <p class="small text-secondary mb-0">
-                                Dynamic data scopes restrict visibility boundaries to specific Districts, Circles, or Industries automatically.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     {{-- Stats Bar --}}
     <div class="row g-3 mb-4">
@@ -422,10 +368,15 @@
                         @csrf
                         <div class="mb-3">
                             <label for="assign_user_id" class="form-label fw-semibold fs-7">Select Peer (Admin)</label>
-                            <select id="assign_user_id" name="admin_user_id" class="form-select rounded-3" required>
+                            <select id="assign_user_id" name="admin_user_id" class="form-select rounded-3" required onchange="onAssignRoleChange()">
                                 <option value="">-- Choose Peer --</option>
                                 @foreach($peers as $p)
-                                    <option value="{{ $p->id }}">{{ $p->name }} ({{ $p->email }})</option>
+                                    <option value="{{ $p->id }}"
+                                            data-district-id="{{ $p->district_id ?? '' }}"
+                                            data-industry-id="{{ $p->industry_id ?? '' }}"
+                                            data-circle-ids="{{ json_encode(array_values(array_unique($p->circle_ids ?? []))) }}">
+                                        {{ $p->name }} ({{ $p->email }})
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
@@ -493,9 +444,12 @@
                 <div class="card-header bg-transparent border-bottom pt-4 pb-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2" style="border-color: rgba(0,0,0,0.08) !important;">
                     <h5 class="card-title fw-bold mb-0"><i class="bi bi-diagram-3 me-2 text-primary"></i>Hierarchy Map</h5>
                     <div class="d-flex align-items-center gap-2">
-                        <div class="input-group input-group-sm" style="max-width: 260px;">
-                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                            <input type="text" id="roleTreeSearch" class="form-control border-start-0" placeholder="Filter role node..." onkeyup="filterRoleTree()">
+                        <div class="position-relative" style="width: 240px;">
+                            <i class="bi bi-search position-absolute top-50 translate-middle-y text-muted" style="z-index: 5; pointer-events: none; font-size: 0.85rem; left: 14px;"></i>
+                            <input type="text" id="roleTreeSearch" class="form-control" placeholder="Filter role node..." oninput="filterRoleTree()" style="font-size: 0.82rem; height: 38px !important; padding-left: 38px !important; padding-right: 32px !important;">
+                            <button type="button" id="clearSearchBtn" class="btn btn-link position-absolute top-50 translate-middle-y text-muted p-0 d-none" onclick="clearRoleSearch()" style="z-index: 5; text-decoration: none; right: 12px;" title="Clear search">
+                                <i class="bi bi-x-circle-fill text-secondary" style="font-size: 0.85rem;"></i>
+                            </button>
                         </div>
                         <a href="{{ route('admin.rbac.hierarchy.fullmap') }}" target="_blank"
                            class="btn btn-sm btn-light border d-flex align-items-center gap-1"
@@ -787,18 +741,35 @@ function openDeleteModal(id, name) {
 }
 function onAssignRoleChange() {
     const roleSelect = document.getElementById('assign_role_id');
-    const selectedOption = roleSelect.options[roleSelect.selectedIndex];
-    const key = selectedOption ? (selectedOption.getAttribute('data-key') || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim() : '';
+    const selectedRoleOpt = roleSelect && roleSelect.selectedIndex >= 0 ? roleSelect.options[roleSelect.selectedIndex] : null;
+    const key = selectedRoleOpt ? (selectedRoleOpt.getAttribute('data-key') || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim() : '';
+
+    const peerSelect = document.getElementById('assign_user_id');
+    const selectedPeerOpt = peerSelect && peerSelect.selectedIndex >= 0 ? peerSelect.options[peerSelect.selectedIndex] : null;
+
+    const peerDistrictId = selectedPeerOpt ? (selectedPeerOpt.getAttribute('data-district-id') || '') : '';
+    const peerIndustryId = selectedPeerOpt ? (selectedPeerOpt.getAttribute('data-industry-id') || '') : '';
+    let peerCircleIds = [];
+    try {
+        const circleData = selectedPeerOpt ? selectedPeerOpt.getAttribute('data-circle-ids') : '[]';
+        peerCircleIds = JSON.parse(circleData || '[]');
+    } catch (e) {
+        peerCircleIds = [];
+    }
 
     const container = document.getElementById('scope_container');
     const districtSel = document.getElementById('district_selector');
     const industrySel = document.getElementById('industry_selector');
     const circleSel = document.getElementById('circle_selector');
 
+    const districtInput = document.getElementById('assign_district_id');
+    const industryInput = document.getElementById('assign_industry_id');
+    const circleInput = document.getElementById('assign_circle_id');
+
     // Reset inputs
-    document.getElementById('assign_district_id').value = '';
-    document.getElementById('assign_industry_id').value = '';
-    document.getElementById('assign_circle_id').value = '';
+    districtInput.value = '';
+    industryInput.value = '';
+    circleInput.value = '';
 
     // Hide all
     container.style.display = 'none';
@@ -807,9 +778,9 @@ function onAssignRoleChange() {
     circleSel.style.display = 'none';
 
     // Remove required flags
-    document.getElementById('assign_district_id').required = false;
-    document.getElementById('assign_industry_id').required = false;
-    document.getElementById('assign_circle_id').required = false;
+    districtInput.required = false;
+    industryInput.required = false;
+    circleInput.required = false;
 
     const isDed = key === 'ded' || key.includes('ded') || key.includes('district');
     const isId = key === 'id' || key === 'ied' || key.includes('industry');
@@ -821,22 +792,54 @@ function onAssignRoleChange() {
     if (isDed) {
         container.style.display = 'block';
         districtSel.style.display = 'block';
-        document.getElementById('assign_district_id').required = true;
+        districtInput.required = true;
+
+        if (peerDistrictId) {
+            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+                $(districtInput).val(peerDistrictId).trigger('change');
+            } else {
+                districtInput.value = peerDistrictId;
+            }
+        } else if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            $(districtInput).val('').trigger('change');
+        }
     } else if (isId) {
         container.style.display = 'block';
         industrySel.style.display = 'block';
-        document.getElementById('assign_industry_id').required = true;
+        industryInput.required = true;
+
+        if (peerIndustryId) {
+            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+                $(industryInput).val(peerIndustryId).trigger('change');
+            } else {
+                industryInput.value = peerIndustryId;
+            }
+        } else if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            $(industryInput).val('').trigger('change');
+        }
     } else if (isCircle) {
         container.style.display = 'block';
         circleSel.style.display = 'block';
-        document.getElementById('assign_circle_id').required = true;
+        circleInput.required = true;
+
+        if (peerCircleIds && peerCircleIds.length > 0) {
+            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+                $(circleInput).val(peerCircleIds[0]).trigger('change');
+            } else {
+                circleInput.value = peerCircleIds[0];
+            }
+        } else if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            $(circleInput).val('').trigger('change');
+        }
     }
 
     const permissionsContainer = document.getElementById('permissions_container');
-    if (roleSelect && roleSelect.value) {
-        permissionsContainer.style.display = 'block';
-    } else {
-        permissionsContainer.style.display = 'none';
+    if (permissionsContainer) {
+        if (roleSelect && roleSelect.value) {
+            permissionsContainer.style.display = 'block';
+        } else {
+            permissionsContainer.style.display = 'none';
+        }
     }
 }
 
@@ -943,7 +946,9 @@ const globalCircles = @json($circles);
 
 document.addEventListener('DOMContentLoaded', function() {
     if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
-        $('#assign_user_id').select2({ width: '100%' });
+        $('#assign_user_id').select2({ width: '100%' }).on('change', function() {
+            onAssignRoleChange();
+        });
         $('#assign_role_id').select2({ width: '100%' }).on('change', function() {
             onAssignRoleChange();
         });
@@ -1321,24 +1326,61 @@ function removePeerAssignment(userId, userName) {
 }
 
 function filterRoleTree() {
-    const q = (document.getElementById('roleTreeSearch')?.value || '').toLowerCase().trim();
+    const searchInput = document.getElementById('roleTreeSearch');
+    const q = (searchInput?.value || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('clearSearchBtn');
+    
+    if (clearBtn) {
+        if (q.length > 0) {
+            clearBtn.classList.remove('d-none');
+        } else {
+            clearBtn.classList.add('d-none');
+        }
+    }
+
     const nodes = document.querySelectorAll('.hierarchy-tree .node-box');
     nodes.forEach(node => {
-        const text = node.innerText.toLowerCase();
-        if (!q || text.includes(q)) {
+        const titleText = node.querySelector('.node-title')?.innerText.toLowerCase() || '';
+        const metaText  = node.querySelector('.node-meta')?.innerText.toLowerCase() || '';
+        const badgeText = node.querySelector('.node-badge')?.innerText.toLowerCase() || '';
+        const fullText  = (titleText + ' ' + metaText + ' ' + badgeText).toLowerCase();
+
+        if (!q || fullText.includes(q)) {
             node.style.opacity = '1';
-            node.style.transform = 'scale(1)';
             if (q) {
-                node.style.boxShadow = '0 0 0 3px #6366f1, 0 10px 20px rgba(99, 102, 241, 0.2)';
+                node.style.transform = 'scale(1.05)';
+                node.style.boxShadow = '0 0 0 3px #6366f1, 0 10px 20px rgba(99, 102, 241, 0.3)';
             } else {
+                node.style.transform = '';
                 node.style.boxShadow = '';
             }
         } else {
-            node.style.opacity = '0.25';
+            node.style.opacity = '0.2';
+            node.style.transform = 'scale(0.96)';
             node.style.boxShadow = '';
         }
     });
 }
+
+function clearRoleSearch() {
+    const searchInput = document.getElementById('roleTreeSearch');
+    if (searchInput) {
+        searchInput.value = '';
+        filterRoleTree();
+        searchInput.focus();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('roleTreeSearch');
+    if (searchInput) {
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                clearRoleSearch();
+            }
+        });
+    }
+});
 </script>
 @endpush
 @endsection
