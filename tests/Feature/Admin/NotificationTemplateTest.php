@@ -5,10 +5,11 @@ namespace Tests\Feature\Admin;
 use App\Models\AdminUser;
 use App\Models\NotificationTemplate;
 use App\Models\Role;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class NotificationTemplateTest extends TestCase
@@ -20,11 +21,11 @@ class NotificationTemplateTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->createTestSchemas();
 
         // Create admin user and assign super-admin role
-        $roleId = (string) \Illuminate\Support\Str::uuid();
+        $roleId = (string) Str::uuid();
         DB::table('roles')->insert([
             'id' => $roleId,
             'name' => 'Super Admin',
@@ -34,13 +35,13 @@ class NotificationTemplateTest extends TestCase
         ]);
 
         $this->admin = AdminUser::create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'name' => 'Admin User',
-            'email' => 'admin_notif_test_' . uniqid() . '@example.test',
+            'email' => 'admin_notif_test_'.uniqid().'@example.test',
             'password' => bcrypt('password'),
             'status' => 'active',
         ]);
-        
+
         DB::table('admin_user_roles')->insert([
             'user_id' => $this->admin->id,
             'role_id' => $roleId,

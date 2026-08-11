@@ -365,7 +365,7 @@ class NotificationTemplateController extends Controller
 
         foreach (self::$catalog as $key => $tpl) {
             $dbRecord = NotificationTemplate::where('template_key', $key)->first();
-            if (!$dbRecord) {
+            if (! $dbRecord) {
                 // Pre-populate template in database if not present
                 $dbRecord = NotificationTemplate::create([
                     'template_key' => $key,
@@ -390,14 +390,14 @@ class NotificationTemplateController extends Controller
      */
     public function edit(string $key): View|RedirectResponse
     {
-        if (!isset(self::$catalog[$key])) {
+        if (! isset(self::$catalog[$key])) {
             return redirect()->route('admin.notification-templates.index')->with('error', 'Notification template not found.');
         }
 
         $template = self::$catalog[$key];
         $dbTemplate = NotificationTemplate::where('template_key', $key)->first();
 
-        if (!$dbTemplate) {
+        if (! $dbTemplate) {
             $dbTemplate = NotificationTemplate::create([
                 'template_key' => $key,
                 'name' => $template['name'],
@@ -416,7 +416,7 @@ class NotificationTemplateController extends Controller
      */
     public function update(Request $request, string $key): RedirectResponse
     {
-        if (!isset(self::$catalog[$key])) {
+        if (! isset(self::$catalog[$key])) {
             return redirect()->route('admin.notification-templates.index')->with('error', 'Template not found.');
         }
 
@@ -442,7 +442,8 @@ class NotificationTemplateController extends Controller
                 'key' => $key,
                 'error' => $e->getMessage(),
             ]);
-            return back()->with('error', 'Failed to update template: ' . $e->getMessage());
+
+            return back()->with('error', 'Failed to update template: '.$e->getMessage());
         }
     }
 
@@ -451,7 +452,7 @@ class NotificationTemplateController extends Controller
      */
     public function preview(string $key)
     {
-        if (!isset(self::$catalog[$key])) {
+        if (! isset(self::$catalog[$key])) {
             abort(404);
         }
 

@@ -470,11 +470,11 @@ class EmailTemplateController extends Controller
         }
 
         $fullHtml = File::get($filePath);
-        
+
         // Find all editable blocks
         preg_match_all('/<!-- EDITABLE_START -->(.*?)<!-- EDITABLE_END -->/s', $fullHtml, $matches);
         $editableBlocks = [];
-        if (!empty($matches[1])) {
+        if (! empty($matches[1])) {
             foreach ($matches[1] as $match) {
                 $editableBlocks[] = strip_tags(str_replace(['<br />', '<br>', '<br/>'], "\n", trim($match)));
             }
@@ -520,17 +520,17 @@ class EmailTemplateController extends Controller
             $request->validate([
                 'simple_content' => 'required|array',
             ]);
-            
+
             $newSimpleContent = $request->input('simple_content');
             $blockIndex = 0;
-            
+
             $updatedHtml = preg_replace_callback(
                 '/<!-- EDITABLE_START -->.*?<!-- EDITABLE_END -->/s',
-                function($matches) use ($newSimpleContent, &$blockIndex) {
+                function ($matches) use ($newSimpleContent, &$blockIndex) {
                     $text = $newSimpleContent[$blockIndex] ?? '';
                     $blockIndex++;
-                    
-                    $paragraphs = preg_split('/\n/', str_replace("\r", "", $text));
+
+                    $paragraphs = preg_split('/\n/', str_replace("\r", '', $text));
                     $formattedHtml = '';
                     foreach ($paragraphs as $para) {
                         $trimmed = trim($para);
@@ -543,7 +543,8 @@ class EmailTemplateController extends Controller
                             }
                         }
                     }
-                    return "<!-- EDITABLE_START -->\n" . trim($formattedHtml) . "\n<!-- EDITABLE_END -->";
+
+                    return "<!-- EDITABLE_START -->\n".trim($formattedHtml)."\n<!-- EDITABLE_END -->";
                 },
                 $fullHtml
             );
