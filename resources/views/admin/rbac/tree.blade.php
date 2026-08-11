@@ -827,6 +827,7 @@ document.addEventListener('DOMContentLoaded', function() {
 let currentOpenRoleId = '';
 let activeRoleKey = '';
 let activeScopeRule = '';
+let availablePeersData = [];
 
 const globalDistricts = @json($districts);
 const globalIndustries = @json($industries);
@@ -845,11 +846,18 @@ document.addEventListener('DOMContentLoaded', function() {
         $('#quick_assign_user').select2({
             dropdownParent: $('#roleAssignmentsModal'),
             width: '100%'
+        }).on('change', function() {
+            onQuickAssignUserChange();
         });
         $('#quick_scope_id').select2({
             dropdownParent: $('#roleAssignmentsModal'),
             width: '100%'
         });
+    } else {
+        const peerSelect = document.getElementById('quick_assign_user');
+        if (peerSelect) {
+            peerSelect.addEventListener('change', onQuickAssignUserChange);
+        }
     }
 });
 
@@ -945,6 +953,7 @@ function fetchAssignments() {
         .then(data => {
             if (data.success) {
                 countBadge.textContent = data.assignments.length;
+                availablePeersData = data.available_peers || [];
 
                 if (data.assignments.length === 0) {
                     listContainer.innerHTML = '<div class="text-center py-4 text-muted fs-8">No peers assigned to this role yet.</div>';
@@ -1076,6 +1085,69 @@ function setupModalScopeSelect() {
 
     if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
         $(scopeSelect).trigger('change');
+    }
+}
+
+function onQuickAssignUserChange() {
+    const peerSelect = document.getElementById('quick_assign_user');
+    const selectedUserId = peerSelect ? peerSelect.value : '';
+    if (!selectedUserId) {
+        setupModalScopeSelect();
+        return;
+    }
+
+    const peer = availablePeersData.find(p => String(p.id) === String(selectedUserId));
+    if (!peer) {
+        return;
+    }
+
+    const normalizedKey = (activeRoleKey || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim();
+    const isDed = normalizedKey === 'ded' || normalizedKey.includes('ded') || normalizedKey.includes('district');
+    const isId = normalizedKey === 'id' || normalizedKey === 'ied' || normalizedKey.includes('industry');
+    const isCircle = ['cd', 'cf', 'chair', 'vice chair', 'secretary', 'circle leader'].includes(normalizedKey) || 
+                     normalizedKey.includes('circle') || 
+                     normalizedKey.includes('chair') || 
+                     normalizedKey.includes('secretary');
+
+    const scopeSelect = $('#quick_scope_id');
+
+    if (isDed) {
+        if (peer.district_id) {
+            scopeSelect.val(peer.district_id).trigger('change');
+        } else {
+            scopeSelect.val('').trigger('change');
+        }
+    } else if (isId) {
+        if (peer.industry_id) {
+            scopeSelect.val(peer.industry_id).trigger('change');
+        } else {
+            scopeSelect.val('').trigger('change');
+        }
+    } else if (isCircle) {
+        const userCircles = (peer.circle_ids || []).map(id => String(id).toLowerCase());
+        const scopeSelect = $('#quick_scope_id');
+
+        scopeSelect.empty();
+        scopeSelect.append(new Option('-- Choose Circle --', ''));
+
+        // Filter globalCircles to only include circles joined by this peer
+        let matchedCircles = [];
+        if (userCircles.length > 0) {
+            matchedCircles = globalCircles.filter(c => userCircles.includes(String(c.id).toLowerCase()));
+        }
+
+        const circlesToDisplay = matchedCircles.length > 0 ? matchedCircles : globalCircles;
+
+        circlesToDisplay.forEach(c => {
+            scopeSelect.append(new Option(c.name, c.id));
+        });
+
+        // Automatically select the peer's circle if available
+        if (matchedCircles.length > 0) {
+            scopeSelect.val(matchedCircles[0].id).trigger('change');
+        } else {
+            scopeSelect.val('').trigger('change');
+        }
     }
 }
 
