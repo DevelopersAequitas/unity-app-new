@@ -1001,8 +1001,16 @@ class RoleHierarchyController extends Controller
             if ($isDed) {
                 if ($scopeId) {
                     $district = DB::table('districts')->where('id', $scopeId)->first();
-                    $state = $district ? DB::table('states')->where('id', $district->state_id)->first() : null;
+                    if (! $district) {
+                        $district = DB::table('districts')->whereRaw('LOWER(TRIM(name)) = ?', [strtolower(trim($scopeId))])->first();
+                    }
+                    $state = $district && ! empty($district->state_id) ? DB::table('states')->where('id', $district->state_id)->first() : null;
                     $appUser = DB::table('users')->whereRaw('LOWER(email) = ?', [strtolower($adminUser->email)])->first();
+
+                    $resolvedDistrictId = $district->id ?? $scopeId;
+                    $resolvedDistrictName = $district->name ?? $scopeId;
+                    $resolvedStateId = $district->state_id ?? ($state->id ?? null);
+                    $resolvedStateName = $state->name ?? '';
 
                     DB::table('admin_ded_districts')->where('admin_user_id', $adminUserId)->delete();
 
@@ -1010,10 +1018,10 @@ class RoleHierarchyController extends Controller
                         'id' => (string) Str::uuid(),
                         'admin_user_id' => $adminUserId,
                         'user_id' => $appUser?->id,
-                        'district_id' => $scopeId,
-                        'district_name' => $district->name ?? '',
-                        'state_id' => $district->state_id ?? null,
-                        'state_name' => $state->name ?? '',
+                        'district_id' => $resolvedDistrictId,
+                        'district_name' => $resolvedDistrictName,
+                        'state_id' => $resolvedStateId,
+                        'state_name' => $resolvedStateName,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);

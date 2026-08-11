@@ -396,7 +396,7 @@
                             <!-- District Selector (for DED) -->
                             <div class="mb-3 scope-selector" id="district_selector" style="display: none;">
                                 <label for="assign_district_id" class="form-label fw-semibold fs-7">Select District</label>
-                                <select id="assign_district_id" name="scope_id" class="form-select rounded-3">
+                                <select id="assign_district_id" name="scope_id" class="form-select rounded-3" disabled>
                                     <option value="">-- Choose District --</option>
                                     @foreach($districts as $d)
                                         <option value="{{ $d->id }}">{{ $d->name }}</option>
@@ -407,7 +407,7 @@
                             <!-- Industry Selector (for ID/IED) -->
                             <div class="mb-3 scope-selector" id="industry_selector" style="display: none;">
                                 <label for="assign_industry_id" class="form-label fw-semibold fs-7">Select Industry</label>
-                                <select id="assign_industry_id" name="scope_id" class="form-select rounded-3">
+                                <select id="assign_industry_id" name="scope_id" class="form-select rounded-3" disabled>
                                     <option value="">-- Choose Industry --</option>
                                     @foreach($industries as $i)
                                         <option value="{{ $i->id }}">{{ $i->name }}</option>
@@ -418,7 +418,7 @@
                             <!-- Circle Selector (for CD/CF/Chair/Vice Chair/Secretary) -->
                             <div class="mb-3 scope-selector" id="circle_selector" style="display: none;">
                                 <label for="assign_circle_id" class="form-label fw-semibold fs-7">Select Circle</label>
-                                <select id="assign_circle_id" name="scope_id" class="form-select rounded-3">
+                                <select id="assign_circle_id" name="scope_id" class="form-select rounded-3" disabled>
                                     <option value="">-- Choose Circle --</option>
                                     @foreach($circles as $c)
                                         <option value="{{ $c->id }}">{{ $c->name }}</option>
@@ -771,6 +771,11 @@ function onAssignRoleChange() {
     industryInput.value = '';
     circleInput.value = '';
 
+    // Disable all by default so unselected inputs don't submit empty scope_id values
+    districtInput.disabled = true;
+    industryInput.disabled = true;
+    circleInput.disabled = true;
+
     // Hide all
     container.style.display = 'none';
     districtSel.style.display = 'none';
@@ -792,6 +797,7 @@ function onAssignRoleChange() {
     if (isDed) {
         container.style.display = 'block';
         districtSel.style.display = 'block';
+        districtInput.disabled = false;
         districtInput.required = true;
 
         if (peerDistrictId) {
@@ -806,6 +812,7 @@ function onAssignRoleChange() {
     } else if (isId) {
         container.style.display = 'block';
         industrySel.style.display = 'block';
+        industryInput.disabled = false;
         industryInput.required = true;
 
         if (peerIndustryId) {
@@ -820,6 +827,7 @@ function onAssignRoleChange() {
     } else if (isCircle) {
         container.style.display = 'block';
         circleSel.style.display = 'block';
+        circleInput.disabled = false;
         circleInput.required = true;
 
         if (peerCircleIds && peerCircleIds.length > 0) {
