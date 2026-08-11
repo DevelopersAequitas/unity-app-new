@@ -3,7 +3,7 @@
 -- Unity App - PeersUnity
 -- Run this FIRST before any other SQL file
 -- ============================================================
-
+ 
 -- ────────────────────────────────────────────────────────────
 -- 1. admin_modules — Sidebar sections (Dashboard, Members, etc.)
 -- ────────────────────────────────────────────────────────────
