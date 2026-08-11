@@ -629,6 +629,9 @@
                             <li class="nav-item">
                                 <a class="nav-link {{ request()->routeIs('admin.rbac.hierarchy') ? 'active' : '' }}" href="{{ route('admin.rbac.hierarchy') }}">Role Hierarchy</a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.lifespan.*') ? 'active' : '' }}" href="{{ route('admin.rbac.lifespan.index') }}">Role History</a>
+                            </li>
                         </ul>
                     </div>
                 </li>

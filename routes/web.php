@@ -68,6 +68,7 @@ use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
 use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
 use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
 use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
+use App\Http\Controllers\Admin\Rbac\RoleLifespanController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
@@ -173,6 +174,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/workflow-rules', [WorkflowApprovalRuleController::class, 'store'])->name('workflow-rules.store');
             Route::put('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'update'])->name('workflow-rules.update')->whereUuid('id');
             Route::delete('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'destroy'])->name('workflow-rules.destroy')->whereUuid('id');
+
+            // Role Lifespan & History
+            Route::get('/lifespan', [RoleLifespanController::class, 'index'])->name('lifespan.index');
         });
 
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');

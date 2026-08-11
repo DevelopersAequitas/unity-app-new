@@ -9,6 +9,7 @@
         ['label' => 'Data Scope', 'route' => 'admin.rbac.data-scope.index', 'icon' => 'bi-funnel', 'match' => 'admin.rbac.data-scope.*'],
         ['label' => 'Workflows', 'route' => 'admin.rbac.workflow-rules.index', 'icon' => 'bi-diagram-3', 'match' => 'admin.rbac.workflow-rules.*'],
         ['label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy', 'icon' => 'bi-tree', 'match' => 'admin.rbac.hierarchy*'],
+        ['label' => 'Role History', 'route' => 'admin.rbac.lifespan.index', 'icon' => 'bi-clock-history', 'match' => 'admin.rbac.lifespan.*'],
     ];
 @endphp
 
