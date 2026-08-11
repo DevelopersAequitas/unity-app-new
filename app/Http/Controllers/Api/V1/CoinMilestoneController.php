@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CoinsLedger;
 use App\Models\User;
 use App\Models\UserMilestoneBadge;
+use App\Services\MilestoneBadgeService;
 use App\Support\CoinMilestoneResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Schema;
@@ -150,6 +151,11 @@ class CoinMilestoneController extends Controller
             return $categorized;
         }
 
+        try {
+            app(MilestoneBadgeService::class)->calculateForUser($user);
+        } catch (\Throwable $e) {
+        }
+
         $earnedBadges = UserMilestoneBadge::query()
             ->with('badge')
             ->where('user_id', $user->id)
@@ -193,6 +199,11 @@ class CoinMilestoneController extends Controller
 
         if (! Schema::hasTable('user_milestone_badges') || ! Schema::hasTable('milestone_badges')) {
             return $categorized;
+        }
+
+        try {
+            app(MilestoneBadgeService::class)->calculateForUser($user);
+        } catch (\Throwable $e) {
         }
 
         $allBadges = UserMilestoneBadge::query()
