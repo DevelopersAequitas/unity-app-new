@@ -32,6 +32,13 @@ class MilestoneBadgeService
         $coinsBalance = (int) ($user->coins_balance ?? 0);
         $membersIntroducedCount = (int) ($user->members_introduced_count ?? 0);
 
+        if ($membersIntroducedCount === 0 && Schema::hasColumn('users', 'introduced_by')) {
+            $dbCount = User::query()->where('introduced_by', $user->id)->count();
+            if ($dbCount > 0) {
+                $membersIntroducedCount = $dbCount;
+            }
+        }
+
         $categories = [
             MilestoneBadge::TYPE_LIFE_IMPACT => $lifeImpactCount,
             MilestoneBadge::TYPE_COINS => $coinsBalance,
