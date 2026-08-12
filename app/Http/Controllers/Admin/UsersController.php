@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendFounderEngagementJob;
 use App\Jobs\SendPrMediaVisibilityWhatsappJob;
+use App\Jobs\SendProfileCompletionWhatsappJob;
 use App\Jobs\SendWelcomeWhatsappJob;
 use App\Models\AdminUser;
 use App\Models\Circle;
@@ -358,6 +359,8 @@ class UsersController extends Controller
                 ->delay(now()->addHours(3));
             SendPrMediaVisibilityWhatsappJob::dispatch((string) $user->id)
                 ->delay($registrationTime->copy()->addHours(24));
+            SendProfileCompletionWhatsappJob::dispatch((string) $user->id)
+                ->delay($registrationTime->copy()->addHours(48));
         }
 
         return redirect()
@@ -1520,6 +1523,8 @@ class UsersController extends Controller
                         ->delay(now()->addHours(3));
                     SendPrMediaVisibilityWhatsappJob::dispatch((string) $createdUser->id)
                         ->delay($registrationTime->copy()->addHours(24));
+                    SendProfileCompletionWhatsappJob::dispatch((string) $createdUser->id)
+                        ->delay($registrationTime->copy()->addHours(48));
                     $results['created']++;
                 }
             } catch (Throwable $e) {

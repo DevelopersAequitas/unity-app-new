@@ -65,6 +65,7 @@ class WhatsappNotificationService
             $body = array_merge([
                 'phone' => $normalizedPhone,
                 'mobile' => $normalizedPhone,
+                '@mobile' => $normalizedPhone,
             ], $payload);
 
             $response = Http::withHeaders([

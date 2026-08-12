@@ -1075,4 +1075,32 @@ class User extends Authenticatable
             'industry' => $industry,
         ];
     }
+
+    /**
+     * Calculate user profile completion percentage (0 to 100).
+     */
+    public function calculateProfileCompletionPercentage(): int
+    {
+        if (isset($this->attributes['profile_completed_percent']) && (int) $this->attributes['profile_completed_percent'] > 0) {
+            return (int) $this->attributes['profile_completed_percent'];
+        }
+
+        $fields = [
+            'first_name' => filled($this->getAttribute('first_name')) || filled($this->getAttribute('display_name')),
+            'last_name' => filled($this->getAttribute('last_name')),
+            'email' => filled($this->getAttribute('email')),
+            'phone' => filled($this->getAttribute('phone')) || filled($this->getAttribute('secondary_mobile')),
+            'company_name' => filled($this->getAttribute('company_name')),
+            'designation' => filled($this->getAttribute('designation')),
+            'city' => filled($this->getAttribute('city')) || filled($this->getAttribute('city_id')) || filled($this->getAttribute('city_of_residence')),
+            'profile_photo' => filled($this->getAttribute('profile_photo_file_id')) || filled($this->getAttribute('profile_photo_id')) || filled($this->getAttribute('profile_photo_url')),
+            'bio' => filled($this->getAttribute('short_bio')) || filled($this->getAttribute('long_bio_html')) || filled($this->getAttribute('experience_summary')),
+            'category' => filled($this->getAttribute('business_category_id')) || filled($this->getAttribute('main_business_category_id')) || filled($this->getAttribute('business_type')),
+        ];
+
+        $completedCount = collect($fields)->filter()->count();
+        $totalFields = count($fields);
+
+        return (int) round(($completedCount / $totalFields) * 100);
+    }
 }
