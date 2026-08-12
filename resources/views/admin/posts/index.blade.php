@@ -16,10 +16,81 @@
     };
 
     $getAvatarBg = function (?string $name): string {
-        if (! $name) return '#6366f1';
         $colors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
         $hash = crc32($name);
         return $colors[abs($hash) % count($colors)];
+    };
+
+    $formatVisibilityBadge = function (?string $visibility): array {
+        $raw = strtolower(trim((string) $visibility));
+        return match ($raw) {
+            'public' => [
+                'label' => 'Public',
+                'badgeClass' => 'bg-sky-50 text-sky-700 border-sky-200',
+                'icon' => 'bi-globe2 text-sky-500',
+            ],
+            'circle' => [
+                'label' => 'Circle',
+                'badgeClass' => 'bg-purple-50 text-purple-700 border-purple-200',
+                'icon' => 'bi-people-fill text-purple-500',
+            ],
+            'connections' => [
+                'label' => 'Connections',
+                'badgeClass' => 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                'icon' => 'bi-person-check-fill text-indigo-500',
+            ],
+            'private' => [
+                'label' => 'Private',
+                'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                'icon' => 'bi-lock-fill text-slate-500',
+            ],
+            '' => [
+                'label' => '—',
+                'badgeClass' => '',
+                'icon' => '',
+            ],
+            default => [
+                'label' => ucfirst($raw),
+                'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                'icon' => 'bi-eye-fill text-slate-500',
+            ],
+        };
+    };
+
+    $formatModerationBadge = function (?string $status): array {
+        $raw = strtolower(trim((string) $status));
+        return match ($raw) {
+            'approved' => [
+                'label' => 'Approved',
+                'badgeClass' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                'dotClass' => 'bg-emerald-500',
+            ],
+            'pending' => [
+                'label' => 'Pending',
+                'badgeClass' => 'bg-amber-50 text-amber-700 border-amber-200',
+                'dotClass' => 'bg-amber-500',
+            ],
+            'rejected' => [
+                'label' => 'Rejected',
+                'badgeClass' => 'bg-rose-50 text-rose-700 border-rose-200',
+                'dotClass' => 'bg-rose-500',
+            ],
+            'flagged' => [
+                'label' => 'Flagged',
+                'badgeClass' => 'bg-orange-50 text-orange-700 border-orange-200',
+                'dotClass' => 'bg-orange-500',
+            ],
+            '' => [
+                'label' => '—',
+                'badgeClass' => '',
+                'dotClass' => '',
+            ],
+            default => [
+                'label' => ucfirst($raw),
+                'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                'dotClass' => 'bg-slate-500',
+            ],
+        };
     };
 @endphp
 
@@ -217,20 +288,49 @@
                                 <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$owner->company_name ?? $owner->company ?? $owner->business_name ?? '—'" /></td>
                                 <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$owner->city ?? '—'" /></td>
                                 <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$circleName ?: '—'" /></td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($post->visibility) }}</span>
-                                </td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $post->moderation_status ? ucfirst($post->moderation_status) : '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs">
-                                    @if($isActive)
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Yes</span>
+                                {{-- Visibility --}}
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @php $visInfo = $formatVisibilityBadge($post->visibility); @endphp
+                                    @if(!empty($visInfo['label']) && $visInfo['label'] !== '—')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border {{ $visInfo['badgeClass'] }}">
+                                            <i class="bi {{ $visInfo['icon'] }} text-[11px]" aria-hidden="true"></i>
+                                            <span>{{ $visInfo['label'] }}</span>
+                                        </span>
                                     @else
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">No</span>
+                                        <span class="t3">—</span>
+                                    @endif
+                                </td>
+                                {{-- Moderation Status --}}
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @php $modInfo = $formatModerationBadge($post->moderation_status); @endphp
+                                    @if(!empty($modInfo['label']) && $modInfo['label'] !== '—')
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border {{ $modInfo['badgeClass'] }}">
+                                            <span class="w-1.5 h-1.5 rounded-full {{ $modInfo['dotClass'] }}"></span>
+                                            <span>{{ $modInfo['label'] }}</span>
+                                        </span>
+                                    @else
+                                        <span class="t3">—</span>
+                                    @endif
+                                </td>
+                                {{-- Active --}}
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                    @if($isActive)
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                            <span>Yes</span>
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                            <span>No</span>
+                                        </span>
                                     @endif
                                 </td>
                                 <td class="px-3 py-2.5 text-xs">
                                     @if($isImpact)
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200 mb-1 inline-block">Impact</span>
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 mb-1">
+                                            <i class="bi bi-lightning-charge-fill text-sky-500 text-[10px]"></i> Impact
+                                        </span>
                                     @endif
                                     <div class="t1 font-medium max-w-[250px] admin-grid-text-clamp" data-full-text="{{ $post->content_text }}">{{ $post->content_text }}</div>
                                     @if($isCompletedCollaboration)

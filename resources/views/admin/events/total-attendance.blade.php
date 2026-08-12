@@ -172,7 +172,7 @@
                   {{ optional($row->checked_in_at)->format('d M Y, h:i A') ?? '-' }}
                 </td>
                 <td class="px-3 py-2.5 text-right text-xs whitespace-nowrap">
-                  <a href="{{ route('admin.events.attendance', $row->event_id) }}" class="inline-flex items-center justify-center px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold no-underline hover:bg-emerald-100 transition whitespace-nowrap">
+                  <a href="{{ route('admin.events.attendance', ['id' => $row->event_id]) }}" class="inline-flex items-center justify-center px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold no-underline hover:bg-emerald-100 transition whitespace-nowrap">
                     Attendance Log
                   </a>
                 </td>

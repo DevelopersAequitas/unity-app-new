@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendFounderEngagementJob;
+use App\Jobs\SendPrMediaVisibilityWhatsappJob;
+use App\Jobs\SendProfileCompletionWhatsappJob;
 use App\Jobs\SendWelcomeWhatsappJob;
 use App\Models\AdminUser;
 use App\Models\Circle;
@@ -351,9 +353,14 @@ class UsersController extends Controller
         });
 
         if ($user && $user->exists) {
+            $registrationTime = $user->created_at ? $user->created_at->copy() : now();
             SendWelcomeWhatsappJob::dispatch((string) $user->id);
             SendFounderEngagementJob::dispatch((string) $user->id)
                 ->delay(now()->addHours(3));
+            SendPrMediaVisibilityWhatsappJob::dispatch((string) $user->id)
+                ->delay($registrationTime->copy()->addHours(24));
+            SendProfileCompletionWhatsappJob::dispatch((string) $user->id)
+                ->delay($registrationTime->copy()->addHours(48));
         }
 
         return redirect()
@@ -555,6 +562,7 @@ class UsersController extends Controller
             'meetingFrequencies' => $meetingFrequencies,
             'citySuggestions' => $citySuggestions,
             'countries' => $countries,
+            'assignedAdminRoles' => $assignedAdminRoles,
             'userRoleIds' => $assignedAdminRoles->pluck('id')->all(),
             'assignedAdminRoleNames' => $assignedAdminRoles->pluck('name')->implode(', '),
             'hasAssignedAdminRole' => $assignedAdminRoles->isNotEmpty(),
@@ -599,7 +607,7 @@ class UsersController extends Controller
         $data = $this->getEditViewData($request, $userId);
         $data['isReadOnly'] = true;
 
-        return view('admin.users.edit', $data);
+        return view('admin.users.show', $data);
     }
 
     public function update(Request $request, string $userId)
@@ -1523,9 +1531,14 @@ class UsersController extends Controller
                     ];
 
                     $createdUser = User::create($payload);
+                    $registrationTime = $createdUser->created_at ? $createdUser->created_at->copy() : now();
                     SendWelcomeWhatsappJob::dispatch((string) $createdUser->id);
                     SendFounderEngagementJob::dispatch((string) $createdUser->id)
                         ->delay(now()->addHours(3));
+                    SendPrMediaVisibilityWhatsappJob::dispatch((string) $createdUser->id)
+                        ->delay($registrationTime->copy()->addHours(24));
+                    SendProfileCompletionWhatsappJob::dispatch((string) $createdUser->id)
+                        ->delay($registrationTime->copy()->addHours(48));
                     $results['created']++;
                 }
             } catch (Throwable $e) {

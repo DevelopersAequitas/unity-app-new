@@ -28,7 +28,7 @@
                             </p>
 
                             <p style="margin:0 0 20px 0;font-size:17px;line-height:1.6;color:#d9d9d9;">
-                                Congratulations! Your request for <strong style="color:#ffffff;">{{ ucfirst($submission->certification_type) }} Certification</strong> has been reviewed and approved by our team.
+                                <!-- EDITABLE_START -->Congratulations! Your request for <strong style="color:#ffffff;">{{ ucfirst($submission->certification_type) }} Certification</strong> has been reviewed and approved by our team.<!-- EDITABLE_END -->
                             </p>
 
                             <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#181818;border:1px solid #333333;border-radius:12px;overflow:hidden;margin:24px 0;">

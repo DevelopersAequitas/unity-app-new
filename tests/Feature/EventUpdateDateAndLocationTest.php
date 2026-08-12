@@ -54,6 +54,46 @@ class EventUpdateDateAndLocationTest extends TestCase
         $this->assertEquals('2026-08-04', $updatedOccurrence->start_at->toDateString());
     }
 
+    public function test_updating_monthly_recurring_event_start_date_uses_fixed_day_pattern_and_starts_on_correct_date(): void
+    {
+        $event = Event::query()->create([
+            'title' => 'MSME One Meet',
+            'event_type' => 'circle_meeting',
+            'mode' => 'offline',
+            'start_at' => '2026-10-06 08:00:00',
+            'end_at' => '2026-10-06 10:00:00',
+            'recurrence_type' => 'monthly',
+            'recurrence_interval' => 1,
+            'recurrence_ends_at' => '2027-08-04 00:00:00',
+            'recurrence_week_of_month' => 1,
+            'recurrence_day_of_week' => 2,
+        ]);
+
+        $generator = app(EventOccurrenceGeneratorService::class);
+        $generator->generate($event);
+
+        // Update event date to 2026-09-02 with fixed day pattern
+        $eventService = app(EventService::class);
+        $eventService->update($event, [
+            'title' => 'MSME One Meet',
+            'event_type' => 'circle_meeting',
+            'mode' => 'offline',
+            'start_at' => '2026-09-02 08:00:00',
+            'end_at' => '2026-09-02 10:00:00',
+            'recurrence_type' => 'monthly',
+            'recurrence_interval' => 1,
+            'recurrence_ends_at' => '2027-08-04 00:00:00',
+            'monthly_pattern' => 'fixed',
+            'recurrence_day_of_month' => 2,
+        ]);
+
+        $event->refresh();
+        $firstOccurrence = EventOccurrence::query()->where('event_id', $event->id)->orderBy('start_at')->first();
+        $this->assertNotNull($firstOccurrence);
+        $this->assertEquals('2026-09-02', $firstOccurrence->start_at->toDateString());
+        $this->assertEquals('08:00:00', $firstOccurrence->start_at->format('H:i:s'));
+    }
+
     public function test_clearing_address_line_removes_it_from_metadata_and_recalculates_location_text(): void
     {
         $event = Event::query()->create([
@@ -128,6 +168,12 @@ class EventUpdateDateAndLocationTest extends TestCase
             $table->boolean('qr_checkin_enabled')->default(false);
             $table->boolean('is_public')->default(false);
             $table->string('recurrence_type')->nullable();
+            $table->integer('recurrence_interval')->nullable()->default(1);
+            $table->integer('recurrence_day_of_week')->nullable();
+            $table->integer('recurrence_week_of_month')->nullable();
+            $table->integer('recurrence_day_of_month')->nullable();
+            $table->integer('recurrence_month')->nullable();
+            $table->timestamp('recurrence_ends_at')->nullable();
             $table->boolean('visitor_registration_enabled')->default(false);
             $table->boolean('member_registration_enabled')->default(true);
             $table->text('online_meeting_url')->nullable();

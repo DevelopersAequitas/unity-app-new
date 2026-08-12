@@ -219,7 +219,7 @@ class LimitedUserApiTest extends TestCase
             'status' => 'active',
         ]);
 
-        User::factory()->count(20)->create([
+        User::factory()->count(25)->create([
             'status' => 'active',
         ]);
 
@@ -228,8 +228,8 @@ class LimitedUserApiTest extends TestCase
         $response = $this->getJson('/api/v1/members/limited');
 
         $response->assertOk();
-        $this->assertCount(21, $response->json('data'));
-        $this->assertSame(21, $response->json('total_users'));
+        $this->assertCount(26, $response->json('data'));
+        $this->assertSame(26, $response->json('total_users'));
         $response->assertJsonMissing(['meta', 'links']);
     }
 

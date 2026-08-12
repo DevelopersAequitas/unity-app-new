@@ -124,7 +124,7 @@
                             <span class="text-muted small d-block">Associated App Account</span>
                             @if($ticket->user)
                                 <a href="#" onclick="event.preventDefault(); openActivityPeerModal('{{ $ticket->user->id }}', event, 'support_tickets');" class="text-success hover:underline no-underline fw-semibold">
-                                    <i class="bi bi-person-check-fill me-1"></i>Linked Account (ID: {{ $ticket->user->id }})
+                                    <i class="bi bi-person-check-fill me-1"></i>Linked Account (PGID: {{ $ticket->user->peer_id ?? $ticket->user->id }})
                                 </a>
                             @else
                                 <span class="text-muted"><i class="bi bi-person-x-fill me-1"></i>No linked account (Guest Submission)</span>
@@ -206,7 +206,7 @@
                             <div class="mb-3">
                                 <label for="email_subject" class="form-label text-dark small fw-semibold">Email Subject</label>
                                 <input type="text" name="subject" id="email_subject" class="form-control @error('subject') is-invalid @enderror" 
-                                       value="{{ old('subject', 'Re: [Ticket #' . $ticket->ticket_number . '] ' . $ticket->subject) }}" required>
+                                       value="{{ old('subject', 'Re: [Ticket #' . $ticket->ticket_number . '] ' . $ticket->subject) }}">
                                 @error('subject')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -227,7 +227,7 @@
                                     </div>
                                 </div>
                                 <textarea name="message" id="email_message" rows="6" class="form-control @error('message') is-invalid @enderror" 
-                                          placeholder="Type your response or solution to the user's issue here..." required>{{ old('message') }}</textarea>
+                                          placeholder="Type your response or solution to the user's issue here...">{{ old('message') }}</textarea>
                                 @error('message')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -266,10 +266,18 @@
                                         <option value="closed">Set to Closed</option>
                                     </select>
                                 </div>
-                                <div class="col-md-6 text-md-end pt-md-3">
-                                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2 px-4 py-2">
-                                        <i class="bi bi-send-fill"></i> Send Email Response
+                                <div class="col-md-12 text-md-end pt-md-3 d-flex flex-wrap justify-content-end gap-2">
+                                    <button type="submit" name="action" value="send_email" class="btn btn-primary d-inline-flex align-items-center gap-2 px-4 py-2">
+                                        <i class="bi bi-envelope-fill"></i> Send Email Response
                                     </button>
+                                    @if($ticket->user)
+                                        <button type="submit" name="action" value="send_notification" class="btn btn-warning text-dark d-inline-flex align-items-center gap-2 px-4 py-2">
+                                            <i class="bi bi-bell-fill"></i> Send Notification
+                                        </button>
+                                        <button type="submit" name="action" value="send_both" class="btn btn-success d-inline-flex align-items-center gap-2 px-4 py-2">
+                                            <i class="bi bi-send-fill"></i> Send Both
+                                        </button>
+                                    @endif
                                 </div>
                             </div>
                         </form>

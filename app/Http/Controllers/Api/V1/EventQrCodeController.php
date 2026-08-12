@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\EventRegistration;
 use App\Services\Events\EventQrService;
+use App\Services\Events\EventRegistrationQrService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
@@ -16,75 +19,96 @@ class EventQrCodeController extends Controller
     public function show(string $eventId, string $filename): BinaryFileResponse|JsonResponse|Response
     {
         $dir = storage_path('app/public/event-qrcodes/'.$eventId);
-        $path = $dir.'/'.$filename;
-
-        // 1. Return physical disk file if present
-        if (is_file($path)) {
-            $contentType = str_ends_with(strtolower($path), '.svg') ? 'image/svg+xml' : 'image/png';
-
-            return response()->file($path, ['Content-Type' => $contentType]);
-        }
-
         $base = pathinfo($filename, PATHINFO_FILENAME);
-        $altExt = str_ends_with(strtolower($filename), '.png') ? '.svg' : '.png';
-        $altPath = $dir.'/'.$base.$altExt;
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
-        if (is_file($altPath)) {
-            $contentType = str_ends_with(strtolower($altPath), '.svg') ? 'image/svg+xml' : 'image/png';
+        $isExplicitSvg = $ext === 'svg';
+        $pngPath = $dir.'/'.$base.'.png';
+        $svgPath = $dir.'/'.$base.'.svg';
 
-            return response()->file($altPath, ['Content-Type' => $contentType]);
-        }
-
-        // 2. Try looking up registration
+        // 1. Try looking up registration first to ensure we use exact DB qr_token
         $registration = EventRegistration::query()->find($base)
             ?? EventRegistration::query()->where('event_id', $eventId)->where('id', $base)->first()
             ?? EventRegistration::query()->where('qr_token', $base)->first();
 
-        $token = $registration?->qr_token;
-
-        if (empty($token)) {
-            $token = app(EventQrService::class)->generateToken();
-            if ($registration) {
-                try {
-                    $registration->forceFill(['qr_token' => $token])->save();
-                } catch (Throwable $e) {
-                    Log::error('qr_token_save_failed', ['error' => $e->getMessage()]);
-                }
-            }
-        }
-
-        // 3. Try disk generation
         if ($registration) {
-            try {
-                app(EventQrService::class)->generateAndStore($registration);
-                $registration->refresh();
-                if (! empty($registration->qr_code_path)) {
-                    $genPath = storage_path('app/public/'.$registration->qr_code_path);
-                    if (is_file($genPath)) {
-                        $contentType = str_ends_with(strtolower($genPath), '.svg') ? 'image/svg+xml' : 'image/png';
+            // Ensure registration has valid QR token and generated files synchronized with DB qr_token
+            $registration = app(EventRegistrationQrService::class)->ensureQrGenerated($registration);
+            $token = (string) $registration->qr_token;
 
-                        return response()->file($genPath, ['Content-Type' => $contentType]);
+            if ($isExplicitSvg && ! empty($registration->qr_code_svg)) {
+                return response((string) $registration->qr_code_svg, 200, [
+                    'Content-Type' => 'image/svg+xml',
+                    'Cache-Control' => 'no-cache, private',
+                ]);
+            }
+
+            $genPath = storage_path('app/public/'.($registration->qr_code_path ?: ('event-qrcodes/'.$eventId.'/'.$registration->id.'.png')));
+            if (is_file($genPath)) {
+                $header = file_get_contents($genPath, false, null, 0, 8);
+                if ($header !== false && str_starts_with($header, "\x89PNG")) {
+                    if ($genPath !== $pngPath && ! is_file($pngPath)) {
+                        @copy($genPath, $pngPath);
                     }
+
+                    return response()->file($genPath, ['Content-Type' => 'image/png']);
                 }
-            } catch (Throwable $e) {
-                Log::error('dynamic_qr_generation_on_controller_failed', ['error' => $e->getMessage()]);
+            }
+        } else {
+            $token = $base;
+            if ($isExplicitSvg && is_file($svgPath)) {
+                return response()->file($svgPath, ['Content-Type' => 'image/svg+xml']);
+            }
+            if (is_file($pngPath)) {
+                $header = file_get_contents($pngPath, false, null, 0, 8);
+                if ($header !== false && str_starts_with($header, "\x89PNG")) {
+                    return response()->file($pngPath, ['Content-Type' => 'image/png']);
+                }
+                @unlink($pngPath);
             }
         }
 
-        // 4. Guaranteed Fail-Safe Stream: Generate and return SVG directly to browser
+        // 2. Fail-safe stream generation using verified token
         try {
-            $payload = app(EventQrService::class)->payload($token);
-            $reflection = new \ReflectionClass(app(EventQrService::class));
-            $method = $reflection->getMethod('makeSvg');
-            $method->setAccessible(true);
-            $svgContent = $method->invoke(app(EventQrService::class), $payload);
+            $qrService = app(EventQrService::class);
+            $payload = $qrService->payload($token);
 
-            return response($svgContent, 200, [
-                'Content-Type' => 'image/svg+xml',
+            if ($isExplicitSvg) {
+                $svgContent = $qrService->makeSvg($payload);
+
+                return response($svgContent, 200, [
+                    'Content-Type' => 'image/svg+xml',
+                    'Cache-Control' => 'no-cache, private',
+                ]);
+            }
+
+            $pngContent = null;
+            try {
+                $pngContent = $qrService->makePng($payload);
+            } catch (Throwable $pngException) {
+                Log::error('make_png_failed_trying_imagick_fallback', ['error' => $pngException->getMessage()]);
+                $svgContent = is_file($svgPath) ? file_get_contents($svgPath) : ($registration?->qr_code_svg ?? null);
+                if (! empty($svgContent) && (extension_loaded('imagick') || class_exists('\Imagick'))) {
+                    $imagick = new \Imagick;
+                    $imagick->readImageBlob($svgContent);
+                    $imagick->setImageFormat('png');
+                    $pngContent = $imagick->getImageBlob();
+                } else {
+                    throw $pngException;
+                }
+            }
+
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            @file_put_contents($pngPath, $pngContent);
+
+            return response($pngContent, 200, [
+                'Content-Type' => 'image/png',
                 'Cache-Control' => 'no-cache, private',
             ]);
         } catch (Throwable $e) {
-            Log::error('direct_svg_streaming_failed', ['error' => $e->getMessage()]);
+            Log::error('direct_qr_streaming_failed', ['error' => $e->getMessage()]);
         }
 
         return response()->json([

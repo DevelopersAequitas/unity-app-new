@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\Events\EventQrService;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -90,6 +92,11 @@ class EventRegistration extends Model
         'razorpay_payment_id',
         'razorpay_order_id',
         'visitor_registration_form_url',
+        'qr_status',
+        'coupon_id',
+        'coupon_code',
+        'original_amount',
+        'discount_amount',
     ];
 
     protected $casts = [
@@ -105,10 +112,18 @@ class EventRegistration extends Model
         'payment_completed_at' => 'datetime',
         'amount' => 'decimal:2',
         'payment_amount' => 'decimal:2',
+        'original_amount' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'payment_required' => 'boolean',
         'zoho_invoice_synced_at' => 'datetime',
         'razorpay_paid_at' => 'datetime',
+        'whatsapp_sent_at' => 'datetime',
     ];
+
+    public function coupon(): BelongsTo
+    {
+        return $this->belongsTo(EventCoupon::class, 'coupon_id');
+    }
 
     public function event(): BelongsTo
     {
@@ -172,5 +187,34 @@ class EventRegistration extends Model
             'name' => $category->name,
             'slug' => $category->slug ?? null,
         ];
+    }
+
+    public function getQrStatusAttribute(): string
+    {
+        $occurrence = $this->occurrence;
+        if ($occurrence) {
+            $endTime = $occurrence->end_at ?? $occurrence->start_at;
+            if ($endTime && Carbon::parse($endTime)->isPast()) {
+                return 'expired';
+            }
+        }
+
+        return $this->attributes['qr_status'] ?? 'generated';
+    }
+
+    public function getQrCodeUrlAttribute(?string $value): ?string
+    {
+        $rawUrl = $value ?? ($this->attributes['qr_code_url'] ?? null);
+        $path = $this->attributes['qr_code_path'] ?? null;
+
+        if (empty($rawUrl) && empty($path)) {
+            return null;
+        }
+
+        if (! empty($path)) {
+            return app(EventQrService::class)->url((string) $path);
+        }
+
+        return app(EventQrService::class)->url((string) $rawUrl);
     }
 }

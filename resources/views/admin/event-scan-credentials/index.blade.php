@@ -38,14 +38,14 @@
         <div class="overflow-x-auto relative">
             <table class="min-w-full border-collapse text-[13px]">
                 <thead>
-                    <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs">
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Person</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Username / Login ID</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Hotel / Venue</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Assigned Events</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Status</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-left">Last Login</th>
-                        <th class="th-cell surface-2 border-b bs px-3 py-2 text-right">Actions</th>
+                    <tr class="text-[11px] uppercase tracking-wider t3 font-semibold surface-2 border-b bs whitespace-nowrap">
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Person</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Username / Login ID</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Hotel / Venue</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Assigned Events</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Status</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-left whitespace-nowrap">Last Login</th>
+                        <th class="th-cell surface-2 border-b bs px-3 py-2.5 text-center whitespace-nowrap">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="grid-body" class="divide-y divide-gray-200/50">
@@ -65,73 +65,79 @@
                             };
                             $initials = $getInitials($credential->name);
                         @endphp
-                        <tr class="hover:surface-2 transition border-b bs">
-                            <td class="px-3 py-2.5">
+                        <tr class="hover:surface-2 transition border-b bs whitespace-nowrap">
+                            <td class="px-3 py-2.5 whitespace-nowrap">
                                 <button type="button" class="btn p-0 border-0 text-start bg-transparent" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}" title="Click to view full user details">
-                                    <div class="flex items-center gap-2">
-                                        <div class="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs shrink-0" style="background: linear-gradient(135deg, #4f46e5, #7c3aed);">
+                                    <div class="flex items-center gap-2 whitespace-nowrap">
+                                        <div class="w-7 h-7 rounded-full text-white flex items-center justify-center font-bold text-xs shrink-0" style="background: linear-gradient(135deg, #4f46e5, #7c3aed);">
                                             {{ $initials }}
                                         </div>
-                                        <div>
-                                            <div class="font-semibold text-indigo-600 text-[12.5px] hover:underline cursor-pointer">
+                                        <div class="whitespace-nowrap">
+                                            <div class="font-semibold text-indigo-600 text-[12.5px] hover:underline cursor-pointer whitespace-nowrap">
                                                 {{ $credential->name }}
                                             </div>
-                                            <div class="t3 text-[10px]">
+                                            <div class="t3 text-[10px] whitespace-nowrap">
                                                 Click to view details
                                             </div>
                                         </div>
                                     </div>
                                 </button>
                             </td>
-                            <td class="px-3 py-2.5">
-                                <span class="font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                            <td class="px-3 py-2.5 whitespace-nowrap">
+                                <span class="font-mono text-slate-700 bg-slate-50 px-2 py-0.5 rounded-md text-[11px] border border-slate-200 whitespace-nowrap inline-block">
                                     {{ $credential->username }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2.5 text-xs t2">{{ $credential->hotel_name }}</td>
-                            <td class="px-3 py-2.5 text-xs" style="max-width: 260px;">
+                            <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $credential->hotel_name ?: '—' }}</td>
+                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                 @if($assignedEvents->count() > 0)
-                                    <div class="flex flex-wrap gap-1">
+                                    <div class="flex items-center gap-1 whitespace-nowrap">
                                         @foreach($assignedEvents->take(3) as $ev)
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200" title="{{ $ev->title }}">
-                                                {{ Str::limit($ev->title, 22) }}
+                                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap" title="{{ $ev->title }}">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>{{ Str::limit($ev->title, 22) }}
                                             </span>
                                         @endforeach
                                         @if($assignedEvents->count() > 3)
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200" title="Click user to see all {{ $assignedEvents->count() }} events">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap" title="Click user to see all {{ $assignedEvents->count() }} events">
                                                 +{{ $assignedEvents->count() - 3 }} more
                                             </span>
                                         @endif
                                     </div>
                                 @elseif($credential->event)
-                                    <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
-                                        {{ $credential->event->title }}
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>{{ $credential->event->title }}
                                     </span>
                                 @else
-                                    <span class="t3 text-xs">—</span>
+                                    <span class="t3 text-xs whitespace-nowrap">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs">
-                                <span class="chip px-2.5 py-0.5 text-xs font-semibold {{ $credential->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-700 border-gray-200' }}">
-                                    {{ $credential->is_active ? 'Active' : 'Inactive' }}
-                                </span>
+                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                @if($credential->is_active)
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Active
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Inactive
+                                    </span>
+                                @endif
                             </td>
-                            <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
+                            <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-mono">
                                 @if($credential->last_login_at)
                                     {{ $credential->last_login_at->format('d M Y, h:i A') }}
                                 @else
-                                    <span class="text-muted">—</span>
+                                    <span class="text-muted whitespace-nowrap">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2.5 text-right whitespace-nowrap">
-                                <div class="flex items-center justify-end gap-1.5">
-                                    <button class="px-2 py-0.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition bg-transparent" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}">
+                            <td class="px-3 py-2.5 text-center whitespace-nowrap">
+                                <div class="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                                    <button class="px-2.5 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}">
                                         View
                                     </button>
-                                    <a href="{{ route('admin.event-scan-credentials.edit', $credential->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">Edit</a>
+                                    <a href="{{ route('admin.event-scan-credentials.edit', $credential->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition no-underline whitespace-nowrap">Edit</a>
                                     <form action="{{ route('admin.event-scan-credentials.toggle', $credential->id) }}" method="POST" class="inline">
                                         @csrf
-                                        <button class="px-2 py-0.5 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition {{ $credential->is_active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50' }}">
+                                        <button class="px-2.5 py-1 text-xs font-semibold rounded-md border transition whitespace-nowrap {{ $credential->is_active ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' }}">
                                             {{ $credential->is_active ? 'Deactivate' : 'Activate' }}
                                         </button>
                                     </form>

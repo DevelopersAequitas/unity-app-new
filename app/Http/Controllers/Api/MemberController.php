@@ -710,8 +710,10 @@ class MemberController extends BaseApiController
         $connections = Connection::with([
             'requester',
             'requester.city',
+            'requester.level4Category',
             'addressee',
             'addressee.city',
+            'addressee.level4Category',
         ])
             ->where('is_approved', true)
             ->where(function ($q) use ($authUser) {
@@ -739,8 +741,10 @@ class MemberController extends BaseApiController
         $connections = Connection::with([
             'requester',
             'requester.city',
+            'requester.level4Category',
             'addressee',
             'addressee.city',
+            'addressee.level4Category',
         ])
             ->where('addressee_id', $authUser->id)
             ->where('is_approved', false)

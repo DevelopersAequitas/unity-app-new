@@ -62,7 +62,11 @@ class NotifyUserService
         ]);
 
         $appNotificationType = (string) ($data['type'] ?? $data['notification_type'] ?? $type);
-        $screen = (string) ($data['navigation_screen'] ?? $data['screen'] ?? $type);
+        $screen = (string) ($data['navigation_screen'] ?? $data['screen'] ?? match ($type) {
+            'connection_request', 'connection_received' => '/connection-requests',
+            'connection_accepted', 'connection' => '/my-connections',
+            default => $type,
+        });
 
         try {
             AppNotification::create([
@@ -71,7 +75,6 @@ class NotifyUserService
                 'category' => $type,
                 'title' => $title,
                 'body' => $body,
-                'message' => $body,
                 'channel' => 'push',
                 'priority' => 'high',
                 'reference_type' => $notifiable ? get_class($notifiable) : null,
@@ -83,6 +86,8 @@ class NotifyUserService
                     'to_user_id' => (string) $to->id,
                     'notifiable_type' => $notifiable ? get_class($notifiable) : null,
                     'notifiable_id' => $notifiable ? (string) $notifiable->getKey() : null,
+                    'screen' => $screen,
+                    'navigation_screen' => $screen,
                 ]),
                 'status' => 'pending',
                 'created_at' => now(),

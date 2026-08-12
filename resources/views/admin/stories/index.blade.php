@@ -146,11 +146,11 @@
                     <div class="modal-body text-start p-4">
                         
                         <!-- Screen 1: Basic Information -->
-                        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" data-bs-toggle="collapse" data-bs-target="#collapseAuthor{{ $item->id }}" aria-expanded="true">
+                        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" onclick="toggleStorySection('collapseAuthor{{ $item->id }}', this)" aria-expanded="true">
                             <h6 class="text-dark fw-bold text-uppercase tracking-wider small mb-0"><i class="bi bi-person-badge text-primary me-2"></i>Basic Information</h6>
                             <i class="bi bi-chevron-down text-muted collapse-icon"></i>
                         </div>
-                        <div class="collapse show mb-4" id="collapseAuthor{{ $item->id }}">
+                        <div class="mb-4" id="collapseAuthor{{ $item->id }}" style="display: block;">
                             <div class="row g-3">
                                 <div class="col-md-3">
                                     <div class="small text-muted">Full Name</div>
@@ -202,11 +202,11 @@
                         </div>
 
                         <!-- Media Preview Cards -->
-                        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" data-bs-toggle="collapse" data-bs-target="#collapseMedia{{ $item->id }}" aria-expanded="true">
+                        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" onclick="toggleStorySection('collapseMedia{{ $item->id }}', this)" aria-expanded="true">
                             <h6 class="text-dark fw-bold text-uppercase tracking-wider small mb-0"><i class="bi bi-images text-primary me-2"></i>Media</h6>
                             <i class="bi bi-chevron-down text-muted collapse-icon"></i>
                         </div>
-                        <div class="collapse show mb-4" id="collapseMedia{{ $item->id }}">
+                        <div class="mb-4" id="collapseMedia{{ $item->id }}" style="display: block;">
                             <div class="row g-4">
                                 <!-- Profile Photo Card -->
                                 <div class="col-md-6">
@@ -255,11 +255,11 @@
                         </div>
 
                         <!-- Screen 2: Entrepreneur Profile Cards -->
-                        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" data-bs-toggle="collapse" data-bs-target="#collapseProfile{{ $item->id }}" aria-expanded="true">
+                        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" onclick="toggleStorySection('collapseProfile{{ $item->id }}', this)" aria-expanded="true">
                             <h6 class="text-dark fw-bold text-uppercase tracking-wider small mb-0"><i class="bi bi-chat-left-quote text-primary me-2"></i>Entrepreneur Profile</h6>
                             <i class="bi bi-chevron-down text-muted collapse-icon"></i>
                         </div>
-                        <div class="collapse show mb-4" id="collapseProfile{{ $item->id }}">
+                        <div class="mb-4" id="collapseProfile{{ $item->id }}" style="display: block;">
                             <div class="row g-3">
                                 <!-- Entrepreneurial Journey -->
                                 <div class="col-md-12">
@@ -335,11 +335,11 @@
 
                         <!-- Screen 3: Promotion (Social Links) -->
                         @if($item->linkedin_url || $item->facebook_url || $item->instagram_url || $item->twitter_url)
-                            <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" data-bs-toggle="collapse" data-bs-target="#collapseSocial{{ $item->id }}" aria-expanded="true">
+                            <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" onclick="toggleStorySection('collapseSocial{{ $item->id }}', this)" aria-expanded="true">
                                 <h6 class="text-dark fw-bold text-uppercase tracking-wider small mb-0"><i class="bi bi-share text-primary me-2"></i>Social Profiles & Promotion</h6>
                                 <i class="bi bi-chevron-down text-muted collapse-icon"></i>
                             </div>
-                            <div class="collapse show mb-4" id="collapseSocial{{ $item->id }}">
+                            <div class="mb-4" id="collapseSocial{{ $item->id }}" style="display: block;">
                                 <div class="row g-3">
                                     @if($item->linkedin_url)
                                         <div class="col-md-3">
@@ -390,11 +390,11 @@
                         @endif
 
                         <!-- Review History -->
-                        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" data-bs-toggle="collapse" data-bs-target="#collapseReview{{ $item->id }}" aria-expanded="true">
+                        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 collapse-header" onclick="toggleStorySection('collapseReview{{ $item->id }}', this)" aria-expanded="true">
                             <h6 class="text-dark fw-bold text-uppercase tracking-wider small mb-0"><i class="bi bi-clipboard-check text-primary me-2"></i>Review Details</h6>
                             <i class="bi bi-chevron-down text-muted collapse-icon"></i>
                         </div>
-                        <div class="collapse show" id="collapseReview{{ $item->id }}">
+                        <div class="mb-4" id="collapseReview{{ $item->id }}" style="display: block;">
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="small text-muted">Status</div>
@@ -517,9 +517,8 @@
         }
         .collapse-header .collapse-icon {
             transition: transform 0.2s ease-in-out;
-            transform: rotate(0deg);
         }
-        .collapse-header[aria-expanded="true"] .collapse-icon {
+        .collapse-header[aria-expanded="false"] .collapse-icon {
             transform: rotate(180deg);
         }
         .copy-btn {
@@ -538,6 +537,19 @@
 
     @push('scripts')
     <script>
+    function toggleStorySection(targetId, headerEl) {
+        const target = document.getElementById(targetId);
+        if (!target) return;
+        const isHidden = target.style.display === 'none';
+        if (isHidden) {
+            target.style.display = 'block';
+            if (headerEl) headerEl.setAttribute('aria-expanded', 'true');
+        } else {
+            target.style.display = 'none';
+            if (headerEl) headerEl.setAttribute('aria-expanded', 'false');
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         // Copy to clipboard handler
         document.querySelectorAll('.copy-btn').forEach(btn => {

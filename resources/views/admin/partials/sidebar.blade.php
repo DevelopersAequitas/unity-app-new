@@ -52,9 +52,13 @@
                 ...(! $isDed && ! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index'],
+                    ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
+                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
                 ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events') ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                 ] : []),
@@ -66,6 +70,7 @@
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
                 ['icon' => 'bi-person-check', 'label' => 'Member Introducers', 'route' => 'admin.member-introducers.index'],
                 ['icon' => 'bi-trophy', 'label' => 'Sponsored Member Milestone Awards', 'route' => 'admin.sponsored-milestones.index', 'active_routes' => ['admin.sponsored-milestones.*']],
+                ['icon' => 'bi-award', 'label' => 'Milestone Badges', 'route' => 'admin.milestone-badges.index', 'active_routes' => ['admin.milestone-badges.*']],
                 ['icon' => 'bi-person-lines-fill', 'label' => 'Unity Contacts', 'route' => 'admin.contacts.index', 'active_routes' => ['admin.contacts.*']],
                 ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
                 ...($isGlobalAdmin ? [['icon' => 'bi-clock-history', 'label' => 'Login History', 'route' => 'admin.login-history.index']] : []),
@@ -76,10 +81,13 @@
                 ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
                 ...(! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+                    ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
+                    ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
                 ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                 ] : []),
@@ -203,15 +211,20 @@
         ['label' => 'Events', 'route' => 'admin.events.index'],
         ['label' => 'Total Attendance', 'route' => 'admin.events.total-attendance'],
         ['label' => 'Total Registered', 'route' => 'admin.events.total-registered'],
+        ['label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
         ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
         ['label' => 'Event Scan Credentials', 'route' => 'admin.event-scan-credentials.index'],
         ['label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
     ];
 
-    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-scan-credentials.*') || request()->routeIs('admin.event-gallery.*') || request()->routeIs('admin.event-joining-requests.*');
+    $eventsManagementActive = request()->routeIs('admin.events.*')
+        || request()->routeIs('admin.event-scan-credentials.*')
+        || request()->routeIs('admin.event-gallery.*')
+        || request()->routeIs('admin.event-joining-requests.*')
+        || request()->routeIs('admin.event-coupons.*');
     $bottomNavItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) === 'Email Logs'));
     $bottomNavItems = (! $isCircleScoped && ! $isDed && ! $isIndustryDirector) ? [] : $bottomNavItems;
-    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Event Gallery'], true)));
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Coupons', 'Email Logs', 'Event Gallery'], true)));
     $bottomNavItems = array_map(function ($item) {
         if ($item['label'] === 'Email Logs') {
             $item['active_routes'] = ['admin.email-logs.*'];
@@ -222,6 +235,8 @@
     }, array_values(array_filter($navItems, fn ($item) => in_array(($item['label'] ?? null), ['Email Logs', 'Support Tickets'], true))));
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
     $campaignsMenu = \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? $campaignsMenu : [];
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Coupons', 'Email Logs', 'Support Tickets'], true)));
+    $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     
     $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
     $brandPartnersMenu = [
@@ -449,7 +464,7 @@
                         <ul class="nav flex-column ms-3">
                             @foreach ($eventsManagementMenu as $eventItem)
                                 <li class="nav-item">
-                                    <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
+                                    <a class="nav-link {{ (isset($eventItem['active_routes']) ? request()->routeIs(...$eventItem['active_routes']) : request()->routeIs($eventItem['route'])) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
                                 </li>
                             @endforeach
                         </ul>
@@ -522,6 +537,41 @@
                             </div>
                         </li>
                     @endif
+                @elseif ($item['label'] === 'Milestone Badges')
+                    @php
+                        $badgesActive = request()->routeIs('admin.milestone-badges.*');
+                        $currentType = request('type');
+                    @endphp
+                    <li class="nav-item menu-parent {{ $badgesActive ? 'open' : '' }}">
+                        <a class="nav-link d-flex justify-content-between align-items-center {{ $badgesActive ? 'active' : '' }}" href="#milestoneBadgesSubmenu" role="button" aria-expanded="{{ $badgesActive ? 'true' : 'false' }}" aria-controls="milestoneBadgesSubmenu">
+                            <span><i class="bi bi-award me-2"></i>Milestone Badges</span>
+                            <i class="bi bi-chevron-right menu-arrow"></i>
+                        </a>
+                        <div class="collapse {{ $badgesActive ? 'show' : '' }}" id="milestoneBadgesSubmenu">
+                            <ul class="nav flex-column ms-3">
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($badgesActive && $currentType === 'life_impact') ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index', ['type' => 'life_impact']) }}">
+                                        Life Impact Badges
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($badgesActive && $currentType === 'coins') ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index', ['type' => 'coins']) }}">
+                                        Coin Badges
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($badgesActive && $currentType === 'member_introduction') ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index', ['type' => 'member_introduction']) }}">
+                                        Member Introduction Badges
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{ ($badgesActive && empty($currentType)) ? 'active' : '' }}" href="{{ route('admin.milestone-badges.index') }}">
+                                        All Badges
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
                 @elseif ($item['label'] === 'Peers')
                     @php
                         $peersActive = request()->routeIs('admin.users.*');

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -16,11 +18,13 @@ use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
+use App\Services\Notifications\EventRegistrationWhatsappService;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -43,6 +47,7 @@ class EventManagementController extends Controller
     {
         $query = Event::query()
             ->with(['circle', 'circles'])
+            ->withCount(['occurrences'])
             ->withCount(['registrations as registered_count' => fn ($q) => $q->where('status', '!=', 'cancelled')])
             ->withCount(['registrations as checked_in_count' => fn ($q) => $q->where('checkin_status', 'checked_in')])
             ->when($request->event_type, fn ($q, $v) => $q->where('event_type', $v))
@@ -127,6 +132,7 @@ class EventManagementController extends Controller
             ->with(['event.circle', 'occurrence', 'user'])
             ->where('status', '!=', 'cancelled')
             ->when($request->event_id, fn ($q, $v) => $q->where('event_id', $v))
+            ->when($request->occurrence_id, fn ($q, $v) => $q->where('occurrence_id', $v))
             ->when($request->circle_id, fn ($q, $v) => $q->whereHas('event', fn ($eq) => $eq->where('circle_id', $v)))
             ->when($request->payment_status, function ($q, $v): void {
                 if ($v === 'paid') {
@@ -365,9 +371,14 @@ class EventManagementController extends Controller
         return view('admin.events.show', compact('event'));
     }
 
-    public function attendance(Request $request, string $id): View
+    public function attendance(Request $request, ?string $id = null): View
     {
-        $event = Event::query()->findOrFail($id);
+        $eventId = $id ?? $request->query('id') ?? $request->query('event_id');
+        if (! $eventId) {
+            abort(404, 'Event ID is required.');
+        }
+
+        $event = Event::query()->findOrFail($eventId);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
         $report = $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search']));
         $scanLogs = Schema::hasTable((new EventQrScanLog)->getTable())
@@ -520,6 +531,7 @@ class EventManagementController extends Controller
             'recurrence_day_of_month' => ['nullable', 'integer', 'min:1', 'max:31'],
             'recurrence_month' => ['nullable', 'integer', 'min:1', 'max:12'],
             'recurrence_ends_at' => ['nullable', 'date'],
+            'monthly_pattern' => ['nullable', 'string', 'in:fixed,weekday'],
             'registration_limit' => ['nullable', 'integer', 'min:1'],
             'is_paid' => ['nullable', 'boolean'],
             'ticket_price' => ['nullable', 'numeric', 'min:0'],
@@ -559,6 +571,32 @@ class EventManagementController extends Controller
         }
         $data['agenda'] = $this->cleanAgenda($data['agenda'] ?? []);
         $data['speakers'] = $this->cleanSpeakers($data['speakers'] ?? []);
+
+        $recurrenceType = $data['recurrence_type'] ?? 'none';
+        if ($recurrenceType === 'none') {
+            $data['recurrence_interval'] = null;
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_week'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+            $data['recurrence_ends_at'] = null;
+        } elseif ($recurrenceType === 'weekly') {
+            $data['recurrence_week_of_month'] = null;
+            $data['recurrence_day_of_month'] = null;
+            $data['recurrence_month'] = null;
+        } elseif ($recurrenceType === 'monthly') {
+            $data['recurrence_month'] = null;
+            $monthlyPattern = $request->input('monthly_pattern', 'fixed');
+            if ($monthlyPattern === 'fixed') {
+                $data['recurrence_week_of_month'] = null;
+                $data['recurrence_day_of_week'] = null;
+                if (! empty($data['start_at'])) {
+                    $data['recurrence_day_of_month'] = (int) Carbon::parse($data['start_at'])->format('j');
+                }
+            } else {
+                $data['recurrence_day_of_month'] = null;
+            }
+        }
 
         if ($request->hasFile('banner')) {
             $data['banner_url'] = $this->storeBanner($request);
@@ -649,6 +687,22 @@ class EventManagementController extends Controller
         }
 
         return $data;
+    }
+
+    public function sendWhatsappQr(string $id, EventRegistrationWhatsappService $whatsappService): RedirectResponse
+    {
+        $registration = EventRegistration::query()->findOrFail($id);
+
+        // Ensure existing QR code is generated if missing
+        app(EventRegistrationQrService::class)->ensureQrGenerated($registration);
+
+        $success = $whatsappService->sendNotification($registration, force: true);
+
+        if ($success) {
+            return back()->with('success', 'WhatsApp QR pass sent successfully.');
+        }
+
+        return back()->with('error', 'Failed to send WhatsApp message. Please check recipient phone number and WhatsApp configuration.');
     }
 
     private function cleanAgenda(array $rows): array

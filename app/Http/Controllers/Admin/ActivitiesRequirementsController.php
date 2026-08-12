@@ -86,6 +86,8 @@ class ActivitiesRequirementsController extends Controller
                 fputcsv($handle, [
                     'ID',
                     'Created By Name',
+                    'Created By Company',
+                    'Created By City',
                     'Created By Email',
                     'Subject',
                     'Description',
@@ -112,6 +114,8 @@ class ActivitiesRequirementsController extends Controller
                         'actor.first_name as actor_first_name',
                         'actor.last_name as actor_last_name',
                         'actor.email as actor_email',
+                        'actor.company_name as from_company',
+                        'actor.city as from_city',
                     ])
                     ->orderBy('activity.created_at')
                     ->orderBy('activity.id')
@@ -126,6 +130,8 @@ class ActivitiesRequirementsController extends Controller
                             fputcsv($handle, [
                                 $row->id,
                                 $actorName,
+                                $row->from_company ?? '',
+                                $row->from_city ?? '',
                                 $row->actor_email ?? '',
                                 $row->subject ?? '',
                                 $row->description ?? '',
@@ -167,6 +173,8 @@ class ActivitiesRequirementsController extends Controller
             'to_dt' => $this->parseDayBoundary($toAtRaw, true),
             'circle_id' => (string) $request->query('circle_id', ''),
             'from_user' => trim((string) $request->query('from_user', '')),
+            'from_company' => trim((string) $request->query('from_company', '')),
+            'from_city' => trim((string) $request->query('from_city', '')),
             'subject' => trim((string) $request->query('subject', '')),
             'region' => trim((string) $request->query('region', '')),
             'category' => trim((string) $request->query('category', '')),
@@ -202,6 +210,18 @@ class ActivitiesRequirementsController extends Controller
                     ->orWhere('actor.first_name', 'ILIKE', $like)
                     ->orWhere('actor.last_name', 'ILIKE', $like)
                     ->orWhereRaw("concat_ws(' ', coalesce(actor.first_name, ''), coalesce(actor.last_name, '')) ILIKE ?", [$like]);
+            });
+        }
+
+        if (! empty($filters['from_company'])) {
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['from_company']).'%';
+            $query->where('actor.company_name', 'ILIKE', $like);
+        }
+
+        if (! empty($filters['from_city'])) {
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $filters['from_city']).'%';
+            $query->where(function ($inner) use ($like) {
+                $inner->where('actor.city', 'ILIKE', $like);
             });
         }
 

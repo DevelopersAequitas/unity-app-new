@@ -4,6 +4,70 @@
 
 @include('admin.partials.grid-head')
 
+@php
+    $getStatusBadge = function(?string $status): array {
+        $raw = strtolower(trim((string) $status));
+        return match($raw) {
+            'open' => [
+                'label' => 'Open',
+                'badgeClass' => 'bg-sky-50 text-sky-700 border-sky-200',
+                'dotClass' => 'bg-sky-500',
+            ],
+            'in_progress' => [
+                'label' => 'In Progress',
+                'badgeClass' => 'bg-amber-50 text-amber-700 border-amber-200',
+                'dotClass' => 'bg-amber-500',
+            ],
+            'resolved' => [
+                'label' => 'Resolved',
+                'badgeClass' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                'dotClass' => 'bg-emerald-500',
+            ],
+            'closed' => [
+                'label' => 'Closed',
+                'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                'dotClass' => 'bg-slate-400',
+            ],
+            default => [
+                'label' => ucwords(str_replace('_', ' ', $raw ?: 'Unknown')),
+                'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                'dotClass' => 'bg-slate-400',
+            ],
+        };
+    };
+
+    $getPriorityBadge = function(?string $priority): array {
+        $raw = strtolower(trim((string) $priority));
+        return match($raw) {
+            'urgent' => [
+                'label' => 'Urgent',
+                'badgeClass' => 'bg-rose-50 text-rose-700 border-rose-200 font-bold',
+                'dotClass' => 'bg-rose-500',
+            ],
+            'high' => [
+                'label' => 'High',
+                'badgeClass' => 'bg-orange-50 text-orange-700 border-orange-200 font-semibold',
+                'dotClass' => 'bg-orange-500',
+            ],
+            'normal' => [
+                'label' => 'Normal',
+                'badgeClass' => 'bg-indigo-50 text-indigo-700 border-indigo-200 font-semibold',
+                'dotClass' => 'bg-indigo-500',
+            ],
+            'low' => [
+                'label' => 'Low',
+                'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200 font-medium',
+                'dotClass' => 'bg-slate-400',
+            ],
+            default => [
+                'label' => ucfirst($raw ?: 'Normal'),
+                'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200 font-medium',
+                'dotClass' => 'bg-slate-400',
+            ],
+        };
+    };
+@endphp
+
 @section('content')
 <div id="grid-root-container" class="light rounded-xl border bs p-4 relative admin-grid-card space-y-4">
     <div class="flex flex-wrap justify-between items-center gap-3">
@@ -72,20 +136,8 @@
                 <tbody id="grid-body" class="divide-y divide-gray-200/50">
                     @forelse($tickets as $ticket)
                         @php
-                            $statusBadge = match($ticket->status) {
-                                'open' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200',
-                                'in_progress' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200',
-                                'resolved' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200',
-                                'closed' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200',
-                                default => 'chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200'
-                            };
-                            $priorityBadge = match($ticket->priority) {
-                                'low' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200',
-                                'normal' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200',
-                                'high' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200',
-                                'urgent' => 'chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200',
-                                default => 'chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200'
-                            };
+                            $stInfo = $getStatusBadge($ticket->status);
+                            $prInfo = $getPriorityBadge($ticket->priority);
                         @endphp
                         <tr class="hover:surface-2 transition border-b bs">
                             <td class="px-3 py-2.5 text-xs font-mono font-semibold text-indigo-600">
@@ -116,19 +168,26 @@
                                     </a>
                                 </x-admin-grid-text>
                             </td>
-                            <td class="px-3 py-2.5 text-xs">
-                                <span class="{{ $statusBadge }}">{{ ucwords(str_replace('_', ' ', $ticket->status)) }}</span>
+                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border {{ $stInfo['badgeClass'] }}">
+                                    <span class="w-1.5 h-1.5 rounded-full {{ $stInfo['dotClass'] }}"></span>
+                                    <span>{{ $stInfo['label'] }}</span>
+                                </span>
                             </td>
-                            <td class="px-3 py-2.5 text-xs">
-                                <span class="{{ $priorityBadge }}">{{ ucfirst($ticket->priority) }}</span>
+                            <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border {{ $prInfo['badgeClass'] }}">
+                                    <span class="w-1.5 h-1.5 rounded-full {{ $prInfo['dotClass'] }}"></span>
+                                    <span>{{ $prInfo['label'] }}</span>
+                                </span>
                             </td>
                             <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">
                                 <div>{{ $ticket->created_at->format('Y-m-d H:i') }}</div>
                                 <div class="text-[10px] t3">{{ $ticket->created_at->diffForHumans() }}</div>
                             </td>
                             <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
-                                <a href="{{ route('admin.support-tickets.show', $ticket->id) }}" class="px-2.5 py-1 text-xs font-semibold rounded border bs t2 hover:t1 hover:surface-2 transition no-underline">
-                                    View
+                                <a href="{{ route('admin.support-tickets.show', $ticket->id) }}" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition shadow-xs no-underline">
+                                    <i class="bi bi-eye text-[11px]" aria-hidden="true"></i>
+                                    <span>View</span>
                                 </a>
                             </td>
                         </tr>

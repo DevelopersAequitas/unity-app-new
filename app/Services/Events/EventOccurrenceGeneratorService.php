@@ -237,18 +237,24 @@ class EventOccurrenceGeneratorService
 
     private function monthlyCandidate(CarbonImmutable $month, CarbonImmutable $timeSource, ?int $dayOfMonth, ?int $weekOfMonth, ?int $dayOfWeek): ?CarbonImmutable
     {
+        if ($dayOfMonth !== null && (int) $dayOfMonth > 0) {
+            $day = min((int) $dayOfMonth, $month->daysInMonth);
+
+            return $month->day($day)->setTimeFrom($timeSource);
+        }
+
         if ($weekOfMonth && $dayOfWeek !== null) {
-            $targetDayOfWeek = $this->normalizeDayOfWeek($dayOfWeek);
+            $targetDayOfWeek = $this->normalizeDayOfWeek((int) $dayOfWeek);
             $candidate = $month->startOfMonth();
             while ($candidate->dayOfWeek !== $targetDayOfWeek) {
                 $candidate = $candidate->addDay();
             }
-            $candidate = $candidate->addWeeks($weekOfMonth - 1);
+            $candidate = $candidate->addWeeks((int) $weekOfMonth - 1);
 
             return $candidate->month === $month->month ? $candidate->setTimeFrom($timeSource) : null;
         }
 
-        $day = min($dayOfMonth ?: $timeSource->day, $month->daysInMonth);
+        $day = min($timeSource->day, $month->daysInMonth);
 
         return $month->day($day)->setTimeFrom($timeSource);
     }

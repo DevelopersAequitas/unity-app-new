@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Event;
 
 use App\Services\Events\EventQrService;
+use App\Services\Events\EventRegistrationQrService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -56,7 +57,7 @@ class EventRegistrationResource extends JsonResource
                 'designation' => $this->invitedByUser->designation,
                 'profile_photo_url' => $this->invitedByUser->profile_photo_url ?? null,
             ] : null,
-            'qr_code_url' => ($this->payment_required ?? false) && ($this->payment_status ?? null) !== 'paid' ? null : ($this->qr_code_path ? $qr->url($this->qr_code_path) : $this->qr_code_url),
+            'qr_code_url' => ($this->payment_required ?? false) && ($this->payment_status ?? null) !== 'paid' ? null : app(EventRegistrationQrService::class)->qrCodeUrl($this->resource),
             'event' => $this->whenLoaded('event', fn () => [
                 'id' => $this->event->id,
                 'title' => $this->event->title,

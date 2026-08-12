@@ -6,6 +6,8 @@ use App\Exceptions\MediaProcessingException;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Jobs\SendFounderEngagementJob;
+use App\Jobs\SendPrMediaVisibilityWhatsappJob;
+use App\Jobs\SendProfileCompletionWhatsappJob;
 use App\Jobs\SendWelcomeWhatsappJob;
 use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
@@ -15,6 +17,7 @@ use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
+use App\Models\CustomCategoryRequest;
 use App\Models\EmailLog;
 use App\Models\FileModel;
 use App\Models\JoinedCircleCategory;
@@ -122,6 +125,7 @@ class AuthController extends BaseApiController
 
         $circleMember = $this->attachOptionalCircleMembership($persistedUser, $data);
         $this->persistOptionalJoinedCategories($persistedUser, $data, $circleMember);
+        $this->persistOptionalCustomCategoryRequest($persistedUser, $data);
 
         $referralMeta = null;
 
@@ -155,9 +159,15 @@ class AuthController extends BaseApiController
 
         $this->sendRegistrationRequestReceivedEmail($persistedUser);
 
+        $registrationTime = $persistedUser->created_at ? $persistedUser->created_at->copy() : now();
+
         SendWelcomeWhatsappJob::dispatch((string) $persistedUser->id);
         SendFounderEngagementJob::dispatch((string) $persistedUser->id)
             ->delay(now()->addHours(3));
+        SendPrMediaVisibilityWhatsappJob::dispatch((string) $persistedUser->id)
+            ->delay($registrationTime->copy()->addHours(24));
+        SendProfileCompletionWhatsappJob::dispatch((string) $persistedUser->id)
+            ->delay($registrationTime->copy()->addHours(48));
 
         $token = $persistedUser->createToken('auth_token')->plainTextToken;
 
@@ -294,6 +304,27 @@ class AuthController extends BaseApiController
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    private function persistOptionalCustomCategoryRequest(User $user, array $data): void
+    {
+        $otherCategoryName = trim((string) ($data['other_category_name'] ?? $data['custom_category_name'] ?? ''));
+        $level1CategoryId = (int) ($data['level1_category_id'] ?? $data['level_1_category_id'] ?? $data['main_business_category_id'] ?? 0);
+
+        if ($otherCategoryName === '' || $level1CategoryId <= 0) {
+            return;
+        }
+
+        if (! Schema::hasTable('custom_category_requests')) {
+            return;
+        }
+
+        CustomCategoryRequest::query()->create([
+            'user_id' => (string) $user->id,
+            'level1_category_id' => $level1CategoryId,
+            'category_name' => $otherCategoryName,
+            'status' => 'pending',
+        ]);
     }
 
     private function resolveRegisterCategoryPath(array $data): array
@@ -637,12 +668,40 @@ class AuthController extends BaseApiController
                 'name' => (string) $mainBusinessCategory->name,
             ]
             : null;
-        $payload['business_category'] = $businessCategory
-            ? [
-                'id' => (int) $businessCategory->id,
-                'name' => (string) $businessCategory->name,
-            ]
-            : null;
+
+        $otherCategoryReq = null;
+        if ($user->id && $user->main_business_category_id && Schema::hasTable('custom_category_requests')) {
+            $otherCategoryReq = CustomCategoryRequest::query()
+                ->where('user_id', (string) $user->id)
+                ->where('level1_category_id', (int) $user->main_business_category_id)
+                ->latest()
+                ->first();
+        }
+
+        $otherName = $otherCategoryReq?->category_name ?? $user->business_sub_category ?? null;
+
+        if (blank($businessCategory) && $otherName !== null && $otherName !== '') {
+            $payload['is_other_category'] = true;
+            $payload['other_category_name'] = $otherName;
+            $payload['custom_category_name'] = $otherName;
+            $payload['business_sub_category'] = $otherName;
+            $payload['business_category'] = [
+                'id' => 'other',
+                'name' => $otherName,
+                'is_other' => true,
+            ];
+        } else {
+            $payload['is_other_category'] = (bool) ($otherName !== null && $otherName !== '');
+            $payload['other_category_name'] = $otherName;
+            $payload['custom_category_name'] = $otherName;
+            $payload['business_category'] = $businessCategory
+                ? [
+                    'id' => (int) $businessCategory->id,
+                    'name' => (string) $businessCategory->name,
+                ]
+                : null;
+        }
+
         $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? null;
         $storedProfilePhotoPath = $user->getRawOriginal('profile_photo_url');
         $payload['profile_photo_id'] = $profilePhotoId;
@@ -715,19 +774,22 @@ class AuthController extends BaseApiController
             return;
         }
 
-        try {
-            Mail::to($user->email)->send(new WelcomePeerMail($user));
+        $mailable = new WelcomePeerMail($user);
 
-            EmailLog::query()->create([
+        try {
+            Mail::to($user->email)->send($mailable);
+
+            app(EmailLogService::class)->logMailableSent($mailable, [
+                'user_id' => (string) $user->id,
                 'to_email' => (string) $user->email,
+                'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                 'template_key' => 'welcome_peer',
+                'source_module' => 'Auth',
+                'related_type' => User::class,
+                'related_id' => (string) $user->id,
                 'payload' => [
                     'flow' => 'registration',
-                    'mailable_class' => WelcomePeerMail::class,
                 ],
-                'status' => 'sent',
-                'sent_at' => now(),
-                'created_at' => now(),
             ]);
         } catch (\Throwable $e) {
             Log::error('Welcome peer mail failed', [
@@ -737,18 +799,18 @@ class AuthController extends BaseApiController
             ]);
 
             try {
-                EmailLog::query()->create([
+                app(EmailLogService::class)->logMailableFailed($mailable, [
+                    'user_id' => (string) ($user->id ?? ''),
                     'to_email' => (string) ($user->email ?? ''),
+                    'to_name' => (string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? ''))),
                     'template_key' => 'welcome_peer',
+                    'source_module' => 'Auth',
+                    'related_type' => User::class,
+                    'related_id' => (string) ($user->id ?? ''),
                     'payload' => [
                         'flow' => 'registration',
-                        'mailable_class' => WelcomePeerMail::class,
-                        'error' => $e->getMessage(),
                     ],
-                    'status' => 'failed',
-                    'sent_at' => now(),
-                    'created_at' => now(),
-                ]);
+                ], $e);
             } catch (\Throwable) {
                 // Registration must not fail due to mail/log persistence errors.
             }
@@ -811,6 +873,11 @@ class AuthController extends BaseApiController
             $user->business_category_id = blank($data['business_category_id'] ?? null)
                 ? null
                 : (int) $data['business_category_id'];
+        }
+
+        $otherCategoryName = $data['other_category_name'] ?? $data['custom_category_name'] ?? null;
+        if (filled($otherCategoryName)) {
+            $this->fillIfUserColumnExists($user, 'business_sub_category', trim((string) $otherCategoryName));
         }
 
         if (! blank($data['resolved_referred_by_user_id'] ?? null)) {

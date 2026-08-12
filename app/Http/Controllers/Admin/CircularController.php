@@ -78,11 +78,11 @@ class CircularController extends Controller
         $data = $this->payload($request);
 
         $publishDate = ! empty($data['publish_date'])
-            ? Carbon::parse($data['publish_date'], config('app.timezone', 'UTC'))->utc()
-            : now()->utc();
+            ? Carbon::parse($data['publish_date'])
+            : now();
 
         $expiryDate = ! empty($data['expiry_date'])
-            ? Carbon::parse($data['expiry_date'], config('app.timezone', 'UTC'))->utc()
+            ? Carbon::parse($data['expiry_date'])
             : null;
 
         $data['publish_date'] = $publishDate;
@@ -113,11 +113,11 @@ class CircularController extends Controller
         $data = $this->payload($request);
 
         $publishDate = ! empty($data['publish_date'])
-            ? Carbon::parse($data['publish_date'], config('app.timezone', 'UTC'))->utc()
-            : now()->utc();
+            ? Carbon::parse($data['publish_date'])
+            : now();
 
         $expiryDate = ! empty($data['expiry_date'])
-            ? Carbon::parse($data['expiry_date'], config('app.timezone', 'UTC'))->utc()
+            ? Carbon::parse($data['expiry_date'])
             : null;
 
         $data['publish_date'] = $publishDate;

@@ -35,15 +35,36 @@ class EventRegistrationQrService
         $mailShouldBeSent = $wasQrMissing;
 
         if (! $wasQrMissing) {
-            $updates = [];
-            if (! empty($registration->qr_code_path) && empty($registration->qr_code_url)) {
-                $updates['qr_code_url'] = $this->qr->url($registration->qr_code_path);
-            }
-            if (empty($registration->qr_generated_at)) {
-                $updates['qr_generated_at'] = now();
-            }
-            if (! empty($updates)) {
-                $registration->forceFill($this->filter($updates))->save();
+            $expectedPath = $registration->qr_code_path ?: ('event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.png');
+            $expectedUrl = $this->qr->url($expectedPath);
+            $appUrlBase = rtrim((string) $this->qr->baseUrl(), '/');
+            $rawStoredUrl = (string) ($registration->getRawOriginal('qr_code_url') ?? '');
+            $needsUrlCorrection = ($rawStoredUrl !== '' && ! str_starts_with($rawStoredUrl, $appUrlBase))
+                || $registration->qr_code_url !== $expectedUrl
+                || $registration->qr_code_path !== $expectedPath;
+            $needsSvgCorrection = Schema::hasColumn('event_registrations', 'qr_code_svg')
+                && ! empty($registration->qr_code_svg)
+                && ! str_contains((string) $registration->qr_code_svg, $appUrlBase);
+
+            if ($needsUrlCorrection || $needsSvgCorrection) {
+                Log::info('event_registration_qr_correcting_stale_url_and_payload', [
+                    'registration_id' => (string) $registration->id,
+                    'old_qr_code_url' => $registration->qr_code_url,
+                    'expected_qr_code_url' => $expectedUrl,
+                ]);
+
+                try {
+                    $this->qr->generateAndStore($registration);
+                    $registration = $registration->fresh() ?? $registration;
+                } catch (Throwable $exception) {
+                    Log::error('event_registration_qr_correction_failed', [
+                        'registration_id' => (string) $registration->id,
+                        'exception' => $exception::class,
+                        'message' => $exception->getMessage(),
+                    ]);
+                }
+            } elseif (empty($registration->qr_generated_at)) {
+                $registration->forceFill($this->filter(['qr_generated_at' => now()]))->save();
                 $registration->refresh();
             }
 
@@ -183,8 +204,19 @@ class EventRegistrationQrService
 
     public function qrCodeUrl(EventRegistration $registration): ?string
     {
-        if (! empty($registration->qr_code_path)) {
-            return $this->qr->url($registration->qr_code_path);
+        $path = $registration->qr_code_path ?: ($registration->event_id && $registration->id ? 'event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.png' : null);
+
+        if (! empty($path)) {
+            return $this->qr->url($path);
+        }
+
+        if (! empty($registration->qr_code_url)) {
+            $parsedPath = parse_url((string) $registration->qr_code_url, PHP_URL_PATH);
+            if ($parsedPath && str_contains($parsedPath, 'event-qrcodes/')) {
+                $relativePath = substr($parsedPath, strpos($parsedPath, 'event-qrcodes/'));
+
+                return $this->qr->url($relativePath);
+            }
         }
 
         return $registration->qr_code_url ?: null;
@@ -205,8 +237,31 @@ class EventRegistrationQrService
 
     private function hasUsableQr(EventRegistration $registration): bool
     {
-        return ! empty($registration->qr_token)
-            && (! empty($registration->qr_code_url) || ! empty($registration->qr_code_svg) || ! empty($registration->qr_code_path));
+        if (empty($registration->qr_token)) {
+            return false;
+        }
+
+        $path = (string) $registration->qr_code_path;
+        $url = (string) $registration->qr_code_url;
+        $svg = (string) $registration->qr_code_svg;
+
+        if ($path === '' && $url === '' && $svg === '') {
+            return false;
+        }
+
+        if ($path !== '' && str_ends_with(strtolower($path), '.svg')) {
+            return false;
+        }
+
+        if ($url !== '' && str_ends_with(strtolower($url), '.svg')) {
+            return false;
+        }
+
+        if ($svg !== '' && (str_contains($svg, '/api/v1/events/checkin/qr/"') || str_contains($svg, "/api/v1/events/checkin/qr/'"))) {
+            return false;
+        }
+
+        return true;
     }
 
     private function uniqueToken(): string

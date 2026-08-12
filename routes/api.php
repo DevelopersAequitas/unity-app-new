@@ -60,6 +60,7 @@ use App\Http\Controllers\Api\V1\Admin\CertificationSubmissionController;
 use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\EventAdminController;
+use App\Http\Controllers\Api\V1\Admin\EventCouponAdminController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
@@ -160,6 +161,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+
+// TEMPORARY LOCAL/QA MOCK WEBHOOK: WhatsApp Webhook Payload Logger
+Route::post('/v1/mock-whatsapp-webhook', function (Request $request) {
+    Log::info('Local Mock WhatsApp Webhook Received Payload:', [
+        'headers' => $request->headers->all(),
+        'body' => $request->all(),
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Mock WhatsApp webhook payload captured successfully',
+    ]);
+});
 
 // Backward-compatible ads endpoint for clients that still call /api/ads.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
@@ -496,6 +510,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/profile/introduced-peers', [ProfileController::class, 'addIntroducedPeer']);
         Route::post('/introduction-requests', [IntroductionRequestsApiController::class, 'store']);
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
+        Route::post('/profile/view', [ProfileController::class, 'recordView']);
+        Route::get('/profile/views', [ProfileController::class, 'getViews']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
         Route::get('/intro-videos', [IntroVideoController::class, 'index']);
@@ -582,6 +598,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/joined-circles', [CircleController::class, 'joinedCircles']);
 
         Route::get('/circles/{circleId}/category-tree', [CircleCategoryUsageController::class, 'circleCategoryTree']);
+        Route::get('/circles/{circleId}/open-categories', [CircleCategoryUsageController::class, 'circleOpenCategories']);
+        Route::get('/circles/{circleId}/closed-categories', [CircleCategoryUsageController::class, 'circleClosedCategories']);
         Route::get('/members/{memberId}/selected-categories', [CircleCategoryUsageController::class, 'memberSelectedCategories']);
         Route::get('/members/{memberId}/available-categories', [CircleCategoryUsageController::class, 'memberAvailableCategories']);
 
@@ -851,6 +869,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/posts/saved', [PostSaveController::class, 'index']);
         Route::post('/posts', [PostController::class, 'store']);
         Route::get('/posts/{id}', [PostController::class, 'show']);
+        Route::put('/posts/{id}', [PostController::class, 'update']);
+        Route::patch('/posts/{id}', [PostController::class, 'update']);
         Route::delete('/posts/{id}', [PostController::class, 'destroy']);
 
         Route::post('/posts/{id}/like', [PostController::class, 'like']);
@@ -885,6 +905,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/admin/event-registration-requests', [EventController::class, 'adminRegistrationRequests']);
         Route::post('/admin/event-registration-requests/{request_id}/approve', [EventController::class, 'approveRegistrationRequest'])->whereUuid('request_id');
         Route::post('/admin/event-registration-requests/{request_id}/reject', [EventController::class, 'rejectRegistrationRequest'])->whereUuid('request_id');
+        Route::get('/admin/event-coupons', [EventCouponAdminController::class, 'index']);
+        Route::post('/admin/event-coupons', [EventCouponAdminController::class, 'store']);
+        Route::post('/admin/event-coupons/generate-code', [EventCouponAdminController::class, 'generateCode']);
+        Route::get('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'show'])->whereUuid('id');
+        Route::put('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'update'])->whereUuid('id');
+        Route::patch('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'update'])->whereUuid('id');
+        Route::delete('/admin/event-coupons/{id}', [EventCouponAdminController::class, 'destroy'])->whereUuid('id');
         Route::get('/events/{id}', [EventController::class, 'show'])->whereUuid('id');
         Route::post('/events', [EventController::class, 'store']);
         Route::post('/events/{id}/rsvp', [EventController::class, 'rsvp'])->whereUuid('id');

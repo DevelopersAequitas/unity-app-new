@@ -65,6 +65,7 @@ class VisitorEventRegistrationRequest extends FormRequest
             'zoho_form_entry_id' => ['nullable', 'string', 'max:255'],
             'zoho_payment_id' => ['nullable', 'string', 'max:255'],
             'zoho_payment_status' => ['nullable', 'string', 'max:100'],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
             'source' => ['sometimes', 'string', 'in:app,api,visitor_app,visitor_web,web_form,admin,zoho_form'],
             'metadata' => ['nullable', 'array'],
         ];

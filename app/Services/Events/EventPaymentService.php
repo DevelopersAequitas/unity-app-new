@@ -33,11 +33,12 @@ class EventPaymentService
 
     public function applyInitialPaymentState(EventRegistration $registration, Event $event, string $registrationType): EventRegistration
     {
-        $paymentRequired = $this->paymentRequired($event);
+        $amount = $registration->amount !== null ? (float) $registration->amount : $this->amount($event);
+        $paymentRequired = $this->paymentRequired($event) && $amount > 0;
         $updates = [
             'payment_required' => $paymentRequired,
             'payment_status' => $paymentRequired ? 'pending' : 'not_required',
-            'amount' => $paymentRequired ? $this->amount($event) : 0,
+            'amount' => $amount,
             'currency' => $this->currency($event),
             'registration_type' => $registrationType,
         ];
@@ -45,6 +46,8 @@ class EventPaymentService
         if ($paymentRequired) {
             $updates['status'] = 'pending_payment';
             $updates['checkin_status'] = 'pending';
+        } else {
+            $updates['status'] = 'registered';
         }
 
         $registration->forceFill($this->filterRegistrationColumns($updates))->save();
@@ -151,7 +154,7 @@ class EventPaymentService
             'form_url' => $formUrl,
             'qr_code_url' => $requiresPayment
                 ? null
-                : ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url),
+                : app(EventRegistrationQrService::class)->qrCodeUrl($registration),
             'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
             'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
             'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,

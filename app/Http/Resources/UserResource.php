@@ -8,6 +8,7 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\Connection;
+use App\Models\CustomCategoryRequest;
 use App\Models\SmeBusinessStorySubmission;
 use App\Models\User;
 use App\Services\ProfileMatchService;
@@ -48,6 +49,16 @@ class UserResource extends JsonResource
             $resolvedCity = $this->getAttribute('city');
         }
 
+        $otherCategoryReq = null;
+        if (blank($this->business_category_id) && $this->id && $this->main_business_category_id && Schema::hasTable('custom_category_requests')) {
+            $otherCategoryReq = CustomCategoryRequest::query()
+                ->where('user_id', (string) $this->id)
+                ->where('level1_category_id', (int) $this->main_business_category_id)
+                ->latest()
+                ->first();
+        }
+        $otherCategoryName = $otherCategoryReq?->category_name ?? $this->business_sub_category ?? null;
+
         return [
             'id' => $this->id,
             'peer_id' => $this->peer_id,
@@ -77,8 +88,6 @@ class UserResource extends JsonResource
             ] : null,
             'city' => $resolvedCity ? new CityResource($resolvedCity) : null,
             'city_of_residence' => $this->city_of_residence,
-            'membership_status' => strtolower(trim(str_replace(' ', '_', (string) $membershipStatus))),
-            'membership_expiry' => $this->membership_ends_at,
             'membership_status_label' => match (strtolower(trim(str_replace(' ', '_', (string) $membershipStatus)))) {
                 'free_trial_peer' => 'Free Trial Peer',
                 'free_peer' => 'Free Peer',
@@ -171,6 +180,13 @@ class UserResource extends JsonResource
             'greenpreneur_goals' => $this->greenpreneur_goals ?? [],
             'community_directory_listing' => $this->community_directory_listing,
             'is_bookmark' => $isBookmark,
+            'is_other_category' => (bool) ($otherCategoryName !== null && $otherCategoryName !== ''),
+            'other_category_name' => $otherCategoryName,
+            'custom_category_name' => $otherCategoryName,
+            'business_sub_category' => $otherCategoryName ?? $this->business_sub_category,
+            'business_category' => ($otherCategoryName !== null && $otherCategoryName !== '' && blank($this->businessCategory))
+                ? ['id' => 'other', 'name' => $otherCategoryName, 'is_other' => true]
+                : ($this->relationLoaded('businessCategory') && $this->businessCategory ? ['id' => $this->businessCategory->id, 'name' => $this->businessCategory->name] : null),
             'story_link' => rescue(
                 fn () => SmeBusinessStorySubmission::where('user_id', $this->id)
                     ->whereRaw('LOWER(status) = ?', ['approved'])
@@ -226,6 +242,11 @@ class UserResource extends JsonResource
 
     private function resolveProfileVideoUrl(): ?string
     {
+        $profileVideoId = $this->profile_video_id;
+        if (! blank($profileVideoId)) {
+            return url('/api/v1/files/'.$profileVideoId);
+        }
+
         $media = $this->media;
 
         if (is_string($media) && $media !== '') {
@@ -233,25 +254,21 @@ class UserResource extends JsonResource
             $media = is_array($decoded) ? $decoded : [];
         }
 
-        if (! is_array($media) || $media === []) {
-            return null;
+        if (is_array($media) && $media !== []) {
+            $firstMedia = array_values($media)[0] ?? null;
+
+            if (is_array($firstMedia)) {
+                if (! blank($firstMedia['url'] ?? null)) {
+                    return (string) $firstMedia['url'];
+                }
+
+                if (! blank($firstMedia['id'] ?? null)) {
+                    return url('/api/v1/files/'.$firstMedia['id']);
+                }
+            }
         }
 
-        $firstMedia = array_values($media)[0] ?? null;
-
-        if (! is_array($firstMedia)) {
-            return null;
-        }
-
-        if (! blank($firstMedia['url'] ?? null)) {
-            return (string) $firstMedia['url'];
-        }
-
-        if (! blank($firstMedia['id'] ?? null)) {
-            return url('/api/v1/files/'.$firstMedia['id']);
-        }
-
-        return null;
+        return $this->profile_video_url;
     }
 
     /**

@@ -28,15 +28,15 @@
                             </p>
 
                             <p style="margin:0 0 20px 0;font-size:17px;line-height:1.6;color:#d9d9d9;">
-                                Congratulations! Your PeersGlobal membership has been approved and upgraded to
-                                <strong style="color:#ffffff;">Global Peer</strong>.
+                                <!-- EDITABLE_START -->Congratulations! Your PeersGlobal membership has been approved and upgraded to
+                                <strong style="color:#ffffff;">Global Peer</strong>.<!-- EDITABLE_END -->
                             </p>
 
                             <p style="margin:0 0 22px 0;font-size:17px;line-height:1.6;color:#d9d9d9;">
-                                Your membership is valid from
+                                <!-- EDITABLE_START -->Your membership is valid from
                                 <strong style="color:#ffffff;">{{ $membershipStartsAt ?? '—' }}</strong>
                                 to
-                                <strong style="color:#ffffff;">{{ $membershipEndsAt ?? '—' }}</strong>.
+                                <strong style="color:#ffffff;">{{ $membershipEndsAt ?? '—' }}</strong>.<!-- EDITABLE_END -->
                             </p>
 
                             <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#181818;border:1px solid #333333;border-radius:12px;overflow:hidden;margin:24px 0;">
@@ -72,7 +72,7 @@
                             </table>
 
                             <p style="margin:0 0 22px 0;font-size:17px;line-height:1.6;color:#d9d9d9;">
-                                Thank you for being a part of PeersGlobal Community of Collaboration.
+                                <!-- EDITABLE_START -->Thank you for being a part of PeersGlobal Community of Collaboration.<!-- EDITABLE_END -->
                             </p>
 
                             <p style="margin:0;font-size:17px;line-height:1.6;color:#d9d9d9;">

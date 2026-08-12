@@ -122,8 +122,12 @@ class CircleController extends Controller
             $query->where('city.name', $filters['city']);
         }
 
-        if ($country !== '' && $country !== 'any' && Schema::hasColumn('circles', 'country')) {
-            $query->where('circles.country', $country);
+        if ($country !== '' && $country !== 'any') {
+            if (Schema::hasColumn('circles', 'country')) {
+                $query->where('circles.country', $country);
+            } else {
+                $query->where('city.country', $country);
+            }
         }
 
         if ($type !== '' && $type !== 'any' && Schema::hasColumn('circles', 'type')) {

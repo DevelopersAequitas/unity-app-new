@@ -8,6 +8,7 @@ use App\Models\Event;
 use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
 use App\Models\User;
+use App\Services\Notifications\EventRegistrationWhatsappService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -65,7 +66,7 @@ class EventRegistrationService
         );
     }
 
-    public function registerApprovedCrossCircleMember(Event $event, EventOccurrence $occurrence, User $user, string $requestId, string $source = 'app'): EventRegistration
+    public function registerApprovedCrossCircleMember(Event $event, EventOccurrence $occurrence, User $user, string $requestId, string $source = 'app', array $couponData = []): EventRegistration
     {
         if ($occurrence->event_id !== $event->id) {
             throw ValidationException::withMessages(['occurrence_id' => 'Occurrence does not belong to this event.']);
@@ -79,10 +80,10 @@ class EventRegistrationService
             ->first();
 
         if ($existing) {
-            $updates = $this->filterRegistrationColumns([
+            $updates = $this->filterRegistrationColumns(array_merge([
                 'registration_type' => 'cross_circle_member',
                 'registration_request_id' => $requestId,
-            ]);
+            ], $couponData));
             if (! empty($updates)) {
                 $existing->forceFill($updates)->save();
             }
@@ -99,17 +100,17 @@ class EventRegistrationService
         return $this->createRegistration(
             $event,
             $occurrence,
-            [
+            array_merge([
                 'user_id' => $user->id,
                 'source' => $source,
                 'registration_type' => 'cross_circle_member',
                 'registration_request_id' => $requestId,
-            ],
+            ], $couponData),
             true
         );
     }
 
-    public function registerCrossCircleMemberDirect(Event $event, EventOccurrence $occurrence, User $user, string $source = 'app'): EventRegistration
+    public function registerCrossCircleMemberDirect(Event $event, EventOccurrence $occurrence, User $user, string $source = 'app', array $couponData = []): EventRegistration
     {
         if ($occurrence->event_id !== $event->id) {
             throw ValidationException::withMessages(['occurrence_id' => 'Occurrence does not belong to this event.']);
@@ -123,15 +124,14 @@ class EventRegistrationService
             ->first();
 
         if ($existing) {
-            $updates = $this->filterRegistrationColumns([
+            $updates = $this->filterRegistrationColumns(array_merge([
                 'registration_type' => 'cross_circle_member',
-            ]);
+            ], $couponData));
             if (! empty($updates)) {
                 $existing->forceFill($updates)->save();
             }
 
-            if ((bool) ($existing->payment_required ?? false)
-                && in_array(strtolower((string) ($existing->payment_status ?? '')), ['pending', 'failed', 'expired', 'processing'], true)) {
+            if ((bool) ($existing->payment_required ?? false) && in_array((string) ($existing->payment_status ?? ''), ['pending', 'failed', 'expired'], true)) {
                 return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
             }
 
@@ -143,11 +143,11 @@ class EventRegistrationService
         return $this->createRegistration(
             $event,
             $occurrence,
-            [
+            array_merge([
                 'user_id' => $user->id,
                 'source' => $source,
                 'registration_type' => 'cross_circle_member',
-            ],
+            ], $couponData),
             true
         );
     }
@@ -438,7 +438,7 @@ class EventRegistrationService
 
     private function createRegistration(Event $event, EventOccurrence $occurrence, array $data, bool $applyPayment = true): EventRegistration
     {
-        if ($applyPayment && $this->payments->paymentRequired($event) && $this->payments->amount($event) <= 0) {
+        if ($applyPayment && $this->payments->paymentRequired($event) && ! isset($data['amount']) && $this->payments->amount($event) <= 0) {
             throw ValidationException::withMessages(['ticket_price' => 'Paid event ticket price must be greater than zero.']);
         }
 
@@ -511,7 +511,8 @@ class EventRegistrationService
             $registrationType = $data['registration_type'] ?? (isset($data['user_id']) ? 'member' : 'visitor');
             unset($data['registration_type']);
 
-            $paymentRequired = $applyPayment && $this->payments->paymentRequired($event);
+            $amount = isset($data['amount']) ? (float) $data['amount'] : ($applyPayment && $this->payments->paymentRequired($event) ? $this->payments->amount($event) : 0.0);
+            $paymentRequired = $applyPayment && $this->payments->paymentRequired($event) && $amount > 0;
             $registration = EventRegistration::query()->create($this->filterRegistrationColumns(array_merge($data, [
                 'event_id' => $event->id,
                 'occurrence_id' => $lockedOccurrence->id,
@@ -521,7 +522,7 @@ class EventRegistrationService
                 'registered_at' => now(),
                 'payment_required' => $paymentRequired,
                 'payment_status' => $paymentRequired ? 'pending' : 'not_required',
-                'amount' => $paymentRequired ? $this->payments->amount($event) : 0,
+                'amount' => $amount,
                 'currency' => $this->payments->currency($event),
                 'registration_type' => $registrationType,
             ])));
@@ -644,7 +645,8 @@ class EventRegistrationService
     private function notifySafely(EventRegistration $registration): void
     {
         try {
-            Log::info('Event registration notification queued placeholder.', ['event_registration_id' => $registration->id]);
+            Log::info('Event registration notification queued.', ['event_registration_id' => $registration->id]);
+            app(EventRegistrationWhatsappService::class)->sendNotification($registration);
         } catch (\Throwable $exception) {
             Log::error('Event registration notification failed.', ['event_registration_id' => $registration->id, 'error' => $exception->getMessage()]);
         }

@@ -25,6 +25,7 @@
     </div>
 
     <form method="GET" class="border bs rounded-xl p-3.5 surface-2">
+        <input type="hidden" name="id" value="{{ $event->id }}">
         <div class="row g-3 align-items-center">
             <div class="col-md-3">
                 <input class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" name="search" value="{{ request('search') }}" placeholder="Search name / email / phone">
@@ -44,7 +45,7 @@
                 </select>
             </div>
             <div class="col-md-2 d-flex justify-content-end">
-                <a href="{{ route('admin.events.attendance', $event->id) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">Clear</a>
+                <a href="{{ route('admin.events.attendance', ['id' => $event->id]) }}" class="px-3 py-1.5 rounded-lg border bs text-xs font-semibold t2 hover:t1 hover:surface-2 transition text-center no-underline">Clear</a>
             </div>
         </div>
     </form>

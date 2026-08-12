@@ -75,22 +75,33 @@
                         <h4 class="fw-bold mb-1">{{ $brand_partner->name }}</h4>
                         <p class="text-muted mb-2">/{{ $brand_partner->slug }}</p>
                         <div class="d-flex flex-wrap gap-2">
-                            <span class="badge" style="background-color: {{ $brand_partner->category?->color ?? '#999999' }}15; color: {{ $brand_partner->category?->color ?? '#666666' }}">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border" style="background-color: {{ $brand_partner->category?->color ?? '#6366f1' }}15; color: {{ $brand_partner->category?->color ?? '#6366f1' }}; border-color: {{ $brand_partner->category?->color ?? '#6366f1' }}40;">
+                                <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ $brand_partner->category?->color ?? '#6366f1' }}"></span>
                                 {{ $brand_partner->category?->name ?? 'Uncategorized' }}
                             </span>
                             @if($brand_partner->is_active)
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                                </span>
                             @else
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Draft</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Inactive
+                                </span>
                             @endif
                             @if($brand_partner->is_featured)
-                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Featured</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                    <i class="bi bi-star-fill text-amber-500 text-[11px]"></i> Featured
+                                </span>
                             @endif
                             @if($brand_partner->is_sponsored)
-                                <span class="badge bg-info-subtle text-info border border-info-subtle">Sponsored</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    <i class="bi bi-award-fill text-indigo-500 text-[11px]"></i> Sponsored
+                                </span>
                             @endif
                             @if($brand_partner->is_verified)
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Verified</span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                                    <i class="bi bi-patch-check-fill text-sky-500 text-[11px]"></i> Verified
+                                </span>
                             @endif
                         </div>
                     </div>
