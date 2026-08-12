@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('permissions')) {
+            return;
+        }
+
         Schema::create('permissions', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('key', 50)->unique();

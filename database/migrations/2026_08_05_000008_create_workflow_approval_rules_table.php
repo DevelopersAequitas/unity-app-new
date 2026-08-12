@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('workflow_approval_rules')) {
+            return;
+        }
+
         Schema::create('workflow_approval_rules', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->uuid('module_id');
