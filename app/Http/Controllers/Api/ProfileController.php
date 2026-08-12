@@ -8,9 +8,12 @@ use App\Http\Requests\Profile\UpdateProfileRequest;
 use App\Http\Requests\Profile\UpdateTimezoneRequest;
 use App\Http\Requests\Profile\UpdateUserLinkRequest;
 use App\Http\Resources\UserLinkResource;
+use App\Http\Resources\UserMiniResource;
 use App\Http\Resources\UserProfileResource;
 use App\Http\Resources\V1\LimitedUserResource;
 use App\Models\User;
+use App\Models\ProfileView;
+use App\Notifications\ProfileViewedNotification;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\ProfileVisibilityService;
 use App\Services\Users\IntroducedPeerService;
@@ -514,5 +517,73 @@ class ProfileController extends BaseApiController
             'introduced_peers_count' => (int) $introducedPeersCount,
             'introduced_peers' => LimitedUserResource::collection($introducedPeers),
         ], 'Member introduced peers fetched successfully.');
+    }
+
+    public function recordView(Request $request): JsonResponse
+    {
+        $request->validate([
+            'viewed_id' => 'required|uuid|exists:users,id',
+        ]);
+
+        $viewer = $request->user();
+        $viewedId = $request->input('viewed_id');
+
+        if ($viewer->id === $viewedId) {
+            return $this->error('You cannot record a view of your own profile.', 400);
+        }
+
+        $profileView = ProfileView::create([
+            'viewed_id' => $viewedId,
+            'viewer_id' => $viewer->id,
+        ]);
+
+        $viewedUser = User::find($viewedId);
+        if ($viewedUser) {
+            $notification = new ProfileViewedNotification($viewer);
+            $payload = $notification->toArray($viewedUser);
+
+            app(\App\Services\PushNotificationService::class)->storeAndSend(
+                $viewedUser,
+                $payload['title'],
+                $payload['body'],
+                $payload,
+                [
+                    'notification_type' => $payload['notification_type'],
+                    'viewer_id' => $viewer->id,
+                    'viewer_name' => $payload['viewer_name'],
+                ]
+            );
+        }
+
+        return $this->success([
+            'id' => $profileView->id,
+            'viewed_id' => $profileView->viewed_id,
+            'viewer_id' => $profileView->viewer_id,
+            'created_at' => $profileView->created_at,
+        ], 'Profile view recorded and notification sent successfully.');
+    }
+
+    public function getViews(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $totalViews = ProfileView::where('viewed_id', $user->id)->count();
+
+        $views = ProfileView::with('viewer')
+            ->where('viewed_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($view) {
+                return [
+                    'id' => $view->id,
+                    'viewed_at' => $view->created_at->toIso8601String(),
+                    'viewer' => $view->viewer ? (new UserMiniResource($view->viewer))->resolve() : null,
+                ];
+            });
+
+        return $this->success([
+            'total_views' => $totalViews,
+            'views' => $views,
+        ], 'Profile views retrieved successfully.');
     }
 }
