@@ -9,6 +9,7 @@ use App\Http\Requests\Forms\SubmitLeadershipCertificationRequest;
 use App\Http\Requests\Forms\SubmitPartnerWithUsRequest;
 use App\Http\Requests\Forms\SubmitSmeBusinessStoryRequest;
 use App\Mail\WebsiteFormConfirmationMail;
+use App\Models\AdminUser;
 use App\Models\BecomeSpeakerSubmission;
 use App\Models\CertificationSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
@@ -20,6 +21,7 @@ use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -151,12 +153,15 @@ class WebsiteFormsController extends BaseApiController
         $query = LeadershipCertificationSubmission::query();
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
 
-        if ($user = $request->user()) {
+        $onlyMy = $request->boolean('my') || str_contains($request->path(), '/my');
+        $user = Auth::guard('admin')->user() ?? $request->user();
+
+        if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
             $query->where(function ($q) use ($user) {
                 if (! empty($user->email)) {
                     $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
                 }
-                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->id)->pluck('id'));
+                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
             });
         }
 
@@ -190,12 +195,15 @@ class WebsiteFormsController extends BaseApiController
         $query = EntrepreneurCertificationSubmission::query();
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
 
-        if ($user = $request->user()) {
+        $onlyMy = $request->boolean('my') || str_contains($request->path(), '/my');
+        $user = Auth::guard('admin')->user() ?? $request->user();
+
+        if ($user && ($onlyMy || ! $this->isUserAdmin($request))) {
             $query->where(function ($q) use ($user) {
                 if (! empty($user->email)) {
                     $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
                 }
-                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->id)->pluck('id'));
+                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->getAuthIdentifier())->pluck('id'));
             });
         }
 
@@ -852,5 +860,26 @@ class WebsiteFormsController extends BaseApiController
                 'payload' => ['form_title' => $formTitle],
             ], $exception);
         }
+    }
+
+    private function isUserAdmin(Request $request): bool
+    {
+        $user = Auth::guard('admin')->user() ?? $request->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user instanceof AdminUser) {
+            return true;
+        }
+
+        return AdminUser::query()
+            ->where('id', $user->getAuthIdentifier())
+            ->orWhere(function ($q) use ($user) {
+                if (! empty($user->email)) {
+                    $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+            })->exists();
     }
 }

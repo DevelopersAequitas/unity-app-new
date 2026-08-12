@@ -465,6 +465,14 @@ class CertificationSubmissionFlowTest extends TestCase
 
         $res2->assertStatus(200)
             ->assertJsonCount(1, 'data');
+
+        // Admin requests entrepreneur-certification and gets ALL (2) submissions
+        $admin = $this->createAdminWithRole('all_cert_admin@example.com');
+        $resAdmin = $this->actingAs($admin, 'admin')
+            ->getJson('/api/v1/entrepreneur-certification');
+
+        $resAdmin->assertStatus(200)
+            ->assertJsonCount(2, 'data');
     }
 
     private function createAdminWithRole(string $email = 'admin@example.com'): AdminUser
