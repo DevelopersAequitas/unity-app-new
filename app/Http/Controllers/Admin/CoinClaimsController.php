@@ -143,10 +143,13 @@ class CoinClaimsController extends Controller
             });
         }
 
-        AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'coin_claim_requests.user_id', null);
+        $admin = Auth::guard('admin')->user();
+        AdminCircleScope::applyToActivityQuery($query, $admin, 'coin_claim_requests.user_id', null);
 
         $claims = $query->orderByDesc('created_at')->paginate(25)->appends($request->query());
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $circlesQuery = Circle::query()->orderBy('name');
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, $admin);
+        $circles = $circlesQuery->get(['id', 'name']);
 
         return view('admin.coin_claims.index', [
             'claims' => $claims,

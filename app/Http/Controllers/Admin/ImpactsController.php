@@ -109,21 +109,32 @@ class ImpactsController extends Controller
                                 ->orWhere('email', 'ILIKE', $term);
                         });
                 });
-            })
+            });
+
+        $admin = Auth::guard('admin')->user();
+        $this->applyDedImpactScope($impacts);
+
+        $impactsPaginator = $impacts
             ->orderByDesc('created_at')
             ->paginate(25)
             ->withQueryString();
 
         $impactActions = Impact::availableActions();
         $adminId = (string) Auth::guard('admin')->id();
-        $peers = User::query()
+
+        $peersQuery = User::query()
             ->select(['id', 'display_name', 'first_name', 'last_name', 'email', 'company_name', 'business_type', 'city'])
             ->when($adminId !== '', fn ($query) => $query->where('id', '!=', $adminId))
-            ->orderByRaw("COALESCE(NULLIF(display_name, ''), NULLIF(TRIM(CONCAT(first_name, ' ', last_name)), ''), email) ASC")
-            ->get();
+            ->orderByRaw("COALESCE(NULLIF(display_name, ''), NULLIF(TRIM(CONCAT(first_name, ' ', last_name)), ''), email) ASC");
+
+        if ($admin) {
+            AdminCircleScope::applyToUsersQuery($peersQuery, $admin);
+        }
+
+        $peers = $peersQuery->get();
 
         return view('admin.impacts.index', [
-            'impacts' => $impacts,
+            'impacts' => $impactsPaginator,
             'impactActions' => $impactActions,
             'impactActionItems' => $this->impactActionService->listForAdmin(),
             'peers' => $peers,

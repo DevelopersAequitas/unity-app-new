@@ -57,14 +57,19 @@ class EventManagementController extends Controller
             ->when($request->date_to, fn ($q, $v) => $q->where('start_at', '<=', $v))
             ->when($request->search, fn ($q, $v) => $q->where('title', 'ilike', '%'.$v.'%'));
 
-        AdminCircleScope::applyToEventsQuery($query, Auth::guard('admin')->user());
+        $admin = Auth::guard('admin')->user();
+        AdminCircleScope::applyToEventsQuery($query, $admin);
 
         $events = $query
             ->latest('start_at')
             ->paginate(20)
             ->withQueryString();
 
-        return view('admin.events.index', ['events' => $events, 'circles' => Circle::query()->orderBy('name')->get(['id', 'name'])]);
+        $circlesQuery = Circle::query()->orderBy('name');
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, $admin);
+        $circles = $circlesQuery->get(['id', 'name']);
+
+        return view('admin.events.index', ['events' => $events, 'circles' => $circles]);
     }
 
     public function totalAttendance(Request $request): View
@@ -72,6 +77,9 @@ class EventManagementController extends Controller
         $admin = Auth::guard('admin')->user();
         $query = EventRegistration::query()
             ->with(['event.circle', 'occurrence', 'user'])
+            ->whereHas('event', function ($eq) use ($admin) {
+                AdminCircleScope::applyToEventsQuery($eq, $admin);
+            })
             ->where(function ($q): void {
                 $q->where('checkin_status', 'checked_in')
                     ->orWhereNotNull('checked_in_at');

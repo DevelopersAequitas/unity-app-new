@@ -441,7 +441,9 @@ class CircleJoinRequestsController extends Controller
     {
         $query = Circle::query()->orderBy('name');
 
-        if ($this->industryScope->isIndustryDirector($admin)) {
+        if (AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToCirclesQuery($query, $admin);
+        } elseif ($this->industryScope->isIndustryDirector($admin)) {
             $circleIds = $this->industryScope->circleIdsForAdmin($admin);
             $query->when($circleIds !== [], fn ($q) => $q->whereIn('id', $circleIds), fn ($q) => $q->whereRaw('1 = 0'));
         }

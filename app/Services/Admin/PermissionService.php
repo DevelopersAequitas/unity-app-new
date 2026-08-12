@@ -472,7 +472,7 @@ class PermissionService
                     ];
                 }
 
-                $moduleAllowed = $hasModuleLevelAccess && ($isGlobal || empty($module->pages) || ! $hasExplicitPagePermsForModule || $hasAnyAllowedPage);
+                $moduleAllowed = $hasModuleLevelAccess && ($isSuper || empty($module->pages) || ! $hasExplicitPagePermsForModule || $hasAnyAllowedPage);
 
                 $result[] = [
                     'id' => $module->id,

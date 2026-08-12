@@ -60,9 +60,11 @@
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
+                ] : []),
+                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Categories') ? [
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                 ] : []),
-                ...(app(\App\Services\Admin\PermissionService::class)->canAccessRoute($adminUser, 'admin.impacts.index') ? [
+                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Impact Option') && app(\App\Services\Admin\PermissionService::class)->canAccessRoute($adminUser, 'admin.impacts.index') ? [
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),
             ]
@@ -89,9 +91,11 @@
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
+                ] : []),
+                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Categories') ? [
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                 ] : []),
-                ...(app(\App\Services\Admin\PermissionService::class)->canAccessRoute($adminUser, 'admin.impacts.index') ? [
+                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Impact Option') && app(\App\Services\Admin\PermissionService::class)->canAccessRoute($adminUser, 'admin.impacts.index') ? [
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),
             ]);
@@ -425,7 +429,7 @@
             </li>
             @endif
 
-            @if ($isDed)
+            @if ($isDed && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Analytics') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Finance & Analytics')))
                 <li class="nav-item menu-parent {{ $dedAnalyticsActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $dedAnalyticsActive ? 'active' : '' }}" href="#dedAnalyticsSubmenu" role="button" aria-expanded="{{ $dedAnalyticsActive ? 'true' : 'false' }}" aria-controls="dedAnalyticsSubmenu">
                         <span><i class="bi bi-graph-up-arrow me-2"></i>Analytics</span>

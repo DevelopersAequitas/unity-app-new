@@ -214,7 +214,10 @@ class UsersController extends Controller
         $user = new User;
         $cities = City::query()->orderBy('name')->get();
         $membershipStatuses = $this->membershipStatuses();
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
+        $adminUser = Auth::guard('admin')->user();
+        $circlesQuery = Circle::query()->orderBy('name');
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, $adminUser);
+        $circles = $circlesQuery->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
 
         return view('admin.users.create', [
             'user' => $user,
@@ -438,9 +441,9 @@ class UsersController extends Controller
                 ->where('is_active', true)
                 ->first()
             : null;
-        $circles = Circle::query()
-            ->orderBy('name')
-            ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
+        $circlesQuery = Circle::query()->orderBy('name');
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, Auth::guard('admin')->user());
+        $circles = $circlesQuery->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
 
         $joinedStatus = $this->activeCircleMemberStatus();
         $joinedCircleId = $this->activeCircleMembershipQuery($user->id, $joinedStatus)
