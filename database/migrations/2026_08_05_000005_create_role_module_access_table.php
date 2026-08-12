@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('role_module_access')) {
+            return;
+        }
+
         Schema::create('role_module_access', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->uuid('role_id');

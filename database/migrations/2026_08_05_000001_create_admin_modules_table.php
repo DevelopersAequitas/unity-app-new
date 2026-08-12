@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('admin_modules')) {
+            return;
+        }
+
         Schema::create('admin_modules', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('name', 100);
