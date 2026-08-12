@@ -24,7 +24,8 @@ class SendProfileCompletionWhatsappJob implements ShouldQueue
     use SerializesModels;
 
     public function __construct(
-        public string $userId
+        public string $userId,
+        public bool $force = false
     ) {
         $this->afterCommit = true;
         if (config('queue.default') === 'sync') {
@@ -90,8 +91,8 @@ class SendProfileCompletionWhatsappJob implements ShouldQueue
         // Recalculate latest profile completion percentage immediately before sending
         $completionPercentage = $user->calculateProfileCompletionPercentage();
 
-        // Stop Condition: If profile completion is 70% or higher, skip reminder
-        if ($completionPercentage >= 70) {
+        // Stop Condition: If profile completion is 70% or higher, skip reminder (bypassed if force flag is true)
+        if (! $this->force && $completionPercentage >= 70) {
             Log::info('WhatsApp profile completion reminder skipped: Profile completion is 70% or higher.', [
                 'user_id' => $this->userId,
                 'completion_percentage' => $completionPercentage,
@@ -102,7 +103,7 @@ class SendProfileCompletionWhatsappJob implements ShouldQueue
         }
 
         // Duplicate protection check within the last 48 hours
-        if ($this->alreadySentInLast48Hours($this->userId)) {
+        if (! $this->force && $this->alreadySentInLast48Hours($this->userId)) {
             Log::info('WhatsApp profile completion reminder skipped: Already sent to user within last 48 hours.', [
                 'user_id' => $this->userId,
                 'template_key' => 'profile_completion_reminder',
