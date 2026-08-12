@@ -414,6 +414,59 @@ class CertificationSubmissionFlowTest extends TestCase
             ->assertJsonPath('status', true);
     }
 
+    public function test_user_only_receives_their_own_certifications(): void
+    {
+        $user1 = User::factory()->create(['email' => 'user1@example.com']);
+        $user2 = User::factory()->create(['email' => 'user2@example.com']);
+
+        $sub1 = CertificationSubmission::create([
+            'id' => (string) Str::uuid(),
+            'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
+            'user_id' => $user1->id,
+            'full_name' => 'User One',
+            'email' => 'user1@example.com',
+            'status' => 'approved',
+        ]);
+
+        EntrepreneurCertificationSubmission::create([
+            'id' => $sub1->id,
+            'full_name' => 'User One',
+            'email' => 'user1@example.com',
+            'status' => 'approved',
+        ]);
+
+        $sub2 = CertificationSubmission::create([
+            'id' => (string) Str::uuid(),
+            'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
+            'user_id' => $user2->id,
+            'full_name' => 'User Two',
+            'email' => 'user2@example.com',
+            'status' => 'approved',
+        ]);
+
+        EntrepreneurCertificationSubmission::create([
+            'id' => $sub2->id,
+            'full_name' => 'User Two',
+            'email' => 'user2@example.com',
+            'status' => 'approved',
+        ]);
+
+        // User 1 requests my-certifications
+        $res1 = $this->actingAs($user1, 'sanctum')
+            ->getJson('/api/v1/my-certifications');
+
+        $res1->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.full_name', 'User One');
+
+        // User 1 requests entrepreneur-certification/my
+        $res2 = $this->actingAs($user1, 'sanctum')
+            ->getJson('/api/v1/entrepreneur-certification/my');
+
+        $res2->assertStatus(200)
+            ->assertJsonCount(1, 'data');
+    }
+
     private function createAdminWithRole(string $email = 'admin@example.com'): AdminUser
     {
         $role = Role::firstOrCreate(

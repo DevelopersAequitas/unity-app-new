@@ -108,10 +108,57 @@ class WebsiteFormsController extends BaseApiController
         ]);
     }
 
+    public function myCertifications(Request $request)
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthenticated.',
+                'data' => [],
+            ], 401);
+        }
+
+        $query = CertificationSubmission::query()
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+                if (! empty($user->email)) {
+                    $q->orWhereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+            });
+
+        if ($type = $request->query('type')) {
+            $query->where('certification_type', $type);
+        }
+
+        if ($status = $request->query('status')) {
+            $query->where('status', $status);
+        }
+
+        $items = $query->latest()->paginate($this->resolvePerPage($request));
+
+        return response()->json([
+            'status' => true,
+            'message' => 'My certifications fetched successfully.',
+            'data' => $items->items(),
+            'meta' => $this->paginationMeta($items),
+        ]);
+    }
+
     public function indexLeadershipCertification(Request $request)
     {
         $query = LeadershipCertificationSubmission::query();
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
+
+        if ($user = $request->user()) {
+            $query->where(function ($q) use ($user) {
+                if (! empty($user->email)) {
+                    $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->id)->pluck('id'));
+            });
+        }
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
 
@@ -142,6 +189,15 @@ class WebsiteFormsController extends BaseApiController
     {
         $query = EntrepreneurCertificationSubmission::query();
         $this->applyCommonFilters($query, $request, ['full_name', 'email', 'business_name']);
+
+        if ($user = $request->user()) {
+            $query->where(function ($q) use ($user) {
+                if (! empty($user->email)) {
+                    $q->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                }
+                $q->orWhereIn('id', CertificationSubmission::query()->where('user_id', $user->id)->pluck('id'));
+            });
+        }
 
         $items = $query->latest()->paginate($this->resolvePerPage($request));
 
