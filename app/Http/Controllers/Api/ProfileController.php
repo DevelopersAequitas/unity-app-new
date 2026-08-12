@@ -11,11 +11,12 @@ use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserMiniResource;
 use App\Http\Resources\UserProfileResource;
 use App\Http\Resources\V1\LimitedUserResource;
-use App\Models\User;
 use App\Models\ProfileView;
+use App\Models\User;
 use App\Notifications\ProfileViewedNotification;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\ProfileVisibilityService;
+use App\Services\PushNotificationService;
 use App\Services\Users\IntroducedPeerService;
 use App\Services\Users\PublicProfileSlugService;
 use Illuminate\Http\JsonResponse;
@@ -542,7 +543,7 @@ class ProfileController extends BaseApiController
             $notification = new ProfileViewedNotification($viewer);
             $payload = $notification->toArray($viewedUser);
 
-            app(\App\Services\PushNotificationService::class)->storeAndSend(
+            app(PushNotificationService::class)->storeAndSend(
                 $viewedUser,
                 $payload['title'],
                 $payload['body'],

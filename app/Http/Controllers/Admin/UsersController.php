@@ -559,6 +559,7 @@ class UsersController extends Controller
             'meetingFrequencies' => $meetingFrequencies,
             'citySuggestions' => $citySuggestions,
             'countries' => $countries,
+            'assignedAdminRoles' => $assignedAdminRoles,
             'userRoleIds' => $assignedAdminRoles->pluck('id')->all(),
             'assignedAdminRoleNames' => $assignedAdminRoles->pluck('name')->implode(', '),
             'hasAssignedAdminRole' => $assignedAdminRoles->isNotEmpty(),
@@ -603,7 +604,7 @@ class UsersController extends Controller
         $data = $this->getEditViewData($request, $userId);
         $data['isReadOnly'] = true;
 
-        return view('admin.users.edit', $data);
+        return view('admin.users.show', $data);
     }
 
     public function update(Request $request, string $userId)

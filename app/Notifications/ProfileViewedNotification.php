@@ -23,7 +23,7 @@ class ProfileViewedNotification extends Notification
 
     public function toArray($notifiable): array
     {
-        $viewerName = $this->viewer->display_name ?? trim(($this->viewer->first_name ?? '') . ' ' . ($this->viewer->last_name ?? ''));
+        $viewerName = $this->viewer->display_name ?? trim(($this->viewer->first_name ?? '').' '.($this->viewer->last_name ?? ''));
         if (empty($viewerName)) {
             $viewerName = 'Someone';
         }
@@ -31,7 +31,7 @@ class ProfileViewedNotification extends Notification
         return [
             'notification_type' => NotificationType::PROFILE_VIEWED->value,
             'title' => 'Profile Viewed',
-            'body' => $viewerName . ' viewed your profile.',
+            'body' => $viewerName.' viewed your profile.',
             'viewer_id' => $this->viewer->id,
             'viewer_name' => $viewerName,
             'viewer' => (new UserMiniResource($this->viewer))->resolve(),
