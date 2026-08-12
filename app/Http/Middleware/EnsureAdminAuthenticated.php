@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\AdminUser;
+use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,7 +15,7 @@ class EnsureAdminAuthenticated
     {
         if (! Auth::guard('admin')->check()) {
             if ($request->bearerToken()) {
-                /** @var \App\Models\AdminUser|\App\Models\User|null $user */
+                /** @var AdminUser|User|null $user */
                 $user = Auth::guard('sanctum')->user();
                 if ($user instanceof AdminUser) {
                     Auth::guard('admin')->setUser($user);

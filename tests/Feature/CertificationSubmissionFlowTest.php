@@ -9,9 +9,11 @@ use App\Models\AdminUser;
 use App\Models\CertificationSubmission;
 use App\Models\EntrepreneurCertificationSubmission;
 use App\Models\LeadershipCertificationSubmission;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -399,7 +401,7 @@ class CertificationSubmissionFlowTest extends TestCase
 
     private function createAdminWithRole(string $email = 'admin@example.com'): AdminUser
     {
-        $role = \App\Models\Role::firstOrCreate(
+        $role = Role::firstOrCreate(
             ['key' => 'global_admin'],
             [
                 'id' => (string) Str::uuid(),
@@ -414,7 +416,7 @@ class CertificationSubmissionFlowTest extends TestCase
             'password' => bcrypt('password'),
         ]);
 
-        \Illuminate\Support\Facades\DB::table('admin_user_roles')->insert([
+        DB::table('admin_user_roles')->insert([
             'user_id' => $admin->id,
             'role_id' => $role->id,
         ]);
