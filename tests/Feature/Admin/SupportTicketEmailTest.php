@@ -8,6 +8,7 @@ use App\Mail\SupportTicketResponseMail;
 use App\Models\AdminUser;
 use App\Models\Role;
 use App\Models\SupportTicket;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
@@ -62,6 +63,7 @@ class SupportTicketEmailTest extends TestCase
                 $table->uuid('id')->primary();
                 $table->string('name')->nullable();
                 $table->string('email')->unique();
+                $table->string('peer_id')->nullable();
                 $table->timestamps();
                 $table->softDeletes();
             });
@@ -144,6 +146,100 @@ class SupportTicketEmailTest extends TestCase
                 $table->string('message_id')->nullable();
                 $table->timestamp('sent_at')->nullable();
                 $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('notification_preferences')) {
+            Schema::create('notification_preferences', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->boolean('push_enabled')->default(true);
+                $table->boolean('email_enabled')->default(true);
+                $table->boolean('chat_enabled')->default(true);
+                $table->boolean('event_enabled')->default(true);
+                $table->boolean('circle_enabled')->default(true);
+                $table->boolean('business_enabled')->default(true);
+                $table->boolean('campaign_enabled')->default(true);
+                $table->string('quiet_hours_start')->nullable();
+                $table->string('quiet_hours_end')->nullable();
+                $table->text('config')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('user_push_tokens')) {
+            Schema::create('user_push_tokens', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id')->nullable();
+                $table->string('token');
+                $table->string('platform')->nullable();
+                $table->string('device_id')->nullable();
+                $table->string('app_version')->nullable();
+                $table->timestamp('last_seen_at')->nullable();
+                $table->timestamp('last_used_at')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->timestamp('last_update_notification_sent_at')->nullable();
+                $table->timestamp('failed_at')->nullable();
+                $table->string('failure_reason')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('app_notifications')) {
+            Schema::create('app_notifications', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->string('campaign_id')->nullable();
+                $table->string('type');
+                $table->string('category')->nullable();
+                $table->string('title');
+                $table->text('body');
+                $table->string('channel')->default('push');
+                $table->string('priority')->default('medium');
+                $table->string('reference_type')->nullable();
+                $table->string('reference_id')->nullable();
+                $table->string('screen')->nullable();
+                $table->text('data')->nullable();
+                $table->string('dedupe_key')->nullable();
+                $table->string('status')->default('pending');
+                $table->timestamp('read_at')->nullable();
+                $table->timestamp('clicked_at')->nullable();
+                $table->timestamp('sent_at')->nullable();
+                $table->timestamp('failed_at')->nullable();
+                $table->string('failure_reason')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('notification_delivery_logs')) {
+            Schema::create('notification_delivery_logs', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('notification_id');
+                $table->string('campaign_id')->nullable();
+                $table->uuid('user_id');
+                $table->string('channel');
+                $table->string('provider');
+                $table->string('status');
+                $table->text('request_payload')->nullable();
+                $table->text('response_payload')->nullable();
+                $table->timestamp('attempted_at')->nullable();
+                $table->timestamp('delivered_at')->nullable();
+                $table->timestamp('failed_at')->nullable();
+                $table->text('error_message')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('notification_suppression_logs')) {
+            Schema::create('notification_suppression_logs', function (Blueprint $table): void {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id');
+                $table->string('type');
+                $table->string('dedupe_key');
+                $table->string('campaign_id')->nullable();
+                $table->integer('send_count')->default(0);
+                $table->timestamp('last_sent_at')->nullable();
+                $table->timestamps();
             });
         }
     }
@@ -251,5 +347,94 @@ class SupportTicketEmailTest extends TestCase
 
         $response->assertSessionHasErrors(['subject', 'message']);
         Mail::assertNothingSent();
+    }
+
+    public function test_admin_can_send_only_push_notification(): void
+    {
+        Mail::fake();
+
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Test User',
+            'email' => 'testuser@example.test',
+            'peer_id' => 'PG-12345',
+        ]);
+
+        $ticket = SupportTicket::create([
+            'ticket_number' => 'SUP-20260729-0005',
+            'user_id' => $user->id,
+            'contact_name' => 'Test User',
+            'email' => 'testuser@example.test',
+            'subject' => 'App Issue',
+            'description' => 'App keeps crashing',
+            'status' => 'open',
+            'priority' => 'normal',
+        ]);
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->post(route('admin.support-tickets.send-email', $ticket->id), [
+                'action' => 'send_notification',
+                'status' => 'in_progress',
+            ]);
+
+        $response->assertRedirect(route('admin.support-tickets.show', $ticket->id));
+        $response->assertSessionHas('success');
+
+        Mail::assertNothingSent();
+
+        $ticket->refresh();
+        $this->assertSame('in_progress', $ticket->status);
+        $this->assertStringContainsString('[Push Notification Sent', $ticket->admin_note);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $user->id,
+            'type' => 'support_ticket_response',
+            'title' => 'Support Ticket Update',
+            'body' => 'Your support ticket #SUP-20260729-0005 request has been accepted by our team. To see more details, please check your email.',
+        ]);
+    }
+
+    public function test_admin_can_send_both_email_and_push_notification(): void
+    {
+        Mail::fake();
+
+        $user = User::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Test User',
+            'email' => 'testuser@example.test',
+            'peer_id' => 'PG-12345',
+        ]);
+
+        $ticket = SupportTicket::create([
+            'ticket_number' => 'SUP-20260729-0006',
+            'user_id' => $user->id,
+            'contact_name' => 'Test User',
+            'email' => 'testuser@example.test',
+            'subject' => 'App Issue',
+            'description' => 'App keeps crashing',
+            'status' => 'open',
+            'priority' => 'normal',
+        ]);
+
+        $response = $this->actingAs($this->admin, 'admin')
+            ->post(route('admin.support-tickets.send-email', $ticket->id), [
+                'action' => 'send_both',
+                'subject' => 'Re: App Issue Resolved',
+                'message' => 'Please update your app to the latest version.',
+                'status' => 'resolved',
+            ]);
+
+        $response->assertRedirect(route('admin.support-tickets.show', $ticket->id));
+        $response->assertSessionHas('success');
+
+        Mail::assertSent(SupportTicketResponseMail::class);
+
+        $ticket->refresh();
+        $this->assertSame('resolved', $ticket->status);
+        $this->assertStringContainsString('[Email & Push Notification Sent', $ticket->admin_note);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $user->id,
+            'type' => 'support_ticket_response',
+            'title' => 'Support Ticket Update',
+        ]);
     }
 }

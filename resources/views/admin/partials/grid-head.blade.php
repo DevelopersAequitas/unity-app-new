@@ -46,38 +46,44 @@ document.addEventListener('DOMContentLoaded', function() {
     /* ── Build URL from form + extra form-associated inputs ── */
     function buildFetchUrl(form, page) {
         var data = new FormData(form);
-        data.set('page', page !== undefined ? String(page) : '1');
 
         /* Include form-associated inputs (inputs with form="<formId>") */
         if (form.id) {
             var linked = document.querySelectorAll('[form="' + form.id + '"]');
             linked.forEach(function(el) {
-                if (!el.name) return;
+                if (!el.name || el.name === 'page') return;
                 if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return;
                 if (!data.has(el.name)) data.append(el.name, el.value);
             });
         }
 
+        var validPage = (page !== undefined && page !== null && String(page).trim() !== '' && String(page) !== '?') ? String(page) : '1';
+        data.set('page', validPage);
+
         var params = new URLSearchParams();
         for (var pair of data.entries()) {
-            if (typeof pair[1] === 'string') params.append(pair[0], pair[1]);
+            var key = pair[0];
+            var val = typeof pair[1] === 'string' ? pair[1].trim() : pair[1];
+            if (key && val !== '' && val !== '?') {
+                params.append(key, val);
+            }
         }
 
-        var base = form.action || window.location.pathname;
-        return base + (base.indexOf('?') === -1 ? '?' : '&') + params.toString();
+        var actionAttr = form.getAttribute('action');
+        var cleanBase = (actionAttr && actionAttr.trim() !== '') ? actionAttr.trim().split('?')[0] : window.location.pathname;
+        if (!cleanBase) cleanBase = window.location.pathname;
+
+        return cleanBase + '?' + params.toString();
     }
 
-    /* ── Core AJAX refresh ── */
-    function ajaxRefreshGrid(form, page) {
+    /* ── Core AJAX refresh with URL ── */
+    function ajaxRefreshGridWithUrl(form, url) {
         var gridBody       = document.getElementById('grid-body');
         var gridPagination = document.getElementById('grid-pagination');
         if (!gridBody && !gridPagination) {
-            /* No identifiable grid — fall back to full-page submit */
-            fallbackSubmit(form);
+            window.location.href = url;
             return;
         }
-
-        var url = buildFetchUrl(form, page !== undefined ? page : 1);
 
         if (_currentAbort) { try { _currentAbort.abort(); } catch(e){} }
         var ctrl = new AbortController();
@@ -103,9 +109,15 @@ document.addEventListener('DOMContentLoaded', function() {
             var newPag = doc.getElementById('grid-pagination');
             if (gridPagination && newPag) {
                 gridPagination.innerHTML = newPag.innerHTML;
-                bindPaginationLinks();
             }
 
+            var gridTotal = document.getElementById('grid-total');
+            var newTotal = doc.getElementById('grid-total');
+            if (gridTotal && newTotal) {
+                gridTotal.innerHTML = newTotal.innerHTML;
+            }
+
+            bindPaginationLinks();
             history.pushState({}, '', url);
         })
         .catch(function(err) {
@@ -113,6 +125,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (gridBody) hideGridLoading(gridBody);
             window.location.href = url;
         });
+    }
+
+    function ajaxRefreshGrid(form, page) {
+        var url = buildFetchUrl(form, page !== undefined ? page : 1);
+        ajaxRefreshGridWithUrl(form, url);
     }
 
     /* ── Fallback: normal form submission ── */
@@ -135,21 +152,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    /* ── Bind pagination links in #grid-pagination ── */
+    /* ── Bind pagination links ── */
     function onPaginationClick(e) {
         var href = this.getAttribute('href');
-        if (!href || href === '#') return;
+        if (!href || href === '#' || href.indexOf('javascript:') === 0) return;
         e.preventDefault();
-        var url  = new URL(href, window.location.href);
-        var page = url.searchParams.get('page') || '1';
+
         var form = findFilterForm();
-        if (!form) { window.location.href = href; return; }
-        ajaxRefreshGrid(form, page);
+        ajaxRefreshGridWithUrl(form, href);
     }
     function bindPaginationLinks() {
-        var pag = document.getElementById('grid-pagination');
-        if (!pag) return;
-        pag.querySelectorAll('a[href]').forEach(function(a) {
+        var links = document.querySelectorAll('#grid-pagination a[href], nav[aria-label="Pagination Navigation"] a[href], .pagination a[href], .admin-grid-card a[href*="page="]');
+        links.forEach(function(a) {
             a.removeEventListener('click', onPaginationClick);
             a.addEventListener('click', onPaginationClick);
         });
@@ -194,6 +208,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!target) return;
 
         var form = target.form || target.closest('form');
+        if (!form && target.getAttribute && target.getAttribute('form')) {
+            form = document.getElementById(target.getAttribute('form'));
+        }
         if (!form) return;
 
         var method = (form.getAttribute('method') || 'GET').toUpperCase();
@@ -209,6 +226,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
         /* Skip invisible / non-filter forms */
         if (form.style.display === 'none' || form.getAttribute('data-no-ajax') === 'true') return;
+
+        /* Synchronize all other inputs/selects with the same name linked to this form */
+        if (target.name) {
+            var formId = form.id;
+            var selector = formId
+                ? '[form="' + formId + '"][name="' + target.name + '"], form#' + formId + ' [name="' + target.name + '"]'
+                : '[name="' + target.name + '"]';
+            try {
+                var matches = document.querySelectorAll(selector);
+                matches.forEach(function(el) {
+                    if (el !== target && el.name === target.name) {
+                        el.value = target.value;
+                    }
+                });
+            } catch(err) {}
+        }
 
         var tag  = target.tagName.toLowerCase();
         var type = (target.type || '').toLowerCase();

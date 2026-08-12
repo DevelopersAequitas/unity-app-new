@@ -28,12 +28,24 @@
         <div class="alert alert-success mb-4">{{ session('success') }}</div>
     @endif
 
+    @php
+        $hasAdvancedFilters = !empty($filters['country'])
+            || !empty($filters['meeting_mode'])
+            || !empty($filters['meeting_frequency'])
+            || !empty($filters['launch_date'])
+            || !empty($filters['director'])
+            || !empty($filters['circle_stage'])
+            || !empty($filters['industry_director'])
+            || !empty($filters['ded'])
+            || !empty($filters['industry_tags']);
+    @endphp
+
     <form id="circleFiltersForm" method="GET" action="{{ route('admin.circles.index') }}">
         <div class="border bs rounded-xl p-3.5 mb-4 surface-2">
             <div class="flex justify-between items-center flex-wrap gap-2">
                 <div>
-                    <button class="chip !py-1 text-xs" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFiltersCollapse" aria-expanded="false" aria-controls="advancedFiltersCollapse">
-                        <i class="bi bi-funnel"></i>Advanced Filters
+                    <button id="btnAdvancedFilters" class="chip !py-1 text-xs {{ $hasAdvancedFilters ? 'chip-active' : '' }}" type="button" onclick="toggleAdvancedFilters(event)" aria-expanded="{{ $hasAdvancedFilters ? 'true' : 'false' }}">
+                        <i class="bi bi-funnel me-1"></i>Advanced Filters
                     </button>
                 </div>
                 <div class="text-xs t3">
@@ -45,10 +57,10 @@
                 </div>
             </div>
 
-            <div class="collapse mt-3" id="advancedFiltersCollapse">
+            <div class="mt-3 {{ $hasAdvancedFilters ? '' : 'hidden' }}" id="advancedFiltersCollapse" style="{{ $hasAdvancedFilters ? 'display: block;' : 'display: none;' }}">
                 <div class="p-3 surface rounded-lg border bs">
-                    <div class="row g-3">
-                        <div class="col-md-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Country</label>
                             <select name="country" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                                 <option value="">All Countries</option>
@@ -57,7 +69,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Meeting Mode</label>
                             <select name="meeting_mode" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                                 <option value="">All Modes</option>
@@ -66,7 +78,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Meeting Frequency</label>
                             <select name="meeting_frequency" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                                 <option value="">All Frequencies</option>
@@ -75,15 +87,15 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Launch Date</label>
                             <input type="date" name="launch_date" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['launch_date'] }}">
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Director</label>
                             <input type="text" name="director" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['director'] }}" placeholder="Director">
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Circle Stage</label>
                             <select id="circleStageFilter" name="circle_stage" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring">
                                 <option value="">All Stages</option>
@@ -92,15 +104,15 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Industry Director</label>
                             <input type="text" name="industry_director" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['industry_director'] }}" placeholder="Industry Director">
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">DED</label>
                             <input type="text" name="ded" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['ded'] }}" placeholder="DED">
                         </div>
-                        <div class="col-md-4">
+                        <div>
                             <label class="block text-[11px] t3 mb-1 font-medium">Industry Tags</label>
                             <input type="text" name="industry_tags" class="w-full px-3 py-1.5 rounded-lg border bs surface t1 text-xs outline-none focus-ring" value="{{ $filters['industry_tags'] }}" placeholder="Industry Tags">
                         </div>
@@ -591,7 +603,49 @@
         document.getElementById('circle-drawer-scrim').classList.add('hidden');
     }
 
+    function toggleAdvancedFilters(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const container = document.getElementById('advancedFiltersCollapse');
+        const btn = document.getElementById('btnAdvancedFilters');
+        if (!container) return;
+
+        const isHidden = container.classList.contains('hidden') || container.style.display === 'none' || getComputedStyle(container).display === 'none';
+
+        if (isHidden) {
+            container.classList.remove('hidden');
+            container.style.display = 'block';
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'true');
+                btn.classList.add('chip-active');
+            }
+        } else {
+            container.classList.add('hidden');
+            container.style.display = 'none';
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('chip-active');
+            }
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
+        const hasActiveFilters = @json($hasAdvancedFilters);
+        if (hasActiveFilters) {
+            const container = document.getElementById('advancedFiltersCollapse');
+            const btn = document.getElementById('btnAdvancedFilters');
+            if (container) {
+                container.classList.remove('hidden');
+                container.style.display = 'block';
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'true');
+                btn.classList.add('chip-active');
+            }
+        }
+
         const form = document.getElementById('circleFiltersForm');
 
         if (form) {

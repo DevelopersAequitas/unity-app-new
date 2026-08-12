@@ -74,7 +74,7 @@
         <div class="flex flex-wrap justify-between items-center gap-3">
             <div class="flex items-center gap-3">
                 <h2 class="font-display font-semibold text-xs text-indigo-400 uppercase tracking-wider m-0">Visitor Registrations</h2>
-                <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total: {{ number_format($registrations->total()) }}</span>
+                <span id="grid-total" class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">Total: {{ number_format($registrations->total()) }}</span>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
                 <button type="button" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer" data-bs-toggle="modal" data-bs-target="#importVisitorModal">
@@ -202,66 +202,92 @@
                                 $visitorEmail = $registration->visitor_email ?? $registration->email ?? '—';
                                 $visitorCategory = $registration->business_category ?? $registration->category ?? '—';
                                 $eventName = $registration->event_name ?? ($registration->event_type ? ucfirst($registration->event_type) : '—');
+
+                                $visitorRowData = [
+                                    'id' => $registration->id,
+                                    'memberName' => $memberName,
+                                    'memberCompany' => $memberCompany,
+                                    'memberCity' => $memberCity,
+                                    'memberCircle' => $memberCircle,
+                                    'visitorName' => $registration->visitor_full_name ?? '—',
+                                    'visitorEmail' => $visitorEmail,
+                                    'visitorMobile' => $registration->visitor_mobile ?? '—',
+                                    'visitorCompany' => $registration->visitor_business ?? '—',
+                                    'visitorCity' => $registration->visitor_city ?? '—',
+                                    'category' => $visitorCategory,
+                                    'eventName' => $eventName,
+                                    'status' => $registration->status,
+                                    'statusLabel' => ucfirst((string)($registration->status ?? 'pending')),
+                                    'createdAt' => $formatDateTime($registration->created_at ?? null),
+                                    'exportUrl' => route('admin.visitor-registrations.export-single', $registration->id),
+                                    'approveUrl' => route('admin.visitor-registrations.approve', $registration->id),
+                                    'rejectUrl' => route('admin.visitor-registrations.reject', $registration->id),
+                                    'isPending' => $registration->status === 'pending',
+                                ];
                             @endphp
-                            <tr class="hover:surface-2 transition border-b bs">
-                                <td class="px-3 py-2.5 text-center sticky left-0 z-10 surface" style="width:40px; min-width:40px; box-shadow: none;">
+                            <tr class="hover:surface-2 transition border-b bs cursor-pointer" onclick="openVisitorRowModal({{ json_encode($visitorRowData) }})" title="Click row to view full visitor registration details">
+                                <td class="px-3 py-2.5 text-center sticky left-0 z-10 surface" style="width:40px; min-width:40px; box-shadow: none;" onclick="event.stopPropagation()">
                                     <input type="checkbox" name="ids[]" value="{{ $registration->id }}" form="bulkDeleteForm" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 row-checkbox">
                                 </td>
                                 <td class="px-3 py-2.5 text-xs sticky left-[40px] z-10 surface" style="min-width:160px; box-shadow: 2px 0 6px -2px rgba(0,0,0,0.10);">
                                     @if ($member)
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-2 whitespace-nowrap">
                                             <div class="w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style="background-color: {{ $getAvatarBg($memberName) }}">
                                                 {{ $getInitials($memberName) }}
                                             </div>
-                                            <a href="#"
-                                               onclick="event.preventDefault(); event.stopPropagation(); openActivityPeerModal('{{ $member->id }}', event);"
-                                               class="text-indigo-600 font-semibold hover:underline no-underline">
+                                            <span class="text-indigo-600 font-semibold no-underline whitespace-nowrap">
                                                 {{ $memberName }}
-                                            </a>
+                                            </span>
                                         </div>
                                     @else
                                         <span class="t3">—</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$memberCompany" /></td>
-                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$memberCity" /></td>
-                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$memberCircle" /></td>
-                                <td class="px-3 py-2.5 text-xs font-semibold t1"><x-admin-grid-text :text="$registration->visitor_full_name ?? '—'" /></td>
-                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$visitorEmail" /></td>
-                                <td class="px-3 py-2.5 text-xs t2">{{ $registration->visitor_mobile ?? '—' }}</td>
-                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$registration->visitor_business ?? '—'" /></td>
-                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$registration->visitor_city ?? '—'" /></td>
-                                <td class="px-3 py-2.5 text-xs t2"><x-admin-grid-text :text="$visitorCategory" /></td>
-                                <td class="px-3 py-2.5 text-xs t1 font-medium"><x-admin-grid-text :text="$eventName" /></td>
-                                <td class="px-3 py-2.5 text-xs">
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap"><x-admin-grid-text :text="$memberCompany" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap"><x-admin-grid-text :text="$memberCity" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap"><x-admin-grid-text :text="$memberCircle" /></td>
+                                <td class="px-3 py-2.5 text-xs font-semibold t1 whitespace-nowrap"><x-admin-grid-text :text="$registration->visitor_full_name ?? '—'" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap"><x-admin-grid-text :text="$visitorEmail" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap">{{ $registration->visitor_mobile ?? '—' }}</td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap"><x-admin-grid-text :text="$registration->visitor_business ?? '—'" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap"><x-admin-grid-text :text="$registration->visitor_city ?? '—'" /></td>
+                                <td class="px-3 py-2.5 text-xs t2 whitespace-nowrap"><x-admin-grid-text :text="$visitorCategory" /></td>
+                                <td class="px-3 py-2.5 text-xs t1 font-medium whitespace-nowrap"><x-admin-grid-text :text="$eventName" /></td>
+                                <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                     @if($registration->status === 'approved')
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Approved</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved
+                                        </span>
                                     @elseif($registration->status === 'rejected')
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">Rejected</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Rejected
+                                        </span>
                                     @else
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border-amber-200">Pending</span>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Pending
+                                        </span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap">{{ $formatDateTime($registration->created_at ?? null) }}</td>
-                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap">
-                                    <div class="flex justify-end gap-1.5 items-center">
+                                <td class="px-3 py-2.5 text-xs t3 whitespace-nowrap font-mono">{{ $formatDateTime($registration->created_at ?? null) }}</td>
+                                <td class="px-3 py-2.5 text-xs text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                                    <div class="flex justify-end gap-1.5 items-center whitespace-nowrap">
                                          <a href="{{ route('admin.visitor-registrations.export-single', $registration->id) }}" class="p-1 rounded border bs t2 hover:t1 hover:surface-2 transition no-underline inline-flex items-center justify-center" title="Export Single CSV" aria-label="Export Single CSV">
                                              <i class="bi bi-download" aria-hidden="true"></i>
                                          </a>
                                         @if ($registration->status === 'pending')
                                             <form method="POST" action="{{ route('admin.visitor-registrations.approve', $registration->id) }}" class="inline">
                                                 @csrf
-                                                <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white transition focus-ring" onclick="return confirm('Approve this visitor registration?')">Approve</button>
+                                                <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition whitespace-nowrap cursor-pointer" onclick="return confirm('Approve this visitor registration?')">Approve</button>
                                             </form>
                                             <form method="POST" action="{{ route('admin.visitor-registrations.reject', $registration->id) }}" class="inline">
                                                 @csrf
-                                                <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded border border-rose-200 text-rose-700 hover:bg-rose-50 transition focus-ring" onclick="return confirm('Reject this visitor registration?')">Reject</button>
+                                                <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap cursor-pointer" onclick="return confirm('Reject this visitor registration?')">Reject</button>
                                             </form>
                                         @endif
                                         <form method="POST" action="{{ route('admin.visitor-registrations.destroy', $registration->id) }}" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete this visitor registration? This cannot be undone.')">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="px-2 py-0.5 text-xs font-semibold rounded bg-rose-600 hover:bg-rose-500 text-white transition focus-ring" title="Delete">
+                                            <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition whitespace-nowrap cursor-pointer" title="Delete">
                                                 Delete
                                             </button>
                                         </form>
@@ -270,7 +296,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="15" class="text-center py-8 text-xs t3">No visitor registrations found.</td>
+                                <td colspan="15" class="text-center py-8 text-xs t3 whitespace-nowrap">No visitor registrations found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -282,6 +308,161 @@
             </div>
         </div>
     </div>
+
+    <!-- Visitor Row Details Popup Modal -->
+    <div id="visitorRowDetailModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 relative border border-gray-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <button type="button" onclick="closeVisitorRowModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition cursor-pointer">&times;</button>
+            
+            <div class="border-b bs pb-3">
+                <h3 id="modalVisitorName" class="font-bold text-base text-gray-900 m-0">Visitor Details</h3>
+                <p id="modalVisitorSubtitle" class="text-xs text-indigo-600 font-semibold m-0 mt-0.5">Visitor Registration Overview</p>
+            </div>
+
+            <!-- Inviting Peer Card -->
+            <div class="p-3.5 rounded-xl border bs bg-gray-50/70 space-y-1.5">
+                <span class="block text-[11px] uppercase tracking-wider font-semibold text-gray-500">Invited By Peer</span>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                        <span class="text-gray-500 text-[11px]">Peer Name:</span>
+                        <div id="modalPeerName" class="font-bold text-gray-900">—</div>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 text-[11px]">Company:</span>
+                        <div id="modalPeerCompany" class="font-semibold text-gray-800">—</div>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 text-[11px]">City:</span>
+                        <div id="modalPeerCity" class="font-semibold text-gray-800">—</div>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 text-[11px]">Circle:</span>
+                        <div id="modalPeerCircle" class="font-semibold text-gray-800">—</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visitor Details Grid -->
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="p-3 rounded-lg border bs bg-gray-50/70">
+                    <span class="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Visitor Email</span>
+                    <span id="modalVisitorEmail" class="font-semibold text-gray-900 break-all">—</span>
+                </div>
+                <div class="p-3 rounded-lg border bs bg-gray-50/70">
+                    <span class="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Visitor Mobile</span>
+                    <span id="modalVisitorMobile" class="font-semibold text-gray-900 font-mono">—</span>
+                </div>
+                <div class="p-3 rounded-lg border bs bg-gray-50/70">
+                    <span class="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Visitor Company</span>
+                    <span id="modalVisitorCompany" class="font-semibold text-gray-900">—</span>
+                </div>
+                <div class="p-3 rounded-lg border bs bg-gray-50/70">
+                    <span class="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Visitor City</span>
+                    <span id="modalVisitorCity" class="font-semibold text-gray-900">—</span>
+                </div>
+            </div>
+
+            <!-- Event & Registration Info -->
+            <div class="grid grid-cols-3 gap-2.5 text-xs">
+                <div class="p-2.5 rounded-lg border bs bg-gray-50/70">
+                    <span class="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Business Category</span>
+                    <span id="modalVisitorCategory" class="font-semibold text-gray-900 text-xs">—</span>
+                </div>
+                <div class="p-2.5 rounded-lg border bs bg-gray-50/70">
+                    <span class="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Event</span>
+                    <span id="modalVisitorEvent" class="font-semibold text-indigo-600 text-xs">—</span>
+                </div>
+                <div class="p-2.5 rounded-lg border bs bg-gray-50/70">
+                    <span class="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Status</span>
+                    <span id="modalVisitorStatus" class="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200">Pending</span>
+                </div>
+            </div>
+
+            <div class="p-2.5 rounded-lg border bs bg-gray-50/70 text-xs">
+                <span class="text-gray-500 text-[11px]">Submitted Date:</span>
+                <span id="modalVisitorCreatedAt" class="font-semibold text-gray-900 font-mono ml-1">—</span>
+            </div>
+
+            <!-- Action Bar -->
+            <div class="pt-3 border-t bs flex justify-between items-center gap-2 flex-wrap">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <a id="modalVisitorExportBtn" href="#" class="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition no-underline shadow-sm flex items-center gap-1.5">
+                        <i class="bi bi-download"></i> Export CSV
+                    </a>
+
+                    <!-- Dynamic Approve Form -->
+                    <form id="modalVisitorApproveForm" method="POST" action="" class="inline">
+                        @csrf
+                        <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer flex items-center gap-1.5" onclick="return confirm('Approve this visitor registration?')">
+                            Approve
+                        </button>
+                    </form>
+
+                    <!-- Dynamic Reject Form -->
+                    <form id="modalVisitorRejectForm" method="POST" action="" class="inline">
+                        @csrf
+                        <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-lg border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 transition shadow-sm cursor-pointer flex items-center gap-1.5" onclick="return confirm('Reject this visitor registration?')">
+                            Reject
+                        </button>
+                    </form>
+                </div>
+
+                <button type="button" onclick="closeVisitorRowModal()" class="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition cursor-pointer">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openVisitorRowModal(data) {
+            document.getElementById('modalVisitorName').textContent = data.visitorName || 'Visitor Details';
+            document.getElementById('modalVisitorSubtitle').textContent = 'Visitor Registration • ' + (data.eventName || 'Event');
+            
+            // Peer info
+            document.getElementById('modalPeerName').textContent = data.memberName || '—';
+            document.getElementById('modalPeerCompany').textContent = data.memberCompany || '—';
+            document.getElementById('modalPeerCity').textContent = data.memberCity || '—';
+            document.getElementById('modalPeerCircle').textContent = data.memberCircle || '—';
+
+            // Visitor info
+            document.getElementById('modalVisitorEmail').textContent = data.visitorEmail || '—';
+            document.getElementById('modalVisitorMobile').textContent = data.visitorMobile || '—';
+            document.getElementById('modalVisitorCompany').textContent = data.visitorCompany || '—';
+            document.getElementById('modalVisitorCity').textContent = data.visitorCity || '—';
+            document.getElementById('modalVisitorCategory').textContent = data.category || '—';
+            document.getElementById('modalVisitorEvent').textContent = data.eventName || '—';
+            document.getElementById('modalVisitorCreatedAt').textContent = data.createdAt || '—';
+
+            // Status badge
+            const statusEl = document.getElementById('modalVisitorStatus');
+            statusEl.textContent = data.statusLabel || 'Pending';
+            const st = (data.status || '').toLowerCase();
+            if (st === 'approved') {
+                statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200';
+            } else if (st === 'rejected') {
+                statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200';
+            } else {
+                statusEl.className = 'inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200';
+            }
+
+            // Export button
+            document.getElementById('modalVisitorExportBtn').href = data.exportUrl || '#';
+
+            // Approve & Reject forms
+            const approveForm = document.getElementById('modalVisitorApproveForm');
+            const rejectForm = document.getElementById('modalVisitorRejectForm');
+
+            approveForm.action = data.approveUrl;
+            rejectForm.action = data.rejectUrl;
+
+            document.getElementById('visitorRowDetailModal').classList.remove('hidden');
+        }
+
+        function closeVisitorRowModal() {
+            document.getElementById('visitorRowDetailModal').classList.add('hidden');
+        }
+    </script>
 
     <!-- Add Visitor Modal -->
     <div class="modal fade" id="addVisitorModal" tabindex="-1" aria-labelledby="addVisitorModalLabel" aria-hidden="true">

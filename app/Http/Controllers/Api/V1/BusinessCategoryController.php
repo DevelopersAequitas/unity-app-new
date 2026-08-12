@@ -156,12 +156,22 @@ class BusinessCategoryController extends BaseApiController
             return $this->error('Circle categories table not found.', 404);
         }
 
+        $otherOption = [
+            'id' => 'other',
+            'name' => 'Other',
+            'is_other' => true,
+            'parent_id' => is_numeric($parentId) ? (int) $parentId : $parentId,
+        ];
+
         $selfChildren = $this->selfReferencingChildren($parentId);
         if ($selfChildren->isNotEmpty()) {
+            $selfChildren->push($otherOption);
+
             return $this->success($selfChildren, 'Business sub categories fetched successfully.');
         }
 
         $legacyChildren = $this->legacyLevelChildren($parentId);
+        $legacyChildren->push($otherOption);
 
         return $this->success($legacyChildren, 'Business sub categories fetched successfully.');
     }

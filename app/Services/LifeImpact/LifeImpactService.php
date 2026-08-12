@@ -5,6 +5,7 @@ namespace App\Services\LifeImpact;
 use App\Models\Impact;
 use App\Models\ImpactAction;
 use App\Models\LifeImpactHistory;
+use App\Services\MilestoneBadgeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -40,6 +41,8 @@ class LifeImpactService
                     'life_impacted_count' => DB::raw('COALESCE(life_impacted_count, 0) + '.$impactValue),
                     'updated_at' => now(),
                 ]);
+
+            app(MilestoneBadgeService::class)->calculateForUserId($userId);
 
             $normalizedMeta = null;
             if (! empty($meta)) {
@@ -308,6 +311,8 @@ class LifeImpactService
                 'life_impacted_count' => $sum,
                 'updated_at' => now(),
             ]);
+
+        app(MilestoneBadgeService::class)->calculateForUserId($userId);
 
         return $sum;
     }

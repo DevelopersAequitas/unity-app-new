@@ -759,6 +759,17 @@
                 }
             }
 
+            if (sd) {
+                const dayParts = sd.split('-');
+                if (dayParts.length === 3) {
+                    const dayNum = parseInt(dayParts[2], 10);
+                    const dayOfMonthEl = document.getElementById('dayOfMonth');
+                    if (dayOfMonthEl && !isNaN(dayNum) && dayNum >= 1 && dayNum <= 31) {
+                        dayOfMonthEl.value = String(dayNum);
+                    }
+                }
+            }
+
             if (sd && st) {
                 document.getElementById('startAtHidden').value = `${sd}T${st}`;
                 const startDateObj = new Date(`${sd}T${st}`);
@@ -882,15 +893,37 @@
             toggle('.recurrence-common', type !== 'none');
             toggle('.recurrence-fields', false);
             intervalUnit.textContent = type === 'daily' ? 'day(s)' : type === 'weekly' ? 'week(s)' : 'month(s)';
-            if (type === 'weekly') toggle('.weekly-fields', true);
+            
+            const dayOfWeekEl = document.getElementById('dayOfWeek');
+            const monthlyDayOfWeekEl = document.getElementById('monthlyDayOfWeek');
+            const dayOfMonthEl = document.getElementById('dayOfMonth');
+            const weekOfMonthEl = document.getElementById('weekOfMonth');
+
+            if (dayOfWeekEl) dayOfWeekEl.disabled = true;
+            if (monthlyDayOfWeekEl) monthlyDayOfWeekEl.disabled = true;
+            if (dayOfMonthEl) dayOfMonthEl.disabled = true;
+            if (weekOfMonthEl) weekOfMonthEl.disabled = true;
+
+            if (type === 'weekly') {
+                toggle('.weekly-fields', true);
+                if (dayOfWeekEl) dayOfWeekEl.disabled = false;
+            }
             if (type === 'monthly') {
                 toggle('.monthly-fields', true);
                 const fixed = document.getElementById('monthlyFixed').checked;
                 toggle('.monthly-fixed-fields', fixed);
                 toggle('.monthly-weekday-fields', !fixed);
-                document.getElementById('monthlyDayOfWeek').disabled = fixed;
-                document.getElementById('dayOfWeek').disabled = fixed;
-                if (!fixed) document.getElementById('dayOfWeek').value = document.getElementById('monthlyDayOfWeek').value;
+
+                if (fixed) {
+                    if (dayOfMonthEl) dayOfMonthEl.disabled = false;
+                } else {
+                    if (monthlyDayOfWeekEl) monthlyDayOfWeekEl.disabled = false;
+                    if (dayOfWeekEl) dayOfWeekEl.disabled = false;
+                    if (weekOfMonthEl) weekOfMonthEl.disabled = false;
+                    if (monthlyDayOfWeekEl && dayOfWeekEl) {
+                        dayOfWeekEl.value = monthlyDayOfWeekEl.value;
+                    }
+                }
             }
 
             updatePreview();

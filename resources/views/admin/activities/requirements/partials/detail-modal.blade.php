@@ -99,10 +99,19 @@
                 // Status
                 const statusEl = document.getElementById('reqModalStatus');
                 statusEl.textContent = data.status || 'open';
-                if ((data.status || '').toLowerCase() === 'closed') {
-                    statusEl.className = 'px-3 py-1 rounded-full text-xs font-bold capitalize bg-slate-100 text-slate-700 border border-slate-200';
+                const st = (data.status || '').toLowerCase();
+                if (st === 'open' || st === 'active') {
+                    statusEl.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
+                    statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>' + (data.status || 'Open');
+                } else if (st === 'completed' || st === 'closed') {
+                    statusEl.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200';
+                    statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>' + (data.status || 'Completed');
+                } else if (st === 'rejected' || st === 'cancelled') {
+                    statusEl.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+                    statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>' + (data.status || 'Rejected');
                 } else {
-                    statusEl.className = 'px-3 py-1 rounded-full text-xs font-bold capitalize bg-rose-100 text-rose-700 border border-rose-200';
+                    statusEl.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200';
+                    statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>' + (data.status || '—');
                 }
 
                 // Subject & Filters

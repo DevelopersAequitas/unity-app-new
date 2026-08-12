@@ -76,7 +76,7 @@ class AdminCampaignController extends Controller
 
     public function create(): View
     {
-        $campaign = new AdminCampaign(['campaign_type' => 'email_only', 'audience_type' => 'all_members', 'filters' => []]);
+        $campaign = new AdminCampaign(['campaign_type' => '', 'audience_type' => 'all_members', 'filters' => []]);
         $campaign->setRelation('schedule', new CampaignSchedule([
             'schedule_type' => 'immediately',
             'timezone' => 'UTC',

@@ -121,6 +121,11 @@ class NotificationEngineController extends BaseApiController
                     $q->orWhereIn('type', ['impact_submitted', 'impact_received', 'impact_approved', 'impact_rejected', 'life_impact'])
                         ->orWhere('category', 'life_impact');
                 }
+
+                if (in_array($normalizedType, ['connection', 'connections', 'connection_request', 'connection_accepted', 'connect'], true)) {
+                    $q->orWhereIn('type', ['connection_request', 'connection_accepted', 'connection', 'connection_received'])
+                        ->orWhereIn('category', ['connection_request', 'connection_accepted', 'connection']);
+                }
             });
         }
 

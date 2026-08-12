@@ -190,6 +190,11 @@
                 <input id="invited_by_user_id" name="invited_by_user_id" value="{{ old('invited_by_user_id') }}" placeholder="UUID if available">
                 @error('invited_by_user_id')<div class="error">{{ $message }}</div>@enderror
             </div>
+            <div>
+                <label for="coupon_code">Coupon code (Optional)</label>
+                <input id="coupon_code" name="coupon_code" value="{{ old('coupon_code') }}" placeholder="Enter coupon code (e.g. VIPPASS60)" style="text-transform: uppercase;">
+                @error('coupon_code')<div class="error">{{ $message }}</div>@enderror
+            </div>
             <div class="full">
                 <button class="button" type="submit">Submit registration</button>
             </div>

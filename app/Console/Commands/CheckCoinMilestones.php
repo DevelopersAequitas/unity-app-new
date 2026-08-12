@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Console\Commands;
 
-use App\Models\AwardCoinsHistory;
 use App\Models\User;
-use App\Support\CoinMilestoneResolver;
+use App\Services\MilestoneBadgeService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -22,59 +23,28 @@ class CheckCoinMilestones extends Command
      *
      * @var string
      */
-    protected $description = 'Check users who have achieved new coin milestones and record them in the history';
+    protected $description = 'Evaluate user milestone badges across all users';
 
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
-        $this->info('Starting coin milestone checks...');
-        $milestones = CoinMilestoneResolver::getMilestones();
+        $this->info('Starting milestone badge calculation check...');
         $processedCount = 0;
-        $insertedCount = 0;
+        $badgeService = app(MilestoneBadgeService::class);
 
-        User::select('id', 'coins_balance')->chunkById(200, function ($users) use ($milestones, &$processedCount, &$insertedCount) {
-            $userIds = $users->pluck('id')->toArray();
-
-            // Get all existing milestones for these users to prevent duplicates
-            $existing = AwardCoinsHistory::whereIn('user_id', $userIds)
-                ->get()
-                ->groupBy('user_id');
-
-            foreach ($users as $user) {
-                $processedCount++;
-                $userCoins = (int) ($user->coins_balance ?? 0);
-                $userExisting = $existing->get($user->id) ?? collect();
-
-                foreach ($milestones as $milestone) {
-                    $threshold = (int) $milestone['threshold'];
-
-                    // If user has reached the milestone threshold
-                    if ($userCoins >= $threshold) {
-                        // Check if they already have this milestone registered
-                        $hasMilestone = $userExisting->contains('coins_earned', $threshold);
-
-                        if (! $hasMilestone) {
-                            AwardCoinsHistory::create([
-                                'user_id' => $user->id,
-                                'coins_earned' => $threshold,
-                                'medal_rank' => $milestone['medal_rank'],
-                                'title' => $milestone['title'],
-                                'meaning' => $milestone['meaning'],
-                                'achieved_at' => now(),
-                            ]);
-                            $insertedCount++;
-                        }
-                    }
+        User::select('id', 'coins_balance', 'life_impacted_count', 'members_introduced_count')
+            ->chunkById(200, function ($users) use ($badgeService, &$processedCount): void {
+                foreach ($users as $user) {
+                    $processedCount++;
+                    $badgeService->calculateForUser($user);
                 }
-            }
-        });
+            });
 
-        $this->info("Completed! Processed {$processedCount} users and added {$insertedCount} new milestone records.");
+        $this->info("Completed! Processed {$processedCount} users.");
         Log::info('coins.check_milestones_completed', [
             'processed_users' => $processedCount,
-            'new_milestones' => $insertedCount,
         ]);
 
         return self::SUCCESS;

@@ -21,6 +21,37 @@
         $hash = crc32($name);
         return $colors[abs($hash) % count($colors)];
     };
+
+    $formatReportStatusBadge = function (?string $status): array {
+        $raw = strtolower(trim((string) $status));
+        return match ($raw) {
+            'resolved' => [
+                'label' => 'Resolved',
+                'badgeClass' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                'dotClass' => 'bg-emerald-500',
+            ],
+            'pending' => [
+                'label' => 'Pending',
+                'badgeClass' => 'bg-amber-50 text-amber-700 border-amber-200',
+                'dotClass' => 'bg-amber-500',
+            ],
+            'dismissed' => [
+                'label' => 'Dismissed',
+                'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                'dotClass' => 'bg-slate-400',
+            ],
+            '' => [
+                'label' => '—',
+                'badgeClass' => '',
+                'dotClass' => '',
+            ],
+            default => [
+                'label' => ucfirst($raw),
+                'badgeClass' => 'bg-slate-100 text-slate-700 border-slate-200',
+                'dotClass' => 'bg-slate-500',
+            ],
+        };
+    };
 @endphp
 
 @section('content')
@@ -214,15 +245,29 @@
                                     <td class="px-3 py-2.5 text-xs t2">{{ $circleName ?: '—' }}</td>
                                     <td class="px-3 py-2.5 text-xs t1 font-medium">{{ $reporterName !== '' ? $reporterName : 'Unknown' }}</td>
                                     <td class="px-3 py-2.5 text-xs t2">{{ $report->reasonOption?->title ?? $report->reason ?? '—' }}</td>
-                                    <td class="px-3 py-2.5 text-xs">
-                                        <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 border-gray-200">{{ ucfirst($report->status) }}</span>
+                                    <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                                        @php $repStatusInfo = $formatReportStatusBadge($report->status); @endphp
+                                        @if(!empty($repStatusInfo['label']) && $repStatusInfo['label'] !== '—')
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold border {{ $repStatusInfo['badgeClass'] }}">
+                                                <span class="w-1.5 h-1.5 rounded-full {{ $repStatusInfo['dotClass'] }}"></span>
+                                                <span>{{ $repStatusInfo['label'] }}</span>
+                                            </span>
+                                        @else
+                                            <span class="t3">—</span>
+                                        @endif
                                     </td>
                                     <td class="px-3 py-2.5 text-xs font-semibold t1 text-center">{{ $report->total_reports ?? 0 }}</td>
-                                    <td class="px-3 py-2.5 text-xs">
+                                    <td class="px-3 py-2.5 text-xs whitespace-nowrap">
                                         @if($isPostActive)
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">Yes</span>
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                <span>Yes</span>
+                                            </span>
                                         @else
-                                            <span class="chip px-2.5 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200">No</span>
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                                <span>No</span>
+                                            </span>
                                         @endif
                                     </td>
                                     <td class="px-3 py-2.5 text-xs whitespace-nowrap">

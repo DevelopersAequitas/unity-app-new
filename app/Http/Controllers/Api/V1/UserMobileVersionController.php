@@ -45,22 +45,10 @@ class UserMobileVersionController extends BaseApiController
         $latestReleaseQuery = AppChangelog::query()
             ->where('is_released', true);
 
-        if (DB::connection()->getDriverName() === 'sqlite') {
-            $latestReleaseQuery->where(function ($q) use ($requestedPlatform): void {
-                $q->whereJsonContains('platform', ucfirst($requestedPlatform))
-                    ->orWhereJsonContains('platform', $requestedPlatform)
-                    ->orWhere('platform', 'like', "%{$requestedPlatform}%");
-            });
-        } else {
-            $latestReleaseQuery->whereRaw(
-                'EXISTS (
-                    SELECT 1
-                    FROM jsonb_array_elements_text(app_changelogs.platform) AS platform_value
-                    WHERE LOWER(platform_value) = ?
-                )',
-                [$requestedPlatform]
-            );
-        }
+        $latestReleaseQuery->where(function ($q) use ($requestedPlatform): void {
+            $q->where('platform', 'like', "%{$requestedPlatform}%")
+                ->orWhere('platform', 'like', '%all%');
+        });
 
         $latestRelease = $latestReleaseQuery
             ->orderByRaw(DB::connection()->getDriverName() === 'sqlite' ? 'released_at DESC' : 'released_at DESC NULLS LAST')

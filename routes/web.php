@@ -44,6 +44,8 @@ use App\Http\Controllers\Admin\ContextSwitcherController;
 use App\Http\Controllers\Admin\DailyNotificationController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailLogController;
+use App\Http\Controllers\Admin\EmailTemplateController;
+use App\Http\Controllers\Admin\EventCouponWebController;
 use App\Http\Controllers\Admin\EventGalleryController;
 use App\Http\Controllers\Admin\EventManagementController;
 use App\Http\Controllers\Admin\EventScanCredentialController;
@@ -56,7 +58,9 @@ use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\LoginHistoryController;
 use App\Http\Controllers\Admin\MemberIntroducersController;
 use App\Http\Controllers\Admin\MembershipPlanController;
+use App\Http\Controllers\Admin\MilestoneBadgeController;
 use App\Http\Controllers\Admin\NotificationAdminController;
+use App\Http\Controllers\Admin\NotificationTemplateController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
@@ -80,7 +84,9 @@ use App\Http\Controllers\Admin\VisitorRegistrationsController;
 use App\Http\Controllers\Api\V1\EventQrCodeController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
 use App\Http\Controllers\ShareController;
+use App\Services\Events\EventCheckinService;
 use App\Support\AdminAccess;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -95,6 +101,35 @@ Route::get('/share', [ShareController::class, 'handle'])->name('share');
 
 Route::get('/api/v1/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
 Route::get('/event-qrcodes/{eventId}/{filename}', [EventQrCodeController::class, 'show'])->where('filename', '[^/]+');
+
+Route::get('/api/v1/events/checkin/qr/{token}', function (Request $request, string $token) {
+    $service = app(EventCheckinService::class);
+    $registration = $service->registrationForToken($token);
+
+    if (! $registration) {
+        return response()->json([
+            'success' => false,
+            'message' => 'This QR Code is not valid or has expired.',
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'QR Code is valid.',
+        'data' => [
+            'registration_id' => $registration->id,
+            'event_id' => $registration->event_id,
+            'occurrence_id' => $registration->occurrence_id,
+            'user_id' => $registration->user_id,
+            'checkin_status' => $registration->checkin_status,
+            'status' => $registration->status,
+            'payment_status' => $registration->payment_status,
+        ],
+    ]);
+});
+Route::get('/events/checkin/qr/{token}', function (Request $request, string $token) {
+    return redirect('/api/v1/events/checkin/qr/'.$token);
+});
 
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
@@ -244,6 +279,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->middleware('admin.industry-director')
             ->name('industry-director.switch-industry');
         Route::get('/member-introducers', [MemberIntroducersController::class, 'index'])->name('member-introducers.index');
+        Route::get('/milestone-badges', [MilestoneBadgeController::class, 'index'])->name('milestone-badges.index');
+        Route::get('/milestone-badges/create', [MilestoneBadgeController::class, 'create'])->name('milestone-badges.create');
+        Route::post('/milestone-badges', [MilestoneBadgeController::class, 'store'])->name('milestone-badges.store');
+        Route::get('/milestone-badges/{badge}/edit', [MilestoneBadgeController::class, 'edit'])->whereUuid('badge')->name('milestone-badges.edit');
+        Route::put('/milestone-badges/{badge}', [MilestoneBadgeController::class, 'update'])->whereUuid('badge')->name('milestone-badges.update');
+        Route::delete('/milestone-badges/{badge}', [MilestoneBadgeController::class, 'destroy'])->whereUuid('badge')->name('milestone-badges.destroy');
+        Route::post('/milestone-badges/{badge}/toggle-status', [MilestoneBadgeController::class, 'toggleStatus'])->whereUuid('badge')->name('milestone-badges.toggle-status');
         Route::get('/sponsored-milestones', [SponsoredMembersMilestonesWebController::class, 'index'])->name('sponsored-milestones.index');
         Route::get('/sponsored-milestones/{user}', [SponsoredMembersMilestonesWebController::class, 'show'])
             ->whereUuid('user')
@@ -391,17 +433,20 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/events', [EventManagementController::class, 'index'])->name('events.index');
         Route::get('/events/total-attendance', [EventManagementController::class, 'totalAttendance'])->name('events.total-attendance');
         Route::get('/events/total-registered', [EventManagementController::class, 'totalRegistered'])->name('events.total-registered');
+        Route::get('/events/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
         Route::get('/event-joining-requests', [EventManagementController::class, 'joiningRequests'])->name('event-joining-requests.index');
         Route::post('/event-joining-requests/{id}/approve', [EventManagementController::class, 'approveJoiningRequest'])->whereUuid('id')->name('event-joining-requests.approve');
         Route::post('/event-joining-requests/{id}/reject', [EventManagementController::class, 'rejectJoiningRequest'])->whereUuid('id')->name('event-joining-requests.reject');
         Route::get('/events/create', [EventManagementController::class, 'create'])->name('events.create');
         Route::post('/events', [EventManagementController::class, 'store'])->name('events.store');
-        Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->name('events.edit');
-        Route::put('/events/{id}', [EventManagementController::class, 'update'])->name('events.update');
-        Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
-        Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->name('events.occurrences.add-visitor');
-        Route::get('/events/{id}/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
+        Route::get('/events/{id}/edit', [EventManagementController::class, 'edit'])->whereUuid('id')->name('events.edit');
+        Route::put('/events/{id}', [EventManagementController::class, 'update'])->whereUuid('id')->name('events.update');
+        Route::get('/events/{id}', [EventManagementController::class, 'show'])->whereUuid('id')->name('events.show');
+        Route::post('/events/{id}/occurrences/{occurrence_id}/add-visitor', [EventManagementController::class, 'addVisitorDirectly'])->whereUuid('id')->whereUuid('occurrence_id')->name('events.occurrences.add-visitor');
         Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
+        Route::post('/events/registrations/{id}/send-whatsapp-qr', [EventManagementController::class, 'sendWhatsappQr'])->whereUuid('id')->name('events.registrations.send-whatsapp-qr');
+
+        Route::resource('/event-coupons', EventCouponWebController::class)->except(['create', 'edit']);
 
         Route::get('/event-gallery', [EventGalleryController::class, 'index'])->name('event-gallery.index');
         Route::post('/event-gallery/events', [EventGalleryController::class, 'storeEvent'])->name('event-gallery.events.store');
@@ -581,6 +626,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show'])->name('support-tickets.show');
         Route::put('/support-tickets/{id}', [SupportTicketController::class, 'update'])->name('support-tickets.update');
         Route::post('/support-tickets/{id}/send-email', [SupportTicketController::class, 'sendEmail'])->whereUuid('id')->name('support-tickets.send-email');
+
+        // Email Templates Module
+        Route::get('/email-templates', [EmailTemplateController::class, 'index'])->name('email-templates.index');
+        Route::get('/email-templates/{key}/edit', [EmailTemplateController::class, 'edit'])->name('email-templates.edit');
+        Route::put('/email-templates/{key}', [EmailTemplateController::class, 'update'])->name('email-templates.update');
+        Route::get('/email-templates/{key}/preview', [EmailTemplateController::class, 'preview'])->name('email-templates.preview');
+
+        // Notification Templates Module
+        Route::get('/notification-templates', [NotificationTemplateController::class, 'index'])->name('notification-templates.index');
+        Route::get('/notification-templates/{key}/edit', [NotificationTemplateController::class, 'edit'])->name('notification-templates.edit');
+        Route::put('/notification-templates/{key}', [NotificationTemplateController::class, 'update'])->name('notification-templates.update');
+        Route::get('/notification-templates/{key}/preview', [NotificationTemplateController::class, 'preview'])->name('notification-templates.preview');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');
