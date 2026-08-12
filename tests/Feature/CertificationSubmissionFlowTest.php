@@ -192,12 +192,7 @@ class CertificationSubmissionFlowTest extends TestCase
             'status' => 'active',
         ]);
 
-        $admin = AdminUser::create([
-            'id' => (string) Str::uuid(),
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => bcrypt('password'),
-        ]);
+        $admin = $this->createAdminWithRole('admin@example.com');
 
         $payload = [
             'full_name' => 'Jane Leader',
@@ -276,12 +271,7 @@ class CertificationSubmissionFlowTest extends TestCase
             'status' => 'active',
         ]);
 
-        $admin = AdminUser::create([
-            'id' => (string) Str::uuid(),
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => bcrypt('password'),
-        ]);
+        $admin = $this->createAdminWithRole('admin2@example.com');
 
         $payload = [
             'full_name' => 'John Builder',
@@ -334,5 +324,65 @@ class CertificationSubmissionFlowTest extends TestCase
         $certViewResponse->assertStatus(200)
             ->assertSee('John Builder')
             ->assertSee('Entrepreneur Certification');
+    }
+
+    public function test_admin_can_approve_and_reject_certification_via_json_api(): void
+    {
+        Mail::fake();
+
+        $admin = $this->createAdminWithRole('admin_api@example.com');
+
+        $submission = CertificationSubmission::create([
+            'id' => (string) Str::uuid(),
+            'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
+            'full_name' => 'API Applicant',
+            'email' => 'api_applicant@example.com',
+            'status' => CertificationSubmission::STATUS_NEW,
+        ]);
+
+        // Approve via JSON
+        $approveResponse = $this->actingAs($admin, 'admin')
+            ->postJson("/admin/pending-requests/certifications/{$submission->id}/approve", [
+                'admin_note' => 'Approved via JSON API',
+            ]);
+
+        $approveResponse->assertStatus(200)
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.status', 'approved');
+
+        // Reject via JSON
+        $rejectResponse = $this->actingAs($admin, 'admin')
+            ->postJson("/admin/pending-requests/certifications/{$submission->id}/reject", [
+                'admin_note' => 'Rejected via JSON API',
+            ]);
+
+        $rejectResponse->assertStatus(200)
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.status', 'rejected');
+    }
+
+    private function createAdminWithRole(string $email = 'admin@example.com'): AdminUser
+    {
+        $role = \App\Models\Role::firstOrCreate(
+            ['key' => 'global_admin'],
+            [
+                'id' => (string) Str::uuid(),
+                'name' => 'Global Admin',
+            ]
+        );
+
+        $admin = AdminUser::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Super Admin',
+            'email' => $email,
+            'password' => bcrypt('password'),
+        ]);
+
+        \Illuminate\Support\Facades\DB::table('admin_user_roles')->insert([
+            'user_id' => $admin->id,
+            'role_id' => $role->id,
+        ]);
+
+        return $admin;
     }
 }
