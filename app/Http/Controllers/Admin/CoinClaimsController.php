@@ -7,6 +7,7 @@ use App\Http\Requests\CoinClaims\RejectCoinClaimRequest;
 use App\Models\Circle;
 use App\Models\CoinClaimRequest;
 use App\Models\User;
+use App\Services\Admin\PermissionService;
 use App\Services\CoinClaims\CoinClaimEmailService;
 use App\Services\Coins\CoinsService;
 use App\Support\AdminCircleScope;
@@ -189,6 +190,10 @@ class CoinClaimsController extends Controller
 
         $admin = Auth::guard('admin')->user();
 
+        if ($admin && ! app(PermissionService::class)->can($admin, 'admin.coin-claims.index', 'approve')) {
+            abort(403, 'You do not have permission to approve coin claims.');
+        }
+
         try {
             $message = DB::transaction(function () use ($id, $admin, $requestId, $request) {
                 $claim = CoinClaimRequest::with('user')->where('id', $id)->lockForUpdate()->firstOrFail();
@@ -283,6 +288,10 @@ class CoinClaimsController extends Controller
         Log::info('Coin claim reject requested', ['request_id' => $requestId, 'id' => $id]);
 
         $admin = Auth::guard('admin')->user();
+
+        if ($admin && ! app(PermissionService::class)->can($admin, 'admin.coin-claims.index', 'reject') && ! app(PermissionService::class)->can($admin, 'admin.coin-claims.index', 'approve')) {
+            abort(403, 'You do not have permission to reject coin claims.');
+        }
 
         try {
             $message = DB::transaction(function () use ($id, $admin, $request) {

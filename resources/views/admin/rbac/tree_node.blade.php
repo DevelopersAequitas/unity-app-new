@@ -6,17 +6,21 @@
 
     // Pick icon based on role key or type
     $iconMap = [
-        'global_founder'  => 'bi-star-fill',
-        'global_admin'    => 'bi-shield-fill',
-        'ded'             => 'bi-building',
-        'id'              => 'bi-briefcase-fill',
-        'ied'             => 'bi-briefcase',
-        'cd'              => 'bi-circle-fill',
-        'cf'              => 'bi-circle',
-        'chair'           => 'bi-person-badge-fill',
-        'vice_chair'      => 'bi-person-badge',
-        'secretary'       => 'bi-journal-text',
-        'member'          => 'bi-person-fill',
+        'global_founder'    => 'bi-star-fill',
+        'global_admin'      => 'bi-shield-fill',
+        'ded'               => 'bi-building',
+        'id'                => 'bi-briefcase-fill',
+        'industry_director' => 'bi-briefcase-fill',
+        'Circle Director'   => 'bi-circle-fill',
+        'Circle Founder'    => 'bi-award-fill',
+        'Circle_Chair'      => 'bi-person-badge-fill',
+        'cd'                => 'bi-circle-fill',
+        'cf'                => 'bi-circle',
+        'chair'             => 'bi-person-badge-fill',
+        'vice_chair'        => 'bi-person-badge',
+        'secretary'         => 'bi-journal-text',
+        'member'            => 'bi-person-fill',
+        'user'              => 'bi-person',
     ];
     $roleIcon = $iconMap[$role->key] ?? match($role->role_type) {
         'system' => 'bi-shield-lock-fill',

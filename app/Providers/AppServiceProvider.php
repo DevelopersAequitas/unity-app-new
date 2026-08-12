@@ -2,12 +2,14 @@
 
 namespace App\Providers;
 
+use App\Http\ViewComposers\PermissionViewComposer;
 use App\Models\AdminCampaign;
 use App\Models\EmailLog;
 use App\Models\EventRegistration;
 use App\Observers\EventRegistrationObserver;
 use App\Policies\AdminCampaignPolicy;
 use App\Policies\SponsorshipMilestonePolicy;
+use App\Services\Admin\PermissionService;
 use App\Support\SqliteMigrator;
 use Illuminate\Database\Connection;
 use Illuminate\Database\SQLiteConnection;
@@ -17,6 +19,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 
@@ -28,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         require_once app_path('Support/helpers.php');
+
+        $this->app->singleton(PermissionService::class);
 
         // Load newly created models manually to prevent Class Not Found errors
         // when composer optimized autoloader has not been refreshed on staging.
@@ -53,6 +58,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Register dynamic RBAC view composer for admin sidebar
+        View::composer(
+            ['admin.partials.sidebar', 'admin.layouts.app'],
+            PermissionViewComposer::class,
+        );
+
         Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) {
             return new class($connection, $database, $prefix, $config) extends SQLiteConnection
             {

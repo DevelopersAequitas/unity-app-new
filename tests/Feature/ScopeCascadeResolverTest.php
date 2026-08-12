@@ -171,7 +171,7 @@ class ScopeCascadeResolverTest extends TestCase
             'id' => (string) Str::uuid(),
             'circle_id' => $circle1->id,
             'user_id' => $appUser->id,
-            'role' => 'director',
+            'role' => 'member',
             'status' => 'approved',
             'created_at' => now(),
             'updated_at' => now(),

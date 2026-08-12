@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Circle extends Model
@@ -194,6 +197,18 @@ class Circle extends Model
             if ($circle->wasRecentlyCreated || $circle->wasChanged(['city_id', 'city', 'city_display', 'state', 'district'])) {
                 app(DistrictSyncService::class)->syncFromCircle($circle);
             }
+
+            if (Schema::hasTable('tbl_permission_cache')) {
+                DB::table('tbl_permission_cache')->truncate();
+            }
+            Cache::flush();
+        });
+
+        static::deleted(function (Circle $circle): void {
+            if (Schema::hasTable('tbl_permission_cache')) {
+                DB::table('tbl_permission_cache')->truncate();
+            }
+            Cache::flush();
         });
     }
 

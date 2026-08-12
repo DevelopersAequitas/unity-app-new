@@ -80,8 +80,8 @@ class LeadershipController extends BaseApiController
         abort_unless(in_array($validated['role'], self::SUPPORTED_ROLES, true), 422, 'Unsupported role.');
 
         $circleRole = match ($validated['role']) {
-            'cf' => 'founder',
-            'cd' => 'director',
+            'cf', 'founder' => 'circle_founder',
+            'cd', 'director' => 'circle_director',
             'powerhouse' => 'committee_leader',
             default => $validated['role'],
         };
@@ -100,7 +100,13 @@ class LeadershipController extends BaseApiController
     public function assignmentUpdate(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate(['role' => ['required', 'string']]);
-        DB::table('circle_members')->where('id', $id)->update(['role' => $validated['role'], 'updated_at' => now()]);
+        $circleRole = match ($validated['role']) {
+            'cf', 'founder' => 'circle_founder',
+            'cd', 'director' => 'circle_director',
+            'powerhouse' => 'committee_leader',
+            default => $validated['role'],
+        };
+        DB::table('circle_members')->where('id', $id)->update(['role' => $circleRole, 'updated_at' => now()]);
 
         return $this->success(['updated' => true]);
     }

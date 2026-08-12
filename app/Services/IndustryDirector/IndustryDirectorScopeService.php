@@ -41,7 +41,7 @@ class IndustryDirectorScopeService
             'admin_user_id' => Auth::guard('admin')->id(),
             'request_industry_id' => $request->input('industry_id'),
             'request_selected_industry_id' => $request->input('selected_industry_id'),
-            'session_selected_industry_id' => $request->session()->get('industry_director.selected_industry_id'),
+            'session_selected_industry_id' => $request->hasSession() ? $request->session()->get('industry_director.selected_industry_id') : null,
             'route' => $request->route()?->getName(),
             'url' => $request->fullUrl(),
         ]);
@@ -59,17 +59,19 @@ class IndustryDirectorScopeService
             return $requestedIndustryId;
         }
 
-        $sessionIndustryId = (string) $request->session()->get('industry_director.selected_industry_id', '');
+        $sessionIndustryId = $request->hasSession() ? (string) $request->session()->get('industry_director.selected_industry_id', '') : '';
         if ($sessionIndustryId !== '') {
             if (in_array($sessionIndustryId, $this->assignedIndustryIdsForAdmin($adminUserId), true)) {
                 return $sessionIndustryId;
             }
 
-            $request->session()->forget('industry_director.selected_industry_id');
+            if ($request->hasSession()) {
+                $request->session()->forget('industry_director.selected_industry_id');
+            }
         }
 
         $fallbackIndustryId = $this->assignedIndustryIdForAdmin($adminUserId);
-        if ($fallbackIndustryId !== null) {
+        if ($fallbackIndustryId !== null && $request->hasSession()) {
             $this->setSelectedIndustry($fallbackIndustryId);
         }
 
@@ -140,8 +142,20 @@ class IndustryDirectorScopeService
             ->values()
             ->all();
         $mappingMemberIds = $this->memberIdsFromMappingView($selectedIndustryId, $industryIdsForFilter);
+
+        $circleIds = $this->circleIdsForIndustryIds($industryIdsForFilter);
+        $circleMemberIds = [];
+        if ($circleIds !== []) {
+            $circleMemberIds = DB::table('circle_members')
+                ->whereIn('circle_id', $circleIds)
+                ->pluck('user_id')
+                ->map(fn ($id) => (string) $id)
+                ->all();
+        }
+
         $memberIds = collect($mappingMemberIds)
             ->merge($directMemberIds)
+            ->merge($circleMemberIds)
             ->unique()
             ->values()
             ->all();
@@ -151,6 +165,7 @@ class IndustryDirectorScopeService
             'assigned_industry_id' => $selectedIndustryId,
             'mapping_member_count' => count($mappingMemberIds),
             'direct_member_count' => count($directMemberIds),
+            'circle_member_count' => count($circleMemberIds),
             'matched_member_ids' => $memberIds,
             'matched_member_count' => count($memberIds),
         ]);
@@ -422,6 +437,73 @@ class IndustryDirectorScopeService
             ->all();
     }
 
+    public function categoryIdsForIndustryIds(array $industryIds): array
+    {
+        $scopeValues = $this->industryScopeValues($industryIds);
+        if ($scopeValues === []) {
+            return $this->cleanIds($industryIds);
+        }
+
+        $allCategoryIds = collect($this->cleanIds($industryIds));
+
+        $keywords = collect($scopeValues)
+            ->map(function (string $val) {
+                $v = str_ireplace([' circles', ' circle', ' industries', ' industry'], '', $val);
+
+                return trim($v);
+            })
+            ->filter(fn (string $v) => $v !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        if (Schema::hasTable('circle_categories')) {
+            $query = DB::table('circle_categories');
+            $query->where(function ($q) use ($keywords, $industryIds): void {
+                foreach ($industryIds as $id) {
+                    if (ctype_digit((string) $id)) {
+                        $q->orWhere('id', (int) $id);
+                    }
+                }
+                foreach ($keywords as $kw) {
+                    $slug = Str::slug($kw);
+                    $q->orWhere('name', 'ILIKE', '%'.$kw.'%')
+                        ->orWhere('slug', 'ILIKE', '%'.$slug.'%')
+                        ->orWhere('circle_key', 'ILIKE', '%'.str_replace('-', '_', $slug).'%');
+                }
+            });
+            $ids = $query->pluck('id')->map(fn ($id) => (string) $id)->all();
+            $allCategoryIds = $allCategoryIds->merge($ids);
+        }
+
+        if (Schema::hasTable('categories')) {
+            $query = DB::table('categories');
+            $query->where(function ($q) use ($keywords, $industryIds): void {
+                foreach ($industryIds as $id) {
+                    if (ctype_digit((string) $id)) {
+                        $q->orWhere('id', (int) $id);
+                    }
+                }
+                foreach ($keywords as $kw) {
+                    $slug = Str::slug($kw);
+                    if (Schema::hasColumn('categories', 'name')) {
+                        $q->orWhere('name', 'ILIKE', '%'.$kw.'%');
+                    }
+                    if (Schema::hasColumn('categories', 'category_name')) {
+                        $q->orWhere('category_name', 'ILIKE', '%'.$kw.'%');
+                    }
+                    if (Schema::hasColumn('categories', 'slug')) {
+                        $q->orWhere('slug', 'ILIKE', '%'.$slug.'%');
+                    }
+                }
+            });
+            $ids = $query->pluck('id')->map(fn ($id) => (string) $id)->all();
+            $allCategoryIds = $allCategoryIds->merge($ids);
+        }
+
+        return $allCategoryIds->unique()->filter(fn (string $id) => $id !== '')->values()->all();
+    }
+
     private function applyUsersIndustryColumns($query, array $industryIds, string $table)
     {
         $industryIds = $this->cleanIds($industryIds);
@@ -432,10 +514,14 @@ class IndustryDirectorScopeService
             return $query;
         }
 
-        $query->where(function ($scope) use ($table, $industryIds): void {
+        $expandedIndustryIds = $this->categoryIdsForIndustryIds($industryIds);
+
+        $query->where(function ($scope) use ($table, $industryIds, $expandedIndustryIds): void {
             $hasCondition = false;
 
             foreach ([
+                'main_business_category_id',
+                'business_category_id',
                 'business_category_main_id',
                 'business_category_sub_id',
                 'visitor_business_category_main_id',
@@ -443,11 +529,13 @@ class IndustryDirectorScopeService
                 'active_circle_id',
                 'circle_id',
             ] as $column) {
-                $hasCondition = $this->orWhereColumnIn($scope, $table, $column, $industryIds) || $hasCondition;
+                $hasCondition = $this->orWhereColumnIn($scope, $table, $column, $expandedIndustryIds) || $hasCondition;
             }
 
-            $hasCondition = $this->orWhereJsonContainsAny($scope, $table, 'industry_tags', $industryIds) || $hasCondition;
-            $hasCondition = $this->orWhereJsonContainsAny($scope, $table, 'target_business_categories', $industryIds) || $hasCondition;
+            $scopeValues = $this->industryScopeValues($industryIds);
+            $hasCondition = $this->orWhereJsonContainsAny($scope, $table, 'industry_tags', $scopeValues) || $hasCondition;
+            $hasCondition = $this->orWhereJsonContainsAny($scope, $table, 'target_business_categories', $scopeValues) || $hasCondition;
+            $hasCondition = $this->orWhereJsonContainsAny($scope, $table, 'industries_of_interest', $scopeValues) || $hasCondition;
 
             if (! $hasCondition) {
                 $scope->whereRaw('1 = 0');
@@ -459,17 +547,24 @@ class IndustryDirectorScopeService
 
     private function applyCirclesScopeToIndustryIds($query, array $industryIds)
     {
-        $query->where(function ($scope) use ($industryIds): void {
+        $adminUserId = (string) Auth::guard('admin')->id();
+
+        $query->where(function ($scope) use ($industryIds, $adminUserId): void {
             $hasCondition = false;
 
+            if ($adminUserId !== '') {
+                $scope->orWhere('circles.industry_director_user_id', $adminUserId);
+                $hasCondition = true;
+            }
+
             foreach (['industry_id', 'category_id', 'industry_category_id', 'circle_category_id'] as $column) {
-                $hasCondition = $this->orWhereColumnIn($scope, 'circles', $column, $industryIds) || $hasCondition;
+                $hasCondition = $this->orWhereColumnIn($scope, 'circles', $column, $this->categoryIdsForIndustryIds($industryIds)) || $hasCondition;
             }
 
             $hasCondition = $this->orWhereJsonContainsAny($scope, 'circles', 'industry_tags', $this->industryScopeValues($industryIds)) || $hasCondition;
 
             if (Schema::hasTable('circle_category_mappings')) {
-                $categoryIds = $this->idsForColumn('circle_category_mappings', 'category_id', $industryIds);
+                $categoryIds = $this->idsForColumn('circle_category_mappings', 'category_id', $this->categoryIdsForIndustryIds($industryIds));
 
                 if ($categoryIds !== []) {
                     $scope->orWhereExists(function ($subQuery) use ($categoryIds): void {

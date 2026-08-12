@@ -64,7 +64,15 @@ use App\Http\Controllers\Admin\NotificationTemplateController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
+use App\Http\Controllers\Admin\Rbac\AdminModuleController;
+use App\Http\Controllers\Admin\Rbac\AdminPageController;
+use App\Http\Controllers\Admin\Rbac\PageGroupController;
+use App\Http\Controllers\Admin\Rbac\RoleDataScopeController;
 use App\Http\Controllers\Admin\Rbac\RoleHierarchyController;
+use App\Http\Controllers\Admin\Rbac\RoleLifespanController;
+use App\Http\Controllers\Admin\Rbac\RoleModuleAccessController;
+use App\Http\Controllers\Admin\Rbac\RolePermissionMatrixController;
+use App\Http\Controllers\Admin\Rbac\WorkflowApprovalRuleController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\SponsoredMembersMilestonesWebController;
 use App\Http\Controllers\Admin\StorySubmissionsController;
@@ -140,7 +148,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/login/send-otp', [AdminAuthController::class, 'requestOtp'])->name('login.send-otp');
     Route::post('/login/verify', [AdminAuthController::class, 'verifyOtp'])->name('login.verify');
 
-    Route::middleware(['admin.auth', 'admin.role', 'admin.circle'])->group(function () {
+    Route::middleware(['admin.auth', 'admin.role', 'admin.circle', 'admin.permission'])->group(function () {
         // RBAC Hierarchy & Profile management
         Route::get('/rbac/hierarchy', [RoleHierarchyController::class, 'index'])->name('rbac.hierarchy');
         Route::get('/rbac/hierarchy/map', [RoleHierarchyController::class, 'fullMap'])->name('rbac.hierarchy.fullmap');
@@ -155,6 +163,56 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/rbac/roles/{id}/assignments/{userId}', [RoleHierarchyController::class, 'removeAssignment'])->name('rbac.roles.remove-assignment')->whereUuid('id')->whereUuid('userId');
         Route::post('/switch-context', [ContextSwitcherController::class, 'switchContext'])->name('switch-context');
         Route::post('/profile/remove-current-role', [RoleHierarchyController::class, 'removeCurrentRole'])->name('profile.remove-current-role');
+
+        // ── Dynamic RBAC Management ─────────────────────────────
+        Route::prefix('rbac')->name('rbac.')->group(function () {
+            // Module Management
+            Route::get('/modules', [AdminModuleController::class, 'index'])->name('modules.index');
+            Route::get('/modules/create', [AdminModuleController::class, 'create'])->name('modules.create');
+            Route::post('/modules', [AdminModuleController::class, 'store'])->name('modules.store');
+            Route::get('/modules/{id}/edit', [AdminModuleController::class, 'edit'])->name('modules.edit')->whereUuid('id');
+            Route::put('/modules/{id}', [AdminModuleController::class, 'update'])->name('modules.update')->whereUuid('id');
+            Route::delete('/modules/{id}', [AdminModuleController::class, 'destroy'])->name('modules.destroy')->whereUuid('id');
+            Route::post('/modules/order', [AdminModuleController::class, 'updateOrder'])->name('modules.order');
+
+            // Page Management
+            Route::get('/pages', [AdminPageController::class, 'index'])->name('pages.index');
+            Route::get('/pages/create', [AdminPageController::class, 'create'])->name('pages.create');
+            Route::post('/pages', [AdminPageController::class, 'store'])->name('pages.store');
+            Route::get('/pages/{id}/edit', [AdminPageController::class, 'edit'])->name('pages.edit')->whereUuid('id');
+            Route::put('/pages/{id}', [AdminPageController::class, 'update'])->name('pages.update')->whereUuid('id');
+            Route::delete('/pages/{id}', [AdminPageController::class, 'destroy'])->name('pages.destroy')->whereUuid('id');
+
+            // Permission Matrix
+            Route::get('/permission-matrix', [RolePermissionMatrixController::class, 'index'])->name('permission-matrix.index');
+            Route::post('/permission-matrix', [RolePermissionMatrixController::class, 'update'])->name('permission-matrix.update');
+
+            // Module Access
+            Route::get('/module-access', [RoleModuleAccessController::class, 'index'])->name('module-access.index');
+            Route::post('/module-access', [RoleModuleAccessController::class, 'update'])->name('module-access.update');
+
+            // Page Groups
+            Route::get('/page-groups', [PageGroupController::class, 'index'])->name('page-groups.index');
+            Route::get('/page-groups/create', [PageGroupController::class, 'create'])->name('page-groups.create');
+            Route::post('/page-groups', [PageGroupController::class, 'store'])->name('page-groups.store');
+            Route::get('/page-groups/{id}/edit', [PageGroupController::class, 'edit'])->name('page-groups.edit')->whereUuid('id');
+            Route::put('/page-groups/{id}', [PageGroupController::class, 'update'])->name('page-groups.update')->whereUuid('id');
+            Route::delete('/page-groups/{id}', [PageGroupController::class, 'destroy'])->name('page-groups.destroy')->whereUuid('id');
+
+            // Data Scope
+            Route::get('/data-scope', [RoleDataScopeController::class, 'index'])->name('data-scope.index');
+            Route::post('/data-scope', [RoleDataScopeController::class, 'store'])->name('data-scope.store');
+            Route::delete('/data-scope/{id}', [RoleDataScopeController::class, 'destroy'])->name('data-scope.destroy')->whereUuid('id');
+
+            // Workflow Approval Rules
+            Route::get('/workflow-rules', [WorkflowApprovalRuleController::class, 'index'])->name('workflow-rules.index');
+            Route::post('/workflow-rules', [WorkflowApprovalRuleController::class, 'store'])->name('workflow-rules.store');
+            Route::put('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'update'])->name('workflow-rules.update')->whereUuid('id');
+            Route::delete('/workflow-rules/{id}', [WorkflowApprovalRuleController::class, 'destroy'])->name('workflow-rules.destroy')->whereUuid('id');
+
+            // Role Lifespan & History
+            Route::get('/lifespan', [RoleLifespanController::class, 'index'])->name('lifespan.index');
+        });
 
         Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
         Route::get('/', function () {

@@ -28,31 +28,42 @@
     $navItems = $isIndustryDirector
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
+            ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
+            ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.execution.industries'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
             ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+            ['icon' => 'bi-sliders', 'label' => 'App Configuration', 'route' => 'admin.app-config.index'],
         ]
         : (($isCircleScoped || $isDed)
             ? [
                 ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
-                ...($isDed ? [
+                ...($isDed || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circles') ? [
                     ['icon' => 'bi-diagram-3', 'label' => 'Circles', 'route' => 'admin.circles.index'],
-                    ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => 'admin.ded.dashboard.industries']
+                ] : []),
+                ...($isDed || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Industries') ? [
+                    ['icon' => 'bi-diagram-2', 'label' => 'Industries', 'route' => $isDed ? 'admin.ded.dashboard.industries' : 'admin.execution.industries'],
                 ] : []),
                 ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
                 ['icon' => 'bi-heart-pulse', 'label' => 'Life Impact', 'route' => 'admin.life-impact.index'],
+                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? [
+                    ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.campaign-pamphlets.*', 'admin.campaign-email-templates.*', 'admin.email-logs.*', 'admin.execution.communications', 'admin.daily-notifications.*']],
+                ] : []),
                 ...(! $isDed && ! $isCircleCommittee ? [
                     ['icon' => 'bi-envelope-paper', 'label' => 'Email Logs', 'route' => 'admin.email-logs.index'],
+                    ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index'],
                     ['icon' => 'bi-envelope', 'label' => 'All Available Email Lists', 'route' => 'admin.email-templates.index', 'active_routes' => ['admin.email-templates.*']],
                     ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
-                ...($isGlobalAdmin ? [
+                ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events') ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
+                ] : []),
+                ...(app(\App\Services\Admin\PermissionService::class)->canAccessRoute($adminUser, 'admin.impacts.index') ? [
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
-                    ['icon' => 'bi-diagram-3', 'label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy', 'active_routes' => ['admin.rbac.*']],
                 ] : []),
             ]
             : [
@@ -74,13 +85,14 @@
                     ['icon' => 'bi-bell', 'label' => 'All Available Notifications Lists', 'route' => 'admin.notification-templates.index', 'active_routes' => ['admin.notification-templates.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Support Tickets', 'route' => 'admin.support-tickets.index']
                 ] : []),
-                ...($isGlobalAdmin ? [
+                ...($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') ? [
                     ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
+                ] : []),
+                ...(app(\App\Services\Admin\PermissionService::class)->canAccessRoute($adminUser, 'admin.impacts.index') ? [
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
-                    ['icon' => 'bi-diagram-3', 'label' => 'Role Hierarchy', 'route' => 'admin.rbac.hierarchy', 'active_routes' => ['admin.rbac.*']],
                 ] : []),
             ]);
 
@@ -100,7 +112,10 @@
     $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped || $isDed) ? $fullActivityMenu : [];
 
     if ($isDed) {
-        $activityMenu = array_values(array_filter($activityMenu, function ($item) {
+        $activityMenu = array_values(array_filter($activityMenu, function ($item) use ($adminUser) {
+            if (\App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label'])) {
+                return true;
+            }
             return !in_array($item['label'], ['Registered Visitor', 'Recommended Peers', 'Collaborations'], true);
         }));
     }
@@ -111,7 +126,7 @@
         : null;
     $activityExpanded = $activityActive;
 
-    $postsMenu = ($isGlobalAdmin) ? [
+    $postsMenu = ($isGlobalAdmin || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Content & Posts') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline')) ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],
         ['label' => 'Post Reports', 'route' => 'admin.post-reports.index'],
     ] : [];
@@ -167,7 +182,7 @@
         request()->routeIs('admin.account-deletion.*') ||
         request()->routeIs('admin.introduction-requests.*');
 
-    $leadsMenu = ($isIndustryDirector || $isCircleCommittee) ? [] : $leadsMenu;
+    $leadsMenu = (! $isCircleCommittee && (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Lead Submissions') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))) ? $leadsMenu : [];
 
     $campaignsMenu = [
         ['label' => 'Campaign Dashboard', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.index', 'admin.campaigns.show', 'admin.campaigns.edit']],
@@ -218,6 +233,8 @@
         }
         return $item;
     }, array_values(array_filter($navItems, fn ($item) => in_array(($item['label'] ?? null), ['Email Logs', 'Support Tickets'], true))));
+    $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Email Logs', 'Support Tickets'], true)));
+    $campaignsMenu = \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Notifications & Email') ? $campaignsMenu : [];
     $navItems = array_values(array_filter($navItems, fn ($item) => ! in_array(($item['label'] ?? null), ['Events Management', 'Event Coupons', 'Email Logs', 'Support Tickets'], true)));
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     
@@ -259,36 +276,59 @@
     ];
     $dedAnalyticsActive = request()->routeIs('admin.ded.dashboard.health.*');
 
-    // Filter allowed sidebar sections
-    if ($dashboardItem && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dashboard')) {
+    // Filter allowed sidebar sections and sub-items
+    if ($dashboardItem && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dashboard')) {
         $dashboardItem = null;
     }
-    if ($activityMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities')) {
+    if (! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities')) {
         $activityMenu = [];
     }
-    if ($referralReportItem && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Referral Report')) {
+    if ($referralReportItem && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Referral Report')) {
         $referralReportItem = null;
     }
-    if ($postsMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline')) {
+    if (! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline') && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Content & Posts') && ! $isGlobalAdmin) {
         $postsMenu = [];
     }
-    if ($leadsMenu && !\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads')) {
+    if (! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads') && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Lead Submissions')) {
         $leadsMenu = [];
+    }
+
+    if ($activityMenu) {
+        $activityMenu = array_values(array_filter($activityMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Activities');
+        }));
+    }
+    if ($postsMenu) {
+        $postsMenu = array_values(array_filter($postsMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Posts & Timeline') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Content & Posts');
+        }));
+    }
+    if ($pendingRequestsMenu) {
+        $pendingRequestsMenu = array_values(array_filter($pendingRequestsMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Pending Requests');
+        }));
+    }
+    if ($eventsManagementMenu) {
+        $eventsManagementMenu = array_values(array_filter($eventsManagementMenu, function ($item) use ($adminUser) {
+            return \App\Support\AdminAccess::isSectionAllowed($adminUser, $item['label']) || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events');
+        }));
     }
 
     $navItems = array_values(array_filter($navItems, function ($item) use ($adminUser) {
         $label = $item['label'] ?? null;
-        if ($label && !\App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+        if ($label && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
             return false;
         }
+
         return true;
     }));
 
     $bottomNavItems = array_values(array_filter($bottomNavItems, function ($item) use ($adminUser) {
         $label = $item['label'] ?? null;
-        if ($label && !\App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
+        if ($label && ! \App\Support\AdminAccess::isSectionAllowed($adminUser, $label)) {
             return false;
         }
+
         return true;
     }));
 @endphp
@@ -414,7 +454,7 @@
                 </li>
             @endforeach
 
-            @if (($isGlobalAdmin || $isIndustryDirector) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Events Management'))
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>
@@ -432,7 +472,7 @@
                 </li>
             @endif
 
-            @if (($isGlobalAdmin || $hasBrandPartnersRole) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Brand Partners'))
                 <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
                         <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
@@ -454,7 +494,7 @@
                 </li>
             @endif
 
-            @if (($isGlobalAdmin || $hasAdsRole) && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Ads'))
                 <li class="nav-item menu-parent {{ $adsActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $adsActive ? 'active' : '' }}" href="#adsSubmenu" role="button" aria-expanded="{{ $adsActive ? 'true' : 'false' }}" aria-controls="adsSubmenu">
                         <span><i class="bi bi-megaphone me-2"></i>Ads</span>
@@ -571,36 +611,84 @@
 
 
 
-            @if ($isGlobalAdmin)
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
-                        <i class="bi bi-sliders me-2"></i>App Configuration
-                    </a>
-                </li>
+            @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Configuration') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Settings'))
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.app-config.*') ? 'active' : '' }}" href="{{ route('admin.app-config.index') }}">
+                    <i class="bi bi-sliders me-2"></i>App Configuration
+                </a>
+            </li>
+            @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'App Updates Manager'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.app-updates.*') ? 'active' : '' }}" href="{{ route('admin.app-updates.index') }}">
                         <i class="bi bi-arrow-up-circle me-2"></i>App Updates Manager
                     </a>
                 </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Birthday Creative'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.birthday-creative.*') ? 'active' : '' }}" href="{{ route('admin.birthday-creative.index') }}">
                         <i class="bi bi-gift me-2"></i>Birthday Creative
                     </a>
                 </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Anniversary Creative'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.anniversary-creatives.*') ? 'active' : '' }}" href="{{ route('admin.anniversary-creatives.index') }}">
                         <i class="bi bi-images me-2"></i>Anniversary Creative
                     </a>
                 </li>
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Tutorials'))
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.tutorials.*') ? 'active' : '' }}" href="{{ route('admin.tutorials.index') }}">
                         <i class="bi bi-play-btn me-2"></i>Tutorials
                     </a>
                 </li>
-            @endif
+                @endif
+                @if (\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Dynamic RBAC') || \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Role Management'))
+                {{-- Dynamic RBAC & Role Management Menu --}}
+                <li class="nav-item menu-parent {{ request()->routeIs('admin.rbac.*') ? 'open' : '' }}">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ request()->routeIs('admin.rbac.*') ? 'active' : '' }}" href="#rbacSubmenu" role="button" aria-expanded="{{ request()->routeIs('admin.rbac.*') ? 'true' : 'false' }}" aria-controls="rbacSubmenu">
+                        <span><i class="bi bi-shield-lock me-2"></i>Dynamic RBAC</span>
+                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    </a>
+                    <div class="collapse {{ request()->routeIs('admin.rbac.*') ? 'show' : '' }}" id="rbacSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.permission-matrix.*') ? 'active' : '' }}" href="{{ route('admin.rbac.permission-matrix.index') }}">Permission Matrix</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.module-access.*') ? 'active' : '' }}" href="{{ route('admin.rbac.module-access.index') }}">Module Access</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.modules.*') ? 'active' : '' }}" href="{{ route('admin.rbac.modules.index') }}">Admin Modules</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.pages.*') ? 'active' : '' }}" href="{{ route('admin.rbac.pages.index') }}">Admin Pages</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.page-groups.*') ? 'active' : '' }}" href="{{ route('admin.rbac.page-groups.index') }}">Page Groups</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.data-scope.*') ? 'active' : '' }}" href="{{ route('admin.rbac.data-scope.index') }}">Data Scope</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.workflow-rules.*') ? 'active' : '' }}" href="{{ route('admin.rbac.workflow-rules.index') }}">Workflow Rules</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.hierarchy') ? 'active' : '' }}" href="{{ route('admin.rbac.hierarchy') }}">Role Hierarchy</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('admin.rbac.lifespan.*') ? 'active' : '' }}" href="{{ route('admin.rbac.lifespan.index') }}">Role History</a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+                @endif
 
 
-            @if (! $isDed && ! $isCircleCommittee && $leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
+            @if ($leadsMenu !== [] && \App\Support\AdminAccess::isSectionAllowed($adminUser, 'Leads'))
             <li class="nav-item menu-parent {{ $leadsActive ? 'open' : '' }}">
                 <a class="nav-link d-flex justify-content-between align-items-center {{ $leadsActive ? 'active' : '' }}" href="#leadsSubmenu" role="button" aria-expanded="{{ $leadsActive ? 'true' : 'false' }}" aria-controls="leadsSubmenu">
                     <span><i class="bi bi-person-lines-fill me-2"></i>Leads</span>
@@ -637,21 +725,45 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.querySelector('.admin-sidebar');
             const menuParents = document.querySelectorAll('.admin-sidebar .menu-parent');
+
+            if (sidebar) {
+                const savedScroll = sessionStorage.getItem('sidebar_scroll_top');
+                if (savedScroll !== null) {
+                    sidebar.scrollTop = parseInt(savedScroll, 10);
+                }
+                const activeLink = sidebar.querySelector('.nav-link.active');
+                if (activeLink) {
+                    activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                }
+
+                sidebar.addEventListener('scroll', () => {
+                    sessionStorage.setItem('sidebar_scroll_top', sidebar.scrollTop);
+                }, { passive: true });
+
+                sidebar.querySelectorAll('a').forEach((link) => {
+                    link.addEventListener('click', () => {
+                        sessionStorage.setItem('sidebar_scroll_top', sidebar.scrollTop);
+                    });
+                });
+            }
 
             menuParents.forEach((parentItem) => {
                 const submenu = parentItem.querySelector('.collapse');
                 if (!submenu) return;
 
-                const toggle = parentItem.querySelector('a[role="button"]') || parentItem.querySelector(`a[href="#${submenu.id}"]`);
+                const toggle = parentItem.querySelector('a[role="button"]') || parentItem.querySelector(`a[href="#${submenu.id}"]`) || parentItem.querySelector('a');
                 if (!toggle) return;
 
                 // Sync initial state on load
-                if (submenu.classList.contains('show')) {
+                if (submenu.classList.contains('show') || parentItem.classList.contains('open')) {
                     parentItem.classList.add('open');
+                    submenu.classList.add('show');
                     toggle.setAttribute('aria-expanded', 'true');
                 } else {
                     parentItem.classList.remove('open');
+                    submenu.classList.remove('show');
                     toggle.setAttribute('aria-expanded', 'false');
                 }
 
@@ -659,63 +771,29 @@
                     e.preventDefault();
                     e.stopPropagation();
 
-                    const isCurrentlyOpen = submenu.classList.contains('show') || parentItem.classList.contains('open');
+                    const isOpen = parentItem.classList.contains('open') || submenu.classList.contains('show');
 
-                    // Close all other open submenus first (accordion behavior)
+                    // Close other submenus for accordion behavior
                     menuParents.forEach((otherParent) => {
-                        const otherSubmenu = otherParent.querySelector('.collapse');
-                        if (otherSubmenu && otherSubmenu !== submenu) {
-                            otherSubmenu.classList.remove('show');
+                        if (otherParent !== parentItem) {
                             otherParent.classList.remove('open');
-                            const otherToggle = otherParent.querySelector('a[role="button"]') || otherParent.querySelector(`a[href="#${otherSubmenu.id}"]`);
-                            if (otherToggle) otherToggle.setAttribute('aria-expanded', 'false');
-
-                            if (typeof bootstrap !== 'undefined' && bootstrap && bootstrap.Collapse) {
-                                try {
-                                    const bsCollapse = bootstrap.Collapse.getInstance(otherSubmenu);
-                                    if (bsCollapse) {
-                                        bsCollapse.hide();
-                                    }
-                                } catch (err) {
-                                    // ignore fallback
-                                }
+                            const otherSub = otherParent.querySelector('.collapse');
+                            if (otherSub) {
+                                otherSub.classList.remove('show');
                             }
+                            const otherTog = otherParent.querySelector('a[role="button"]') || otherParent.querySelector('a');
+                            if (otherTog) otherTog.setAttribute('aria-expanded', 'false');
                         }
                     });
 
-                    // Toggle current submenu
-                    if (isCurrentlyOpen) {
-                        submenu.classList.remove('show');
+                    if (isOpen) {
                         parentItem.classList.remove('open');
+                        submenu.classList.remove('show');
                         toggle.setAttribute('aria-expanded', 'false');
-
-                        if (typeof bootstrap !== 'undefined' && bootstrap && bootstrap.Collapse) {
-                            try {
-                                const bsCollapse = bootstrap.Collapse.getInstance(submenu);
-                                if (bsCollapse) {
-                                    bsCollapse.hide();
-                                }
-                            } catch (err) {
-                                // ignore fallback
-                            }
-                        }
                     } else {
-                        submenu.classList.add('show');
                         parentItem.classList.add('open');
+                        submenu.classList.add('show');
                         toggle.setAttribute('aria-expanded', 'true');
-
-                        if (typeof bootstrap !== 'undefined' && bootstrap && bootstrap.Collapse) {
-                            try {
-                                let bsCollapse = bootstrap.Collapse.getInstance(submenu);
-                                if (bsCollapse) {
-                                    bsCollapse.show();
-                                } else {
-                                    new bootstrap.Collapse(submenu, { toggle: false }).show();
-                                }
-                            } catch (err) {
-                                // ignore fallback
-                            }
-                        }
                     }
                 });
             });
@@ -725,8 +803,13 @@
 
 @push('styles')
     <style>
+        .admin-sidebar .menu-parent.open > .collapse,
         .admin-sidebar .collapse.show {
+            display: block !important;
             visibility: visible !important;
+            opacity: 1 !important;
+            height: auto !important;
+            overflow: visible !important;
         }
     </style>
 @endpush
