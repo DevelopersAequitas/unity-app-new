@@ -399,6 +399,21 @@ class CertificationSubmissionFlowTest extends TestCase
             ->assertJsonPath('status', true);
     }
 
+    public function test_user_token_with_matching_admin_email_authenticates_on_admin_routes(): void
+    {
+        $admin = $this->createAdminWithRole('shared_admin@example.com');
+        $user = User::factory()->create(['email' => 'shared_admin@example.com']);
+        $userToken = $user->createToken('user-token')->plainTextToken;
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer '.$userToken,
+            'Accept' => 'application/json',
+        ])->getJson('/admin/pending-requests/certifications?status=new');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
+    }
+
     private function createAdminWithRole(string $email = 'admin@example.com'): AdminUser
     {
         $role = Role::firstOrCreate(
