@@ -61,10 +61,8 @@
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ] : []),
-                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Categories') ? [
+                ...($isGlobalAdmin ? [
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
-                ] : []),
-                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Impact Option') && app(\App\Services\Admin\PermissionService::class)->canAccessRoute($adminUser, 'admin.impacts.index') ? [
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),
             ]
@@ -92,10 +90,8 @@
                     ['icon' => 'bi-ticket-perforated', 'label' => 'Event Coupons', 'route' => 'admin.event-coupons.index', 'active_routes' => ['admin.event-coupons.*']],
                     ['icon' => 'bi-images', 'label' => 'Event Gallery', 'route' => 'admin.event-gallery.index'],
                 ] : []),
-                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Circle Categories') ? [
+                ...($isGlobalAdmin ? [
                     ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
-                ] : []),
-                ...(\App\Support\AdminAccess::isSectionAllowed($adminUser, 'Impact Option') && app(\App\Services\Admin\PermissionService::class)->canAccessRoute($adminUser, 'admin.impacts.index') ? [
                     ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
                 ] : []),
             ]);

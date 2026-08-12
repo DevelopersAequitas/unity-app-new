@@ -468,8 +468,8 @@ class AdminAccess
                     'role management', 'dynamic rbac', 'role-management' => 'role-management',
                     'brand partners', 'brand-partners', 'ads' => 'brand-partners',
                     'finance & analytics', 'finance-analytics', 'analytics' => 'finance-analytics',
-                    'circle categories', 'circle-categories', 'categories' => 'circles',
-                    'impact option', 'impact-option' => 'life-impact',
+                    'circle categories', 'circle-categories' => 'categories',
+                    'impact option', 'impact-option' => 'impacts',
                     default => null,
                 };
 
