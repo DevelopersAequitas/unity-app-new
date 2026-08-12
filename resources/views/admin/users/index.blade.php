@@ -1849,7 +1849,7 @@
       if (!m) return;
       
       document.getElementById('view-full-profile-btn').onclick = () => {
-        window.open(`/admin/users/${m.id}/edit`, '_blank');
+        window.open(`/admin/users/${m.id}`, '_blank');
       };
       
       const memberTypeLabel = m.memberType === 'unity' ? 'Unity' : (m.memberType === 'circle_peer' ? 'Circle Peer' : (m.memberType === 'free' ? 'Free' : (m.memberType || 'Free')));

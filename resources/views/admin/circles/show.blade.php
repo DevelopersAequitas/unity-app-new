@@ -991,7 +991,7 @@ use Carbon\Carbon;
         const m = peersData.find(x => String(x.id) === String(id));
         if (!m) return;
 
-        document.getElementById('view-full-profile-btn').href = m.edit_url;
+        document.getElementById('view-full-profile-btn').href = `/admin/users/${m.id}`;
         document.getElementById('quick-edit-profile-btn').href = m.edit_url;
 
         const statusClass = m.status.toLowerCase() === 'active' || m.status.toLowerCase() === 'approved'

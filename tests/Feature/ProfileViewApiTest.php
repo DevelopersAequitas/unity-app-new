@@ -3,13 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Models\ProfileView;
-use App\Notifications\ProfileViewedNotification;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -96,8 +92,8 @@ class ProfileViewApiTest extends TestCase
             'id' => (string) Str::uuid(),
             'first_name' => $firstName,
             'last_name' => $lastName,
-            'display_name' => $firstName . ' ' . $lastName,
-            'email' => strtolower($firstName . '.' . $lastName . '-' . Str::random(4) . '@example.com'),
+            'display_name' => $firstName.' '.$lastName,
+            'email' => strtolower($firstName.'.'.$lastName.'-'.Str::random(4).'@example.com'),
             'phone' => (string) random_int(1000000000, 9999999999),
         ]);
     }
@@ -124,7 +120,7 @@ class ProfileViewApiTest extends TestCase
                     'viewed_id',
                     'viewer_id',
                     'created_at',
-                ]
+                ],
             ]);
 
         $this->assertDatabaseHas('profile_views', [
