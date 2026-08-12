@@ -45,4 +45,5 @@ enum NotificationType: string
     case COIN_MILESTONE = 'coin_milestone';
     case BADGE_UNLOCKED = 'badge_unlocked';
     case MEMBER_INTRODUCED = 'member_introduced';
+    case PROFILE_VIEWED = 'profile_viewed';
 }

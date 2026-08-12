@@ -443,6 +443,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/profile/introduced-peers', [ProfileController::class, 'addIntroducedPeer']);
         Route::post('/introduction-requests', [IntroductionRequestsApiController::class, 'store']);
         Route::post('/profile/timezone', [ProfileController::class, 'updateTimezone']);
+        Route::post('/profile/view', [ProfileController::class, 'recordView']);
+        Route::get('/profile/views', [ProfileController::class, 'getViews']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::patch('/profile', [ProfileController::class, 'update']);
         Route::get('/intro-videos', [IntroVideoController::class, 'index']);
