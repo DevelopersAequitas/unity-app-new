@@ -13,6 +13,16 @@ class EnsureAdminAuthenticated
     public function handle(Request $request, Closure $next): Response
     {
         if (! Auth::guard('admin')->check()) {
+            if ($request->bearerToken()) {
+                /** @var \App\Models\AdminUser|\App\Models\User|null $user */
+                $user = Auth::guard('sanctum')->user();
+                if ($user instanceof AdminUser) {
+                    Auth::guard('admin')->setUser($user);
+                }
+            }
+        }
+
+        if (! Auth::guard('admin')->check()) {
             $adminId = $request->session()->get('admin_user_id');
             if ($adminId) {
                 $admin = AdminUser::find($adminId);

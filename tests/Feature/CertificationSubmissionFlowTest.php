@@ -83,6 +83,20 @@ class CertificationSubmissionFlowTest extends TestCase
             });
         }
 
+        if (! Schema::hasTable('personal_access_tokens')) {
+            Schema::create('personal_access_tokens', function (Blueprint $table): void {
+                $table->id();
+                $table->string('tokenable_type');
+                $table->string('tokenable_id');
+                $table->string('name');
+                $table->string('token', 64)->unique();
+                $table->text('abilities')->nullable();
+                $table->timestamp('last_used_at')->nullable();
+                $table->timestamp('expires_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
         if (! Schema::hasTable('certification_submissions')) {
             Schema::create('certification_submissions', function (Blueprint $table): void {
                 $table->uuid('id')->primary();
@@ -359,6 +373,28 @@ class CertificationSubmissionFlowTest extends TestCase
         $rejectResponse->assertStatus(200)
             ->assertJsonPath('status', true)
             ->assertJsonPath('data.status', 'rejected');
+    }
+
+    public function test_admin_can_authenticate_via_sanctum_bearer_token_on_admin_routes(): void
+    {
+        $admin = $this->createAdminWithRole('admin_bearer@example.com');
+        $token = $admin->createToken('admin-token')->plainTextToken;
+
+        $submission = CertificationSubmission::create([
+            'id' => (string) Str::uuid(),
+            'certification_type' => CertificationSubmission::TYPE_ENTREPRENEUR,
+            'full_name' => 'Bearer Applicant',
+            'email' => 'bearer_applicant@example.com',
+            'status' => CertificationSubmission::STATUS_NEW,
+        ]);
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer '.$token,
+            'Accept' => 'application/json',
+        ])->getJson('/admin/pending-requests/certifications?status=new');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', true);
     }
 
     private function createAdminWithRole(string $email = 'admin@example.com'): AdminUser
