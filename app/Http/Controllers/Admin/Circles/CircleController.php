@@ -242,18 +242,30 @@ class CircleController extends Controller
             ->paginate(20)
             ->appends($request->query());
 
-        $circleNames = Circle::query()
+        $circleNamesQuery = Circle::query()
             ->when(is_array($industryCircleIds), fn ($circleQuery) => $circleQuery->when($industryCircleIds !== [], fn ($inner) => $inner->whereIn('id', $industryCircleIds), fn ($inner) => $inner->whereRaw('1 = 0')))
             ->whereNotNull('name')
+            ->where('name', '!=', 'Enter the complete name of the circle.');
+
+        if (AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToCirclesQuery($circleNamesQuery, $admin);
+        }
+
+        $circleNames = $circleNamesQuery
             ->select('name')
             ->distinct()
             ->orderBy('name')
             ->pluck('name');
 
-        $cities = City::query()
-            ->whereNotNull('name')
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $isDed = AdminAccess::isDed($admin);
+        $dedLocation = $isDed ? AdminAccess::assignedDedLocation($admin) : [];
+        $dedDistrictName = $dedLocation['district_name'] ?? null;
+
+        $citiesQuery = City::query()->whereNotNull('name');
+        if ($isDed && ! empty($dedLocation['district_id']) && Schema::hasColumn('cities', 'district_id')) {
+            $citiesQuery->where('district_id', $dedLocation['district_id']);
+        }
+        $cities = $citiesQuery->orderBy('name')->get(['id', 'name']);
 
         $countryOptions = Schema::hasColumn('circles', 'country')
             ? Circle::query()->when(is_array($industryCircleIds), fn ($circleQuery) => $circleQuery->when($industryCircleIds !== [], fn ($inner) => $inner->whereIn('id', $industryCircleIds), fn ($inner) => $inner->whereRaw('1 = 0')))->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country')
@@ -274,6 +286,8 @@ class CircleController extends Controller
             'filters' => $filters,
             'circleNames' => $circleNames,
             'cities' => $cities,
+            'isDed' => $isDed,
+            'dedDistrictName' => $dedDistrictName,
             'countryOptions' => $countryOptions,
             'typeOptions' => $typeOptions,
             'meetingModeOptions' => $meetingModeOptions,

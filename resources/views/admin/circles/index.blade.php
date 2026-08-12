@@ -151,12 +151,18 @@
                                 <input type="text" name="founder" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 placeholder:t3 focus-ring outline-none font-normal" value="{{ $filters['founder'] }}" placeholder="Founder" style="min-width: 130px;">
                             </th>
                             <th class="px-3 py-2">
-                                <select name="city_id" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-no-select2" style="min-width: 120px;">
-                                    <option value="any" @selected(($filters['city_id'] ?? 'any') === 'any')>All Cities</option>
-                                    @foreach ($cities as $c)
-                                        <option value="{{ $c->id }}" @selected(($filters['city_id'] ?? '') === (string) $c->id)>{{ $c->name }}</option>
-                                    @endforeach
-                                </select>
+                                @if (isset($isDed) && $isDed)
+                                    <div class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t2 text-center font-medium" style="min-width: 120px; background-color: var(--surface-2, #f8f9fa);">
+                                        {{ $dedDistrictName ?? 'District Scoped' }}
+                                    </div>
+                                @else
+                                    <select name="city_id" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-no-select2" style="min-width: 120px;">
+                                        <option value="any" @selected(($filters['city_id'] ?? 'any') === 'any')>All Cities</option>
+                                        @foreach ($cities as $c)
+                                            <option value="{{ $c->id }}" @selected(($filters['city_id'] ?? '') === (string) $c->id)>{{ $c->name }}</option>
+                                        @endforeach
+                                    </select>
+                                @endif
                             </th>
                             <th class="px-3 py-2">
                                 <select name="type" class="w-full px-2.5 py-1 rounded-md border bs surface text-[11px] t1 focus-ring outline-none font-normal js-no-select2" style="min-width: 110px;">
