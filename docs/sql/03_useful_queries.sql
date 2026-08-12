@@ -16,10 +16,10 @@ SELECT * FROM roles ORDER BY hierarchy_depth, name;
 SELECT * FROM roles WHERE status = 'active' ORDER BY hierarchy_depth, name;
 
 -- A3: Find a role by key
-SELECT * FROM roles WHERE `key` = 'chair';
+SELECT * FROM roles WHERE "key" = 'chair';
 
 -- A4: Get all assignable roles
-SELECT * FROM roles WHERE status = 'active' AND is_assignable = 1;
+SELECT * FROM roles WHERE status = 'active' AND is_assignable = TRUE;
 
 -- A5: Full hierarchy tree (parent → child)
 SELECT
@@ -36,12 +36,12 @@ ORDER BY c.hierarchy_depth, p.name, c.name;
 -- A6: Get children of a specific role
 SELECT r.* FROM roles r
 JOIN role_hierarchies rh ON rh.child_role_id = r.id
-WHERE rh.parent_role_id = (SELECT id FROM roles WHERE `key` = 'global_admin');
+WHERE rh.parent_role_id = (SELECT id FROM roles WHERE "key" = 'global_admin');
 
 -- A7: Get parents of a specific role
 SELECT r.* FROM roles r
 JOIN role_hierarchies rh ON rh.parent_role_id = r.id
-WHERE rh.child_role_id = (SELECT id FROM roles WHERE `key` = 'chair');
+WHERE rh.child_role_id = (SELECT id FROM roles WHERE "key" = 'chair');
 
 -- A8: Root roles (no parents)
 SELECT r.* FROM roles r
@@ -59,7 +59,7 @@ ORDER BY r.hierarchy_depth;
 -- ════════════════════════════════════════════════════════════
 
 -- B1: All active modules in sidebar order
-SELECT * FROM admin_modules WHERE is_active = 1 ORDER BY sort_order;
+SELECT * FROM admin_modules WHERE is_active = TRUE ORDER BY sort_order;
 
 -- B2: All modules with page count
 SELECT
@@ -69,8 +69,8 @@ SELECT
     am.sort_order,
     COUNT(ap.id)   AS page_count
 FROM admin_modules am
-LEFT JOIN admin_pages ap ON ap.module_id = am.id AND ap.is_active = 1
-WHERE am.is_active = 1
+LEFT JOIN admin_pages ap ON ap.module_id = am.id AND ap.is_active = TRUE
+WHERE am.is_active = TRUE
 GROUP BY am.id, am.name, am.slug, am.icon, am.sort_order
 ORDER BY am.sort_order;
 
@@ -83,13 +83,13 @@ SELECT
     ap.sort_order
 FROM admin_pages ap
 JOIN admin_modules am ON am.id = ap.module_id
-WHERE am.is_active = 1 AND ap.is_active = 1
+WHERE am.is_active = TRUE AND ap.is_active = TRUE
 ORDER BY am.sort_order, ap.sort_order;
 
 -- B4: Pages of a specific module
 SELECT ap.* FROM admin_pages ap
 JOIN admin_modules am ON am.id = ap.module_id
-WHERE am.slug = 'members' AND ap.is_active = 1
+WHERE am.slug = 'members' AND ap.is_active = TRUE
 ORDER BY ap.sort_order;
 
 -- B5: Find page by route name
@@ -127,16 +127,16 @@ ORDER BY am.sort_order, ap.sort_order, p.sort_order;
 SELECT
     am.name AS module,
     ap.name AS page,
-    MAX(CASE WHEN p.key = 'view'    THEN 1 ELSE 0 END) AS `view`,
-    MAX(CASE WHEN p.key = 'create'  THEN 1 ELSE 0 END) AS `create`,
-    MAX(CASE WHEN p.key = 'edit'    THEN 1 ELSE 0 END) AS `edit`,
-    MAX(CASE WHEN p.key = 'delete'  THEN 1 ELSE 0 END) AS `delete`,
-    MAX(CASE WHEN p.key = 'approve' THEN 1 ELSE 0 END) AS `approve`,
-    MAX(CASE WHEN p.key = 'reject'  THEN 1 ELSE 0 END) AS `reject`,
-    MAX(CASE WHEN p.key = 'export'  THEN 1 ELSE 0 END) AS `export`,
-    MAX(CASE WHEN p.key = 'import'  THEN 1 ELSE 0 END) AS `import`,
-    MAX(CASE WHEN p.key = 'print'   THEN 1 ELSE 0 END) AS `print`,
-    MAX(CASE WHEN p.key = 'restore' THEN 1 ELSE 0 END) AS `restore`
+    MAX(CASE WHEN p.key = 'view'    THEN 1 ELSE 0 END) AS "view",
+    MAX(CASE WHEN p.key = 'create'  THEN 1 ELSE 0 END) AS "create",
+    MAX(CASE WHEN p.key = 'edit'    THEN 1 ELSE 0 END) AS "edit",
+    MAX(CASE WHEN p.key = 'delete'  THEN 1 ELSE 0 END) AS "delete",
+    MAX(CASE WHEN p.key = 'approve' THEN 1 ELSE 0 END) AS "approve",
+    MAX(CASE WHEN p.key = 'reject'  THEN 1 ELSE 0 END) AS "reject",
+    MAX(CASE WHEN p.key = 'export'  THEN 1 ELSE 0 END) AS "export",
+    MAX(CASE WHEN p.key = 'import'  THEN 1 ELSE 0 END) AS "import",
+    MAX(CASE WHEN p.key = 'print'   THEN 1 ELSE 0 END) AS "print",
+    MAX(CASE WHEN p.key = 'restore' THEN 1 ELSE 0 END) AS "restore"
 FROM role_page_permissions rpp
 JOIN roles r          ON r.id = rpp.role_id
 JOIN admin_pages ap   ON ap.id = rpp.page_id
@@ -172,7 +172,7 @@ SELECT ap.name, ap.route_name, am.name AS module
 FROM admin_pages ap
 JOIN admin_modules am ON am.id = ap.module_id
 LEFT JOIN role_page_permissions rpp ON rpp.page_id = ap.id
-WHERE rpp.id IS NULL AND ap.is_active = 1
+WHERE rpp.id IS NULL AND ap.is_active = TRUE
 ORDER BY am.sort_order, ap.sort_order;
 
 
@@ -185,7 +185,7 @@ SELECT am.name, am.slug, am.icon
 FROM role_module_access rma
 JOIN admin_modules am ON am.id = rma.module_id
 JOIN roles r          ON r.id = rma.role_id
-WHERE r.key = 'chair' AND rma.is_visible = 1
+WHERE r.key = 'chair' AND rma.is_visible = TRUE
 ORDER BY am.sort_order;
 
 -- E2: Module visibility matrix for ALL roles
@@ -203,7 +203,7 @@ SELECT r.name, r.key
 FROM role_module_access rma
 JOIN roles r          ON r.id = rma.role_id
 JOIN admin_modules am ON am.id = rma.module_id
-WHERE am.slug = 'events' AND rma.is_visible = 1;
+WHERE am.slug = 'events' AND rma.is_visible = TRUE;
 
 -- E4: Roles with NO module access configured
 SELECT r.name, r.key FROM roles r
@@ -298,8 +298,8 @@ ORDER BY rds.created_at DESC;
 SELECT
     au.name            AS admin_name,
     au.email,
-    GROUP_CONCAT(r.name ORDER BY r.name SEPARATOR ', ') AS roles,
-    GROUP_CONCAT(r.key  ORDER BY r.name SEPARATOR ', ') AS role_keys
+    STRING_AGG(r.name, ', ' ORDER BY r.name) AS roles,
+    STRING_AGG(r.key, ', '  ORDER BY r.name) AS role_keys
 FROM admin_user_roles aur
 JOIN admin_users au ON au.id = aur.user_id
 JOIN roles r        ON r.id = aur.role_id
@@ -316,7 +316,7 @@ SELECT
     aur.allowed_sections
 FROM admin_user_roles aur
 JOIN roles r ON r.id = aur.role_id
-WHERE aur.user_id = '<ADMIN_USER_UUID>';
+WHERE aur.user_id = '00000000-0000-0000-0000-000000000000'; -- Replace with actual admin user UUID
 
 -- H3: Users with a specific role
 SELECT au.name, au.email, aur.permission_type
@@ -364,7 +364,7 @@ ORDER BY war.workflow_name, war.step_order;
 SELECT r.name AS approver, war.step_order
 FROM workflow_approval_rules war
 JOIN roles r ON r.id = war.approver_role_id
-WHERE war.workflow_name LIKE '%Circle Join%' AND war.is_active = 1
+WHERE war.workflow_name LIKE '%Circle Join%' AND war.is_active = TRUE
 ORDER BY war.step_order;
 
 
@@ -379,17 +379,17 @@ SELECT
     am.name            AS module,
     rma.is_visible     AS module_visible,
     ap.name            AS page,
-    GROUP_CONCAT(p.key ORDER BY p.sort_order SEPARATOR ', ') AS permissions
+    STRING_AGG(p.key, ', ' ORDER BY p.sort_order) AS permissions
 FROM admin_user_roles aur
 JOIN admin_users au    ON au.id = aur.user_id
 JOIN roles r           ON r.id = aur.role_id
 LEFT JOIN role_module_access rma  ON rma.role_id = r.id
 LEFT JOIN admin_modules am        ON am.id = rma.module_id
-LEFT JOIN admin_pages ap          ON ap.module_id = am.id AND ap.is_active = 1
+LEFT JOIN admin_pages ap          ON ap.module_id = am.id AND ap.is_active = TRUE
 LEFT JOIN role_page_permissions rpp ON rpp.role_id = r.id AND rpp.page_id = ap.id
 LEFT JOIN permissions p            ON p.id = rpp.permission_id
 WHERE au.email = 'admin@peersunity.com'
-GROUP BY au.name, r.name, am.name, rma.is_visible, ap.name
+GROUP BY au.name, r.name, am.name, rma.is_visible, ap.name, am.sort_order, ap.sort_order
 ORDER BY am.sort_order, ap.sort_order;
 
 -- J2: Roles with NO permissions configured
@@ -415,3 +415,4 @@ LEFT JOIN role_page_permissions rpp
 WHERE r.key IN ('chair', 'secretary') AND p.key IN ('view', 'edit', 'export')
 GROUP BY ap.name, ap.sort_order
 ORDER BY ap.sort_order;
+

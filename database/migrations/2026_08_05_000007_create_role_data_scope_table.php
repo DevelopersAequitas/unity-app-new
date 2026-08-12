@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('role_data_scope')) {
+            return;
+        }
+
         Schema::create('role_data_scope', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->uuid('role_id')->nullable();
