@@ -6,6 +6,7 @@ use App\Exceptions\MediaProcessingException;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Jobs\SendFounderEngagementJob;
+use App\Jobs\SendPrMediaVisibilityWhatsappJob;
 use App\Jobs\SendWelcomeWhatsappJob;
 use App\Mail\LoginOtpMail;
 use App\Mail\PasswordResetOtpMail;
@@ -157,9 +158,13 @@ class AuthController extends BaseApiController
 
         $this->sendRegistrationRequestReceivedEmail($persistedUser);
 
+        $registrationTime = $persistedUser->created_at ? $persistedUser->created_at->copy() : now();
+
         SendWelcomeWhatsappJob::dispatch((string) $persistedUser->id);
         SendFounderEngagementJob::dispatch((string) $persistedUser->id)
             ->delay(now()->addHours(3));
+        SendPrMediaVisibilityWhatsappJob::dispatch((string) $persistedUser->id)
+            ->delay($registrationTime->copy()->addHours(24));
 
         $token = $persistedUser->createToken('auth_token')->plainTextToken;
 

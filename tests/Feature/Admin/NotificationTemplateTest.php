@@ -3,16 +3,16 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\AdminUser;
+use App\Models\NotificationTemplate;
 use App\Models\Role;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
-class EmailTemplateTest extends TestCase
+class NotificationTemplateTest extends TestCase
 {
     use DatabaseTransactions;
 
@@ -24,7 +24,7 @@ class EmailTemplateTest extends TestCase
 
         $this->createTestSchemas();
 
-        // Create admin user and assign super-admin/admin role
+        // Create admin user and assign super-admin role
         $roleId = (string) Str::uuid();
         DB::table('roles')->insert([
             'id' => $roleId,
@@ -37,7 +37,7 @@ class EmailTemplateTest extends TestCase
         $this->admin = AdminUser::create([
             'id' => (string) Str::uuid(),
             'name' => 'Admin User',
-            'email' => 'admin_test_'.uniqid().'@example.test',
+            'email' => 'admin_notif_test_'.uniqid().'@example.test',
             'password' => bcrypt('password'),
             'status' => 'active',
         ]);
@@ -82,15 +82,15 @@ class EmailTemplateTest extends TestCase
             });
         }
 
-        if (! Schema::hasTable('email_templates')) {
-            Schema::create('email_templates', function (Blueprint $table): void {
+        if (! Schema::hasTable('notification_templates')) {
+            Schema::create('notification_templates', function (Blueprint $table): void {
                 $table->uuid('id')->primary();
                 $table->string('template_key')->unique();
                 $table->string('name');
-                $table->string('file_path');
-                $table->string('subject')->nullable();
+                $table->string('title_template');
+                $table->text('body_template');
+                $table->text('default_payload')->nullable();
                 $table->text('dynamic_params')->nullable();
-                $table->text('custom_html')->nullable();
                 $table->timestamps();
             });
         }
@@ -107,60 +107,47 @@ class EmailTemplateTest extends TestCase
         }
     }
 
-    public function test_admin_can_access_email_templates_directory(): void
+    public function test_admin_can_access_notification_templates_directory(): void
     {
         $response = $this->actingAs($this->admin, 'admin')
-            ->get(route('admin.email-templates.index'));
+            ->get(route('admin.notification-templates.index'));
 
         $response->assertStatus(200);
-        $response->assertSee('All Available Email Lists');
+        $response->assertSee('All Available Notifications Lists');
     }
 
-    public function test_admin_can_access_email_template_editor(): void
+    public function test_admin_can_access_notification_template_editor(): void
     {
         $response = $this->actingAs($this->admin, 'admin')
-            ->get(route('admin.email-templates.edit', 'welcome_peer'));
+            ->get(route('admin.notification-templates.edit', 'welcome_notification'));
 
         $response->assertStatus(200);
-        $response->assertSee('Simple Content Editor');
-        $response->assertSee('HTML Code Editor');
+        $response->assertSee('Notification Content Editor');
+        $response->assertSee('Live Mobile Mockup Preview');
     }
 
-    public function test_admin_can_preview_email_template(): void
+    public function test_admin_can_update_notification_template(): void
     {
+        NotificationTemplate::create([
+            'template_key' => 'welcome_notification',
+            'name' => 'Welcome Notification',
+            'title_template' => 'Original Title',
+            'body_template' => 'Original Body',
+        ]);
+
         $response = $this->actingAs($this->admin, 'admin')
-            ->get(route('admin.email-templates.preview', 'welcome_peer'));
-
-        $response->assertStatus(200);
-        $response->assertSee('Welcome to Peers Global');
-    }
-
-    public function test_admin_can_update_email_template_in_simple_mode(): void
-    {
-        $filePath = resource_path('views/emails/welcome_peer.blade.php');
-        $originalContent = File::get($filePath);
-
-        try {
-            $response = $this->actingAs($this->admin, 'admin')
-                ->put(route('admin.email-templates.update', 'welcome_peer'), [
-                    'mode' => 'simple',
-                    'subject' => 'New Welcome Peer Subject',
-                    'simple_content' => ['This is a modified simple welcome message'],
-                ]);
-
-            $response->assertRedirect(route('admin.email-templates.edit', 'welcome_peer'));
-            $response->assertSessionHas('success');
-
-            $this->assertDatabaseHas('email_templates', [
-                'template_key' => 'welcome_peer',
-                'subject' => 'New Welcome Peer Subject',
+            ->put(route('admin.notification-templates.update', 'welcome_notification'), [
+                'title_template' => 'Updated Welcome Title',
+                'body_template' => 'Hello {name}, your account is fully approved.',
             ]);
 
-            $updatedContent = File::get($filePath);
-            $this->assertStringContainsString('This is a modified simple welcome message', $updatedContent);
-        } finally {
-            // Revert changes to prevent file pollution
-            File::put($filePath, $originalContent);
-        }
+        $response->assertRedirect(route('admin.notification-templates.edit', 'welcome_notification'));
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('notification_templates', [
+            'template_key' => 'welcome_notification',
+            'title_template' => 'Updated Welcome Title',
+            'body_template' => 'Hello {name}, your account is fully approved.',
+        ]);
     }
 }

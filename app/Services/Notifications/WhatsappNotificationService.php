@@ -75,10 +75,36 @@ class WhatsappNotificationService
                 ->post($webhookUrl, $body);
 
             if ($response->successful()) {
+                $responseData = $response->json();
+                if (is_array($responseData)) {
+                    if (isset($responseData['success']) && $responseData['success'] === false) {
+                        Log::error('WhatsApp notification failed: API response indicated success=false.', [
+                            'template_key' => $templateKey,
+                            'webhook_url' => $webhookUrl,
+                            'request_body' => $body,
+                            'response_body' => $response->body(),
+                        ]);
+
+                        return false;
+                    }
+                    if (isset($responseData['status']) && in_array(strtolower((string) $responseData['status']), ['error', 'failed', 'failure'], true)) {
+                        Log::error('WhatsApp notification failed: API response status is error.', [
+                            'template_key' => $templateKey,
+                            'webhook_url' => $webhookUrl,
+                            'request_body' => $body,
+                            'response_body' => $response->body(),
+                        ]);
+
+                        return false;
+                    }
+                }
+
                 Log::info('WhatsApp notification sent successfully.', [
                     'template_key' => $templateKey,
                     'webhook_url' => $webhookUrl,
                     'status_code' => $response->status(),
+                    'request_body' => $body,
+                    'response_body' => $response->body(),
                 ]);
 
                 return true;
@@ -88,6 +114,7 @@ class WhatsappNotificationService
                 'template_key' => $templateKey,
                 'webhook_url' => $webhookUrl,
                 'status_code' => $response->status(),
+                'request_body' => $body,
                 'response_body' => $response->body(),
             ]);
 

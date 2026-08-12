@@ -4,6 +4,7 @@ namespace App\Http\Resources\Event;
 
 use App\Models\User;
 use App\Services\Events\EventQrService;
+use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;

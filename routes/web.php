@@ -58,7 +58,9 @@ use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\LoginHistoryController;
 use App\Http\Controllers\Admin\MemberIntroducersController;
 use App\Http\Controllers\Admin\MembershipPlanController;
+use App\Http\Controllers\Admin\MilestoneBadgeController;
 use App\Http\Controllers\Admin\NotificationAdminController;
+use App\Http\Controllers\Admin\NotificationTemplateController;
 use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\PostReportsController;
@@ -219,6 +221,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->middleware('admin.industry-director')
             ->name('industry-director.switch-industry');
         Route::get('/member-introducers', [MemberIntroducersController::class, 'index'])->name('member-introducers.index');
+        Route::get('/milestone-badges', [MilestoneBadgeController::class, 'index'])->name('milestone-badges.index');
+        Route::get('/milestone-badges/create', [MilestoneBadgeController::class, 'create'])->name('milestone-badges.create');
+        Route::post('/milestone-badges', [MilestoneBadgeController::class, 'store'])->name('milestone-badges.store');
+        Route::get('/milestone-badges/{badge}/edit', [MilestoneBadgeController::class, 'edit'])->whereUuid('badge')->name('milestone-badges.edit');
+        Route::put('/milestone-badges/{badge}', [MilestoneBadgeController::class, 'update'])->whereUuid('badge')->name('milestone-badges.update');
+        Route::delete('/milestone-badges/{badge}', [MilestoneBadgeController::class, 'destroy'])->whereUuid('badge')->name('milestone-badges.destroy');
+        Route::post('/milestone-badges/{badge}/toggle-status', [MilestoneBadgeController::class, 'toggleStatus'])->whereUuid('badge')->name('milestone-badges.toggle-status');
         Route::get('/sponsored-milestones', [SponsoredMembersMilestonesWebController::class, 'index'])->name('sponsored-milestones.index');
         Route::get('/sponsored-milestones/{user}', [SponsoredMembersMilestonesWebController::class, 'show'])
             ->whereUuid('user')
@@ -565,6 +574,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/email-templates/{key}/edit', [EmailTemplateController::class, 'edit'])->name('email-templates.edit');
         Route::put('/email-templates/{key}', [EmailTemplateController::class, 'update'])->name('email-templates.update');
         Route::get('/email-templates/{key}/preview', [EmailTemplateController::class, 'preview'])->name('email-templates.preview');
+
+        // Notification Templates Module
+        Route::get('/notification-templates', [NotificationTemplateController::class, 'index'])->name('notification-templates.index');
+        Route::get('/notification-templates/{key}/edit', [NotificationTemplateController::class, 'edit'])->name('notification-templates.edit');
+        Route::put('/notification-templates/{key}', [NotificationTemplateController::class, 'update'])->name('notification-templates.update');
+        Route::get('/notification-templates/{key}/preview', [NotificationTemplateController::class, 'preview'])->name('notification-templates.preview');
 
         Route::get('/execution/leadership', [AdminExecutionController::class, 'leadership'])->name('execution.leadership');
         Route::get('/execution/industries', [AdminExecutionController::class, 'industries'])->name('execution.industries');

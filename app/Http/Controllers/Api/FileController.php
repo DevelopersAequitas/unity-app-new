@@ -35,8 +35,10 @@ class FileController extends BaseApiController
                 $candidatePaths = array_values(array_unique([
                     $id,
                     $cleanId,
+                    'milestone-badges/'.$cleanId,
                     'ads/'.$cleanId,
                     $baseName,
+                    'milestone-badges/'.$baseName,
                     'ads/'.$baseName,
                     'uploads/'.$baseName,
                 ]));
@@ -66,6 +68,7 @@ class FileController extends BaseApiController
                             public_path('storage/'.$candidate),
                             storage_path('app/'.$candidate),
                             storage_path('app/public/'.$candidate),
+                            storage_path('app/public/milestone-badges/'.$candidate),
                             storage_path('app/public/ads/'.$candidate),
                         ];
                         foreach ($checkPaths as $absPath) {

@@ -153,6 +153,19 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
+// TEMPORARY LOCAL/QA MOCK WEBHOOK: WhatsApp Webhook Payload Logger
+Route::post('/v1/mock-whatsapp-webhook', function (Request $request) {
+    Log::info('Local Mock WhatsApp Webhook Received Payload:', [
+        'headers' => $request->headers->all(),
+        'body' => $request->all(),
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Mock WhatsApp webhook payload captured successfully',
+    ]);
+});
+
 // Backward-compatible ads endpoint for clients that still call /api/ads.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
