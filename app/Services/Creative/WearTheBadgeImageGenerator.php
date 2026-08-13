@@ -13,6 +13,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -182,25 +183,34 @@ class WearTheBadgeImageGenerator
                 imageline($canvas, $centerX - 100, 890, $centerX + 100, 890, $lineColor);
                 imagesetthickness($canvas, 1);
 
-                // 3. Draw Designation / Company Subtitle
-                $designation = trim((string) ($user->designation ?? ''));
-                $company = trim((string) ($user->company_name ?? ''));
-                $subtitle = implode(' • ', array_filter([$designation, $company]));
-                if ($subtitle === '') {
-                    $subtitle = 'Global Peer Community Member';
-                }
-
-                $subtitleStartY = 930;
+                // 3. Draw Membership Label ("Peers") in its exact separate position
+                $peersStartY = 925;
                 $this->drawWrappedCenteredText(
                     $canvas,
-                    $subtitle,
-                    18,
+                    'Peers',
+                    20,
                     $centerX,
-                    $subtitleStartY,
+                    $peersStartY,
                     $navyBlue,
                     $fontBold,
                     (int) ($width * 0.85)
                 );
+
+                // 4. Draw Circle Name (e.g. "Jurassic Park") in its separate position below Peers
+                $circleName = $this->resolveCircleName($user);
+                if ($circleName !== '') {
+                    $circleNameStartY = 965;
+                    $this->drawWrappedCenteredText(
+                        $canvas,
+                        $circleName,
+                        16,
+                        $centerX,
+                        $circleNameStartY,
+                        $darkSlate,
+                        $fontRegular,
+                        (int) ($width * 0.85)
+                    );
+                }
             } else {
                 $avatarSize = (int) ($width * 0.42); // ~336px
                 $avatarCenterY = 480;
@@ -455,5 +465,33 @@ class WearTheBadgeImageGenerator
 
             imagesetthickness($canvas, 1);
         }
+    }
+
+    /**
+     * Resolve circle name for user context.
+     */
+    private function resolveCircleName(User $user): string
+    {
+        if (Schema::hasTable('circle_members') && Schema::hasTable('circles')) {
+            try {
+                $circleName = DB::table('circle_members')
+                    ->join('circles', 'circles.id', '=', 'circle_members.circle_id')
+                    ->where('circle_members.user_id', (string) $user->id)
+                    ->whereNull('circle_members.deleted_at')
+                    ->whereNull('circle_members.left_at')
+                    ->orderByDesc('circle_members.created_at')
+                    ->value('circles.name');
+
+                if (filled($circleName)) {
+                    return trim((string) $circleName);
+                }
+            } catch (\Throwable $e) {
+                // Fallback on exception
+            }
+        }
+
+        $fallback = $user->active_circle_addon_name ?? $user->company_name ?? $user->city ?? '';
+
+        return trim((string) $fallback);
     }
 }
