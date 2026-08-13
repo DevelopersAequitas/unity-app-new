@@ -148,6 +148,7 @@ use App\Http\Controllers\Api\V1\TimelineRequirementController;
 use App\Http\Controllers\Api\V1\TutorialController;
 use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\UserMobileVersionController;
+use App\Http\Controllers\Api\V1\UserMobileDetailController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
@@ -443,6 +444,9 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/user/contacts/permission', [UserContactsController::class, 'permission']);
         Route::post('/user/mobile-version', [UserMobileVersionController::class, 'store']);
+        Route::post('/user/devices/register', [UserMobileDetailController::class, 'registerDevice']);
+        Route::post('/user/devices/logout', [UserMobileDetailController::class, 'logoutDevice']);
+        Route::get('/user/devices', [UserMobileDetailController::class, 'listDevices']);
         Route::post('/events/checkin/scan', [EventController::class, 'scan']);
         Route::post('/events/{event}/occurrences/{occurrence}/register', [EventController::class, 'register'])
             ->middleware('unity.user')
