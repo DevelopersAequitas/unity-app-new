@@ -83,6 +83,7 @@ class WearTheBadgeImageGenerator
                 }
             }
 
+            $isTemplateLoaded = false;
             if ($baseImg) {
                 $width = imagesx($baseImg);
                 $height = imagesy($baseImg);
@@ -91,6 +92,7 @@ class WearTheBadgeImageGenerator
                 imagesavealpha($canvas, true);
                 imagecopy($canvas, $baseImg, 0, 0, 0, 0, $width, $height);
                 imagedestroy($baseImg);
+                $isTemplateLoaded = true;
             } else {
                 // Generate clean white canvas with blue & crimson red welcome theme matching Screenshot 2
                 $width = 800;
@@ -143,83 +145,130 @@ class WearTheBadgeImageGenerator
             $darkSlate = imagecolorallocate($canvas, 15, 23, 42); // #0F172A
             $subtleGray = imagecolorallocate($canvas, 71, 85, 105); // #475569
 
-            $centerX = (int) ($width / 2);
-            $avatarSize = (int) ($width * 0.42); // ~336px
-            $avatarCenterY = 480;
-
-            // 1. Draw Top Header: Pill Badge "WELCOME!" and Titles "NEW PEER TO GLOBAL FAMILY."
             $fontBold = $this->getFontPath('bold');
             $fontRegular = $this->getFontPath('regular');
 
-            // Pill Badge "WELCOME!"
-            $pillWidth = 240;
-            $pillHeight = 46;
-            $pillX = $centerX - ($pillWidth / 2);
-            $pillY = 70;
+            $centerX = (int) ($width / 2);
 
-            for ($px = (int) $pillX; $px <= $pillX + $pillWidth; $px++) {
-                $pratio = ($px - $pillX) / $pillWidth;
-                $pr = (int) (11 + ($pratio * (200 - 11)));
-                $pg = (int) (32 + ($pratio * (16 - 32)));
-                $pb = (int) (168 + ($pratio * (46 - 168)));
-                $pcol = imagecolorallocate($canvas, max(0, min(255, $pr)), max(0, min(255, $pg)), max(0, min(255, $pb)));
-                imagefilledrectangle($canvas, $px, (int) $pillY, $px + 1, (int) ($pillY + $pillHeight), $pcol);
+            if ($isTemplateLoaded) {
+                // Calibrated coordinates for 1122x1402 base template image (Screenshot 2)
+                $avatarSize = (int) ($width * 0.41); // ~460px
+                $avatarCenterY = (int) ($height * 0.492); // ~690px
+
+                // 1. Draw User Avatar Photo or Initials inside circle frame
+                $this->drawUserAvatar($canvas, $user, $centerX, $avatarCenterY, $avatarSize, $navyBlue, true);
+
+                // 2. Draw User Display Name
+                $name = trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')));
+                if ($name === '') {
+                    $name = 'Valued Peer Member';
+                }
+
+                $nameStartY = (int) ($avatarCenterY + ($avatarSize / 2) + 55);
+                $this->drawWrappedCenteredText(
+                    $canvas,
+                    strtoupper($name),
+                    26,
+                    $centerX,
+                    $nameStartY,
+                    $darkSlate,
+                    $fontBold,
+                    (int) ($width * 0.85)
+                );
+
+                // 3. Draw Designation / Company Subtitle
+                $designation = trim((string) ($user->designation ?? ''));
+                $company = trim((string) ($user->company_name ?? ''));
+                $subtitle = implode(' • ', array_filter([$designation, $company]));
+                if ($subtitle === '') {
+                    $subtitle = 'Global Peer Community Member';
+                }
+
+                $subtitleStartY = $nameStartY + 45;
+                $this->drawWrappedCenteredText(
+                    $canvas,
+                    $subtitle,
+                    18,
+                    $centerX,
+                    $subtitleStartY,
+                    $subtleGray,
+                    $fontRegular,
+                    (int) ($width * 0.85)
+                );
+            } else {
+                $avatarSize = (int) ($width * 0.42); // ~336px
+                $avatarCenterY = 480;
+
+                // Pill Badge "WELCOME!"
+                $pillWidth = 240;
+                $pillHeight = 46;
+                $pillX = $centerX - ($pillWidth / 2);
+                $pillY = 70;
+
+                for ($px = (int) $pillX; $px <= $pillX + $pillWidth; $px++) {
+                    $pratio = ($px - $pillX) / $pillWidth;
+                    $pr = (int) (11 + ($pratio * (200 - 11)));
+                    $pg = (int) (32 + ($pratio * (16 - 32)));
+                    $pb = (int) (168 + ($pratio * (46 - 168)));
+                    $pcol = imagecolorallocate($canvas, max(0, min(255, $pr)), max(0, min(255, $pg)), max(0, min(255, $pb)));
+                    imagefilledrectangle($canvas, $px, (int) $pillY, $px + 1, (int) ($pillY + $pillHeight), $pcol);
+                }
+                $this->drawWrappedCenteredText($canvas, 'WELCOME!', 18, $centerX, (int) ($pillY + 32), $white, $fontBold, $pillWidth);
+
+                // Title Line 1: "NEW PEER"
+                $this->drawWrappedCenteredText($canvas, 'NEW PEER', 30, $centerX, 165, $navyBlue, $fontBold, 700);
+
+                // Title Line 2: "TO GLOBAL FAMILY."
+                $this->drawWrappedCenteredText($canvas, 'TO GLOBAL FAMILY.', 30, $centerX, 220, $crimsonRed, $fontBold, 750);
+
+                // 2. Draw User Avatar Photo or Initials inside dual gradient arc rings
+                $this->drawUserAvatar($canvas, $user, $centerX, $avatarCenterY, $avatarSize, $navyBlue);
+
+                // 3. Draw User Display Name
+                $name = trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')));
+                if ($name === '') {
+                    $name = 'Valued Peer Member';
+                }
+
+                $nameStartY = (int) ($avatarCenterY + ($avatarSize / 2) + 45);
+                $this->drawWrappedCenteredText(
+                    $canvas,
+                    strtoupper($name),
+                    22,
+                    $centerX,
+                    $nameStartY,
+                    $darkSlate,
+                    $fontBold,
+                    (int) ($width * 0.85)
+                );
+
+                // 4. Draw Designation / Company Subtitle
+                $designation = trim((string) ($user->designation ?? ''));
+                $company = trim((string) ($user->company_name ?? ''));
+                $subtitle = implode(' • ', array_filter([$designation, $company]));
+                if ($subtitle === '') {
+                    $subtitle = 'Global Peer Community Member';
+                }
+
+                $subtitleStartY = $nameStartY + 38;
+                $this->drawWrappedCenteredText(
+                    $canvas,
+                    $subtitle,
+                    15,
+                    $centerX,
+                    $subtitleStartY,
+                    $subtleGray,
+                    $fontRegular,
+                    (int) ($width * 0.85)
+                );
+
+                // 5. Draw Footer Tagline & Website on Bottom Banner
+                $tagline = 'Peers are Partners in Business & Friends in Life.';
+                $this->drawWrappedCenteredText($canvas, $tagline, 14, $centerX, 900, $white, $fontRegular, 700);
+
+                $website = 'PeersGlobal.com';
+                $this->drawWrappedCenteredText($canvas, $website, 15, $centerX, 945, $white, $fontBold, 700);
             }
-            $this->drawWrappedCenteredText($canvas, 'WELCOME!', 18, $centerX, (int) ($pillY + 32), $white, $fontBold, $pillWidth);
-
-            // Title Line 1: "NEW PEER"
-            $this->drawWrappedCenteredText($canvas, 'NEW PEER', 30, $centerX, 165, $navyBlue, $fontBold, 700);
-
-            // Title Line 2: "TO GLOBAL FAMILY."
-            $this->drawWrappedCenteredText($canvas, 'TO GLOBAL FAMILY.', 30, $centerX, 220, $crimsonRed, $fontBold, 750);
-
-            // 2. Draw User Avatar Photo or Initials inside dual gradient arc rings
-            $this->drawUserAvatar($canvas, $user, $centerX, $avatarCenterY, $avatarSize, $navyBlue);
-
-            // 3. Draw User Display Name
-            $name = trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')));
-            if ($name === '') {
-                $name = 'Valued Peer Member';
-            }
-
-            $nameStartY = (int) ($avatarCenterY + ($avatarSize / 2) + 45);
-            $this->drawWrappedCenteredText(
-                $canvas,
-                strtoupper($name),
-                22,
-                $centerX,
-                $nameStartY,
-                $darkSlate,
-                $fontBold,
-                (int) ($width * 0.85)
-            );
-
-            // 4. Draw Designation / Company Subtitle
-            $designation = trim((string) ($user->designation ?? ''));
-            $company = trim((string) ($user->company_name ?? ''));
-            $subtitle = implode(' • ', array_filter([$designation, $company]));
-            if ($subtitle === '') {
-                $subtitle = 'Global Peer Community Member';
-            }
-
-            $subtitleStartY = $nameStartY + 38;
-            $this->drawWrappedCenteredText(
-                $canvas,
-                $subtitle,
-                15,
-                $centerX,
-                $subtitleStartY,
-                $subtleGray,
-                $fontRegular,
-                (int) ($width * 0.85)
-            );
-
-            // 5. Draw Footer Tagline & Website on Bottom Banner
-            $tagline = 'Peers are Partners in Business & Friends in Life.';
-            $this->drawWrappedCenteredText($canvas, $tagline, 14, $centerX, 900, $white, $fontRegular, 700);
-
-            $website = 'PeersGlobal.com';
-            $this->drawWrappedCenteredText($canvas, $website, 15, $centerX, 945, $white, $fontBold, 700);
 
             // 6. Save WebP & Register via FileUploadService
             $filename = 'welcome_creative_'.Str::uuid().'.webp';
@@ -266,7 +315,7 @@ class WearTheBadgeImageGenerator
     /**
      * Render avatar photo or fallback initials inside circular frame.
      */
-    private function drawUserAvatar($canvas, User $user, int $centerX, int $centerY, int $avatarSize, $goldColor): void
+    private function drawUserAvatar($canvas, User $user, int $centerX, int $centerY, int $avatarSize, $goldColor, bool $isTemplateLoaded = false): void
     {
         $avatarSource = null;
         $tempFilePath = null;
@@ -366,22 +415,24 @@ class WearTheBadgeImageGenerator
             imagedestroy($circularAvatar);
         }
 
-        // Draw dual gradient ring border (Blue & Crimson Red gradient arcs matching Screenshot 2)
-        $navyBlue = imagecolorallocate($canvas, 11, 32, 168);
-        $crimsonRed = imagecolorallocate($canvas, 200, 16, 46);
+        if (! $isTemplateLoaded) {
+            // Draw dual gradient ring border (Blue & Crimson Red gradient arcs matching Screenshot 2)
+            $navyBlue = imagecolorallocate($canvas, 11, 32, 168);
+            $crimsonRed = imagecolorallocate($canvas, 200, 16, 46);
 
-        imagesetthickness($canvas, 5);
-        // Outer Blue Arc (Left)
-        imagearc($canvas, $centerX, $centerY, $avatarSize + 16, $avatarSize + 16, 90, 270, $navyBlue);
-        // Outer Red Arc (Right)
-        imagearc($canvas, $centerX, $centerY, $avatarSize + 16, $avatarSize + 16, 270, 90, $crimsonRed);
+            imagesetthickness($canvas, 5);
+            // Outer Blue Arc (Left)
+            imagearc($canvas, $centerX, $centerY, $avatarSize + 16, $avatarSize + 16, 90, 270, $navyBlue);
+            // Outer Red Arc (Right)
+            imagearc($canvas, $centerX, $centerY, $avatarSize + 16, $avatarSize + 16, 270, 90, $crimsonRed);
 
-        imagesetthickness($canvas, 3);
-        // Inner Blue Arc (Left)
-        imagearc($canvas, $centerX, $centerY, $avatarSize + 6, $avatarSize + 6, 80, 260, $navyBlue);
-        // Inner Red Arc (Right)
-        imagearc($canvas, $centerX, $centerY, $avatarSize + 6, $avatarSize + 6, 260, 80, $crimsonRed);
+            imagesetthickness($canvas, 3);
+            // Inner Blue Arc (Left)
+            imagearc($canvas, $centerX, $centerY, $avatarSize + 6, $avatarSize + 6, 80, 260, $navyBlue);
+            // Inner Red Arc (Right)
+            imagearc($canvas, $centerX, $centerY, $avatarSize + 6, $avatarSize + 6, 260, 80, $crimsonRed);
 
-        imagesetthickness($canvas, 1);
+            imagesetthickness($canvas, 1);
+        }
     }
 }
