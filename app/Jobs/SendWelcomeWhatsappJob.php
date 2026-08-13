@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Models\Notifications\NotificationDeliveryLog;
 use App\Models\User;
+use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\Notifications\WhatsappNotificationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -32,7 +33,7 @@ class SendWelcomeWhatsappJob implements ShouldQueue
     /**
      * Execute the job to send Welcome WhatsApp message.
      */
-    public function handle(WhatsappNotificationService $whatsappService): void
+    public function handle(WhatsappNotificationService $whatsappService, WearTheBadgeImageGenerator $imageGenerator): void
     {
         $user = User::find($this->userId);
 
@@ -43,6 +44,16 @@ class SendWelcomeWhatsappJob implements ShouldQueue
             ]);
 
             return;
+        }
+
+        // Generate app-side welcome creative image & automatically store URL in SQL database
+        $creativeUrl = null;
+        try {
+            $creativeUrl = $imageGenerator->generateOrGetUrl($user);
+        } catch (Throwable $e) {
+            Log::warning('Failed generating welcome creative image in SendWelcomeWhatsappJob: '.$e->getMessage(), [
+                'user_id' => $this->userId,
+            ]);
         }
 
         $rawPhone = $user->phone ?? $user->secondary_mobile;
@@ -74,9 +85,12 @@ class SendWelcomeWhatsappJob implements ShouldQueue
             $firstName = 'Friend';
         }
 
-        $payload = [
+        $payload = array_filter([
             'first_name' => $firstName,
-        ];
+            'welcome_creative_url' => $creativeUrl,
+            'header_image_url' => $creativeUrl,
+            'media_url' => $creativeUrl,
+        ]);
 
         try {
             $success = $whatsappService->send('welcome', (string) $rawPhone, $payload);
