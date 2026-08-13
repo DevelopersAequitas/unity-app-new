@@ -177,8 +177,6 @@ Route::post('/v1/mock-whatsapp-webhook', function (Request $request) {
     ]);
 });
 
-// Backward-compatible ads endpoint for clients that still call /api/ads.
-Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
 // Backward-compatible ads endpoint — returns ALL currently visible ads for any authenticated user.
 Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
 
@@ -868,7 +866,9 @@ Route::prefix('v1')->group(function () {
         // Posts & feed
         Route::post('/posts/{post}/report', [PostReportController::class, 'store']);
         Route::get('/posts/feed', [PostController::class, 'feed']);
-        Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'myAds']);
+        Route::middleware('auth:sanctum')->get('/ads', [AdController::class, 'allAds']);
+        Route::middleware('auth:sanctum')->get('/ads/my', [AdController::class, 'myAds']);
+        Route::middleware('auth:sanctum')->get('/ads/all', [AdController::class, 'allAds']);
         Route::get('/ads/timeline', [AdController::class, 'timeline']);
         Route::post('/ads/{id}/view', [AdController::class, 'view'])->whereUuid('id');
         Route::post('/ads/{id}/click', [AdController::class, 'click'])->whereUuid('id');
