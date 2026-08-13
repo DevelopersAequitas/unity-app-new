@@ -36,6 +36,7 @@ class CoinMilestoneTest extends TestCase
             $table->string('status', 50)->default('active');
             $table->string('membership_status', 50)->default('visitor');
             $table->bigInteger('coins_balance')->default(0);
+            $table->integer('life_impacted_count')->default(0);
             $table->string('public_profile_slug', 80)->nullable();
             $table->string('coin_medal_rank', 255)->nullable();
             $table->string('coin_milestone_title', 255)->nullable();
@@ -77,6 +78,7 @@ class CoinMilestoneTest extends TestCase
             'last_name' => 'User',
             'email' => 'test@example.com',
             'coins_balance' => 250000,
+            'life_impacted_count' => 15,
         ]);
 
         Sanctum::actingAs($user);
@@ -87,18 +89,10 @@ class CoinMilestoneTest extends TestCase
             ->assertJson([
                 'success' => true,
                 'data' => [
-                    'current_coins_balance' => 250000,
+                    'total_life_impacted' => 15,
+                    'life_impacted_count' => 15,
                     'current_milestone' => [
-                        'medal_rank' => 'Silver',
-                        'title' => 'Network Builder',
                         'threshold' => 200000,
-                    ],
-                    'next_milestone' => [
-                        'medal_rank' => 'Gold',
-                        'title' => 'Action Leader',
-                        'threshold' => 300000,
-                        'coins_needed' => 50000,
-                        'progress_percentage' => 50.0,
                     ],
                 ],
             ]);

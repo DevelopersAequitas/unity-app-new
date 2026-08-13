@@ -279,7 +279,7 @@ class MilestoneBadgeCalculationTest extends TestCase
             ->assertJson([
                 'success' => true,
                 'data' => [
-                    'current_coins_balance' => 6000,
+                    'total_life_impacted' => 0,
                     'badges' => [
                         'coins' => [
                             [
