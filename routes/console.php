@@ -41,3 +41,6 @@ Schedule::command('notifications:campaigns weekly')->sundays()->at('18:00')->tim
 Schedule::command('app:send-anniversary-notifications')
     ->dailyAt('09:00')
     ->timezone(config('app.timezone', 'UTC'));
+
+// Profile completion reminders (WhatsApp 48-hour cycle)
+Schedule::command('profile-completion:send-reminders')->hourly();

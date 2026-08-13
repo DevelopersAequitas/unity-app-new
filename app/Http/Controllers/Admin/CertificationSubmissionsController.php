@@ -43,6 +43,20 @@ class CertificationSubmissionsController extends Controller
 
         $items = $query->latest()->paginate(15)->withQueryString();
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Certifications retrieved successfully.',
+                'data' => $items->items(),
+                'pagination' => [
+                    'current_page' => $items->currentPage(),
+                    'last_page' => $items->lastPage(),
+                    'per_page' => $items->perPage(),
+                    'total' => $items->total(),
+                ],
+            ]);
+        }
+
         return view('admin.certifications.index', [
             'items' => $items,
             'filters' => $filters,
@@ -66,6 +80,14 @@ class CertificationSubmissionsController extends Controller
             $data['admin_note'] ?? $submission->admin_note,
             auth('admin')->id(),
         );
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => $message,
+                'data' => $submission,
+            ]);
+        }
 
         return redirect()
             ->route('admin.certifications.index', ['search' => $submission->email])
@@ -105,6 +127,14 @@ class CertificationSubmissionsController extends Controller
             LeadershipCertificationSubmission::query()->where('id', $submission->id)->update(['status' => 'rejected']);
         } elseif ($submission->certification_type === CertificationSubmission::TYPE_ENTREPRENEUR) {
             EntrepreneurCertificationSubmission::query()->where('id', $submission->id)->update(['status' => 'rejected']);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Certification submission rejected successfully.',
+                'data' => $submission->fresh(),
+            ]);
         }
 
         return back()->with('success', 'Certification submission rejected successfully.');

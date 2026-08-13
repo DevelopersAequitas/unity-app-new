@@ -178,7 +178,10 @@ class VisitorRegistrationsController extends Controller
             ->paginate(25)
             ->appends($request->query());
 
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $admin = Auth::guard('admin')->user();
+        $circlesQuery = Circle::query()->orderBy('name');
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, $admin);
+        $circles = $circlesQuery->get(['id', 'name']);
 
         $usersQuery = User::query()
             ->whereNull('deleted_at')

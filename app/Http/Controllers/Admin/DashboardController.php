@@ -152,6 +152,29 @@ class DashboardController extends Controller
         return now()->toDateString();
     }
 
+    private function resolveEffectiveCircleId(Request $request): string
+    {
+        $selectedCircleId = trim((string) $request->query('circle_id', ''));
+
+        if ($selectedCircleId !== '') {
+            if ($selectedCircleId === 'all' || $selectedCircleId === 'All') {
+                session(['activeScopeId' => 'All']);
+
+                return '';
+            }
+            session(['activeScopeId' => $selectedCircleId]);
+
+            return $selectedCircleId;
+        }
+
+        $sessionScope = session('activeScopeId');
+        if ($sessionScope && $sessionScope !== 'All' && $sessionScope !== 'all') {
+            return (string) $sessionScope;
+        }
+
+        return '';
+    }
+
     public function ded(Request $request): View
     {
         $admin = Auth::guard('admin')->user();
@@ -177,15 +200,15 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $selectedCircleId = trim((string) $request->query('circle_id', ''));
-        if ($selectedCircleId === 'all') {
-            $selectedCircleId = '';
-        }
+        $selectedCircleId = $this->resolveEffectiveCircleId($request);
 
         $selectedCircle = null;
         if ($selectedCircleId !== '') {
             $selectedCircle = $districtCircles->firstWhere('id', $selectedCircleId);
-            abort_unless($selectedCircle !== null, 403);
+            if (! $selectedCircle) {
+                $selectedCircleId = '';
+                session(['activeScopeId' => 'All']);
+            }
         }
 
         $aggregation = app(DashboardAggregationService::class);
@@ -233,7 +256,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'status' => $request->query('status'),
             'date_from' => $request->query('date_from'),
@@ -277,7 +300,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'status' => $request->query('status'),
             'date_from' => $request->query('date_from'),
@@ -319,7 +342,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -360,7 +383,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -401,7 +424,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -442,7 +465,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'industry_id' => $request->query('industry_id'),
             'status' => $request->query('status'),
             'date_from' => $request->query('date_from'),
@@ -478,7 +501,7 @@ class DashboardController extends Controller
             ->get(['id', 'name']);
 
         $filters = [
-            'circle_id' => $request->query('circle_id'),
+            'circle_id' => $this->resolveEffectiveCircleId($request) ?: 'all',
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
         ];

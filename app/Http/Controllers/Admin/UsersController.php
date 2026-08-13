@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendFounderEngagementJob;
 use App\Jobs\SendPrMediaVisibilityWhatsappJob;
+use App\Jobs\SendProfileCompletionWhatsappJob;
 use App\Jobs\SendWelcomeWhatsappJob;
 use App\Models\AdminUser;
 use App\Models\Circle;
@@ -331,7 +332,10 @@ class UsersController extends Controller
         $user = new User;
         $cities = City::query()->orderBy('name')->get();
         $membershipStatuses = $this->membershipStatuses();
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
+        $adminUser = Auth::guard('admin')->user();
+        $circlesQuery = Circle::query()->orderBy('name');
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, $adminUser);
+        $circles = $circlesQuery->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
 
         return view('admin.users.create', [
             'user' => $user,
@@ -476,6 +480,8 @@ class UsersController extends Controller
                 ->delay(now()->addHours(3));
             SendPrMediaVisibilityWhatsappJob::dispatch((string) $user->id)
                 ->delay($registrationTime->copy()->addHours(24));
+            SendProfileCompletionWhatsappJob::dispatch((string) $user->id)
+                ->delay($registrationTime->copy()->addHours(48));
         }
 
         return redirect()
@@ -553,9 +559,9 @@ class UsersController extends Controller
                 ->where('is_active', true)
                 ->first()
             : null;
-        $circles = Circle::query()
-            ->orderBy('name')
-            ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
+        $circlesQuery = Circle::query()->orderBy('name');
+        AdminCircleScope::applyToCirclesQuery($circlesQuery, Auth::guard('admin')->user());
+        $circles = $circlesQuery->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
 
         $joinedStatus = $this->activeCircleMemberStatus();
         $joinedCircleId = $this->activeCircleMembershipQuery($user->id, $joinedStatus)
@@ -825,7 +831,7 @@ class UsersController extends Controller
             'circle_country' => ['nullable', 'string', 'max:150'],
             'circle_meeting_mode' => ['nullable', 'string', 'max:50'],
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
-            'role_ids' => ['array', 'max:1'],
+            'role_ids' => ['nullable', 'array'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
             'ded_state_id' => ['nullable', 'string', 'max:150'],
             'ded_state_name' => ['nullable', 'string', 'max:150'],
@@ -837,8 +843,6 @@ class UsersController extends Controller
             'sustainability_areas' => ['nullable', 'array'],
             'greenpreneur_goals' => ['nullable', 'array'],
             'community_directory_listing' => ['required', 'in:Yes,No'],
-        ], [
-            'role_ids.max' => 'You can not assign multiple roles.',
         ]);
 
         $dedRoleId = Role::query()->where('key', 'ded')->value('id');
@@ -1266,6 +1270,14 @@ class UsersController extends Controller
                                     'created_at' => now(),
                                 ]));
                             }
+
+                            DB::table('circle_members')
+                                ->where('user_id', $user->id)
+                                ->whereNull('deleted_at')
+                                ->update([
+                                    'role' => 'ded',
+                                    'updated_at' => now(),
+                                ]);
                         } else {
                             DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
                         }
@@ -1472,34 +1484,41 @@ class UsersController extends Controller
             return back()->withErrors(['roles' => 'Admin user record not found for this user.']);
         }
 
-        $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
-        $adminRoles = Role::query()
-            ->whereIn('key', $adminRoleKeys)
-            ->get(['id', 'key']);
-        $adminRoleIds = $adminRoles->pluck('id')->all();
+        $roleId = $request->input('role_id') ?: $request->query('role_id');
 
-        DB::transaction(function () use ($adminUser, $adminRoleIds): void {
-            DB::table('admin_user_roles')
-                ->where('user_id', $adminUser->id)
-                ->whereIn('role_id', $adminRoleIds)
-                ->delete();
+        DB::transaction(function () use ($adminUser, $roleId): void {
+            $query = DB::table('admin_user_roles')
+                ->where('user_id', $adminUser->id);
 
-            Cache::forget('admin-access:roles:'.$adminUser->id);
+            if ($roleId) {
+                $query->where('role_id', $roleId);
+            }
 
-            if ($this->industryDirectorAssignmentsTableExists()) {
-                DB::table('industry_director_assignments')
-                    ->where('admin_user_id', $adminUser->id)
-                    ->update([
-                        'is_active' => false,
-                        'updated_at' => now(),
-                    ]);
+            $query->delete();
+
+            if ($roleId) {
+                $roleKey = Role::query()->where('id', $roleId)->value('key');
+                $roleKeyNormalized = strtolower(trim((string) $roleKey));
+
+                if (($roleKeyNormalized === 'ded' || str_contains($roleKeyNormalized, 'ded')) && Schema::hasTable('admin_ded_districts')) {
+                    DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+                }
+                if (($roleKeyNormalized === 'industry_director' || $roleKeyNormalized === 'id') && $this->industryDirectorAssignmentsTableExists()) {
+                    DB::table('industry_director_assignments')->where('admin_user_id', $adminUser->id)->delete();
+                }
+            } else {
+                if ($this->industryDirectorAssignmentsTableExists()) {
+                    DB::table('industry_director_assignments')
+                        ->where('admin_user_id', $adminUser->id)
+                        ->delete();
+                }
+                if (Schema::hasTable('admin_ded_districts')) {
+                    DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+                }
             }
         });
 
-        if (Schema::hasTable('admin_ded_districts')) {
-            DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
-            Cache::forget('admin-access:ded-location:'.$adminUser->id);
-        }
+        AdminAccess::clearAdminUserCache($adminUser->id);
 
         return back()->with('success', 'Role removed successfully.');
     }
@@ -1639,6 +1658,8 @@ class UsersController extends Controller
                         ->delay(now()->addHours(3));
                     SendPrMediaVisibilityWhatsappJob::dispatch((string) $createdUser->id)
                         ->delay($registrationTime->copy()->addHours(24));
+                    SendProfileCompletionWhatsappJob::dispatch((string) $createdUser->id)
+                        ->delay($registrationTime->copy()->addHours(48));
                     $results['created']++;
                 }
             } catch (Throwable $e) {
@@ -2378,9 +2399,9 @@ class UsersController extends Controller
                         ->whereNull('circle_members.deleted_at');
 
                     if ($role === 'leadership_team') {
-                        $q->whereIn('circle_members.role', ['chair', 'vice_chair', 'secretary', 'committee_leader']);
+                        $q->whereIn(DB::raw('circle_members.role::text'), ['chair', 'vice_chair', 'secretary', 'committee_leader']);
                     } else {
-                        $q->where('circle_members.role', $role);
+                        $q->where(DB::raw('circle_members.role::text'), $role);
                     }
 
                     if ($isDed && is_array($dedCircleIds)) {

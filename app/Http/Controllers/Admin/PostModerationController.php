@@ -9,6 +9,7 @@ use App\Models\Impact;
 use App\Models\Post;
 use App\Models\User;
 use App\Services\Admin\IndustryScopeService;
+use App\Services\Admin\PermissionService;
 use App\Services\Media\BirthdayCreativeImageService;
 use App\Support\AdminAccess;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +29,13 @@ class PostModerationController extends Controller
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminAccess::isGlobalAdmin($admin)) {
+        if (! $admin) {
+            abort(403);
+        }
+
+        $routeName = request()->route()?->getName() ?? '';
+
+        if ($routeName !== '' && ! app(PermissionService::class)->canAccessRoute($admin, $routeName)) {
             abort(403);
         }
     }

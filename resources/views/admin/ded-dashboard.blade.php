@@ -106,10 +106,10 @@
 
     <!-- Circle Filter Section -->
     <div class="card p-3 mb-4 shadow-sm border-0">
-        <form method="GET" action="{{ route('admin.ded.dashboard') }}" class="row g-2 align-items-end">
+        <form method="GET" action="{{ route('admin.ded.dashboard') }}" class="row g-2 align-items-end" id="dedCircleFilterForm">
             <div class="col-md-6 col-xl-4">
                 <label for="dedDashboardCircleFilter" class="form-label small text-muted mb-1 fw-bold">Circle Scope Filter</label>
-                <select id="dedDashboardCircleFilter" name="circle_id" class="form-select">
+                <select id="dedDashboardCircleFilter" name="circle_id" class="form-select" onchange="this.form.submit()">
                     <option value="all" @selected(($selectedCircleId ?? '') === '')>District-Wide Overview</option>
                     @foreach (($districtCircles ?? collect()) as $circle)
                         <option value="{{ $circle->id }}" @selected(($selectedCircleId ?? '') === $circle->id)>
@@ -117,9 +117,6 @@
                         </option>
                     @endforeach
                 </select>
-            </div>
-            <div class="col-md-auto">
-                <button class="btn btn-primary px-4">Apply Filter</button>
             </div>
             @if (($selectedCircleId ?? '') !== '')
                 <div class="col-md-auto">
@@ -221,7 +218,7 @@
                         @endif
                     </h2>
                     @if ($trend !== '')
-                        <div class="small {{ $trendClass }} mt-1 fw-semibold">{{ $trend }}</div>
+                        <div class="small {{ $trendClass }} mt-1 fw-semibold text-truncate" title="{{ $trend }}">{{ $trend }}</div>
                     @endif
                 </a>
             </div>
@@ -419,3 +416,16 @@
     </div>
 @endif
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.jQuery) {
+            $('#dedDashboardCircleFilter').on('change', function() {
+                const form = document.getElementById('dedCircleFilterForm');
+                if (form) form.submit();
+            });
+        }
+    });
+</script>
+@endpush
