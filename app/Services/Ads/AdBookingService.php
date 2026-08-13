@@ -52,6 +52,16 @@ class AdBookingService
      */
     public function approveBooking(AdBooking $booking, Authenticatable $admin, ?string $remarks = null): AdBooking
     {
+        $startsAt = $booking->starts_at ?? now();
+        if ($startsAt && $startsAt->isPast()) {
+            $startsAt = now();
+        }
+
+        $endsAt = $booking->ends_at;
+        if ($endsAt) {
+            $endsAt = $endsAt->endOfDay();
+        }
+
         $ad = Ad::create([
             'title' => $booking->title,
             'subtitle' => $booking->subtitle,
@@ -61,8 +71,8 @@ class AdBookingService
             'button_text' => $booking->button_text,
             'placement' => $booking->placement,
             'page_name' => $booking->page_name,
-            'starts_at' => $booking->starts_at,
-            'ends_at' => $booking->ends_at,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
             'is_active' => true,
             'created_by' => $booking->user_id,
         ]);
