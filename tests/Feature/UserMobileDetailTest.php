@@ -66,7 +66,7 @@ class UserMobileDetailTest extends TestCase
             'first_name' => 'John',
             'last_name' => 'Doe',
             'display_name' => 'John Doe',
-            'email' => 'john.' . Str::random(5) . '@example.com',
+            'email' => 'john.'.Str::random(5).'@example.com',
             'password_hash' => bcrypt('password'),
         ]);
     }
@@ -83,7 +83,7 @@ class UserMobileDetailTest extends TestCase
             'device_id' => 'android_device_id_123',
         ];
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $tokenObj->plainTextToken)
+        $response = $this->withHeader('Authorization', 'Bearer '.$tokenObj->plainTextToken)
             ->postJson('/api/v1/user/devices/register', $payload);
 
         $response->assertStatus(200)
@@ -130,7 +130,7 @@ class UserMobileDetailTest extends TestCase
             'device_id' => 'android_device_2',
         ];
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $token2->plainTextToken)
+        $response = $this->withHeader('Authorization', 'Bearer '.$token2->plainTextToken)
             ->postJson('/api/v1/user/devices/register', $payload);
 
         $response->assertStatus(200);
@@ -183,7 +183,7 @@ class UserMobileDetailTest extends TestCase
             'device_id' => 'ios_device_1',
         ];
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $tokenIos->plainTextToken)
+        $response = $this->withHeader('Authorization', 'Bearer '.$tokenIos->plainTextToken)
             ->postJson('/api/v1/user/devices/register', $payload);
 
         $response->assertStatus(200);
@@ -226,7 +226,7 @@ class UserMobileDetailTest extends TestCase
             'device_id' => 'android_device_1',
         ];
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $tokenObj->plainTextToken)
+        $response = $this->withHeader('Authorization', 'Bearer '.$tokenObj->plainTextToken)
             ->postJson('/api/v1/user/devices/logout', $payload);
 
         $response->assertStatus(200)

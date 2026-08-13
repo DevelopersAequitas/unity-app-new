@@ -964,6 +964,19 @@ class CircleController extends Controller
         $meetingFrequency = trim((string) ($validated['meeting_frequency'] ?? ''));
         data_set($calendar, 'settings.meeting_frequency', $meetingFrequency !== '' ? strtolower($meetingFrequency) : null);
 
+        $meetingLink = trim((string) ($validated['meeting_link'] ?? $request->input('meeting_link') ?? ''));
+        data_set($calendar, 'settings.meeting_link', $meetingLink !== '' ? $meetingLink : null);
+
+        $meetingPasscode = trim((string) ($validated['meeting_passcode'] ?? $request->input('meeting_passcode') ?? ''));
+        data_set($calendar, 'settings.meeting_passcode', $meetingPasscode !== '' ? $meetingPasscode : null);
+
+        $meetingVenue = trim((string) ($validated['meeting_venue'] ?? $request->input('meeting_venue') ?? ''));
+        data_set($calendar, 'settings.meeting_venue', $meetingVenue !== '' ? $meetingVenue : null);
+        data_set($calendar, 'settings.meeting_address', $meetingVenue !== '' ? $meetingVenue : null);
+
+        $meetingLandmark = trim((string) ($validated['meeting_landmark'] ?? $request->input('meeting_landmark') ?? ''));
+        data_set($calendar, 'settings.meeting_landmark', $meetingLandmark !== '' ? $meetingLandmark : null);
+
         $launchDate = trim((string) ($validated['launch_date'] ?? ''));
         data_set($calendar, 'settings.launch_date', $launchDate !== '' ? $launchDate : null);
 
