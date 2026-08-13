@@ -33,8 +33,6 @@ class CoinMilestoneController extends Controller
         $milestones = CoinMilestoneResolver::getMilestones();
 
         $currentMilestoneData = null;
-        $nextMilestoneData = null;
-        $lastMilestoneThreshold = 0;
 
         $resolvedCurrent = CoinMilestoneResolver::resolve($currentCoins);
         if ($resolvedCurrent['title'] !== null) {
@@ -46,37 +44,8 @@ class CoinMilestoneController extends Controller
                         'meaning' => $milestone['meaning'],
                         'threshold' => (int) $milestone['threshold'],
                     ];
-                    $lastMilestoneThreshold = (int) $milestone['threshold'];
-                } else {
-                    $nextMilestoneData = $milestone;
-                    break;
                 }
             }
-        } else {
-            if (! empty($milestones)) {
-                $nextMilestoneData = $milestones[0];
-            }
-        }
-
-        $nextMilestoneResponse = null;
-        if ($nextMilestoneData) {
-            $threshold = (int) $nextMilestoneData['threshold'];
-            $coinsNeeded = max(0, $threshold - $currentCoins);
-
-            $prevThreshold = $lastMilestoneThreshold;
-            $range = $threshold - $prevThreshold;
-            $progressInRange = max(0, $currentCoins - $prevThreshold);
-
-            $progressPercentage = $range > 0 ? round(($progressInRange / $range) * 100, 2) : 0;
-            $progressPercentage = min(100.0, $progressPercentage);
-
-            $nextMilestoneResponse = [
-                'medal_rank' => $nextMilestoneData['medal_rank'],
-                'title' => $nextMilestoneData['title'],
-                'threshold' => $threshold,
-                'coins_needed' => $coinsNeeded,
-                'progress_percentage' => $progressPercentage,
-            ];
         }
 
         $dynamicBadges = $this->getLatestDynamicBadges($user);
@@ -88,7 +57,6 @@ class CoinMilestoneController extends Controller
                 'total_life_impacted' => (int) ($user->life_impacted_count ?? 0),
                 'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
                 'current_milestone' => $currentMilestoneData,
-                'next_milestone' => $nextMilestoneResponse,
                 'badges' => $dynamicBadges,
             ],
         ]);

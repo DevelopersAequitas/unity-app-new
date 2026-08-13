@@ -96,13 +96,6 @@ class CoinMilestoneTest extends TestCase
                         'title' => 'Network Builder',
                         'threshold' => 200000,
                     ],
-                    'next_milestone' => [
-                        'medal_rank' => 'Gold',
-                        'title' => 'Action Leader',
-                        'threshold' => 300000,
-                        'coins_needed' => 50000,
-                        'progress_percentage' => 50.0,
-                    ],
                 ],
             ]);
     }
