@@ -14,6 +14,7 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\City;
+use App\Models\Event;
 use App\Models\Industry;
 use App\Models\IndustryDirectorAssignment;
 use App\Models\IntroductionRequest;
@@ -93,19 +94,118 @@ class UsersController extends Controller
             $userCircles = $u->circleMembers->map(fn ($cm) => $cm->circle)->filter()->unique('id');
             $circleName = $userCircles->first()?->name ?? '';
 
-            $statusValue = $u->status ?? 'active';
+            $statusValue = strtolower((string) ($u->status ?? ($u->is_active ? 'active' : 'inactive')));
+            if (! in_array($statusValue, ['active', 'inactive', 'expired', 'pending', 'awaiting_review'])) {
+                $statusValue = 'active';
+            }
+            $statusLabel = ucfirst(str_replace('_', ' ', $statusValue));
             $statusObj = [
-                'n' => $statusValue === 'active' ? 'Active' : 'Inactive',
-                'c' => $statusValue === 'active' ? 'success' : 'text-3',
+                'n' => $statusLabel,
+                'c' => $statusValue === 'active' ? 'success' : ($statusValue === 'pending' || $statusValue === 'awaiting_review' ? 'warning' : ($statusValue === 'expired' ? 'danger' : 'text-3')),
             ];
 
             $membershipStatus = (string) ($u->membership_status ?? 'free_peer');
             $membershipLabel = $membershipStatusLabels[$membershipStatus] ?? Str::headline(str_replace('_', ' ', $membershipStatus));
 
-            $paymentStatus = [
-                'n' => $u->last_payment_at ? 'Paid' : 'Due',
-                'c' => $u->last_payment_at ? 'success' : 'warning',
-            ];
+            $isPaidTier = ! in_array(strtolower($membershipStatus), ['free_peer', 'free_trial_peer', 'visitor', ''], true);
+            $isSponsored = (bool) $u->is_sponsored_member;
+            $hasPaid = (bool) $u->last_payment_at;
+
+            $endsAt = $u->membership_ends_at ?? $u->membership_expiry ?? ($u->membership_starts_at ? $u->membership_starts_at->copy()->addYear() : ($u->created_at ? $u->created_at->copy()->addYear() : null));
+            if ($endsAt) {
+                $diff = now()->floatDiffInDays($endsAt, false);
+                $expiryDays = $diff >= 0 ? (int) ceil($diff) : (int) floor($diff);
+            } else {
+                $expiryDays = null;
+            }
+
+            $isExpired = ($statusValue === 'expired') || ($endsAt !== null && $expiryDays !== null && $expiryDays < 0);
+            $isExpiring7 = ($endsAt !== null && $expiryDays !== null && $expiryDays >= 0 && $expiryDays <= 7);
+            $isExpiring30 = ($endsAt !== null && $expiryDays !== null && $expiryDays >= 0 && $expiryDays <= 30);
+
+            $isPaymentOverdue = false;
+            $pendingAmount = 0;
+
+            if ($isSponsored) {
+                $paymentStatus = [
+                    'n' => 'Sponsored',
+                    'c' => 'success',
+                ];
+            } elseif (! $isPaidTier) {
+                $paymentStatus = [
+                    'n' => $hasPaid ? 'Paid' : 'Free',
+                    'c' => $hasPaid ? 'success' : 'text-3',
+                ];
+            } else {
+                // Paid tier (Circle Peer, Multi Circle Peer, Global Peer, etc.)
+                if ($hasPaid && ($expiryDays === null || $expiryDays >= 0)) {
+                    $paymentStatus = [
+                        'n' => 'Paid',
+                        'c' => 'success',
+                    ];
+                } elseif ($hasPaid && $expiryDays < 0) {
+                    $paymentStatus = [
+                        'n' => 'Overdue',
+                        'c' => 'danger',
+                    ];
+                    $pendingAmount = 5000;
+                    $isPaymentOverdue = true;
+                } else {
+                    $paymentStatus = [
+                        'n' => 'Due',
+                        'c' => 'danger',
+                    ];
+                    $pendingAmount = 5000;
+                    $isPaymentOverdue = true;
+                }
+            }
+
+            $daysSinceLastLogin = $u->last_login_at ? (int) floor(now()->diffInDays($u->last_login_at)) : null;
+            $daysSinceJoined = $u->created_at ? (int) floor(now()->diffInDays($u->created_at)) : null;
+
+            $isInactive30 = false;
+            if ($daysSinceLastLogin !== null) {
+                $isInactive30 = $daysSinceLastLogin >= 30;
+            } else {
+                // If never logged in, only inactive if registered 30+ days ago
+                $isInactive30 = $daysSinceJoined !== null && $daysSinceJoined >= 30;
+            }
+            if ($statusValue === 'inactive') {
+                $isInactive30 = true;
+            }
+
+            $isJoinedLast7 = $daysSinceJoined !== null && $daysSinceJoined >= 0 && $daysSinceJoined <= 7;
+            $isJoinedLast30 = $daysSinceJoined !== null && $daysSinceJoined >= 0 && $daysSinceJoined <= 30;
+
+            $industryList = [];
+            if (! empty($u->mainBusinessCategory?->name)) {
+                $industryList[] = trim((string) $u->mainBusinessCategory->name);
+            }
+            if (! empty($u->businessCategory?->name) && ! in_array(trim((string) $u->businessCategory->name), $industryList, true)) {
+                $industryList[] = trim((string) $u->businessCategory->name);
+            }
+            foreach ($u->circleMembers as $cm) {
+                $cmCat = $cm->level1Category?->name ?? $cm->level2Category?->name ?? $cm->level3Category?->name ?? $cm->level4Category?->name;
+                if (! empty($cmCat) && ! in_array(trim((string) $cmCat), $industryList, true)) {
+                    $industryList[] = trim((string) $cmCat);
+                }
+            }
+            if (! empty($u->industry_tags)) {
+                $tags = is_array($u->industry_tags) ? $u->industry_tags : explode(',', (string) $u->industry_tags);
+                foreach ($tags as $tag) {
+                    $tagTrim = trim((string) $tag);
+                    if ($tagTrim !== '' && ! in_array($tagTrim, $industryList, true)) {
+                        $industryList[] = $tagTrim;
+                    }
+                }
+            }
+            if (empty($industryList) && ! empty($u->business_sub_category)) {
+                $industryList[] = trim((string) $u->business_sub_category);
+            }
+            if (empty($industryList) && ! empty($u->business_type)) {
+                $industryList[] = trim((string) $u->business_type);
+            }
+            $industryDisplay = implode(', ', $industryList);
 
             return [
                 'id' => $u->id,
@@ -115,7 +215,7 @@ class UsersController extends Controller
                 'email' => $u->email ?? '',
                 'mobile' => $u->phone ?? '',
                 'company' => $companyName,
-                'industry' => $u->industry_tags ? (is_array($u->industry_tags) ? implode(', ', $u->industry_tags) : $u->industry_tags) : '',
+                'industry' => $industryDisplay,
                 'circle' => $circleName,
                 'city' => $cityName,
                 'country' => $u->country ?? $u->business_country ?? 'India',
@@ -123,28 +223,40 @@ class UsersController extends Controller
                 'membership' => $membershipLabel,
                 'status' => $statusObj,
                 'payment' => $paymentStatus,
-                'activity' => $u->activity_score ?? 80,
+                'activity' => $u->activity_score ?? ($isInactive30 ? 20 : 80),
                 'coins' => $u->coins_balance ?? 0,
-                'lastLogin' => $u->last_login_at ? $u->last_login_at->diffForHumans() : '—',
+                'lastLogin' => $u->last_login_at ? $u->last_login_at->format('d M Y') : 'Never',
+                'lastLoginRaw' => $u->last_login_at ? $u->last_login_at->format('Y-m-d') : null,
+                'daysSinceLastLogin' => $daysSinceLastLogin,
+                'daysSinceJoined' => $daysSinceJoined,
                 'referrals' => $u->members_introduced_count ?? 0,
                 'events' => 0,
                 'tickets' => 0,
                 'docs' => 0,
                 'color' => '#6366F1',
                 'joined' => $u->created_at ? $u->created_at->format('d M Y') : '—',
+                'joinedRaw' => $u->created_at ? $u->created_at->format('Y-m-d') : null,
                 'membership_starts_at' => $u->membership_starts_at ? $u->membership_starts_at->format('Y-m-d') : '',
                 'membership_ends_at' => $u->membership_ends_at ? $u->membership_ends_at->format('Y-m-d') : '',
                 'membership_expiry_date_remark' => $u->membership_expiry_date_remark ?? '',
-                'is_sponsored_member' => (bool) $u->is_sponsored_member,
-                'expiryDays' => $u->membership_ends_at ? (int) max(0, ceil(now()->diffInDays($u->membership_ends_at, false))) : 0,
+                'is_sponsored_member' => $isSponsored,
+                'expiryDays' => $expiryDays,
+                'isExpiring7' => $isExpiring7,
+                'isExpiring30' => $isExpiring30,
+                'isExpired' => $isExpired,
                 'lastPaymentDate' => $u->last_payment_at ? $u->last_payment_at->format('d M Y') : '—',
-                'lastPaymentAmt' => 0,
-                'renewalCount' => 0,
-                'pendingAmount' => 0,
+                'lastPaymentAmt' => $hasPaid ? 5000 : 0,
+                'renewalCount' => $u->renewal_count ?? ($hasPaid ? 1 : 0),
+                'pendingAmount' => $pendingAmount,
+                'isPaymentOverdue' => $isPaymentOverdue,
+                'isInactive30' => $isInactive30,
+                'isJoinedLast7' => $isJoinedLast7,
+                'isJoinedLast30' => $isJoinedLast30,
                 'lastEvent' => '—',
                 'memberType' => str_contains(strtolower($membershipStatus), 'unity') ? 'unity' : (str_contains(strtolower($membershipStatus), 'circle') ? 'circle_peer' : 'free'),
                 'isMultipleCircle' => $userCircles->count() > 1,
                 'lifeImpacted' => $u->life_impacted_count ?? 0,
+                'dob' => $u->dob ? $u->dob->format('Y-m-d') : null,
             ];
         });
 
@@ -192,6 +304,10 @@ class UsersController extends Controller
             }
         }
 
+        $upcomingEventsCount = Event::where('start_at', '>=', now())->count();
+        $nextUpcomingEvent = Event::where('start_at', '>=', now())->orderBy('start_at', 'asc')->first();
+        $nextUpcomingEventTitle = $nextUpcomingEvent?->title ?? '';
+
         return view('admin.users.index', [
             'users' => $users,
             'allUsersJson' => $allUsersJson,
@@ -205,6 +321,8 @@ class UsersController extends Controller
             'filters' => $filters,
             'canEditUsers' => $canEditUsers,
             'joinedCircleCategoryTreesByUserId' => $joinedCircleCategoryTreesByUserId,
+            'upcomingEventsCount' => $upcomingEventsCount,
+            'nextUpcomingEventTitle' => $nextUpcomingEventTitle,
         ]);
     }
 
@@ -2082,6 +2200,9 @@ class UsersController extends Controller
         if (Schema::hasColumn('users', 'approval_status')) {
             $userSelectColumns[] = 'approval_status';
         }
+        if (Schema::hasColumn('users', 'business_sub_category')) {
+            $userSelectColumns[] = 'business_sub_category';
+        }
 
         $query = User::withTrashed()
             ->select($userSelectColumns)
@@ -2104,7 +2225,7 @@ class UsersController extends Controller
                             }
                         })
                         ->orderByDesc('joined_at')
-                        ->with(['circle:id,name']);
+                        ->with(['circle:id,name', 'level1Category:id,name', 'level2Category:id,name', 'level3Category:id,name', 'level4Category:id,name']);
                 },
             ]);
 

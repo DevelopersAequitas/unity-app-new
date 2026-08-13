@@ -140,7 +140,7 @@
                         </tr>
                         <tr class="surface-2 border-b bs filter-row">
                             <th class="px-2 py-1 sticky left-0 z-10 surface-2" style="box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);">
-                                <select name="circle_name" class="px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" style="min-width: 150px;">
+                                <select name="circle_name" class="admin-filter-dropdown px-2 py-1 text-xs rounded border bs surface t1 w-full outline-none focus-ring" style="min-width: 150px;">
                                     <option value="">All Circles</option>
                                     @foreach ($circleNames as $circleName)
                                         <option value="{{ $circleName }}" @selected($filters['circle_name'] === $circleName)>{{ $circleName }}</option>

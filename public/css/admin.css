@@ -2160,117 +2160,332 @@ body {
 }
 
 /* ============================================================
+   ADMIN TABLE FILTER ROW CONTROLS (UNIFIED PREMIUM STYLING)
+   ============================================================ */
+
+.filter-row {
+    background-color: #f8fafc !important;
+}
+
+.filter-row th {
+    padding: 6px 8px !important;
+    vertical-align: middle !important;
+}
+
+/* All Filter Text Inputs */
+.filter-row input[type="text"],
+.filter-row input[type="search"],
+.filter-row input[type="number"],
+form.admin-filter-form input.form-control,
+form.admin-filter-form input[type="text"] {
+    height: 34px !important;
+    min-height: 34px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    padding: 0 10px !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.filter-row input:focus,
+form.admin-filter-form input:focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18) !important;
+}
+
+.filter-row input::placeholder,
+form.admin-filter-form input::placeholder {
+    color: #94a3b8 !important;
+    font-weight: 400 !important;
+}
+
+/* All Filter Native Selects (when not select2) */
+.filter-row select:not(.select2-hidden-accessible),
+form.admin-filter-form select:not(.select2-hidden-accessible) {
+    height: 34px !important;
+    min-height: 34px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    padding: 0 28px 0 10px !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    cursor: pointer !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+    background-size: 11px 11px !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.filter-row select:not(.select2-hidden-accessible):focus,
+form.admin-filter-form select:not(.select2-hidden-accessible):focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236366f1' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") !important;
+}
+
+/* Filter Clear Buttons in Actions column */
+.filter-row button,
+.filter-row .btn-clear-filters {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 14px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    border-radius: 6px !important;
+    border: 1px solid #cbd5e1 !important;
+    background-color: #f8fafc !important;
+    color: #475569 !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.15s ease-in-out !important;
+}
+
+.filter-row button:hover,
+.filter-row .btn-clear-filters:hover {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    border-color: #dc2626 !important;
+    box-shadow: 0 2px 5px rgba(239, 68, 68, 0.25) !important;
+}
+
+/* ============================================================
    ADMIN FILTER SELECT2 DROPDOWN REDESIGN
    ============================================================ */
 
-/* Closed State */
-.select2-container.admin-filter-dropdown-container {
-    height: 38px !important;
+/* Closed State Container */
+.select2-container.admin-filter-dropdown-container,
+.select2-container.admin-select-container,
+.select2-container--default {
+    height: 34px !important;
+    min-height: 34px !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
 }
 
-.admin-filter-dropdown-container .select2-selection--single {
-    height: 38px !important;
+.select2-container .select2-selection--single,
+.select2-container--default .select2-selection--single,
+.admin-filter-dropdown-container .select2-selection--single,
+.admin-select-container .select2-selection--single {
+    height: 34px !important;
+    min-height: 34px !important;
     background-color: #ffffff !important;
-    border: 1px solid #6366f1 !important; /* purple/blue border */
-    border-radius: 8px !important;
-    padding-left: 12px !important;
-    padding-right: 36px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    padding-left: 10px !important;
+    padding-right: 50px !important; /* Non-overlapping space for clear button + arrow */
     display: flex !important;
     align-items: center !important;
     position: relative !important;
-    transition: border-color var(--duration-fast) var(--ease-smooth), box-shadow var(--duration-fast) var(--ease-smooth) !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
 
+.select2-container.select2-container--focus .select2-selection--single,
+.select2-container.select2-container--open .select2-selection--single,
+.select2-container--default.select2-container--focus .select2-selection--single,
+.select2-container--default.select2-container--open .select2-selection--single,
 .admin-filter-dropdown-container.select2-container--focus .select2-selection--single,
 .admin-filter-dropdown-container.select2-container--open .select2-selection--single {
     border-color: #6366f1 !important;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important; /* Soft blue focus shadow */
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18) !important;
     outline: none !important;
 }
 
-.admin-filter-dropdown-container .select2-selection__rendered {
-    color: var(--text-primary) !important;
-    font-size: 0.875rem !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    line-height: normal !important;
+.select2-container .select2-selection--single .select2-selection__rendered,
+.admin-filter-dropdown-container .select2-selection__rendered,
+.admin-select-container .select2-selection__rendered {
+    color: #1e293b !important;
+    font-size: 11.5px !important;
+    font-weight: 500 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    line-height: 32px !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     text-align: left !important;
+    max-width: calc(100% - 48px) !important;
     width: 100% !important;
+    display: block !important;
 }
 
 /* Custom placeholder handling in rendered selection */
+.select2-container .select2-selection--single .select2-selection__placeholder,
 .admin-filter-dropdown-container .select2-selection__placeholder {
     color: #94a3b8 !important;
+    font-weight: 400 !important;
 }
 
-/* Hide default select2 arrow */
+/* Dropdown Arrow: Visible, aligned, and clickable */
+.select2-container .select2-selection--single .select2-selection__arrow,
+.select2-container--default .select2-selection--single .select2-selection__arrow,
 .admin-filter-dropdown-container .select2-selection__arrow {
-    display: none !important;
-}
-
-/* Use custom arrow in selection */
-.admin-filter-dropdown-container .select2-selection--single::after {
-    content: "\F229"; /* bi-chevron-down */
-    font-family: "bootstrap-icons" !important;
-    font-size: 0.75rem !important;
-    font-weight: 900 !important;
-    color: #6366f1 !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
     position: absolute !important;
-    right: 12px !important;
     top: 50% !important;
     transform: translateY(-50%) !important;
-    transition: transform var(--duration-normal) var(--ease-smooth) !important;
+    right: 6px !important;
+    width: 18px !important;
+    height: 18px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    z-index: 10 !important;
+}
+
+/* Hide default browser triangle inside arrow */
+.select2-container .select2-selection--single .select2-selection__arrow b,
+.select2-container--default .select2-selection--single .select2-selection__arrow b,
+.admin-filter-dropdown-container .select2-selection__arrow b {
+    display: none !important;
+    border: none !important;
+}
+
+/* Use custom clean SVG chevron inside .select2-selection__arrow */
+.select2-container .select2-selection--single .select2-selection__arrow::after,
+.select2-container--default .select2-selection--single .select2-selection__arrow::after,
+.admin-filter-dropdown-container .select2-selection__arrow::after {
+    content: "" !important;
+    display: block !important;
+    width: 12px !important;
+    height: 12px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: 11px 11px !important;
+    transition: transform 0.2s ease, filter 0.15s ease !important;
     pointer-events: none !important;
 }
 
 /* Point upward when open */
-.admin-filter-dropdown-container.select2-container--open .select2-selection--single::after {
-    content: "\F22C" !important; /* bi-chevron-up */
-    color: #4f46e5 !important;
+.select2-container.select2-container--open .select2-selection--single .select2-selection__arrow::after,
+.select2-container--default.select2-container--open .select2-selection--single .select2-selection__arrow::after,
+.admin-filter-dropdown-container.select2-container--open .select2-selection__arrow::after {
+    transform: rotate(180deg) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236366f1' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") !important;
+}
+
+/* Cancel / Clear button (x): Always visible when value selected, fixed position, zero-flicker */
+.select2-container .select2-selection--single .select2-selection__clear,
+.select2-container--default .select2-selection--single .select2-selection__clear,
+.select2-container--default.admin-filter-dropdown-container .select2-selection--single .select2-selection__clear,
+.select2-container.admin-filter-dropdown-container .select2-selection__clear,
+.admin-filter-dropdown-container .select2-selection__clear,
+.admin-select-container .select2-selection__clear {
+    position: absolute !important;
+    right: 26px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    min-height: 18px !important;
+    border-radius: 50% !important;
+    background-color: #e2e8f0 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #1e293b !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+    line-height: 16px !important;
+    text-align: center !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    float: none !important;
+    z-index: 50 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+    transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    pointer-events: auto !important;
+}
+
+.select2-container .select2-selection--single .select2-selection__clear span,
+.select2-container--default .select2-selection--single .select2-selection__clear span {
+    line-height: 1 !important;
+    display: inline-block !important;
+    margin-top: -1px !important;
+    pointer-events: none !important;
+}
+
+/* Hover state: Pure color transition, strictly no transforms or size shifts */
+.select2-container .select2-selection--single .select2-selection__clear:hover,
+.select2-container--default .select2-selection--single .select2-selection__clear:hover,
+.select2-container--default.admin-filter-dropdown-container .select2-selection--single .select2-selection__clear:hover,
+.select2-container.admin-filter-dropdown-container .select2-selection__clear:hover,
+.admin-filter-dropdown-container .select2-selection__clear:hover,
+.admin-select-container .select2-selection__clear:hover {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    border-color: #dc2626 !important;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35) !important;
 }
 
 /* Open State Dropdown Menu */
 .select2-container.admin-filter-dropdown-menu {
-    z-index: 9999 !important; /* Ensure it is not hidden behind modals, tables, or cards */
+    z-index: 9999 !important;
 }
 
 .admin-filter-dropdown-menu .select2-dropdown {
     background-color: #ffffff !important;
-    border: 1px solid #cbd5e1 !important; /* Light grey/blue border */
-    border-radius: 8px !important;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04) !important; /* Soft shadow */
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 14px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 8px -2px rgba(0, 0, 0, 0.06) !important;
     margin-top: 4px !important;
     overflow: hidden !important;
+    padding: 0 !important;
 }
 
 /* Search Box Inside Opened Dropdown */
 .admin-filter-dropdown-menu .select2-search--dropdown {
-    padding: 10px 12px !important;
-    background-color: #ffffff !important;
+    padding: 8px 10px !important;
+    background-color: #f8fafc !important;
+    border-bottom: 1px solid #f1f5f9 !important;
 }
 
 .admin-filter-dropdown-menu .select2-search__field {
-    border: 1px solid #6366f1 !important; /* Rounded purple/blue border */
-    border-radius: 8px !important;
-    padding: 8px 12px 8px 36px !important; /* Padding for search icon on left */
-    font-size: 0.875rem !important;
-    color: var(--text-primary) !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    padding: 6px 10px 6px 30px !important;
+    font-size: 11.5px !important;
+    color: #1e293b !important;
     background-color: #ffffff !important;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236366f1' class='bi bi-search' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E") !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%236366f1' class='bi bi-search' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E") !important;
     background-repeat: no-repeat !important;
-    background-position: left 12px center !important;
-    background-size: 14px 14px !important;
+    background-position: left 9px center !important;
+    background-size: 13px 13px !important;
     outline: none !important;
     box-shadow: none !important;
-    transition: border-color var(--duration-fast) var(--ease-smooth), box-shadow var(--duration-fast) var(--ease-smooth) !important;
+    transition: all 0.15s ease !important;
 }
 
 .admin-filter-dropdown-menu .select2-search__field:focus {
     border-color: #6366f1 !important;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important; /* Soft focus shadow */
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
     outline: none !important;
 }
 
@@ -2280,24 +2495,27 @@ body {
     display: none !important;
 }
 
-/* Dropdown Options */
+/* Dropdown Options List */
 .admin-filter-dropdown-menu .select2-results__options {
-    max-height: 240px !important;
-    padding: 4px 6px !important;
+    max-height: 220px !important;
+    padding: 4px !important;
     margin: 0 !important;
+    scrollbar-width: thin !important;
 }
 
 .admin-filter-dropdown-menu .select2-results__option {
-    padding: 8px 12px !important;
-    font-size: 0.875rem !important;
-    color: var(--text-secondary) !important;
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: #334155 !important;
     border-radius: 6px !important;
     margin-bottom: 2px !important;
-    line-height: normal !important;
+    line-height: 1.3 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    transition: background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth) !important;
+    cursor: pointer !important;
+    transition: all 0.12s ease !important;
 }
 
 .admin-filter-dropdown-menu .select2-results__option:last-child {
@@ -2306,49 +2524,31 @@ body {
 
 /* Selected option */
 .admin-filter-dropdown-menu .select2-results__option[aria-selected=true] {
-    background-color: #6366f1 !important; /* solid purple/blue */
+    background-color: #4f46e5 !important;
     color: #ffffff !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
 }
 
 /* Hovered / Highlighted option */
 .admin-filter-dropdown-menu .select2-results__option--highlighted[aria-selected] {
-    background-color: rgba(99, 102, 241, 0.08) !important; /* soft purple hover */
-    color: #6366f1 !important;
+    background-color: #f1f5f9 !important;
+    color: #4f46e5 !important;
+    font-weight: 500 !important;
 }
 
 .admin-filter-dropdown-menu .select2-results__option--highlighted[aria-selected=true] {
-    background-color: #4f46e5 !important; /* darker solid purple */
+    background-color: #4338ca !important;
     color: #ffffff !important;
 }
 
 /* Empty State / No Results message */
 .admin-filter-dropdown-menu .select2-results__message {
-    padding: 12px !important;
-    color: var(--text-muted) !important;
-    font-size: 0.875rem !important;
+    padding: 14px 10px !important;
+    color: #94a3b8 !important;
+    font-size: 12px !important;
     text-align: center !important;
     font-style: italic !important;
     background: transparent !important;
-}
-
-/* Allow clear button styling */
-.admin-filter-dropdown-container .select2-selection__clear {
-    color: #94a3b8 !important;
-    font-size: 1.1rem !important;
-    margin-right: 8px !important;
-    float: none !important;
-    order: -1 !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    line-height: 1 !important;
-    cursor: pointer !important;
-    transition: color var(--duration-fast) var(--ease-smooth) !important;
-}
-
-.admin-filter-dropdown-container .select2-selection__clear:hover {
-    color: var(--danger) !important;
 }
 
 /* ============================================================
@@ -2512,23 +2712,6 @@ body {
     text-align: center !important;
     font-style: italic !important;
     background: transparent !important;
-}
-
-.admin-select-container .select2-selection__clear {
-    color: #94a3b8 !important;
-    font-size: 1.1rem !important;
-    margin-right: 8px !important;
-    float: none !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    line-height: 1 !important;
-    cursor: pointer !important;
-    transition: color var(--duration-fast) var(--ease-smooth) !important;
-}
-
-.admin-select-container .select2-selection__clear:hover {
-    color: var(--danger) !important;
 }
 
 /* ============================================================

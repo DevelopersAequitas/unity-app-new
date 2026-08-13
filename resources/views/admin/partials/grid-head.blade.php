@@ -131,6 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var url = buildFetchUrl(form, page !== undefined ? page : 1);
         ajaxRefreshGridWithUrl(form, url);
     }
+    window.ajaxRefreshGrid = ajaxRefreshGrid;
 
     /* ── Fallback: normal form submission ── */
     function fallbackSubmit(form) {
@@ -151,6 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
             fallbackSubmit(form);
         }
     }
+    window.triggerFilterRefresh = triggerFilterRefresh;
 
     /* ── Bind pagination links ── */
     function onPaginationClick(e) {
@@ -179,6 +181,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (el.type === 'hidden' || el.type === 'submit' || el.type === 'button') return;
             if (el.tagName.toLowerCase() === 'select') {
                 el.selectedIndex = 0;
+                el.value = '';
+                if (window.jQuery) {
+                    try { window.jQuery(el).val('').trigger('change.select2'); } catch(err) {}
+                }
             } else if (el.type === 'checkbox' || el.type === 'radio') {
                 el.checked = false;
             } else {
@@ -187,9 +193,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         if (form.id) {
             document.querySelectorAll('[form="' + form.id + '"]').forEach(function(el) {
-                if (el.tagName.toLowerCase() === 'select') el.selectedIndex = 0;
-                else if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
-                else el.value = '';
+                if (el.tagName.toLowerCase() === 'select') {
+                    el.selectedIndex = 0;
+                    el.value = '';
+                    if (window.jQuery) {
+                        try { window.jQuery(el).val('').trigger('change.select2'); } catch(err) {}
+                    }
+                } else if (el.type === 'checkbox' || el.type === 'radio') {
+                    el.checked = false;
+                } else {
+                    el.value = '';
+                }
             });
         }
         ajaxRefreshGrid(form, 1);
@@ -263,6 +277,51 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.addEventListener('change', handleFilterInput, true);
     document.addEventListener('input',  handleFilterInput, true);
+
+    /* ── Prevent mousedown from opening Select2 when clicking cancel button ── */
+    document.addEventListener('mousedown', function(e) {
+        var clearBtn = e.target && e.target.closest ? e.target.closest('.select2-selection__clear') : null;
+        if (!clearBtn) return;
+        e.preventDefault();
+        e.stopPropagation();
+    }, true);
+
+    /* ── Global Select2 Cancel Button Click ── */
+    document.addEventListener('click', function(e) {
+        var clearBtn = e.target && e.target.closest ? e.target.closest('.select2-selection__clear') : null;
+        if (!clearBtn) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        var container = clearBtn.closest('.select2-container');
+        if (!container) return;
+
+        var select = container.previousElementSibling;
+        if (!select || select.tagName.toLowerCase() !== 'select') {
+            select = container.nextElementSibling;
+        }
+        if ((!select || select.tagName.toLowerCase() !== 'select') && window.jQuery) {
+            select = window.jQuery(container).prev('select')[0] || window.jQuery(container).next('select')[0];
+        }
+
+        if (select && select.tagName.toLowerCase() === 'select') {
+            select.selectedIndex = 0;
+            select.value = '';
+            if (window.jQuery) {
+                try {
+                    window.jQuery(select).val('').trigger('change');
+                    window.jQuery(select).select2('close');
+                } catch(err) {}
+            }
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+
+            var form = select.form || select.closest('form') || findFilterForm();
+            if (form) {
+                triggerFilterRefresh(form);
+            }
+        }
+    }, true);
 
     /* ── Intercept native form GET submissions ── */
     document.addEventListener('submit', function(e) {
