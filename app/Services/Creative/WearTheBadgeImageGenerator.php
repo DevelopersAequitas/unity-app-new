@@ -152,10 +152,10 @@ class WearTheBadgeImageGenerator
 
             if ($isTemplateLoaded) {
                 // Calibrated coordinates for 1122x1402 base template image (Screenshot 2)
-                $avatarSize = (int) ($width * 0.41); // ~460px
-                $avatarCenterY = (int) ($height * 0.492); // ~690px
+                $avatarSize = 410; // 410px diameter matching the template circle
+                $avatarCenterY = 575; // Centered exactly inside template ring
 
-                // 1. Draw User Avatar Photo or Initials inside circle frame
+                // 1. Draw User Avatar Photo or Initials inside template circle frame
                 $this->drawUserAvatar($canvas, $user, $centerX, $avatarCenterY, $avatarSize, $navyBlue, true);
 
                 // 2. Draw User Display Name
@@ -164,17 +164,23 @@ class WearTheBadgeImageGenerator
                     $name = 'Valued Peer Member';
                 }
 
-                $nameStartY = (int) ($avatarCenterY + ($avatarSize / 2) + 55);
+                $nameStartY = 855;
                 $this->drawWrappedCenteredText(
                     $canvas,
                     strtoupper($name),
-                    26,
+                    28,
                     $centerX,
                     $nameStartY,
-                    $darkSlate,
+                    $navyBlue,
                     $fontBold,
                     (int) ($width * 0.85)
                 );
+
+                // Draw subtle accent line divider below name
+                $lineColor = imagecolorallocate($canvas, 203, 213, 225); // #CBD5E1
+                imagesetthickness($canvas, 2);
+                imageline($canvas, $centerX - 100, 890, $centerX + 100, 890, $lineColor);
+                imagesetthickness($canvas, 1);
 
                 // 3. Draw Designation / Company Subtitle
                 $designation = trim((string) ($user->designation ?? ''));
@@ -184,15 +190,15 @@ class WearTheBadgeImageGenerator
                     $subtitle = 'Global Peer Community Member';
                 }
 
-                $subtitleStartY = $nameStartY + 45;
+                $subtitleStartY = 930;
                 $this->drawWrappedCenteredText(
                     $canvas,
                     $subtitle,
                     18,
                     $centerX,
                     $subtitleStartY,
-                    $subtleGray,
-                    $fontRegular,
+                    $navyBlue,
+                    $fontBold,
                     (int) ($width * 0.85)
                 );
             } else {
@@ -322,7 +328,7 @@ class WearTheBadgeImageGenerator
         $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? null;
 
         if ($profilePhotoId) {
-            $fileRecord = File::find($profilePhotoId);
+            $fileRecord = FileModel::find($profilePhotoId) ?? File::find($profilePhotoId);
             if ($fileRecord && $fileRecord->s3_key) {
                 $disk = config('filesystems.default', 'public');
                 if (Storage::disk($disk)->exists($fileRecord->s3_key)) {
@@ -334,16 +340,31 @@ class WearTheBadgeImageGenerator
         }
 
         if (! $avatarSource && $user->profile_photo_url) {
-            if (filter_var($user->profile_photo_url, FILTER_VALIDATE_URL)) {
-                try {
-                    $response = Http::timeout(5)->get($user->profile_photo_url);
-                    if ($response->successful()) {
-                        $tempFilePath = tempnam(sys_get_temp_dir(), 'avatar_wb_');
-                        file_put_contents($tempFilePath, $response->body());
-                        $avatarSource = $tempFilePath;
+            $photoUrl = (string) $user->profile_photo_url;
+            if (Storage::disk('public')->exists($photoUrl)) {
+                $avatarSource = Storage::disk('public')->path($photoUrl);
+            } elseif (str_starts_with($photoUrl, 'storage/')) {
+                $relativePath = substr($photoUrl, 8);
+                if (Storage::disk('public')->exists($relativePath)) {
+                    $avatarSource = Storage::disk('public')->path($relativePath);
+                }
+            }
+
+            if (! $avatarSource) {
+                if (str_starts_with($photoUrl, '/')) {
+                    $photoUrl = url($photoUrl);
+                }
+                if (filter_var($photoUrl, FILTER_VALIDATE_URL)) {
+                    try {
+                        $response = Http::withoutVerifying()->timeout(5)->get($photoUrl);
+                        if ($response->successful()) {
+                            $tempFilePath = tempnam(sys_get_temp_dir(), 'avatar_wb_');
+                            file_put_contents($tempFilePath, $response->body());
+                            $avatarSource = $tempFilePath;
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('WearTheBadgeImageGenerator: Could not download remote avatar: '.$e->getMessage());
                     }
-                } catch (\Throwable $e) {
-                    Log::warning('WearTheBadgeImageGenerator: Could not download remote avatar: '.$e->getMessage());
                 }
             }
         }
