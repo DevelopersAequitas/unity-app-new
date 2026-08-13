@@ -153,6 +153,7 @@
             ['label' => 'Circle Joining Requests', 'route' => 'admin.circle-joining-requests.index'],
             ['label' => 'Certifications', 'route' => 'admin.certifications.index'],
             ['label' => 'Pending Impacts', 'route' => 'admin.impacts.pending'],
+            ['label' => 'Ad Booking Requests', 'route' => 'admin.ad-bookings.index'],
             ['label' => 'Account Deletion Requests', 'route' => 'admin.account-deletion.index'],
             ['label' => 'Account Deletion Emails', 'route' => 'admin.account-deletion.emails'],
             ['label' => 'Introduction Requests', 'route' => 'admin.introduction-requests.index'],
@@ -179,6 +180,7 @@
         request()->routeIs('admin.circle-joining-requests.*') ||
         request()->routeIs('admin.certifications.*') ||
         request()->routeIs('admin.impacts.pending') ||
+        request()->routeIs('admin.ad-bookings.*') ||
         request()->routeIs('admin.account-deletion.*') ||
         request()->routeIs('admin.introduction-requests.*');
 
@@ -249,10 +251,11 @@
     ];
     $hasBrandPartnersRole = $isGlobalAdmin || ($adminUser?->roles?->pluck('key')->intersect(['global_admin', 'global_founder', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false);
 
-    $adsActive = request()->routeIs('admin.ads.*');
+    $adsActive = request()->routeIs('admin.ads.*') || request()->routeIs('admin.ad-bookings.*');
     $adsMenu = [
         ['label' => 'Dashboard', 'route' => 'admin.ads.dashboard'],
         ['label' => 'All Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.index', 'admin.ads.create', 'admin.ads.edit', 'admin.ads.show']],
+        ['label' => 'Pending Requests', 'route' => 'admin.ad-bookings.index', 'active_routes' => ['admin.ad-bookings.*']],
         ['label' => 'Analytics', 'route' => 'admin.ads.analytics'],
     ];
     $hasAdsRole = $adminUser?->roles?->pluck('key')->intersect(['global_admin', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false;

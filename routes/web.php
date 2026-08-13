@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\ActivitiesTestimonialsController;
 use App\Http\Controllers\Admin\ActivitiesVisitorRegistrationController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\AdAnalyticsController;
+use App\Http\Controllers\Admin\AdBookingAdminWebController;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\AdminCampaignController;
 use App\Http\Controllers\Admin\AdminExecutionController;
@@ -472,6 +473,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/ads/{ad}/toggle-status', [AdController::class, 'toggleStatus'])->name('ads.toggle-status');
         Route::delete('/ads/{ad}', [AdController::class, 'destroy'])->name('ads.destroy');
         Route::get('/ads/{ad}', [AdController::class, 'show'])->name('ads.show');
+        Route::get('/ad-bookings', [AdBookingAdminWebController::class, 'index'])->name('ad-bookings.index');
+        Route::get('/ad-bookings/{adBooking}', [AdBookingAdminWebController::class, 'show'])->whereUuid('adBooking')->name('ad-bookings.show');
+        Route::post('/ad-bookings/{adBooking}/review', [AdBookingAdminWebController::class, 'review'])->whereUuid('adBooking')->name('ad-bookings.review');
         Route::get('/posts', [PostModerationController::class, 'index'])->name('posts.index');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
         Route::post('/posts/impacts/{impact}/deactivate', [PostModerationController::class, 'deactivateImpact'])->whereUuid('impact')->name('posts.impacts.deactivate');

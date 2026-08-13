@@ -49,7 +49,9 @@ use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\TestimonialController;
 use App\Http\Controllers\Api\UserContactController;
 use App\Http\Controllers\Api\UserContactsController;
+use App\Http\Controllers\Api\V1\AdBookingController;
 use App\Http\Controllers\Api\V1\AdController;
+use App\Http\Controllers\Api\V1\Admin\AdBookingAdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventNotificationStatusController;
 use App\Http\Controllers\Api\V1\Admin\AdminEventSendNotificationsController;
@@ -842,6 +844,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/events/{event}/send-notifications', [AdminEventSendNotificationsController::class, 'send'])->whereUuid('event');
             // Re-dispatch the notification job (use this when queue worker IS running)
             Route::post('/events/{event}/dispatch-notification-job', [AdminEventSendNotificationsController::class, 'dispatch'])->whereUuid('event');
+
+            // Ad Bookings (admin)
+            Route::get('/ad-bookings', [AdBookingAdminController::class, 'index']);
+            Route::get('/ad-bookings/{id}', [AdBookingAdminController::class, 'show'])->whereUuid('id');
+            Route::post('/ad-bookings/{id}/review', [AdBookingAdminController::class, 'review'])->whereUuid('id');
         });
 
         // Circle Chat
@@ -866,6 +873,11 @@ Route::prefix('v1')->group(function () {
         Route::post('/ads/{id}/view', [AdController::class, 'view'])->whereUuid('id');
         Route::post('/ads/{id}/click', [AdController::class, 'click'])->whereUuid('id');
         Route::get('/ads/{id}', [AdController::class, 'show']);
+
+        // Ad Bookings (user-facing)
+        Route::post('/ad-bookings', [AdBookingController::class, 'store']);
+        Route::get('/ad-bookings', [AdBookingController::class, 'myBookings']);
+        Route::get('/ad-bookings/{id}', [AdBookingController::class, 'show'])->whereUuid('id');
         Route::get('/posts/saved', [PostSaveController::class, 'index']);
         Route::post('/posts', [PostController::class, 'store']);
         Route::get('/posts/{id}', [PostController::class, 'show']);
