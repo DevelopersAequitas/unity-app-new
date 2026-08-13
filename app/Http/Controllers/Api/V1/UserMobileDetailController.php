@@ -38,7 +38,7 @@ class UserMobileDetailController extends BaseApiController
 
         foreach ($oldDevices as $oldDevice) {
             if ($oldDevice->token_id) {
-                $user->tokens()->where('id', $oldDevice->token_id)->delete();
+                $user->tokens()->where('id', (int) $oldDevice->token_id)->delete();
             }
             $oldDevice->delete();
         }
@@ -49,7 +49,7 @@ class UserMobileDetailController extends BaseApiController
             ->first();
 
         if ($existingSameDevice && $existingSameDevice->token_id && $existingSameDevice->token_id !== $tokenId) {
-            $user->tokens()->where('id', $existingSameDevice->token_id)->delete();
+            $user->tokens()->where('id', (int) $existingSameDevice->token_id)->delete();
         }
 
         // 3. Register or update the current device
@@ -88,7 +88,7 @@ class UserMobileDetailController extends BaseApiController
 
         if ($device) {
             if ($device->token_id) {
-                $user->tokens()->where('id', $device->token_id)->delete();
+                $user->tokens()->where('id', (int) $device->token_id)->delete();
             }
             $device->delete();
 
