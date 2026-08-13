@@ -152,9 +152,9 @@ class WearTheBadgeImageGenerator
             $centerX = (int) ($width / 2);
 
             if ($isTemplateLoaded) {
-                // Calibrated coordinates for 1122x1402 base template image (Screenshot 2)
-                $avatarSize = 410; // 410px diameter matching the template circle
-                $avatarCenterY = 575; // Centered exactly inside template ring
+                // Exact visual coordinates for 1122x1402 base template image (matching Screenshot 2)
+                $avatarSize = 480; // 480px diameter fits inside the template gradient circle ring
+                $avatarCenterY = 635; // Centered exactly inside template ring (y=395 to y=875)
 
                 // 1. Draw User Avatar Photo or Initials inside template circle frame
                 $this->drawUserAvatar($canvas, $user, $centerX, $avatarCenterY, $avatarSize, $navyBlue, true);
@@ -162,14 +162,14 @@ class WearTheBadgeImageGenerator
                 // 2. Draw User Display Name
                 $name = trim($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')));
                 if ($name === '') {
-                    $name = 'Valued Peer Member';
+                    $name = 'Valued Peer';
                 }
 
-                $nameStartY = 855;
+                $nameStartY = 1000;
                 $this->drawWrappedCenteredText(
                     $canvas,
                     strtoupper($name),
-                    28,
+                    30,
                     $centerX,
                     $nameStartY,
                     $navyBlue,
@@ -180,15 +180,15 @@ class WearTheBadgeImageGenerator
                 // Draw subtle accent line divider below name
                 $lineColor = imagecolorallocate($canvas, 203, 213, 225); // #CBD5E1
                 imagesetthickness($canvas, 2);
-                imageline($canvas, $centerX - 100, 890, $centerX + 100, 890, $lineColor);
+                imageline($canvas, $centerX - 120, 1050, $centerX + 120, 1050, $lineColor);
                 imagesetthickness($canvas, 1);
 
                 // 3. Draw Membership Label ("Peers") in its exact separate position
-                $peersStartY = 925;
+                $peersStartY = 1085;
                 $this->drawWrappedCenteredText(
                     $canvas,
                     'Peers',
-                    20,
+                    22,
                     $centerX,
                     $peersStartY,
                     $navyBlue,
@@ -199,15 +199,15 @@ class WearTheBadgeImageGenerator
                 // 4. Draw Circle Name (e.g. "Jurassic Park") in its separate position below Peers
                 $circleName = $this->resolveCircleName($user);
                 if ($circleName !== '') {
-                    $circleNameStartY = 965;
+                    $circleNameStartY = 1130;
                     $this->drawWrappedCenteredText(
                         $canvas,
                         $circleName,
-                        16,
+                        18,
                         $centerX,
                         $circleNameStartY,
                         $darkSlate,
-                        $fontRegular,
+                        $fontBold,
                         (int) ($width * 0.85)
                     );
                 }
@@ -335,7 +335,7 @@ class WearTheBadgeImageGenerator
     {
         $avatarSource = null;
         $tempFilePath = null;
-        $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? null;
+        $profilePhotoId = $user->profile_photo_file_id ?? $user->profile_photo_id ?? $user->avatar_file_id ?? null;
 
         if ($profilePhotoId) {
             $fileRecord = FileModel::find($profilePhotoId) ?? File::find($profilePhotoId);
@@ -346,6 +346,18 @@ class WearTheBadgeImageGenerator
                 } elseif (Storage::disk('public')->exists($fileRecord->s3_key)) {
                     $avatarSource = Storage::disk('public')->path($fileRecord->s3_key);
                 }
+            }
+        }
+
+        if (! $avatarSource && ! empty($user->profile_photo_path)) {
+            if (Storage::disk('public')->exists($user->profile_photo_path)) {
+                $avatarSource = Storage::disk('public')->path($user->profile_photo_path);
+            }
+        }
+
+        if (! $avatarSource && ! empty($user->avatar)) {
+            if (Storage::disk('public')->exists($user->avatar)) {
+                $avatarSource = Storage::disk('public')->path($user->avatar);
             }
         }
 
@@ -386,6 +398,9 @@ class WearTheBadgeImageGenerator
                 $avatarImg = @imagecreatefrompng($avatarSource);
                 if (! $avatarImg) {
                     $avatarImg = @imagecreatefromjpeg($avatarSource);
+                }
+                if (! $avatarImg) {
+                    $avatarImg = @imagecreatefromwebp($avatarSource);
                 }
                 if (! $avatarImg) {
                     $avatarData = file_get_contents($avatarSource);
