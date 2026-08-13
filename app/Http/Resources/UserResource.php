@@ -59,6 +59,8 @@ class UserResource extends JsonResource
         }
         $otherCategoryName = $otherCategoryReq?->category_name ?? $this->business_sub_category ?? null;
 
+        $welcomeCreativeUrl = $this->resolveWelcomeCreativeUrl();
+
         return [
             'id' => $this->id,
             'peer_id' => $this->peer_id,
@@ -164,8 +166,8 @@ class UserResource extends JsonResource
             'media' => $this->mediaValue(),
             'profile_photo_url' => $profilePhotoUrl,
             'cover_photo_url' => $coverPhotoUrl,
-            'welcome_creative_url' => $this->welcome_creative_url ?? $this->profile_card_image_url,
-            'profile_card_image_url' => $this->profile_card_image_url ?? $this->welcome_creative_url,
+            'welcome_creative_url' => $welcomeCreativeUrl,
+            'profile_card_image_url' => $welcomeCreativeUrl,
             'address' => $this->address ?? null,
             'state' => $this->state ?? null,
             'country' => $this->country ?? null,

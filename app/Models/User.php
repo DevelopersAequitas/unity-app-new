@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -475,6 +476,26 @@ class User extends Authenticatable
         $this->membership_expiry = $targetExpiry;
 
         return true;
+    }
+
+    /**
+     * Resolve the welcome creative URL for this user.
+     * If NULL in database, automatically generate the creative image, save it to storage and SQL, and return the URL.
+     */
+    public function resolveWelcomeCreativeUrl(bool $forceRegenerate = false): string
+    {
+        $existing = $this->getAttribute('welcome_creative_url') ?? $this->getAttribute('profile_card_image_url');
+        if (! $forceRegenerate && filled($existing)) {
+            return (string) $existing;
+        }
+
+        try {
+            return app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($this, $forceRegenerate);
+        } catch (Throwable $e) {
+            Log::warning("User {$this->id}: Could not automatically generate welcome creative URL on demand: {$e->getMessage()}");
+
+            return (string) ($existing ?? '');
+        }
     }
 
     public function membershipDatesMatch(): bool
