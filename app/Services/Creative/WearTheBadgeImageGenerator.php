@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Media\FileUploadService;
 use App\Traits\HasCreativeRendering;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -36,10 +37,21 @@ class WearTheBadgeImageGenerator
         $fileModel = $this->generate($user);
         $imageUrl = url('/api/v1/files/'.$fileModel->id);
 
-        $user->forceFill([
-            'welcome_creative_url' => $imageUrl,
-            'profile_card_image_url' => $imageUrl,
-        ])->saveQuietly();
+        try {
+            $user->forceFill([
+                'welcome_creative_url' => $imageUrl,
+                'profile_card_image_url' => $imageUrl,
+            ])->saveQuietly();
+        } catch (\Throwable $e) {
+            try {
+                DB::table('users')->where('id', (string) $user->id)->update([
+                    'welcome_creative_url' => $imageUrl,
+                    'profile_card_image_url' => $imageUrl,
+                ]);
+            } catch (\Throwable $ex) {
+                Log::error("WearTheBadgeImageGenerator: Could not persist creative URL to DB for user {$user->id}: {$ex->getMessage()}");
+            }
+        }
 
         Log::info("WearTheBadgeImageGenerator: Automatically stored welcome creative URL in SQL for user {$user->id}", [
             'welcome_creative_url' => $imageUrl,

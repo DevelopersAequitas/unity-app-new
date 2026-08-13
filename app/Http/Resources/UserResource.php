@@ -164,6 +164,8 @@ class UserResource extends JsonResource
             'media' => $this->mediaValue(),
             'profile_photo_url' => $profilePhotoUrl,
             'cover_photo_url' => $coverPhotoUrl,
+            'welcome_creative_url' => $this->welcome_creative_url ?? $this->profile_card_image_url,
+            'profile_card_image_url' => $this->profile_card_image_url ?? $this->welcome_creative_url,
             'address' => $this->address ?? null,
             'state' => $this->state ?? null,
             'country' => $this->country ?? null,
