@@ -85,7 +85,8 @@ class CoinMilestoneController extends Controller
             'success' => true,
             'message' => 'Latest coin milestone and progress fetched successfully',
             'data' => [
-                'current_coins_balance' => $currentCoins,
+                'total_life_impacted' => (int) ($user->life_impacted_count ?? 0),
+                'life_impacted_count' => (int) ($user->life_impacted_count ?? 0),
                 'current_milestone' => $currentMilestoneData,
                 'next_milestone' => $nextMilestoneResponse,
                 'badges' => $dynamicBadges,
