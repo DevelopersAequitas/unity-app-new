@@ -240,6 +240,43 @@ class Circle extends Model
         return is_string($value) && trim($value) !== '' ? trim($value) : null;
     }
 
+    public function getMeetingLinkAttribute(): ?string
+    {
+        $value = $this->calendarGet('settings.meeting_link');
+
+        if (is_string($value) && trim($value) !== '') {
+            return trim($value);
+        }
+
+        return $this->zoho_join_url ?? null;
+    }
+
+    public function getMeetingPasscodeAttribute(): ?string
+    {
+        $value = $this->calendarGet('settings.meeting_passcode');
+
+        if (is_string($value) && trim($value) !== '') {
+            return trim($value);
+        }
+
+        return $this->zoho_meeting_password ?? null;
+    }
+
+    public function getMeetingVenueAttribute(): ?string
+    {
+        $value = $this->calendarGet('settings.meeting_venue')
+            ?? $this->calendarGet('settings.meeting_address');
+
+        return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    public function getMeetingLandmarkAttribute(): ?string
+    {
+        $value = $this->calendarGet('settings.meeting_landmark');
+
+        return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
     public function getLaunchDateAttribute($value): ?string
     {
         if ($value) {
