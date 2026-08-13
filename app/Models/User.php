@@ -121,6 +121,8 @@ class User extends Authenticatable
         'contribution_award_name',
         'contribution_award_recognition',
         'profile_photo_url',
+        'welcome_creative_url',
+        'profile_card_image_url',
         'short_bio',
         'long_bio_html',
         'industry_tags',
