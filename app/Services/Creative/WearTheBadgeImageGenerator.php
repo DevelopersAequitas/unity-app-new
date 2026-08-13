@@ -39,7 +39,7 @@ class WearTheBadgeImageGenerator
         $user->forceFill([
             'welcome_creative_url' => $imageUrl,
             'profile_card_image_url' => $imageUrl,
-        ])->save();
+        ])->saveQuietly();
 
         Log::info("WearTheBadgeImageGenerator: Automatically stored welcome creative URL in SQL for user {$user->id}", [
             'welcome_creative_url' => $imageUrl,

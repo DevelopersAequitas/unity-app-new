@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Admin\DistrictSyncService;
+use App\Services\Creative\WearTheBadgeImageGenerator;
 use App\Services\MilestoneBadgeService;
 use App\Support\CoinMilestoneResolver;
 use App\Support\ContributionMilestoneResolver;
@@ -391,6 +392,14 @@ class User extends Authenticatable
                         $user->peer_id = 'PG3182736'.($maxNum + 1);
                     }
                 }
+            }
+        });
+
+        static::created(function (self $user): void {
+            try {
+                app(WearTheBadgeImageGenerator::class)->generateOrGetUrl($user);
+            } catch (Throwable) {
+                // Safeguard: User creation completes safely even if image generation encounters an error
             }
         });
 
