@@ -92,8 +92,6 @@ class CoinMilestoneTest extends TestCase
                     'total_life_impacted' => 15,
                     'life_impacted_count' => 15,
                     'current_milestone' => [
-                        'medal_rank' => 'Silver',
-                        'title' => 'Network Builder',
                         'threshold' => 200000,
                     ],
                 ],

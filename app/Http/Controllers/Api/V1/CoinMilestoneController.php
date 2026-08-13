@@ -39,8 +39,6 @@ class CoinMilestoneController extends Controller
             foreach ($milestones as $milestone) {
                 if ($currentCoins >= (int) $milestone['threshold']) {
                     $currentMilestoneData = [
-                        'medal_rank' => $milestone['medal_rank'],
-                        'title' => $milestone['title'],
                         'meaning' => $milestone['meaning'],
                         'threshold' => (int) $milestone['threshold'],
                     ];
